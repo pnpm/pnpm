@@ -218,54 +218,79 @@ fn project_stats<'a>(
     stats
 }
 
-/// A project whose importer entry records a `file:` dependency on an unproven
-/// workspace project is itself unproven: only the consumer's satisfaction
-/// check compares the injected project's manifest with its `file:` snapshot.
+/// A project whose importer entry records a `file:` or `link:` dependency on
+/// an unproven workspace project is itself unproven: only the consumer's
+/// satisfaction check compares the target project's manifest with its
+/// `file:` snapshot or `workspace:` link range.
 fn mark_importers_of_unproven_directory_deps(
     check: &OptimisticRepeatInstallCheck<'_>,
     current: &CurrentLockfile<'_>,
     stats: &mut [ManifestStat<'_>],
 ) {
-    let unproven_dirs: Vec<PathBuf> = stats
+    let has_unproven = stats
         .iter()
-        .filter(|stat| stat.status != ProjectStatus::Proven)
-        .map(|stat| pnpm_fs::lexical_normalize(stat.root_dir))
-        .collect();
-    if unproven_dirs.is_empty()
-        || !stats
-            .iter()
-            .any(|stat| stat.status == ProjectStatus::Proven)
-    {
+        .any(|stat| stat.status != ProjectStatus::Proven);
+    let has_proven = stats
+        .iter()
+        .any(|stat| stat.status == ProjectStatus::Proven);
+    if !has_unproven || !has_proven {
         return;
     }
-    let lockfile = match check.lockfile.get() {
-        Ok(Some(wanted)) => wanted,
-        Ok(None) => match current.get() {
-            Some(Some(current)) => current,
-            _ => return,
-        },
-        Err(_) => return,
+    let Some(lockfile) = lockfile_for_unproven_propagation(check, current) else {
+        return;
     };
+    while propagate_unproven_directory_deps_pass(check.workspace_root, lockfile, stats) {}
+}
+
+fn lockfile_for_unproven_propagation<'a>(
+    check: &'a OptimisticRepeatInstallCheck<'a>,
+    current: &'a CurrentLockfile<'a>,
+) -> Option<&'a pnpm_lockfile::Lockfile> {
+    match check.lockfile.get().ok()? {
+        Some(wanted) => Some(wanted),
+        None => current.get()?,
+    }
+}
+
+fn propagate_unproven_directory_deps_pass(
+    workspace_root: &Path,
+    lockfile: &pnpm_lockfile::Lockfile,
+    stats: &mut [ManifestStat<'_>],
+) -> bool {
+    let unproven: Vec<(PathBuf, &serde_json::Value)> = stats
+        .iter()
+        .filter(|stat| stat.status != ProjectStatus::Proven)
+        .map(|stat| (pnpm_fs::lexical_normalize(stat.root_dir), stat.manifest.value()))
+        .collect();
+    let mut marked_any = false;
     for stat in stats
         .iter_mut()
         .filter(|stat| stat.status == ProjectStatus::Proven)
     {
-        let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
-        if lockfile.importers
+        let importer_id = importer_id_from_root_dir(workspace_root, stat.root_dir);
+        let depends_on_unproven = lockfile.importers
             .get(&importer_id)
             .is_some_and(|importer| {
-                importer_injects_any(check.workspace_root, importer, &unproven_dirs)
-            })
-        {
+                importer_depends_on_unproven_project(
+                    workspace_root,
+                    stat.root_dir,
+                    importer,
+                    &unproven,
+                )
+            });
+        if depends_on_unproven {
             stat.status = ProjectStatus::ManifestChanged;
+            marked_any = true;
         }
     }
+    marked_any
 }
 
-fn importer_injects_any(
+fn importer_depends_on_unproven_project(
     workspace_root: &Path,
+    importer_root_dir: &Path,
     importer: &pnpm_lockfile::ProjectSnapshot,
-    unproven_dirs: &[PathBuf],
+    unproven: &[(PathBuf, &serde_json::Value)],
 ) -> bool {
     [
         importer.dependencies.as_ref(),
@@ -275,16 +300,37 @@ fn importer_injects_any(
     .into_iter()
     .flatten()
     .flat_map(|deps| deps.values())
-    .filter_map(|spec| match spec.version.ver_peer()?.version() {
-        pnpm_lockfile::VersionPart::File(dir) => {
-            Some(pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
+    .filter_map(|spec| match &spec.version {
+        pnpm_lockfile::ImporterDepVersion::Link(dir) => {
+            Some(pnpm_fs::lexical_normalize(&importer_root_dir.join(dir)))
         }
-        _ => None,
+        pnpm_lockfile::ImporterDepVersion::File(payload) => {
+            let ver = format!("file:{payload}").parse::<pnpm_lockfile::PkgVerPeer>().ok()?;
+            match ver.version() {
+                pnpm_lockfile::VersionPart::File(dir) => {
+                    Some(pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
+                }
+                _ => None,
+            }
+        }
+        other => match other.ver_peer()?.version() {
+            pnpm_lockfile::VersionPart::File(dir) => {
+                Some(pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
+            }
+            _ => None,
+        },
     })
     .any(|dep_dir| {
-        unproven_dirs
+        unproven
             .iter()
-            .any(|unproven| dep_dir.starts_with(unproven))
+            .any(|(unproven_dir, unproven_manifest)| {
+                dep_dir == *unproven_dir
+                    || pnpm_package_manifest::publishes_from_directory(
+                        unproven_dir,
+                        unproven_manifest,
+                        &dep_dir,
+                    )
+            })
     })
 }
 
@@ -316,3 +362,6 @@ fn reached_importers(
     reached.extend(selected_ids);
     Some(reached)
 }
+
+#[cfg(test)]
+mod tests;

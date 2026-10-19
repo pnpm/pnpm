@@ -276,7 +276,6 @@ pub(crate) fn prune_stale_hoisted_direct_links(
     modules_dir_name: &OsStr,
     wanted_lockfile: &Lockfile,
     current_lockfile: &Lockfile,
-    included_groups: &[DependencyGroup],
 ) -> Result<(), PruneDirectDepsError> {
     for (importer_id, current_snapshot) in &current_lockfile.importers {
         let Some(wanted_snapshot) = wanted_lockfile.importers.get(importer_id) else {
@@ -291,7 +290,7 @@ pub(crate) fn prune_stale_hoisted_direct_links(
         else {
             continue;
         };
-        let wanted_specs = direct_deps_of(wanted_snapshot, included_groups);
+        let wanted_specs = direct_deps_of(wanted_snapshot, &RECORDED_GROUPS);
         for (alias, current_spec, _) in direct_deps_of(current_snapshot, &RECORDED_GROUPS) {
             if is_still_wanted(alias, current_spec, &wanted_specs) {
                 continue;

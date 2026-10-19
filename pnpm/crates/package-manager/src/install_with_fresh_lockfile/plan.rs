@@ -38,17 +38,29 @@ impl MaterializationScope {
             install.included(),
             install.drivers.config.peer_edge_options(),
         );
-        let closure = importer_ids
-            .as_ref()
-            .map(|importer_ids| {
-                crate::materialization_closure(
-                    built,
-                    install.projects.lockfile_dir,
-                    importer_ids,
-                    &groups,
-                    &SkippedSnapshots::new(),
-                )
-            });
+        let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
+        let empty_skipped = SkippedSnapshots::new();
+        let closure = match install.projects.selected_ids {
+            Some(selected) => Some(crate::selected_materialization_closure(
+                built,
+                install.projects.lockfile_dir,
+                selected,
+                hoisted_prior,
+                &groups,
+                &empty_skipped,
+            )),
+            None => importer_ids
+                .as_ref()
+                .map(|importer_ids| {
+                    crate::materialization_closure(
+                        built,
+                        install.projects.lockfile_dir,
+                        importer_ids,
+                        &groups,
+                        &empty_skipped,
+                    )
+                }),
+        };
         MaterializationScope { importer_ids, closure, groups }
     }
 
@@ -63,17 +75,28 @@ impl MaterializationScope {
         built: &Lockfile,
         skipped: &SkippedSnapshots,
     ) -> FinalScope {
-        let closure = self.importer_ids
-            .as_ref()
-            .map(|importer_ids| {
-                crate::materialization_closure(
-                    built,
-                    install.projects.lockfile_dir,
-                    importer_ids,
-                    &self.groups,
-                    skipped,
-                )
-            });
+        let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
+        let closure = match install.projects.selected_ids {
+            Some(selected) => Some(crate::selected_materialization_closure(
+                built,
+                install.projects.lockfile_dir,
+                selected,
+                hoisted_prior,
+                &self.groups,
+                skipped,
+            )),
+            None => self.importer_ids
+                .as_ref()
+                .map(|importer_ids| {
+                    crate::materialization_closure(
+                        built,
+                        install.projects.lockfile_dir,
+                        importer_ids,
+                        &self.groups,
+                        skipped,
+                    )
+                }),
+        };
         let materialized: HashSet<String> = closure
             .as_ref()
             .map_or_else(
@@ -252,18 +275,21 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     scope: PlanScope<'_>,
 ) -> Result<SkippedSnapshots, InstallWithFreshLockfileError> {
     let closure_importer_ids: std::collections::HashSet<String> = lockfiles
-        .built
+        .initial
         .importers
         .keys()
         .cloned()
         .collect();
+    let all_groups = crate::GroupSelection::all();
+    let closure_groups =
+        if install.projects.selected_ids.is_some() { &all_groups } else { scope.groups };
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
             closure: pnpm_deps_restorer::SkipSetClosure {
-                lockfile: lockfiles.built,
+                lockfile: lockfiles.initial,
                 root: install.projects.lockfile_dir,
                 importer_ids: &closure_importer_ids,
-                groups: scope.groups,
+                groups: closure_groups,
             },
             entries: pnpm_lockfile::LockfileEntries {
                 snapshots: lockfiles.initial.snapshots.as_ref(),
@@ -276,12 +302,14 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
             // The fresh path has just re-resolved the graph, so the
             // previous run's verdicts may no longer hold.
             seed: SkippedSnapshots::new(),
-            // Only a full install's `dependency_groups` carries a
-            // `--no-optional` intent: a partial run either passes
-            // every direct group (`add`, `remove`, `update`) or
-            // narrows them for its own reasons (`fetch --dev`,
-            // `rebuild`) and must keep its transitive optionals.
-            exclude_optional: !scope.include_transitive_optional_dependencies,
+            // Only an unfiltered full install's `dependency_groups` needs
+            // `compute_skip_set` to drop `optional: true` snapshots: a
+            // partial run keeps transitive optionals, and a `--filter`
+            // install's `lockfiles.initial` has already stripped optional
+            // dependencies from the selected importers while retaining
+            // prior optional dependencies on unselected hoisted projects.
+            exclude_optional: install.projects.selected_ids.is_none()
+                && !scope.include_transitive_optional_dependencies,
             skip_runtimes: install.execution.skip_runtimes,
         },
     )
@@ -338,14 +366,12 @@ fn closure_importer_ids(
     let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
     materialization_importer_ids(install.projects.selected_ids, hoisted_prior, built)
         .or_else(|| {
-            install
-                .resolve_widened_groups()
-                .then(|| {
-                    built.importers
-                        .keys()
-                        .cloned()
-                        .collect()
-                })
+            (install.resolve_widened_groups() || install.included().excludes_a_group()).then(|| {
+                built.importers
+                    .keys()
+                    .cloned()
+                    .collect()
+            })
         })
 }
 /// The importers a selected install materializes. See

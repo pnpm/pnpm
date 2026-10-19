@@ -42,7 +42,6 @@ use pnpm_lockfile::{
 };
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_matcher::create_matcher;
-use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,

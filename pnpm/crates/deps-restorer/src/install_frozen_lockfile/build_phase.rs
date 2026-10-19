@@ -323,7 +323,9 @@ fn build_modules<'a>(
             patches,
             requires_build_by_snapshot: Some(inputs.cache.requires_build_by_snapshot),
             importers: inputs.graph.importers,
-            dependency_groups: Some(inputs.graph.dependency_groups),
+            dependency_groups: (!inputs.directories.is_hoisted).then_some(
+                inputs.graph.dependency_groups,
+            ),
             build_scope: inputs.graph.build_scope,
         },
         scripts: crate::BuildScriptOptions::from_config(config, inputs.extra_env),
@@ -391,7 +393,7 @@ fn link_importer_top_level_bins(
     // dangling shims at a slot that was never extracted).
     let direct_names = direct_dep_names_for_importer(
         importer_snapshot,
-        inputs.graph.dependency_groups.iter().copied(),
+        importer_bin_groups(inputs).iter().copied(),
         inputs.skipped,
         false,
     );
@@ -406,6 +408,16 @@ fn link_importer_top_level_bins(
         cached.as_ref(),
     )
     .map_err(BuildPhaseError::TopLevelBinLink)
+}
+
+/// In hoisted mode, each importer snapshot already carries its retained groups.
+fn importer_bin_groups<'a>(inputs: &'a BuildPhaseInputs<'a>) -> &'a [super::DependencyGroup] {
+    const ALL_GROUPS: [super::DependencyGroup; 3] = [
+        super::DependencyGroup::Prod,
+        super::DependencyGroup::Dev,
+        super::DependencyGroup::Optional,
+    ];
+    if inputs.directories.is_hoisted { &ALL_GROUPS } else { inputs.graph.dependency_groups }
 }
 
 fn auto_installed_peer_bin_locations(
