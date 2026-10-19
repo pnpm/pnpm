@@ -145,7 +145,7 @@ pub enum CachedDocument {
 pub struct Storage {
     /// The whole hosted store: its layout marker, the shared records, and
     /// the publish journal.
-    root: Arc<dyn HostedBackend>,
+    pub(crate) root: Arc<dyn HostedBackend>,
     /// One namespace of `root`.
     hosted: Arc<dyn HostedBackend>,
     cached: Store,

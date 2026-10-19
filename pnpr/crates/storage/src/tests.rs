@@ -1,7 +1,8 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, ErrorKind, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, HostedStoreConfig, MAX_HOSTED_REVISION_REFS, PackageTombstone,
-    RegistryError, RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, ErrorKind,
+    HostedRevisionRefIndex, HostedRevisionRefWrite, HostedStoreConfig, MAX_HOSTED_REVISION_REFS,
+    PackageTombstone, RegistryError, RegistryRecord, Storage, atomic_write::create_tmp_file_with,
+    fs,
 };
 use tempfile::TempDir;
 
@@ -702,6 +703,75 @@ async fn grouped_registries_with_same_local_name_keep_records_isolated() {
     assert_eq!(
         storage.read_registry_record(RegistryRecord::TeamRoster, "pypi/shared").await.unwrap(),
         Some(pypi_record.to_vec()),
+    );
+}
+
+#[tokio::test]
+async fn replace_registry_record_migrates_legacy_record_atomically() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    assert!(
+        storage
+            .create_registry_record(RegistryRecord::TeamRoster, "shared", b"legacy-val")
+            .await
+            .unwrap(),
+    );
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::TeamRoster,
+            "npm/shared",
+            b"legacy-val",
+            b"migrated-val",
+        )
+        .await
+        .unwrap();
+    assert_eq!(write_result, DocumentWrite::Written);
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        Some(b"migrated-val".to_vec()),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
+        None,
+    );
+}
+
+#[tokio::test]
+async fn replace_registry_record_returns_conflict_if_namespaced_creation_conflicts() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    assert!(
+        storage
+            .create_registry_record(RegistryRecord::TeamRoster, "npm/shared", b"namespaced-val")
+            .await
+            .unwrap(),
+    );
+    assert!(
+        storage.root.create_record(".team-rosters/v0", "shared.json", b"legacy-val").await.unwrap(),
+    );
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::TeamRoster,
+            "npm/shared",
+            b"legacy-val",
+            b"new-val",
+        )
+        .await
+        .unwrap();
+    assert_eq!(write_result, DocumentWrite::Conflict);
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        Some(b"namespaced-val".to_vec()),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
+        Some(b"new-val".to_vec()),
     );
 }
 

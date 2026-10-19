@@ -82,9 +82,10 @@ impl Storage {
                 .await?
                 == DocumentWrite::Written
             {
-                if self.root.create_record(kind.namespace(), &key, bytes).await? {
-                    let _ = self.root.remove_record(kind.namespace(), &legacy_key).await;
+                if !self.root.create_record(kind.namespace(), &key, bytes).await? {
+                    return Ok(DocumentWrite::Conflict);
                 }
+                let _ = self.root.remove_record(kind.namespace(), &legacy_key).await;
                 return Ok(DocumentWrite::Written);
             }
         }
