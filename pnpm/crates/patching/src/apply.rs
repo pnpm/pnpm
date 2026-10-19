@@ -305,7 +305,7 @@ impl FileApply<'_> {
             if to.symlink_metadata().is_ok() {
                 let (from, to) = (from.display(), to.display());
                 return Err(self.failed(format!(
-                    "cannot rename {from} to {to}: target already exists"
+                    "cannot rename {from} to {to}: target already exists",
                 )));
             }
             self.create_parent_dir(to)?;

@@ -752,7 +752,7 @@ fn parent_dir_segment_in_rename_errors() {
         let patch = write_patch(
             patch_dir.path(),
             &format!(
-                "diff --git a/{from} b/{to}\nsimilarity index 100%\nrename from {from}\nrename to {to}\n"
+                "diff --git a/{from} b/{to}\nsimilarity index 100%\nrename from {from}\nrename to {to}\n",
             ),
         );
         let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must reject ..");
