@@ -183,8 +183,9 @@ fn the_cargo_checksum_manifest_is_the_marker_of_a_vendored_crate() {
     );
     assert_eq!(
         marker_file(&cas_paths(&[".cargo-checksum.json", "package.json"])),
-        Some("package.json"),
+        Some(".cargo-checksum.json"),
     );
+    assert_eq!(marker_file(&cas_paths(&["index.js", "package.json"])), Some("package.json"));
     assert_eq!(marker_file(&cas_paths(&[".appveyor.yml", "Cargo.toml"])), Some(".appveyor.yml"));
 }
 
