@@ -175,6 +175,7 @@ test('packageManager field does not write pnpm resolution info to pnpm-lock.yaml
   // manifest itself, so pnpm resolution info must not leak into the lockfile.
   // This keeps the v10 -> v11 transition quiet.
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+  expect(fs.existsSync('sub/lf')).toBe(false)
 })
 
 test('do not switch to the pnpm version specified in the packageManager field of package.json, if pmOnFail is set to ignore', async () => {
@@ -311,11 +312,13 @@ test('devEngines.packageManager is recorded in the lockfile directory set by pnp
     },
   })
   fs.mkdirSync('lf')
-  writeYamlFileSync('pnpm-workspace.yaml', { lockfileDir: path.resolve('lf') })
+  fs.mkdirSync('sub')
+  writeJsonFileSync('sub/package.json', { name: 'sub' })
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfileDir: 'lf', packages: ['sub'] })
 
   const firstRun = execPnpmSync(['help'], { env })
   expect(firstRun.stdout.toString()).toContain('Version 9.1.3')
-  const secondRun = execPnpmSync(['help'], { env })
+  const secondRun = execPnpmSync(['help'], { env, cwd: path.resolve('sub') })
   expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
 
   expect(fs.readFileSync('lf/pnpm-lock.yaml', 'utf8')).toContain('packageManagerDependencies')
