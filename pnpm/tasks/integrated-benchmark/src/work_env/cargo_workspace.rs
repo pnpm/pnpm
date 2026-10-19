@@ -29,6 +29,7 @@ pub(super) fn create_project(root: &Path) {
         root.join("Cargo.toml"),
         format!(
             "[package]\nname = \"cargo-benchmark-root\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n\
+             [workspace]\n\n\
              [dependencies]\n{} = \"{CRATE_VERSION}\"\n",
             crate_name(0),
         ),

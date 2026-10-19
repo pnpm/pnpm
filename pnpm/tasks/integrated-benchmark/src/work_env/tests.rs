@@ -707,7 +707,8 @@ fn cargo_repeat_install_seeds_workspace_and_store_before_frozen_runs() {
     let manifest: serde_json::Value =
         serde_json::from_slice(&fs::read(dir.join("package.json")).unwrap()).unwrap();
     assert_eq!(manifest["name"], "cargo-benchmark-root");
-    assert!(dir.join("Cargo.toml").is_file());
+    let cargo_toml = fs::read_to_string(dir.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains("\n[workspace]\n"), "cargo_toml = {cargo_toml}");
     assert!(dir.join("src/lib.rs").is_file());
     let cargo_lock = fs::read_to_string(dir.join("Cargo.lock")).unwrap();
     assert!(cargo_lock.contains("benchmark-crate-0000"));
