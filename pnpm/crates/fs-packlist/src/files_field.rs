@@ -13,10 +13,7 @@ pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Gitignore {
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
         let normalized = normalize_field_path(raw);
-        if normalized.is_empty() {
-            continue;
-        }
-        let pattern = anchor_files_entry(&normalized);
+        let pattern = anchor_files_entry(if normalized.is_empty() { "*" } else { &normalized });
         if let Err(error) = builder.add_line(None, &pattern) {
             tracing::debug!(
                 target: "pacquet::fs_packlist",

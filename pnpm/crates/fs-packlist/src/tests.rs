@@ -17,6 +17,8 @@ fn write(root: &Path, rel: &str, contents: &str) {
 
 mod files;
 
+mod files_root;
+
 mod runtime;
 
 mod reporting;

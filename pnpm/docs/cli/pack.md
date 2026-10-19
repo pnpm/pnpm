@@ -5,6 +5,11 @@ title: pnpm pack
 
 Create a tarball from a package.
 
+The `files` field in `package.json` controls which files are packed. An entry of
+`""`, `"./"`, or `"/"` includes the package contents, subject to exclusions and
+subdirectory ignore files. An empty `files` array includes only the files that
+are always packed, such as `package.json`, README, LICENSE, and entry points.
+
 ## Options
 
 ### --recursive, -r
