@@ -284,15 +284,16 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             plan.dir_clone_cache.as_ref(),
             self.custom_fetcher_session.as_ref(),
         );
+        let swap_lock =
+            pnpm_deps_restorer::ModulesSwapLock::new(&self.install.drivers.config.modules_dir);
         run_on_disk_phases::<Reporter>(
             OnDiskInputs {
                 install: self.install,
                 ctx: &fresh_install_context(
                     self.install,
                     &self.shape,
-                    &self.stores.caches,
+                    (&self.stores.caches, plan.dir_clone_cache.as_ref(), &swap_lock),
                     &plan.layout,
-                    plan.dir_clone_cache.as_ref(),
                     allow_build_policy,
                 ),
                 include_transitive_optional_dependencies: self.shape
@@ -318,9 +319,12 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
 pub(super) fn fresh_install_context<'b>(
     install: FreshInputs<'b>,
     shape: &'b InstallShape,
-    caches: &'b resolver_setup::StoreCaches,
+    (caches, dir_clone_cache, swap_lock): (
+        &'b resolver_setup::StoreCaches,
+        Option<&'b pnpm_deps_restorer::DirCloneCache<'b>>,
+        &'b pnpm_deps_restorer::ModulesSwapLock,
+    ),
     layout: &'b VirtualStoreLayout,
-    dir_clone_cache: Option<&'b pnpm_deps_restorer::DirCloneCache<'b>>,
     allow_build_policy: &'b AllowBuildPolicy,
 ) -> pnpm_deps_restorer::InstallContext<'b> {
     pnpm_deps_restorer::InstallContext {
@@ -328,6 +332,7 @@ pub(super) fn fresh_install_context<'b>(
             materialized_graph: std::sync::Arc::default(),
 
             logged_methods: install.drivers.logged_methods,
+            swap_lock: Some(swap_lock),
             git_source_cache: &caches.git_source_cache,
             dir_clone_cache,
         },

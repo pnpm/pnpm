@@ -80,6 +80,7 @@ pub use materialization_options::{
     ModuleLinkerContext, PackageImportOptions, RegistryFetchContext, SlotImportSource,
     SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
 };
+pub use modules_swap_lock::ModulesSwapLock;
 pub use package_map::*;
 pub use phase_options::{
     BuildPhaseCache, BuildPhaseDirectories, BuildPhaseGraph, BuildPhasePolicy, HoistedLinkGraph,
@@ -187,6 +188,7 @@ mod build_options;
 mod build_scope;
 
 mod materialization_options;
+mod modules_swap_lock;
 
 mod frozen_install_options;
 

@@ -140,6 +140,7 @@ fn import_pass_creates_package_directory() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -202,6 +203,7 @@ fn isolated_mutable_source_is_not_hard_linked() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: true,
         },
@@ -252,6 +254,7 @@ fn orphan_directory_is_removed() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -319,6 +322,7 @@ fn nested_hierarchy_materializes_inner_node_modules() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -371,6 +375,7 @@ fn missing_cas_for_required_dep_errors() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -416,6 +421,7 @@ fn missing_cas_for_optional_dep_skips_silently() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -470,6 +476,7 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -542,6 +549,7 @@ fn entries_that_are_not_packages_are_preserved() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -589,6 +597,7 @@ fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -639,6 +648,7 @@ fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -672,6 +682,7 @@ fn no_prev_graph_still_installs() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -726,6 +737,7 @@ fn orphan_already_removed_is_tolerated() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -763,6 +775,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -818,6 +831,7 @@ fn import_pass_emits_one_imported_event_per_node() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -915,6 +929,7 @@ fn bundled_bin_with_missing_target_is_held_back() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Auto,
             logged_methods: &logged,
+            swap_lock: None,
             requester: lockfile_dir.to_str().expect("requester"),
             isolate_mutable_sources: false,
         },
@@ -969,6 +984,7 @@ fn build_plan_reuses_initial_hoisted_manifests_before_refreshing_completed_provi
             import: crate::PackageImportOptions {
                 method: PackageImportMethod::Copy,
                 logged_methods: &logged,
+                swap_lock: None,
                 requester: project.to_str().unwrap(),
                 isolate_mutable_sources: false,
             },

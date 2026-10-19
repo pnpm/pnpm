@@ -230,6 +230,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                     source_exists: self.source.source_exists,
                     force_import: self.source.force,
                 },
+                self.import.swap_lock,
             ),
         )
         .map_err(CreateVirtualDirError::ImportIndexedDir)
@@ -384,10 +385,11 @@ struct SlotForceInputs {
     force_import: bool,
 }
 
-fn slot_import_opts(
+fn slot_import_opts<'a>(
     layout: &crate::VirtualStoreLayout,
     slot: SlotForceInputs,
-) -> ImportIndexedDirOpts {
+    swap_lock: Option<&'a crate::ModulesSwapLock>,
+) -> ImportIndexedDirOpts<'a> {
     let SlotForceInputs {
         interrupted_build,
         source_is_mutable,
@@ -409,6 +411,7 @@ fn slot_import_opts(
             keep_modules_dir: true,
             safe_to_skip,
             preserve_symlinks: source_is_mutable,
+            swap_lock,
         };
     }
     ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }

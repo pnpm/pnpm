@@ -536,7 +536,7 @@ fn import_node<Reporter: self::Reporter>(
             import_method,
             &node.dir,
             cas_paths,
-            hoisted_import_opts(files),
+            hoisted_import_opts(files, opts.import.swap_lock),
         )
         .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
     }
@@ -562,11 +562,15 @@ fn import_node<Reporter: self::Reporter>(
 /// nested `node_modules` other nodes were hoisted into. A directory
 /// dependency keeps its own symlinks. A missing mutable source leaves an
 /// existing directory alone, as it does for a virtual-store slot.
-fn hoisted_import_opts(files: &HoistedPackageFiles) -> ImportIndexedDirOpts {
+fn hoisted_import_opts<'a>(
+    files: &HoistedPackageFiles,
+    swap_lock: Option<&'a crate::ModulesSwapLock>,
+) -> ImportIndexedDirOpts<'a> {
     ImportIndexedDirOpts {
         force: files.source_exists || !files.source_is_mutable,
         keep_modules_dir: true,
         preserve_symlinks: files.source_is_mutable,
+        swap_lock,
         ..ImportIndexedDirOpts::default()
     }
 }

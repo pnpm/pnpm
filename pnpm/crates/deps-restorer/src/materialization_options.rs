@@ -23,16 +23,25 @@ pub struct PackageImportOptions<'a> {
     pub requester: &'a str,
     /// Mirrors [`Config::isolate_local_directory_imports`].
     pub isolate_mutable_sources: bool,
+    /// The install's [`crate::ModulesSwapLock`]; see
+    /// [`crate::ImportIndexedDirOpts::swap_lock`].
+    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
 }
 
 impl<'a> PackageImportOptions<'a> {
     #[must_use]
-    pub fn from_config(config: &Config, logged_methods: &'a AtomicU8, requester: &'a str) -> Self {
+    pub fn from_config(
+        config: &Config,
+        logged_methods: &'a AtomicU8,
+        requester: &'a str,
+        swap_lock: Option<&'a crate::ModulesSwapLock>,
+    ) -> Self {
         PackageImportOptions {
             method: config.package_import_method,
             logged_methods,
             requester,
             isolate_mutable_sources: config.isolate_local_directory_imports,
+            swap_lock,
         }
     }
 
