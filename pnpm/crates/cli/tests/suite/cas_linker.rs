@@ -387,7 +387,7 @@ fn cas_build_cache_miss_materializes_and_links_generated_bins_after_building() {
     let first_manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
     let package = &first_manifest["packages"]["@pnpm.e2e/has-bin-and-needs-build@1.0.0"];
     assert!(Path::new(package["root"].as_str().unwrap()).is_dir());
-    assert!(package["files"].is_object());
+    assert!(package["files"].is_null());
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
