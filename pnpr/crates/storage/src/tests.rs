@@ -775,6 +775,39 @@ async fn replace_registry_record_returns_conflict_if_namespaced_creation_conflic
     );
 }
 
+#[tokio::test]
+async fn replace_registry_record_returns_conflict_if_legacy_was_concurrently_modified() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    assert!(
+        storage.root
+            .create_record(".team-rosters/v0", "shared.json", b"concurrent-legacy")
+            .await
+            .unwrap(),
+    );
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::TeamRoster,
+            "npm/shared",
+            b"stale-expected",
+            b"new-val",
+        )
+        .await
+        .unwrap();
+    assert_eq!(write_result, DocumentWrite::Conflict);
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
+        Some(b"concurrent-legacy".to_vec()),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        Some(b"concurrent-legacy".to_vec()),
+    );
+}
+
 #[test]
 fn iso_from_unix_millis_formats_negative_millis_correctly() {
     assert_eq!(super::publish::iso_from_unix_millis(-1), "1969-12-31T23:59:59.999Z");

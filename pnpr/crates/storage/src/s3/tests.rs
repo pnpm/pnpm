@@ -605,6 +605,42 @@ async fn a_removed_staged_record_is_not_replaced() {
     );
 }
 
+#[tokio::test]
+async fn remove_record_if_current_requires_matching_content() {
+    let (store, _staging) = store_with_prefix("");
+    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
+
+    assert!(!store.remove_record_if_current(".staged", "stage.json", b"wrong").await.unwrap());
+    assert!(
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .is_some(),
+    );
+
+    assert!(
+        store
+            .remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#)
+            .await
+            .unwrap(),
+    );
+    assert!(
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    assert!(
+        !store
+            .remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#)
+            .await
+            .unwrap(),
+    );
+}
+
 /// A record that must not be rewritten is created, not put: the second
 /// writer is told the key is taken and the first record stands.
 #[tokio::test]

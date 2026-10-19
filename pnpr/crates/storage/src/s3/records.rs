@@ -87,6 +87,28 @@ impl S3Store {
         }
     }
 
+    pub async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        let key = self.record_key(namespace, key);
+        let result = match self.store.get(&key).await {
+            Ok(result) => result,
+            Err(object_store::Error::NotFound { .. }) => return Ok(false),
+            Err(err) => return Err(err.into()),
+        };
+        if result.bytes().await?.as_ref() != expected {
+            return Ok(false);
+        }
+        match self.store.delete(&key).await {
+            Ok(()) => Ok(true),
+            Err(object_store::Error::NotFound { .. }) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     pub async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         let scope = format!("{}{namespace}/", self.prefix);
         let mut listing = self.store.list(Some(&ObjectPath::from(scope.as_str())));

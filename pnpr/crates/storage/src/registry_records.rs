@@ -73,30 +73,24 @@ impl Storage {
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
         let key = registry_record_key(registry)?;
-        let result =
-            self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes).await?;
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        if result == DocumentWrite::Conflict && local_name != registry {
-            let legacy_key = registry_record_key(local_name)?;
-            if self.root.replace_record_if_current(kind.namespace(), &legacy_key, expected, bytes)
-                .await?
-                == DocumentWrite::Written
-            {
-                if !self.root.create_record(kind.namespace(), &key, bytes).await? {
-                    let _ = self.root.replace_record_if_current(
-                        kind.namespace(),
-                        &legacy_key,
-                        bytes,
-                        expected,
-                    )
-                    .await;
-                    return Ok(DocumentWrite::Conflict);
-                }
-                let _ = self.root.remove_record(kind.namespace(), &legacy_key).await;
-                return Ok(DocumentWrite::Written);
-            }
+        if self.root.read_record(kind.namespace(), &key).await?.is_some() {
+            return self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes)
+                .await;
         }
-        Ok(result)
+        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
+        if local_name == registry {
+            return self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes)
+                .await;
+        }
+        let legacy_key = registry_record_key(local_name)?;
+        if !self.root.create_record(kind.namespace(), &key, bytes).await? {
+            return Ok(DocumentWrite::Conflict);
+        }
+        if !self.root.remove_record_if_current(kind.namespace(), &legacy_key, expected).await? {
+            let _ = self.root.remove_record(kind.namespace(), &key).await;
+            return Ok(DocumentWrite::Conflict);
+        }
+        Ok(DocumentWrite::Written)
     }
 
     pub async fn remove_registry_record(
