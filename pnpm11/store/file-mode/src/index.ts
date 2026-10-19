@@ -152,40 +152,57 @@ function addDirModeBits (dir: string, extra: number): void {
 }
 
 // A umask that removes owner read (such as 0o477) leaves a new directory its
-// owner cannot open for reading. The mode is changed without following a
-// symlink: through lchmod on macOS, and on Linux through an O_PATH handle,
-// which needs no read access, via its /proc/self/fd entry. Only a directory
-// this process owns is changed. Elsewhere the grant is skipped.
+// owner cannot open for reading. The mode is changed through a handle that
+// needs no read access and is opened without following a symlink: on macOS an
+// O_SEARCH descriptor that is fchmod'd, and on Linux an O_PATH descriptor whose
+// /proc/self/fd entry is chmod'd. Only a directory this process owns is
+// changed. Elsewhere the grant is skipped.
 function addUnreadableDirModeBits (dir: string, extra: number): void {
   try {
     if (process.platform === 'darwin') {
-      addModeBitsWithoutFollowing(dir, extra)
+      addModeBitsThroughHandle(dir, extra, DARWIN_SEARCH_HANDLE)
     } else if (process.platform === 'linux') {
-      addModeBitsThroughPathHandle(dir, extra)
+      addModeBitsThroughHandle(dir, extra, LINUX_PATH_HANDLE)
     }
   } catch (err: unknown) {
     if (!isUnchangeable(err) && errorCode(err) !== 'ENOENT') throw err
   }
 }
 
-function addModeBitsWithoutFollowing (dir: string, extra: number): void {
-  const stat = fs.lstatSync(dir)
-  if (!stat.isDirectory() || stat.uid !== process.getuid?.()) return
-  const merged = (stat.mode & 0o7777) | extra
-  if (merged !== (stat.mode & 0o7777)) fs.lchmodSync(dir, merged)
+interface DirHandle {
+  flags: number
+  chmod: (fd: number, mode: number) => void
+}
+
+// Node does not export O_EXEC. This is its value in the macOS system headers,
+// which define O_SEARCH as O_EXEC | O_DIRECTORY.
+const DARWIN_O_EXEC = 0x40000000
+
+const DARWIN_SEARCH_HANDLE: DirHandle = {
+  flags: DARWIN_O_EXEC | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
+  chmod: (fd, mode) => {
+    fs.fchmodSync(fd, mode)
+  },
 }
 
 // Node does not export O_PATH. This is its value in the generic Linux ABI
 // that every architecture Node supports uses.
 const LINUX_O_PATH = 0o10000000
 
-function addModeBitsThroughPathHandle (dir: string, extra: number): void {
-  const fd = fs.openSync(dir, LINUX_O_PATH | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW)
+const LINUX_PATH_HANDLE: DirHandle = {
+  flags: LINUX_O_PATH | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
+  chmod: (fd, mode) => {
+    fs.chmodSync(`/proc/self/fd/${fd}`, mode)
+  },
+}
+
+function addModeBitsThroughHandle (dir: string, extra: number, handle: DirHandle): void {
+  const fd = fs.openSync(dir, handle.flags)
   try {
     const stat = fs.fstatSync(fd)
-    if (!stat.isDirectory() || stat.uid !== process.getuid?.()) return
+    if (!stat.isDirectory() || stat.uid !== process.geteuid?.()) return
     const merged = (stat.mode & 0o7777) | extra
-    if (merged !== (stat.mode & 0o7777)) fs.chmodSync(`/proc/self/fd/${fd}`, merged)
+    if (merged !== (stat.mode & 0o7777)) handle.chmod(fd, merged)
   } finally {
     fs.closeSync(fd)
   }
