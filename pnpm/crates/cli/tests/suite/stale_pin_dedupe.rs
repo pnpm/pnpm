@@ -230,3 +230,72 @@ fn dedupe_does_not_refresh_a_pin_onto_an_aliased_direct_dependency() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn direct_dep_bump_in_one_importer_converges_another_importers_transitive_pin() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("\npackages:\n  - packages/*\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    let project_a = workspace.join("packages/a");
+    let project_b = workspace.join("packages/b");
+    fs::create_dir_all(&project_a).expect("create packages/a");
+    fs::create_dir_all(&project_b).expect("create packages/b");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        project_a.join("package.json"),
+        serde_json::json!({
+            "name": "a",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/a/package.json");
+    let b_manifest = project_b.join("package.json");
+    let write_b = |version: &str| {
+        fs::write(
+            &b_manifest,
+            serde_json::json!({
+                "name": "b",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": version },
+            })
+            .to_string(),
+        )
+        .expect("write packages/b/package.json");
+    };
+
+    write_b("100.0.0");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    write_b("100.1.0");
+    bump_mtime(&b_manifest);
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
+        "the bumped direct dep resolves 100.1.0:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"),
+        "project a's transitive pin must refresh to project b's 100.1.0:\n{lockfile}",
+    );
+
+    drop((root, mock_instance));
+}

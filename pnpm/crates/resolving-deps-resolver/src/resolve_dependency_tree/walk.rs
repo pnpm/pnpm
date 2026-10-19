@@ -18,7 +18,7 @@ pub(super) use level_walk::{level_aliases, level_versions};
 
 pub(super) use locked_versions::node_alias;
 
-pub(super) use edge_resolution::{closes_cycle, node_id_for, resolve_node_seed};
+pub(super) use edge_resolution::{closes_cycle, node_id_for, resolve_edge, resolve_node_seed};
 
 mod warm_children;
 

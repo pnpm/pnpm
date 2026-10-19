@@ -14,7 +14,9 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 
 pub(crate) use importer::importer_direct_wanted_specs;
 
-pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
+pub(crate) use reuse::{
+    preseed_changed_direct_versions, record_changed_direct_deps, unwrap_package_name,
+};
 
 pub(crate) use workspace_ctx::SyncCursor;
 
@@ -548,7 +550,7 @@ where
     let direct_versions = level_versions(ctx, &seeds);
     // Recorded only now the level barrier has passed, so the subtree walk
     // sees the resolved direct-dep versions.
-    record_direct_dep_versions(ctx, importer_id, &direct_versions);
+    record_direct_dep_versions(ctx, &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer_direct(
         ctx.options.base.version.preferred_versions_overlay.clone(),
         direct_versions,

@@ -10,12 +10,14 @@ use pnpm_lockfile::PkgName;
 /// declare them.
 pub(super) fn hashed_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
+    key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
     metadata: Option<&pnpm_lockfile::PackageMetadata>,
 ) -> Vec<(String, pnpm_lockfile::PkgNameVerPeer)> {
     let Some(snapshot) = snapshot else {
         return Vec::new();
     };
+    let bound = pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), key);
     let mut keys = Vec::new();
     if let Some(metadata) = metadata {
         let peer_names = metadata.peer_dependencies
@@ -23,7 +25,10 @@ pub(super) fn hashed_peer_keys(
             .flatten()
             .filter_map(|(name, _)| name.parse::<PkgName>().ok())
             .collect::<HashSet<_>>();
-        keys.extend(peer_edge_keys(snapshot, |name| peer_names.contains(name)));
+        keys.extend(
+            peer_edge_keys(snapshot, |name| peer_names.contains(name))
+                .filter(|(_, provider)| bound.binds(provider)),
+        );
     }
     for name in snapshot.transitive_peer_dependencies.iter().flatten() {
         keys.extend(
@@ -75,7 +80,7 @@ fn bound_peer_providers(
     if !declares_peer(lockfile, key, &peer.to_string()) {
         return Vec::new();
     }
-    let bound = pnpm_lockfile::BoundProviders::from_key(key);
+    let bound = pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), key);
     peer_edge_keys(snapshot, move |name| name == peer)
         .map(|(_, provider)| provider)
         .filter(|provider| bound.binds(provider))

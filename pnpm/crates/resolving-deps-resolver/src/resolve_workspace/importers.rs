@@ -9,7 +9,9 @@ use super::{
 };
 use crate::{
     resolve_dependency_tree::WorkspaceTreeCtx,
-    resolve_importer::{ImporterHoistState, ResolveImporterError, ResolveImporterOptions},
+    resolve_importer::{
+        ImporterHoistState, ResolveImporterError, ResolveImporterOptions, SeededImporter,
+    },
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_resolving_resolver_base::Resolver;
@@ -76,17 +78,9 @@ pub(super) async fn init_importers<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
+    let optional_direct = optional_direct_by_importer(&sorted.importers);
     let mut input_dirs = Vec::with_capacity(sorted.importers.len());
-    let optional_direct = sorted.importers
-        .iter()
-        .map(|importer| {
-            importer.manifest
-                .dependencies([DependencyGroup::Optional])
-                .map(|(alias, specifier)| (alias.to_string(), specifier.to_string()))
-                .collect()
-        })
-        .collect();
-    let mut states = Vec::with_capacity(sorted.importers.len());
+    let mut seeded_importers = Vec::with_capacity(sorted.importers.len());
     for (importer_order, (importer, mut importer_opts)) in sorted.importers
         .iter()
         .zip(sorted.opts)
@@ -98,26 +92,43 @@ where
             importer_opts.base_opts.project.project_dir.clone(),
             importer_opts.links.modules_dir.clone(),
         ));
+        seeded_importers.push(SeededImporter::prepare(
+            &importer.id,
+            importer_order,
+            importer.manifest,
+            dependency_groups.iter().copied(),
+            importer_opts,
+            Arc::clone(workspace),
+        )?);
+    }
+    for seeded in &seeded_importers {
+        Box::pin(seeded.seed_changed_direct(resolver)).await?;
+    }
+    let mut states = Vec::with_capacity(seeded_importers.len());
+    for seeded in seeded_importers {
         // Boxed to keep the enclosing install future small: inlining a
         // wave's frame into it trips the workspace's large-future lint.
-        states.push(
-            Box::pin(ImporterHoistState::init(
-                resolver,
-                &importer.id,
-                importer_order,
-                importer.manifest,
-                dependency_groups.iter().copied(),
-                importer_opts,
-                Arc::clone(workspace),
-            ))
-            .await?,
-        );
+        states.push(Box::pin(seeded.init(resolver)).await?);
     }
     let importer_ids = sorted.importers
         .into_iter()
         .map(|importer| importer.id.clone())
         .collect();
     Ok(InitializedImporters { importer_ids, states, input_dirs, optional_direct })
+}
+
+fn optional_direct_by_importer(
+    importers: &[&WorkspaceImporter<'_>],
+) -> Vec<broken_optional::OptionalDirect> {
+    importers
+        .iter()
+        .map(|importer| {
+            importer.manifest
+                .dependencies([DependencyGroup::Optional])
+                .map(|(alias, specifier)| (alias.to_string(), specifier.to_string()))
+                .collect()
+        })
+        .collect()
 }
 
 /// Computed after the init barrier and shared unchanged: recomputing it

@@ -178,5 +178,7 @@ fn is_peer_suffix_hash(segment: &str) -> bool {
     segment.len() == 32 && segment.chars().all(|character| character.is_ascii_hexdigit())
 }
 
+mod hashed;
+
 #[cfg(test)]
 mod tests;

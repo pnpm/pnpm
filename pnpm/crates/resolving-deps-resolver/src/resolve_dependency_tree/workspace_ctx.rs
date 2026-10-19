@@ -262,25 +262,21 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Memoised result of [`WorkspaceTreeCtx::run_preferred_versions`], keyed by the
     /// `(revision, children_rewrites)` pair it was computed at.
     run_versions_cache: Mutex<RunVersionsCache>,
-    /// Per importer: direct-dep aliases whose manifest specifier differs
-    /// from the prior lockfile (new deps included). Gates the stale-pin
-    /// refresh's reuse-decline; only a changed direct dep can re-resolve
-    /// away from a transitive occurrence's pin. Keyed by importer: this
-    /// crate resolves importers sequentially (no workspace-wide
-    /// directs-before-transitives barrier), so a shared map would refresh
-    /// one importer's edges from another's direct deps order-dependently.
-    /// (pnpm has that barrier and so converges cross-importer; pacquet
-    /// stays per-importer to stay deterministic.)
-    pub(super) changed_direct_deps: Mutex<HashMap<String, HashSet<PkgName>>>,
-    /// Per importer: the parsed resolved versions of its direct
+    /// Direct-dep aliases whose manifest specifier differs from the prior
+    /// lockfile (new deps included), across all importers. Gates the
+    /// stale-pin refresh's reuse-decline: only a changed direct dep can
+    /// re-resolve away from a transitive occurrence's pin, and the
+    /// workspace-wide directs-before-transitives barrier populates this
+    /// set before any importer walks its subtrees.
+    pub(super) changed_direct_deps: Mutex<HashSet<PkgName>>,
+    /// The parsed resolved versions of every importer's direct
     /// dependencies, recorded once the direct-dep level finishes resolving.
-    /// The direct-dep versions folded into the children's
-    /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
-    /// `Arc` so the hot child walk snapshots the importer's map with one
-    /// lock + refcount bump instead of locking per edge.
+    /// Consulted by [`fn@higher_direct_dep_version`]. `Arc` so the hot
+    /// child walk snapshots the map with one lock + refcount bump instead
+    /// of locking per edge.
     ///
     /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
-    pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
+    pub(super) direct_dep_versions: Mutex<Arc<DirectDepVersions>>,
     /// Per importer: the auto-installed peers whose lockfile pin is not
     /// reused. See `find_stale_peer_pins`.
     stale_peer_pins: HashMap<String, HashSet<String>>,

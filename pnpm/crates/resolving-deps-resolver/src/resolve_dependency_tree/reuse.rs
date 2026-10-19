@@ -6,7 +6,7 @@
 //! What a `pacquet update` reaches, and so excludes from reuse, is
 //! [`super::update_scope`].
 
-pub(crate) use direct_versions::record_changed_direct_deps;
+pub(crate) use direct_versions::{preseed_changed_direct_versions, record_changed_direct_deps};
 
 pub(super) use direct_versions::{
     higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,
@@ -16,12 +16,10 @@ pub(super) use snapshot_children::{
     PendingReusedNode, reuse_key_matches_peer_scope, reuse_matches_peer_scope,
 };
 
-mod snapshot_children;
-use snapshot_children::{reused_children, reused_identity};
-
 mod direct_versions;
-
+mod snapshot_children;
 mod subtree;
+use snapshot_children::{reused_children, reused_identity};
 use subtree::subtree_fully_reusable;
 
 use async_recursion::async_recursion;
@@ -288,16 +286,12 @@ pub(super) async fn seed_reused_node(
     // `pkg_is_leaf` would misread the package as dependency-less and
     // record it as a leaf, emptying its lockfile snapshot.
     let result = Arc::new(reused.result);
-
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
-
     if closes_cycle(edge.ancestor_ids, &id) {
         return Ok(NodeSeed::Done(None));
     }
-
     let alias = node_alias(&wanted, &result, &id);
-    let identity = reused_identity(ctx, &id, &result, &reused.key);
-
+    let identity = reused_identity(ctx, &id, &result, &reused.key, edge.parent_pkg_aliases);
     let (id, created) = register_reused_package(
         ctx,
         id,
@@ -309,7 +303,6 @@ pub(super) async fn seed_reused_node(
     if created {
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
-
     let ancestry = snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional);
     Ok(NodeSeed::Reused(Box::new(PendingReusedNode {
         dep: DirectDep { alias, node_id: identity.node_id, id },

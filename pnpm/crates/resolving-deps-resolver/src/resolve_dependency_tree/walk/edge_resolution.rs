@@ -106,7 +106,7 @@ where
 /// an `Arc` to an equivalent `ResolveResult`).
 ///
 /// `None` when the edge is a droppable optional that failed to resolve.
-pub(super) async fn resolve_edge<Chain>(
+pub(in super::super) async fn resolve_edge<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: &mut WantedDependency,
