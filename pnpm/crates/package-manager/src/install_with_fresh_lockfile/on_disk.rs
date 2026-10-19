@@ -3,7 +3,7 @@ use crate::{CreateVirtualStore, CreateVirtualStoreOutput, SkippedSnapshots};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, LockfileEntries};
 use pnpm_package_manifest::PackageManifest;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pnpm_reporter::Reporter;
 use pnpm_tarball::MemCache;
 use std::{
     collections::HashMap,
