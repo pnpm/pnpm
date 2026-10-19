@@ -636,3 +636,25 @@ async fn record_keys_are_listed_relative_to_their_namespace() {
     assert_eq!(keys, ["demo/100.json", "other/200.json"]);
     assert_eq!(store.list_record_keys(".staged").await.unwrap(), ["stage.json"]);
 }
+
+#[tokio::test]
+async fn empty_records_can_be_created_read_replaced_and_listed() {
+    let (store, _staging) = store_with_prefix("");
+    assert!(store.create_record(".test-records", "empty.json", b"").await.unwrap());
+    assert_eq!(store.read_record(".test-records", "empty.json").await.unwrap(), Some(Vec::new()));
+    assert_eq!(store.list_record_keys(".test-records").await.unwrap(), ["empty.json"]);
+
+    let replaced = store
+        .replace_record_if_current(".test-records", "empty.json", b"", b"non-empty")
+        .await
+        .unwrap();
+    assert_eq!(replaced, DocumentWrite::Written);
+    assert_eq!(
+        store
+            .read_record(".test-records", "empty.json")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(&b"non-empty"[..]),
+    );
+}

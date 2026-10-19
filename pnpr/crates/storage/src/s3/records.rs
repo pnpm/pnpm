@@ -14,7 +14,7 @@ impl S3Store {
         match self.store.get(&self.record_key(namespace, key)).await {
             Ok(result) => {
                 let bytes = result.bytes().await?;
-                if bytes.is_empty() { Ok(None) } else { Ok(Some(bytes.to_vec())) }
+                Ok(Some(bytes.to_vec()))
             }
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
@@ -96,7 +96,7 @@ impl S3Store {
         let mut keys = Vec::new();
         while let Some(meta) = listing.next().await {
             let meta = meta?;
-            if meta.size == 0 {
+            if meta.location.as_ref().ends_with('/') {
                 continue;
             }
             // `ObjectPath` normalizes what it is built from, so compare

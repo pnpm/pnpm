@@ -880,6 +880,262 @@ async fn editing_one_grouped_registry_preserves_other_effective_rules() {
     );
 }
 
+struct HookedBackend {
+    inner: std::sync::Arc<dyn super::backend::HostedBackend>,
+    on_create_record: std::sync::Arc<dyn Fn() + Send + Sync>,
+}
+
+impl std::fmt::Debug for HookedBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HookedBackend")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
+}
+
+#[async_trait::async_trait]
+impl super::backend::HostedBackend for HookedBackend {
+    async fn check_readiness(&self) -> pnpr_error::Result<()> {
+        self.inner.check_readiness().await
+    }
+    fn upload_store(&self) -> Option<crate::upload::RemoteUploadStore> {
+        self.inner.upload_store()
+    }
+    async fn read_document(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> pnpr_error::Result<Option<Vec<u8>>> {
+        self.inner.read_document(name).await
+    }
+    async fn read_document_for_update(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> pnpr_error::Result<Option<super::backend::HostedDocumentForUpdate>> {
+        self.inner.read_document_for_update(name).await
+    }
+    async fn write_document_if_current(
+        &self,
+        name: &CanonicalPackageName,
+        bytes: &[u8],
+        version: Option<&super::backend::HostedDocumentVersion>,
+    ) -> pnpr_error::Result<DocumentWrite> {
+        self.inner.write_document_if_current(name, bytes, version).await
+    }
+    async fn open_blob(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> pnpr_error::Result<Option<(axum::body::Body, Option<u64>)>> {
+        self.inner.open_blob(name, filename).await
+    }
+    async fn open_blob_range(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        range: &object_store::GetRange,
+    ) -> pnpr_error::Result<Option<super::RangedBlob>> {
+        self.inner.open_blob_range(name, filename, range).await
+    }
+    async fn reserve_blob_tmp(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> pnpr_error::Result<std::path::PathBuf> {
+        self.inner.reserve_blob_tmp(name, filename).await
+    }
+    async fn finalize_blob(
+        &self,
+        tmp_path: &std::path::Path,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> pnpr_error::Result<super::BlobFinalize> {
+        self.inner.finalize_blob(tmp_path, name, filename).await
+    }
+    async fn remove_blob(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> pnpr_error::Result<bool> {
+        self.inner.remove_blob(name, filename).await
+    }
+    async fn remove_package(&self, name: &CanonicalPackageName) -> pnpr_error::Result<bool> {
+        self.inner.remove_package(name).await
+    }
+    fn list_blob_files(
+        &self,
+    ) -> futures_util::stream::BoxStream<'_, pnpr_error::Result<super::HostedBlobFile>> {
+        self.inner.list_blob_files()
+    }
+    async fn list_package_names(&self) -> pnpr_error::Result<Vec<String>> {
+        self.inner.list_package_names().await
+    }
+    async fn list_package_blobs(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> pnpr_error::Result<Vec<String>> {
+        self.inner.list_package_blobs(name).await
+    }
+    async fn list_top_level_dirs(&self) -> pnpr_error::Result<Vec<String>> {
+        self.inner.list_top_level_dirs().await
+    }
+    async fn read_revision_refs(&self, digest: &str) -> pnpr_error::Result<Vec<Vec<u8>>> {
+        self.inner.read_revision_refs(digest).await
+    }
+    async fn write_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+        bytes: &[u8],
+    ) -> pnpr_error::Result<HostedRevisionRefWrite> {
+        self.inner.write_revision_ref(digest, ref_id, owner, bytes).await
+    }
+    async fn remove_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+    ) -> pnpr_error::Result<()> {
+        self.inner.remove_revision_ref(digest, ref_id, owner).await
+    }
+    async fn commit_revision_ref(
+        &self,
+        digest: &str,
+        ref_id: &str,
+        owner: &str,
+    ) -> pnpr_error::Result<()> {
+        self.inner.commit_revision_ref(digest, ref_id, owner).await
+    }
+    fn namespaced(&self, segment: &str) -> std::sync::Arc<dyn super::backend::HostedBackend> {
+        self.inner.namespaced(segment)
+    }
+    fn namespace(&self) -> String {
+        self.inner.namespace()
+    }
+    fn local_scratch_root(&self) -> &std::path::Path {
+        self.inner.local_scratch_root()
+    }
+    async fn read_record(&self, namespace: &str, key: &str) -> pnpr_error::Result<Option<Vec<u8>>> {
+        self.inner.read_record(namespace, key).await
+    }
+    async fn create_record(
+        &self,
+        namespace: &str,
+        key: &str,
+        bytes: &[u8],
+    ) -> pnpr_error::Result<bool> {
+        let res = self.inner.create_record(namespace, key, bytes).await;
+        (self.on_create_record)();
+        res
+    }
+    async fn replace_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> pnpr_error::Result<DocumentWrite> {
+        self.inner.replace_record_if_current(namespace, key, expected, bytes).await
+    }
+    async fn remove_record(&self, namespace: &str, key: &str) -> pnpr_error::Result<bool> {
+        self.inner.remove_record(namespace, key).await
+    }
+    async fn list_record_keys(&self, namespace: &str) -> pnpr_error::Result<Vec<String>> {
+        self.inner.list_record_keys(namespace).await
+    }
+}
+
+#[tokio::test]
+async fn replace_registry_record_returns_conflict_if_legacy_updated_between_verification_and_creation()
+ {
+    let tmp = TempDir::new().unwrap();
+    let mut storage = storage_in(&tmp);
+
+    storage
+        .create_registry_record(RegistryRecord::TeamRoster, "shared", b"initial-legacy")
+        .await
+        .unwrap();
+
+    let legacy_file = tmp.path().join("storage/.team-rosters/v0/shared.json");
+    let hook_file = legacy_file.clone();
+    let hooked = std::sync::Arc::new(HookedBackend {
+        inner: std::sync::Arc::clone(&storage.root),
+        on_create_record: std::sync::Arc::new(move || {
+            std::fs::write(&hook_file, b"concurrent-modified-legacy").unwrap();
+        }),
+    });
+    storage.root = hooked;
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::TeamRoster,
+            "npm/shared",
+            b"initial-legacy",
+            b"migrated-val",
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(write_result, DocumentWrite::Conflict);
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        Some(b"concurrent-modified-legacy".to_vec()),
+    );
+    assert!(
+        !tmp.path()
+            .join("storage/.team-rosters/v0/npm/shared.json")
+            .exists(),
+    );
+}
+
+#[tokio::test]
+async fn concurrent_registry_record_migrations_race_safely() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    storage
+        .create_registry_record(RegistryRecord::TeamRoster, "shared", b"initial-legacy")
+        .await
+        .unwrap();
+
+    let storage1 = storage.clone();
+    let storage2 = storage.clone();
+
+    let task1 = tokio::spawn(async move {
+        storage1
+            .replace_registry_record_if_current(
+                RegistryRecord::TeamRoster,
+                "npm/shared",
+                b"initial-legacy",
+                b"migrated-1",
+            )
+            .await
+            .unwrap()
+    });
+
+    let task2 = tokio::spawn(async move {
+        storage2
+            .replace_registry_record_if_current(
+                RegistryRecord::TeamRoster,
+                "npm/shared",
+                b"initial-legacy",
+                b"migrated-2",
+            )
+            .await
+            .unwrap()
+    });
+
+    let (res1, res2) = tokio::join!(task1, task2);
+    let r1 = res1.unwrap();
+    let r2 = res2.unwrap();
+
+    assert!(
+        (r1 == DocumentWrite::Written && r2 == DocumentWrite::Conflict)
+            || (r1 == DocumentWrite::Conflict && r2 == DocumentWrite::Written),
+        "exactly one write must win: r1={r1:?}, r2={r2:?}",
+    );
+}
+
 #[test]
 fn iso_from_unix_millis_formats_negative_millis_correctly() {
     assert_eq!(super::publish::iso_from_unix_millis(-1), "1969-12-31T23:59:59.999Z");

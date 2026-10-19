@@ -60,7 +60,17 @@ impl Storage {
                 return Ok(false);
             }
         }
-        self.root.create_record(kind.namespace(), &key, bytes).await
+        if !self.root.create_record(kind.namespace(), &key, bytes).await? {
+            return Ok(false);
+        }
+        if local_name != registry {
+            let legacy_key = registry_record_key(local_name)?;
+            if self.root.read_record(kind.namespace(), &legacy_key).await?.is_some() {
+                self.root.remove_record(kind.namespace(), &key).await?;
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     /// Replace the record of `kind` for `registry` only while it still holds
@@ -90,6 +100,11 @@ impl Storage {
         if !self.root.create_record(kind.namespace(), &key, bytes).await? {
             return self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes)
                 .await;
+        }
+        if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref() != Some(expected)
+        {
+            self.root.remove_record(kind.namespace(), &key).await?;
+            return Ok(DocumentWrite::Conflict);
         }
         Ok(DocumentWrite::Written)
     }
