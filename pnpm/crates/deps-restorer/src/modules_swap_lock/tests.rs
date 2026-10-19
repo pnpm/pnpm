@@ -18,15 +18,31 @@ fn aliases_of_one_modules_dir_share_the_lock_path() {
 }
 
 #[test]
-fn the_lock_is_taken_once_and_released_on_drop() {
+fn the_lock_is_taken_once_and_free_again_after_release() {
     let temp_dir = tempfile::tempdir().unwrap();
     let modules_dir = temp_dir.path().join("node_modules");
 
     let first = ModulesSwapLock::new(&modules_dir);
     assert!(first.hold());
     assert!(first.hold(), "a second hold reuses the lock the install already holds");
-    drop(first);
+    first.release();
 
     let second = ModulesSwapLock::new(&modules_dir);
-    assert!(second.hold(), "a dropped lock is free for the next install");
+    assert!(second.hold(), "a released lock is free for the next install");
+    drop(second);
+    assert!(first.hold(), "a released lock can be taken again once it is free");
+}
+
+#[test]
+fn an_install_that_could_not_take_the_lock_does_not_try_again() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    // A file where the lock directory's parent must be created cannot be
+    // taken, and the attempt fails at once.
+    let modules_dir = temp_dir.path().join("node_modules");
+    let lock = ModulesSwapLock::new(&modules_dir);
+    *lock.state.lock().unwrap() = super::State::Unserialized;
+
+    assert!(!lock.hold());
+    lock.release();
+    assert!(!lock.hold(), "a failed acquisition is not retried after a release either");
 }

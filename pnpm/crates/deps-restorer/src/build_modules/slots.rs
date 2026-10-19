@@ -296,15 +296,18 @@ pub(crate) fn materialize_side_effects<Reporter: self::Reporter>(
     pkg_dir: &Path,
     overlay: &SideEffectsOverlay,
 ) -> Result<(), BuildModulesError> {
+    // Held only around this one replacement: the build phase runs
+    // lifecycle scripts, which may start installs of their own.
+    let swap_lock = crate::ModulesSwapLock::new(directories.modules_dir);
     import_indexed_dir::<Reporter>(
-        directories.import.logged_methods,
+        directories.logged_methods,
         directories.import_method,
         pkg_dir,
         &overlay.files,
         ImportIndexedDirOpts {
             force: true,
             keep_modules_dir: true,
-            swap_lock: directories.import.swap_lock,
+            swap_lock: Some(&swap_lock),
             ..ImportIndexedDirOpts::default()
         },
     )

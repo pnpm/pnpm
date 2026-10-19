@@ -10,16 +10,6 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
 };
 
-/// The state one install's package imports share: the dedupe of the
-/// `pnpm:package-import-method` log and the lock on its replacements.
-#[derive(Debug, Clone, Copy)]
-pub struct InstallImportState<'a> {
-    /// See [`PackageImportOptions::logged_methods`].
-    pub logged_methods: &'a AtomicU8,
-    /// See [`crate::InstallCaches::swap_lock`].
-    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct PackageImportOptions<'a> {
     pub method: PackageImportMethod,

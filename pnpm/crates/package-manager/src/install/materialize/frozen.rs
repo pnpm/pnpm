@@ -93,8 +93,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             seed,
 
-            logged_methods: self.modules.import.logged_methods,
-            swap_lock: self.modules.import.swap_lock,
+            logged_methods: self.modules.logged_methods,
         }
     }
 

@@ -63,7 +63,7 @@ impl Dispatched<'_> {
         &'r self,
         (included, rebuild): (IncludedDependencies, Option<&'r RebuildOptions>),
         prune_orphans: bool,
-        (logged_methods, swap_lock): (&'r AtomicU8, &'r pnpm_deps_restorer::ModulesSwapLock),
+        logged_methods: &'r AtomicU8,
     ) -> crate::install::materialize::MaterializationModules<'r> {
         let prior_modules = self.modules.previous_modules_metadata.as_ref();
         crate::install::materialize::MaterializationModules {
@@ -74,10 +74,7 @@ impl Dispatched<'_> {
             prior_hoisted_locations: prior_hoisted_locations(prior_modules),
             prune_orphans,
             relink_every_slot_bin: self.modules.tree_moved,
-            import: pnpm_deps_restorer::InstallImportState {
-                logged_methods,
-                swap_lock: Some(swap_lock),
-            },
+            logged_methods,
         }
     }
 }

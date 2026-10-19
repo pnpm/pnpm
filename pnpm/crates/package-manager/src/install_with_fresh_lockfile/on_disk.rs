@@ -335,6 +335,10 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
+    // Lifecycle scripts may start installs of their own in this project.
+    if let Some(swap_lock) = ctx.caches.swap_lock {
+        swap_lock.release();
+    }
     let crate::BuildModulesOutput {
         ignored_builds,
         deferred_builds,
@@ -471,10 +475,7 @@ fn build_directories<'a>(
         hoisted_pkg_roots_by_key: linked.hoisted_pkg_roots_by_key.as_ref(),
         is_hoisted: ctx.is_hoisted(),
         publicly_hoisted_for_post_build: &linked.publicly_hoisted_for_post_build,
-        import: pnpm_deps_restorer::InstallImportState {
-            logged_methods: ctx.caches.logged_methods,
-            swap_lock: ctx.caches.swap_lock,
-        },
+        logged_methods: ctx.caches.logged_methods,
         link_options: ctx.linker.bin_options,
     }
 }

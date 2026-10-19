@@ -77,8 +77,8 @@ pub use link_file::*;
 pub use link_hoisted_modules::*;
 pub use link_root_component_members::*;
 pub use materialization_options::{
-    InstallImportState, ModuleLinkerContext, PackageImportOptions, RegistryFetchContext,
-    SlotImportSource, SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
+    ModuleLinkerContext, PackageImportOptions, RegistryFetchContext, SlotImportSource,
+    SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
 };
 pub use modules_swap_lock::ModulesSwapLock;
 pub use package_map::*;

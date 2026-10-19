@@ -62,10 +62,7 @@ async fn build_generated_peer_bin_is_considered_without_lockfile_has_bin() {
             hoisted_pkg_roots_by_key: None,
             is_hoisted: false,
             publicly_hoisted_for_post_build: &[],
-            import: crate::InstallImportState {
-                logged_methods: &AtomicU8::new(0),
-                swap_lock: None,
-            },
+            logged_methods: &AtomicU8::new(0),
             link_options: &LinkBinsOptions::default(),
         },
         graph: crate::BuildPhaseGraph {
@@ -144,10 +141,7 @@ async fn directory_peer_bin_is_considered_without_lockfile_has_bin() {
             hoisted_pkg_roots_by_key: None,
             is_hoisted: false,
             publicly_hoisted_for_post_build: &[],
-            import: crate::InstallImportState {
-                logged_methods: &AtomicU8::new(0),
-                swap_lock: None,
-            },
+            logged_methods: &AtomicU8::new(0),
             link_options: &LinkBinsOptions::default(),
         },
         graph: crate::BuildPhaseGraph {
@@ -262,7 +256,7 @@ async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {
             hoisted_pkg_roots_by_key: None,
             is_hoisted: false,
             publicly_hoisted_for_post_build: &[],
-            import: crate::InstallImportState { logged_methods: &logged_methods, swap_lock: None },
+            logged_methods: &logged_methods,
             link_options: &LinkBinsOptions::default(),
         },
         graph: crate::BuildPhaseGraph {

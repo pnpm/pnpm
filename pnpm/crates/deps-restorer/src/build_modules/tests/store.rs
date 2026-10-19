@@ -153,10 +153,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),
@@ -251,10 +248,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),
@@ -434,10 +428,7 @@ async fn write_path_populates_side_effects_row() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),

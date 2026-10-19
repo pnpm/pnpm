@@ -217,10 +217,7 @@ new file mode 100644
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),
@@ -361,10 +358,7 @@ new file mode 100644
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),
@@ -474,10 +468,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),

@@ -231,11 +231,11 @@ pub struct BuildLayout<'a> {
     /// build is skipped. See `build_one_snapshot`.
     pub import_method: PackageImportMethod,
 
-    /// The install's import state, shared with [`crate::CreateVirtualStore`]
-    /// so the side-effects re-materialization neither re-announces a
-    /// method the link phase already reported nor replaces a slot
-    /// unserialized.
-    pub import: crate::InstallImportState<'a>,
+    /// Install-scoped dedupe state for the `pnpm:package-import-method`
+    /// log, shared with [`crate::CreateVirtualStore`] so the side-effects
+    /// re-materialization doesn't re-announce a method the link phase
+    /// already reported.
+    pub logged_methods: &'a std::sync::atomic::AtomicU8,
 }
 
 #[derive(Clone, Copy)]

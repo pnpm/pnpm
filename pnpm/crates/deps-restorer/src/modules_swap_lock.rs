@@ -1,15 +1,16 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::Mutex,
     time::Duration,
 };
 
-/// How long an install waits for another install's replacements under
+/// How long an install waits for another install's linking phase under
 /// the same modules directory before it replaces unserialized, as the
-/// global virtual store slot lock does. Replacing a package takes
-/// seconds at most, so a wait this long only runs out on a holder that
-/// is stuck.
+/// global virtual store slot lock does. A linking phase that runs
+/// longer than this, as a large cold install on a slow disk can, leaves
+/// the waiter to the tolerant swap, which accepts or replaces an
+/// equivalent concurrent import on its own.
 const WAIT: Duration = Duration::from_mins(10);
 /// Past how long an install's linking phase can legitimately take, so a
 /// holder that cannot prove it is alive never has its lock stolen
@@ -20,29 +21,62 @@ const ABANDONED_AFTER: Duration = Duration::from_hours(2);
 /// one modules directory, so that two installs replacing the same
 /// directories at once take turns instead of undoing each other's work.
 ///
-/// Taken on the first replacement and held until the install drops it:
-/// one acquisition per install, however many packages it replaces, and
-/// none for an install that replaces nothing. The workers of one install
-/// share the held lock. An install that cannot take it, because the
-/// per-user lock root is unusable or the wait ran out, replaces
-/// unserialized: the replacement tolerates a concurrent importer on its
-/// own, so a lock-directory problem must not fail the install.
+/// Taken on the first forced import of a private target, including into
+/// an absent one, and held until [`Self::release`]: one acquisition per
+/// linking phase, however many packages it imports, and none for an
+/// isolated install that forces nothing. The workers of one install
+/// share the held lock. The linking phase releases it before any
+/// lifecycle script runs, so an install a script starts in the same
+/// project does not wait on its parent. An install that cannot take it,
+/// because the per-user lock root is unusable or the wait ran out,
+/// replaces unserialized for the rest of its life: the replacement
+/// tolerates a concurrent importer on its own, so a lock-directory
+/// problem must not fail the install, and must not cost every later
+/// import another wait.
 #[derive(Debug)]
 pub struct ModulesSwapLock {
     modules_dir: PathBuf,
-    held: OnceLock<Option<pnpm_fs::DirLock>>,
+    state: Mutex<State>,
+}
+
+#[derive(Debug)]
+enum State {
+    /// Not held; the next [`ModulesSwapLock::hold`] takes it.
+    Free,
+    /// Held for as long as the value lives; nothing reads it.
+    Held { _lock: pnpm_fs::DirLock },
+    /// Could not be taken; no later [`ModulesSwapLock::hold`] tries again.
+    Unserialized,
 }
 
 impl ModulesSwapLock {
     #[must_use]
     pub fn new(modules_dir: &Path) -> Self {
-        ModulesSwapLock { modules_dir: modules_dir.to_path_buf(), held: OnceLock::new() }
+        ModulesSwapLock { modules_dir: modules_dir.to_path_buf(), state: Mutex::new(State::Free) }
     }
 
-    /// Take the lock on first use, and report whether this install holds
-    /// it. `false` means its replacements run unserialized.
+    /// Take the lock unless this install already holds it or already
+    /// failed to take it, and report whether it holds it. `false` means
+    /// its replacements run unserialized.
     pub fn hold(&self) -> bool {
-        self.held.get_or_init(|| acquire(&self.modules_dir)).is_some()
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if matches!(*state, State::Free) {
+            *state = match acquire(&self.modules_dir) {
+                Some(lock) => State::Held { _lock: lock },
+                None => State::Unserialized,
+            };
+        }
+        matches!(*state, State::Held { .. })
+    }
+
+    /// Give the lock back, so that another install's replacements can
+    /// run while this one goes on to work that may start installs of
+    /// its own. A later [`Self::hold`] takes it again.
+    pub fn release(&self) {
+        let mut state = self.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if matches!(*state, State::Held { .. }) {
+            *state = State::Free;
+        }
     }
 }
 

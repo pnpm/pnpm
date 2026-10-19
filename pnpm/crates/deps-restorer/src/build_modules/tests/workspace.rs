@@ -72,10 +72,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
             modules_dir: modules_dir.path(),
             lockfile_dir: lockfile_dir.path(),
             import_method: PackageImportMethod::Auto,
-            import: crate::InstallImportState {
-                logged_methods: &TEST_LOGGED_METHODS,
-                swap_lock: None,
-            },
+            logged_methods: &TEST_LOGGED_METHODS,
         },
         graph: crate::BuildGraphInputs {
             snapshots: Some(&snapshots),
