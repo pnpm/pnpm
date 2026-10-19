@@ -344,7 +344,9 @@ fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {
 }
 
 fn is_diff_path_line(line: &str) -> bool {
-    line.starts_with("diff --git ") || line.starts_with("--- ") || line.starts_with("+++ ")
+    ["diff --git ", "--- ", "+++ ", "rename from ", "rename to "]
+        .iter()
+        .any(|prefix| line.starts_with(prefix))
 }
 
 fn normalize_diff_path_line(line: &str, folder_a: &str, folder_b: &str) -> String {

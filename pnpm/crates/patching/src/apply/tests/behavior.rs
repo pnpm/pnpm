@@ -649,7 +649,7 @@ fn delete_patch_leaving_non_empty_result_errors_without_unlinking() {
 }
 
 #[test]
-fn rename_operation_errors_as_unsupported() {
+fn copy_operation_errors_as_unsupported() {
     let patched = tempdir().unwrap();
     fs::write(patched.path().join("from.txt"), "hello\n").unwrap();
     let patch_dir = tempdir().unwrap();
@@ -658,16 +658,16 @@ fn rename_operation_errors_as_unsupported() {
         text_block_fnl! {
             "diff --git a/from.txt b/to.txt"
             "similarity index 100%"
-            "rename from from.txt"
-            "rename to to.txt"
+            "copy from from.txt"
+            "copy to to.txt"
         },
     );
 
-    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("rename must error");
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("copy must error");
     match err {
         PatchApplyError::PatchFailed { message, .. } => {
             assert!(
-                message.contains("rename/copy operations in patches are not yet supported"),
+                message.contains("copy operations in patches are not yet supported"),
                 "got: {message:?}",
             );
         }

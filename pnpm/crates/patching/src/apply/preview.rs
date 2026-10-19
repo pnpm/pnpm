@@ -1,4 +1,4 @@
-use super::{PatchApplyError, read_patch_text, tolerant};
+use super::{PatchApplyError, package_relative_operation, read_patch_text, tolerant};
 
 use diffy::patch_set::{FileOperation, FilePatch, ParseOptions, PatchSet};
 use indexmap::IndexSet;
@@ -97,16 +97,20 @@ struct PreviewState<'a> {
 impl PreviewState<'_> {
     /// Fold one file record into the preview.
     fn record(&mut self, file_patch: &FilePatch<'_, str>) -> Result<(), PatchApplyError> {
-        let operation = file_patch.operation().strip_prefix(1);
+        let operation = package_relative_operation(file_patch);
         let raw_path = match &operation {
             FileOperation::Modify { modified, .. } | FileOperation::Create(modified) => {
                 modified.as_ref()
+            }
+            FileOperation::Rename { from, to } => {
+                self.remove(from.as_ref());
+                to.as_ref()
             }
             FileOperation::Delete(path) => {
                 self.remove(path.as_ref());
                 return Ok(());
             }
-            _ => return Ok(()),
+            FileOperation::Copy { .. } => return Ok(()),
         };
         let Some(written) = normalized_patch_path(raw_path) else { return Ok(()) };
         let is_manifest = names_manifest(self.patched_dir, &written);
