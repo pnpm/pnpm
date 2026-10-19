@@ -241,19 +241,11 @@ impl<'a> OnDiskInputs<'a> {
             skipped,
         )
         .map_err(InstallWithFreshLockfileError::LinkPhase)?;
-        self.report_importing_done::<Reporter>();
+        super::report_importing_done::<Reporter>(
+            self.store.resolution_observer,
+            self.ctx.requester,
+        );
         Ok(linked)
-    }
-
-    fn report_importing_done<Reporter: self::Reporter + 'static>(&self) {
-        if let Some(observer) = self.store.resolution_observer {
-            observer.flush_progress();
-        }
-        Reporter::emit(&LogEvent::Stage(StageLog {
-            level: LogLevel::Debug,
-            prefix: self.ctx.requester.to_string(),
-            stage: Stage::ImportingDone,
-        }));
     }
 
     fn build_graph<'b>(
