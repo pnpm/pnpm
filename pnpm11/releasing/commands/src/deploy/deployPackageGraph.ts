@@ -284,36 +284,50 @@ function collectDependents (
   const dependents = new Map<DepPath, Dependent[]>()
   addDependents(dependents, IMPORTER, [importer.dependencies, importer.devDependencies, importer.optionalDependencies])
   for (const [depPath, snapshot] of Object.entries(packages) as Array<[DepPath, PackageSnapshot]>) {
-    const isPeerOnly = peerOnlyAliases(snapshot, linkedWorkspaceProjects.get(depPath)?.manifest)
-    const nonPeerDependencies = [snapshot.dependencies, snapshot.optionalDependencies]
-      .map(dependencies => dependencies && Object.fromEntries(Object.entries(dependencies).filter(([alias]) => !isPeerOnly(alias))))
-    addDependents(dependents, depPath, nonPeerDependencies)
+    const isPeerEdge = createPeerEdgeMatcher(depPath, snapshot, linkedWorkspaceProjects.get(depPath)?.manifest)
+    addDependents(dependents, depPath, [snapshot.dependencies, snapshot.optionalDependencies], isPeerEdge)
   }
   return dependents
 }
 
 /**
- * The aliases a snapshot depends on only to satisfy its own peers. A linked
- * workspace package that also depends on a peer resolves it as that
- * dependency.
+ * Whether an edge `alias -> child` of `depPath` only satisfies a peer of the
+ * package. A package that also depends on a peer resolves it as that
+ * dependency unless a parent shadowed it, which is recorded in `depPath`'s
+ * peer bindings.
  */
-function peerOnlyAliases (snapshot: PackageSnapshot, manifest: ProjectManifest | undefined): (alias: string) => boolean {
-  if (manifest == null) {
-    const peers = snapshot.peerDependencies ?? {}
-    return alias => Object.hasOwn(peers, alias)
+function createPeerEdgeMatcher (
+  depPath: DepPath,
+  snapshot: PackageSnapshot,
+  manifest: ProjectManifest | undefined
+): (alias: string, child: DepPath) => boolean {
+  if (manifest != null) {
+    const peers = manifest.peerDependencies ?? {}
+    return alias => Object.hasOwn(peers, alias) && !declaresDependency(manifest, alias)
   }
-  const peers = manifest.peerDependencies ?? {}
-  return alias => Object.hasOwn(peers, alias) && !declaresDependency(manifest, alias)
+  const peers = snapshot.peerDependencies
+  if (peers == null) return () => false
+  const bindings = dp.parsePeerBindings(depPath)
+  const bound = bindings == null ? new Set<string>() : dp.getBoundPeerProviders(bindings)
+  return (alias, child) => {
+    if (!Object.hasOwn(peers, alias)) return false
+    // Deploy rewrites a linked or `file:` target to a `file://` key without
+    // rewriting the peer suffix that bound it, and an external package cannot
+    // declare a workspace link as its own dependency.
+    if (dp.parse(child).nonSemverVersion?.startsWith('file:') === true) return true
+    return bound == null || bound.has(dp.removePeersSuffix(child))
+  }
 }
 
 function addDependents (
   dependents: Map<DepPath, Dependent[]>,
   dependent: Dependent,
-  dependencyMaps: Array<ResolvedDependencies | undefined>
+  dependencyMaps: Array<ResolvedDependencies | undefined>,
+  isPeerEdge?: (alias: string, child: DepPath) => boolean
 ): void {
   for (const [alias, reference] of dependencyMaps.flatMap(dependencies => Object.entries(dependencies ?? {}))) {
     const child = dp.refToRelative(reference, alias)
-    if (child == null) continue
+    if (child == null || isPeerEdge?.(alias, child) === true) continue
     let dependentsOfChild = dependents.get(child)
     if (dependentsOfChild == null) dependents.set(child, dependentsOfChild = [])
     dependentsOfChild.push(dependent)

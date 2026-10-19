@@ -1,4 +1,4 @@
-import { getPeerBindingProviders, parsePeerBindings, refToRelative, removePeersSuffix } from '@pnpm/deps.path'
+import { getBoundPeerProviders, getPeerBindingProviders, parsePeerBindings, refToRelative, removePeersSuffix } from '@pnpm/deps.path'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
@@ -157,26 +157,37 @@ function getTransitivePeerProviders (lockfile: LockfileObject, snapshot: Package
   return providers
 }
 
-/** A child that declares the peer holds the provider edge. One that lists it as a transitive peer is descended into. */
+/** A child that binds the peer holds the provider edge. One that lists it as a transitive peer is descended into. */
 function visitTransitivePeerChild (
-  child: PackageSnapshot,
+  [childKey, child]: [DepPath, PackageSnapshot],
   { peerName, pending, providers }: { peerName: string, pending: PackageSnapshot[], providers: DepPath[] }
 ): void {
-  if (declaresPeer(child, peerName)) {
-    providers.push(...getPeerEdgeKeys(child, (name) => name === peerName).map(([, provider]) => provider))
+  const childProviders = getBoundPeerEdgeProviders(childKey, child, peerName)
+  if (childProviders.length > 0) {
+    providers.push(...childProviders)
   } else if (child.transitivePeerDependencies?.includes(peerName)) {
     pending.push(child)
   }
 }
 
-function getUnvisitedChildSnapshots (lockfile: LockfileObject, snapshot: PackageSnapshot, visited: Set<DepPath>): PackageSnapshot[] {
-  const children: PackageSnapshot[] = []
+function getBoundPeerEdgeProviders (childKey: DepPath, child: PackageSnapshot, peerName: string): DepPath[] {
+  if (!declaresPeer(child, peerName)) return []
+  const bindings = parsePeerBindings(childKey)
+  if (bindings == null) return []
+  const bound = getBoundPeerProviders(bindings)
+  return getPeerEdgeKeys(child, (name) => name === peerName)
+    .map(([, provider]) => provider)
+    .filter((provider) => bound == null || bound.has(removePeersSuffix(provider)))
+}
+
+function getUnvisitedChildSnapshots (lockfile: LockfileObject, snapshot: PackageSnapshot, visited: Set<DepPath>): Array<[DepPath, PackageSnapshot]> {
+  const children: Array<[DepPath, PackageSnapshot]> = []
   for (const [edgeName, ref] of getDependencyEdges(snapshot)) {
     const childKey = refToRelative(ref, edgeName)
     const child = childKey == null ? undefined : lockfile.packages?.[childKey]
     if (childKey == null || child == null || visited.has(childKey)) continue
     visited.add(childKey)
-    children.push(child)
+    children.push([childKey, child])
   }
   return children
 }

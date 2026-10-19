@@ -61,7 +61,7 @@ fn providers_in(fixture: &Fixture<'_>) -> Vec<SnapshotDepRef> {
         importer: Some(&importer),
         snapshots: &snapshots,
         candidates: HashMap::default(),
-        dependents: dependents_by_snapshot(Some(&importer), &snapshots, |parent, alias| {
+        dependents: dependents_by_snapshot(Some(&importer), &snapshots, |parent, alias, _| {
             fixture.peer_edges
                 .iter()
                 .any(|(peer_parent, peer_alias)| {
@@ -134,4 +134,64 @@ fn a_package_consuming_the_linked_package_as_a_peer_is_not_its_parent() {
         peer_edges: &[("sibling@1.0.0", "lib")],
     });
     assert_eq!(found, vec![reference("1.0.0")]);
+}
+
+/// `wrapper` declares `mid` in both `dependencies` and `peerDependencies`,
+/// and resolved `mid@1.0.0` from its own `dependencies` when `wrapper_key`
+/// carries no `(mid@1.0.0)` peer binding, so `wrapper -> mid` is a parent
+/// edge and `wrapper` provides `peer@1.0.1` to `lib`.
+#[test]
+fn an_unshadowed_own_dependency_declared_as_a_peer_remains_a_parent_edge() {
+    let mut lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\n\
+         importers:\n  \
+           .:\n    \
+             dependencies:\n      \
+               wrapper:\n        \
+                 specifier: 1.0.0\n        \
+                 version: 1.0.0\n      \
+               peer:\n        \
+                 specifier: 1.0.0\n        \
+                 version: 1.0.0\n\
+         packages:\n  \
+           wrapper@1.0.0:\n    \
+             resolution: {integrity: sha512-AA==}\n    \
+             peerDependencies:\n      \
+               mid: ^1.0.0\n\
+         snapshots:\n  \
+           lib@file:///workspace/packages/lib: {}\n  \
+           mid@1.0.0:\n    \
+             dependencies:\n      \
+               lib: lib@file:///workspace/packages/lib\n  \
+           wrapper@1.0.0:\n    \
+             dependencies:\n      \
+               mid: 1.0.0\n      \
+               peer: 1.0.1\n  \
+           peer@1.0.0: {}\n  \
+           peer@1.0.1: {}\n",
+    )
+    .unwrap();
+    let lib_key = key("lib@file:///workspace/packages/lib");
+    let peer: PkgName = "peer".parse().unwrap();
+    let linked = HashMap::from([(
+        lib_key.clone(),
+        super::super::LinkedWorkspaceProject {
+            project: crate::cli_args::deploy::ProjectInfo {
+                name: Some("lib".to_string()),
+                has_bin: false,
+                peer_dependencies: vec![peer.clone()],
+                peer_blocks: (None, None),
+                declared_dependencies: std::collections::HashSet::new(),
+            },
+            deduped_peer_resolutions: None,
+        },
+    )]);
+
+    super::super::bind_singleton_peers(&mut lockfile, &linked).unwrap();
+
+    let bound = lockfile.snapshots.as_ref().unwrap()[&lib_key].dependencies
+        .as_ref()
+        .unwrap()
+        .get(&peer);
+    assert_eq!(bound, Some(&reference("1.0.1")));
 }

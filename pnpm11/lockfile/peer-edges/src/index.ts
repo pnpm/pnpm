@@ -236,7 +236,7 @@ function collectSnapshotOptionalPeerEntries (
   if (snapshot.peerDependencies == null || snapshot.peerDependenciesMeta == null) return
   const bindings = dp.parsePeerBindings(parent)
   if (bindings == null) return
-  const site = { parent, snapshot, providers: getBoundProviders(bindings) }
+  const site = { parent, snapshot, providers: dp.getBoundPeerProviders(bindings) }
   collectDepsOptionalPeerEntries(site, snapshot.dependencies, entries)
   collectDepsOptionalPeerEntries(site, snapshot.optionalDependencies, entries)
 }
@@ -259,16 +259,6 @@ function collectDepsOptionalPeerEntries (
       entries.push({ parent, alias, target })
     }
   }
-}
-
-/**
- * The providers `bindings` name, without their own peers: peer segments may
- * omit them (`dedupePeers`). `undefined` for a hashed suffix, which names
- * none, so every target counts.
- */
-function getBoundProviders (bindings: dp.PeerBindings): Set<string> | undefined {
-  if (bindings.kind === 'hashed') return undefined
-  return new Set(dp.getPeerBindingProviders(bindings).map((provider) => dp.removePeersSuffix(provider)))
 }
 
 

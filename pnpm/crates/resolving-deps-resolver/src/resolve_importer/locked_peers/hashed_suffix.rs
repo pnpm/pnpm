@@ -37,7 +37,7 @@ pub(super) fn hashed_peer_keys(
 
 /// The providers the subtree under `snapshot` resolved `peer_name` to.
 ///
-/// Descends only into children that declare the peer, which hold the
+/// Descends only into children that bind the peer, which hold the
 /// edge, or that list it as a transitive peer themselves.
 fn transitive_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
@@ -55,8 +55,9 @@ fn transitive_peer_keys(
             .filter(|(child_key, _)| visited.insert(child_key.clone()))
             .collect();
         for (child_key, child) in children {
-            if declares_peer(lockfile, &child_key, peer_name) {
-                providers.extend(peer_providers(child, &peer));
+            let child_providers = bound_peer_providers(lockfile, &child_key, child, &peer);
+            if !child_providers.is_empty() {
+                providers.extend(child_providers);
             } else if lists_transitive_peer(child, peer_name) {
                 pending.push(child);
             }
@@ -65,11 +66,20 @@ fn transitive_peer_keys(
     providers
 }
 
-fn peer_providers<'a>(
-    snapshot: &'a pnpm_lockfile::SnapshotEntry,
-    peer: &'a PkgName,
-) -> impl Iterator<Item = pnpm_lockfile::PkgNameVerPeer> + 'a {
-    peer_edge_keys(snapshot, move |name| name == peer).map(|(_, provider)| provider)
+fn bound_peer_providers(
+    lockfile: &pnpm_lockfile::Lockfile,
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    peer: &PkgName,
+) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
+    if !declares_peer(lockfile, key, &peer.to_string()) {
+        return Vec::new();
+    }
+    let bound = pnpm_lockfile::BoundProviders::from_key(key);
+    peer_edge_keys(snapshot, move |name| name == peer)
+        .map(|(_, provider)| provider)
+        .filter(|provider| bound.binds(provider))
+        .collect()
 }
 
 fn child_snapshots<'a>(

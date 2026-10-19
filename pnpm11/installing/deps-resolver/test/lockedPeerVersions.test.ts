@@ -46,6 +46,29 @@ test('a hashed suffix pins the providers its snapshot edges name', () => {
   ]))
 })
 
+test('a hashed suffix ignores a transitive peer that a child resolved from its own dependencies', () => {
+  const lockfile = lockfileOf({
+    'a@1.0.0(0123456789abcdef0123456789abcdef)': {
+      resolution: { integrity: 'sha512-a' },
+      dependencies: { child: '1.0.0(peer@2.0.0)', 'own-dep-child': '1.0.0' },
+      transitivePeerDependencies: ['peer'],
+    },
+    'child@1.0.0(peer@2.0.0)': {
+      resolution: { integrity: 'sha512-child' },
+      dependencies: { peer: '2.0.0' },
+      peerDependencies: { peer: '^2.0.0' },
+    },
+    'own-dep-child@1.0.0': {
+      resolution: { integrity: 'sha512-own' },
+      dependencies: { peer: '1.0.0' },
+      peerDependencies: { peer: '^1.0.0' },
+    },
+  } as unknown as LockfileObject['packages'], { a: '1.0.0(0123456789abcdef0123456789abcdef)' })
+  expect(getImporterLockedPeerVersions(lockfile, '.' as ProjectId)).toStrictEqual(new Map([
+    ['peer', new Set(['2.0.0'])],
+  ]))
+})
+
 test('a dependency named after an Object.prototype member is no peer', () => {
   const lockfile = lockfileOf({
     'a@1.0.0(0123456789abcdef0123456789abcdef)': {

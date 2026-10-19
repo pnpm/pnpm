@@ -342,6 +342,16 @@ export function getPeerBindingProviders (bindings: PeerBindings): DepPath[] {
   return bindings.segments.filter((segment) => parse(segment).name != null) as DepPath[]
 }
 
+/**
+ * The providers `bindings` name, without their own peers: peer segments may
+ * omit them (`dedupePeers`). `undefined` for a hashed suffix, which names
+ * none, so every target counts.
+ */
+export function getBoundPeerProviders (bindings: PeerBindings): Set<string> | undefined {
+  if (bindings.kind === 'hashed') return undefined
+  return new Set(getPeerBindingProviders(bindings).map((provider) => removePeersSuffix(provider)))
+}
+
 function splitPeerSuffixSegments (suffix: string): string[] | undefined {
   const scan: SegmentScan = { segments: [], depth: 0, start: -1 }
   for (let index = 0; index < suffix.length; index++) {
