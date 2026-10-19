@@ -9,7 +9,7 @@ use std::{
 #[test]
 fn file_selection_matches_typescript_packlist() {
     let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let compilation = Command::new(if cfg!(windows) { "pnpm.cmd" } else { "pnpm" })
+    let compilation = Command::new("pnpm")
         .args(["--filter", "@pnpm/fs.packlist...", "exec", "tsgo", "--build"])
         .current_dir(&repo)
         .output()
