@@ -1444,6 +1444,59 @@ describe('transitive local directory dependency', () => {
     }
     expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: cyclicPackages }, project)).upToDate).toBe(true)
   })
+  test('checkLinkedPackagesAreUpToDate(): accepts a nested directory whose peer an ancestor supplies', async () => {
+    await mkdir('c')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b', p: '2.0.0' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { c: 'file:../c' } }))
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { p: '1.0.0' }, peerDependencies: { p: '*' } }))
+    const packages = {
+      'a@file:./a': {
+        resolution: { directory: './a', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { b: 'file:./b', p: '2.0.0' },
+      },
+      'b@file:./b': {
+        resolution: { directory: './b', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { c: 'file:./c(p@2.0.0)' },
+      },
+      'c@file:./c(p@2.0.0)': {
+        resolution: { directory: './c', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { p: '2.0.0' },
+        peerDependencies: { p: '*' },
+      },
+      'p@2.0.0': {
+        resolution: { integrity: 'sha512-p' },
+        version: '2.0.0',
+      },
+    } as LockfileObject['packages']
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): checks a shared directory again where no ancestor supplies its peer', async () => {
+    await mkdir('c')
+    await mkdir('e')
+    await mkdir('f')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b', e: 'file:../e' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { c: 'file:../c', p: '2.0.0' } }))
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { p: '1.0.0' }, peerDependencies: { p: '*' } }))
+    await writeFile('./e/package.json', JSON.stringify({ name: 'e', version: '1.0.0', dependencies: { f: 'file:../f' } }))
+    await writeFile('./f/package.json', JSON.stringify({ name: 'f', version: '1.0.0', dependencies: { c: 'file:../c' } }))
+    const directory = (dir: string, dependencies: Record<string, string>) => ({
+      resolution: { directory: dir, type: 'directory' },
+      version: '1.0.0',
+      dependencies,
+    })
+    const packages = {
+      'a@file:./a': directory('./a', { b: 'file:./b', e: 'file:./e' }),
+      'b@file:./b': directory('./b', { c: 'file:./c(p@2.0.0)', p: '2.0.0' }),
+      'c@file:./c(p@2.0.0)': { ...directory('./c', { p: '2.0.0' }), peerDependencies: { p: '*' } },
+      'e@file:./e': directory('./e', { f: 'file:./f' }),
+      'f@file:./f': directory('./f', { c: 'file:./c(p@2.0.0)' }),
+      'p@2.0.0': { resolution: { integrity: 'sha512-p' }, version: '2.0.0' },
+    } as LockfileObject['packages']
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(false)
+  })
 })
 
 describe('local tgz file dependency', () => {
