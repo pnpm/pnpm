@@ -269,14 +269,21 @@ pub(crate) struct WorkspacePreferredVersions {
     /// workspace-wide directs-before-transitives barrier populates this
     /// set before any importer walks its subtrees.
     pub(super) changed_direct_deps: Mutex<HashSet<PkgName>>,
-    /// The parsed resolved versions of every importer's direct
-    /// dependencies, recorded once the direct-dep level finishes resolving.
-    /// Consulted by [`fn@higher_direct_dep_version`]. `Arc` so the hot
-    /// child walk snapshots the map with one lock + refcount bump instead
-    /// of locking per edge.
+    /// The parsed resolved versions of direct dependencies that changed
+    /// in this install across the workspace, pre-seeded before any
+    /// importer walks its transitive subtrees. Merged into each
+    /// importer's [`Self::direct_dep_versions`] for package names the
+    /// importer does not declare directly.
+    pub(super) changed_direct_dep_versions: Mutex<Arc<DirectDepVersions>>,
+    /// Per importer: the parsed resolved versions of its own direct
+    /// dependencies, plus [`Self::changed_direct_dep_versions`] for
+    /// names the importer does not declare directly. Consulted by
+    /// [`fn@higher_direct_dep_version`]. `Arc` so the hot child walk
+    /// snapshots the importer's map with one lock + refcount bump
+    /// instead of locking per edge.
     ///
     /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
-    pub(super) direct_dep_versions: Mutex<Arc<DirectDepVersions>>,
+    pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
     /// Per importer: the auto-installed peers whose lockfile pin is not
     /// reused. See `find_stale_peer_pins`.
     stale_peer_pins: HashMap<String, HashSet<String>>,

@@ -25,17 +25,26 @@ pub(crate) fn record_changed_direct_deps(
     let prior = lockfile.importers.get(importer_id);
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
     for (alias, spec, _optional, _injected) in wanted {
-        let unchanged = prior
-            .and_then(|importer| importer_dep_specifier(importer, alias))
-            .is_some_and(|recorded| {
-                recorded == spec
-                    || catalog_specifier_unchanged(Some(lockfile), recorded, alias, spec)
-            });
-        if !unchanged && let Ok(name) = alias.parse::<PkgName>() {
+        if !direct_dep_specifier_unchanged(lockfile, prior, alias, spec)
+            && let Ok(name) = alias.parse::<PkgName>()
+        {
             changed.insert(name);
         }
     }
     changed.clone()
+}
+
+fn direct_dep_specifier_unchanged(
+    lockfile: &pnpm_lockfile::Lockfile,
+    prior: Option<&ProjectSnapshot>,
+    alias: &str,
+    spec: &str,
+) -> bool {
+    prior
+        .and_then(|importer| importer_dep_specifier(importer, alias))
+        .is_some_and(|recorded| {
+            recorded == spec || catalog_specifier_unchanged(Some(lockfile), recorded, alias, spec)
+        })
 }
 
 /// Whether a `catalog:`-recorded direct dep still resolves to the same
@@ -82,16 +91,28 @@ pub(super) fn importer_dep_specifier<'a>(
         .map(|dep| dep.specifier.as_str())
 }
 
-/// Store the resolved (parsed) direct-dep versions for the per-edge
-/// stale-pin refresh. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
+/// Store the importer's resolved (parsed) direct-dep versions for the
+/// per-edge stale-pin refresh, together with any workspace-wide changed
+/// direct-dep versions for names this importer does not declare directly.
+/// See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
 ///
 /// [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`]: crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions
 pub(in super::super) fn record_direct_dep_versions(
     ctx: &TreeCtx,
+    importer_id: &str,
     level: &BTreeMap<String, Vec<String>>,
 ) {
+    let changed_versions =
+        Arc::clone(&lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions));
     let mut versions = lock_recoverable(&ctx.workspace.versions.direct_dep_versions);
-    let by_name = Arc::make_mut(&mut *versions);
+    let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
+    extend_parsed_versions(by_name, level);
+    for (name, candidates) in changed_versions.iter() {
+        by_name.entry(name.clone()).or_insert_with(|| candidates.clone());
+    }
+}
+
+fn extend_parsed_versions(by_name: &mut DirectDepVersions, level: &BTreeMap<String, Vec<String>>) {
     for (name, level_versions) in level {
         let bucket = by_name.entry(name.clone()).or_default();
         for version in level_versions {
@@ -149,7 +170,7 @@ pub(in super::super) fn node_depends_on_changed_direct_dep(
 /// The highest resolved direct-dependency version of `name` strictly
 /// above `pinned` that still satisfies `range`, or `None`. Anchored to
 /// direct deps (the deterministic, resolved-before-the-walk signal).
-/// `direct_versions` is the workspace's snapshot, taken once per walked
+/// `direct_versions` is the importer's snapshot, taken once per walked
 /// occurrence as it seeds its children.
 pub(in super::super) fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
@@ -166,8 +187,9 @@ pub(in super::super) fn higher_direct_dep_version(
 }
 
 /// Resolve any changed direct dependencies up front (when reusing a prior
-/// lockfile) and record their resolved versions into `direct_dep_versions`
-/// before any importer walks its transitive subtrees.
+/// lockfile) and record their resolved versions into
+/// `changed_direct_dep_versions` before any importer walks its transitive
+/// subtrees.
 pub(crate) async fn preseed_changed_direct_versions<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -177,17 +199,15 @@ pub(crate) async fn preseed_changed_direct_versions<Chain>(
 ) where
     Chain: super::Resolver + ?Sized,
 {
-    let changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps).clone();
-    if changed.is_empty() {
+    let Some(lockfile) = ctx.workspace.reuse.lockfile.as_deref() else {
         return;
-    }
+    };
+    let prior = lockfile.importers.get(importer_id);
     let mut versions: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for spec in wanted
         .iter()
-        .filter(|(alias, ..)| {
-            alias
-                .parse::<PkgName>()
-                .is_ok_and(|name| changed.contains(&name))
+        .filter(|(alias, bare_spec, ..)| {
+            !direct_dep_specifier_unchanged(lockfile, prior, alias, bare_spec)
         })
     {
         if let Some((name, version)) =
@@ -201,7 +221,9 @@ pub(crate) async fn preseed_changed_direct_versions<Chain>(
         }
     }
     if !versions.is_empty() {
-        record_direct_dep_versions(ctx, &versions);
+        let mut changed_versions =
+            lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions);
+        extend_parsed_versions(Arc::make_mut(&mut *changed_versions), &versions);
     }
 }
 

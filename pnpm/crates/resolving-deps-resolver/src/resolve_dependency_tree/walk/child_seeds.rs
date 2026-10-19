@@ -138,9 +138,9 @@ impl<'s> ChildSeedScope<'s> {
                     .as_ref()?
                     .get(key)
             }),
-            direct_versions: Some(Arc::clone(&lock_recoverable(
-                &ctx.workspace.versions.direct_dep_versions,
-            ))),
+            direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
+                .get(&ctx.importer.id)
+                .map(Arc::clone),
             declaring_dir: declaring_manifest_dir(ctx, result),
             parent_is_workspace: result.resolved_via == "workspace",
         }
