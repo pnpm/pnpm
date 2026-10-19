@@ -527,6 +527,14 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
             "upstream.headers.authorization",
             "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    headers:\n      Authorization: Bearer ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
+        (
+            "grouped.nested.named.type.auth.token",
+            "registries:\n  npm:\n    type:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "grouped.nested.named.url.auth.token",
+            "registries:\n  npm:\n    url:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
     ];
 
     for (field, yaml) in cases {

@@ -202,6 +202,17 @@ fn validate_single_registry_secrets<Sys: EnvVar>(
     Ok(())
 }
 
+fn is_flat_registry(reg_map: &serde_json::Map<String, serde_json::Value>) -> bool {
+    reg_map
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|typ| matches!(typ, "hosted" | "upstream" | "router"))
+        || reg_map
+            .get("url")
+            .and_then(serde_json::Value::as_str)
+            .is_some()
+}
+
 fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), RegistryError> {
     let Some(registries) = val.get("registries").and_then(serde_json::Value::as_object) else {
         return Ok(());
@@ -210,7 +221,7 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
         let Some(reg_map) = entry.as_object() else {
             continue;
         };
-        if reg_map.contains_key("type") || reg_map.contains_key("url") {
+        if is_flat_registry(reg_map) {
             validate_single_registry_secrets::<Sys>(&format!("registries.{name}"), entry)?;
         } else {
             for (sub_name, sub_entry) in reg_map {
