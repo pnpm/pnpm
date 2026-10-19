@@ -230,13 +230,13 @@ pub(super) fn importer_link_satisfies(
     if link_path.is_absolute() {
         return false;
     }
-    target_dir_satisfies(
-        dirs,
-        &project_dir.join(link_path),
-        expected_name,
-        parsed_range_str,
-        &range,
-    )
+    let target_dir = project_dir.join(link_path);
+    if !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(&target_dir))
+        && std::fs::symlink_metadata(&target_dir).is_err()
+    {
+        return true;
+    }
+    target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str, &range)
 }
 
 fn linked_target_satisfies(

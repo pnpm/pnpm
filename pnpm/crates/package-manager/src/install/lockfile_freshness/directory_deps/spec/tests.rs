@@ -297,6 +297,30 @@ fn a_loaded_project_above_the_workspace_root_is_trusted_unless_linked_elsewhere(
     ));
 }
 
+#[test]
+fn an_importer_link_to_a_missing_sparse_checkout_directory_is_satisfied() {
+    let fixture = tempfile::tempdir().unwrap();
+    let workspace_root = fixture.path().to_path_buf();
+    let project_dir = workspace_root.join("packages/app");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    let dirs = dirs(&workspace_root, &workspace_root);
+
+    assert!(super::importer_link_satisfies(
+        &dirs,
+        &project_dir,
+        "missing-pkg",
+        "workspace:*",
+        "../missing-pkg",
+    ));
+    assert!(super::importer_link_satisfies(
+        &dirs,
+        &project_dir,
+        "missing-pkg",
+        "workspace:^1.0.0",
+        "../missing-pkg",
+    ));
+}
+
 fn registry_spec_satisfies(spec: &str, recorded: &str) -> Option<bool> {
     let recorded =
         recorded.parse::<pnpm_lockfile::SnapshotDepRef>().expect("parse the recorded reference");

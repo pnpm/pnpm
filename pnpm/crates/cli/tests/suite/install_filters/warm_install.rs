@@ -333,9 +333,16 @@ fn filtered_repeat_install_fails_when_linked_dependency_version_breaks_range() {
 
     set_version(&pkg_a, "2.0.0");
     let output = fixture.command_at(&fixture.workspace, ["--filter", "pkg-b", "install"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
 
     assert!(
         !output.status.success(),
         "breaking workspace:^1.0.0 on linked pkg-a must invalidate fast path and fail resolution",
+    );
+    assert!(
+        stderr.contains(
+            "No matching version found for pkg-a@workspace:^1.0.0 inside the workspace"
+        ),
+        "failure must come from the unsatisfied workspace range: {stderr}",
     );
 }

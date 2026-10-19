@@ -34,9 +34,20 @@ struct LocalDepContext<'a> {
     catalogs: &'a Catalogs,
 }
 
-impl LocalDepContext<'_> {
+impl<'a> LocalDepContext<'a> {
     fn outdated(&self) -> FreshnessCheckError {
         local_dependency_outdated(self.name, self.rel_path)
+    }
+
+    fn child(&self, name: &'a str, spec: &str, rel_path: &'a str, dir: &'a Path) -> Self {
+        Self {
+            name,
+            declared_as_file: is_declared_local_directory(spec),
+            rel_path,
+            dir,
+            dirs: self.dirs,
+            catalogs: self.catalogs,
+        }
     }
 }
 
@@ -291,23 +302,24 @@ fn check_child_directory_dep_freshness(
     (name, spec, optional, _): &ChildSpec,
     visited: &mut HashSet<pnpm_lockfile::PackageKey>,
 ) -> Result<(), FreshnessCheckError> {
-    let Some(pkg_key) = recorded_child(parent_snapshot, name, *optional)
+    let Some(pkg_key) = (!*optional || check.config.optional)
+        .then(|| recorded_child(parent_snapshot, name, *optional))
+        .flatten()
         .zip(pnpm_lockfile::PkgName::parse(name).ok())
         .and_then(|(recorded, pkg_name)| recorded.resolve(&pkg_name))
+        .filter(|pkg_key| visited.insert(pkg_key.clone()))
     else {
         return Ok(());
     };
-    if !visited.insert(pkg_key.clone()) {
-        return Ok(());
-    }
     let Some(pkg_meta) = check.lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&pkg_key.without_peer()))
     else {
-        if is_declared_local_directory(spec) || spec.starts_with("workspace:") {
-            return Err(parent_dep.outdated());
-        }
-        return Ok(());
+        return if is_declared_local_directory(spec) || spec.starts_with("workspace:") {
+            Err(parent_dep.outdated())
+        } else {
+            Ok(())
+        };
     };
     let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
         return Ok(());
@@ -316,14 +328,7 @@ fn check_child_directory_dep_freshness(
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|s| s.get(&pkg_key));
-    let child_dep = LocalDepContext {
-        name,
-        declared_as_file: is_declared_local_directory(spec),
-        rel_path: &dir_res.directory,
-        dir: &local_dep_dir,
-        dirs: parent_dep.dirs,
-        catalogs: parent_dep.catalogs,
-    };
+    let child_dep = parent_dep.child(name, spec, &dir_res.directory, &local_dep_dir);
     check_single_directory_dep_freshness(
         check,
         |peer_name| snapshot_declares(parent_snapshot, peer_name),
