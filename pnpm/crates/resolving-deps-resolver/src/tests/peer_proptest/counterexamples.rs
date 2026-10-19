@@ -267,4 +267,16 @@ fn hashed_suffix_keeps_unshadowed_own_dependency_without_auto_install_peers() {
     let reused = super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
         .expect("reuse resolve");
     assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+
+    let (initial_ws, moved) = super::model::move_dependency(&workspace, 0, 1);
+    let initial =
+        super::resolve_with(&initial_ws, &order, settings, Reuse::Fresh).expect("initial resolve");
+    let moved_lockfile = lockfile_of(&initial, &initial_ws);
+    let moved_fresh = super::outcome_with(&moved, &order, settings, Reuse::Fresh);
+    let moved_installed =
+        super::outcome_with(&moved, &order, settings, Reuse::Install(&moved_lockfile));
+    let moved_deduped =
+        super::outcome_with(&moved, &order, settings, Reuse::Dedupe(&moved_lockfile));
+    assert_eq!(moved_fresh, moved_installed);
+    assert_eq!(moved_fresh, moved_deduped);
 }

@@ -62,6 +62,117 @@ snapshots:
 }
 
 #[test]
+fn bound_providers_of_snapshot_recovers_hashed_peers_across_shared_descendant_branches() {
+    let suffix = PeerBindings::Explicit(vec!["p@1.0.0".to_string(), "q@1.0.0".to_string()])
+        .to_suffix(3)
+        .expect("hashed suffix");
+    let root_key = key(&format!("root@1.0.0{suffix}"));
+    let yaml = format!(
+        r"lockfileVersion: '9.0'
+packages:
+  root@1.0.0:
+    resolution: {{integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}}
+  branch-p@1.0.0:
+    resolution: {{integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}}
+  branch-q@1.0.0:
+    resolution: {{integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}}
+  shared@1.0.0:
+    resolution: {{integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}}
+    peerDependencies:
+      p: ^1.0.0
+      q: ^1.0.0
+snapshots:
+  '{root_key}':
+    dependencies:
+      branch-p: 1.0.0
+      branch-q: 1.0.0
+    transitivePeerDependencies:
+      - p
+      - q
+  branch-p@1.0.0:
+    dependencies:
+      shared: 1.0.0
+    transitivePeerDependencies:
+      - p
+  branch-q@1.0.0:
+    dependencies:
+      shared: 1.0.0
+    transitivePeerDependencies:
+      - q
+  shared@1.0.0:
+    dependencies:
+      p: 1.0.0
+      q: 1.0.0
+",
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).expect("parse lockfile");
+    let providers = BoundProviders::of_snapshot(
+        crate::LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: lockfile.snapshots.as_ref(),
+        },
+        &root_key,
+    );
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&key("p@1.0.0")));
+    assert!(providers.binds(&key("q@1.0.0")));
+}
+
+#[test]
+fn bound_providers_of_snapshot_counts_distinct_snapshots_across_multiple_peers() {
+    let suffix = PeerBindings::Explicit(vec!["p@1.0.0".to_string(), "q@1.0.0".to_string()])
+        .to_suffix(3)
+        .expect("hashed suffix");
+    let root_key = key(&format!("root@1.0.0{suffix}"));
+    let mut snapshots = std::collections::HashMap::new();
+    let mut root_deps = std::collections::HashMap::new();
+    for idx in 0..600 {
+        let name = format!("node-{idx}");
+        root_deps.insert(
+            name.parse().expect("pkg name"),
+            crate::SnapshotDepRef::Plain("1.0.0".parse().expect("ver")),
+        );
+        let mut deps = std::collections::HashMap::new();
+        deps.insert(
+            "p".parse().expect("pkg name"),
+            crate::SnapshotDepRef::Plain("1.0.0".parse().expect("ver")),
+        );
+        deps.insert(
+            "q".parse().expect("pkg name"),
+            crate::SnapshotDepRef::Plain("1.0.0".parse().expect("ver")),
+        );
+        snapshots.insert(
+            key(&format!("{name}@1.0.0")),
+            crate::SnapshotEntry { dependencies: Some(deps), ..crate::SnapshotEntry::default() },
+        );
+    }
+    snapshots.insert(
+        root_key.clone(),
+        crate::SnapshotEntry {
+            dependencies: Some(root_deps),
+            transitive_peer_dependencies: Some(vec!["p".to_string(), "q".to_string()]),
+            ..crate::SnapshotEntry::default()
+        },
+    );
+    let yaml = r"lockfileVersion: '9.0'
+packages:
+  root@1.0.0:
+    resolution: {integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}
+";
+    let lockfile: Lockfile = serde_saphyr::from_str(yaml).expect("parse lockfile");
+    let providers = BoundProviders::of_snapshot(
+        crate::LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: Some(&snapshots),
+        },
+        &root_key,
+    );
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&key("p@1.0.0")));
+    assert!(providers.binds(&key("q@1.0.0")));
+}
+
+#[test]
 fn an_explicit_suffix_names_its_providers_in_order() {
     let bindings = PeerBindings::from_key(&key("a@1.0.0(b@2.0.0(c@1.0.0))(c@1.0.0)")).unwrap();
     let providers: Vec<String> = bindings

@@ -20,7 +20,7 @@ pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wante
     };
     let prior = lockfile.importers.get(importer_id);
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
-    let set = Arc::make_mut(&mut *changed);
+    let set = Arc::make_mut(changed.entry(importer_id.to_string()).or_default());
     for (alias, spec, _optional, _injected) in wanted {
         if !direct_dep_specifier_unchanged(lockfile, prior, alias, spec)
             && let Ok(name) = alias.parse::<PkgName>()
@@ -120,29 +120,60 @@ fn extend_parsed_versions(by_name: &mut DirectDepVersions, level: &BTreeMap<Stri
     }
 }
 
-/// True when `snapshot` depends on one of the workspace's changed direct
-/// deps (see [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::changed_direct_deps`]).
-///
-/// [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::changed_direct_deps`]: crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::changed_direct_deps
-pub(super) fn reused_parent_has_changed_direct_child(
+/// True when `snapshot` depends on one of this importer's changed direct
+/// deps, or on a dependency whose pinned version differs from a version
+/// resolved for a changed direct dep in another importer.
+fn reused_parent_has_changed_direct_child(
     ctx: &TreeCtx,
     snapshot: &SnapshotEntry,
+    include_cross_importer: bool,
 ) -> bool {
-    let changed_set = {
-        let changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
-        if changed.is_empty() {
-            return false;
-        }
-        Arc::clone(&changed)
-    };
-    let depends_on = |map: Option<&std::collections::HashMap<PkgName, SnapshotDepRef>>| {
-        map.is_some_and(|deps| {
-            deps.keys()
-                .any(|name| changed_set.contains(name))
+    let own_changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps)
+        .get(&ctx.importer.id)
+        .cloned();
+    let cross_changed = include_cross_importer.then(|| {
+        Arc::clone(&lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions))
+    });
+    if own_changed.as_ref().is_none_or(|set| set.is_empty())
+        && cross_changed.as_ref().is_none_or(|map| map.is_empty())
+    {
+        return false;
+    }
+    snapshot.dependencies
+        .iter()
+        .chain(snapshot.optional_dependencies.iter())
+        .flatten()
+        .any(|(name, dep_ref)| {
+            own_changed
+                .as_ref()
+                .is_some_and(|set| set.contains(name))
+                || cross_changed
+                    .as_deref()
+                    .is_some_and(|cross| cross_importer_changed_version(cross, name, dep_ref))
         })
+}
+
+fn cross_importer_changed_version(
+    cross_changed: &DirectDepVersions,
+    name: &PkgName,
+    dep_ref: &SnapshotDepRef,
+) -> bool {
+    let (target_name, ver_peer) = match dep_ref {
+        SnapshotDepRef::Plain(ver_peer) => (name, ver_peer),
+        SnapshotDepRef::Alias(key) => (&key.name, &key.suffix),
+        SnapshotDepRef::Link(_) => return false,
     };
-    depends_on(snapshot.dependencies.as_ref())
-        || depends_on(snapshot.optional_dependencies.as_ref())
+    let candidates = match &target_name.scope {
+        None => cross_changed.get(target_name.bare.as_str()),
+        Some(_) => cross_changed.get(&target_name.to_string()),
+    };
+    candidates
+        .zip(ver_peer.version_semver())
+        .is_some_and(|(versions, pinned)| {
+            versions
+                .iter()
+                .any(|version| version != pinned)
+        })
 }
 
 /// Reuse-decline gate: whether `prior_key`'s prior snapshot depends on a
@@ -151,15 +182,23 @@ pub(in super::super) fn node_depends_on_changed_direct_dep(
     ctx: &TreeCtx,
     prior_key: Option<&PkgNameVerPeer>,
 ) -> bool {
-    prior_key
-        .and_then(|key| {
-            ctx.workspace.reuse.lockfile
-                .as_ref()?
-                .snapshots
-                .as_ref()?
-                .get(key)
+    node_depends_on_changed_direct_dep_with(ctx, prior_key, true)
+}
+
+fn node_depends_on_changed_direct_dep_with(
+    ctx: &TreeCtx,
+    prior_key: Option<&PkgNameVerPeer>,
+    include_cross_importer: bool,
+) -> bool {
+    let Some(key) = prior_key else {
+        return false;
+    };
+    ctx.workspace.reuse.lockfile
+        .as_ref()
+        .and_then(|lf| lf.snapshots.as_ref()?.get(key))
+        .is_some_and(|snapshot| {
+            reused_parent_has_changed_direct_child(ctx, snapshot, include_cross_importer)
         })
-        .is_some_and(|snapshot| reused_parent_has_changed_direct_child(ctx, snapshot))
 }
 
 /// The highest resolved direct-dependency version of `name` strictly
@@ -246,7 +285,7 @@ where
     let prior_key = reuse.prior_key(ctx, &wanted_dep);
     if ctx.workspace.reuse.subtrees
         && reuse.allows_reuse()
-        && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
+        && !node_depends_on_changed_direct_dep_with(ctx, prior_key.as_ref(), false)
         && let Some(reused) = super::try_reuse_node(ctx, &wanted_dep, prior_key.as_ref(), 0)
         && super::reuse_matches_peer_scope(ctx, &reused, parent_pkg_aliases)
     {

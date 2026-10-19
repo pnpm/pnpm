@@ -97,7 +97,6 @@ impl SubtreeWalk<'_> {
         let version = key.suffix.version_semver();
         if self.ctx.workspace.reuse.dedupe.covers(&name, version)
             || update_excludes(scope, &name, version, depth)
-            || super::direct_versions::node_depends_on_changed_direct_dep(self.ctx, Some(key))
             || synthesize_reused_result(self.lockfile, key, &name).is_none()
         {
             return Visit::DECIDED_FALSE;
