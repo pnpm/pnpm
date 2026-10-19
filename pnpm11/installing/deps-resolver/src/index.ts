@@ -4,7 +4,7 @@ import { parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
+import { getPatchInfo, groupPatchedDependencies, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import type {
   DependenciesField,
@@ -46,6 +46,7 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 
 export {
   getWantedDependencies,
+  groupPatchedDependencies,
   hasAlias,
   type LinkedDependency,
   type ManifestWantedDependency,
@@ -399,7 +400,7 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
   return false
 }
 
-function getAppliedPatchKeys (
+export function getAppliedPatchKeys (
   lockfile: LockfileObject,
   patchedDependencies: PatchGroupRecord
 ): Set<string> {

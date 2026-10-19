@@ -2271,3 +2271,46 @@ test('checkLinkedPackagesAreUpToDate(): reports an injected dependency without a
     detailedReason: 'The lockfile has no package entry for local directory dependency "foo" (file:foo)',
   })
 })
+
+test('checkLinkedPackagesAreUpToDate(): skips comparing on-disk manifest for deployed file:// directory references', async () => {
+  const depPath = 'foo@file:///workspace/packages/foo' as DepPath
+  expect(await checkLinkedPackagesAreUpToDate({
+    linkWorkspacePackages: true,
+    manifestsByDir: {
+      [path.resolve('packages/foo')]: {
+        name: 'foo',
+        version: '1.0.0',
+        dependencies: {
+          bar: 'catalog:',
+        },
+      },
+    },
+    lockfilePackages: {
+      [depPath]: {
+        resolution: { directory: 'packages/foo', type: 'directory' },
+        dependencies: {
+          bar: '1.0.0',
+        },
+      },
+    },
+    lockfileDir: process.cwd(),
+  }, {
+    dir: 'deploy',
+    manifest: {
+      dependencies: {
+        foo: depPath,
+      },
+    },
+    snapshot: {
+      dependencies: {
+        foo: depPath,
+      },
+      specifiers: {
+        foo: depPath,
+      },
+    },
+  })).toStrictEqual({
+    upToDate: true,
+  })
+})
+

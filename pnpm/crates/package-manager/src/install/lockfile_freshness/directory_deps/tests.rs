@@ -300,11 +300,13 @@ fn check_directory_dep_in_scope(
         },
         catalogs,
     };
+    let mut visited = std::collections::HashSet::new();
     super::check_single_directory_dep_freshness(
         &check,
-        &importer,
+        |name| super::importer_declares(&importer, name),
         &dep,
         (Some(&snapshot), &metadata),
+        &mut visited,
     )
 }
 
@@ -660,4 +662,107 @@ fn publish_config_directory_manifest_follows_declaration_kind() {
     })
     .expect("file: dependency outside workspace resolves to parent publish manifest");
     assert_eq!(outside_file.value()["version"], "2.0.0");
+}
+
+#[test]
+fn a_transitive_directory_dependency_is_checked_from_its_consumer() {
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let ws = tmp.path();
+    let dir_a = ws.join("packages/a");
+    let dir_b = ws.join("packages/b");
+    let dir_c = ws.join("packages/c");
+    std::fs::create_dir_all(&dir_a).expect("create packages/a");
+    std::fs::create_dir_all(&dir_b).expect("create packages/b");
+    std::fs::create_dir_all(&dir_c).expect("create packages/c");
+    let manifest_a = PackageManifest::from_value(
+        dir_a.join("package.json"),
+        serde_json::json!({
+            "name": "@ws/a",
+            "version": "1.0.0",
+            "dependencies": { "foo": "2.0.0" },
+        }),
+    );
+    let manifest_b = PackageManifest::from_value(
+        dir_b.join("package.json"),
+        serde_json::json!({
+            "name": "@ws/b",
+            "version": "1.0.0",
+            "dependencies": { "@ws/a": "workspace:*" },
+        }),
+    );
+    let manifest_c = PackageManifest::from_value(
+        dir_c.join("package.json"),
+        serde_json::json!({
+            "name": "@ws/c",
+            "version": "1.0.0",
+            "dependencies": { "@ws/b": "workspace:*" },
+        }),
+    );
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  packages/c:
+    dependencies:
+      '@ws/b':
+        specifier: workspace:*
+        version: file:packages/b
+packages:
+  '@ws/b@file:packages/b':
+    resolution: { type: directory, directory: packages/b }
+  '@ws/a@file:packages/a':
+    resolution: { type: directory, directory: packages/a }
+  foo@1.0.0:
+    resolution: { integrity: sha512-foo }
+snapshots:
+  '@ws/b@file:packages/b':
+    dependencies:
+      '@ws/a': file:packages/a
+  '@ws/a@file:packages/a':
+    dependencies:
+      foo: 1.0.0
+  foo@1.0.0: {}
+",
+    )
+    .expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.inject_workspace_packages = true;
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::from([
+        (pnpm_fs::lexical_normalize(&dir_a), &manifest_a),
+        (pnpm_fs::lexical_normalize(&dir_b), &manifest_b),
+        (pnpm_fs::lexical_normalize(&dir_c), &manifest_c),
+    ]);
+    let catalogs = std::collections::BTreeMap::new();
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: ws,
+        manifest: &manifest_c,
+        importer_id: "packages/c",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            catalogs: &catalogs,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            frozen_lockfile: false,
+        },
+        parsed_overrides: None,
+    };
+    let importer_c = lockfile.importers.get("packages/c").expect("packages/c importer");
+    let err = super::check_directory_dependencies_freshness(&check, importer_c)
+        .expect_err(
+            "transitive file:packages/a dependency drift should be detected from packages/c",
+        );
+    assert!(
+        matches!(
+            err,
+            crate::install::lockfile_freshness::FreshnessCheckError::Stale(
+                pnpm_lockfile::StalenessReason::LocalDependencyOutdated { ref name, ref path }
+            ) if name == "@ws/a" && path == "packages/a"
+        ),
+        "expected LocalDependencyOutdated for @ws/a at packages/a, got: {err:?}",
+    );
 }

@@ -168,6 +168,7 @@ fn deployed_project_passes_dependency_verification() {
             "dedupePeerDependents": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": true,
+            "ignorePnpmfile": true,
             "ignoredOptionalDependencies": ["never-matches"],
             "injectWorkspacePackages": false,
             "packages": ["."],
@@ -183,9 +184,10 @@ fn deployed_project_passes_dependency_verification() {
     drop((root, mock_instance));
 }
 
-/// The deploy install turns `dedupeInjectedDeps` and `dedupePeerDependents`
-/// off, so the deployed lockfile must record them off when the source
-/// lockfile records its resolution settings.
+/// The deploy install normalizes `dedupeInjectedDeps`, `dedupePeerDependents`,
+/// `autoDedupe`, and `linkWorkspacePackages`, and writes
+/// `lockfile.includeResolutionSettings` to `pnpm-workspace.yaml` when the
+/// source lockfile records its resolution settings.
 #[test]
 fn deploy_records_its_own_resolution_settings() {
     let CommandTempCwd {
@@ -200,8 +202,10 @@ fn deploy_records_its_own_resolution_settings() {
     let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
     workspace_manifest.push_str(concat!(
+        "autoDedupe: true\n",
         "dedupeInjectedDeps: true\n",
         "dedupePeerDependents: true\n",
+        "linkWorkspacePackages: deep\n",
         "lockfile:\n  includeResolutionSettings: true\n",
     ));
     fs::write(workspace_manifest_path, workspace_manifest).unwrap();
@@ -212,16 +216,34 @@ fn deploy_records_its_own_resolution_settings() {
         .assert()
         .success();
     let source_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(source_lockfile.contains("autoDedupe: true"), "{source_lockfile}");
     assert!(source_lockfile.contains("dedupeInjectedDeps: true"), "{source_lockfile}");
     assert!(source_lockfile.contains("dedupePeerDependents: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("linkWorkspacePackages: deep"), "{source_lockfile}");
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--prod", deploy_dir.to_str().unwrap()])
         .assert()
         .success();
 
     let deployed_lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(deployed_lockfile.contains("autoDedupe: false"), "{deployed_lockfile}");
     assert!(deployed_lockfile.contains("dedupeInjectedDeps: false"), "{deployed_lockfile}");
     assert!(deployed_lockfile.contains("dedupePeerDependents: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("linkWorkspacePackages: false"), "{deployed_lockfile}");
+    let deployed_workspace_manifest =
+        fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(
+        deployed_workspace_manifest.contains("autoDedupe: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("linkWorkspacePackages: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("includeResolutionSettings: true"),
+        "{deployed_workspace_manifest}",
+    );
 
     drop((root, mock_instance));
 }
@@ -1119,3 +1141,5 @@ mod virtual_store;
 mod source_isolation;
 
 mod local_dependencies;
+
+mod self_containment;

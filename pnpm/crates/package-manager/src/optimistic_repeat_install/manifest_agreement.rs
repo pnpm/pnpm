@@ -200,6 +200,7 @@ fn project_content_check(
 ) -> Result<(), &'static str> {
     let importer_id =
         pnpm_workspace::importer_id_from_root_dir(context.workspace_root, project.root_dir);
+    let importer = context.wanted.importers.get(&importer_id);
     if let Err(error) =
         crate::install::check_importer_satisfies(&crate::install::ImporterSatisfactionCheck {
             lockfile: context.wanted,
@@ -215,10 +216,13 @@ fn project_content_check(
             parsed_overrides: context.parsed_overrides,
         })
     {
+        if is_outdated_linked_package(context, project, importer, &error) {
+            return Err("a linked package is out of date");
+        }
         tracing::debug!(target: "pacquet::install", %error, importer_id, "repeat-install content check: manifest no longer satisfied");
         return Err("a modified manifest is no longer satisfied by the lockfile");
     }
-    let Some(importer) = context.wanted.importers.get(&importer_id) else {
+    let Some(importer) = importer else {
         return Err("a modified project has no importer entry in the lockfile");
     };
     if !linked_packages_are_up_to_date(
@@ -230,6 +234,22 @@ fn project_content_check(
         return Err("a linked package is out of date");
     }
     Ok(())
+}
+
+fn is_outdated_linked_package(
+    context: &ProjectContentCheck<'_>,
+    project: &ManifestStat<'_>,
+    importer: Option<&ProjectSnapshot>,
+    error: &crate::install::FreshnessCheckError,
+) -> bool {
+    matches!(
+        error,
+        crate::install::FreshnessCheckError::Stale(
+            pnpm_lockfile::StalenessReason::LocalDependencyOutdated { .. },
+        ),
+    ) && importer.is_some_and(|imp| {
+        !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, project.manifest, imp)
+    })
 }
 
 /// Shared lookups for [`linked_packages_are_up_to_date`], built once

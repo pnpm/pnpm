@@ -33,7 +33,6 @@ pub(super) fn unlink_stale_direct_links(
         inputs.config.modules_dir_name(),
         inputs.graph.lockfile,
         current_lockfile,
-        inputs.projects.dependency_groups,
     )
     .map_err(HoistedLinkerError::PruneStaleLinks)
 }

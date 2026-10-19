@@ -163,6 +163,11 @@ struct FrozenScope<'a> {
     /// The peer classification of the wanted lockfile, shared by every walk
     /// of this install.
     groups: crate::GroupSelection,
+    /// The group selection handed to `InstallFrozenLockfile`: when a
+    /// `--filter` hoisted install retains prior importers, `closure` has
+    /// already applied `--no-optional` to the selected importers while
+    /// keeping prior optional snapshots on unselected ones.
+    installer_groups: crate::GroupSelection,
 }
 
 impl FrozenScope<'_> {
@@ -401,62 +406,5 @@ fn fresh_materialization_output(
             groups: None,
         },
         store_index_teardown: fresh_result.store_index_teardown,
-    }
-}
-
-impl<'a> MaterializationWorkspace<'a> {
-    fn frozen_scope(
-        &self,
-        lockfile: &Lockfile,
-        hoisted_prior: Option<&Lockfile>,
-        groups: crate::GroupSelection,
-        ignore_manifest_check: bool,
-    ) -> FrozenScope<'a> {
-        let empty_skipped = crate::SkippedSnapshots::new();
-        let importer_ids = self.requested_importer_ids.or_else(|| {
-            (!ignore_manifest_check).then_some(self.real_importer_ids)
-        });
-        let closure = crate::materialization_closure(
-            lockfile,
-            self.workspace_root,
-            &initial_materialization_ids(lockfile, importer_ids, hoisted_prior),
-            &groups,
-            &empty_skipped,
-        );
-        let project_anchor_ids = frozen_project_anchor_ids(
-            self.requested_importer_ids,
-            self.real_importer_ids,
-            &closure,
-        );
-        FrozenScope {
-            project_manifests: anchored_project_manifests(
-                self.project_manifests,
-                self.workspace_root,
-                &project_anchor_ids,
-            ),
-            closure,
-            groups,
-        }
-    }
-}
-
-impl MaterializationOutput {
-    fn from_frozen(
-        frozen_result: pnpm_deps_restorer::InstallFrozenLockfileOutput,
-        groups: crate::GroupSelection,
-    ) -> Self {
-        MaterializationOutput {
-            materialized: Materialized {
-                hoisted: frozen_result.hoisted,
-                ignored_builds: frozen_result.ignored_builds,
-                deferred_builds: frozen_result.deferred_builds,
-
-                install_skipped: frozen_result.skipped,
-                peer_issue_importer_ids: HashSet::new(),
-                fresh_lockfile: None,
-                groups: Some(groups),
-            },
-            store_index_teardown: frozen_result.store_index_teardown,
-        }
     }
 }
