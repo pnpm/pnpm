@@ -209,7 +209,10 @@ impl SeededImporter {
         Ok(Self { importer_id: importer_id.to_string(), ctx, seeds, locked, settings })
     }
 
-    pub(crate) async fn seed_changed_direct<Chain>(&self, resolver: &Chain)
+    pub(crate) async fn seed_changed_direct<Chain>(
+        &self,
+        resolver: &Chain,
+    ) -> Result<(), ResolveImporterError>
     where
         Chain: Resolver + ?Sized,
     {
@@ -218,7 +221,7 @@ impl SeededImporter {
             .wanted_lockfile()
             .is_none()
         {
-            return;
+            return Ok(());
         }
         crate::resolve_dependency_tree::preseed_changed_direct_versions(
             &self.ctx,
@@ -227,7 +230,8 @@ impl SeededImporter {
             &self.importer_id,
             &ParentPkgAliases::root(self.seeds.parent_pkg_aliases.clone()),
         )
-        .await;
+        .await?;
+        Ok(())
     }
 
     pub(crate) async fn init<Chain>(

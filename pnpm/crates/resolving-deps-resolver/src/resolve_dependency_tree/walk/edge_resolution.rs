@@ -139,19 +139,26 @@ pub(in super::super) async fn try_resolve_edge_cached<Chain>(
     wanted: &mut WantedDependency,
     edge: &ChildEdge<'_>,
     prior_key: Option<&PkgNameVerPeer>,
-) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
     if let Some(result) = package_root_link_result(wanted) {
-        return Some(Arc::new(result));
+        return Ok(Some(Arc::new(result)));
     }
     let base = edge_opts(ctx, wanted, edge, prior_key);
     let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
     let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
-    resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
+    match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
         .await
-        .ok()
+    {
+        Ok(result) => Ok(Some(result)),
+        Err(_) if wanted.optional.unwrap_or(false) => Ok(None),
+        Err(err) => {
+            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err)?;
+            Ok(None)
+        }
+    }
 }
 
 /// `resolutionMode` makes the version pick depend on whether this is a
