@@ -18,11 +18,14 @@ pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use pnpr_policy::{TeamDirectory, Teams};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
+pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
 pub use storage_config::{CacheConfig, StorageConfig, default_cache_dir};
-pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
 pub use web_ui::UiConfig;
+
+pub(crate) use secrets::resolve_secrets;
+pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
 
 mod access;
 use access::{build_admins, build_teams};
@@ -46,7 +49,6 @@ use config_file::{
 mod hosted;
 mod ip_network;
 mod loading;
-
 mod logging;
 use logging::build_log_config;
 
@@ -58,9 +60,8 @@ use registry_graph::{
 
 mod s3;
 mod scim;
-
+mod secrets;
 mod storage_config;
-
 mod trusted_proxy_header;
 
 mod upstream;
@@ -139,7 +140,11 @@ pub struct Config {
     /// 32-byte value from the OS CSPRNG at startup (private entries then
     /// live only for this process's lifetime).
     pub resolution_cache_secret: Arc<[u8]>,
-    /// Whether `secret:` was explicitly provided in configuration rather than generated randomly.
+    /// Secret keying private cache HMACs (resolution cache and upstream cache digest).
+    pub cache_secret: Arc<[u8]>,
+    /// Secret keying OCI token signing.
+    pub oci_secret: Arc<[u8]>,
+    /// Whether `secret:` or `secrets:` was explicitly provided in configuration rather than generated randomly.
     pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,
@@ -154,6 +159,8 @@ impl std::fmt::Debug for Config {
             .field("logs", &self.logs)
             .field("osv", &self.osv)
             .field("resolution_cache_secret", &"[redacted]")
+            .field("cache_secret", &"[redacted]")
+            .field("oci_secret", &"[redacted]")
             .field("has_configured_secret", &self.has_configured_secret)
             .field("http", &self.http)
             .field("storage", &self.storage)
@@ -460,41 +467,6 @@ fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryE
             .map(|network| IpNetwork::parse(network))
             .collect::<Result<_, _>>()?,
     })
-}
-
-/// Minimum length for an operator-configured `secret:`. A shorter value makes
-/// the private-cache descriptor HMAC guessable, defeating its "not
-/// correlatable offline" property; a generated secret is 32 bytes.
-const MIN_RESOLUTION_SECRET_LEN: usize = 16;
-
-/// The HMAC secret keying private resolution-cache entries: the YAML
-/// `secret:` when set (rejected if too short to be a safe HMAC key), else a
-/// fresh per-process value.
-fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
-    match secret {
-        Some(secret) if !secret.is_empty() => {
-            if secret.len() < MIN_RESOLUTION_SECRET_LEN {
-                return Err(RegistryError::InvalidConfig {
-                    reason: format!(
-                        "`secret:` must be at least {MIN_RESOLUTION_SECRET_LEN} bytes to key the \
-                         private resolution-cache HMAC (it is {})",
-                        secret.len(),
-                    ),
-                });
-            }
-            Ok(Arc::from(secret.as_bytes().to_vec()))
-        }
-        _ => Ok(random_secret()),
-    }
-}
-
-/// 32 bytes from the OS CSPRNG, for a deployment that configures no
-/// `secret:`. Private cache entries then live only for this process.
-#[must_use]
-pub fn random_secret() -> Arc<[u8]> {
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
-    Arc::from(bytes.to_vec())
 }
 
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {

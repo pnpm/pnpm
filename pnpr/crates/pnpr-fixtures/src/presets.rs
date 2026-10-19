@@ -8,7 +8,7 @@ use pnpr_config::{
 use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use reqwest::header::HeaderMap;
-use std::{net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 /// The namespace [`MockConfigPresets::proxy`] declares on its flat-root hosted org, so
 /// those names resolve locally rather than to the npm upstream: the
@@ -177,10 +177,14 @@ fn with_routing(
     storage: PathBuf,
     routing: pnpr_config::RoutingConfig,
 ) -> Config {
+    let cache_secret = random_secret();
+    let oci_secret = pnpr_config::derive_subkey(&cache_secret, b"pnpr OCI token signing v1");
     Config {
         logs: LogConfig::default(),
         osv: OsvConfig::default(),
-        resolution_cache_secret: random_secret(),
+        resolution_cache_secret: Arc::clone(&cache_secret),
+        cache_secret,
+        oci_secret,
         has_configured_secret: false,
         http: pnpr_config::HttpConfig {
             listen,

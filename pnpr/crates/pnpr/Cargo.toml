@@ -2,6 +2,7 @@
 name = "pnpr"
 description = "pnpm-compatible npm registry server"
 version = "0.1.0-alpha.15"
+publish = false
 authors = ["pnpm contributors"]
 edition.workspace = true
 license-file = "../../LICENSE.md"
