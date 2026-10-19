@@ -87,7 +87,7 @@ impl Storage {
             return Ok(DocumentWrite::Conflict);
         }
         if !self.root.remove_record_if_current(kind.namespace(), &legacy_key, expected).await? {
-            let _ = self.root.remove_record(kind.namespace(), &key).await;
+            let _ = self.root.remove_record_if_current(kind.namespace(), &key, bytes).await;
             return Ok(DocumentWrite::Conflict);
         }
         Ok(DocumentWrite::Written)
