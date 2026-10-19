@@ -723,3 +723,103 @@ snapshots:
         "expected LocalDependencyOutdated for @ws/a at packages/a, got: {err:?}",
     );
 }
+
+/// Checks a project depending on `a: file:./a`, where `a` depends on
+/// `b: file:../b` and `b` declares `b_leaf_spec` for `leaf`. The lockfile
+/// records `b` depending on `leaf@file:leaf1`, and no directory is a
+/// workspace project.
+fn check_file_chain(b_leaf_spec: &str) -> Result<(), FreshnessCheckError> {
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let root = tmp.path();
+    let manifests = [
+        (
+            "a",
+            serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "file:../b" } }),
+        ),
+        (
+            "b",
+            serde_json::json!({ "name": "b", "version": "1.0.0", "dependencies": { "leaf": b_leaf_spec } }),
+        ),
+        ("leaf1", serde_json::json!({ "name": "leaf", "version": "1.0.0" })),
+        ("leaf2", serde_json::json!({ "name": "leaf", "version": "2.0.0" })),
+    ];
+    for (dir, manifest) in manifests {
+        std::fs::create_dir_all(root.join(dir)).expect("create package dir");
+        std::fs::write(root.join(dir).join("package.json"), manifest.to_string())
+            .expect("write package manifest");
+    }
+    let manifest = PackageManifest::from_value(
+        root.join("package.json"),
+        serde_json::json!({ "name": "root", "dependencies": { "a": "file:./a" } }),
+    );
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      a:
+        specifier: file:./a
+        version: file:a
+packages:
+  a@file:a:
+    resolution: { type: directory, directory: a }
+  b@file:b:
+    resolution: { type: directory, directory: b }
+  leaf@file:leaf1:
+    resolution: { type: directory, directory: leaf1 }
+snapshots:
+  a@file:a:
+    dependencies:
+      b: file:b
+  b@file:b:
+    dependencies:
+      leaf: file:leaf1
+  leaf@file:leaf1: {}
+",
+    )
+    .expect("parse lockfile");
+    let config = pnpm_config::Config::new();
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::new();
+    let catalogs = std::collections::BTreeMap::new();
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: root,
+        manifest: &manifest,
+        importer_id: ".",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            catalogs: &catalogs,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            frozen_lockfile: false,
+        },
+        parsed_overrides: None,
+    };
+    let importer = lockfile.importers.get(".").expect("root importer");
+    super::check_directory_dependencies_freshness(&check, importer)
+}
+
+#[test]
+fn an_unchanged_chain_of_file_directory_dependencies_is_fresh() {
+    let result = check_file_chain("file:../leaf1");
+    assert!(result.is_ok(), "an unchanged file: chain must be fresh: {result:?}");
+}
+
+#[test]
+fn a_transitive_file_directory_dependency_with_changed_dependencies_is_outdated() {
+    let error = check_file_chain("file:../leaf2")
+        .expect_err("b now depends on leaf2, which its snapshot does not record");
+    assert!(
+        matches!(
+            &error,
+            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { name, .. })
+                if name == "b"
+        ),
+        "expected LocalDependencyOutdated for b, got: {error:?}",
+    );
+}
