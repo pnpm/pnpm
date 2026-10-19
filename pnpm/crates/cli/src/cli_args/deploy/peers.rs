@@ -87,12 +87,13 @@ pub(super) fn bind_singleton_peers(
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return Ok(()) };
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY);
 
+    let bound_cache = std::cell::RefCell::new(HashMap::new());
     let graph = DeployedGraph {
         importer,
         snapshots,
         candidates: resolution_candidates(importer, snapshots),
         dependents: dependents_by_snapshot(importer, snapshots, |parent, alias, child| {
-            is_peer_edge(lockfile, linked_workspace_projects, parent, alias, child)
+            is_peer_edge(lockfile, linked_workspace_projects, &bound_cache, parent, alias, child)
         }),
     };
     let bindings = collect_peer_bindings(&graph, linked_workspace_projects)?;
@@ -113,6 +114,7 @@ pub(super) fn bind_singleton_peers(
 fn is_peer_edge(
     lockfile: &Lockfile,
     linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
+    bound_cache: &std::cell::RefCell<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
     parent: &PkgNameVerPeer,
     alias: &PkgName,
     child: &PkgNameVerPeer,
@@ -133,7 +135,11 @@ fn is_peer_edge(
     // rewriting the peer suffix that bound it, and an external package cannot
     // declare a workspace link as its own dependency.
     matches!(child.suffix.version(), VersionPart::File(_))
-        || pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), parent).binds(child)
+        || bound_cache
+            .borrow_mut()
+            .entry(parent.clone())
+            .or_insert_with(|| pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), parent))
+            .binds(child)
 }
 
 /// The `(package, peer, reference)` triples the deployed graph can bind

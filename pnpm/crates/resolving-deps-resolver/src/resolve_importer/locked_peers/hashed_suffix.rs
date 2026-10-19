@@ -3,6 +3,9 @@
 use super::{HashSet, dependency_edges};
 use pnpm_lockfile::PkgName;
 
+pub(super) type BoundCache =
+    super::HashMap<pnpm_lockfile::PkgNameVerPeer, pnpm_lockfile::BoundProviders>;
+
 /// The peers a hashed suffix stands for, each with the snapshot key of
 /// its provider: the package's declared peers, read from its own edges,
 /// and the peers its subtree resolved, listed as its
@@ -13,11 +16,12 @@ pub(super) fn hashed_peer_keys(
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
     metadata: Option<&pnpm_lockfile::PackageMetadata>,
+    bound_cache: &mut BoundCache,
 ) -> Vec<(String, pnpm_lockfile::PkgNameVerPeer)> {
     let Some(snapshot) = snapshot else {
         return Vec::new();
     };
-    let bound = pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), key);
+    let bound = cached_bound_providers(lockfile, key, bound_cache);
     let mut keys = Vec::new();
     if let Some(metadata) = metadata {
         let peer_names = metadata.peer_dependencies
@@ -32,7 +36,7 @@ pub(super) fn hashed_peer_keys(
     }
     for name in snapshot.transitive_peer_dependencies.iter().flatten() {
         keys.extend(
-            transitive_peer_keys(lockfile, snapshot, name)
+            transitive_peer_keys(lockfile, snapshot, name, bound_cache)
                 .into_iter()
                 .map(|key| (name.clone(), key)),
         );
@@ -48,6 +52,7 @@ fn transitive_peer_keys(
     lockfile: &pnpm_lockfile::Lockfile,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     peer_name: &str,
+    bound_cache: &mut BoundCache,
 ) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
     let Ok(peer) = peer_name.parse::<PkgName>() else {
         return Vec::new();
@@ -60,7 +65,8 @@ fn transitive_peer_keys(
             .filter(|(child_key, _)| visited.insert(child_key.clone()))
             .collect();
         for (child_key, child) in children {
-            let child_providers = bound_peer_providers(lockfile, &child_key, child, &peer);
+            let child_providers =
+                bound_peer_providers(lockfile, &child_key, child, &peer, bound_cache);
             if !child_providers.is_empty() {
                 providers.extend(child_providers);
             } else if lists_transitive_peer(child, peer_name) {
@@ -76,15 +82,31 @@ fn bound_peer_providers(
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     peer: &PkgName,
+    bound_cache: &mut BoundCache,
 ) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
     if !declares_peer(lockfile, key, &peer.to_string()) {
         return Vec::new();
     }
-    let bound = pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), key);
+    let bound = cached_bound_providers(lockfile, key, bound_cache);
     peer_edge_keys(snapshot, move |name| name == peer)
         .map(|(_, provider)| provider)
         .filter(|provider| bound.binds(provider))
         .collect()
+}
+
+fn cached_bound_providers(
+    lockfile: &pnpm_lockfile::Lockfile,
+    key: &pnpm_lockfile::PkgNameVerPeer,
+    bound_cache: &mut BoundCache,
+) -> pnpm_lockfile::BoundProviders {
+    let providers = pnpm_lockfile::BoundProviders::from_key(key);
+    if !providers.is_hashed() {
+        return providers;
+    }
+    bound_cache
+        .entry(key.clone())
+        .or_insert_with(|| pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), key))
+        .clone()
 }
 
 fn child_snapshots<'a>(

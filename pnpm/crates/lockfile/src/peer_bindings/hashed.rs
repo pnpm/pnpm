@@ -126,52 +126,61 @@ fn collect_descendant_targets(
 ) -> Option<std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>> {
     let mut by_peer: std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>> =
         std::collections::HashMap::new();
-    let mut visited = HashSet::new();
-    let mut visited_count = 0usize;
-    let mut pending = vec![root];
-    while let Some(current) = pending.pop() {
-        for child in unvisited_child_snapshots(snapshots, current, &mut visited) {
-            visited_count += 1;
-            if visited_count > MAX_VISITED_SNAPSHOTS {
+    let mut visited: HashSet<(PkgNameVerPeer, usize)> = HashSet::new();
+    let initial: Vec<usize> = (0..transitive_peers.len()).collect();
+    let mut pending = vec![(root, initial)];
+    while let Some((current, active)) = pending.pop() {
+        for (child_key, child) in resolved_children(snapshots, current) {
+            let next = record_child_peers(
+                &mut by_peer,
+                &mut visited,
+                &child_key,
+                child,
+                &active,
+                transitive_peers,
+            );
+            if visited.len() > MAX_VISITED_SNAPSHOTS {
                 return None;
             }
-            if record_transitive_child(&mut by_peer, current, child, transitive_peers) {
-                pending.push(child);
+            if !next.is_empty() {
+                pending.push((child, next));
             }
         }
     }
     Some(by_peer)
 }
 
-fn record_transitive_child(
+fn record_child_peers(
     by_peer: &mut std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>,
-    current: &SnapshotEntry,
+    visited: &mut HashSet<(PkgNameVerPeer, usize)>,
+    child_key: &PkgNameVerPeer,
     child: &SnapshotEntry,
+    active: &[usize],
     transitive_peers: &[(PkgName, &str)],
-) -> bool {
-    let mut carries_transitive = false;
-    for (peer, peer_name) in transitive_peers {
-        if !lists_transitive_peer(current, peer_name) {
+) -> Vec<usize> {
+    let mut next = Vec::new();
+    for &idx in active {
+        if !visited.insert((child_key.clone(), idx)) {
             continue;
         }
+        let (peer, peer_name) = &transitive_peers[idx];
         record_peer_target(by_peer.entry(peer.clone()).or_default(), child, peer);
-        carries_transitive |= lists_transitive_peer(child, peer_name);
+        if lists_transitive_peer(child, peer_name) {
+            next.push(idx);
+        }
     }
-    carries_transitive
+    next
 }
 
-fn unvisited_child_snapshots<'a>(
+fn resolved_children<'a>(
     snapshots: &'a std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     parent: &'a SnapshotEntry,
-    visited: &mut HashSet<PkgNameVerPeer>,
-) -> impl Iterator<Item = &'a SnapshotEntry> {
+) -> impl Iterator<Item = (PkgNameVerPeer, &'a SnapshotEntry)> {
     all_dep_refs(parent)
         .filter_map(move |(alias, dep_ref)| {
             let child_key = dep_ref.resolve(alias)?;
-            visited
-                .insert(child_key.clone())
-                .then(|| snapshots.get(&child_key))
-                .flatten()
+            let child = snapshots.get(&child_key)?;
+            Some((child_key, child))
         })
 }
 

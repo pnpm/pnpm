@@ -239,7 +239,7 @@ pub(in super::super) fn reuse_key_matches_peer_scope(
         return true;
     };
     let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let providers = BoundProviders::of_snapshot(lockfile.into(), key);
+    let providers = cached_bound_providers(ctx, key);
     declared_peer_dependencies(manifest)
         .into_iter()
         .all(|(name, peer)| {
@@ -254,6 +254,25 @@ pub(in super::super) fn reuse_key_matches_peer_scope(
             let Some(target) = dep_ref.resolve(&pkg_name) else { return false };
             providers.binds(&target) == shadowed_in_scope
         })
+}
+
+pub(in super::super) fn cached_bound_providers(
+    ctx: &TreeCtx,
+    key: &PkgNameVerPeer,
+) -> BoundProviders {
+    let providers = BoundProviders::from_key(key);
+    if !providers.is_hashed() {
+        return providers;
+    }
+    if let Some(cached) = super::lock_recoverable(&ctx.workspace.cache.bound_providers).get(key) {
+        return cached.clone();
+    }
+    let recovered = ctx.workspace.reuse.lockfile
+        .as_deref()
+        .map_or(providers, |lf| BoundProviders::of_snapshot(lf.into(), key));
+    super::lock_recoverable(&ctx.workspace.cache.bound_providers)
+        .insert(key.clone(), recovered.clone());
+    recovered
 }
 
 pub(super) struct ReusedIdentity {
@@ -299,12 +318,7 @@ fn split_reused_peers(
         return (HashSet::default(), HashSet::default());
     };
     let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let providers = ctx.workspace.reuse.lockfile
-        .as_deref()
-        .map_or_else(
-            || BoundProviders::from_key(key),
-            |lf| BoundProviders::of_snapshot(lf.into(), key),
-        );
+    let providers = cached_bound_providers(ctx, key);
     let mut own_deps = HashSet::default();
     let mut peer_shadowed = HashSet::default();
     let mut shadowable = Vec::new();

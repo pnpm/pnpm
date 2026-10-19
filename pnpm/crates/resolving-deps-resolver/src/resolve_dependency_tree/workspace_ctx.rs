@@ -235,6 +235,11 @@ pub(super) struct WorkspaceResolutionCache {
     /// `true` means the package and its entire transitive subtree can be
     /// synthesized from the prior lockfile.
     pub(super) subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
+    /// Memoises [`pnpm_lockfile::BoundProviders::of_snapshot`] for hashed
+    /// snapshot keys so repeated peer-scope and child-split checks on the
+    /// same snapshot key recover its bound providers at most once per
+    /// workspace pass.
+    pub(super) bound_providers: Mutex<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
     /// tarball URL for the `currentPkg` payload. Empty when the entry
@@ -262,13 +267,13 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Memoised result of [`WorkspaceTreeCtx::run_preferred_versions`], keyed by the
     /// `(revision, children_rewrites)` pair it was computed at.
     run_versions_cache: Mutex<RunVersionsCache>,
-    /// Direct-dep aliases whose manifest specifier differs from the prior
-    /// lockfile (new deps included), across all importers. Gates the
-    /// stale-pin refresh's reuse-decline: only a changed direct dep can
-    /// re-resolve away from a transitive occurrence's pin, and the
-    /// workspace-wide directs-before-transitives barrier populates this
-    /// set before any importer walks its subtrees.
-    pub(super) changed_direct_deps: Mutex<Arc<HashSet<PkgName>>>,
+    /// Per importer: direct-dep aliases whose manifest specifier differs
+    /// from the prior lockfile (new deps included). Gates the stale-pin
+    /// refresh's reuse-decline within that importer; cross-importer
+    /// direct-dep upgrades decline reuse via
+    /// [`Self::changed_direct_dep_versions`] when a strictly higher
+    /// version resolved.
+    pub(super) changed_direct_deps: Mutex<HashMap<String, Arc<HashSet<PkgName>>>>,
     /// The parsed resolved versions of direct dependencies that changed
     /// in this install across the workspace, pre-seeded before any
     /// importer walks its transitive subtrees. Merged into each

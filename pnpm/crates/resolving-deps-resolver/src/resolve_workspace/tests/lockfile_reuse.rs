@@ -739,14 +739,18 @@ async fn cross_importer_direct_dep_change_refreshes_earlier_importer_transitive_
     };
     let mut lockfile = reuse_graph_lockfile(
         "a",
-        &[("wrapper", "1.0.0", "1.0.0")],
-        &[("wrapper@1.0.0", &[("shared", "1.0.0")]), ("shared@1.0.0", &[])],
+        &[("outer", "1.0.0", "1.0.0")],
+        &[
+            ("outer@1.0.0", &[("wrapper", "1.0.0")]),
+            ("wrapper@1.0.0", &[("shared", "1.0.0")]),
+            ("shared@1.0.0", &[]),
+        ],
         &[],
     );
     let b_lockfile =
         reuse_graph_lockfile("b", &[("shared", "^1.0.0", "1.0.0")], &[("shared@1.0.0", &[])], &[]);
     lockfile.importers.insert("b".to_string(), b_lockfile.importers["b"].clone());
-    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
     let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.2.0" }));
     let importers = [
         WorkspaceImporter { id: "a".to_string(), manifest: &a_manifest },
@@ -762,6 +766,13 @@ async fn cross_importer_direct_dep_change_refreshes_earlier_importer_transitive_
         .await
         .expect("resolve workspace after cross-importer direct dep upgrade");
 
+    assert!(
+        !resolver.seen
+            .lock()
+            .unwrap()
+            .contains_key("outer"),
+        "grandparent must stay reused",
+    );
     assert_eq!(
         graph_versions_of(&result, "shared"),
         ["1.2.0"],
