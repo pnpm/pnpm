@@ -66,7 +66,7 @@ impl Storage {
         if local_name != registry {
             let legacy_key = registry_record_key(local_name)?;
             if self.root.read_record(kind.namespace(), &legacy_key).await?.is_some() {
-                self.root.remove_record(kind.namespace(), &key).await?;
+                self.root.remove_record_if_current(kind.namespace(), &key, bytes).await?;
                 return Ok(false);
             }
         }
@@ -103,7 +103,7 @@ impl Storage {
         }
         if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref() != Some(expected)
         {
-            self.root.remove_record(kind.namespace(), &key).await?;
+            self.root.remove_record_if_current(kind.namespace(), &key, bytes).await?;
             return Ok(DocumentWrite::Conflict);
         }
         Ok(DocumentWrite::Written)

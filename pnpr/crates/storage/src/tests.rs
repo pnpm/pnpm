@@ -1040,6 +1040,14 @@ impl super::backend::HostedBackend for HookedBackend {
     async fn remove_record(&self, namespace: &str, key: &str) -> pnpr_error::Result<bool> {
         self.inner.remove_record(namespace, key).await
     }
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> pnpr_error::Result<bool> {
+        self.inner.remove_record_if_current(namespace, key, expected).await
+    }
     async fn list_record_keys(&self, namespace: &str) -> pnpr_error::Result<Vec<String>> {
         self.inner.list_record_keys(namespace).await
     }
@@ -1133,6 +1141,46 @@ async fn concurrent_registry_record_migrations_race_safely() {
         (r1 == DocumentWrite::Written && r2 == DocumentWrite::Conflict)
             || (r1 == DocumentWrite::Conflict && r2 == DocumentWrite::Written),
         "exactly one write must win: r1={r1:?}, r2={r2:?}",
+    );
+}
+
+#[tokio::test]
+async fn replace_registry_record_rollback_preserves_concurrent_namespaced_update() {
+    let tmp = TempDir::new().unwrap();
+    let mut storage = storage_in(&tmp);
+
+    storage
+        .create_registry_record(RegistryRecord::TeamRoster, "shared", b"initial-legacy")
+        .await
+        .unwrap();
+
+    let legacy_file = tmp.path().join("storage/.team-rosters/v0/shared.json");
+    let namespaced_file = tmp.path().join("storage/.team-rosters/v0/npm/shared.json");
+    let hook_legacy = legacy_file.clone();
+    let hook_namespaced = namespaced_file.clone();
+    let hooked = std::sync::Arc::new(HookedBackend {
+        inner: std::sync::Arc::clone(&storage.root),
+        on_create_record: std::sync::Arc::new(move || {
+            std::fs::write(&hook_legacy, b"concurrent-modified-legacy").unwrap();
+            std::fs::write(&hook_namespaced, b"concurrent-namespaced-val").unwrap();
+        }),
+    });
+    storage.root = hooked;
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::TeamRoster,
+            "npm/shared",
+            b"initial-legacy",
+            b"migrated-val",
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(write_result, DocumentWrite::Conflict);
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        Some(b"concurrent-namespaced-val".to_vec()),
     );
 }
 
