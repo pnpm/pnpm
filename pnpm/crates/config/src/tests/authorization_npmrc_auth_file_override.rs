@@ -294,7 +294,7 @@ pub fn unscoped_cli_config_auth_token_pins_to_the_cli_registry() {
     assert!(
         config.npmrc_warnings
             .iter()
-            .any(|warning| warning.contains("\"<command line>\"")),
+            .any(|warning| warning.contains(r#""<command line>""#)),
         "{:?}",
         config.npmrc_warnings,
     );

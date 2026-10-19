@@ -257,9 +257,17 @@ impl Config {
         npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);
 
-        // A `tokenHelper` names an executable, so it is honored only from a
-        // trusted, non-repo source. Leaving out the unreadable leaves out the
-        // project `.npmrc` that names one, keeping the trusted sources.
+        self.trust_token_helper(npmrc_auth, trusted_auth)
+    }
+
+    /// A `tokenHelper` names an executable, so it is honored only from a
+    /// trusted, non-repo source. Leaving out the unreadable leaves out the
+    /// project `.npmrc` that names one, keeping the trusted sources.
+    fn trust_token_helper(
+        &self,
+        mut npmrc_auth: NpmrcAuth,
+        trusted_auth: NpmrcAuth,
+    ) -> Result<AuthSources, LoadWorkspaceYamlError> {
         let trusted = crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth);
         if trusted.is_err() && self.settings_read.skips_unreadable() {
             npmrc_auth = trusted_auth.clone();
