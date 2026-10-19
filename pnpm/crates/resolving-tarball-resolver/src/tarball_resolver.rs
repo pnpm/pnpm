@@ -307,6 +307,7 @@ fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
 /// package by: the URL without a redundant default port
 /// (`registry.npmjs.org:443` → `registry.npmjs.org`). `None` for any other
 /// spec.
+#[must_use]
 pub fn remote_tarball_id(bare: &str) -> Option<Result<String, ResolveError>> {
     is_http_url(bare)
         .then(|| {
