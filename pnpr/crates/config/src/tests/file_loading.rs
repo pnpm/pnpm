@@ -519,6 +519,14 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
             "upstream.auth.token",
             "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    auth:\n      type: bearer\n      token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
+        (
+            "grouped.upstream.auth.token",
+            "registries:\n  npm:\n    ext:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "upstream.headers.authorization",
+            "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    headers:\n      Authorization: Bearer ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
     ];
 
     for (field, yaml) in cases {
@@ -564,4 +572,16 @@ secrets:
     assert_eq!(master_config.cache_secret.as_ref(), b"master-secret-at-least-32-bytes-long");
     assert_ne!(master_config.oci_secret.as_ref(), master_config.cache_secret.as_ref());
     assert_eq!(master_config.oci_secret.len(), 32);
+}
+
+#[test]
+fn oci_only_secret_does_not_flag_configured_cache_secret() {
+    let yaml = "\
+secrets:
+  oci: my-explicit-oci-secret-32-bytes!!
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.has_configured_secret);
+    assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
+    assert_eq!(config.cache_secret.len(), 32);
 }

@@ -145,8 +145,8 @@ which rule applies. A duplicate key is a config error.
 Each value can set `access`, `publish`, and `unpublish`. When a field is
 omitted, `access` falls back to the registry-level `access:` default, `publish`
 defaults to `$authenticated`, and `unpublish` defaults to nobody.
-Non-npm registries (such as Cargo and PyPI) reject `unpublish` rules because
-those ecosystems do not support package unpublishing.
+Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
+not support package unpublishing.
 
 Every one of those fields takes either a single access token or a YAML list of
 them, and the grammar is deliberately small:

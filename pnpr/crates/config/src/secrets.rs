@@ -9,7 +9,7 @@ use crate::config_file::SecretsFile;
 /// Minimum length of an explicit `secret:` in bytes.
 pub const MIN_RESOLUTION_SECRET_LEN: usize = 16;
 
-/// Derive a domain-separated subkey from a master secret using HMAC-SHA256.
+/// Derive a domain-separated subkey from a master secret using SHA-256 (`purpose \0 root_secret`).
 #[must_use]
 pub fn derive_subkey(root_secret: &[u8], purpose: &[u8]) -> Arc<[u8]> {
     let mut hasher = Sha256::new();
@@ -83,9 +83,7 @@ pub(crate) fn resolve_secrets(
     secrets: Option<&SecretsFile>,
 ) -> Result<ResolvedSecrets, RegistryError> {
     let has_master = master_secret.is_some();
-    let has_specific =
-        secrets.is_some_and(|file| file.cache.is_some() || file.oci.is_some());
-    let has_configured = has_master || has_specific;
+    let has_configured = has_master || secrets.is_some_and(|file| file.cache.is_some());
 
     let master_bytes = match master_secret {
         Some(secret) => {
@@ -172,12 +170,33 @@ fn validate_database_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
 }
 
 fn check_registry_auth<Sys: EnvVar>(
-    name: &str,
+    path: &str,
     auth: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), RegistryError> {
     for key in ["token", "bearerToken", "bearer_token"] {
         if let Some(token) = auth.get(key).and_then(serde_json::Value::as_str) {
-            check_secret_env_field::<Sys>(&format!("registries.{name}.auth.{key}"), token)?;
+            check_secret_env_field::<Sys>(&format!("{path}.auth.{key}"), token)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_single_registry_secrets<Sys: EnvVar>(
+    path: &str,
+    reg: &serde_json::Value,
+) -> Result<(), RegistryError> {
+    let auth = reg
+        .get("auth")
+        .or_else(|| reg.pointer("/upstream/auth"))
+        .and_then(serde_json::Value::as_object);
+    if let Some(auth_map) = auth {
+        check_registry_auth::<Sys>(path, auth_map)?;
+    }
+    if let Some(headers) = reg.get("headers").and_then(serde_json::Value::as_object) {
+        for (hdr, val) in headers {
+            if let Some(val_str) = val.as_str() {
+                check_secret_env_field::<Sys>(&format!("{path}.headers.{hdr}"), val_str)?;
+            }
         }
     }
     Ok(())
@@ -187,13 +206,19 @@ fn validate_registry_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(),
     let Some(registries) = val.get("registries").and_then(serde_json::Value::as_object) else {
         return Ok(());
     };
-    for (name, reg) in registries {
-        let auth = reg
-            .get("auth")
-            .or_else(|| reg.pointer("/upstream/auth"))
-            .and_then(serde_json::Value::as_object);
-        if let Some(auth_map) = auth {
-            check_registry_auth::<Sys>(name, auth_map)?;
+    for (name, entry) in registries {
+        let Some(reg_map) = entry.as_object() else {
+            continue;
+        };
+        if reg_map.contains_key("type") || reg_map.contains_key("url") {
+            validate_single_registry_secrets::<Sys>(&format!("registries.{name}"), entry)?;
+        } else {
+            for (sub_name, sub_entry) in reg_map {
+                validate_single_registry_secrets::<Sys>(
+                    &format!("registries.{name}.{sub_name}"),
+                    sub_entry,
+                )?;
+            }
         }
     }
     Ok(())

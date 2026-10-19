@@ -5,7 +5,7 @@ use super::{
 };
 use pnpr_config::{TeamDirectory, compile_access_list};
 use pnpr_policy::{AccessList, AccessToken, RuleOverride, RuleTable};
-use pnpr_registry::PackagePattern;
+use pnpr_registry::{Ecosystem, PackagePattern};
 use pnpr_storage::RegistryRecord;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
@@ -218,6 +218,13 @@ fn apply_changes(
     let default_access = list(changes.access)?;
     let mut overrides = Vec::with_capacity(changes.packages.len());
     for (key, lists) in changes.packages {
+        if (ecosystem == Ecosystem::Cargo || ecosystem == Ecosystem::Pypi)
+            && lists.unpublish.is_some()
+        {
+            return Err(format!(
+                "registry {registry:?} serves {ecosystem}, which does not support unpublishing; `unpublish` rule on {key:?} is invalid",
+            ));
+        }
         let pattern = PackagePattern::parse(&key, ecosystem)
             .map_err(|err| format!("{key:?} is not a package pattern: {err}"))?;
         let lists = RuleOverride {

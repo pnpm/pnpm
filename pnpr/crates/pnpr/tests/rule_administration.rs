@@ -59,13 +59,13 @@ async fn app_router(config: Config) -> axum::Router {
     router_with_auth(config, auth)
 }
 
-async fn send(
+async fn send_raw(
     app: &axum::Router,
     method: &str,
     path: &str,
     token: Option<&str>,
     body: Option<Value>,
-) -> (StatusCode, Value) {
+) -> (StatusCode, axum::body::Bytes) {
     let mut request = Request::builder()
         .method(method)
         .uri(path)
@@ -81,6 +81,17 @@ async fn send(
         .unwrap();
     let status = response.status();
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, bytes)
+}
+
+async fn send(
+    app: &axum::Router,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let (status, bytes) = send_raw(app, method, path, token, body).await;
     (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
 }
 
@@ -412,4 +423,79 @@ defaultRegistry: main
         send(&app2, "GET", "/-/pnpr/v0/admin/rules/npm/local", Some(&root2), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(rules["access"], json!(["$authenticated"]));
+}
+
+#[tokio::test]
+async fn cargo_and_pypi_hosted_registries_reject_unpublish_rules() {
+    let dir = TempDir::new().unwrap();
+    let config_yaml = "\
+auth:
+  admins: [root]
+  htpasswd:
+    max_users: 100
+registries:
+  cargo:
+    crates:
+      type: hosted
+      rulesManagedBy: api
+      packages:
+        'foo': {}
+  pypi:
+    wheels:
+      type: hosted
+      rulesManagedBy: api
+      packages:
+        'bar': {}
+  main:
+    type: router
+    sources: ['cargo/crates']
+defaultRegistry: main
+";
+    let storage = dir.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let path = dir.path().join("config.yaml");
+    std::fs::write(&path, format!("storage: {}\n{config_yaml}", storage.display())).unwrap();
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let config = Config::from_yaml(&path, listen, Some("http://example.test".to_string())).unwrap();
+    let app = app_router(config).await;
+    let root = add_user(&app, "root").await;
+
+    let unpublish_body = json!({
+        "packages": {
+            "foo": {
+                "unpublish": ["root"],
+            },
+        },
+    });
+    let (status, bytes) = send_raw(
+        &app,
+        "PUT",
+        "/-/pnpr/v0/admin/rules/cargo/crates",
+        Some(&root),
+        Some(unpublish_body),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let msg = String::from_utf8_lossy(&bytes);
+    assert!(
+        msg.contains("serves cargo, which does not support unpublishing"),
+        "expected unpublish error, got: {msg}",
+    );
+
+    let pypi_body = json!({
+        "packages": {
+            "bar": {
+                "unpublish": ["root"],
+            },
+        },
+    });
+    let (status, bytes) =
+        send_raw(&app, "PUT", "/-/pnpr/v0/admin/rules/pypi/wheels", Some(&root), Some(pypi_body))
+            .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let msg = String::from_utf8_lossy(&bytes);
+    assert!(
+        msg.contains("serves pypi, which does not support unpublishing"),
+        "expected unpublish error, got: {msg}",
+    );
 }

@@ -18,5 +18,5 @@ This crate ships the `pnpr` binary and the library behind it. It lives in the
 
 pnpr v1 uses compile-time trait implementations (`UserBackend`, `TokenBackend`
 in `pnpr-auth`) rather than a dynamic plugin runtime. Custom backends compile
-directly into the server binary to preserve request-path performance and memory
-safety.
+directly into the server binary, dispatching through trait objects without
+external scripting runtimes.

@@ -115,6 +115,7 @@ Custom user storage and token management implement the `UserBackend` and
 - **`TokenBackend`** — manages bearer token creation, validation, listing, and
   revocation.
 
-Compiling custom backends directly into the server keeps authentication on the
-request hot path free from dynamic runtime overhead, preserves static memory
-and concurrency safety guarantees, and avoids external runtime dependencies.
+Registering custom backends at compile time avoids external scripting runtime
+dependencies (such as WebAssembly or Lua), while request-path backend calls use
+Rust dynamic dispatch through trait objects (`Arc<dyn UserBackend>`,
+`Arc<dyn TokenBackend>`).
