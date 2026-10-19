@@ -46,6 +46,7 @@ enum Edit {
     Dependency,
     Peer,
     OptionalPeer,
+    ShadowedPeer,
     CatalogPeer,
 }
 
@@ -145,6 +146,15 @@ impl Scenario {
                 manifest["peerDependenciesMeta"] =
                     json!({ "@pnpm.e2e/dep-of-pkg-with-1-dep": { "optional": true } });
                 write_manifest_value(&lib, &manifest);
+            }
+            Edit::ShadowedPeer => {
+                set_dependency(&lib, "dependencies", "@pnpm.e2e/dep-of-pkg-with-1-dep", "100.1.0");
+                set_dependency(
+                    &lib,
+                    "peerDependencies",
+                    "@pnpm.e2e/dep-of-pkg-with-1-dep",
+                    "^100.0.0",
+                );
             }
             Edit::CatalogPeer => self.write_workspace_yaml("100.0.0"),
         }
@@ -274,6 +284,7 @@ macro_rules! matrix {
                     a_dependency: Edit::Dependency,
                     a_peer: Edit::Peer,
                     an_optional_peer: Edit::OptionalPeer,
+                    a_shadowed_peer: Edit::ShadowedPeer,
                     a_catalog_peer: Edit::CatalogPeer,
                 );
             }
@@ -323,4 +334,58 @@ matrix! {
         shared_lockfile: false,
         injection: Injection::FileSpec,
     },
+}
+
+/// When an injected workspace project sets `publishConfig.directory` and a
+/// build writes a trimmed `package.json` into that directory, frozen and
+/// non-frozen installs still judge freshness against the project's own
+/// manifest across shared and dedicated lockfiles.
+#[test]
+fn publish_config_directory_with_built_manifest_agrees_across_layouts() {
+    for shared_lockfile in [true, false] {
+        let mut scenario = Scenario::new(Layout {
+            shared_lockfile,
+            injection: Injection::InjectWorkspacePackages,
+        });
+        let lib_dir = scenario.workspace().join("packages/lib");
+        let dist_dir = lib_dir.join("dist");
+        fs::create_dir_all(&dist_dir).unwrap();
+        let mut lib_manifest = read_manifest(&lib_dir);
+        lib_manifest["publishConfig"] = json!({ "directory": "dist" });
+        write_manifest_value(&lib_dir, &lib_manifest);
+        write_manifest_value(&dist_dir, &json!({ "name": "lib", "version": "1.0.0" }));
+
+        scenario.install(&[]);
+        assert!(scenario.frozen_install_passes(&[]));
+
+        scenario.edit(Edit::Dependency);
+        assert!(!scenario.frozen_install_passes(&[]));
+        scenario.install(&[]);
+        assert!(scenario.frozen_install_passes(&[]));
+    }
+}
+
+/// A workspace `.pnpmfile.cjs` `readPackage` hook that rewrites an injected
+/// package's dependencies is honored identically by resolution and frozen
+/// verification across shared and dedicated lockfiles.
+#[test]
+fn pnpmfile_read_package_hook_agrees_across_layouts() {
+    for shared_lockfile in [true, false] {
+        let mut scenario = Scenario::new(Layout {
+            shared_lockfile,
+            injection: Injection::InjectWorkspacePackages,
+        });
+        fs::write(
+            scenario.workspace().join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { readPackage(pkg) {\n\
+               if (pkg.name === 'lib') {\n\
+                 pkg.dependencies = { ...pkg.dependencies, '@pnpm.e2e/foo': '100.1.0' };\n\
+               }\n\
+               return pkg;\n\
+             } } };\n",
+        )
+        .unwrap();
+        scenario.install(&[]);
+        assert!(scenario.frozen_install_passes(&[]));
+    }
 }

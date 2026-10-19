@@ -2,7 +2,8 @@ pub(super) mod directory_deps;
 pub(super) mod error;
 pub(super) mod manifest;
 pub(crate) use directory_deps::{
-    ProjectManifestsByDir, dependency_manifests_by_dir, project_manifests_by_dir,
+    ProjectManifestsByDir, dependency_manifests_by_dir, is_declared_local_directory,
+    project_manifests_by_dir, spec_target_and_range,
 };
 pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;

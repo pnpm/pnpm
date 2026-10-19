@@ -491,6 +491,12 @@ fn deploy_records_the_peers_a_workspace_package_declares() {
         lib.peer_dependencies,
         Some(std::iter::once(("@pnpm.e2e/peer-a".to_string(), "*".to_string())).collect()),
     );
+    fs::copy(workspace.join(".npmrc"), deploy_dir.join(".npmrc")).unwrap();
+    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
+    pacquet_cmd(&deploy_dir)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

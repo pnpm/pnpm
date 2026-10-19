@@ -1,3 +1,5 @@
+pub(crate) use spec::spec_target_and_range;
+
 mod peers;
 mod spec;
 
@@ -8,7 +10,6 @@ use super::manifest::ImporterSatisfactionCheck;
 use crate::install::lockfile_freshness::FreshnessCheckError;
 use peers::PeerShadowing;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
@@ -136,7 +137,7 @@ fn dependency_is_injected(
         .unwrap_or(false)
 }
 
-pub(super) fn is_declared_local_directory(spec: &str) -> bool {
+pub(crate) fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
@@ -253,34 +254,34 @@ fn directory_name_manifest(dir: &Path) -> Option<PackageManifest> {
     Some(PackageManifest::from_value(dir.join("package.json"), serde_json::json!({ "name": name })))
 }
 
-/// The manifest of the workspace project whose `publishConfig.directory` is
+/// The manifest of the project whose `publishConfig.directory` is
 /// `injected.dir`: the project's entry in `manifests_by_dir` when it has one,
-/// else its `package.json`. Only projects between `injected.dir` and the
-/// workspace root are considered.
+/// else its `package.json`. Workspace dependencies only consider projects
+/// within the workspace root; `file:` dependencies walk every ancestor,
+/// matching [`pnpm_package_manifest::find_parent_publish_manifest`].
 fn manifest_of_project_publishing_from(
     injected: &InjectedDirectory<'_>,
 ) -> Option<PackageManifest> {
     let target = pnpm_fs::lexical_normalize(injected.dir);
-    if !target.starts_with(pnpm_fs::lexical_normalize(injected.workspace_root)) {
+    let workspace_root = pnpm_fs::lexical_normalize(injected.workspace_root);
+    if !injected.declared_as_file && !target.starts_with(&workspace_root) {
         return None;
     }
-    let mut candidate = injected.dir.parent()?;
-    loop {
+    for candidate in target.ancestors().skip(1) {
+        if !injected.declared_as_file && !candidate.starts_with(&workspace_root) {
+            return None;
+        }
         let manifest = injected.manifests_by_dir
-            .get(&pnpm_fs::lexical_normalize(candidate))
+            .get(candidate)
             .map(|manifest| (*manifest).clone())
             .or_else(|| pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten());
         if let Some(manifest) = manifest
-            && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, Some(manifest.value())))
-                == target
+            && pnpm_package_manifest::publishes_from_directory(candidate, manifest.value(), &target)
         {
             return Some(manifest);
         }
-        if candidate == injected.workspace_root {
-            return None;
-        }
-        candidate = candidate.parent()?;
     }
+    None
 }
 
 fn check_single_directory_dep_freshness(

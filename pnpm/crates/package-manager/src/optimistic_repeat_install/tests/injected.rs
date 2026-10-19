@@ -163,6 +163,24 @@ fn returns_skipped_for_an_injected_workspace_dependency_whose_project_is_not_lis
     assert_skipped_for_local_file_dependency(&injected_sibling_decision(false, None));
 }
 
+/// An optional peer leaves the injected project's own `importers` entry
+/// empty, so only checking the consumer that injects `pkg-a` catches the
+/// missing `peerDependencies` on `packages["pkg-a@file:pkg-a"]`.
+#[test]
+fn returns_skipped_when_an_injected_workspace_dependency_gains_an_optional_peer() {
+    let sibling = serde_json::json!({
+        "name": "pkg-a",
+        "version": "1.0.0",
+        "peerDependencies": { "is-positive": "^1.0.0" },
+        "peerDependenciesMeta": { "is-positive": { "optional": true } },
+    });
+    let decision = injected_sibling_decision(true, Some(&sibling));
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("no longer satisfied")),
+        "expected Skipped(manifest no longer satisfied), got {decision:?}",
+    );
+}
+
 fn assert_skipped_for_local_file_dependency(decision: &Decision) {
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
