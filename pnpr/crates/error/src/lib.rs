@@ -237,6 +237,17 @@ pub enum RegistryError {
         package: String,
     },
 
+    #[display(
+        "Hosted document {document} has format version {format_version}, but this server only supports up to version {supported_version}; refusing to rewrite"
+    )]
+    #[from(skip)]
+    DocumentFormatTooNew {
+        #[error(not(source))]
+        document: String,
+        format_version: u32,
+        supported_version: u32,
+    },
+
     /// Another request is already approving this staged publish. A staged
     /// record is approved exactly once: the approving request claims it with
     /// a conditional write, and a second one is refused rather than

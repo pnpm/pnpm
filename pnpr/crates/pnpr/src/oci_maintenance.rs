@@ -177,8 +177,10 @@ async fn finish_pending_deletions(
     while let Some(repository) = next_repository(inventory, &previous)? {
         let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
         previous = repository;
-        let Some(body) = storage.read_hosted_document(&name).await? else { continue };
-        let mut document = ImageDocument::parse(&body)?;
+        let Some(body) = storage.read_hosted_document(&name).await? else {
+            continue;
+        };
+        let mut document = parse_supported_document(&body)?;
         let Some(digest) = document.deleting_blob.take() else { continue };
         let size = storage
             .open_hosted_blob(&name, &digest.blob_filename())
@@ -249,13 +251,27 @@ fn filename_digest(filename: &str) -> Option<Digest> {
     Digest::parse(&format!("sha256:{}", filename.strip_prefix("sha256-")?)).ok()
 }
 
+fn parse_supported_document(body: &[u8]) -> Result<ImageDocument> {
+    let document = ImageDocument::parse(body)?;
+    if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: "image document".to_string(),
+            format_version: document.format_version,
+            supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+        });
+    }
+    Ok(document)
+}
+
 async fn referenced_blobs(
     storage: &Storage,
     name: &CanonicalPackageName,
     manifest_limit: usize,
 ) -> Result<HashSet<String>> {
-    let Some(bytes) = storage.read_hosted_document(name).await? else { return Ok(HashSet::new()) };
-    let document = ImageDocument::parse(&bytes)?;
+    let Some(bytes) = storage.read_hosted_document(name).await? else {
+        return Ok(HashSet::new());
+    };
+    let document = parse_supported_document(&bytes)?;
     referenced_document_blobs(storage, name, &document, manifest_limit).await
 }
 

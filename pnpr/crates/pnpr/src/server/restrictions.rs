@@ -76,17 +76,11 @@ fn is_read_only_post_path(path: &str) -> bool {
     }) || matches!(
         path,
         "/-/pnpr/v0/resolve"
-            | "/-/pnpr/v1/resolve"
             | "/-/pnpr/v0/verify-lockfile"
-            | "/-/pnpr/v1/verify-lockfile"
             | "/-/pnpr/v0/artifacts/resolve"
-            | "/-/pnpr/v1/artifacts/resolve"
             | "/-/pnpr/v0/shared-artifacts/resolve"
-            | "/-/pnpr/v1/shared-artifacts/resolve"
             | "/-/pnpr/v0/artifacts/blob"
-            | "/-/pnpr/v1/artifacts/blob"
             | "/-/pnpr/v0/shared-artifacts/blob"
-            | "/-/pnpr/v1/shared-artifacts/blob"
             | "/-/oidc/handoff",
     )
 }

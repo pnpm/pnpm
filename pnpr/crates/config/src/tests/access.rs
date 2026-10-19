@@ -24,7 +24,6 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(
@@ -52,7 +51,6 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
@@ -67,7 +65,6 @@ auth:
     file: ./htpasswd
   tokens:
     file: /var/lib/pnpr/tokens.sqlite
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(
@@ -84,7 +81,6 @@ auth:
   htpasswd:
     file: ./htpasswd
     max_users: -1
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
@@ -98,7 +94,6 @@ auth:
   htpasswd:
     file: ./htpasswd
     max_users: 5
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(5));

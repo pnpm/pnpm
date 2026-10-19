@@ -1,11 +1,13 @@
-use clap::{Parser, builder::BoolishValueParser};
+use clap::Parser;
 use pnpm_diagnostics::println;
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
+use pnpr::{
+    Command, Config, ConfigSource, ConfigSubcommand, LogConfig, LogFormat, RegistryError,
+    ServerArgs, default_cache_dir, run_command, serve,
+};
 use std::{
     io::IsTerminal,
     net::SocketAddr,
     path::{Path, PathBuf},
-    time::Duration,
 };
 use tracing_subscriber::EnvFilter;
 
@@ -18,150 +20,111 @@ struct Args {
     /// Path to the YAML config. When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
-    #[arg(short = 'c', long, env = "PNPR_CONFIG")]
+    #[arg(short = 'c', long, env = "PNPR_CONFIG", global = true)]
     config: Option<PathBuf>,
-
-    /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
-    listen: SocketAddr,
 
     #[command(flatten)]
     paths: StorageArgs,
 
-    /// URL clients should use to reach this server. Used when
-    /// rewriting `dist.tarball` URLs in served packuments. Defaults
-    /// to `http://<listen>`.
-    #[arg(long, env = "PNPR_PUBLIC_URL")]
-    public_url: Option<String>,
-
-    /// Seconds before a cached packument is considered stale and
-    /// refetched. Defaults to 300. A registry's `maxage` overrides it.
-    #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
-    packument_ttl_secs: Option<u64>,
     #[command(flatten)]
-    osv_options: OsvArgs,
-    #[command(flatten)]
-    features: FeatureArgs,
+    server: ServerArgs,
 }
-#[derive(Debug, clap::Args)]
+
+#[derive(Debug, Default, Clone, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
     /// `-c`). Unless
     /// `--cache` is also given, the disposable proxy cache is
     /// re-derived as a subdirectory of this path.
-    #[arg(long, env = "PNPR_STORAGE")]
+    #[arg(long, env = "PNPR_STORAGE", global = true)]
     storage: Option<PathBuf>,
 
     /// Override the proxy-cache path — the disposable mirror of
     /// upstream registries plus the resolver's cache. Point
     /// it at separate, ephemeral disk to keep published packages and
     /// cached upstream content on different volumes.
-    #[arg(long, env = "PNPR_CACHE")]
+    #[arg(long, env = "PNPR_CACHE", global = true)]
     cache: Option<PathBuf>,
-}
-
-#[derive(Debug, clap::Args)]
-struct OsvArgs {
-    /// Enable local OSV npm vulnerability checks. Requires a local OSV
-    /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
-    #[arg(long, env = "PNPR_OSV", value_parser = BoolishValueParser::new())]
-    osv: bool,
-
-    /// Path to the local OSV npm database zip or extracted JSON directory.
-    #[arg(long, env = "PNPR_OSV_DB")]
-    osv_db: Option<PathBuf>,
-}
-
-#[derive(Debug, clap::Args)]
-struct FeatureArgs {
-    /// Disable the npm-registry surface (packument/tarball reads, publish,
-    /// unpublish, dist-tag, search) on this tier. Without the flag the
-    /// surface is served whenever the loaded config declares at least one
-    /// registry under `registries:`.
-    #[arg(long, env = "PNPR_DISABLE_REGISTRY", value_parser = BoolishValueParser::new())]
-    disable_registry: bool,
-
-    /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
-    /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
-    /// loaded config.
-    #[arg(long, env = "PNPR_DISABLE_RESOLVER", value_parser = BoolishValueParser::new())]
-    disable_resolver: bool,
-
-    /// Disable the signed shared-artifact surface. Overrides
-    /// `artifacts.enabled` from the loaded config.
-    #[arg(long, env = "PNPR_DISABLE_ARTIFACTS", value_parser = BoolishValueParser::new())]
-    disable_artifacts: bool,
-}
-
-use pnpr::cli_commands::{Command, ConfigSubcommand, run_command};
-
-impl Args {
-    fn feature_overrides(&self) -> pnpr::FeatureOverrides {
-        pnpr::FeatureOverrides {
-            disable_registry: self.features.disable_registry,
-            disable_resolver: self.features.disable_resolver,
-            disable_artifacts: self.features.disable_artifacts,
-        }
-    }
 }
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let mut args = Args::parse();
     let auto_path = Config::auto_config_path();
-    // Pass the surface-disable flags into parsing so a CLI-disabled surface
-    // skips its parse-time work too (e.g. strict upstream token resolution),
-    // not just its routes — applying them after `resolve` would be too late.
-    let overrides = args.feature_overrides();
+
+    let server_args = match args.command.take() {
+        None => args.server,
+        Some(Command::Serve(server)) => args.server.merge(server),
+        Some(cmd) => return run_maintenance(cmd, args, auto_path).await,
+    };
+
+    let overrides = server_args.features.feature_overrides();
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
-        args.listen,
-        args.public_url.clone(),
+        server_args.listen,
+        server_args.public_url.clone(),
         overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
-    apply_cli_overrides(&mut config, &mut args, &source);
+    apply_storage_overrides(&mut config, &mut args.paths, &source);
+    apply_server_overrides(&mut config, &server_args);
 
-    if matches!(
-        args.command,
-        Some(Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }),
-    ) {
+    init_logging(&config.logs);
+    log_config_source(&source);
+    serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+async fn run_maintenance(
+    cmd: Command,
+    mut args: Args,
+    auto_path: Option<PathBuf>,
+) -> miette::Result<()> {
+    let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().unwrap();
+    let (mut config, source) = Config::resolve_with_overrides(
+        args.config.as_deref(),
+        auto_path.as_deref(),
+        default_listen,
+        None,
+        args.server.features.feature_overrides(),
+    )
+    .map_err(|err| miette::miette!("{err}"))?;
+    apply_storage_overrides(&mut config, &mut args.paths, &source);
+
+    if matches!(cmd, Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }) {
         let report = pnpr::config_check::check_resolved_config(&config, &source);
         println!("{}", pnpr::config_check::format_report(&report));
         return Ok(());
     }
 
-    // Surface overrides were folded in during parse; the parse already
-    // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
-    if let Some(command) = args.command {
-        return run_command(&config, command).await;
-    }
-    serve(config).await.map_err(|err| redacted_report(&err))
+    run_command(&config, cmd).await
 }
 
-/// Fold the command-line overrides into the resolved config.
-fn apply_cli_overrides(config: &mut Config, args: &mut Args, source: &ConfigSource) {
-    if let Some(storage) = args.paths.storage.take() {
+fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs, source: &ConfigSource) {
+    if let Some(storage) = paths.storage.take() {
         relocate_bundled_auth_state(config, &storage, source);
-        // Keep the cache co-located under the overridden storage dir so a
-        // `--storage`-only run stays self-contained, unless the caller
-        // pins the cache explicitly below.
         config.storage.cache_dir = default_cache_dir(&storage);
         config.storage.hosted_dir = storage;
     }
-    if let Some(cache) = args.paths.cache.take() {
+    if let Some(cache) = paths.cache.take() {
         config.storage.cache_dir = cache;
     }
-    if let Some(ttl_secs) = args.packument_ttl_secs {
-        config.http.packument_ttl = Duration::from_secs(ttl_secs);
+}
+
+fn apply_server_overrides(config: &mut Config, server: &ServerArgs) {
+    if let Some(ttl) = server.packument_ttl {
+        config.http.packument_ttl = ttl;
+    } else if let Ok(raw) = std::env::var("PNPR_PACKUMENT_TTL_SECS")
+        && let Some(d) = pnpr_config::parse_interval(&raw)
+    {
+        config.http.packument_ttl = d;
     }
-    if args.osv_options.osv {
-        config.osv.enabled = true;
+    if let Some(osv) = server.osv_options.osv {
+        config.osv.enabled = osv;
     }
-    if let Some(osv_db) = args.osv_options.osv_db.take() {
+    if let Some(osv_db) = server.osv_options.osv_db.clone() {
         config.osv.path = Some(osv_db);
     }
 }

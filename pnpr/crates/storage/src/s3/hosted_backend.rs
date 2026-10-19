@@ -172,6 +172,10 @@ impl HostedBackend for S3Store {
         S3Store::list_package_names(self).await
     }
 
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
+        S3Store::list_package_blobs(self, name).await
+    }
+
     async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
         S3Store::list_top_level_dirs(self).await
     }
@@ -230,6 +234,15 @@ impl HostedBackend for S3Store {
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
         S3Store::remove_record(self, namespace, key).await
+    }
+
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        S3Store::remove_record_if_current(self, namespace, key, expected).await
     }
 
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {

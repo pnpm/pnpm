@@ -170,8 +170,10 @@ pub(in super::super) async fn stage_publish(
 ) -> Result<StagedPublish, RegistryError> {
     let storage = hosted_storage(state, org);
 
-    let (hosted, base_version) =
-        parse_hosted_packument(storage.read_hosted_document_for_update(&doc.name).await?)?;
+    let (hosted, base_version) = parse_hosted_packument(
+        &doc.name,
+        storage.read_hosted_document_for_update(&doc.name).await?,
+    )?;
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
     let ValidatedPublish { name, incoming, prepared, .. } = doc;

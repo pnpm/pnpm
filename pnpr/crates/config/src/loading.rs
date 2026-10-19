@@ -1,9 +1,9 @@
 use super::{
     Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Path, PathBuf, RegistryError, ResolvedFileRegistries, SocketAddr, build_backend_config,
-    build_cors_config, build_features, build_identity_config, build_log_config, build_osv_config,
-    build_route_policy, build_ui_config, config_file_in, parse_config_file, reject_removed_blocks,
-    resolution_secret, resolve_file_registries, resolve_storage_paths,
+    Path, PathBuf, RegistryError, ResolvedFileRegistries, RoutesFile, SocketAddr, SystemEnv,
+    build_backend_config, build_cors_config, build_features, build_identity_config,
+    build_log_config, build_osv_config, build_route_policy, build_ui_config, config_file_in,
+    env_replace_lossy, resolution_secret, resolve_file_registries, resolve_storage_paths,
 };
 
 impl Config {
@@ -209,7 +209,12 @@ impl Config {
         let storage = build_storage_config(&mut file, base_dir)?;
         let http = build_http_config(&mut file, base_dir, listen, public_url)?;
         let backend = build_backend_config(file.backend, base_dir)?;
-        reject_removed_blocks(file.packages.is_some(), file.groups.is_some())?;
+        reject_removed_blocks(
+            file.packages.is_some(),
+            file.groups.is_some(),
+            file.uplinks.is_some(),
+            file.upstreams.is_some(),
+        )?;
         let features = build_features(
             !file.registries.is_empty(),
             file.resolver,
@@ -217,16 +222,12 @@ impl Config {
             file.pipeline,
             overrides,
         )?;
-        let ResolvedFileRegistries {
-            upstreams,
-            hosted,
-            registries,
-            tar_registries,
-        } = resolve_file_registries(
+        let resolved = resolve_file_registries(
             file.registries,
             file.default_registry,
             features.registry.enabled,
         )?;
+        let routing = build_routing_config(resolved, file.routes)?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
@@ -236,15 +237,22 @@ impl Config {
             storage,
             identity: build_identity_config(&file.auth, base_dir, backend)?,
             features,
-            routing: super::RoutingConfig {
-                upstreams,
-                route_policy: build_route_policy(file.routes)?,
-                registries,
-                hosted,
-                tar_registries,
-            },
+            routing,
         })
     }
+}
+
+fn build_routing_config(
+    resolved: ResolvedFileRegistries,
+    routes: Option<RoutesFile>,
+) -> Result<super::RoutingConfig, RegistryError> {
+    Ok(super::RoutingConfig {
+        upstreams: resolved.upstreams,
+        route_policy: build_route_policy(routes)?,
+        registries: resolved.registries,
+        hosted: resolved.hosted,
+        tar_registries: resolved.tar_registries,
+    })
 }
 
 fn build_http_config(
@@ -280,7 +288,13 @@ fn build_http_config(
         cors,
         ui,
         oci: std::mem::take(&mut file.oci),
-        packument_ttl: Config::DEFAULT_PACKUMENT_TTL,
+        packument_ttl: match &file.packument_ttl {
+            Some(interval) => super::parse_interval(&interval.0)
+                .ok_or_else(|| RegistryError::InvalidConfig {
+                    reason: format!("packumentTtl {:?} is not a valid interval", interval.0),
+                })?,
+            None => Config::DEFAULT_PACKUMENT_TTL,
+        },
         trusted_proxies,
         trusted_proxy_header,
         request_timeout,
@@ -298,4 +312,63 @@ fn build_storage_config(
         cache,
         hosted_backend: file.s3.take().map_or(HostedStoreConfig::Fs, HostedStoreConfig::S3),
     })
+}
+
+pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {
+    let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
+    if !unresolved.is_empty() {
+        tracing::warn!(?unresolved, "config references unset environment variables");
+    }
+    let file: ConfigFile = serde_saphyr::from_str(&substituted)
+        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
+    if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
+        return Err(RegistryError::InvalidConfig {
+            reason: "oci size limits must be greater than zero".to_string(),
+        });
+    }
+    Ok(file)
+}
+
+/// The global ACL and group blocks are gone, not ignorable: they used
+/// to *enforce* and *grant* access, so dropping either like an unknown
+/// verdaccio key would silently change who may reach what on upgrade.
+/// Fail loudly instead, naming the replacement.
+pub(super) fn reject_removed_blocks(
+    has_packages: bool,
+    has_groups: bool,
+    has_uplinks: bool,
+    has_upstreams: bool,
+) -> Result<(), RegistryError> {
+    if has_packages {
+        return Err(RegistryError::InvalidConfig {
+            reason: "the top-level `packages:` block was removed: declare per-package rules \
+                     on the registry that serves them, as `registries.<name>.packages` \
+                     (pattern keys, `access`/`publish`/`unpublish` values)"
+                .to_string(),
+        });
+    }
+    if has_groups {
+        return Err(RegistryError::InvalidConfig {
+            reason: "the top-level `groups:` block was removed: declare teams on the \
+                     registry that uses them, as `registries.<name>.teams` (team-name keys, \
+                     member-list values), and reference them from that registry's access \
+                     lists as `team:<name>`"
+                .to_string(),
+        });
+    }
+    if has_uplinks {
+        return Err(RegistryError::InvalidConfig {
+            reason: "the top-level `uplinks:` block is not supported: declare upstream \
+                     registries under `registries:` with `type: upstream`"
+                .to_string(),
+        });
+    }
+    if has_upstreams {
+        return Err(RegistryError::InvalidConfig {
+            reason: "the top-level `upstreams:` block was removed: declare upstream \
+                     registries under `registries:` with `type: upstream`"
+                .to_string(),
+        });
+    }
+    Ok(())
 }

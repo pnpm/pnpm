@@ -14,7 +14,6 @@ use std::{collections::BTreeMap, sync::Arc};
 /// API takes it. Each list replaces the YAML's list of the same place; an
 /// omitted list keeps it.
 #[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct RuleChanges {
     /// The registry-level `access:`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -22,10 +21,11 @@ pub(super) struct RuleChanges {
     /// Keyed by a pattern the registry's `packages:` map declares.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(super) packages: BTreeMap<String, PackageChanges>,
+    #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) extra: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub(super) struct PackageChanges {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) access: Option<Vec<String>>,
@@ -33,6 +33,8 @@ pub(super) struct PackageChanges {
     pub(super) publish: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) unpublish: Option<Vec<String>>,
+    #[serde(flatten, default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) extra: BTreeMap<String, serde_json::Value>,
 }
 
 /// How a list's tokens become an [`AccessList`].
@@ -68,8 +70,9 @@ async fn read_rules(
     registry: &str,
     base: &RuleTable,
 ) -> Result<(RuleTable, String), RegistryError> {
+    let canonical = super::managed_state::canonical_registry_key(state, registry);
     let Some(bytes) =
-        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, registry).await?
+        state.inner.storage.read_registry_record(RegistryRecord::RuleOverrides, canonical).await?
     else {
         return Ok((base.clone(), rules_version(None)));
     };
@@ -114,13 +117,14 @@ pub(super) async fn replace_rules(
 ) -> Result<(RuleTable, String), RegistryError> {
     let managed = &state.inner.identity.managed;
     let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
+    let canonical = super::managed_state::canonical_registry_key(state, registry);
     let bytes = serde_json::to_vec(&changes)?;
     let table = apply_changes(state, registry, base, changes, Compile::Strict)
         .map_err(|reason| RegistryError::BadRequest { reason })?;
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
-        let stored = state.inner.storage.read_registry_record(kind, registry).await?;
+        let stored = state.inner.storage.read_registry_record(kind, canonical).await?;
         check_version(registry, stored.as_deref(), expected)?;
         if store_registry_record(state, kind, registry, stored.as_deref(), &bytes).await? {
             publish_rules(state, registry, table.clone());
@@ -147,10 +151,11 @@ where
 {
     let managed = &state.inner.identity.managed;
     let base = managed.rule_bases.get(registry).ok_or(RegistryError::NotFound)?;
+    let canonical = super::managed_state::canonical_registry_key(state, registry);
     let _reload = managed.reload.lock().await;
     for _ in 0..WRITE_ATTEMPTS {
         let kind = RegistryRecord::RuleOverrides;
-        let stored = state.inner.storage.read_registry_record(kind, registry).await?;
+        let stored = state.inner.storage.read_registry_record(kind, canonical).await?;
         let mut changes = parse_changes(registry, stored.as_deref())?;
         edit(&mut changes, base)?;
         let bytes = serde_json::to_vec(&changes)?;

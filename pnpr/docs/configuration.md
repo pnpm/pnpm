@@ -536,6 +536,19 @@ Can be specified as an integer number of seconds (e.g. `30`) or with a duration 
 requestTimeout: 60s
 ```
 
+## `packumentTtl`
+
+How long cached upstream packuments remain fresh before pnpr revalidates them against the upstream registry.
+
+Defaults to `10s`. Can be overridden per-process with the `--packument-ttl` CLI flag.
+
+Accepts `packumentTtl` (camelCase) or `packument_ttl` (snake_case).
+Can be specified as an integer number of seconds (e.g. `10`) or with a duration suffix (e.g. `10s`, `1m`).
+
+```yaml title="pnpr.yaml"
+packumentTtl: 30s
+```
+
 ## Security limits and protections
 
 pnpr includes built-in protections against denial-of-service and brute-force attacks:

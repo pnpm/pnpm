@@ -1,9 +1,8 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
 use pnpr_config::{Config, HostedStoreConfig, S3Settings};
-use pnpr_package_name::{CanonicalPackageName, Ecosystem};
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
-use serde_json::Value;
 use std::path::PathBuf;
 use tokio::fs;
 
@@ -120,66 +119,32 @@ async fn migrate_package(
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
-    let Ok(canonical) = CanonicalPackageName::parse(pkg_name, Ecosystem::Npm) else {
-        return Ok(());
-    };
+    let canonical = CanonicalPackageName::from_stored(pkg_name);
 
     let doc_bytes = source
         .read_hosted_document(&canonical)
         .await
         .map_err(|err| miette::miette!("failed to read document for '{pkg_name}': {err}"))?;
 
-    let Some(bytes) = doc_bytes else {
-        return Ok(());
-    };
-
-    let doc: Value = serde_json::from_slice(&bytes)
-        .map_err(|err| miette::miette!("invalid JSON in '{pkg_name}': {err}"))?;
-
-    if let Some(versions) = doc.get("versions").and_then(Value::as_object) {
-        for (ver, ver_val) in versions {
-            migrate_version_blobs(source, target, &canonical, ver, ver_val, options, report).await?;
+    if let Some(bytes) = doc_bytes {
+        if !options.dry_run {
+            target
+                .write_hosted_document_if_current(&canonical, &bytes, None)
+                .await
+                .map_err(|err| miette::miette!("failed to write document to target: {err}"))?;
         }
+        report.packages_migrated += 1;
     }
 
-    if !options.dry_run {
-        target
-            .write_hosted_document_if_current(&canonical, &bytes, None)
-            .await
-            .map_err(|err| miette::miette!("failed to write document to target: {err}"))?;
-    }
-    report.packages_migrated += 1;
+    let blobs = source
+        .hosted_package_blobs(&canonical)
+        .await
+        .map_err(|err| miette::miette!("failed to list blobs for '{pkg_name}': {err}"))?;
 
-    Ok(())
-}
+    for filename in blobs {
+        migrate_single_blob(source, target, &canonical, &filename, options, report).await?;
+    }
 
-async fn migrate_version_blobs(
-    source: &Storage,
-    target: &Storage,
-    canonical: &CanonicalPackageName,
-    ver: &str,
-    ver_val: &Value,
-    options: &MigrateStorageOptions,
-    report: &mut MigrateReport,
-) -> miette::Result<()> {
-    let Some(dist) = ver_val.get("dist").and_then(Value::as_object) else {
-        return Ok(());
-    };
-    if let Some(filename) = dist
-        .get("tarball")
-        .and_then(Value::as_str)
-        .and_then(filename_from_url)
-    {
-        migrate_single_blob(source, target, canonical, filename, options, report).await?;
-    }
-    if dist
-        .get("attestations")
-        .and_then(|a| a.get("url"))
-        .is_some()
-    {
-        let sigstore_name = canonical.sigstore_name_for_version(ver);
-        migrate_single_blob(source, target, canonical, &sigstore_name, options, report).await?;
-    }
     Ok(())
 }
 
@@ -273,16 +238,6 @@ fn safe_filename(name: &str) -> Option<&str> {
         return None;
     }
     Some(name)
-}
-
-fn filename_from_url(url: &str) -> Option<&str> {
-    let segment = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or("")
-        .rsplit('/')
-        .next()?;
-    safe_filename(segment)
 }
 
 #[must_use]

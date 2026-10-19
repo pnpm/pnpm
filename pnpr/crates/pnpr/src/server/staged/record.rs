@@ -1,4 +1,4 @@
-use super::{Identity, StagedRecord, ValidatedPublish, Value};
+use super::{Identity, STAGED_RECORD_FORMAT_VERSION, StagedRecord, ValidatedPublish, Value};
 use pnpr_storage::publish::now_iso;
 
 pub(super) fn staged_record(
@@ -14,6 +14,7 @@ pub(super) fn staged_record(
         });
     let (actor, actor_type) = actor_of(identity);
     StagedRecord {
+        format_version: STAGED_RECORD_FORMAT_VERSION,
         id: stage_id.to_string(),
         package_name: validated.name.as_str().to_string(),
         tag: staged_tag(&validated.incoming, version.as_deref()),

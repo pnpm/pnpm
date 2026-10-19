@@ -49,6 +49,12 @@ use pnpr_search::percent_decode;
 use pnpr_storage::{DocumentWrite, publish::extract_attachments};
 use std::time::Duration;
 
+pub const STAGED_RECORD_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    STAGED_RECORD_FORMAT_VERSION
+}
+
 /// One staged publish's metadata, stored next to the held publish body and
 /// served by the list/view endpoints (without the `registry` field, which is
 /// routing state rather than metadata).
@@ -62,6 +68,8 @@ use std::time::Duration;
     )
 )]
 struct StagedRecord {
+    #[serde(default = "default_format_version")]
+    format_version: u32,
     id: String,
     package_name: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -448,7 +456,14 @@ async fn read_staged_record(
     let Some(bytes) = state.inner.storage.read_staged_meta(stage_id).await? else {
         return Ok(None);
     };
-    let record = serde_json::from_slice(&bytes).map_err(RegistryError::Json)?;
+    let record: StagedRecord = serde_json::from_slice(&bytes).map_err(RegistryError::Json)?;
+    if record.format_version > STAGED_RECORD_FORMAT_VERSION {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: format!("staged record {stage_id}"),
+            format_version: record.format_version,
+            supported_version: STAGED_RECORD_FORMAT_VERSION,
+        });
+    }
     Ok(Some(StoredStagedRecord { bytes, record }))
 }
 

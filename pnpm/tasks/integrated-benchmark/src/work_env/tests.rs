@@ -9,7 +9,10 @@ use super::{
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
-    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml, serves_npm_under_base_path},
+    server_config::{
+        cold_mock_config_yaml, pnpr_auth_config_key, pnpr_benchmark_config_yaml,
+        serves_npm_under_base_path,
+    },
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
@@ -438,6 +441,19 @@ fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
     // built-in route, so the config never spells out an npmjs registry rule.
     assert!(yaml.contains("public: []"));
     assert!(!yaml.contains("registry: https://registry.npmjs.org/"));
+}
+
+#[test]
+fn cold_mock_config_declares_public_upstream_under_registries() {
+    let storage = std::env::temp_dir().join("cold-mock-config-test-storage");
+
+    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
+
+    assert!(yaml.contains("registries:"));
+    assert!(yaml.contains("type: upstream"));
+    assert!(yaml.contains("defaultRegistry: npmjs"));
+    assert!(!yaml.contains("mounts:"));
+    assert!(!yaml.contains("defaultTarget:"));
 }
 
 #[test]

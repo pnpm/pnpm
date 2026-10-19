@@ -64,51 +64,18 @@ pub(crate) const JOURNAL_DIR: &str = ".pnpr-journal";
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
 
+pub const JOURNAL_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    JOURNAL_FORMAT_VERSION
+}
+
 /// Per-process counter feeding [`txn_id`] so two transactions sealed in
 /// the same millisecond get distinct directories.
 static TXN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-#[derive(Debug, Serialize, Deserialize)]
-struct Manifest {
-    packages: Vec<ManifestPackage>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ManifestPackage {
-    name: String,
-    /// The ecosystem whose document format this package's document is in.
-    /// An entry that names none holds an npm packument.
-    #[serde(default)]
-    ecosystem: Ecosystem,
-    /// Hosted-org storage namespace this package publishes into, or `None` for
-    /// the flat (path-less) hosted store. Recovery namespaces the roll-forward
-    /// by it so a crash mid-commit promotes into the right org. Defaulted for
-    /// back-compat with journals written before org registries existed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    org: Option<String>,
-    /// File inside the transaction directory holding the computed
-    /// document bytes.
-    #[serde(alias = "packument_file")]
-    document_file: String,
-    #[serde(alias = "tarballs")]
-    blobs: Vec<ManifestBlob>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    revision_refs: Vec<JournaledRevisionRef>,
-}
-
-impl ManifestPackage {
-    fn id(&self) -> PackageId {
-        PackageId { ecosystem: self.ecosystem, name: self.name.clone() }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ManifestBlob {
-    /// Canonical on-disk filename (`<basename>-<version>.tgz` for npm).
-    filename: String,
-    /// The staged tmp file holding the verified bytes.
-    tmp_path: PathBuf,
-}
+mod manifest;
+use manifest::{Manifest, ManifestBlob, ManifestPackage};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JournaledRevisionRef {
@@ -353,6 +320,13 @@ impl SealedTxn {
     ) -> Result<()> {
         let manifest: Manifest =
             serde_json::from_slice(&fs::read(self.dir.join(MANIFEST_FILE)).await?)?;
+        if manifest.format_version > JOURNAL_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: "journal manifest".to_string(),
+                format_version: manifest.format_version,
+                supported_version: JOURNAL_FORMAT_VERSION,
+            });
+        }
         let mut context = ApplyContext { documents, progress };
         let mut lost_tmp_paths = Vec::new();
         for (index, package) in manifest.packages.iter().enumerate() {

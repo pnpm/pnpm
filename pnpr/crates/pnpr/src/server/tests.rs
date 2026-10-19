@@ -117,7 +117,6 @@ fn is_write_request_flags_only_mutating_requests() {
 
     // Known read POSTs are allowed:
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve"));
-    assert!(!is_write_request(&Method::POST, "/-/pnpr/v1/resolve"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/verify-lockfile"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/resolve"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/artifacts/blob"));

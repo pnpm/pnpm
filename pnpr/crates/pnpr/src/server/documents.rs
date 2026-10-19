@@ -14,12 +14,12 @@ use super::{
     AppState, hosted_read_namespace,
     publishing::{StagedPublish, commit_publishes},
 };
-use pnpr_cargo::{CrateDocument, crate_filename};
+use pnpr_cargo::{CRATE_DOCUMENT_FORMAT_VERSION, CrateDocument, crate_filename};
 use pnpr_error::RegistryError;
-use pnpr_oci::ImageDocument;
+use pnpr_oci::{IMAGE_DOCUMENT_FORMAT_VERSION, ImageDocument};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_pypi::ProjectDocument;
+use pnpr_pypi::{PROJECT_DOCUMENT_FORMAT_VERSION, ProjectDocument};
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
     journal::{DocumentMerge, HostedDocuments},
@@ -33,7 +33,10 @@ use std::collections::HashSet;
 pub(super) trait HostedDocument: Sized {
     /// The ecosystem whose surface publishes this document.
     const ECOSYSTEM: Ecosystem;
+    /// The maximum format version this server build supports.
+    const FORMAT_VERSION: u32;
 
+    fn format_version(&self) -> u32;
     fn empty(name: &str) -> Self;
     fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error>;
     fn to_bytes(&self) -> Vec<u8>;
@@ -52,6 +55,11 @@ pub(super) trait HostedDocument: Sized {
 
 impl HostedDocument for CrateDocument {
     const ECOSYSTEM: Ecosystem = Ecosystem::Cargo;
+    const FORMAT_VERSION: u32 = CRATE_DOCUMENT_FORMAT_VERSION;
+
+    fn format_version(&self) -> u32 {
+        self.format_version
+    }
 
     fn empty(name: &str) -> Self {
         CrateDocument::new(name)
@@ -89,6 +97,11 @@ impl HostedDocument for CrateDocument {
 
 impl HostedDocument for ProjectDocument {
     const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
+    const FORMAT_VERSION: u32 = PROJECT_DOCUMENT_FORMAT_VERSION;
+
+    fn format_version(&self) -> u32 {
+        self.format_version
+    }
 
     fn empty(name: &str) -> Self {
         ProjectDocument::new(name)
@@ -116,6 +129,11 @@ impl HostedDocument for ProjectDocument {
 
 impl HostedDocument for ImageDocument {
     const ECOSYSTEM: Ecosystem = Ecosystem::Oci;
+    const FORMAT_VERSION: u32 = IMAGE_DOCUMENT_FORMAT_VERSION;
+
+    fn format_version(&self) -> u32 {
+        self.format_version
+    }
 
     fn empty(name: &str) -> Self {
         ImageDocument::new(name)
@@ -159,6 +177,13 @@ fn merge_into_stored<Document: HostedDocument>(
         Some(bytes) => Document::parse(bytes).map_err(RegistryError::Json)?,
         None => Document::empty(merge.name.as_str()),
     };
+    if stored.format_version() > Document::FORMAT_VERSION {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: merge.name.as_str().to_string(),
+            format_version: stored.format_version(),
+            supported_version: Document::FORMAT_VERSION,
+        });
+    }
     Ok(stored.merge(journaled, merge.lost_blobs).then(|| stored.to_bytes()))
 }
 
@@ -213,7 +238,15 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     if !outcome.unrecorded.is_empty()
         && let Some(stored) = state.inner.storage.for_hosted(org).read_hosted_document(key).await?
     {
-        refuse(&Document::parse(&stored).map_err(RegistryError::Json)?)?;
+        let doc = Document::parse(&stored).map_err(RegistryError::Json)?;
+        if doc.format_version() > Document::FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: key.as_str().to_string(),
+                format_version: doc.format_version(),
+                supported_version: Document::FORMAT_VERSION,
+            });
+        }
+        refuse(&doc)?;
     }
     Ok(())
 }
@@ -238,6 +271,13 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         Some(stored) => Document::parse(&stored.bytes).map_err(RegistryError::Json)?,
         None => Document::empty(key.as_str()),
     };
+    if document.format_version() > Document::FORMAT_VERSION {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: key.as_str().to_string(),
+            format_version: document.format_version(),
+            supported_version: Document::FORMAT_VERSION,
+        });
+    }
     refuse(&document)?;
     document.merge(addition, &HashSet::new());
 

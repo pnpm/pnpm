@@ -1,21 +1,21 @@
 use super::{
-    AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LibsqlSettings, LogConfig,
-    LogFormat, LogLevel, Management, OciConfig, PackageAccess, RegistryError, S3Settings,
-    ScimConfig, SystemEnv, TarballFormat, UpstreamAuthFile, default_storage_string,
-    env_replace_lossy, oidc,
+    AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
+    LogLevel, Management, OciConfig, PackageAccess, PathBuf, S3Settings, ScimConfig, TarballFormat,
+    UpstreamAuthFile, default_storage_string, oidc,
 };
 
 /// Disk shape of the `routes:` block.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct RoutesFile {
     #[serde(default)]
     pub(super) public: Vec<PublicRouteFile>,
-    #[serde(default)]
+    #[serde(default, alias = "allowed_private_networks")]
     pub(super) allowed_private_networks: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct PublicRouteFile {
     #[serde(default)]
     pub(super) registry: Option<String>,
@@ -38,7 +38,7 @@ pub(super) enum RegistryFile {
 
 /// Disk shape of a `hosted:` registry.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct HostedFile {
     /// The package ecosystem this registry serves, which selects the protocol
     /// spoken at its `/~<name>/` endpoint. Omitted ⇒ `npm`.
@@ -61,11 +61,11 @@ pub(super) struct HostedFile {
     pub(super) teams: IndexMap<String, AccessSpec>,
     /// Whether `teams:` is the roster or only the seed of one the team API
     /// edits. Omitted ⇒ `config`.
-    #[serde(default, rename = "teamsManagedBy")]
+    #[serde(default, rename = "teamsManagedBy", alias = "teams_managed_by")]
     pub(super) teams_managed_by: Management,
     /// Whether the `packages:` rules and `access:` are fixed, or a starting
     /// point the admin API may change. Omitted ⇒ `config`.
-    #[serde(default, rename = "rulesManagedBy")]
+    #[serde(default, rename = "rulesManagedBy", alias = "rules_managed_by")]
     pub(super) rules_managed_by: Management,
     /// The names this registry serves and accepts publishes for — its
     /// namespace — with optional per-package `access`/`publish`/`unpublish`
@@ -108,13 +108,13 @@ pub(super) struct UpstreamFile {
     pub(super) auth: Option<UpstreamAuthFile>,
     #[serde(default)]
     pub(super) headers: IndexMap<String, String>,
-    #[serde(default)]
+    #[serde(default, rename = "maxAge", alias = "maxage", alias = "max_age")]
     pub(super) maxage: Option<Interval>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
-    #[serde(default)]
+    #[serde(default, rename = "maxFails", alias = "max_fails")]
     pub(super) max_fails: Option<u32>,
-    #[serde(default)]
+    #[serde(default, rename = "failTimeout", alias = "fail_timeout")]
     pub(super) fail_timeout: Option<Interval>,
     #[serde(default)]
     pub(super) cache: Option<bool>,
@@ -146,7 +146,7 @@ pub(super) struct UpstreamFile {
 /// Disk shape of a `router:` registry: an ordered list of concrete registry names.
 /// The first source whose declared patterns claim a package serves it.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct RouterFile {
     #[serde(default)]
     pub(super) sources: Vec<String>,
@@ -173,12 +173,7 @@ pub(super) enum DefaultRegistryFile {
     Ecosystems(IndexMap<Ecosystem, String>),
 }
 
-/// Disk shape of the YAML file. Fields verdaccio supports but
-/// pnpr doesn't (`auth`, `web`, `plugins`, `middlewares`,
-/// `logs`, `secret`) are accepted and silently dropped via
-/// `#[serde(default)]` on the fields we care about plus
-/// `#[serde(deny_unknown_fields)]` *not* being set — so the same
-/// `config.yaml` works for both servers.
+/// Disposable proxy-cache root or settings table.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub(super) enum CacheFile {
@@ -198,6 +193,7 @@ pub(super) struct CacheSettingsFile {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -208,7 +204,7 @@ pub(super) struct CacheSettingsFile {
 pub(super) struct ConfigFile {
     #[serde(default = "default_storage_string")]
     pub(super) storage: String,
-    /// Disposable proxy-cache root or settings table. Not a verdaccio key — when omitted
+    /// Disposable proxy-cache root or settings table. When omitted
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     pub(super) cache: Option<CacheFile>,
@@ -221,6 +217,15 @@ pub(super) struct ConfigFile {
     /// Request processing timeout (e.g. `60s`, `1m`).
     #[serde(default, rename = "requestTimeout", alias = "request_timeout")]
     pub(super) request_timeout: Option<Interval>,
+    /// Duration before a cached packument is considered stale and refetched.
+    #[serde(
+        default,
+        rename = "packumentTtl",
+        alias = "packument_ttl",
+        alias = "packument_ttl_secs",
+        alias = "packumentTtlSecs"
+    )]
+    pub(super) packument_ttl: Option<Interval>,
     /// pnpr-only browser access policy. Cross-origin access stays disabled
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]
@@ -231,21 +236,18 @@ pub(super) struct ConfigFile {
     #[serde(default)]
     pub(super) oci: OciConfig,
     /// pnpr-only block: store the hosted (published) packages in an
-    /// S3-compatible object store instead of `storage`. Absent on a
-    /// stock verdaccio config (silently ignored there).
+    /// S3-compatible object store instead of `storage`.
     #[serde(default)]
     pub(super) s3: Option<S3Settings>,
     /// pnpr-only block: back the auth record stores (users + tokens)
-    /// with a shared SQL database. Absent on a stock verdaccio config
-    /// (silently ignored there).
+    /// with a shared SQL database.
     #[serde(default)]
     pub(super) backend: Option<BackendFile>,
     /// pnpr-only local OSV database settings.
     #[serde(default)]
     pub(super) osv: OsvFile,
     /// pnpr-only feature toggle for the resolver surface. On unless
-    /// explicitly disabled; absent on a stock verdaccio config, so it
-    /// stays enabled there. `Option` so a bare `resolver:` (which YAML
+    /// explicitly disabled. `Option` so a bare `resolver:` (which YAML
     /// parses as null) is accepted as "default" rather than failing to
     /// deserialize into the struct.
     #[serde(default)]
@@ -259,38 +261,38 @@ pub(super) struct ConfigFile {
     #[serde(default)]
     pub(super) pipeline: Option<PipelineFeatureFile>,
     /// pnpr registries: hosted, upstream, and router origins, each
-    /// exposed at `/~<name>/`. The only routing surface — there is no legacy
-    /// `upstreams:`/`packages: proxy:` fallback.
+    /// exposed at `/~<name>/`.
     #[serde(default)]
     pub(super) registries: IndexMap<String, RegistryGroupFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
     /// registry and clients must address a `/~<name>/`.
-    #[serde(default, rename = "defaultRegistry")]
+    #[serde(default, rename = "defaultRegistry", alias = "default_registry")]
     pub(super) default_registry: Option<DefaultRegistryFile>,
-    /// The removed top-level ACL block, kept only to *reject* it loudly: a
-    /// config still carrying it enforced access with it, so silently dropping
-    /// the key would open private packages up on upgrade.
+    /// The removed top-level ACL block, kept only to *reject* it loudly.
     #[serde(default, deserialize_with = "detect_removed_block")]
     pub(super) packages: Option<RemovedPackagesBlock>,
     /// The removed top-level `groups:` block, kept only to *reject* it
     /// loudly.
     #[serde(default, deserialize_with = "detect_removed_block")]
     pub(super) groups: Option<RemovedGroupsBlock>,
+    /// The unsupported top-level `uplinks:` block, kept only to *reject* it
+    /// loudly.
+    #[serde(default, deserialize_with = "detect_removed_block")]
+    pub(super) uplinks: Option<RemovedUplinksBlock>,
+    /// The removed top-level `upstreams:` block, kept only to *reject* it
+    /// loudly.
+    #[serde(default, deserialize_with = "detect_removed_block")]
+    pub(super) upstreams: Option<RemovedUpstreamsBlock>,
     /// pnpr-only: which fetch routes the resolution cache treats as
-    /// public. Absent on a stock verdaccio config (built-in defaults
-    /// apply).
+    /// public.
     #[serde(default)]
     pub(super) routes: Option<RoutesFile>,
-    /// Verdaccio's `secret:` — reused here to key the private
-    /// resolution-cache HMAC. A random per-process secret is used when
-    /// absent.
+    /// Secret keying the private resolution-cache HMAC. A random
+    /// per-process secret is used when absent.
     #[serde(default)]
     pub(super) secret: Option<String>,
     #[serde(default)]
     pub(super) auth: AuthFile,
-    /// Verdaccio 6+ shape: `log:` is a single object at the top
-    /// level, not a list. The older `logs:` list shape is
-    /// intentionally not accepted.
     #[serde(default)]
     pub(super) log: Option<LogEntryFile>,
 }
@@ -298,7 +300,7 @@ pub(super) struct ConfigFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct CorsFile {
-    #[serde(default)]
+    #[serde(default, alias = "allowed_origins")]
     pub(super) allowed_origins: Vec<String>,
 }
 
@@ -323,6 +325,14 @@ pub(super) struct RemovedPackagesBlock;
 #[derive(Debug, Default)]
 pub(super) struct RemovedGroupsBlock;
 
+/// Marker for a present top-level `uplinks:` key, whatever its value.
+#[derive(Debug, Default)]
+pub(super) struct RemovedUplinksBlock;
+
+/// Marker for a present top-level `upstreams:` key, whatever its value.
+#[derive(Debug, Default)]
+pub(super) struct RemovedUpstreamsBlock;
+
 /// `Some` whenever the key is present — including a key with no value
 /// (YAML null), which `Option<IgnoredAny>` would map to `None` and let
 /// slip past the loud rejection. The value itself is consumed and
@@ -338,8 +348,9 @@ where
     Ok(Some(Marker::default()))
 }
 
-/// The YAML `log:` object. Mirrors verdaccio 6's logger config.
+/// The YAML `log:` object.
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct LogEntryFile {
     #[serde(default = "default_log_type")]
     pub(super) r#type: String,
@@ -354,6 +365,7 @@ pub(super) fn default_log_type() -> String {
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct AuthFile {
     #[serde(default)]
     pub(super) admins: Vec<String>,
@@ -368,47 +380,66 @@ pub(super) struct AuthFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct BackendFile {
     #[serde(default)]
-    pub(super) libsql: Option<LibsqlSettings>,
-    #[serde(default)]
+    pub(super) libsql: Option<LibsqlFile>,
+    #[serde(default, alias = "postgresql")]
     pub(super) postgres: Option<SqlBackendFile>,
-    #[serde(default)]
-    pub(super) postgresql: Option<SqlBackendFile>,
     #[serde(default)]
     pub(super) mysql: Option<SqlBackendFile>,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct LibsqlFile {
+    pub(super) url: String,
+    #[serde(default, rename = "authToken", alias = "auth_token")]
+    pub(super) auth_token: Option<String>,
+    #[serde(default, rename = "replicaPath", alias = "replica_path")]
+    pub(super) replica_path: Option<PathBuf>,
+    #[serde(
+        default,
+        rename = "syncInterval",
+        alias = "sync_interval",
+        alias = "syncIntervalSecs",
+        alias = "sync_interval_secs"
+    )]
+    pub(super) sync_interval: Option<Interval>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct SqlBackendFile {
     pub(super) url: String,
-    #[serde(default)]
+    #[serde(default, rename = "maxConnections", alias = "max_connections")]
     pub(super) max_connections: Option<u32>,
     #[serde(default)]
     pub(super) timeout: Option<Interval>,
-    #[serde(default)]
+    #[serde(default, rename = "startupTimeout", alias = "startup_timeout")]
     pub(super) startup_timeout: Option<Interval>,
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct HtpasswdFile {
     #[serde(default)]
     pub(super) file: Option<String>,
-    /// `i64` so the verdaccio sentinel `-1` (registration disabled)
+    /// `i64` so the sentinel `-1` (registration disabled)
     /// parses; anything `≥ 0` becomes a hard cap.
-    #[serde(default)]
+    #[serde(default, rename = "maxUsers", alias = "max_users")]
     pub(super) max_users: Option<i64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct TokensFile {
     #[serde(default)]
     pub(super) file: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct OsvFile {
     #[serde(default)]
     pub(super) enabled: bool,
@@ -424,7 +455,7 @@ pub(super) struct OsvFile {
 /// silently leaving the surface enabled — the toggle scopes which
 /// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct FeatureFile {
     #[serde(default = "default_true")]
     pub(super) enabled: bool,
@@ -437,7 +468,7 @@ impl Default for FeatureFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ArtifactsFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
@@ -448,23 +479,23 @@ pub(super) struct ArtifactsFeatureFile {
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ArtifactQuotaFile {
-    #[serde(rename = "ownerGiB")]
+    #[serde(rename = "ownerGiB", alias = "owner_gib")]
     pub(super) owner_gib: Option<u64>,
-    #[serde(rename = "totalGiB")]
+    #[serde(rename = "totalGiB", alias = "total_gib")]
     pub(super) total_gib: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct StorageAccessFile {
     pub(super) access: AccessSpec,
     pub(super) publish: AccessSpec,
 }
 
 #[derive(Debug, Default, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct PipelineFeatureFile {
     #[serde(default)]
     pub(super) enabled: bool,
@@ -472,47 +503,4 @@ pub(super) struct PipelineFeatureFile {
 
 pub(super) fn default_true() -> bool {
     true
-}
-
-pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {
-    let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
-    if !unresolved.is_empty() {
-        tracing::warn!(?unresolved, "config references unset environment variables");
-    }
-    let file: ConfigFile = serde_saphyr::from_str(&substituted)
-        .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
-    if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
-        return Err(RegistryError::InvalidConfig {
-            reason: "oci size limits must be greater than zero".to_string(),
-        });
-    }
-    Ok(file)
-}
-
-/// The global ACL and group blocks are gone, not ignorable: they used
-/// to *enforce* and *grant* access, so dropping either like an unknown
-/// verdaccio key would silently change who may reach what on upgrade.
-/// Fail loudly instead, naming the replacement.
-pub(super) fn reject_removed_blocks(
-    has_packages: bool,
-    has_groups: bool,
-) -> Result<(), RegistryError> {
-    if has_packages {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `packages:` block was removed: declare per-package rules \
-                     on the registry that serves them, as `registries.<name>.packages` \
-                     (pattern keys, `access`/`publish`/`unpublish` values)"
-                .to_string(),
-        });
-    }
-    if has_groups {
-        return Err(RegistryError::InvalidConfig {
-            reason: "the top-level `groups:` block was removed: declare teams on the \
-                     registry that uses them, as `registries.<name>.teams` (team-name keys, \
-                     member-list values), and reference them from that registry's access \
-                     lists as `team:<name>`"
-                .to_string(),
-        });
-    }
-    Ok(())
 }

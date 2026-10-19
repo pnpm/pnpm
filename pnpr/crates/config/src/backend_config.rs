@@ -1,7 +1,7 @@
 use super::{
-    AuthFile, BTreeSet, BackendFile, Deserialize, Duration, Identity, Interval, Path, PathBuf,
-    RegistryError, ScimConfig, SqlBackendFile, build_admins, default_tokens_path_sibling_of, oidc,
-    parse_interval, resolve_relative,
+    AuthFile, BTreeSet, BackendFile, Deserialize, Duration, Identity, Interval, LibsqlFile, Path,
+    PathBuf, RegistryError, ScimConfig, SqlBackendFile, build_admins,
+    default_tokens_path_sibling_of, oidc, parse_interval, resolve_relative,
 };
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
@@ -24,24 +24,19 @@ pub enum BackendConfig {
     Mysql(SqlBackendSettings),
 }
 
-/// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
-/// runs before parsing, so `url`/`authToken` can hold `${...}` refs and
-/// keep secrets out of the committed config.
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// The resolved record-store settings for libsql / Turso.
+#[derive(Clone)]
 pub struct LibsqlSettings {
     /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
     /// `http://127.0.0.1:8080` for a local `sqld`.
     pub url: String,
     /// Bearer token for the database. Omit for an unauthenticated local
     /// `sqld`.
-    #[serde(default)]
     pub auth_token: Option<String>,
     /// Local path for an embedded replica. When set, the primary is
     /// replicated to this file and reads (the auth hot path) hit the
     /// local copy instead of a network round-trip per lookup; writes
     /// still go to the primary. Absent ⇒ every read is a remote query.
-    #[serde(default)]
     pub replica_path: Option<PathBuf>,
     /// How often (seconds) the embedded replica pulls from the primary.
     /// Only meaningful with `replicaPath`; bounds how stale a read can
@@ -49,7 +44,6 @@ pub struct LibsqlSettings {
     /// background sync (the replica then only reflects its own writes
     /// plus the initial sync at startup). Defaults to
     /// [`LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS`].
-    #[serde(default)]
     pub sync_interval_secs: Option<u64>,
 }
 
@@ -296,20 +290,14 @@ pub(super) fn build_backend_config(
         return Ok(BackendConfig::Local);
     };
     let mut selected = Vec::new();
-    if let Some(mut settings) = file.libsql {
-        resolve_libsql_paths(&mut settings, base_dir);
-        selected.push(("libsql", BackendConfig::Libsql(settings)));
+    if let Some(settings) = file.libsql {
+        let libsql_settings = build_libsql_settings(settings, base_dir)?;
+        selected.push(("libsql", BackendConfig::Libsql(libsql_settings)));
     }
     if let Some(settings) = file.postgres {
         selected.push((
             "postgres",
             BackendConfig::Postgres(build_sql_backend_settings("postgres", settings)?),
-        ));
-    }
-    if let Some(settings) = file.postgresql {
-        selected.push((
-            "postgresql",
-            BackendConfig::Postgres(build_sql_backend_settings("postgresql", settings)?),
         ));
     }
     if let Some(settings) = file.mysql {
@@ -383,12 +371,37 @@ pub(super) fn parse_backend_interval(
     .transpose()
 }
 
-pub(super) fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Path) {
-    // Resolve a relative `replicaPath` against the config file's
-    // directory, the same convention `storage` and the auth files
-    // follow, so `./auth-replica.db` lands next to the config rather
-    // than in the process CWD.
-    if let Some(path) = settings.replica_path.take() {
-        settings.replica_path = Some(if path.is_absolute() { path } else { base_dir.join(path) });
-    }
+pub(super) fn build_libsql_settings(
+    file: LibsqlFile,
+    base_dir: &Path,
+) -> Result<LibsqlSettings, RegistryError> {
+    let replica_path =
+        file.replica_path.map(|path| if path.is_absolute() { path } else { base_dir.join(path) });
+    let sync_interval_secs = match &file.sync_interval {
+        Some(interval) => {
+            let dur = parse_interval(&interval.0)
+                .ok_or_else(|| RegistryError::InvalidConfig {
+                    reason: format!(
+                        "backend.libsql.syncInterval {:?} is not a valid interval",
+                        interval.0,
+                    ),
+                })?;
+            if !dur.is_zero() && dur.as_secs() == 0 {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "backend.libsql.syncInterval {:?} must be 0 or at least 1s",
+                        interval.0,
+                    ),
+                });
+            }
+            Some(dur.as_secs())
+        }
+        None => None,
+    };
+    Ok(LibsqlSettings {
+        url: file.url,
+        auth_token: file.auth_token,
+        replica_path,
+        sync_interval_secs,
+    })
 }

@@ -1,3 +1,6 @@
+pub mod args;
+pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
+
 use crate::{Config, RegistryError};
 use clap::Subcommand;
 use pnpm_diagnostics::{print, println};
@@ -5,6 +8,8 @@ use std::{path::PathBuf, time::Duration};
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Run the registry server (default when no subcommand is specified).
+    Serve(ServerArgs),
     /// Collect old, unreferenced image blobs. Stop all registry writers first.
     OciGc {
         /// Concrete hosted OCI registry from the config.
@@ -13,9 +18,9 @@ pub enum Command {
         /// Report reclaimable blobs without deleting them.
         #[arg(long)]
         dry_run: bool,
-        /// Minimum blob age to reclaim, in seconds.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
+        /// Minimum blob age to reclaim (e.g. "1d", "86400s", or bare seconds).
+        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        min_age: Duration,
     },
     /// Reclaim cached upstream tarballs and packuments.
     CacheGc {
@@ -25,9 +30,9 @@ pub enum Command {
         /// Maximum total cache size to retain (e.g. "10GB", "500MB", or raw bytes).
         #[arg(long)]
         max_size: Option<String>,
-        /// Maximum file age in seconds. Entries older than this are deleted.
-        #[arg(long)]
-        max_age_secs: Option<u64>,
+        /// Maximum file age (e.g. "30d", "1h", or bare seconds). Entries older than this are deleted.
+        #[arg(long, alias = "max-age-secs", value_parser = parse_cli_interval)]
+        max_age: Option<Duration>,
         /// Only prune orphaned upstream namespaces without evicting active cache files.
         #[arg(long)]
         orphans_only: bool,
@@ -48,9 +53,9 @@ pub enum Command {
         /// Remove orphaned blobs from storage.
         #[arg(long)]
         prune_orphans: bool,
-        /// Minimum age in seconds before an unreferenced blob is considered for pruning.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
+        /// Minimum age before an unreferenced blob is considered for pruning (e.g. "1d", "86400s", or bare seconds).
+        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        min_age: Duration,
     },
     /// Export hosted packages and blobs to a directory.
     Export {
@@ -125,6 +130,9 @@ pub enum ConfigSubcommand {
 
 pub async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
     match command {
+        Command::Serve(..) => Err(miette::miette!(
+            "`serve` is not a maintenance command; start the server with `pnpr::serve`"
+        )),
         Command::OciGc { .. } => run_oci_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::ConfigCheck | Command::Config { .. } => run_config_check(),
@@ -144,35 +152,30 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 }
 
 async fn run_oci_gc_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::OciGc { registry, dry_run, min_age_secs } = command else {
+    let Command::OciGc { registry, dry_run, min_age } = command else {
         return Ok(());
     };
-    run_oci_gc(config, registry, dry_run, min_age_secs).await
+    run_oci_gc(config, registry, dry_run, min_age.as_secs()).await
 }
 
 async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Result<()> {
     let Command::CacheGc {
         dry_run,
         max_size,
-        max_age_secs,
+        max_age,
         orphans_only,
     } = command
     else {
         return Ok(());
     };
-    run_cache_gc(config, dry_run, max_size, max_age_secs, orphans_only).await
+    run_cache_gc(config, dry_run, max_size, max_age.map(|d| d.as_secs()), orphans_only).await
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify {
-        skip_hashes,
-        prune_orphans,
-        min_age_secs,
-    } = command
-    else {
+    let Command::Verify { skip_hashes, prune_orphans, min_age } = command else {
         return Ok(());
     };
-    run_verify(config, !skip_hashes, prune_orphans, min_age_secs).await
+    run_verify(config, !skip_hashes, prune_orphans, min_age.as_secs()).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {

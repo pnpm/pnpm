@@ -30,10 +30,21 @@ pub(super) fn validate_provider(config: &OidcProvider) -> Result<()> {
             ));
         }
     }
+    validate_login_bindings(config)?;
+    Ok(())
+}
+
+fn validate_login_bindings(config: &OidcProvider) -> Result<()> {
     if config.login.as_ref().is_some_and(|login| login.users.is_empty())
         || (config.login.is_none() && config.workloads.is_empty())
     {
         return Err(invalid_config("OIDC providers require explicit user or workload bindings"));
+    }
+    if let Some(login) = &config.login
+        && let Some(secret) = &login.client_secret
+        && secret.trim().is_empty()
+    {
+        return Err(invalid_config("OIDC client secret cannot be empty"));
     }
     Ok(())
 }

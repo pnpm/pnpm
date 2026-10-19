@@ -4,7 +4,7 @@ title: CLI reference
 ---
 
 ```sh
-pnpr [OPTIONS]
+pnpr [serve] [OPTIONS]
 pnpr config check
 pnpr verify [OPTIONS]
 pnpr export --out <dir> [OPTIONS]
@@ -12,11 +12,13 @@ pnpr migrate-storage [OPTIONS]
 pnpr upgrade-storage [--dry-run]
 pnpr import-htpasswd --source <path> [OPTIONS]
 pnpr add-user <username> [--password <password>]
-pnpr [OPTIONS] oci-gc --registry <name>
-pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
+pnpr oci-gc --registry <name> [OPTIONS]
+pnpr cache-gc [OPTIONS]
 ```
 
 ## Options
+
+Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c`, `--storage`, `--cache`) apply across subcommands.
 
 | Flag | Description |
 | --- | --- |
@@ -25,12 +27,13 @@ pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config — the source of truth for hosted packages. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. Defaults to `300`. A registry's `maxage` overrides it for that registry. |
+| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Alias: `--packument-ttl-secs`. A registry's `maxage` overrides it for that registry. |
 | `--osv` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
 | `--disable-resolver` | Disable the install-accelerator surface: `GET /-/pnpr`, `POST /-/pnpr/v0/resolve`, and `POST /-/pnpr/v0/verify-lockfile`. Overrides `resolver.enabled`. |
 | `--disable-artifacts` | Disable the signed shared-artifact surface. Overrides `artifacts.enabled` independently of the resolver. |
+| `--disable-pipeline` | Disable the pipeline run-record surface: `/-/pnpr/v0/pipeline`. Overrides `pipeline.enabled`. |
 | `-h, --help` | Print help. |
 | `-V, --version` | Print version. |
 
@@ -81,7 +84,7 @@ pnpr verify --prune-orphans --min-age-secs 0
 | --- | --- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). Alias: `--no-check-hashes`. |
 | `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
-| `--min-age-secs <secs>` | Minimum age in seconds before an unreferenced blob is considered for pruning (defaults to 86400, or 24 hours). |
+| `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). Alias: `--min-age-secs`. |
 
 ### export
 

@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const ownDir = path.dirname(fileURLToPath(import.meta.url))
@@ -41,7 +41,21 @@ const PLATFORMS = {
   },
 }
 
-setup()
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  setup()
+}
+
+export function resolveInstalledBinary () {
+  const candidates = getBinCandidates()
+  for (const target of candidates) {
+    try {
+      return require.resolve(target)
+    } catch {
+      // Not installed for this host; try the next candidate.
+    }
+  }
+  return null
+}
 
 function setup () {
   // The committed manifest has no `optionalDependencies`; generate-packages.mjs
@@ -58,15 +72,7 @@ function setup () {
 
   // Use whichever platform package the package manager installed: it already
   // filtered by `os`/`cpu`/`libc`, more reliable than re-deriving the host.
-  let nativeBinary
-  for (const target of candidates) {
-    try {
-      nativeBinary = require.resolve(target)
-      break
-    } catch {
-      // Not installed for this host; try the next candidate.
-    }
-  }
+  const nativeBinary = resolveInstalledBinary()
   if (nativeBinary == null) {
     const pkgName = candidates[0].split('/').slice(0, 2).join('/')
     fail(
@@ -173,7 +179,7 @@ function readOwnManifest () {
  *
  * @returns {string[]}
  */
-function getBinCandidates () {
+export function getBinCandidates () {
   const platformEntry = PLATFORMS?.[platform]?.[arch]
 
   if (platformEntry == null) {

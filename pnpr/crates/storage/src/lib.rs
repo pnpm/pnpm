@@ -145,7 +145,7 @@ pub enum CachedDocument {
 pub struct Storage {
     /// The whole hosted store: its layout marker, the shared records, and
     /// the publish journal.
-    root: Arc<dyn HostedBackend>,
+    pub(crate) root: Arc<dyn HostedBackend>,
     /// One namespace of `root`.
     hosted: Arc<dyn HostedBackend>,
     cached: Store,
@@ -251,6 +251,13 @@ impl Storage {
 
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
+    }
+
+    pub async fn hosted_package_blobs(
+        &self,
+        canonical: &CanonicalPackageName,
+    ) -> Result<Vec<String>> {
+        self.hosted.list_package_blobs(canonical).await
     }
 
     pub async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {

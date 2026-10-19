@@ -91,6 +91,8 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     async fn list_package_names(&self) -> Result<Vec<String>>;
 
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>>;
+
     /// The names of the top-level directories (key prefixes) of this view.
     async fn list_top_level_dirs(&self) -> Result<Vec<String>>;
 
@@ -160,6 +162,13 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     ) -> Result<DocumentWrite>;
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool>;
+
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool>;
 
     /// Every key stored in `namespace`, in unspecified order, relative to the
     /// namespace and `/`-separated whatever the backend stores them on.

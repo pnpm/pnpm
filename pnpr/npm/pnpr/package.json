@@ -22,10 +22,11 @@
     "preinstall": "node install.js"
   },
   "engines": {
-    "node": ">=18.*"
+    "node": ">=18"
   },
   "files": [
     "bin/pnpr",
+    "bin/pnpr.mjs",
     "install.js",
     "LICENSE.md"
   ]

@@ -105,9 +105,7 @@ fn default_yaml_const_matches_what_from_default_parses() {
 }
 
 #[test]
-fn from_yaml_str_ignores_unknown_sections() {
-    // Sections we don't implement (`auth`, `web`, `plugins`, etc.)
-    // must parse silently so existing config files work untouched.
+fn from_yaml_str_rejects_unknown_sections() {
     let yaml = "\
 storage: ./s
 auth:
@@ -115,15 +113,28 @@ auth:
     file: ./htpasswd
 web:
   enable: false
-plugins: ../node_modules
-secret: a-sufficiently-long-secret-value
-upstreams:
-  npmjs:
-    url: https://registry.npmjs.org/
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    // The unimplemented sections parse silently and the config is usable.
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("unknown field `web`"));
+}
+
+#[test]
+fn from_yaml_str_rejects_removed_blocks_with_migration_guidance() {
+    let bad_upstreams = "storage: ./s\nupstreams: {}\n";
+    let err = Config::from_yaml_str(bad_upstreams, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `upstreams:` block was removed"));
+
+    let bad_uplinks = "storage: ./s\nuplinks: {}\n";
+    let err = Config::from_yaml_str(bad_uplinks, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `uplinks:` block is not supported"));
+
+    let bad_packages = "storage: ./s\npackages: {}\n";
+    let err = Config::from_yaml_str(bad_packages, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `packages:` block was removed"));
+
+    let bad_groups = "storage: ./s\ngroups: {}\n";
+    let err = Config::from_yaml_str(bad_groups, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `groups:` block was removed"));
 }
 
 #[test]
@@ -187,7 +198,6 @@ fn logs_default_when_yaml_omits_block() {
 fn log_json_format_parses() {
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   type: stdout
   format: json
@@ -247,8 +257,6 @@ fn config_file_in_resolved_file_round_trips_through_from_yaml() {
     let yaml = format!(
         "\
 storage: {storage}
-upstreams:
-  npmjs: {{ url: https://registry.npmjs.org/ }}
 log:
   type: stdout
   format: json
@@ -299,7 +307,6 @@ fn yaml_log_block_with_no_type_field_uses_default_log_type() {
     // to reflect the supplied format/level).
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   format: json
   level: warn
@@ -377,4 +384,114 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
     // A too-short `secret:` is a config error rather than a weak HMAC key.
     let short = Config::from_yaml_str("secret: short", Path::new("/x"), listen(), None);
     assert!(matches!(short, Err(RegistryError::InvalidConfig { .. })));
+}
+
+#[test]
+fn config_rejects_unknown_fields_across_subsystems() {
+    let cases = [
+        ("top-level", "unknownField: value\n", "unknown field `unknownField`"),
+        ("auth", "auth:\n  unknownAuth: true\n", "unknown field `unknownAuth`"),
+        ("auth.htpasswd", "auth:\n  htpasswd:\n    unknownHt: true\n", "unknown field `unknownHt`"),
+        ("auth.tokens", "auth:\n  tokens:\n    unknownTok: true\n", "unknown field `unknownTok`"),
+        ("backend", "backend:\n  unknownBackend: {}\n", "unknown field `unknownBackend`"),
+        (
+            "backend.libsql",
+            "backend:\n  libsql:\n    url: libsql://x\n    unknownLibsql: 1\n",
+            "unknown field `unknownLibsql`",
+        ),
+        (
+            "backend.postgres",
+            "backend:\n  postgres:\n    url: postgres://x\n    unknownPg: 1\n",
+            "unknown field `unknownPg`",
+        ),
+        ("s3", "s3:\n  bucket: b\n  unknownS3: 1\n", "unknown field `unknownS3`"),
+        ("osv", "osv:\n  unknownOsv: 1\n", "unknown field `unknownOsv`"),
+        ("log", "log:\n  unknownLog: 1\n", "unknown field `unknownLog`"),
+        ("routes", "routes:\n  unknownRoutes: 1\n", "unknown field `unknownRoutes`"),
+        ("cors", "cors:\n  unknownCors: 1\n", "unknown field `unknownCors`"),
+        ("ui", "ui:\n  unknownUi: 1\n", "unknown field `unknownUi`"),
+        ("resolver", "resolver:\n  unknownResolver: 1\n", "unknown field `unknownResolver`"),
+        (
+            "hosted registry",
+            "registries:\n  h:\n    type: hosted\n    unknownReg: 1\n",
+            "a registry with type hosted, upstream, or router",
+        ),
+        (
+            "upstream registry",
+            "registries:\n  u:\n    type: upstream\n    url: https://x/\n    public: true\n    unknownUpstream: 1\n",
+            "a registry with type hosted, upstream, or router",
+        ),
+        (
+            "router registry",
+            "registries:\n  r:\n    type: router\n    unknownRouter: 1\n",
+            "a registry with type hosted, upstream, or router",
+        ),
+    ];
+    for (name, yaml, expected_snippet) in cases {
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .expect_err(&format!("expected {name} to reject unknown field"));
+        assert!(
+            err.to_string().contains(expected_snippet),
+            "expected {name} error to contain {expected_snippet:?}, got {err}",
+        );
+    }
+}
+
+#[test]
+fn config_accepts_camel_case_and_snake_case_aliases() {
+    let yaml = "\
+storage: ./storage
+packument_ttl: 42s
+request_timeout: 55s
+trusted_proxies: [127.0.0.1]
+trusted_proxy_header: x-real-ip
+cors:
+  allowed_origins: ['https://example.com']
+routes:
+  allowed_private_networks: ['10.0.0.0/8']
+auth:
+  htpasswd:
+    max_users: 10
+backend:
+  libsql:
+    url: libsql://test.db
+    auth_token: secret
+    replica_path: ./replica.db
+    sync_interval: 15s
+registries:
+  npm:
+    type: hosted
+    teams_managed_by: api
+    rules_managed_by: api
+  remote:
+    type: upstream
+    url: https://registry.npmjs.org/
+    access: [$all]
+    max_fails: 4
+    fail_timeout: 25s
+    max_age: 12m
+    auth:
+      type: bearer
+      token: secret-token
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.packument_ttl, std::time::Duration::from_secs(42));
+    assert_eq!(config.http.request_timeout, Some(std::time::Duration::from_secs(55)));
+    assert_eq!(config.http.trusted_proxies.len(), 1);
+    assert_eq!(config.http.trusted_proxy_header, crate::TrustedProxyHeader::XRealIp);
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(10));
+    match &config.identity.backend {
+        crate::BackendConfig::Libsql(settings) => {
+            assert_eq!(settings.sync_interval_secs, Some(15));
+            assert_eq!(settings.auth_token.as_deref(), Some("secret"));
+        }
+        other => panic!("expected libsql, got {other:?}"),
+    }
+    let hosted = &config.routing.hosted["npm"];
+    assert_eq!(hosted.teams_managed_by, crate::Management::Api);
+    assert_eq!(hosted.rules_managed_by, crate::Management::Api);
+    let upstream = &config.routing.upstreams["remote"];
+    assert_eq!(upstream.requests.max_fails, 4);
+    assert_eq!(upstream.requests.fail_timeout, std::time::Duration::from_secs(25));
+    assert_eq!(upstream.maxage, Some(std::time::Duration::from_mins(12)));
 }

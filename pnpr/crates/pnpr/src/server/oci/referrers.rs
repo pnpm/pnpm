@@ -147,6 +147,13 @@ impl Request {
             .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |existing| {
                 let Some(bytes) = existing else { return Ok(None) };
                 let mut current = ImageDocument::parse(bytes)?;
+                if current.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+                    return Err(RegistryError::DocumentFormatTooNew {
+                        document: key.as_str().to_string(),
+                        format_version: current.format_version,
+                        supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+                    });
+                }
                 let mut changed = false;
                 for entry in additions {
                     if current

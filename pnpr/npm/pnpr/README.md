@@ -100,28 +100,29 @@ variable (e.g. `RUST_LOG=debug pnpr`).
 
 ## Configuration
 
-`pnpr` uses a [verdaccio](https://verdaccio.org/docs/configuration)-shaped
-YAML config. A minimal example:
+`pnpr` uses a YAML config. A minimal example:
 
 ```yaml
 storage: ./storage
 
-uplinks:
+registries:
+  local:
+    type: hosted
+    packages:
+      '@mycompany/*':
+        access: $authenticated
+        publish: $authenticated
+
   npmjs:
+    type: upstream
     url: https://registry.npmjs.org/
+    public: true
 
-packages:
-  '@*/*':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
+  main:
+    type: router
+    sources: [local, npmjs]
 
-  '**':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
+defaultRegistry: main
 ```
 
 Pass it with `-c`:
@@ -199,16 +200,13 @@ s3:
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
 
-uplinks:
+registries:
   npmjs:
+    type: upstream
     url: https://registry.npmjs.org/
+    public: true
 
-packages:
-  '**':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
+defaultRegistry: npmjs
 ```
 
 ```sh

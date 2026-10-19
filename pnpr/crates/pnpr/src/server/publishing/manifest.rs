@@ -52,12 +52,22 @@ fn record_publisher_in_maintainers(incoming: &mut Value, username: &str) {
 /// The stored packument, parsed, with the version its update must be based
 /// on. `None` for a package the org has not published yet.
 pub(super) fn parse_hosted_packument(
+    name: &CanonicalPackageName,
     hosted: Option<HostedDocumentForUpdate>,
 ) -> Result<(Option<Value>, Option<HostedDocumentVersion>), RegistryError> {
     let Some(packument) = hosted else {
         return Ok((None, None));
     };
-    let value = serde_json::from_slice(&packument.bytes).map_err(RegistryError::Json)?;
+    let value: Value = serde_json::from_slice(&packument.bytes).map_err(RegistryError::Json)?;
+    if let Some(format_version) = value.get("formatVersion").and_then(Value::as_u64)
+        && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
+    {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: name.as_str().to_string(),
+            format_version: format_version as u32,
+            supported_version: pnpr_storage::publish::PACKUMENT_FORMAT_VERSION,
+        });
+    }
     Ok((Some(value), Some(packument.version)))
 }
 

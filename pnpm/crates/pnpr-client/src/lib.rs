@@ -29,6 +29,7 @@ pub use artifacts::{
 pub use blob_transfer::{ArtifactBlobSource, ArtifactPublication};
 pub use ecosystem_cache::server_resolves;
 pub use ecosystems::{CARGO_ECOSYSTEM, PYPI_ECOSYSTEM};
+pub use error::PnprClientError;
 pub use pipeline_runs::PublishPipelineRunRequest;
 pub use pnpm_shared_artifact_protocol::{
     ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
@@ -41,13 +42,13 @@ pub use pnpm_shared_artifact_protocol::{
     linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
     platform_fingerprint, windows_supported_tags, windows_tag,
 };
+pub use resolve::AppliedPolicies;
 
 use std::{
     collections::{BTreeMap, HashSet},
     time::Duration,
 };
 
-use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
@@ -75,6 +76,7 @@ pub struct PnprClient {
     http: Client,
     base_url: String,
     artifact_request_timeout: Duration,
+    capability: tokio::sync::OnceCell<HandshakeCapability>,
 }
 
 /// Inputs for a single-project resolution.
@@ -300,11 +302,13 @@ impl VerifyLockfileOptions {
 }
 
 /// Result of [`PnprClient::resolve`].
+#[derive(Debug)]
 #[must_use]
 pub struct ResolveOutcome {
     /// The resolved lockfile, ready for a headless install.
     pub lockfile: Lockfile,
     pub stats: Stats,
+    pub applied_policies: Option<AppliedPolicies>,
 }
 
 /// Resolution statistics from the response. Field names mirror the
@@ -343,36 +347,14 @@ pub struct ResolvedPackage {
     pub revision: Option<TarballRevision>,
 }
 
-#[derive(Debug, Display, Error, From)]
-pub enum PnprClientError {
-    #[display("pnpr request failed: {_0}")]
-    Http(reqwest::Error),
+/// Resolver protocol version this client speaks.
+pub const RESOLVER_PROTOCOL_VERSION: u32 = 0;
 
-    #[display("pnpr server error: {_0}")]
-    #[from(ignore)]
-    Server(#[error(not(source))] String),
+/// Shared artifacts protocol version this client speaks.
+pub const ARTIFACTS_PROTOCOL_VERSION: u32 = 0;
 
-    #[display("malformed server response: {_0}")]
-    #[from(ignore)]
-    Protocol(#[error(not(source))] String),
-
-    /// Any failure talking to a Turborepo Remote Cache server. Callers
-    /// already name the remote cache, so the message stands alone.
-    #[from(ignore)]
-    RemoteCache(#[error(not(source))] String),
-
-    /// The server rejected the input lockfile under the client's
-    /// verification policy. Carries the reconstructed [`VerifyError`]
-    /// so the CLI aborts with the same diagnostic code (and breakdown)
-    /// the local verification gate would have produced.
-    Verification(VerifyError),
-
-    Io(std::io::Error),
-}
-
-/// Protocol version this client speaks. The server advertises the
-/// versions it supports at `GET /-/pnpr`; today only v0 exists.
-const PROTOCOL_VERSION: u32 = 0;
+/// Pipeline runs protocol version this client speaks.
+pub const PIPELINE_PROTOCOL_VERSION: u32 = 0;
 
 #[derive(Default, Deserialize)]
 struct HandshakeResponse {
@@ -380,18 +362,18 @@ struct HandshakeResponse {
     pnpr: HandshakeCapability,
 }
 
-#[derive(Default, Deserialize)]
-struct HandshakeCapability {
+#[derive(Default, Clone, Deserialize)]
+pub struct HandshakeCapability {
     #[serde(default)]
-    versions: Vec<u32>,
+    pub versions: Vec<u32>,
     #[serde(default)]
-    artifacts: Vec<u32>,
+    pub artifacts: Vec<u32>,
     #[serde(default, rename = "fixLockfile")]
-    fix_lockfile: Vec<u32>,
+    pub fix_lockfile: Vec<u32>,
     /// The package ecosystems `/-/pnpr/v0/resolve` reads in its request
     /// body. An empty list is a server that resolves npm alone.
     #[serde(default)]
-    ecosystems: Vec<String>,
+    pub ecosystems: Vec<String>,
 }
 
 /// Inputs for a Python resolution. Send them only to a server that
@@ -433,6 +415,25 @@ impl PnprClient {
             http: Client::new(),
             base_url,
             artifact_request_timeout: ARTIFACT_REQUEST_TIMEOUT,
+            capability: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    /// Obtain cached handshake capability from the server.
+    pub async fn ensure_handshake(&self) -> Result<&HandshakeCapability, PnprClientError> {
+        self.capability.get_or_try_init(|| self.fetch_handshake(None)).await
+    }
+
+    /// Negotiate the highest common resolver protocol version with the server.
+    pub async fn negotiated_resolver_version(&self) -> Result<u32, PnprClientError> {
+        let cap = self.ensure_handshake().await?;
+        if cap.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
+            Ok(RESOLVER_PROTOCOL_VERSION)
+        } else {
+            Err(PnprClientError::server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
+                cap.versions,
+            )))
         }
     }
 
@@ -440,25 +441,25 @@ impl PnprClient {
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
-        let capability = self.fetch_handshake(None).await?;
-        Self::require_resolver_protocol(&capability)
+        let capability = self.ensure_handshake().await?;
+        Self::require_resolver_protocol(capability)
     }
 
     async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
-        let capability = self.fetch_handshake(None).await?;
-        Self::require_resolver_protocol(&capability)?;
-        if !capability.fix_lockfile.contains(&PROTOCOL_VERSION) {
-            return Err(PnprClientError::Server(format!(
-                "pnpr server does not advertise lockfile repair support for resolver protocol v{PROTOCOL_VERSION}",
+        let capability = self.ensure_handshake().await?;
+        Self::require_resolver_protocol(capability)?;
+        if !capability.fix_lockfile.contains(&RESOLVER_PROTOCOL_VERSION) {
+            return Err(PnprClientError::server(format!(
+                "pnpr server does not advertise lockfile repair support for resolver protocol v{RESOLVER_PROTOCOL_VERSION}",
             )));
         }
         Ok(())
     }
 
     fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
-        if !capability.versions.contains(&PROTOCOL_VERSION) {
-            return Err(PnprClientError::Server(format!(
-                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
+        if !capability.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
+            return Err(PnprClientError::server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
                 capability.versions,
             )));
         }
@@ -475,7 +476,7 @@ impl PnprClient {
         }
         let response = get.send().await?;
         if !response.status().is_success() {
-            return Err(PnprClientError::Server(format!(
+            return Err(PnprClientError::server(format!(
                 "{} is not a pnpr server (GET /-/pnpr returned {})",
                 self.base_url,
                 response.status(),
@@ -542,5 +543,6 @@ use resolve::read_ndjson_frames;
 
 mod ecosystem_cache;
 mod ecosystems;
+mod error;
 
 use ecosystems::{WireViolation, build_verify_error};

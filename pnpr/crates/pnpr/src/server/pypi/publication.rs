@@ -164,6 +164,7 @@ impl PypiPublication {
             &self.content,
             refuse_existing_file(&self.entry.filename),
             ProjectDocument {
+                format_version: pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION,
                 name: self.key.as_str().to_string(),
                 files: vec![self.entry.clone()],
             },
@@ -185,6 +186,7 @@ impl PypiPublication {
             &self.content,
             &refuse_existing_file(&self.entry.filename),
             ProjectDocument {
+                format_version: pnpr_pypi::PROJECT_DOCUMENT_FORMAT_VERSION,
                 name: self.key.as_str().to_string(),
                 files: vec![self.entry.clone()],
             },

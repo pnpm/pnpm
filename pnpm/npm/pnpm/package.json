@@ -39,7 +39,7 @@
     "bundle-node-gyp": "node scripts/bundle-node-gyp.mjs"
   },
   "engines": {
-    "node": ">=18.*"
+    "node": ">=18"
   },
   "files": [
     "pnpm",

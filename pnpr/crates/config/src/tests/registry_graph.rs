@@ -191,6 +191,7 @@ registries:
         disable_registry: true,
         disable_resolver: false,
         disable_artifacts: false,
+        disable_pipeline: false,
     };
     let err =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)

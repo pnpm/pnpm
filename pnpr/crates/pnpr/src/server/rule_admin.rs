@@ -77,6 +77,15 @@ async fn put_rules(
             .map_err(|err| RegistryError::BadRequest {
                 reason: format!("invalid request body: {err}"),
             })?;
+        if !changes.extra.is_empty()
+            || changes.packages
+                .values()
+                .any(|pkg| !pkg.extra.is_empty())
+        {
+            return Err(RegistryError::BadRequest {
+                reason: "unknown field in rule changes".to_string(),
+            });
+        }
         let (rules, version) = replace_rules(&state, registry, changes, expected.as_deref()).await?;
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
