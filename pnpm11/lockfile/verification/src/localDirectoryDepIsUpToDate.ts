@@ -95,7 +95,7 @@ export async function localDirectoryDepIsUpToDate (
 interface DirectoryWalk {
   /** The aliases of every ancestor, which supply the package's peers. */
   parentPkgAliases: Record<string, unknown>
-  /** The peer scopes each snapshot was checked in. */
+  /** The ancestor alias scopes each snapshot was checked in. */
   visited: Map<PackageSnapshot, Set<string>>
 }
 
@@ -108,9 +108,9 @@ async function localDirectoryDepIsUpToDateRec (
   const localDepDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = await readHookedManifestOnce(ctx, localDepDir)
   if (!manifest) return false
-  // A revisit in the same peer scope is a cycle or a shared dependency that
+  // A revisit in the same ancestor scope is a cycle or a shared dependency that
   // is already being checked.
-  if (!markVisited(walk, pkgSnapshot, manifest)) return true
+  if (!markVisited(walk, pkgSnapshot)) return true
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
@@ -130,10 +130,14 @@ async function localDirectoryDepIsUpToDateRec (
   return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, childWalk))
 }
 
-/** Records the snapshot in its peer scope. `false` when it was already there. */
-function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot, manifest: DependencyManifest): boolean {
-  const scope = Object.keys(manifest.peerDependencies ?? {})
-    .filter((peer) => Boolean(walk.parentPkgAliases[peer]))
+/**
+ * Records the snapshot in its ancestor alias scope. `false` when it was already
+ * there. The whole scope is the key because a descendant's peers and shadowed
+ * dependencies depend on every ancestor alias, not only the peers this
+ * manifest declares.
+ */
+function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot): boolean {
+  const scope = Object.keys(walk.parentPkgAliases)
     .sort()
     .join('\0')
   let scopes = walk.visited.get(pkgSnapshot)
