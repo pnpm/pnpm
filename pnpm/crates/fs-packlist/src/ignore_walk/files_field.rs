@@ -21,13 +21,14 @@ impl FilesMatcher {
     fn add_entry(&mut self, pkg_dir: &Path, entry: &str) {
         let mut entry = entry
             .strip_prefix("./")
-            .unwrap_or(entry)
-            .to_string();
+            .map_or_else(|| entry.to_string(), |entry| format!("/{entry}"));
         if entry.ends_with("/*") {
             entry.push('*');
         }
         let inverse = format!("!{entry}");
-        let metadata = fs::symlink_metadata(pkg_dir.join(entry.trim_start_matches(['!', '/'])));
+        let metadata = fs::symlink_metadata(pkg_dir.join(
+            entry.trim_start_matches('!').trim_start_matches('/'),
+        ));
         match metadata {
             Ok(metadata) if metadata.is_file() || metadata.is_symlink() => {
                 self.add_named_file(&entry, IgnoreRule::parse(&inverse));
@@ -92,8 +93,9 @@ pub fn build_files_matcher(entries: &[Value]) -> FilesMatcher {
     FilesMatcher { rules, named_files: BTreeSet::new() }
 }
 
-/// Compile npm-packlist's unrooted manifest patterns. Existing files and symlinks
-/// are strict requirements; directories and globs supply ordinary rules.
+/// Compile npm-packlist's manifest patterns without implicitly rooting them.
+/// Existing files and symlinks are strict requirements; directories and globs
+/// supply ordinary rules.
 pub(super) fn compile_files_rules(pkg_dir: &Path, entries: &[Value]) -> FilesMatcher {
     let mut matcher =
         FilesMatcher { rules: vec![IgnoreRule::parse("*")], named_files: BTreeSet::new() };
