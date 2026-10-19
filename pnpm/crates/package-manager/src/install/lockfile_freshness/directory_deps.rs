@@ -1,5 +1,9 @@
+pub use injected_manifest::ProjectManifestsByDir;
+pub(super) use injected_manifest::{InjectedDirectory, unhooked_manifest};
+pub(crate) use injected_manifest::{dependency_manifests_by_dir, project_manifests_by_dir};
 pub(crate) use spec::spec_target_and_range;
 
+mod injected_manifest;
 mod peers;
 mod spec;
 
@@ -16,54 +20,7 @@ use pnpm_resolving_deps_resolver::{
     ChildCatalogs, ChildSpec, ResolveDependencyTreeError, local_directory_child_specs,
 };
 use spec::{SpecDirs, spec_satisfies_snapshot_dep};
-use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-};
-
-/// Project manifests keyed by their lexically normalized project directory.
-pub type ProjectManifestsByDir<'a> = HashMap<PathBuf, &'a PackageManifest>;
-
-/// Each project's manifest as another importer's injected dependency reads
-/// it: the project's entry in `dependency_manifests` when it has one, else
-/// its importer manifest.
-pub(crate) fn project_manifests_by_dir<'a>(
-    manifests: impl IntoIterator<Item = &'a PackageManifest>,
-    dependency_manifests: Option<&ProjectManifestsByDir<'a>>,
-) -> ProjectManifestsByDir<'a> {
-    let mut by_dir: ProjectManifestsByDir<'a> = manifests
-        .into_iter()
-        .filter_map(|manifest| {
-            let dir = manifest.path().parent()?;
-            Some((pnpm_fs::lexical_normalize(dir), manifest))
-        })
-        .collect();
-    if let Some(dependency_manifests) = dependency_manifests {
-        by_dir.extend(
-            dependency_manifests
-                .iter()
-                .map(|(dir, manifest)| (dir.clone(), *manifest)),
-        );
-    }
-    by_dir
-}
-
-/// The dependency manifests `projects` carry (see
-/// [`pnpm_workspace::Project::dependency_manifest`]), keyed by project
-/// directory. `None` when no project carries one, which is every install the
-/// Node-API binding did not hand such a manifest to.
-pub(crate) fn dependency_manifests_by_dir(
-    projects: Option<&[pnpm_workspace::Project]>,
-) -> Option<ProjectManifestsByDir<'_>> {
-    let by_dir: ProjectManifestsByDir<'_> = projects?
-        .iter()
-        .filter_map(|project| {
-            let manifest = project.dependency_manifest.as_ref()?;
-            Some((pnpm_fs::lexical_normalize(&project.root_dir), manifest))
-        })
-        .collect();
-    (!by_dir.is_empty()).then_some(by_dir)
-}
+use std::{collections::HashSet, path::Path};
 
 struct LocalDepContext<'a> {
     name: &'a str,
@@ -94,13 +51,17 @@ pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
 ) -> Result<(), FreshnessCheckError> {
-    if check.lockfile.packages.is_none() || check.lockfile.snapshots.is_none() {
-        return Ok(());
-    }
+    let mut visited = HashSet::new();
     for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
         if let Some(dep_map) = importer.get_map_by_group(group) {
             for (dep_name, dep_spec) in dep_map {
-                check_single_dep_spec_directory_freshness(check, importer, dep_name, dep_spec)?;
+                check_single_dep_spec_directory_freshness(
+                    check,
+                    importer,
+                    dep_name,
+                    dep_spec,
+                    &mut visited,
+                )?;
             }
         }
     }
@@ -144,50 +105,89 @@ pub(crate) fn is_declared_local_directory(spec: &str) -> bool {
     !pnpm_lockfile::is_local_tarball_path(path)
 }
 
+fn spec_dirs<'a>(check: &'a ImporterSatisfactionCheck<'a>) -> SpecDirs<'a> {
+    SpecDirs {
+        workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
+        lockfile_dir: check.lockfile_dir,
+        manifests_by_dir: check.workspace.manifests_by_dir,
+    }
+}
+
+fn check_importer_link_freshness(
+    check: &ImporterSatisfactionCheck<'_>,
+    dep_name: &str,
+    specifier: &str,
+    link_target: &str,
+) -> Result<(), FreshnessCheckError> {
+    let project_dir = check.manifest
+        .path()
+        .parent()
+        .unwrap_or(check.lockfile_dir);
+    let dirs = spec_dirs(check);
+    if !spec::importer_link_satisfies(&dirs, project_dir, dep_name, specifier, link_target) {
+        return Err(local_dependency_outdated(dep_name, link_target));
+    }
+    Ok(())
+}
+
+fn should_check_directory_dep(
+    check: &ImporterSatisfactionCheck<'_>,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+    dep_name: &str,
+    specifier: &str,
+) -> bool {
+    check.lockfile.packages.is_some()
+        && check.lockfile.snapshots.is_some()
+        && (dependency_is_injected(check, importer, dep_name)
+            || is_declared_local_directory(specifier))
+}
+
 fn check_single_dep_spec_directory_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
     dep_name: &pnpm_lockfile::PkgName,
     dep_spec: &pnpm_lockfile::ResolvedDependencySpec,
+    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
 ) -> Result<(), FreshnessCheckError> {
-    if matches!(dep_spec.version, pnpm_lockfile::ImporterDepVersion::Link(_)) {
-        return Ok(());
-    }
     let dep_str = dep_name.to_string();
-    if !dependency_is_injected(check, importer, &dep_str)
-        && !is_declared_local_directory(&dep_spec.specifier)
-    {
+    if let pnpm_lockfile::ImporterDepVersion::Link(link_target) = &dep_spec.version {
+        return check_importer_link_freshness(check, &dep_str, &dep_spec.specifier, link_target);
+    }
+    if !should_check_directory_dep(check, importer, &dep_str, &dep_spec.specifier) {
         return Ok(());
     }
-    let Some(pkg_key) = dep_spec.version.resolved_key(dep_name) else {
-        return Ok(());
-    };
+    let Some(pkg_key) = dep_spec.version.resolved_key(dep_name) else { return Ok(()) };
     let Some(pkg_meta) = check.lockfile.packages
         .as_ref()
         .and_then(|p| p.get(&pkg_key.without_peer()))
     else {
         return Err(local_dependency_outdated(&dep_str, &dep_spec.specifier));
     };
-    if let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution {
-        let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
-        let snapshot = check.lockfile.snapshots
-            .as_ref()
-            .and_then(|s| s.get(&pkg_key));
-        let dep = LocalDepContext {
-            name: &dep_str,
-            declared_as_file: is_declared_local_directory(&dep_spec.specifier),
-            rel_path: &dir_res.directory,
-            dir: &local_dep_dir,
-            dirs: SpecDirs {
-                workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
-                lockfile_dir: check.lockfile_dir,
-                manifests_by_dir: check.workspace.manifests_by_dir,
-            },
-            catalogs: check.workspace.catalogs,
-        };
-        check_single_directory_dep_freshness(check, importer, &dep, (snapshot, pkg_meta))?;
+    let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
+        return Ok(());
+    };
+    if !visited.insert(pkg_key.clone()) {
+        return Ok(());
     }
-    Ok(())
+    let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
+    let snapshot = check.lockfile.snapshots
+        .as_ref()
+        .and_then(|s| s.get(&pkg_key));
+    let dep = LocalDepContext {
+        name: &dep_str,
+        declared_as_file: is_declared_local_directory(&dep_spec.specifier),
+        rel_path: &dir_res.directory,
+        dir: &local_dep_dir,
+        dirs: spec_dirs(check),
+        catalogs: check.workspace.catalogs,
+    };
+    check_single_directory_dep_freshness(
+        check,
+        |name| importer_declares(importer, name),
+        &dep,
+        (snapshot, pkg_meta),
+        visited,
+    )
 }
 
 fn read_and_override_manifest(
@@ -208,100 +208,27 @@ fn read_and_override_manifest(
     Ok(local_manifest)
 }
 
-/// A local directory dependency's directory and where its manifest may come
-/// from.
-pub(super) struct InjectedDirectory<'a> {
-    pub(super) dir: &'a Path,
-    /// See [`LocalDepContext::declared_as_file`].
-    pub(super) declared_as_file: bool,
-    pub(super) workspace_root: &'a Path,
-    pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
-}
-
-/// The manifest the resolver described the dependency with, before any hook.
-/// A workspace project injected as its `publishConfig.directory` is
-/// described by the project's own manifest, not by a `package.json` a build
-/// wrote into that directory. A `file:` dependency is described by the
-/// directory's `package.json`, and by the publishing project's only while
-/// that is missing.
-pub(super) fn unhooked_manifest(injected: &InjectedDirectory<'_>) -> Option<PackageManifest> {
-    let project_manifest = || {
-        injected.manifests_by_dir
-            .get(&pnpm_fs::lexical_normalize(injected.dir))
-            .map(|manifest| (*manifest).clone())
-    };
-    let on_disk = || pnpm_workspace::safe_read_project_manifest_only(injected.dir).ok().flatten();
-    let publishing_project = || manifest_of_project_publishing_from(injected);
-    let manifest = if injected.declared_as_file {
-        project_manifest().or_else(on_disk).or_else(publishing_project)
-    } else {
-        project_manifest().or_else(publishing_project).or_else(on_disk)
-    };
-    manifest.or_else(|| directory_name_manifest(injected.dir))
-}
-
-/// The manifest the resolver gives an existing directory that nothing else
-/// describes: its name alone. A manifest that fails to read describes it
-/// too, so it gets none.
-fn directory_name_manifest(dir: &Path) -> Option<PackageManifest> {
-    if !dir.is_dir() || !matches!(pnpm_workspace::safe_read_project_manifest_only(dir), Ok(None)) {
-        return None;
-    }
-    let name = dir
-        .file_name()?
-        .to_string_lossy()
-        .into_owned();
-    Some(PackageManifest::from_value(dir.join("package.json"), serde_json::json!({ "name": name })))
-}
-
-/// The manifest of the project whose `publishConfig.directory` is
-/// `injected.dir`: the project's entry in `manifests_by_dir` when it has one,
-/// else its `package.json`. Workspace dependencies only consider projects
-/// within the workspace root; `file:` dependencies walk every ancestor,
-/// matching [`pnpm_package_manifest::find_parent_publish_manifest`].
-fn manifest_of_project_publishing_from(
-    injected: &InjectedDirectory<'_>,
-) -> Option<PackageManifest> {
-    let target = pnpm_fs::lexical_normalize(injected.dir);
-    let workspace_root = pnpm_fs::lexical_normalize(injected.workspace_root);
-    if !injected.declared_as_file && !target.starts_with(&workspace_root) {
-        return None;
-    }
-    for candidate in target.ancestors().skip(1) {
-        if !injected.declared_as_file && !candidate.starts_with(&workspace_root) {
-            return None;
-        }
-        let manifest = injected.manifests_by_dir
-            .get(candidate)
-            .map(|manifest| (*manifest).clone())
-            .or_else(|| pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten());
-        if let Some(manifest) = manifest
-            && pnpm_package_manifest::publishes_from_directory(candidate, manifest.value(), &target)
-        {
-            return Some(manifest);
-        }
-    }
-    None
-}
-
 fn check_single_directory_dep_freshness(
     check: &ImporterSatisfactionCheck<'_>,
-    importer: &pnpm_lockfile::ProjectSnapshot,
+    parent_declares: impl Fn(&str) -> bool,
     dep: &LocalDepContext<'_>,
     (snapshot, pkg_meta): (Option<&pnpm_lockfile::SnapshotEntry>, &pnpm_lockfile::PackageMetadata),
+    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
 ) -> Result<(), FreshnessCheckError> {
     let local_manifest = read_and_override_manifest(check, dep)?;
     let Some(snapshot) = snapshot else {
         return Err(dep.outdated());
     };
-    // The importer's own dependencies are the scope the resolver shadows
-    // the directory dependency's peers in.
-    let peers = PeerShadowing::of(
+    let peers =
+        PeerShadowing::of(&local_manifest, parent_declares, check.config.auto_install_peers);
+    check_local_dep_children_freshness(
+        check,
+        dep,
         &local_manifest,
-        |name| importer_declares(importer, name),
-        check.config.auto_install_peers,
-    );
-    check_local_dep_children_freshness(check, dep, &local_manifest, snapshot, &peers.shadowed)?;
+        snapshot,
+        &peers.shadowed,
+        visited,
+    )?;
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
 }
 
@@ -313,6 +240,14 @@ fn importer_declares(importer: &pnpm_lockfile::ProjectSnapshot, name: &str) -> b
         .any(|dependencies| dependencies.contains_key(&name))
 }
 
+fn snapshot_declares(snapshot: &pnpm_lockfile::SnapshotEntry, name: &str) -> bool {
+    let Ok(name) = pnpm_lockfile::PkgName::parse(name) else { return false };
+    [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+        .into_iter()
+        .flatten()
+        .any(|dependencies| dependencies.contains_key(&name))
+}
+
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
 fn check_local_dep_children_freshness(
@@ -321,6 +256,7 @@ fn check_local_dep_children_freshness(
     local_manifest: &PackageManifest,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     shadowed: &HashSet<&str>,
+    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
 ) -> Result<(), FreshnessCheckError> {
     // A `file:` dependency resolves through the local resolver, which leaves
     // its children's `catalog:` specs alone.
@@ -343,8 +279,58 @@ fn check_local_dep_children_freshness(
         if !child_is_fresh(check, dep, snapshot, child) {
             return Err(dep.outdated());
         }
+        check_child_directory_dep_freshness(check, snapshot, dep, child, visited)?;
     }
     Ok(())
+}
+
+fn check_child_directory_dep_freshness(
+    check: &ImporterSatisfactionCheck<'_>,
+    parent_snapshot: &pnpm_lockfile::SnapshotEntry,
+    parent_dep: &LocalDepContext<'_>,
+    (name, spec, optional, _): &ChildSpec,
+    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+) -> Result<(), FreshnessCheckError> {
+    let Some(recorded) = recorded_child(parent_snapshot, name, *optional) else {
+        return Ok(());
+    };
+    let Ok(pkg_name) = pnpm_lockfile::PkgName::parse(name) else {
+        return Ok(());
+    };
+    let Some(pkg_key) = recorded.resolve(&pkg_name) else {
+        return Ok(());
+    };
+    if !visited.insert(pkg_key.clone()) {
+        return Ok(());
+    }
+    let Some(pkg_meta) = check.lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&pkg_key.without_peer()))
+    else {
+        return Ok(());
+    };
+    let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
+        return Ok(());
+    };
+    let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
+    let snapshot = check.lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&pkg_key));
+    let child_dep = LocalDepContext {
+        name,
+        declared_as_file: is_declared_local_directory(spec),
+        rel_path: &dir_res.directory,
+        dir: &local_dep_dir,
+        dirs: parent_dep.dirs,
+        catalogs: parent_dep.catalogs,
+    };
+    check_single_directory_dep_freshness(
+        check,
+        |peer_name| snapshot_declares(parent_snapshot, peer_name),
+        &child_dep,
+        (snapshot, pkg_meta),
+        visited,
+    )
 }
 
 /// Whether the snapshot records a resolution of `child` that its spec

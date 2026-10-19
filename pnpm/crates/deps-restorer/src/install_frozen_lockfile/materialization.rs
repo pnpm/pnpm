@@ -353,6 +353,7 @@ fn compute_frozen_skip_set<Reporter: self::Reporter>(
     seed_skipped: Option<Vec<String>>,
 ) -> Result<SkippedSnapshots, InstallFrozenLockfileError> {
     let groups = inputs.groups();
+    let closure_groups = groups.with_all_importer_groups();
     crate::materialization_plan::compute_skip_set::<Reporter>(
         crate::materialization_plan::SkipSetInputs {
             closure: crate::SkipSetClosure {
@@ -362,7 +363,7 @@ fn compute_frozen_skip_set<Reporter: self::Reporter>(
                     .keys()
                     .cloned()
                     .collect(),
-                groups,
+                groups: &closure_groups,
             },
             entries: inputs.entries(),
             requester: inputs.projects.requester,

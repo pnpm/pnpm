@@ -38,17 +38,29 @@ impl MaterializationScope {
             install.included(),
             install.drivers.config.peer_edge_options(),
         );
-        let closure = importer_ids
-            .as_ref()
-            .map(|importer_ids| {
-                crate::materialization_closure(
-                    built,
-                    install.projects.lockfile_dir,
-                    importer_ids,
-                    &groups,
-                    &SkippedSnapshots::new(),
-                )
-            });
+        let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
+        let empty_skipped = SkippedSnapshots::new();
+        let closure = match install.projects.selected_ids {
+            Some(selected) => Some(crate::selected_materialization_closure(
+                built,
+                install.projects.lockfile_dir,
+                selected,
+                hoisted_prior,
+                &groups,
+                &empty_skipped,
+            )),
+            None => importer_ids
+                .as_ref()
+                .map(|importer_ids| {
+                    crate::materialization_closure(
+                        built,
+                        install.projects.lockfile_dir,
+                        importer_ids,
+                        &groups,
+                        &empty_skipped,
+                    )
+                }),
+        };
         MaterializationScope { importer_ids, closure, groups }
     }
 
@@ -63,17 +75,28 @@ impl MaterializationScope {
         built: &Lockfile,
         skipped: &SkippedSnapshots,
     ) -> FinalScope {
-        let closure = self.importer_ids
-            .as_ref()
-            .map(|importer_ids| {
-                crate::materialization_closure(
-                    built,
-                    install.projects.lockfile_dir,
-                    importer_ids,
-                    &self.groups,
-                    skipped,
-                )
-            });
+        let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
+        let closure = match install.projects.selected_ids {
+            Some(selected) => Some(crate::selected_materialization_closure(
+                built,
+                install.projects.lockfile_dir,
+                selected,
+                hoisted_prior,
+                &self.groups,
+                skipped,
+            )),
+            None => self.importer_ids
+                .as_ref()
+                .map(|importer_ids| {
+                    crate::materialization_closure(
+                        built,
+                        install.projects.lockfile_dir,
+                        importer_ids,
+                        &self.groups,
+                        skipped,
+                    )
+                }),
+        };
         let materialized: HashSet<String> = closure
             .as_ref()
             .map_or_else(
@@ -252,18 +275,19 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     scope: PlanScope<'_>,
 ) -> Result<SkippedSnapshots, InstallWithFreshLockfileError> {
     let closure_importer_ids: std::collections::HashSet<String> = lockfiles
-        .built
+        .initial
         .importers
         .keys()
         .cloned()
         .collect();
+    let closure_groups = scope.groups.with_all_importer_groups();
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
             closure: pnpm_deps_restorer::SkipSetClosure {
-                lockfile: lockfiles.built,
+                lockfile: lockfiles.initial,
                 root: install.projects.lockfile_dir,
                 importer_ids: &closure_importer_ids,
-                groups: scope.groups,
+                groups: &closure_groups,
             },
             entries: pnpm_lockfile::LockfileEntries {
                 snapshots: lockfiles.initial.snapshots.as_ref(),
@@ -338,14 +362,12 @@ fn closure_importer_ids(
     let hoisted_prior = install.prior.lockfile.filter(|_| is_hoisted);
     materialization_importer_ids(install.projects.selected_ids, hoisted_prior, built)
         .or_else(|| {
-            install
-                .resolve_widened_groups()
-                .then(|| {
-                    built.importers
-                        .keys()
-                        .cloned()
-                        .collect()
-                })
+            (install.resolve_widened_groups() || install.included().excludes_a_group()).then(|| {
+                built.importers
+                    .keys()
+                    .cloned()
+                    .collect()
+            })
         })
 }
 /// The importers a selected install materializes. See

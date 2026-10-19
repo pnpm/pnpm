@@ -48,3 +48,6 @@ fn importer_ids<'d>(
     dirs.map(|project_dir| pnpm_workspace::importer_id_from_root_dir(workspace_root, project_dir))
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

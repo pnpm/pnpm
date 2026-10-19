@@ -6,6 +6,7 @@ use std::{
 };
 
 /// Where the specs of a local directory dependency resolve.
+#[derive(Clone, Copy)]
 pub(super) struct SpecDirs<'a> {
     pub(super) workspace_root: &'a Path,
     pub(super) lockfile_dir: &'a Path,
@@ -192,6 +193,49 @@ fn snapshot_dep_name_matches(
     }
 }
 
+pub(super) fn importer_link_satisfies(
+    dirs: &SpecDirs<'_>,
+    project_dir: &Path,
+    dep_name: &str,
+    spec: &str,
+    link_target: &str,
+) -> bool {
+    if super::is_declared_local_directory(spec) {
+        return true;
+    }
+    if let Some(target) = spec.strip_prefix("link:") {
+        return resolve_local_spec_path(project_dir, target)
+            == resolve_local_spec_path(project_dir, link_target);
+    }
+    let Some(workspace_spec) = spec.strip_prefix("workspace:") else {
+        return true;
+    };
+    if is_workspace_path(workspace_spec) {
+        return resolve_local_spec_path(project_dir, workspace_spec)
+            == resolve_local_spec_path(project_dir, link_target);
+    }
+    let (target, parsed_range_str) = parse_workspace_range(workspace_spec);
+    if crate::manifest_agreement::spec_is_distribution_tag(parsed_range_str) {
+        return true;
+    }
+
+    let expected_name = target.unwrap_or(dep_name);
+    let Ok(range) = parsed_range_str.parse::<node_semver::Range>() else {
+        return false;
+    };
+    let link_path = Path::new(link_target);
+    if link_path.is_absolute() {
+        return false;
+    }
+    target_dir_satisfies(
+        dirs,
+        &project_dir.join(link_path),
+        expected_name,
+        parsed_range_str,
+        &range,
+    )
+}
+
 fn linked_target_satisfies(
     dirs: &SpecDirs<'_>,
     link: &str,
@@ -203,7 +247,17 @@ fn linked_target_satisfies(
     if link_path.is_absolute() {
         return false;
     }
-    let Some(pkg_json) = target_manifest(dirs, &dirs.lockfile_dir.join(link_path)) else {
+    target_dir_satisfies(dirs, &dirs.lockfile_dir.join(link_path), expected_name, range_str, range)
+}
+
+fn target_dir_satisfies(
+    dirs: &SpecDirs<'_>,
+    target_dir: &Path,
+    expected_name: &str,
+    range_str: &str,
+    range: &node_semver::Range,
+) -> bool {
+    let Some(pkg_json) = target_manifest(dirs, target_dir) else {
         return false;
     };
     if pkg_json.get("name").and_then(serde_json::Value::as_str) != Some(expected_name) {

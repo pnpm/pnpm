@@ -18,8 +18,8 @@ use workspace_links::link_hoisted_workspace_dependencies;
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
-    HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError, LinkHoistedModulesOpts,
-    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
+    HoistedDepGraphError, LinkHoistedModulesError, LinkHoistedModulesOpts, Lockfile,
+    LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
     SkippedSnapshots, SymlinkDirectDependenciesError, SymlinkPackageError, create_matcher,
     lockfile_to_hoisted_dep_graph,
 };
@@ -127,16 +127,16 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     inputs: &HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
-    let lockfile = included_lockfile(inputs);
+    let lockfile = inputs.graph.lockfile;
     let build_present = inputs.prior.build_present_packages;
     let unbuilt = inputs.prior.unbuilt_builds;
-    let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
+    let walked = walk_hoisted_graph(inputs, lockfile, skipped)?;
     unlink_prior_workspace_hoists(inputs)?;
     unlink_stale_direct_links(inputs)?;
     let (mut bins, hoisted_dependencies) =
-        link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+        link_hoisted::<Reporter>(inputs, lockfile, &walked, skipped)?;
     let changed_dirs = package_root_links::link_hoisted_package_root_links(
-        &lockfile,
+        lockfile,
         walked.graph.values(),
         inputs.projects.dependency_groups.contains(&DependencyGroup::Optional),
     )?;
@@ -171,26 +171,6 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_bin_sources: bins.sources,
         hoisted_dependencies,
     })
-}
-
-/// The hoist tree seeds from every importer dep map, so groups the user
-/// excluded (`--prod`, `--dev`, `--no-optional`) must be cleared from
-/// the lockfile before the walk — otherwise their whole subgraph
-/// materializes as real directories. Mirrors pnpm, which hands its
-/// hoisted walker an include-filtered lockfile.
-fn included_lockfile<'l>(inputs: &HoistedLinkerInputs<'l>) -> std::borrow::Cow<'l, Lockfile> {
-    let included = IncludedDependencies {
-        dependencies: inputs.projects.dependency_groups.contains(&DependencyGroup::Prod),
-        dev_dependencies: inputs.projects.dependency_groups.contains(&DependencyGroup::Dev),
-        optional_dependencies: inputs.projects.dependency_groups.contains(
-            &DependencyGroup::Optional,
-        ),
-    };
-    if included.dependencies && included.dev_dependencies && included.optional_dependencies {
-        std::borrow::Cow::Borrowed(inputs.graph.lockfile)
-    } else {
-        std::borrow::Cow::Owned(exclude_importer_groups(inputs.graph.lockfile, included))
-    }
 }
 
 /// Walker installability inputs come straight from the optional
@@ -416,7 +396,11 @@ fn root_dependency_aliases(inputs: &HoistedLinkerInputs<'_>) -> Vec<String> {
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .into_iter()
         .flat_map(|root| {
-            root.dependencies_by_groups(inputs.projects.dependency_groups.iter().copied())
+            root.dependencies_by_groups([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ])
         })
         .map(|(alias, _)| alias.to_string())
         .collect()
@@ -492,27 +476,4 @@ fn pkg_roots_by_key<'n>(
         }
     }
     roots
-}
-
-/// Clone the lockfile with every importer's excluded dep groups
-/// cleared, so seeds for the hoist tree come only from the included
-/// groups. Snapshots that thereby become unreachable are simply never
-/// visited by the hoister, so the snapshot/package maps stay as-is.
-pub(crate) fn exclude_importer_groups(
-    lockfile: &Lockfile,
-    included: IncludedDependencies,
-) -> Lockfile {
-    let mut filtered = lockfile.clone();
-    for importer in filtered.importers.values_mut() {
-        if !included.dependencies {
-            importer.dependencies = None;
-        }
-        if !included.dev_dependencies {
-            importer.dev_dependencies = None;
-        }
-        if !included.optional_dependencies {
-            importer.optional_dependencies = None;
-        }
-    }
-    filtered
 }

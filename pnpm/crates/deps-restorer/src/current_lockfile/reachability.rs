@@ -56,6 +56,21 @@ impl GroupSelection {
             optional_dependencies: true,
         })
     }
+
+    /// Every direct importer group, keeping this selection's transitive
+    /// optional flag and peer-edge classification for a lockfile whose
+    /// importers already have their excluded direct groups cleared.
+    #[must_use]
+    pub fn with_all_importer_groups(&self) -> Self {
+        GroupSelection {
+            included: IncludedDependencies {
+                dependencies: true,
+                dev_dependencies: true,
+                optional_dependencies: self.included.optional_dependencies,
+            },
+            skipped_peer_edges: Arc::clone(&self.skipped_peer_edges),
+        }
+    }
 }
 
 /// The importers and snapshots `initial_importer_ids` reach through the

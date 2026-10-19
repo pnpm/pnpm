@@ -42,7 +42,6 @@ use pnpm_lockfile::{
 };
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_matcher::create_matcher;
-use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
@@ -462,7 +461,14 @@ impl<'a> InstallFrozenLockfile<'a> {
     /// module-resolution sidecars describe it, and the virtual-store
     /// sweep leaves exactly its snapshots on disk.
     fn current_lockfile(&self, skipped: &SkippedSnapshots) -> Lockfile {
-        crate::filter_lockfile_for_current(self.lockfiles.wanted, self.inputs().groups(), skipped)
+        crate::filter_lockfile_for_current(
+            self.lockfiles.wanted,
+            &self
+                .inputs()
+                .groups()
+                .with_all_importer_groups(),
+            skipped,
+        )
     }
 
     /// The filtered lockfile that the sidecars and the `injectedDeps`

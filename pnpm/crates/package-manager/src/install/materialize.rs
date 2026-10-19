@@ -412,31 +412,35 @@ impl<'a> MaterializationWorkspace<'a> {
         groups: crate::GroupSelection,
         ignore_manifest_check: bool,
     ) -> FrozenScope<'a> {
-        let empty_skipped = crate::SkippedSnapshots::new();
-        let importer_ids = self.requested_importer_ids.or_else(|| {
-            (!ignore_manifest_check).then_some(self.real_importer_ids)
-        });
-        let closure = crate::materialization_closure(
-            lockfile,
-            self.workspace_root,
-            &initial_materialization_ids(lockfile, importer_ids, hoisted_prior),
-            &groups,
-            &empty_skipped,
-        );
-        let project_anchor_ids = frozen_project_anchor_ids(
+        let skipped = crate::SkippedSnapshots::new();
+        let closure = if let Some(selected) = self.requested_importer_ids {
+            crate::selected_materialization_closure(
+                lockfile,
+                self.workspace_root,
+                selected,
+                hoisted_prior,
+                &groups,
+                &skipped,
+            )
+        } else {
+            let ids = (!ignore_manifest_check).then_some(self.real_importer_ids);
+            let initial = initial_materialization_ids(lockfile, ids, None);
+            crate::materialization_closure(
+                lockfile,
+                self.workspace_root,
+                &initial,
+                &groups,
+                &skipped,
+            )
+        };
+        let anchors = frozen_project_anchor_ids(
             self.requested_importer_ids,
             self.real_importer_ids,
             &closure,
         );
-        FrozenScope {
-            project_manifests: anchored_project_manifests(
-                self.project_manifests,
-                self.workspace_root,
-                &project_anchor_ids,
-            ),
-            closure,
-            groups,
-        }
+        let project_manifests =
+            anchored_project_manifests(self.project_manifests, self.workspace_root, &anchors);
+        FrozenScope { closure, project_manifests, groups }
     }
 }
 
