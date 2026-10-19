@@ -280,18 +280,16 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
         .keys()
         .cloned()
         .collect();
-    let closure_groups = if install.projects.selected_ids.is_some() {
-        crate::GroupSelection::all()
-    } else {
-        scope.groups.with_all_importer_groups()
-    };
+    let all_groups = crate::GroupSelection::all();
+    let closure_groups =
+        if install.projects.selected_ids.is_some() { &all_groups } else { scope.groups };
     pnpm_deps_restorer::materialization_plan::compute_skip_set::<Reporter>(
         pnpm_deps_restorer::materialization_plan::SkipSetInputs {
             closure: pnpm_deps_restorer::SkipSetClosure {
                 lockfile: lockfiles.initial,
                 root: install.projects.lockfile_dir,
                 importer_ids: &closure_importer_ids,
-                groups: &closure_groups,
+                groups: closure_groups,
             },
             entries: pnpm_lockfile::LockfileEntries {
                 snapshots: lockfiles.initial.snapshots.as_ref(),
