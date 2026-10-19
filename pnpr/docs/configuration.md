@@ -642,8 +642,10 @@ pnpr uses secret keys to isolate private cache namespaces and sign bearer tokens
   reveal neither registry names nor credentials.
 - **`oci`** — bearer token signing key for the OCI registry surface.
 
-When `secret:` is configured, domain-separated subkeys (`pnpr-cache-key-v1` and
-`pnpr-oci-bearer-signing-key-v1`) are derived from it using HMAC-SHA256.
+When `secret:` is configured, the cache key defaults to the root secret
+(preserving existing on-disk cache directories across upgrades), while the OCI
+bearer token signing key derives a domain-separated subkey from `secret:` via
+SHA-256 (`pnpr OCI token signing v1`).
 
 To rotate the OCI bearer token signing key without invalidating the resolution
 and upstream caches (or vice versa), configure independent secrets via
