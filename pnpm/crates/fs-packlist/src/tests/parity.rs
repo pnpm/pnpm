@@ -33,6 +33,9 @@ fn file_selection_matches_typescript_packlist() {
         for file in [
             "index.js",
             "index.test.js",
+            "a.js",
+            "[a].js",
+            "lib/foo",
             "a",
             "b",
             "foo",
@@ -112,6 +115,8 @@ fn manifests() -> Vec<Value> {
         json!(["**"]),
         json!(["lib"]),
         json!(["lib/*"]),
+        json!(["foo", "lib/*.js"]),
+        json!(["[a].js"]),
         json!(["@(a|b)"]),
         json!(["+(foo)"]),
         json!(["lib/!(*.test.js)"]),

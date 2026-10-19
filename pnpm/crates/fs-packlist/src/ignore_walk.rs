@@ -48,7 +48,10 @@ pub(crate) fn walk_files(
         rules: root_rules,
         exact: false,
     };
-    let mut walker = Walker { named_files: &matcher.named_files, on_file };
+    let mut walker = Walker {
+        named_files: (!matcher.named_files.is_empty()).then_some(&matcher.named_files),
+        on_file,
+    };
     walker.walk_dir(pkg_dir, &root, 0)
 }
 
@@ -75,7 +78,7 @@ fn root_rules(pkg_dir: &Path, options: PackageRules<'_>) -> io::Result<files_fie
 }
 
 struct Walker<'a> {
-    named_files: &'a BTreeSet<String>,
+    named_files: Option<&'a BTreeSet<String>>,
     on_file: &'a mut dyn FnMut(&Path, fs::FileType),
 }
 
@@ -133,7 +136,7 @@ impl Walker<'_> {
 
     /// How `named_files` refers to the entry `name` of the directory `dir`.
     fn named(&self, dir: &DirRules<'_>, name: &str) -> Named {
-        let named_files = self.named_files;
+        let Some(named_files) = self.named_files else { return Named::No };
         let rel_path = dir.child_rel_path(name);
         if named_files.contains(&rel_path) {
             return Named::File;

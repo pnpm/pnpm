@@ -1,10 +1,10 @@
 //! Compile the manifest allowlist into the walk's ignore rules.
 
-use super::{IgnoreRule, apply_rules};
+use super::{IgnoreRule, apply_rules, rule_matches};
 use serde_json::Value;
 use std::{collections::BTreeSet, fs, path::Path};
 
-/// A manifest `files` allowlist, using the same rules as the package walk.
+/// Compiled file patterns for package selection and explicit listings.
 #[derive(Debug)]
 pub struct FilesMatcher {
     pub(super) rules: Vec<IgnoreRule>,
@@ -12,20 +12,10 @@ pub struct FilesMatcher {
 }
 
 impl FilesMatcher {
-    /// Whether the allowlist includes this package-relative path.
+    /// Whether an explicit pattern matches this package-relative path.
     #[must_use]
     pub fn includes(&self, path: &str) -> bool {
-        if self.named_files.contains(path) {
-            return true;
-        }
-        let ancestors_included = Path::new(path)
-            .ancestors()
-            .skip(1)
-            .all(|ancestor| {
-                ancestor.as_os_str().is_empty()
-                    || apply_rules(self.rules.iter(), true, &ancestor.to_string_lossy(), true, None)
-            });
-        ancestors_included && apply_rules(self.rules.iter(), true, path, false, None)
+        apply_rules(self.rules.iter(), true, path, false, None)
     }
 
     fn add_entry(&mut self, pkg_dir: &Path, entry: &str) {
@@ -40,10 +30,7 @@ impl FilesMatcher {
         let metadata = fs::symlink_metadata(pkg_dir.join(entry.trim_start_matches(['!', '/'])));
         match metadata {
             Ok(metadata) if metadata.is_file() || metadata.is_symlink() => {
-                if !entry.starts_with('!') {
-                    self.named_files.insert(normalize_field_path(&entry));
-                }
-                self.rules.push(IgnoreRule::parse(&inverse));
+                self.add_named_file(&entry, IgnoreRule::parse(&inverse));
             }
             Ok(metadata) if metadata.is_dir() => {
                 self.rules.push(IgnoreRule::parse(&inverse));
@@ -54,34 +41,66 @@ impl FilesMatcher {
             Err(_) => self.rules.push(IgnoreRule::parse(&inverse)),
         }
     }
+
+    fn add_named_file(&mut self, entry: &str, rule: IgnoreRule) {
+        let path = normalize_field_path(entry);
+        if !entry.starts_with('!') && rule_matches(&rule, &path, false, None) {
+            self.named_files.insert(path);
+        }
+        self.rules.push(rule);
+    }
+
+    // Named files override the initial `*`, so only manifest exclusions need checking.
+    fn apply_named_file_exclusions(&mut self) {
+        let exclusions: Vec<_> = self.rules
+            .iter()
+            .enumerate()
+            .skip(1)
+            .filter(|(_, rule)| !rule.negate)
+            .collect();
+        self.named_files.retain(|path| {
+            let last_exclusion = exclusions
+                .iter()
+                .rev()
+                .find(|(_, rule)| rule_matches(rule, path, false, None));
+            let Some((index, _)) = last_exclusion else { return true };
+            self.rules[index + 1..]
+                .iter()
+                .any(|rule| rule.negate && rule_matches(rule, path, false, None))
+        });
+    }
 }
 
-/// Match explicit listings in `files`. Positive patterns are rooted at
-/// `pkg_dir`; exclusions may match at any depth.
-pub fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> FilesMatcher {
-    let entries: Vec<Value> = entries
-        .iter()
-        .filter_map(Value::as_str)
-        .map(|entry| {
-            if entry.starts_with('!') {
-                Value::String(entry.to_string())
-            } else {
-                Value::String(format!("/{}", normalize_field_path(entry)))
-            }
-        })
+/// Match explicit listings in `files` without expanding directory entries.
+/// Positive patterns are package-relative; exclusions may match at any depth.
+pub fn build_files_matcher(entries: &[Value]) -> FilesMatcher {
+    let rules = std::iter::once(IgnoreRule::parse("*"))
+        .chain(
+            entries
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|entry| {
+                    let inverse = if entry.starts_with('!') {
+                        format!("!{entry}")
+                    } else {
+                        format!("!/{}", normalize_field_path(entry))
+                    };
+                    IgnoreRule::parse(&inverse)
+                }),
+        )
         .collect();
-    compile_files_rules(pkg_dir, &entries)
+    FilesMatcher { rules, named_files: BTreeSet::new() }
 }
 
-/// Existing files and symlinks are strict requirements; directories and globs
-/// supply ordinary rules, as in npm-packlist's manifest rule synthesis.
+/// Compile npm-packlist's unrooted manifest patterns. Existing files and symlinks
+/// are strict requirements; directories and globs supply ordinary rules.
 pub(super) fn compile_files_rules(pkg_dir: &Path, entries: &[Value]) -> FilesMatcher {
     let mut matcher =
         FilesMatcher { rules: vec![IgnoreRule::parse("*")], named_files: BTreeSet::new() };
     for entry in entries.iter().filter_map(Value::as_str) {
         matcher.add_entry(pkg_dir, entry);
     }
-    matcher.named_files.retain(|path| apply_rules(matcher.rules.iter(), true, path, false, None));
+    matcher.apply_named_file_exclusions();
     matcher
 }
 
