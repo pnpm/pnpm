@@ -35,7 +35,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   // checkPackageManager has already surfaced the mismatch to the user.
   if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
 
-  const envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
+  const envLockfile = await readEnvLockfile(envLockfileDir(config, context)) ?? undefined
   const lockedVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
   if (
     lockedVersion != null &&
@@ -51,7 +51,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
     await resolvePackageManagerIntegrities(version, {
       envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
-      rootDir: context.rootProjectManifestDir,
+      rootDir: envLockfileDir(config, context),
       storeController: store.ctrl,
       storeDir: store.dir,
       save: true,
@@ -61,6 +61,14 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   } finally {
     await store.ctrl.close()
   }
+}
+
+/**
+ * The env lockfile is the first document of `pnpm-lock.yaml`, so it follows
+ * `lockfileDir`, which `pnpm-workspace.yaml` may set.
+ */
+export function envLockfileDir (config: Pick<Config, 'lockfileDir'>, context: Pick<ConfigContext, 'rootProjectManifestDir'>): string {
+  return config.lockfileDir ?? context.rootProjectManifestDir
 }
 
 /**

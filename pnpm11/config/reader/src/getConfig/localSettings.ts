@@ -1,7 +1,7 @@
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestKeys, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 import { quoteAndJoin } from '../quoteAndJoin.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from '../unknownSettings.js'
@@ -10,6 +10,7 @@ import { getIgnoredPnpmFieldKeys } from './ignoredPnpmFieldKeys.js'
 import { getWantedPackageManager } from './packageManager.js'
 import {
   isRefusedByAProjectManifest,
+  PIN_DECISION_SETTINGS,
   PROJECT_MANIFEST_SKIPPED_KEYS,
   quoteAndExplain,
   quoteAndSuggestCamelCase,
@@ -82,18 +83,34 @@ async function applyProjectWorkspaceManifestUnlessUnreadable (
   opts: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean, workspaceDir: string }
 ): Promise<Record<string, string> | undefined> {
   if (!opts.skipUnreadableSettings) return applyProjectWorkspaceManifest(state, opts)
-  // Whole or not at all: a failure partway through must not leave the
-  // settings applied before it in force.
+  try {
+    return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, opts))
+  } catch {
+    // A setting outside the pin decision cannot steer it, so one that fails
+    // must not drop the `pmOnFail` or `lockfileDir` beside it.
+    try {
+      return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys: PIN_DECISION_SETTINGS }))
+    } catch {
+      state.pnpmConfig.workspacePackagePatterns = ['.']
+      return undefined
+    }
+  }
+}
+
+/**
+ * A failure partway through must not leave the settings applied before it in
+ * force.
+ */
+async function applyAllOrNothing<Result> (state: ConfigBuildState, apply: () => Promise<Result>): Promise<Result> {
   const before = { ...state.pnpmConfig }
   const explicitlySetKeysBefore = [...state.explicitlySetKeys]
   try {
-    return await applyProjectWorkspaceManifest(state, opts)
-  } catch {
+    return await apply()
+  } catch (err: unknown) {
     restoreConfig(state.pnpmConfig as unknown as Record<string, unknown>, before)
     state.explicitlySetKeys.clear()
     for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
-    state.pnpmConfig.workspacePackagePatterns = ['.']
-    return undefined
+    throw err
   }
 }
 
@@ -106,10 +123,12 @@ function restoreConfig (config: Record<string, unknown>, before: Record<string, 
 
 async function applyProjectWorkspaceManifest (
   state: ConfigBuildState,
-  { forSelfUpdate, workspaceDir }: { forSelfUpdate?: boolean, workspaceDir: string }
+  { forSelfUpdate, keys, workspaceDir }: { forSelfUpdate?: boolean, keys?: ReadonlySet<string>, workspaceDir: string }
 ): Promise<Record<string, string> | undefined> {
   const { cliOptions, pnpmConfig } = state
-  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  const workspaceManifest = keys == null
+    ? await readWorkspaceManifest(workspaceDir)
+    : await readWorkspaceManifestKeys(workspaceDir, keys)
 
   pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
   if (!workspaceManifest) return undefined

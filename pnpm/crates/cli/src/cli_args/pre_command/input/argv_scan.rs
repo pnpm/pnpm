@@ -66,9 +66,8 @@ pub(in crate::cli_args::pre_command) struct UnparsedArgv {
 
 impl UnparsedArgv {
     /// `None` when the command line cannot be read reliably: an option
-    /// that no command declares comes before the command name, or one the
-    /// named command does not declare comes right before a flag that sets
-    /// its scope, and whether that option takes the next token is unknown.
+    /// that no command declares comes right before a flag that sets its
+    /// scope, and whether that option takes the next token is unknown.
     /// A non-UTF-8 token is `None` too.
     pub(in crate::cli_args::pre_command) fn scan(argv: &[OsString]) -> Option<Self> {
         let cli = with_boolean_negations(CliArgs::command());
@@ -115,7 +114,7 @@ impl UnparsedScan {
             return None;
         }
         self.after_undeclared_option = may_take_undeclared_value(token, options);
-        self.absorb_token(token, next, options)
+        Some(self.absorb_token(token, next, options))
     }
 
     /// Read `--global`, `-g` in a short cluster, or `--location`,
@@ -134,25 +133,22 @@ impl UnparsedScan {
         global
     }
 
-    /// Read one token, returning how many argv tokens it consumed, or
-    /// `None` when it leaves the command name ambiguous.
-    fn absorb_token(
-        &mut self,
-        token: &str,
-        next: Option<&OsStr>,
-        options: &ArgTable,
-    ) -> Option<usize> {
+    /// Read one token, returning how many argv tokens it consumed.
+    fn absorb_token(&mut self, token: &str, next: Option<&OsStr>, options: &ArgTable) -> usize {
         if !token.starts_with('-') {
             self.command.get_or_insert_with(|| canonical_command_name(token));
-            return Some(1);
+            return 1;
         }
         let width = self.tokens
             .offer(token, next, options)
             .unwrap_or_else(|| if consumes_next_token(token, options) { 2 } else { 1 });
         if self.command.is_some() {
-            return Some(width);
+            return width;
         }
-        declared_option_width(token, options)
+        // Before the command name, an undeclared option is read as a flag
+        // without a value, as pnpm v11 reads it, so the token after it can
+        // name the command.
+        declared_option_width(token, options).unwrap_or(1)
     }
 }
 
