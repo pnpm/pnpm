@@ -203,10 +203,14 @@ fn unknown_option_goes_to_the_pinned_pnpm() {
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
 
-    for command in ["install", "i"] {
+    for args in [
+        ["install", "--only-the-pinned-pnpm-knows"],
+        ["i", "--only-the-pinned-pnpm-knows"],
+        ["--only-the-pinned-pnpm-knows", "install"],
+    ] {
         let output = test_command(pacquet_in(&workspace), root.path())
             .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .args([command, "--only-the-pinned-pnpm-knows"])
+            .args(args)
             .output()
             .expect("run pacquet with an unknown option");
         dbg!(&output);
@@ -214,11 +218,11 @@ fn unknown_option_goes_to_the_pinned_pnpm() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
             !stderr.contains("unexpected argument"),
-            "{command}: this pnpm rejected it: {stderr}",
+            "{args:?}: this pnpm rejected it: {stderr}",
         );
         assert!(
             stdout.contains("Unknown option: 'only-the-pinned-pnpm-knows'"),
-            "{command}: the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
+            "{args:?}: the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
         );
     }
 

@@ -13,7 +13,7 @@ import semver from 'semver'
 
 import { exit } from './exit.js'
 import { assertPackageManagerLockfileUsesRegistryResolutions } from './packageManagerLockfile.js'
-import { packageManagerTrustPolicy, pnpmVersionToRecord } from './syncEnvLockfile.js'
+import { envLockfileDir, packageManagerTrustPolicy, pnpmVersionToRecord } from './syncEnvLockfile.js'
 
 export interface SwitchCliVersionOptions {
   /**
@@ -45,7 +45,7 @@ export async function switchCliVersion (
   if (!persistLockfile && satisfiesPin(packageManager.version, wantedVersion)) return
 
   const envLockfile = persistLockfile
-    ? (await readEnvLockfile(context.rootProjectManifestDir) ?? undefined)
+    ? (await readEnvLockfile(envLockfileDir(config, context)) ?? undefined)
     : undefined
   const versionSwitch: VersionSwitch = {
     config,
@@ -167,7 +167,7 @@ async function resolveIntegrities (
   versionSwitch.envLockfile = await resolvePackageManagerIntegrities(version, {
     envLockfile: versionSwitch.envLockfile,
     registriesByScope: versionSwitch.packageManagerConfig.registriesByScope,
-    rootDir: versionSwitch.context.rootProjectManifestDir,
+    rootDir: envLockfileDir(versionSwitch.config, versionSwitch.context),
     storeController: versionSwitch.store.ctrl,
     storeDir: versionSwitch.store.dir,
     ...packageManagerTrustPolicy(versionSwitch.config),
@@ -306,7 +306,7 @@ async function installAndSpawnPnpm (versionSwitch: VersionSwitch, target: Switch
  */
 export async function fetchLockedPackageManager (config: Config, context: ConfigContext): Promise<void> {
   if (config.pmOnFail != null && config.pmOnFail !== 'download') return
-  const envLockfile = await readEnvLockfile(context.rootProjectManifestDir)
+  const envLockfile = await readEnvLockfile(envLockfileDir(config, context))
   const pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
   if (
     envLockfile == null ||

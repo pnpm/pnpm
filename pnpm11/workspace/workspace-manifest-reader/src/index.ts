@@ -40,6 +40,18 @@ export async function readWorkspaceManifest (dir: string, cfgFileName: ConfigFil
   return manifest
 }
 
+/**
+ * Reads only the listed top-level keys, so a key outside them that does not
+ * validate cannot fail the read.
+ */
+export async function readWorkspaceManifestKeys (dir: string, keys: ReadonlySet<string>): Promise<WorkspaceManifest | undefined> {
+  const manifest = await readManifestRaw(dir, WORKSPACE_MANIFEST_FILENAME)
+  if (manifest == null || typeof manifest !== 'object' || Array.isArray(manifest)) return undefined
+  const picked = Object.fromEntries(Object.entries(manifest).filter(([key]) => keys.has(key)))
+  validateWorkspaceManifest(picked)
+  return picked
+}
+
 export function readWorkspaceManifestSync (dir: string, cfgFileName: ConfigFileName = WORKSPACE_MANIFEST_FILENAME): WorkspaceManifest | undefined {
   const manifest = readManifestRawSync(dir, cfgFileName)
   validateWorkspaceManifest(manifest)

@@ -205,6 +205,13 @@ fn unparsed_argv_names_no_command_after_an_undeclared_option() {
 }
 
 #[test]
+fn unparsed_argv_reads_an_undeclared_option_right_before_the_command_as_a_flag() {
+    let argv = ["pnpm", "--undeclared", "install", "--also-undeclared"].map(OsString::from);
+    let input = unparsed_switch_input(&argv).expect("the command follows the option");
+    assert_eq!(input.command.as_deref(), Some("install"));
+}
+
+#[test]
 fn unparsed_ci_is_a_frozen_install() {
     for argv in [
         &["pnpm", "ci", "--undeclared"][..],
