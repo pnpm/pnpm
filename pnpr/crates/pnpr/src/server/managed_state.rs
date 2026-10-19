@@ -122,13 +122,9 @@ async fn reload_managed_state(state: AppState, _reload: OwnedMutexGuard<()>) {
     managed.schedule(if all_read { STATE_TTL } else { STATE_RETRY });
 }
 
-/// Canonicalize a registry key with its local name so moving a registry
-/// to or from an ecosystem group does not change its storage key.
+/// Canonicalize a registry key with its full identity.
 pub(super) fn canonical_registry_key<'a>(_state: &AppState, registry: &'a str) -> &'a str {
-    if registry == pnpr_storage::SCIM_DIRECTORY {
-        return registry;
-    }
-    pnpr_registry::Registries::local_name(registry)
+    registry
 }
 
 /// Store `bytes` as the record of `kind` for `registry`: create it when

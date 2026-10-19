@@ -386,6 +386,14 @@ pub(super) fn build_libsql_settings(
                         interval.0,
                     ),
                 })?;
+            if !dur.is_zero() && dur.as_secs() == 0 {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "backend.libsql.syncInterval {:?} must be 0 or at least 1s",
+                        interval.0,
+                    ),
+                });
+            }
             Some(dur.as_secs())
         }
         None => None,

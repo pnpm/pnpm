@@ -563,12 +563,12 @@ async fn negotiates_v0_when_supported_by_handshake() {
         "type": "done",
         "lockfile": matching_transform_lockfile(&options),
         "appliedPolicies": {
-            "autoInstallPeers": true,
+            "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
             "addMissingPeerTypes": true,
             "frozenLockfile": false,
-            "resolutionMode": "highest",
+            "resolutionMode": "time-based",
             "minimumReleaseAge": 1440,
             "trustPolicy": "no-downgrade"
         }
@@ -635,12 +635,12 @@ async fn unknown_frames_are_ignored() {
         "type": "done",
         "lockfile": matching_transform_lockfile(&options),
         "appliedPolicies": {
-            "autoInstallPeers": true,
+            "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
             "addMissingPeerTypes": true,
             "frozenLockfile": false,
-            "resolutionMode": "highest",
+            "resolutionMode": "time-based",
             "minimumReleaseAge": 1440,
             "trustPolicy": "no-downgrade"
         }

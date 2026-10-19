@@ -17,7 +17,7 @@ pub fn now_iso() -> String {
 pub fn iso_from_unix_millis(millis: i64) -> String {
     // Civil-time conversion without pulling in `chrono`.
     // 86_400_000 ms in a day.
-    let (days, ms_in_day) = (millis / 86_400_000, millis.rem_euclid(86_400_000));
+    let (days, ms_in_day) = (millis.div_euclid(86_400_000), millis.rem_euclid(86_400_000));
     let (h, rem) = (ms_in_day / 3_600_000, ms_in_day.rem_euclid(3_600_000));
     let (m, rem) = (rem / 60_000, rem.rem_euclid(60_000));
     let (s, ms) = (rem / 1000, rem.rem_euclid(1000));

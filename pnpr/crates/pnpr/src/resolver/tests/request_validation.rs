@@ -91,3 +91,21 @@ fn reject_off_allowlist_fetches_scans_catalogs() {
 
     assert!(reject_off_allowlist_fetches(&clean_catalog, &context).is_none());
 }
+
+#[test]
+fn reject_incompatible_lockfile_format_refuses_unsupported_versions() {
+    let context = RouteContext::from_config(&registry_config());
+    let incompatible = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["6.0", "7.0"]
+    }))
+    .expect("request parses");
+    let response = reject_unusable_resolve(&incompatible, &context)
+        .expect("incompatible lockfile format is rejected");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let compatible = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "acceptedLockfileFormats": ["6.0", "9.0"]
+    }))
+    .expect("request parses");
+    assert!(reject_unusable_resolve(&compatible, &context).is_none());
+}

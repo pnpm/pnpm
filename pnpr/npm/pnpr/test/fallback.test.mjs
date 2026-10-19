@@ -29,13 +29,14 @@ test('bin/pnpr spawns native binary when candidate is found', (t) => {
   const targetDir = path.join(pnprNpmDir, 'node_modules', path.dirname(candidate))
   const targetFile = path.join(pnprNpmDir, 'node_modules', candidate)
 
+  assert.ok(!fs.existsSync(targetDir), `${targetDir} already exists`)
   fs.mkdirSync(targetDir, { recursive: true })
   fs.writeFileSync(path.join(targetDir, 'package.json'), JSON.stringify({ name: path.dirname(candidate) }))
   fs.writeFileSync(targetFile, '#!/bin/sh\necho "mock pnpr running: $*"')
   fs.chmodSync(targetFile, 0o755)
 
   t.after(() => {
-    fs.rmSync(path.join(pnprNpmDir, 'node_modules', '@pnpm'), { recursive: true, force: true })
+    fs.rmSync(targetDir, { recursive: true, force: true })
   })
 
   const result = spawnSync('sh', [binPnpr, 'serve', '--port', '1234'], { encoding: 'utf8' })

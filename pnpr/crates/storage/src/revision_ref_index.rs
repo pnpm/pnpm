@@ -9,44 +9,6 @@ const fn default_format_version() -> u32 {
     REVISION_INDEX_FORMAT_VERSION
 }
 
-mod json_bytes {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-    use serde_json::Value;
-
-    pub fn serialize<Ser>(bytes: &[u8], serializer: Ser) -> Result<Ser::Ok, Ser::Error>
-    where
-        Ser: Serializer,
-    {
-        if let Ok(value) = serde_json::from_slice::<Value>(bytes) {
-            value.serialize(serializer)
-        } else {
-            bytes.serialize(serializer)
-        }
-    }
-
-    pub fn deserialize<'de, Deser>(deserializer: Deser) -> Result<Vec<u8>, Deser::Error>
-    where
-        Deser: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-        match value {
-            Value::Array(arr)
-                if !arr.is_empty()
-                    && arr
-                        .iter()
-                        .all(|val| val.as_u64().is_some_and(|n| n <= 255)) =>
-            {
-                let bytes = arr
-                    .iter()
-                    .filter_map(|val| val.as_u64().map(|n| n as u8))
-                    .collect();
-                Ok(bytes)
-            }
-            other => serde_json::to_vec(&other).map_err(serde::de::Error::custom),
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct HostedRevisionRefIndex {
     #[serde(rename = "formatVersion", default = "default_format_version")]
@@ -65,7 +27,6 @@ pub(super) struct HostedRevisionRefIndexEntry {
     pub(super) id: String,
     pub(super) committed: bool,
     pub(super) pending_owners: Vec<String>,
-    #[serde(with = "json_bytes")]
     pub(super) bytes: Vec<u8>,
 }
 

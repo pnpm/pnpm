@@ -92,7 +92,7 @@ fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
         "artifacts": { "version": 0, "versions": enabled_version(config.features.artifacts.enabled) },
         "compilerCache": {
             "version": 0,
-            "versions": if config.features.artifacts.enabled { vec![0] } else { Vec::new() },
+            "versions": enabled_version(config.features.artifacts.enabled),
         },
         "pipeline": { "version": 0, "versions": enabled_version(config.features.pipeline.enabled) },
         "publish": {

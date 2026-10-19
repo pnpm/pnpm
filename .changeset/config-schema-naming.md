@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Added strict configuration schema validation across all sections and accepted both camelCase and snake_case field names.
+All configuration sections now strictly validate schema fields and reject unrecognized keys. Configuration keys now consistently accept both camelCase and snake_case names.

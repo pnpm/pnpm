@@ -261,6 +261,16 @@ fn assert_applied_policies(
     let Some(applied) = applied else {
         return Ok(());
     };
+    assert_verification_policies(applied, opts)?;
+    assert_resolution_settings(applied, opts)?;
+    assert_reuse_policies(applied, opts)?;
+    Ok(())
+}
+
+fn assert_verification_policies(
+    applied: &AppliedPolicies,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
     if opts.verification.trust_policy == pnpm_config::TrustPolicy::NoDowngrade
         && applied.trust_policy.as_deref() != Some("no-downgrade")
     {
@@ -276,11 +286,59 @@ fn assert_applied_policies(
             opts.verification.minimum_release_age, applied.minimum_release_age,
         )));
     }
-    if opts.resolution.add_missing_peer_types == Some(true) && !applied.add_missing_peer_types {
-        return Err(PnprClientError::Protocol(
-            "pnpr server ignored requested addMissingPeerTypes".to_string(),
-        ));
+    Ok(())
+}
+
+fn assert_resolution_settings(
+    applied: &AppliedPolicies,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
+    if opts.resolution.auto_install_peers.is_some_and(|val| val != applied.auto_install_peers) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server ignored requested autoInstallPeers (expected {:?}, got {})",
+            opts.resolution.auto_install_peers, applied.auto_install_peers,
+        )));
     }
+    if opts.resolution.dedupe_peers.is_some_and(|val| val != applied.dedupe_peers) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server ignored requested dedupePeers (expected {:?}, got {})",
+            opts.resolution.dedupe_peers, applied.dedupe_peers,
+        )));
+    }
+    if opts.resolution.exclude_links_from_lockfile.is_some_and(|val| {
+        val != applied.exclude_links_from_lockfile
+    }) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server ignored requested excludeLinksFromLockfile (expected {:?}, got {})",
+            opts.resolution.exclude_links_from_lockfile, applied.exclude_links_from_lockfile,
+        )));
+    }
+    if opts.resolution.add_missing_peer_types.is_some_and(|val| {
+        val != applied.add_missing_peer_types
+    }) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server ignored requested addMissingPeerTypes (expected {:?}, got {})",
+            opts.resolution.add_missing_peer_types, applied.add_missing_peer_types,
+        )));
+    }
+    let expected_mode = match opts.resolution.resolution_mode {
+        pnpm_config::ResolutionMode::Highest => "highest",
+        pnpm_config::ResolutionMode::TimeBased => "time-based",
+        pnpm_config::ResolutionMode::LowestDirect => "lowest-direct",
+    };
+    if applied.resolution_mode != expected_mode {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr server ignored requested resolutionMode (expected {expected_mode}, got {})",
+            applied.resolution_mode,
+        )));
+    }
+    Ok(())
+}
+
+fn assert_reuse_policies(
+    applied: &AppliedPolicies,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
     if opts.reuse.frozen_lockfile != applied.frozen_lockfile {
         return Err(PnprClientError::Protocol(format!(
             "pnpr server did not respect frozenLockfile (expected {}, got {})",

@@ -4,7 +4,7 @@ use pnpm_lockfile::LockfileResolution;
 use pnpr_route::RouteContext;
 
 use super::{
-    json_error,
+    json_error, json_error_with_code,
     protocol::{ProjectDeps, ResolveRequest},
 };
 
@@ -281,4 +281,19 @@ fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
         serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
         _ => false,
     }
+}
+
+pub(super) fn reject_incompatible_lockfile_format(request: &ResolveRequest) -> Option<Response> {
+    let formats = request.accepted_lockfile_formats.as_ref()?;
+    if !formats
+        .iter()
+        .any(|format| format == "9.0" || format == "9")
+    {
+        return Some(json_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "incompatible lockfile format: server supports format 9.0",
+            Some("ERR_PNPR_INCOMPATIBLE_LOCKFILE_FORMAT"),
+        ));
+    }
+    None
 }

@@ -101,8 +101,8 @@ use self::{
     cache::{CachedResolution, cached_resolution, resolution_cache_key, store_resolution},
     protocol::{EcosystemProbe, ResolveRequest},
     request_validation::{
-        reject_inline_url_auth, reject_invalid_patch_hashes, reject_invalid_registries,
-        reject_off_allowlist_fetches, reject_unsafe_publish_directories,
+        reject_incompatible_lockfile_format, reject_inline_url_auth, reject_invalid_patch_hashes,
+        reject_invalid_registries, reject_off_allowlist_fetches, reject_unsafe_publish_directories,
     },
     verdict_cache::VerdictCache,
     wire::{
@@ -459,6 +459,7 @@ fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> 
         .or_else(|| reject_inline_url_auth(request))
         .or_else(|| reject_unsafe_publish_directories(request))
         .or_else(|| reject_off_allowlist_fetches(request, context))
+        .or_else(|| reject_incompatible_lockfile_format(request))
 }
 
 /// A verified frozen lockfile is the whole answer: no incremental tree walk

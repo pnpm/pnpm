@@ -10,15 +10,18 @@ fn find_hosted<'a>(
     hosted: &'a IndexMap<String, HostedConfig>,
     registry: &str,
 ) -> Option<&'a HostedConfig> {
-    hosted
-        .get(registry)
-        .or_else(|| {
-            hosted
-                .iter()
-                .find_map(|(key, config)| {
-                    (pnpr_registry::Registries::local_name(key) == registry).then_some(config)
-                })
-        })
+    if let Some(exact) = hosted.get(registry) {
+        return Some(exact);
+    }
+    let mut matches = hosted
+        .iter()
+        .filter(|(key, _)| pnpr_registry::Registries::local_name(key) == registry)
+        .map(|(_, config)| config);
+    let first = matches.next()?;
+    matches
+        .next()
+        .is_none()
+        .then_some(first)
 }
 
 /// The identity of a browser session: its username, and a membership for

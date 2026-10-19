@@ -1,7 +1,7 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, ErrorKind, HostedRevisionRefWrite,
-    HostedStoreConfig, MAX_HOSTED_REVISION_REFS, PackageTombstone, RegistryError, Storage,
-    atomic_write::create_tmp_file_with, fs,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, ErrorKind, HostedRevisionRefIndex,
+    HostedRevisionRefWrite, HostedStoreConfig, MAX_HOSTED_REVISION_REFS, PackageTombstone,
+    RegistryError, RegistryRecord, Storage, atomic_write::create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
 
@@ -642,4 +642,71 @@ async fn a_blob_being_staged_is_not_listed() {
         .await
         .unwrap();
     assert_eq!(files.len(), 2, "{files:?}");
+}
+
+#[test]
+fn revision_index_preserves_byte_for_byte_fidelity_across_formatting() {
+    let json_dense = b"{\"key\":\"value\",\"count\":1}";
+    let json_spaced = b"{\n  \"key\": \"value\",\n  \"count\": 1\n}";
+
+    let mut index = HostedRevisionRefIndex::default();
+    index
+        .insert(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "owner1",
+            json_dense,
+        )
+        .unwrap();
+    index
+        .insert(
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "owner2",
+            json_spaced,
+        )
+        .unwrap();
+
+    let bytes = index.to_bytes();
+    let loaded = HostedRevisionRefIndex::from_bytes(&bytes).unwrap();
+
+    let bodies: Vec<&[u8]> = loaded.bodies().collect();
+    assert_eq!(bodies[0], json_dense);
+    assert_eq!(bodies[1], json_spaced);
+    assert_ne!(bodies[0], bodies[1]);
+}
+
+#[tokio::test]
+async fn grouped_registries_with_same_local_name_keep_records_isolated() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    let npm_record = b"npm-team-roster";
+    let pypi_record = b"pypi-team-roster";
+
+    assert!(
+        storage
+            .create_registry_record(RegistryRecord::TeamRoster, "npm/shared", npm_record)
+            .await
+            .unwrap(),
+    );
+    assert!(
+        storage
+            .create_registry_record(RegistryRecord::TeamRoster, "pypi/shared", pypi_record)
+            .await
+            .unwrap(),
+    );
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        Some(npm_record.to_vec()),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "pypi/shared").await.unwrap(),
+        Some(pypi_record.to_vec()),
+    );
+}
+
+#[test]
+fn iso_from_unix_millis_formats_negative_millis_correctly() {
+    assert_eq!(super::publish::iso_from_unix_millis(-1), "1969-12-31T23:59:59.999Z");
+    assert_eq!(super::publish::iso_from_unix_millis(0), "1970-01-01T00:00:00.000Z");
 }

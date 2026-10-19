@@ -55,26 +55,7 @@ async fn main() -> miette::Result<()> {
     let server_args = match args.command.take() {
         None => args.server,
         Some(Command::Serve(server)) => args.server.merge(server),
-        Some(cmd) => {
-            let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().unwrap();
-            let (mut config, source) =
-                Config::resolve(args.config.as_deref(), auto_path.as_deref(), default_listen, None)
-                    .map_err(|err| miette::miette!("{err}"))?;
-            apply_storage_overrides(&mut config, &mut args.paths, &source);
-
-            if matches!(
-                cmd,
-                Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check },
-            ) {
-                let report = pnpr::config_check::check_resolved_config(&config, &source);
-                println!("{}", pnpr::config_check::format_report(&report));
-                return Ok(());
-            }
-
-            init_logging(&config.logs);
-            log_config_source(&source);
-            return run_command(&config, cmd).await;
-        }
+        Some(cmd) => return run_maintenance(cmd, args, auto_path).await,
     };
 
     let overrides = server_args.features.feature_overrides();
@@ -92,6 +73,33 @@ async fn main() -> miette::Result<()> {
     init_logging(&config.logs);
     log_config_source(&source);
     serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+async fn run_maintenance(
+    cmd: Command,
+    mut args: Args,
+    auto_path: Option<PathBuf>,
+) -> miette::Result<()> {
+    let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().unwrap();
+    let (mut config, source) = Config::resolve_with_overrides(
+        args.config.as_deref(),
+        auto_path.as_deref(),
+        default_listen,
+        None,
+        args.server.features.feature_overrides(),
+    )
+    .map_err(|err| miette::miette!("{err}"))?;
+    apply_storage_overrides(&mut config, &mut args.paths, &source);
+
+    if matches!(cmd, Command::ConfigCheck | Command::Config { action: ConfigSubcommand::Check }) {
+        let report = pnpr::config_check::check_resolved_config(&config, &source);
+        println!("{}", pnpr::config_check::format_report(&report));
+        return Ok(());
+    }
+
+    init_logging(&config.logs);
+    log_config_source(&source);
+    run_command(&config, cmd).await
 }
 
 fn apply_storage_overrides(config: &mut Config, paths: &mut StorageArgs, source: &ConfigSource) {

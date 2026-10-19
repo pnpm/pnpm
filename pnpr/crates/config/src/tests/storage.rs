@@ -152,6 +152,20 @@ backend:
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
+#[test]
+fn libsql_backend_rejects_subsecond_sync_interval() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+    syncInterval: 500ms
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("subsecond syncInterval must be rejected");
+    assert!(err.to_string().contains("backend.libsql.syncInterval"), "{err}");
+}
+
 // ----- serde defaults ---------------------------------------------------
 
 #[test]

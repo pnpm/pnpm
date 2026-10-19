@@ -426,21 +426,14 @@ impl PnprClient {
 
     /// Negotiate the highest common resolver protocol version with the server.
     pub async fn negotiated_resolver_version(&self) -> Result<u32, PnprClientError> {
-        match self.ensure_handshake().await {
-            Ok(cap) => {
-                if cap.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
-                    Ok(RESOLVER_PROTOCOL_VERSION)
-                } else {
-                    Err(PnprClientError::server(format!(
-                        "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
-                        cap.versions,
-                    )))
-                }
-            }
-            Err(_) => {
-                // If handshake endpoint is not implemented or reachable, fall back to v0 for backward compatibility
-                Ok(0)
-            }
+        let cap = self.ensure_handshake().await?;
+        if cap.versions.contains(&RESOLVER_PROTOCOL_VERSION) {
+            Ok(RESOLVER_PROTOCOL_VERSION)
+        } else {
+            Err(PnprClientError::server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{RESOLVER_PROTOCOL_VERSION}",
+                cap.versions,
+            )))
         }
     }
 

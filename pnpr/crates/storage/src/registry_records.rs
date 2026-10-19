@@ -32,13 +32,13 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<Option<Vec<u8>>> {
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        let key = registry_record_key(local_name)?;
+        let key = registry_record_key(registry)?;
         if let Some(bytes) = self.root.read_record(kind.namespace(), &key).await? {
             return Ok(Some(bytes));
         }
+        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
         if local_name != registry {
-            let legacy_key = registry_record_key(registry)?;
+            let legacy_key = registry_record_key(local_name)?;
             return self.root.read_record(kind.namespace(), &legacy_key).await;
         }
         Ok(None)
@@ -52,10 +52,10 @@ impl Storage {
         registry: &str,
         bytes: &[u8],
     ) -> Result<bool> {
+        let key = registry_record_key(registry)?;
         let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        let key = registry_record_key(local_name)?;
         if local_name != registry {
-            let legacy_key = registry_record_key(registry)?;
+            let legacy_key = registry_record_key(local_name)?;
             if self.root.read_record(kind.namespace(), &legacy_key).await?.is_some() {
                 return Ok(false);
             }
@@ -72,12 +72,12 @@ impl Storage {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        let key = registry_record_key(local_name)?;
+        let key = registry_record_key(registry)?;
         let result =
             self.root.replace_record_if_current(kind.namespace(), &key, expected, bytes).await?;
+        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
         if result == DocumentWrite::Conflict && local_name != registry {
-            let legacy_key = registry_record_key(registry)?;
+            let legacy_key = registry_record_key(local_name)?;
             if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref()
                 == Some(expected)
                 && self.root.create_record(kind.namespace(), &key, bytes).await?
@@ -94,11 +94,11 @@ impl Storage {
         kind: RegistryRecord,
         registry: &str,
     ) -> Result<bool> {
-        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
-        let key = registry_record_key(local_name)?;
+        let key = registry_record_key(registry)?;
         let removed = self.root.remove_record(kind.namespace(), &key).await?;
+        let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
         if local_name != registry {
-            let legacy_key = registry_record_key(registry)?;
+            let legacy_key = registry_record_key(local_name)?;
             let legacy_removed = self.root.remove_record(kind.namespace(), &legacy_key).await?;
             return Ok(removed || legacy_removed);
         }

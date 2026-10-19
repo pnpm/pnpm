@@ -370,9 +370,8 @@ impl S3Store {
         &self,
         name: &CanonicalPackageName,
     ) -> Result<Vec<String>> {
-        use futures_util::StreamExt;
-        let prefix = format!("{}{BLOBS_DIR}/", self.package_prefix(name));
-        let scope = ObjectPath::from(prefix.as_str());
+        let scope = ObjectPath::from(format!("{}{BLOBS_DIR}", self.package_prefix(name)));
+        let prefix = format!("{}/", scope.as_ref());
         let mut listing = self.store.list(Some(&scope));
         let mut blobs = Vec::new();
         while let Some(result) = listing.next().await {

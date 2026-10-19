@@ -130,9 +130,9 @@ pub enum ConfigSubcommand {
 
 pub async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
     match command {
-        Command::Serve(..) => {
-            unreachable!("Serve is handled directly by main()")
-        }
+        Command::Serve(..) => Err(miette::miette!(
+            "`serve` is not a maintenance command; start the server with `pnpr::serve`"
+        )),
         Command::OciGc { .. } => run_oci_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::ConfigCheck | Command::Config { .. } => run_config_check(),
