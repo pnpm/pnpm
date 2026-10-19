@@ -4,21 +4,14 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::Value;
 use std::{fs, path::Path, process::Command};
 
-fn assert_no_installed_packages(root: &Path) {
+fn assert_no_node_modules(root: &Path) {
     for entry in walkdir::WalkDir::new(root) {
         let entry = entry.expect("walk application");
-        if entry.file_name() != "node_modules" {
-            continue;
-        }
-        for child in fs::read_dir(entry.path()).unwrap() {
-            let child = child.unwrap().path();
-            let name = child
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .into_owned();
-            assert!(name.starts_with('.'), "{}", child.display());
-        }
+        assert!(
+            entry.file_name() != "node_modules",
+            "unexpected node_modules directory at {}",
+            entry.path().display(),
+        );
     }
 }
 
@@ -42,11 +35,10 @@ fn loaded_linker_cli_object_applies_exclusions_before_deriving_installation_layo
         .with_args(["install", flag])
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
-    )
-    .unwrap();
+    assert_no_node_modules(&workspace);
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
     assert_eq!(manifest["packages"]["@pnpm.e2e/pkg-with-1-dep@100.0.0"]["resolution"], "node");
     let output = Command::cargo_bin("pnpm")
         .unwrap()
@@ -92,15 +84,16 @@ fn cas_install_runs_scripts_bins_and_children_without_installed_packages() {
         .with_arg("install")
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
+    assert_no_node_modules(&workspace);
     #[cfg(unix)]
-    Command::new(workspace.join("node_modules/.bin/hello-world-js-bin"))
+    Command::new(workspace.join(".pnpm/.bin/hello-world-js-bin"))
         .with_current_dir(&workspace)
         .env_remove("NODE_OPTIONS")
         .assert()
         .success();
-    assert!(workspace.join("node_modules/.pnpm-workspace-state-v1.json").is_file());
-    let loader_mtime = fs::metadata(workspace.join("node_modules/.pnpm/.store-loader.mjs"))
+    assert!(workspace.join(".pnpm/.pnpm-workspace-state-v1.json").is_file());
+    assert!(!workspace.join("node_modules").exists());
+    let loader_mtime = fs::metadata(workspace.join(".pnpm/.store-loader.mjs"))
         .unwrap()
         .modified()
         .unwrap();
@@ -121,7 +114,7 @@ fn cas_install_runs_scripts_bins_and_children_without_installed_packages() {
         assert!(String::from_utf8_lossy(&output.get_output().stdout).contains("CAS works"));
     }
     assert_eq!(
-        fs::metadata(workspace.join("node_modules/.pnpm/.store-loader.mjs"))
+        fs::metadata(workspace.join(".pnpm/.store-loader.mjs"))
             .unwrap()
             .modified()
             .unwrap(),
@@ -139,17 +132,16 @@ fn cas_install_runs_scripts_bins_and_children_without_installed_packages() {
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
+    assert_no_node_modules(&workspace);
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["run", "test"])
         .assert()
         .success();
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
-    )
-    .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
     assert!(manifest["packages"]["@pnpm.e2e/pkg-with-1-dep@100.0.0"]["files"].is_object());
     Command::cargo_bin("pnpm")
         .unwrap()
@@ -157,13 +149,12 @@ fn cas_install_runs_scripts_bins_and_children_without_installed_packages() {
         .with_args(["install", "--prod", "--frozen-lockfile"])
         .assert()
         .success();
-    let production: Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
-    )
-    .unwrap();
+    let production: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
     assert!(production["packages"]["."]["dependencies"]["@pnpm.e2e/hello-world-js-bin"].is_null());
-    assert!(!workspace.join("node_modules/.bin/hello-world-js-bin").exists());
-    assert_no_installed_packages(&workspace);
+    assert!(!workspace.join(".pnpm/.bin/hello-world-js-bin").exists());
+    assert_no_node_modules(&workspace);
     drop((root, mock_instance));
 }
 
@@ -186,11 +177,10 @@ fn cas_opt_out_materializes_complete_dependency_tree_in_gvs() {
         .with_arg("install")
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
-    )
-    .unwrap();
+    assert_no_node_modules(&workspace);
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
     let packages = manifest["packages"].as_object().unwrap();
     let materialized: Vec<_> = packages
         .values()
@@ -203,6 +193,19 @@ fn cas_opt_out_materializes_complete_dependency_tree_in_gvs() {
         assert!(!path.starts_with(&workspace));
     }
     assert!(packages["@pnpm.e2e/hello-world-js-bin@1.0.0"]["files"].is_object());
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    let warm_manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
+    let excluded = &warm_manifest["packages"]["@pnpm.e2e/pkg-with-1-dep@100.0.0"];
+    assert_eq!(excluded["resolution"], "node");
+    assert!(excluded["files"].is_null());
+    assert!(Path::new(excluded["root"].as_str().unwrap()).is_dir());
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
@@ -281,7 +284,7 @@ fn cas_workspace_preserves_workspace_and_alias_dependency_contexts() {
         .env_remove("NODE_OPTIONS")
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
+    assert_no_node_modules(&workspace);
     drop((root, mock_instance));
 }
 
@@ -315,7 +318,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
             yaml.clone()
         };
         fs::write(&yaml_path, config).unwrap();
-        fs::remove_file(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap();
+        fs::remove_file(workspace.join(".pnpm/.store-manifest.json")).unwrap();
         Command::cargo_bin("pnpm")
             .unwrap()
             .with_current_dir(&workspace)
@@ -323,7 +326,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
             .assert()
             .success();
         let manifest: Value = serde_json::from_slice(
-            &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+            &fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap(),
         )
         .unwrap();
         assert_eq!(
@@ -338,7 +341,7 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
             .success();
     }
     for filename in [".store-manifest.json", ".store-loader.mjs"] {
-        fs::remove_file(workspace.join("node_modules/.pnpm").join(filename)).unwrap();
+        fs::remove_file(workspace.join(".pnpm").join(filename)).unwrap();
         Command::cargo_bin("pnpm")
             .unwrap()
             .with_current_dir(&workspace)
@@ -348,17 +351,17 @@ fn frozen_cas_install_applies_opt_out_changes_and_repairs_missing_manifest() {
             .success();
         assert!(
             workspace
-                .join("node_modules/.pnpm")
+                .join(".pnpm")
                 .join(filename)
                 .is_file(),
         );
     }
-    assert_no_installed_packages(&workspace);
+    assert_no_node_modules(&workspace);
     drop((root, mock_instance));
 }
 
 #[test]
-fn cas_requires_opt_out_for_builds_and_links_generated_bins_after_building() {
+fn cas_build_cache_miss_materializes_and_links_generated_bins_after_building() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -369,23 +372,32 @@ fn cas_requires_opt_out_for_builds_and_links_generated_bins_after_building() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     fs::write(
         workspace.join("package.json"),
-        r#"{"dependencies":{"@pnpm.e2e/has-bin-and-needs-build":"1.0.0"}}"#,
+        r#"{"dependencies":{"@pnpm.e2e/has-bin-and-needs-build":"1.0.0","@pnpm.e2e/hello-world-js-bin":"1.0.0"}}"#,
     )
     .unwrap();
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut yaml = fs::read_to_string(&yaml_path).unwrap();
-    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/has-bin-and-needs-build': true\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n  '@pnpm.e2e/install-script-example': true\nnodeLinker:\n  type: loaded\n");
+    yaml.push_str("allowBuilds:\n  '@pnpm.e2e/has-bin-and-needs-build': true\n  '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n  '@pnpm.e2e/install-script-example': true\nsideEffectsCache: true\nnodeLinker:\n  type: loaded\n");
     fs::write(&yaml_path, &yaml).unwrap();
-    let failure = pacquet
+    pacquet
         .with_arg("install")
         .assert()
-        .failure();
-    assert!(String::from_utf8_lossy(&failure.get_output().stderr).contains("nodeLinker.excluded"));
-    fs::write(
-        &yaml_path,
-        format!("{yaml}  excluded:\n    - '@pnpm.e2e/has-bin-and-needs-build'\n"),
-    )
-    .unwrap();
+        .success();
+    let manifest_path = workspace.join(".pnpm/.store-manifest.json");
+    let first_manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    let package = &first_manifest["packages"]["@pnpm.e2e/has-bin-and-needs-build@1.0.0"];
+    assert!(Path::new(package["root"].as_str().unwrap()).is_dir());
+    assert!(package["files"].is_object());
+    Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let manifest: Value = serde_json::from_slice(&fs::read(&manifest_path).unwrap()).unwrap();
+    let package = &manifest["packages"]["@pnpm.e2e/has-bin-and-needs-build@1.0.0"];
+    assert!(package["root"].is_null());
+    assert!(package["files"].is_object());
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
@@ -398,7 +410,7 @@ fn cas_requires_opt_out_for_builds_and_links_generated_bins_after_building() {
         .with_args(["exec", "has-bin-and-needs-build"])
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
+    assert_no_node_modules(&workspace);
     drop((root, mock_instance));
 }
 
@@ -425,21 +437,21 @@ fn cas_remove_prunes_command_shims_and_keeps_empty_install_runnable() {
         .with_arg("install")
         .assert()
         .success();
-    assert!(workspace.join("node_modules/.bin/hello-world-js-bin").is_file());
+    assert!(workspace.join(".pnpm/.bin/hello-world-js-bin").is_file());
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["remove", "@pnpm.e2e/hello-world-js-bin"])
         .assert()
         .success();
-    assert!(!workspace.join("node_modules/.bin/hello-world-js-bin").exists());
+    assert!(!workspace.join(".pnpm/.bin/hello-world-js-bin").exists());
     Command::cargo_bin("pnpm")
         .unwrap()
         .with_current_dir(&workspace)
         .with_args(["exec", "node", "-e", "console.log('empty install')"])
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
+    assert_no_node_modules(&workspace);
     drop((root, mock_instance));
 }
 
@@ -484,11 +496,10 @@ fn loaded_project_local_store_survives_prune_and_requires_registration() {
         .with_args(["exec", "hello-world-js-bin"])
         .assert()
         .success();
-    assert_no_installed_packages(&workspace);
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
-    )
-    .unwrap();
+    assert_no_node_modules(&workspace);
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
     let registry = Path::new(manifest["storeDir"].as_str().unwrap()).join("projects");
     fs::remove_dir_all(&registry).unwrap();
     fs::write(&registry, "blocked registry").unwrap();
@@ -552,10 +563,9 @@ fn cas_loader_starts_when_a_package_ships_node_modules_files() {
         .with_arg("install")
         .assert()
         .success();
-    let manifest: Value = serde_json::from_slice(
-        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
-    )
-    .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(workspace.join(".pnpm/.store-manifest.json")).unwrap())
+            .unwrap();
     let files = manifest["packages"]
         .as_object()
         .unwrap()
