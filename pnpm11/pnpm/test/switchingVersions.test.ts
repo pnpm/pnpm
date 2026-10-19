@@ -78,6 +78,20 @@ test('a setting outside the pin decision does not drop the pmOnFail beside it', 
   expect(stdout.toString().trim()).not.toBe('9.3.0')
 })
 
+test('an unreadable packages setting does not drop the pmOnFail beside it', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { pmOnFail: 'ignore', packages: 5 })
+
+  const { stdout } = execPnpmSync(['--version'], { env, expectSuccess: true })
+
+  expect(stdout.toString().trim()).not.toBe('9.3.0')
+})
+
 test('a broken pnpm-workspace.yaml does not override the machine\'s opt-out from switching', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')

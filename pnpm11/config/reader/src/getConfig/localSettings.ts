@@ -83,19 +83,20 @@ async function applyProjectWorkspaceManifestUnlessUnreadable (
   opts: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean, workspaceDir: string }
 ): Promise<Record<string, string> | undefined> {
   if (!opts.skipUnreadableSettings) return applyProjectWorkspaceManifest(state, opts)
-  try {
-    return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, opts))
-  } catch {
-    // A setting outside the pin decision cannot steer it, so one that fails
-    // must not drop the `pmOnFail` or `lockfileDir` beside it.
+  // A setting outside the pin decision cannot steer it, so one that fails
+  // must not drop the `pmOnFail` or `lockfileDir` beside it. Neither may an
+  // unreadable `packages`.
+  for (const keys of [undefined, PIN_DECISION_SETTINGS, PIN_DECISION_SETTINGS_BUT_PACKAGES]) {
     try {
-      return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys: PIN_DECISION_SETTINGS }))
-    } catch {
-      state.pnpmConfig.workspacePackagePatterns = ['.']
-      return undefined
-    }
+      // eslint-disable-next-line no-await-in-loop -- each read is a fallback for the one before it
+      return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys }))
+    } catch {}
   }
+  state.pnpmConfig.workspacePackagePatterns = ['.']
+  return undefined
 }
+
+const PIN_DECISION_SETTINGS_BUT_PACKAGES: ReadonlySet<string> = new Set([...PIN_DECISION_SETTINGS].filter((key) => key !== 'packages'))
 
 /**
  * A failure partway through must not leave the settings applied before it in
