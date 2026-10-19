@@ -165,7 +165,7 @@ impl UnparsedScan {
         }
         // An undeclared option right before a command name is read as a
         // flag without a value, as pnpm v11 reads it.
-        declared_option_width(token, options).or(next_is_command.then_some(1))
+        declared_option_width(token, options).or_else(|| next_is_command.then_some(1))
     }
 }
 
