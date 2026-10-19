@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import type { LockfileObject, PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
@@ -1376,6 +1376,69 @@ describe('local file dependency', () => {
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
   }
+})
+
+describe('transitive local directory dependency', () => {
+  beforeEach(async () => {
+    prepareEmpty()
+    await mkdir('a')
+    await mkdir('b')
+    await mkdir('leaf1')
+    await mkdir('leaf2')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf1' } }))
+    await writeFile('./leaf1/package.json', JSON.stringify({ name: 'leaf', version: '1.0.0' }))
+    await writeFile('./leaf2/package.json', JSON.stringify({ name: 'leaf', version: '2.0.0' }))
+  })
+  const lockfilePackages = {
+    'a@file:./a': {
+      resolution: { directory: './a', type: 'directory' },
+      version: '1.0.0',
+      dependencies: { b: 'file:./b' },
+    },
+    'b@file:./b': {
+      resolution: { directory: './b', type: 'directory' },
+      version: '1.0.0',
+      dependencies: { leaf: 'file:./leaf1' },
+    },
+    'leaf@file:./leaf1': {
+      resolution: { directory: './leaf1', type: 'directory' },
+      version: '1.0.0',
+    },
+  } as LockfileObject['packages']
+  const project = {
+    dir: path.resolve('bar'),
+    manifest: { dependencies: { a: 'file:./a' } },
+    snapshot: {
+      dependencies: { a: 'file:./a' },
+      specifiers: { a: 'file:./a' },
+    } as ProjectSnapshot,
+  }
+  const ctx = () => ({
+    linkWorkspacePackages: true,
+    manifestsByDir: {},
+    lockfilePackages,
+    lockfileDir: process.cwd(),
+  })
+  test('checkLinkedPackagesAreUpToDate(): accepts an unchanged chain of local directory dependencies', async () => {
+    expect((await checkLinkedPackagesAreUpToDate(ctx(), project)).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): reports a transitive local directory dependency whose own dependencies changed (pnpm/pnpm#17128)', async () => {
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf2' } }))
+    expect((await checkLinkedPackagesAreUpToDate(ctx(), project)).upToDate).toBe(false)
+  })
+  test('checkLinkedPackagesAreUpToDate(): terminates on a cycle of local directory dependencies', async () => {
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { a: 'file:../a' } }))
+    const cyclicPackages = {
+      ...lockfilePackages,
+      'b@file:./b': {
+        resolution: { directory: './b', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { a: 'file:./a' },
+      },
+    }
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: cyclicPackages }, project)).upToDate).toBe(true)
+  })
 })
 
 describe('local tgz file dependency', () => {
