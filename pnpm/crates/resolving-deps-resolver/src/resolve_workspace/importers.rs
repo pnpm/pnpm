@@ -102,7 +102,7 @@ where
         )?);
     }
     for seeded in &seeded_importers {
-        Box::pin(seeded.seed_changed_direct(resolver)).await?;
+        Box::pin(seeded.seed_changed_direct(resolver)).await;
     }
     let mut states = Vec::with_capacity(seeded_importers.len());
     for seeded in seeded_importers {

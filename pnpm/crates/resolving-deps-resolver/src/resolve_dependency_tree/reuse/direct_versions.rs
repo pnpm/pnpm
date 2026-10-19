@@ -19,14 +19,17 @@ pub(crate) fn record_changed_direct_deps(
     importer_id: &str,
     wanted: &[WantedSpec],
 ) -> HashSet<PkgName> {
-    let lockfile = ctx.workspace.reuse.lockfile.as_deref();
-    let prior = lockfile.and_then(|lockfile| lockfile.importers.get(importer_id));
+    let Some(lockfile) = ctx.workspace.reuse.lockfile.as_deref() else {
+        return HashSet::default();
+    };
+    let prior = lockfile.importers.get(importer_id);
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
     for (alias, spec, _optional, _injected) in wanted {
         let unchanged = prior
             .and_then(|importer| importer_dep_specifier(importer, alias))
             .is_some_and(|recorded| {
-                recorded == spec || catalog_specifier_unchanged(lockfile, recorded, alias, spec)
+                recorded == spec
+                    || catalog_specifier_unchanged(Some(lockfile), recorded, alias, spec)
             });
         if !unchanged && let Ok(name) = alias.parse::<PkgName>() {
             changed.insert(name);
@@ -171,13 +174,12 @@ pub(crate) async fn preseed_changed_direct_versions<Chain>(
     wanted: &[WantedSpec],
     importer_id: &str,
     parent_pkg_aliases: &Arc<super::ParentPkgAliases>,
-) -> Result<(), super::ResolveDependencyTreeError>
-where
+) where
     Chain: super::Resolver + ?Sized,
 {
     let changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps).clone();
     if changed.is_empty() {
-        return Ok(());
+        return;
     }
     let mut versions: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for spec in wanted
@@ -190,7 +192,7 @@ where
     {
         if let Some((name, version)) =
             preseed_one_changed_direct(ctx, resolver, spec.clone(), importer_id, parent_pkg_aliases)
-                .await?
+                .await
         {
             versions
                 .entry(name)
@@ -201,7 +203,6 @@ where
     if !versions.is_empty() {
         record_direct_dep_versions(ctx, &versions);
     }
-    Ok(())
 }
 
 async fn preseed_one_changed_direct<Chain>(
@@ -210,13 +211,22 @@ async fn preseed_one_changed_direct<Chain>(
     spec: WantedSpec,
     importer_id: &str,
     parent_pkg_aliases: &Arc<super::ParentPkgAliases>,
-) -> Result<Option<(String, String)>, super::ResolveDependencyTreeError>
+) -> Option<(String, String)>
 where
     Chain: super::Resolver + ?Sized,
 {
     let mut wanted_dep = super::super::wanted_from_spec(spec);
     let reuse = super::ReuseSource::Importer { importer_id: importer_id.to_string() };
     let prior_key = reuse.prior_key(ctx, &wanted_dep);
+    if ctx.workspace.reuse.subtrees
+        && reuse.allows_reuse()
+        && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
+        && let Some(reused) = super::try_reuse_node(ctx, &wanted_dep, prior_key.as_ref(), 0)
+        && super::reuse_matches_peer_scope(ctx, &reused, parent_pkg_aliases)
+    {
+        let name_ver = reused.result.package.name_ver.as_ref()?;
+        return Some((name_ver.name.to_string(), name_ver.suffix.to_string()));
+    }
     let ancestors = Arc::new(Vec::new());
     let edge = super::ChildEdge {
         ancestor_ids: &ancestors,
@@ -228,11 +238,14 @@ where
         parent_pkg_aliases,
         parent_is_workspace: false,
     };
-    let resolved =
-        super::super::walk::resolve_edge(ctx, resolver, &mut wanted_dep, &edge, prior_key.as_ref())
-            .await?;
-    Ok(resolved.and_then(|result| {
-        let name_ver = result.package.name_ver.as_ref()?;
-        Some((name_ver.name.to_string(), name_ver.suffix.to_string()))
-    }))
+    let resolved = super::super::walk::try_resolve_edge_cached(
+        ctx,
+        resolver,
+        &mut wanted_dep,
+        &edge,
+        prior_key.as_ref(),
+    )
+    .await?;
+    let name_ver = resolved.package.name_ver.as_ref()?;
+    Some((name_ver.name.to_string(), name_ver.suffix.to_string()))
 }

@@ -7,6 +7,8 @@ use crate::{
     LockfileEntries, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotDepRef, SnapshotEntry,
 };
 
+const MAX_COMBINATIONS: usize = 4096;
+
 pub(super) fn recover_hashed_providers(
     entries: LockfileEntries<'_>,
     key: &PkgNameVerPeer,
@@ -16,9 +18,8 @@ pub(super) fn recover_hashed_providers(
     let snapshot = snapshots.get(key)?;
     let package = entries.packages?.get(&key.without_peer())?;
 
-    let own_candidates = own_peer_candidates(snapshot, package, &key.name);
-    let transitive_candidates = transitive_peer_candidates(snapshots, snapshot);
-    match_candidates(&own_candidates, &transitive_candidates, &hash_hex)
+    let candidates = peer_candidates_by_name(snapshots, snapshot, package, &key.name);
+    match_candidates(&candidates, &hash_hex)
 }
 
 fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
@@ -30,11 +31,12 @@ fn suffix_hash_segment(peer_suffix: &str) -> Option<String> {
     (provider_segments.next().is_none() && is_peer_suffix_hash(&only)).then_some(only)
 }
 
-fn own_peer_candidates(
+fn peer_candidates_by_name(
+    snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     snapshot: &SnapshotEntry,
     package: &PackageMetadata,
     self_name: &PkgName,
-) -> Vec<PkgNameVerPeer> {
+) -> Vec<Vec<PkgNameVerPeer>> {
     let mut names: Vec<&str> = package.peer_dependencies
         .iter()
         .flatten()
@@ -45,15 +47,37 @@ fn own_peer_candidates(
                 .flatten()
                 .map(|(name, _)| name.as_str()),
         )
+        .chain(
+            snapshot.transitive_peer_dependencies
+                .iter()
+                .flatten()
+                .map(String::as_str),
+        )
         .collect();
     names.sort_unstable();
     names.dedup();
     names
         .into_iter()
-        .filter_map(|name| name.parse::<PkgName>().ok())
-        .filter(|name| name != self_name)
-        .filter_map(|name| snapshot_dep_ref(snapshot, &name)?.resolve(&name))
+        .filter_map(|name| {
+            let peer = name.parse::<PkgName>().ok()?;
+            (peer != *self_name).then(|| targets_for_peer(snapshots, snapshot, &peer, name))
+        })
+        .filter(|targets| !targets.is_empty())
         .collect()
+}
+
+fn targets_for_peer(
+    snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
+    snapshot: &SnapshotEntry,
+    peer: &PkgName,
+    peer_name: &str,
+) -> Vec<PkgNameVerPeer> {
+    let mut targets = Vec::new();
+    record_peer_target(&mut targets, snapshot, peer);
+    if lists_transitive_peer(snapshot, peer_name) {
+        collect_descendant_targets(snapshots, snapshot, peer, peer_name, &mut targets);
+    }
+    targets
 }
 
 fn snapshot_dep_ref<'a>(snapshot: &'a SnapshotEntry, name: &PkgName) -> Option<&'a SnapshotDepRef> {
@@ -67,39 +91,23 @@ fn snapshot_dep_ref<'a>(snapshot: &'a SnapshotEntry, name: &PkgName) -> Option<&
         })
 }
 
-fn transitive_peer_candidates(
-    snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
-    snapshot: &SnapshotEntry,
-) -> Vec<Vec<PkgNameVerPeer>> {
-    snapshot.transitive_peer_dependencies
-        .iter()
-        .flatten()
-        .filter_map(|name| {
-            let peer = name.parse::<PkgName>().ok()?;
-            let targets = descendant_peer_targets(snapshots, snapshot, &peer, name);
-            (!targets.is_empty()).then_some(targets)
-        })
-        .collect()
-}
-
-fn descendant_peer_targets(
+fn collect_descendant_targets(
     snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     root: &SnapshotEntry,
     peer: &PkgName,
     peer_name: &str,
-) -> Vec<PkgNameVerPeer> {
-    let mut targets = Vec::new();
+    targets: &mut Vec<PkgNameVerPeer>,
+) {
     let mut visited = HashSet::new();
     let mut pending = vec![root];
     while let Some(current) = pending.pop() {
         for child in unvisited_child_snapshots(snapshots, current, &mut visited) {
-            record_peer_target(&mut targets, child, peer);
+            record_peer_target(targets, child, peer);
             if lists_transitive_peer(child, peer_name) {
                 pending.push(child);
             }
         }
     }
-    targets
 }
 
 fn record_peer_target(targets: &mut Vec<PkgNameVerPeer>, snapshot: &SnapshotEntry, peer: &PkgName) {
@@ -144,101 +152,68 @@ fn lists_transitive_peer(snapshot: &SnapshotEntry, peer_name: &str) -> bool {
 }
 
 fn match_candidates(
-    own: &[PkgNameVerPeer],
-    transitive: &[Vec<PkgNameVerPeer>],
+    candidates: &[Vec<PkgNameVerPeer>],
     hash_hex: &str,
 ) -> Option<HashSet<PkgNameVerPeer>> {
-    if own.len() > 20
-        || transitive
-            .iter()
-            .map(Vec::len)
-            .product::<usize>()
-            > 64
-    {
+    let total = candidates
+        .iter()
+        .try_fold(1_usize, |acc, targets| acc.checked_mul(targets.len() + 1))?;
+    if total > MAX_COMBINATIONS {
         return None;
     }
-    let mut chosen_transitive = Vec::with_capacity(transitive.len());
-    find_matching_combination(own, transitive, 0, &mut chosen_transitive, hash_hex)
-}
-
-fn find_matching_combination<'a>(
-    own: &'a [PkgNameVerPeer],
-    transitive: &'a [Vec<PkgNameVerPeer>],
-    trans_idx: usize,
-    chosen_transitive: &mut Vec<&'a PkgNameVerPeer>,
-    hash_hex: &str,
-) -> Option<HashSet<PkgNameVerPeer>> {
-    if trans_idx < transitive.len() {
-        for candidate in &transitive[trans_idx] {
-            chosen_transitive.push(candidate);
-            if let Some(matched) = find_matching_combination(
-                own,
-                transitive,
-                trans_idx + 1,
-                chosen_transitive,
-                hash_hex,
-            ) {
-                return Some(matched);
-            }
-            chosen_transitive.pop();
-        }
-        return None;
-    }
-    match_own_subsets(own, chosen_transitive, hash_hex)
-}
-
-fn match_own_subsets(
-    own: &[PkgNameVerPeer],
-    chosen_transitive: &[&PkgNameVerPeer],
-    hash_hex: &str,
-) -> Option<HashSet<PkgNameVerPeer>> {
-    let full_mask = (1_u32 << own.len()) - 1;
+    let mut chosen = Vec::with_capacity(candidates.len());
     for strip_peers in [false, true] {
-        for mask in (0..=full_mask).rev() {
-            if subset_matches_hash(own, chosen_transitive, mask, strip_peers, hash_hex) {
-                return Some(collect_providers(own, chosen_transitive, mask));
-            }
+        if let Some(matched) =
+            find_matching_combination(candidates, 0, &mut chosen, strip_peers, hash_hex)
+        {
+            return Some(matched);
         }
     }
     None
 }
 
-fn subset_matches_hash(
-    own: &[PkgNameVerPeer],
-    chosen_transitive: &[&PkgNameVerPeer],
-    mask: u32,
+fn find_matching_combination<'a>(
+    candidates: &'a [Vec<PkgNameVerPeer>],
+    idx: usize,
+    chosen: &mut Vec<&'a PkgNameVerPeer>,
     strip_peers: bool,
     hash_hex: &str,
-) -> bool {
-    let mut segments: Vec<String> = own
-        .iter()
-        .enumerate()
-        .filter(|(idx, _)| (mask & (1_u32 << idx)) != 0)
-        .map(|(_, target)| render_segment(target, strip_peers))
-        .chain(chosen_transitive.iter().map(|target| render_segment(target, strip_peers)))
-        .collect();
-    if segments.is_empty() {
+) -> Option<HashSet<PkgNameVerPeer>> {
+    if idx < candidates.len() {
+        for candidate in &candidates[idx] {
+            chosen.push(candidate);
+            if let Some(matched) =
+                find_matching_combination(candidates, idx + 1, chosen, strip_peers, hash_hex)
+            {
+                return Some(matched);
+            }
+            chosen.pop();
+        }
+        return find_matching_combination(candidates, idx + 1, chosen, strip_peers, hash_hex);
+    }
+    subset_matches_hash(chosen, strip_peers, hash_hex)
+        .then(|| {
+            chosen
+                .iter()
+                .map(|target| target.without_peer())
+                .collect()
+        })
+}
+
+fn subset_matches_hash(chosen: &[&PkgNameVerPeer], strip_peers: bool, hash_hex: &str) -> bool {
+    if chosen.is_empty() {
         return false;
     }
+    let mut segments: Vec<String> = chosen
+        .iter()
+        .map(|target| render_segment(target, strip_peers))
+        .collect();
     segments.sort();
     create_short_hash(&segments.join(")(")) == hash_hex
 }
 
 fn render_segment(target: &PkgNameVerPeer, strip_peers: bool) -> String {
     if strip_peers { target.without_peer().to_string() } else { target.to_string() }
-}
-
-fn collect_providers(
-    own: &[PkgNameVerPeer],
-    chosen_transitive: &[&PkgNameVerPeer],
-    mask: u32,
-) -> HashSet<PkgNameVerPeer> {
-    own.iter()
-        .enumerate()
-        .filter(|(idx, _)| (mask & (1_u32 << idx)) != 0)
-        .map(|(_, target)| target.without_peer())
-        .chain(chosen_transitive.iter().map(|target| target.without_peer()))
-        .collect()
 }
 
 impl BoundProviders {

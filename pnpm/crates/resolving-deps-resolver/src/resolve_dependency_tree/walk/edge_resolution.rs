@@ -106,7 +106,7 @@ where
 /// an `Arc` to an equivalent `ResolveResult`).
 ///
 /// `None` when the edge is a droppable optional that failed to resolve.
-pub(in super::super) async fn resolve_edge<Chain>(
+pub(super) async fn resolve_edge<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     wanted: &mut WantedDependency,
@@ -131,6 +131,27 @@ where
             Ok(None)
         }
     }
+}
+
+pub(in super::super) async fn try_resolve_edge_cached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>
+where
+    Chain: Resolver + ?Sized,
+{
+    if let Some(result) = package_root_link_result(wanted) {
+        return Some(Arc::new(result));
+    }
+    let base = edge_opts(ctx, wanted, edge, prior_key);
+    let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
+    let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
+    resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
+        .await
+        .ok()
 }
 
 /// `resolutionMode` makes the version pick depend on whether this is a
