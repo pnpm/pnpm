@@ -1,5 +1,55 @@
+use std::collections::HashSet;
+
 use crate::PkgNameVerPeer;
 use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash};
+
+/// The providers one key's peer bindings name, without their own peers:
+/// peer segments may omit them (`dedupePeers`). `None` for a hashed
+/// suffix, which names none.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundProviders(Option<HashSet<PkgNameVerPeer>>);
+
+impl BoundProviders {
+    /// The providers `key`'s peer suffix names. Empty when `key` has no
+    /// peer suffix.
+    #[must_use]
+    pub fn from_key(key: &PkgNameVerPeer) -> Self {
+        match PeerBindings::from_key(key) {
+            Some(bindings) => Self::of(&bindings),
+            None => BoundProviders(Some(HashSet::new())),
+        }
+    }
+
+    /// The providers `bindings` name.
+    #[must_use]
+    pub fn of(bindings: &PeerBindings) -> Self {
+        match bindings {
+            PeerBindings::Hashed => BoundProviders(None),
+            PeerBindings::Explicit(_) => BoundProviders(Some(
+                bindings
+                    .providers()
+                    .map(|provider| provider.without_peer())
+                    .collect(),
+            )),
+        }
+    }
+
+    /// Whether the suffix was hashed (`peersSuffixMaxLength`) rather than
+    /// listing explicit providers.
+    #[must_use]
+    pub fn is_hashed(&self) -> bool {
+        self.0.is_none()
+    }
+
+    /// Whether the bindings name `target`. Every target counts for a
+    /// hashed suffix.
+    #[must_use]
+    pub fn binds(&self, target: &PkgNameVerPeer) -> bool {
+        self.0
+            .as_ref()
+            .is_none_or(|providers| providers.contains(&target.without_peer()))
+    }
+}
 
 /// The peer providers a snapshot key records in its peer suffix. The
 /// suffix is the only record of the providers peer resolution bound,

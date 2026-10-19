@@ -6,9 +6,11 @@
 pub(super) use children_ownership::{
     ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
     RecordedChildrenContext, children_warmup_claimed, claim_children_owner, claim_children_warmup,
-    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, pinned_children_scope,
-    record_children, recorded_children_match, register_peer_dep_names,
-    register_shadowable_dep_names,
+    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+    register_peer_dep_names, register_shadowable_dep_names,
+};
+pub(super) use subtree_split::{
+    claim_recorded_subtree_owners, recorded_children_match, recorded_prior_key,
 };
 
 pub(super) use cache_keys::{
@@ -28,6 +30,8 @@ mod tree_sync;
 
 mod children_ownership;
 use children_ownership::ChildrenOwnerEntry;
+
+mod subtree_split;
 
 mod cache_keys;
 
@@ -141,7 +145,7 @@ pub(crate) struct WorkspaceChildrenState {
     /// Every name a seeded package lists both in `dependencies` and in
     /// `peerDependencies`. Only these names can change which children a
     /// walk resolves under a different scope; see
-    /// [`RecordedChildrenContext::produces_same_children_as`].
+    /// [`fn@recorded_children_match`].
     shadowable_dep_names: Mutex<HashSet<String>>,
     owner_by_id: Mutex<HashMap<Arc<str>, ChildrenOwnerEntry>>,
     /// `pkg id → importer id` of the importer whose occurrence owns

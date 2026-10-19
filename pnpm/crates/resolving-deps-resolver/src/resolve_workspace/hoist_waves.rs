@@ -25,7 +25,7 @@ where
 {
     let mut peer_discovery = PeerHoistDiscovery::new();
     run_initial_required_rounds(resolver, states, workspace, &mut peer_discovery).await?;
-    run_hoist_barrier(resolver, states, &mut peer_discovery).await
+    run_hoist_barrier(resolver, states, workspace, &mut peer_discovery).await
 }
 
 /// The first required round of every importer, prepared against one quiescent
@@ -53,12 +53,16 @@ where
     {
         state.apply_owner_missing_scope(round, &first_importer_by_pkg, &first_walk_missing_by_pkg);
     }
+    let rewrites_before = workspace.tree.children_rewrites();
     for (state, round) in states
         .iter_mut()
         .zip(rounds)
         .filter_map(|(state, round)| round.map(|round| (state, round)))
     {
         state.complete_initial_required_round(resolver, round, peer_discovery).await?;
+    }
+    if workspace.tree.children_rewrites() != rewrites_before {
+        settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
     }
     Ok(())
 }
@@ -69,6 +73,7 @@ where
 async fn run_hoist_barrier<Chain>(
     resolver: &Chain,
     states: &mut [ImporterHoistState],
+    workspace: &WorkspaceTreeCtx,
     peer_discovery: &mut PeerHoistDiscovery,
 ) -> Result<(), ResolveImporterError>
 where
@@ -78,8 +83,26 @@ where
         if !hoist_optional_wave(resolver, states).await? {
             return Ok(());
         }
+        settle_required_rounds(resolver, states, workspace, peer_discovery).await?;
+    }
+}
+
+async fn settle_required_rounds<Chain>(
+    resolver: &Chain,
+    states: &mut [ImporterHoistState],
+    workspace: &WorkspaceTreeCtx,
+    peer_discovery: &mut PeerHoistDiscovery,
+) -> Result<(), ResolveImporterError>
+where
+    Chain: Resolver + ?Sized,
+{
+    loop {
+        let rewrites_before = workspace.tree.children_rewrites();
         for state in &mut *states {
             state.run_required_round(resolver, peer_discovery).await?;
+        }
+        if workspace.tree.children_rewrites() == rewrites_before {
+            return Ok(());
         }
     }
 }

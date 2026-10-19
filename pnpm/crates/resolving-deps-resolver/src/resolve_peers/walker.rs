@@ -14,8 +14,8 @@ pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_nam
 
 mod walk_context;
 use walk_context::{
-    ChildAliases, ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren,
-    NodeEntry, NodePeers, NodePeersContext, SettledPeers, WalkResult,
+    ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren, NodeEntry,
+    NodePeers, NodePeersContext, SettledPeers, WalkResult,
 };
 
 mod missing_names;

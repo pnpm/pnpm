@@ -1,5 +1,5 @@
 use super::{
-    Arc, BTreeMap, ChildAliases, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
+    Arc, BTreeMap, ChildEdge, ChildOutputs, ChildParentRefs, DeferredChildContext,
     DeferredChildren, NodeId, NodeOutput, NodeWalkContext, ParentRefs, PeersCacheItem,
     ResolvedPackage, SharedChain, TreeChildren, WalkResult, Walker, insert_parent_ref,
 };
@@ -40,7 +40,6 @@ impl Walker<'_> {
             depth,
         } = deferred;
         let canonical_scc = self.canonical_scc();
-        let child_aliases = ChildAliases::Deferred(children);
         let mut child_outputs = ChildOutputs::default();
         for repeated in [true, false] {
             for edge in children {
@@ -51,7 +50,7 @@ impl Walker<'_> {
                 }
                 let child_node_id = self.child_node_id_for_edge(edge, Some(provider_children));
                 let child_output = self.resolve_deferred_edge(edge, child_node_id, depth, walk);
-                child_outputs.push(&edge.alias, child_output, &child_aliases, false);
+                child_outputs.push(&edge.alias, child_output, provider_children, false);
             }
         }
         child_outputs
@@ -79,10 +78,10 @@ impl Walker<'_> {
         &mut self,
         pkg_id: &Arc<str>,
         children_map: &BTreeMap<String, NodeId>,
+        provider_children: &BTreeMap<String, NodeId>,
         walk: &NodeWalkContext<'_>,
     ) -> ChildOutputs {
         let canonical_scc = self.canonical_scc();
-        let child_aliases = ChildAliases::Realized(children_map);
         let mut child_outputs = ChildOutputs::default();
         for repeated in [true, false] {
             for (alias, child_node_id) in children_map {
@@ -105,7 +104,12 @@ impl Walker<'_> {
                     continue;
                 }
                 let child_output = self.resolve_node(child_node_id, walk);
-                child_outputs.push(alias, child_output, &child_aliases, !self.traversal.discovery);
+                child_outputs.push(
+                    alias,
+                    child_output,
+                    provider_children,
+                    !self.traversal.discovery,
+                );
             }
         }
         child_outputs

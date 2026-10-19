@@ -221,7 +221,7 @@ pub(super) fn merge_ranges(
 /// the `semver-range-intersect` npm package emits upstream). `None`
 /// when a range fails to parse or the ranges share no versions,
 /// mirroring `safeIntersect`'s caught-throw `null`.
-pub(super) fn intersect_ranges(ranges: &[&str]) -> Option<String> {
+pub(crate) fn intersect_ranges(ranges: &[&str]) -> Option<String> {
     let mut iter = ranges.iter();
     let first = Range::parse(iter.next()?).ok()?;
     iter.try_fold(first, |acc, range| {

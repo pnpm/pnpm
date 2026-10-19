@@ -179,9 +179,6 @@ pub struct HoistMissingScope {
     /// satisfy stay visible to every importer (and each hoists its
     /// own copy).
     pub first_walk_missing_by_pkg: Arc<HashMap<String, HashSet<String>>>,
-    /// Peers represented by the wanted lockfile must remain eligible
-    /// for importer-local hoisting during lockfile re-resolution.
-    pub locked_peer_names: Arc<HashSet<String>>,
 }
 
 impl HoistMissingScope {
@@ -193,9 +190,6 @@ impl HoistMissingScope {
         peer_name: &str,
         memo: &mut ChainSuffixMemo<Arc<str>>,
     ) -> bool {
-        if self.locked_peer_names.contains(peer_name) {
-            return false;
-        }
         ancestor_pkg_ids.any_memoized(memo, |pkg_id| self.covers(pkg_id, peer_name))
     }
 
@@ -206,9 +200,6 @@ impl HoistMissingScope {
         ancestor_pkg_ids: impl Iterator<Item = &'a Arc<str>>,
         peer_name: &str,
     ) -> bool {
-        if self.locked_peer_names.contains(peer_name) {
-            return false;
-        }
         ancestor_pkg_ids
             .into_iter()
             .any(|pkg_id| self.covers(pkg_id, peer_name))

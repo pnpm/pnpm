@@ -3,7 +3,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    Lockfile, PackageKey, PackageMetadata, PeerBindings, PkgName, SnapshotDepRef, SnapshotEntry,
+    BoundProviders, Lockfile, PackageKey, PackageMetadata, PeerBindings, PkgName, SnapshotDepRef,
+    SnapshotEntry,
 };
 
 /// How [`PeerSatisfactionEdges::of_lockfile`] decides which importers
@@ -199,33 +200,6 @@ fn optional_peer_edges<'a>(
             (!edges.is_empty()).then_some((key, edges))
         })
         .collect()
-}
-
-/// The providers one key's bindings name, without their own peers: peer
-/// segments may omit them (`dedupePeers`). `None` for a hashed suffix,
-/// which names none.
-struct BoundProviders(Option<HashSet<PackageKey>>);
-
-impl BoundProviders {
-    fn of(bindings: &PeerBindings) -> Self {
-        match bindings {
-            PeerBindings::Hashed => BoundProviders(None),
-            PeerBindings::Explicit(_) => BoundProviders(Some(
-                bindings
-                    .providers()
-                    .map(|provider| provider.without_peer())
-                    .collect(),
-            )),
-        }
-    }
-
-    /// Whether the bindings name `target`. Every target counts for a hashed
-    /// suffix.
-    fn binds(&self, target: &PackageKey) -> bool {
-        self.0
-            .as_ref()
-            .is_none_or(|providers| providers.contains(&target.without_peer()))
-    }
 }
 
 fn is_optional_peer(package: &PackageMetadata, alias: &PkgName) -> bool {

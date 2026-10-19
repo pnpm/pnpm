@@ -120,11 +120,8 @@ fn install_over_own_lockfile_keeps_a_cycle_members_peer_suffix() {
 /// `p0@1` and `p0@2` depend on `p3@^2`, `p1@2` on `p2@^1`, `p2@1` on
 /// `p3@^2`. `p3@1` has the peer `p0@^2`, and `p3@2` depends on `p0@^1` and
 /// has it as an optional peer too. `.` depends on `p1@^2`, `packages/a` on
-/// `p3@^1`, `packages/b` on `p0@^1`. The first dedupe binds `p3@2.0.0` to
-/// `p0@1.0.0`, and the second to `p0@2.0.0`. pnpm v11 and the CLI keep the
-/// bindings on the same graph, so only this harness's lockfile shows it.
+/// `p3@^1`, `packages/b` on `p0@^1`.
 #[test]
-#[ignore = "known divergence: a second dedupe rebinds an optional peer that is also a dependency (pnpm/tasks#143)"]
 fn a_second_dedupe_keeps_the_first_ones_peer_bindings() {
     let workspace = Workspace {
         packages: vec![
@@ -166,7 +163,6 @@ fn assert_install_over_own_lockfile_matches_fresh(workspace: &Workspace) {
 /// on `p1@^1`, and `p1@1` on `p0@^1`, a cycle through an optional peer. `.`
 /// depends on `p0@^2`.
 #[test]
-#[ignore = "known divergence: an optional peer on a dependency cycle binds differently over the lockfile (pnpm/tasks#143)"]
 fn install_over_own_lockfile_keeps_an_optional_peer_on_a_cycle() {
     assert_install_over_own_lockfile_matches_fresh(&Workspace {
         packages: vec![
@@ -181,7 +177,6 @@ fn install_over_own_lockfile_keeps_an_optional_peer_on_a_cycle() {
 /// an optional peer. `.` depends on `p1@^2`, whose `p1@2` depends on
 /// `p0@^1`.
 #[test]
-#[ignore = "known divergence: an optional peer on a dependency cycle binds differently over the lockfile (pnpm/tasks#143)"]
 fn install_over_own_lockfile_keeps_an_optional_peer_back_into_its_dependent() {
     assert_install_over_own_lockfile_matches_fresh(&Workspace {
         packages: vec![
@@ -200,7 +195,6 @@ fn install_over_own_lockfile_keeps_an_optional_peer_back_into_its_dependent() {
 /// `p2@1` depend on `p0@^1`. `.` depends on `p0@^2`, `packages/a` on
 /// `p1@^2`.
 #[test]
-#[ignore = "known divergence: a second dedupe rebinds an optional peer on a dependency cycle (pnpm/tasks#143)"]
 fn a_second_dedupe_keeps_an_optional_peer_on_a_cycle() {
     let workspace = Workspace {
         packages: vec![

@@ -101,7 +101,9 @@ impl Walker<'_> {
     ) -> (BTreeMap<String, NodeId>, Option<UndoRealize>) {
         let node = &self.tree.dependencies_tree[node_id];
         match &node.children {
-            TreeChildren::Realized(children) => (self.realized_provider_children(children), None),
+            TreeChildren::Realized(children) => {
+                (self.realized_provider_children(&node.resolved_package_id, children), None)
+            }
             TreeChildren::Lazy => self.lazy_provider_children(&LazyProviders {
                 pkg_id: std::sync::Arc::<str>::clone(&node.resolved_package_id),
                 depth: node.depth,
@@ -111,14 +113,23 @@ impl Walker<'_> {
 
     pub(super) fn realized_provider_children(
         &self,
+        pkg_id: &str,
         children: &BTreeMap<String, NodeId>,
     ) -> BTreeMap<String, NodeId> {
+        let canonical_scc = self.canonical_scc();
         children
             .iter()
             .filter(|(alias, child_node_id)| {
                 self.tree.dependencies_tree
                     .get(*child_node_id)
-                    .and_then(|child| self.tree.packages.get(&child.resolved_package_id))
+                    .and_then(|child| {
+                        if Self::cuts_cycle_edge(&canonical_scc, pkg_id, &child.resolved_package_id)
+                        {
+                            None
+                        } else {
+                            self.tree.packages.get(&child.resolved_package_id)
+                        }
+                    })
                     .is_some_and(|pkg| self.is_peer_relevant(alias, pkg))
             })
             .map(|(alias, child_node_id)| (alias.clone(), child_node_id.clone()))

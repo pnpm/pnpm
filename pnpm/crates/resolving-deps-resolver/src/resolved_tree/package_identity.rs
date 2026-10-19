@@ -41,6 +41,10 @@ impl ResolvedPackage {
         &self.result
     }
 
+    pub(crate) fn set_result(&mut self, result: Arc<ResolveResult>) {
+        self.result = result;
+    }
+
     /// The package's real name (not an importer's alias), rendered once
     /// from the resolution.
     #[must_use]
