@@ -67,9 +67,8 @@ pub enum PatchApplyError {
 ///
 /// Supported file operations: `Modify`, `Create`, `Delete`, `Rename`.
 ///
-/// File paths in the patch are stripped one level to drop the `a/` and
-/// `b/` prefixes git uses (`rename from` and `rename to` carry none),
-/// then validated against
+/// File paths in the patch are read with the `a/` and `b/` prefixes git
+/// uses dropped, then validated against
 /// `patched_dir`: absolute paths, `..` segments, and (on Windows)
 /// drive prefixes / root components are rejected as
 /// `ERR_PNPM_PATCH_FAILED`.
@@ -292,10 +291,9 @@ impl FileApply<'_> {
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
     }
 
-    /// Move `from` to `to`, then apply the record's hunks and mode to `to`
-    /// as [`Self::modify`] does. An existing `to` is not overwritten, for the
-    /// reason [`Self::create`] gives. A missing `from` means an earlier apply
-    /// of the same patch already moved it.
+    /// An existing `to` is not overwritten, for the reason [`Self::create`]
+    /// gives. A missing `from` means an earlier apply of the same patch
+    /// already moved it.
     fn rename(
         &self,
         from: &Path,
@@ -310,12 +308,7 @@ impl FileApply<'_> {
                     "cannot rename {from} to {to}: target already exists"
                 )));
             }
-            if let Some(parent) = to.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|source| {
-                        self.failed(format!("create parent of {}: {source}", to.display()))
-                    })?;
-            }
+            self.create_parent_dir(to)?;
             fs::rename(from, to)
                 .map_err(|source| {
                     self.failed(format!("rename {} to {}: {source}", from.display(), to.display()))
@@ -344,15 +337,18 @@ impl FileApply<'_> {
         if exists && self.existing_file_matches(target, &created, new_mode)? {
             return Ok(());
         }
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|source| {
-                    self.failed(format!("create parent of {}: {source}", target.display()))
-                })?;
-        }
+        self.create_parent_dir(target)?;
         let permissions = atomic_write::create_permissions(new_mode);
         write_atomic_with_mode(target, created.as_bytes(), permissions.as_ref())
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    fn create_parent_dir(&self, target: &Path) -> Result<(), PatchApplyError> {
+        let Some(parent) = target.parent() else { return Ok(()) };
+        fs::create_dir_all(parent)
+            .map_err(|source| {
+                self.failed(format!("create parent of {}: {source}", target.display()))
+            })
     }
 
     fn existing_file_matches(
