@@ -1427,6 +1427,11 @@ describe('transitive local directory dependency', () => {
     await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf2' } }))
     expect((await checkLinkedPackagesAreUpToDate(ctx(), project)).upToDate).toBe(false)
   })
+  test('checkLinkedPackagesAreUpToDate(): reports a local directory child whose lockfile snapshot is missing', async () => {
+    const packagesWithoutB = { ...lockfilePackages } as Record<string, unknown>
+    delete packagesWithoutB['b@file:./b']
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packagesWithoutB as LockfileObject['packages'] }, project)).upToDate).toBe(false)
+  })
   test('checkLinkedPackagesAreUpToDate(): terminates on a cycle of local directory dependencies', async () => {
     await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { a: 'file:../a' } }))
     const cyclicPackages = {
