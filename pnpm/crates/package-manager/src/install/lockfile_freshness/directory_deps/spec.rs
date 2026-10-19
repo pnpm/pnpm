@@ -231,12 +231,16 @@ pub(super) fn importer_link_satisfies(
         return false;
     }
     let target_dir = project_dir.join(link_path);
-    if !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(&target_dir))
-        && std::fs::symlink_metadata(&target_dir).is_err()
-    {
-        return true;
-    }
-    target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str, &range)
+    is_missing_from_checkout(dirs, &target_dir)
+        || target_dir_satisfies(dirs, &target_dir, expected_name, parsed_range_str, &range)
+}
+
+fn is_missing_from_checkout(dirs: &SpecDirs<'_>, target_dir: &Path) -> bool {
+    !dirs.manifests_by_dir.contains_key(&pnpm_fs::lexical_normalize(target_dir))
+        && matches!(
+            std::fs::symlink_metadata(target_dir),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound,
+        )
 }
 
 fn linked_target_satisfies(
