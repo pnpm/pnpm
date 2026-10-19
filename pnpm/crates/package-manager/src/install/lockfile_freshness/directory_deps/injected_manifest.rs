@@ -165,23 +165,41 @@ fn project_or_disk_manifest<'a>(
     dirs: &super::spec::SpecDirs<'a>,
     target_dir: &Path,
 ) -> Option<Cow<'a, serde_json::Value>> {
-    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
+    let normalized = pnpm_fs::lexical_normalize(target_dir);
     let manifest_path = target_dir.join("package.json");
-    if let Some(manifest) = dirs.manifests_by_dir.get(&pnpm_fs::lexical_normalize(target_dir)) {
+    if let Some(manifest) = dirs.manifests_by_dir.get(&normalized) {
+        let canonical_root = loaded_project_boundary(dirs.workspace_root, &normalized, target_dir)?;
         // A project passed in memory may have no `package.json`. One that has
-        // a `package.json` linking outside the workspace is not trusted, as the
+        // a `package.json` linking outside its boundary is not trusted, as the
         // disk read below does not trust it.
         let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
             && !std::fs::canonicalize(&manifest_path)
                 .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical));
         return (!escapes).then_some(Cow::Borrowed(manifest.value()));
     }
+    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
     let canonical_manifest = std::fs::canonicalize(&manifest_path).ok()?;
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
         return None;
     }
     let content = std::fs::read_to_string(&canonical_manifest).ok()?;
     pnpm_package_manifest::parse_manifest(&content).ok().map(Cow::Owned)
+}
+
+fn loaded_project_boundary(
+    workspace_root: &Path,
+    normalized_target: &Path,
+    target_dir: &Path,
+) -> Option<PathBuf> {
+    if pnpm_fs::is_subdir(workspace_root, normalized_target) {
+        return target_dir_within_workspace(workspace_root, target_dir).ok();
+    }
+    if std::fs::symlink_metadata(normalized_target)
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return None;
+    }
+    target_dir_within_workspace(normalized_target, target_dir).ok()
 }
 
 fn publishing_project_manifest<'a>(

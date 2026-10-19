@@ -122,3 +122,17 @@ pub(super) fn check_recorded_peer_specs_match(
     }
     Ok(())
 }
+
+pub(super) fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
+    manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|meta| meta.iter())
+        .filter_map(|(name, entry)| {
+            (entry.get("optional").and_then(serde_json::Value::as_bool) == Some(true)).then_some(
+                name.as_str(),
+            )
+        })
+}

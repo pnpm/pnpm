@@ -215,6 +215,8 @@ impl SkippedSnapshots {
     /// Insert into the installability set — the persisted subset
     /// written to `.modules.yaml.skipped`.
     pub fn insert_installability(&mut self, key: PackageKey) {
+        self.fetch_failed.remove(&key);
+        self.optional_excluded.remove(&key);
         self.installability.insert(key);
     }
 

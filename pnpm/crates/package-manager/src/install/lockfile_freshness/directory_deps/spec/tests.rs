@@ -261,6 +261,42 @@ fn a_loaded_project_whose_package_json_links_outside_the_workspace_is_not_truste
     assert!(!loaded_target_satisfies(&workspace_root, target_dir));
 }
 
+#[test]
+fn a_loaded_project_above_the_workspace_root_is_trusted_unless_linked_elsewhere() {
+    let (fixture, workspace_root, outside) = loaded_link_fixture();
+    let libs_pkg = fixture.path().join("libs/pkg");
+    std::fs::create_dir_all(&libs_pkg).unwrap();
+    let manifest = pnpm_package_manifest::PackageManifest::from_value(
+        libs_pkg.join("package.json"),
+        serde_json::json!({ "name": "pkg", "version": "1.2.3" }),
+    );
+    let manifests_by_dir = ProjectManifestsByDir::from([(libs_pkg.clone(), &manifest)]);
+    let dirs = SpecDirs {
+        workspace_root: &workspace_root,
+        lockfile_dir: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    };
+    assert!(super::importer_link_satisfies(
+        &dirs,
+        &workspace_root,
+        "pkg",
+        "workspace:*",
+        "../libs/pkg",
+    ));
+    std::fs::remove_dir_all(&libs_pkg).unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&outside, &libs_pkg).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_dir(&outside, &libs_pkg).unwrap();
+    assert!(!super::importer_link_satisfies(
+        &dirs,
+        &workspace_root,
+        "pkg",
+        "workspace:*",
+        "../libs/pkg",
+    ));
+}
+
 fn registry_spec_satisfies(spec: &str, recorded: &str) -> Option<bool> {
     let recorded =
         recorded.parse::<pnpm_lockfile::SnapshotDepRef>().expect("parse the recorded reference");

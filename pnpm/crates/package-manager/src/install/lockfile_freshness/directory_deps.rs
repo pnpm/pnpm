@@ -291,13 +291,10 @@ fn check_child_directory_dep_freshness(
     (name, spec, optional, _): &ChildSpec,
     visited: &mut HashSet<pnpm_lockfile::PackageKey>,
 ) -> Result<(), FreshnessCheckError> {
-    let Some(recorded) = recorded_child(parent_snapshot, name, *optional) else {
-        return Ok(());
-    };
-    let Ok(pkg_name) = pnpm_lockfile::PkgName::parse(name) else {
-        return Ok(());
-    };
-    let Some(pkg_key) = recorded.resolve(&pkg_name) else {
+    let Some(pkg_key) = recorded_child(parent_snapshot, name, *optional)
+        .zip(pnpm_lockfile::PkgName::parse(name).ok())
+        .and_then(|(recorded, pkg_name)| recorded.resolve(&pkg_name))
+    else {
         return Ok(());
     };
     if !visited.insert(pkg_key.clone()) {
@@ -307,6 +304,9 @@ fn check_child_directory_dep_freshness(
         .as_ref()
         .and_then(|packages| packages.get(&pkg_key.without_peer()))
     else {
+        if is_declared_local_directory(spec) || spec.starts_with("workspace:") {
+            return Err(parent_dep.outdated());
+        }
         return Ok(());
     };
     let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
@@ -315,7 +315,7 @@ fn check_child_directory_dep_freshness(
     let local_dep_dir = check.lockfile_dir.join(&dir_res.directory);
     let snapshot = check.lockfile.snapshots
         .as_ref()
-        .and_then(|snapshots| snapshots.get(&pkg_key));
+        .and_then(|s| s.get(&pkg_key));
     let child_dep = LocalDepContext {
         name,
         declared_as_file: is_declared_local_directory(spec),
@@ -369,20 +369,6 @@ fn recorded_child<'s>(
     recorded.as_ref()?.get(&name)
 }
 
-fn optional_peer_names(manifest: &PackageManifest) -> impl Iterator<Item = &str> {
-    manifest
-        .value()
-        .get("peerDependenciesMeta")
-        .and_then(serde_json::Value::as_object)
-        .into_iter()
-        .flat_map(|meta| meta.iter())
-        .filter_map(|(name, entry)| {
-            (entry.get("optional").and_then(serde_json::Value::as_bool) == Some(true)).then_some(
-                name.as_str(),
-            )
-        })
-}
-
 /// Every child the snapshot records is one the resolver walks, or a peer
 /// the package declares, which the snapshot records as resolved.
 fn check_snapshot_keys_are_children(
@@ -399,7 +385,7 @@ fn check_snapshot_keys_are_children(
                 .dependencies([DependencyGroup::Peer])
                 .map(|(name, _)| name),
         )
-        .chain(optional_peer_names(local_manifest))
+        .chain(peers::optional_peer_names(local_manifest))
         .collect();
     // An install without optional dependencies leaves the optional map alone.
     let optional =
