@@ -41,6 +41,20 @@ mod errors;
 
 mod seed_policy;
 
+fn report_importing_done<Report: Reporter + 'static>(
+    observer: Option<&dyn crate::ResolutionObserver>,
+    requester: &str,
+) {
+    if let Some(observer) = observer {
+        observer.flush_progress();
+    }
+    Report::emit(&LogEvent::Stage(pnpm_reporter::StageLog {
+        level: LogLevel::Debug,
+        prefix: requester.to_string(),
+        stage: pnpm_reporter::Stage::ImportingDone,
+    }));
+}
+
 use crate::{PolicyExcludes, SkippedSnapshots};
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
