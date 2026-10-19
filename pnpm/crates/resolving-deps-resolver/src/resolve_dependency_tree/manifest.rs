@@ -265,7 +265,7 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
 /// dereferenced. The declared ones stay as written, which is what the
 /// lockfile records.
 ///
-/// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+/// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,

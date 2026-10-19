@@ -15,7 +15,7 @@ pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_nam
 mod walk_context;
 use walk_context::{
     ChildAliases, ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren,
-    LockedPinContext, NodeEntry, NodePeers, NodePeersContext, SettledPeers, WalkResult,
+    NodeEntry, NodePeers, NodePeersContext, SettledPeers, WalkResult,
 };
 
 mod missing_names;
@@ -43,18 +43,14 @@ use crate::{
         context::{
             ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
             SharedChain, importer_relative_link_dep_path, insert_parent_ref,
-            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id, satisfies_with_prereleases,
+            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
     },
     resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
-use pnpm_deps_path::{
-    DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
-    link_path_to_peer_version,
-};
-use pnpm_resolving_resolver_base::get_peer_version_range;
+use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix, link_path_to_peer_version};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 

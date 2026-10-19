@@ -24,7 +24,7 @@ use crate::{
     },
     resolved_tree::{ResolvedPackage, pkg_name_version},
 };
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
+use pnpm_deps_path::{DepPath, PeerId, link_path_to_peer_version};
 use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{

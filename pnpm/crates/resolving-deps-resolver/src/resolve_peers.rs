@@ -30,7 +30,7 @@
 //! `in_progress` set, where a re-entry on the same `NodeId` falls back
 //! to `name@version` as the peer-id.
 
-pub(crate) use context::{SharedChain, split_peer_suffix_segments};
+pub(crate) use context::{SharedChain, satisfies_with_prereleases, split_peer_suffix_segments};
 pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 pub(crate) use finalize::merge_additional_edges;
 pub(crate) use provider_peers::{

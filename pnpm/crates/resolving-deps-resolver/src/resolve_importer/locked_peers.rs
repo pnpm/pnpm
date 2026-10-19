@@ -1,7 +1,6 @@
 use super::{Arc, DependencyGroup, HashMap, HashSet, TreeCtx};
-use crate::resolve_peers::split_peer_suffix_segments;
 use hashed_suffix::hashed_peer_keys;
-use pnpm_lockfile::PkgName;
+use pnpm_lockfile::{PeerBindings, PkgName};
 
 mod hashed_suffix;
 
@@ -103,10 +102,25 @@ pub(super) fn locked_peer_versions_for_key(
         }
         for (name, peer) in locked_peer_keys(lockfile, &key, snapshot) {
             versions.push((name, peer.suffix.without_peer().to_string()));
-            pending.extend(nested_peer(lockfile, peer));
+            pending.extend(provider_with_peers(lockfile, peer));
         }
     }
     versions
+}
+
+/// A provider whose own key carries peers, with its snapshot, so its peers
+/// are read too.
+fn provider_with_peers(
+    lockfile: &pnpm_lockfile::Lockfile,
+    provider: pnpm_lockfile::PkgNameVerPeer,
+) -> Option<(pnpm_lockfile::PkgNameVerPeer, Option<&pnpm_lockfile::SnapshotEntry>)> {
+    if provider.suffix.peer().is_empty() {
+        return None;
+    }
+    let snapshot = lockfile.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&provider));
+    Some((provider, snapshot))
 }
 
 /// The peers `key`'s own suffix pins, each with the snapshot key of its
@@ -119,11 +133,12 @@ fn locked_peer_keys(
     let metadata = lockfile.packages
         .as_ref()
         .and_then(|packages| packages.get(&key.without_peer()));
-    let peers = peer_suffix_keys(key.suffix.peer());
+    let peers: Vec<pnpm_lockfile::PkgNameVerPeer> = match PeerBindings::from_key(key) {
+        None => return Vec::new(),
+        Some(PeerBindings::Hashed) => return hashed_peer_keys(lockfile, snapshot, metadata),
+        Some(bindings) => bindings.providers().collect(),
+    };
     if peers.is_empty() {
-        if is_hashed_peer_suffix(key.suffix.peer()) {
-            return hashed_peer_keys(lockfile, snapshot, metadata);
-        }
         return Vec::new();
     }
     let mut explicit: Vec<_> = peers
@@ -138,19 +153,6 @@ fn locked_peer_keys(
         .map(|(name, _)| name)
         .zip(peers)
         .collect()
-}
-
-fn nested_peer(
-    lockfile: &pnpm_lockfile::Lockfile,
-    peer: pnpm_lockfile::PkgNameVerPeer,
-) -> Option<(pnpm_lockfile::PkgNameVerPeer, Option<&pnpm_lockfile::SnapshotEntry>)> {
-    if peer.suffix.peer().is_empty() {
-        return None;
-    }
-    let snapshot = lockfile.snapshots
-        .as_ref()
-        .and_then(|snapshots| snapshots.get(&peer));
-    Some((peer, snapshot))
 }
 
 /// Rename the suffix segments an npm alias provides back to the name
@@ -276,26 +278,4 @@ pub(super) fn dependency_edges(
         .iter()
         .chain(snapshot.optional_dependencies.iter())
         .flatten()
-}
-
-/// Whether the suffix is the opaque hash
-/// [`create_peer_dep_graph_hash`](fn@pnpm_deps_path::create_peer_dep_graph_hash)
-/// emits once the spelled-out peers exceed
-/// [`ResolvePeersOptions::peers_suffix_max_length`](crate::ResolvePeersOptions::peers_suffix_max_length), rather than
-/// segments [`peer_suffix_keys`] can read.
-pub(super) fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix
-        .rsplit_once('(')
-        .and_then(|(_, tail)| tail.strip_suffix(')'))
-        .is_some_and(|hash| {
-            hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
-        })
-}
-
-fn peer_suffix_keys(peer_suffix: &str) -> Vec<pnpm_lockfile::PkgNameVerPeer> {
-    split_peer_suffix_segments(peer_suffix)
-        .into_iter()
-        .flatten()
-        .filter_map(|segment| segment.parse().ok())
-        .collect()
 }

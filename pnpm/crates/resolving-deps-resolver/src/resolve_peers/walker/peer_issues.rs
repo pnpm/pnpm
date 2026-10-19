@@ -4,7 +4,7 @@ use super::{
     Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
 };
 
-impl Walker<'_> {}
+use crate::peer_provider::{PeerScope, ProviderPick, provider_for};
 
 impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the
@@ -64,8 +64,13 @@ impl Walker<'_> {
         let comparable_range = self.comparable_peer_range(raw_range);
         let optional = peer_dep.optional;
 
-        match parent_refs.get(peer_name) {
-            None => {
+        let scope = PeerScope {
+            inherited: parent_refs.get(peer_name),
+            inherited_must_win: || false,
+            locked: None,
+        };
+        match provider_for(raw_range, scope) {
+            ProviderPick::Missing => {
                 missing.insert(
                     peer_name.to_string(),
                     MissingPeerInfo { range: raw_range.to_string(), optional },
@@ -78,27 +83,41 @@ impl Walker<'_> {
                     &comparable_range,
                 );
             }
-            Some(parent) => {
-                if !comparable_range.satisfies(&parent.version)
-                    && !self.traversal.in_canonical_drain
-                {
-                    let parents = self.issue_parents(chain);
-                    self.output.issues.bad
-                        .entry(peer_name.to_string())
-                        .or_default()
-                        .push(PeerDependencyIssue {
-                            wanted_range: comparable_range.text.clone(),
-                            found_version: parent.version.to_string(),
-                            optional,
-                            parents,
-                            resolved_from: ParentChain::default(),
-                        });
+            ProviderPick::Bound { provider: parent, .. } => {
+                if !comparable_range.satisfies(&parent.version) {
+                    self.record_bad_peer(peer_name, &comparable_range, parent, optional, chain);
                 }
                 if let Some(parent_node_id) = parent.node_id.as_ref() {
                     resolved.insert(peer_name.to_string(), parent_node_id.clone());
                 }
             }
         }
+    }
+
+    /// Report that `parent` provides `peer_name` at a version outside
+    /// `comparable_range`.
+    fn record_bad_peer(
+        &mut self,
+        peer_name: &str,
+        comparable_range: &ComparablePeerRange,
+        parent: &super::ParentRef,
+        optional: bool,
+        chain: &SharedChain<Arc<str>>,
+    ) {
+        if self.traversal.in_canonical_drain {
+            return;
+        }
+        let parents = self.issue_parents(chain);
+        self.output.issues.bad
+            .entry(peer_name.to_string())
+            .or_default()
+            .push(PeerDependencyIssue {
+                wanted_range: comparable_range.text.clone(),
+                found_version: parent.version.to_string(),
+                optional,
+                parents,
+                resolved_from: ParentChain::default(),
+            });
     }
 
     pub(super) fn record_missing_peer_if_needed(

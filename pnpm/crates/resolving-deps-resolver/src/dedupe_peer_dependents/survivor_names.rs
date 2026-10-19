@@ -1,4 +1,4 @@
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix};
+use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{borrow::Cow, collections::hash_map::Entry};
 
@@ -170,7 +170,8 @@ impl<'a> SurvivorNamer<'a> {
             })
             .collect();
         renamed.then(|| {
-            let suffix = create_peer_dep_graph_hash(&peer_ids, self.peer_suffixes.max_length);
+            let suffix =
+                pnpm_lockfile::PeerBindings::suffix_of(&peer_ids, self.peer_suffixes.max_length);
             DepPath::from(format!("{pkg_id}{suffix}"))
         })
     }

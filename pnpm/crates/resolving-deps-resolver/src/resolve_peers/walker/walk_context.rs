@@ -162,14 +162,6 @@ pub(super) fn index_peer_provider_edge(
     }
 }
 
-/// What one wanted-lockfile peer-context entry is validated against.
-pub(super) struct LockedPinContext<'a> {
-    pub(super) pkg: &'a ResolvedPackage,
-    pub(super) provider_paths: &'a HashMap<NodeId, DepPath>,
-    pub(super) parent_refs: &'a ParentRefs,
-    pub(super) parent_node_ids: &'a SharedChain<NodeId>,
-}
-
 /// The parent context one node is resolved against: [`Walker::resolve_node`]'s
 /// tail parameters, grouped.
 pub(in super::super) struct NodeWalkContext<'a> {

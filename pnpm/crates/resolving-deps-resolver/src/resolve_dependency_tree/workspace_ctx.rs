@@ -310,7 +310,7 @@ pub(super) struct WorkspaceResolutionPolicy {
     /// resolved package's `dependencies` its own `peerDependencies`
     /// shadow — see [`peer_shadowed_dependencies`].
     ///
-    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+    /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
 }
 

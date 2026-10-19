@@ -164,7 +164,7 @@ pub(super) fn try_reuse_node(
 /// fresh instead.
 ///
 /// [`declared_peer_dependencies`]: crate::parent_pkg_aliases::declared_peer_dependencies
-/// [`peer_shadowed_dependency_names`]: crate::parent_pkg_aliases::peer_shadowed_dependency_names
+/// [`peer_shadowed_dependency_names`]: crate::peer_provider::peer_shadowed_dependency_names
 pub(super) fn reuse_matches_peer_scope(
     ctx: &TreeCtx,
     reused: &ReusedNode,

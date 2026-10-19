@@ -36,7 +36,7 @@ pub(super) struct ChildrenOwnerEntry {
     /// arrival-ordered. The deterministic children owner decides here
     /// instead, so the same graph always yields the same lockfile.
     ///
-    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+    /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
     pub(in super::super) peer_shadowed: Arc<HashSet<String>>,
 }
 

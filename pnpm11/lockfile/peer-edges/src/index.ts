@@ -234,13 +234,20 @@ function collectSnapshotOptionalPeerEntries (
   entries: OptionalPeerEntry[]
 ): void {
   if (snapshot.peerDependencies == null || snapshot.peerDependenciesMeta == null) return
-  collectDepsOptionalPeerEntries(parent, snapshot, snapshot.dependencies, entries)
-  collectDepsOptionalPeerEntries(parent, snapshot, snapshot.optionalDependencies, entries)
+  const bindings = dp.parsePeerBindings(parent)
+  if (bindings == null) return
+  const site = { parent, snapshot, providers: getBoundProviders(bindings) }
+  collectDepsOptionalPeerEntries(site, snapshot.dependencies, entries)
+  collectDepsOptionalPeerEntries(site, snapshot.optionalDependencies, entries)
 }
 
+/**
+ * The entries whose alias is an optional peer of the parent and that the
+ * parent's key records as a peer binding. An entry the key does not bind is
+ * the parent's own dependency.
+ */
 function collectDepsOptionalPeerEntries (
-  parent: DepPath,
-  snapshot: PackageSnapshot,
+  { parent, snapshot, providers }: { parent: DepPath, snapshot: PackageSnapshot, providers: Set<string> | undefined },
   deps: ResolvedDependencies | undefined,
   entries: OptionalPeerEntry[]
 ): void {
@@ -248,8 +255,20 @@ function collectDepsOptionalPeerEntries (
   for (const [alias, ref] of Object.entries(deps)) {
     if (!isOptionalPeer(snapshot, alias)) continue
     const target = dp.refToRelative(ref, alias)
-    if (target != null) entries.push({ parent, alias, target })
+    if (target != null && (providers == null || providers.has(dp.removePeersSuffix(target)))) {
+      entries.push({ parent, alias, target })
+    }
   }
+}
+
+/**
+ * The providers `bindings` name, without their own peers: peer segments may
+ * omit them (`dedupePeers`). `undefined` for a hashed suffix, which names
+ * none, so every target counts.
+ */
+function getBoundProviders (bindings: dp.PeerBindings): Set<string> | undefined {
+  if (bindings.kind === 'hashed') return undefined
+  return new Set(dp.getPeerBindingProviders(bindings).map((provider) => dp.removePeersSuffix(provider)))
 }
 
 
