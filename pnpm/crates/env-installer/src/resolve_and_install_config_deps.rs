@@ -11,7 +11,7 @@
 
 use crate::{
     ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    prune::prune_env_lockfile, resolve_optional_subdeps::resolve_optional_subdeps,
+    prune_env_lockfile, resolve_optional_subdeps::resolve_optional_subdeps,
     verify_config_dep_resolutions::verify_config_dep_resolutions,
     verify_env_lockfile::write_verified_env_lockfile,
 };

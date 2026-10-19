@@ -43,6 +43,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'trustLockfile'
 | 'tryLoadDefaultPnpmfile'
 | 'catalogPrune'
+| 'configDependencies'
 | 'minimumReleaseAgeExcludePrune'
 | 'trustPolicyExcludePrune'
 | 'packageConfigs'

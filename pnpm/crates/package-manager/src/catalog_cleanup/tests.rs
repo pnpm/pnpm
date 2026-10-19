@@ -218,6 +218,10 @@ fn preserves_config_dependency_excludes_in_all_lockfile_layouts() {
         let mut config = Config::new();
         config.minimum_release_age_exclude_prune = true;
         config.trust_policy_exclude_prune = true;
+        config.config_dependencies = Some(
+            serde_json::from_value(serde_json::json!({ "@example/plugin": "2.0.0" }))
+                .expect("parse config dependency declarations"),
+        );
         config.shared_workspace_lockfile = layout != "per-project";
         if layout == "relocated" {
             config.lockfile_dir = Some(workspace_dir.join("locks"));
@@ -245,7 +249,12 @@ fn preserves_config_dependency_excludes_in_all_lockfile_layouts() {
         )
         .expect("write main lockfile");
         let mut env = EnvLockfile::create();
-        env.snapshots = serde_saphyr::from_str("'@example/plugin@2.0.0': {}\nfoo@2.0.0: {}\n")
+        env.root_importer_mut().config_dependencies = serde_json::from_value(serde_json::json!({
+            "@example/plugin": { "specifier": "2.0.0", "version": "2.0.0" },
+            "unused-plugin": { "specifier": "1.0.0", "version": "1.0.0" },
+        }))
+        .expect("parse config dependency resolutions");
+        env.snapshots = serde_saphyr::from_str("'@example/plugin@2.0.0':\n  dependencies:\n    foo: 2.0.0\nfoo@2.0.0: {}\nunused-plugin@1.0.0: {}\n")
             .expect("parse env snapshots");
         env.write(lockfile_dir).expect("write env lockfile");
         let manifest =
@@ -272,4 +281,31 @@ fn preserves_config_dependency_excludes_in_all_lockfile_layouts() {
             "{layout}",
         );
     }
+}
+
+#[test]
+fn skips_malformed_env_documents_without_exclusion_pruning() {
+    let tmp = tempdir().expect("temp dir");
+    let workspace_dir = tmp.path();
+    std::fs::write(
+        workspace_dir.join("pnpm-workspace.yaml"),
+        "allowBuilds:\n  foo: set this to true or false\n  stale: set this to true or false\n",
+    )
+    .expect("write workspace settings");
+    std::fs::write(
+        workspace_dir.join("pnpm-lock.yaml"),
+        "---\ninvalid: [\n---\nlockfileVersion: '9.0'\nsnapshots:\n  foo@1.0.0: {}\n",
+    )
+    .expect("write lockfile");
+    let manifest = PackageManifest::from_value(
+        workspace_dir.join("package.json"),
+        serde_json::json!({ "name": "project" }),
+    );
+
+    post_install_prune(&Config::new(), Some(workspace_dir), &manifest).expect("cleanup runs");
+
+    let yaml = std::fs::read_to_string(workspace_dir.join("pnpm-workspace.yaml"))
+        .expect("read workspace settings");
+    assert!(yaml.contains("foo:"), "a resolved build placeholder survives");
+    assert!(!yaml.contains("stale:"), "an unused build placeholder is pruned");
 }

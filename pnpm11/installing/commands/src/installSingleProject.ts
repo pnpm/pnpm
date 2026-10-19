@@ -301,6 +301,7 @@ function createSaveManifestsOnce (
     // info log would claim we added entries the workspace manifest
     // never saw, and the next install would re-prompt or fail
     // verification.
+    const resolvedPackageVersions = await resolvedPackageVersionsForPrune(opts, newLockfile)
     const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
     await Promise.all([
       writeProjectManifest(updatedProject.manifest),
@@ -308,7 +309,7 @@ function createSaveManifestsOnce (
         updatedCatalogs,
         catalogPrune: opts.catalogPrune,
         keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
-        resolvedPackageVersions: await resolvedPackageVersionsForPrune(opts, newLockfile),
+        resolvedPackageVersions,
         minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
         trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
         allProjects: opts.allProjects,
@@ -359,13 +360,14 @@ async function persistInstallManifests (
   if (opts.save === false || opts.dryRun) return
   const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
   if (opts.update === true) {
+    const resolvedPackageVersions = await resolvedPackageVersionsForPrune(opts, newLockfile)
     await Promise.all([
       writeProjectManifest(updatedManifest),
       updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
         updatedCatalogs,
         catalogPrune: opts.catalogPrune,
         keptCatalogs: keptCatalogsForPrune(opts, newLockfile),
-        resolvedPackageVersions: await resolvedPackageVersionsForPrune(opts, newLockfile),
+        resolvedPackageVersions,
         minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
         trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
         allProjects,

@@ -231,6 +231,7 @@ async function persistManifests (
   // manifest never saw, and the next install would re-prompt or
   // fail verification.
   const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+  const resolvedPackageVersions = await resolvedPackageVersionsForPrune(opts, newLockfile)
   const promises: Array<Promise<void>> = updatedProjects
     .filter(({ rootDir }) => manifestsByPath[rootDir] != null)
     .map(async ({ originalManifest, manifest, rootDir }) => {
@@ -240,7 +241,7 @@ async function persistManifests (
     updatedCatalogs,
     catalogPrune: opts.catalogPrune,
     keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
-    resolvedPackageVersions: await resolvedPackageVersionsForPrune(opts, newLockfile),
+    resolvedPackageVersions,
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects,

@@ -116,6 +116,24 @@ fn minimum_release_age_exclude_in_workspace_yaml_admits_a_config_dependency() {
         .success();
     assert_eq!(installed_bravo_dep_version(&workspace), "1.1.0");
 
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read workspace settings");
+    let mut document: serde_json::Value = serde_saphyr::from_str(&yaml).expect("parse settings");
+    document["configDependencies"] = serde_json::json!({});
+    fs::write(&yaml_path, serde_saphyr::to_string(&document).expect("serialize settings"))
+        .expect("remove the config dependency declaration");
+    pacquet_at(&workspace)
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+    let yaml = fs::read_to_string(&yaml_path).expect("read workspace settings");
+    let settings: pnpm_config::WorkspaceSettings =
+        serde_saphyr::from_str(&yaml).expect("parse settings");
+    assert_eq!(settings.minimum_release_age_exclude, None);
+    assert_eq!(settings.trust_policy_exclude, None);
+    assert_eq!(settings.minimum_release_age_exclude_prune, Some(true));
+    assert_eq!(settings.trust_policy_exclude_prune, Some(true));
+
     drop((root, mock_instance));
 }
 

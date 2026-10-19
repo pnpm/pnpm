@@ -162,6 +162,7 @@ export type RemoveCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'lockfile'
 | 'catalogPrune'
+| 'configDependencies'
 | 'minimumReleaseAgeExcludePrune'
 | 'trustPolicyExcludePrune'
 | 'trustLockfile'

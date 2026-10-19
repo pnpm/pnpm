@@ -1,8 +1,13 @@
+import { pruneEnvLockfile } from '@pnpm/installing.env-installer'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { CatalogSnapshots, LockfileObject } from '@pnpm/lockfile.types'
 import { resolvedPackageVersionsFromLockfile } from '@pnpm/lockfile.utils'
+import type { ConfigDependencies } from '@pnpm/types'
 
 export interface MinimumReleaseAgeExcludePruneOptions {
+  configDependencies?: ConfigDependencies
+  minimumReleaseAgeExcludePrune?: boolean
+  trustPolicyExcludePrune?: boolean
   dir?: string
   workspaceDir?: string
   lockfileDir?: string
@@ -12,10 +17,6 @@ export interface MinimumReleaseAgeExcludePruneOptions {
   mergeGitBranchLockfiles?: boolean
 }
 
-/**
- * The versions the main and env lockfiles record, or `undefined` when the
- * pass must not run.
- */
 export async function resolvedPackageVersionsForPrune (
   opts: MinimumReleaseAgeExcludePruneOptions,
   newLockfile: LockfileObject | undefined
@@ -86,10 +87,16 @@ async function withEnvPackageVersions (
   opts: MinimumReleaseAgeExcludePruneOptions,
   resolved: Map<string, Set<string>>
 ): Promise<Map<string, Set<string>>> {
+  if (!opts.minimumReleaseAgeExcludePrune && !opts.trustPolicyExcludePrune) return resolved
   const rootDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
   if (rootDir == null) return resolved
   const envLockfile = await readEnvLockfile(rootDir)
   if (envLockfile != null) {
+    const configDependencies = envLockfile.importers['.'].configDependencies
+    for (const name of Object.keys(configDependencies)) {
+      if (opts.configDependencies?.[name] == null) delete configDependencies[name]
+    }
+    pruneEnvLockfile(envLockfile)
     mergeResolvedPackageVersions(resolved, resolvedPackageVersionsFromLockfile({
       ...envLockfile,
       importers: {},

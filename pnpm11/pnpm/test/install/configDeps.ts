@@ -64,4 +64,12 @@ test('pruning excludes preserves config dependencies and removes unused versions
   const settings = readYamlFileSync<{ minimumReleaseAgeExclude: string[], trustPolicyExclude: string[] }>('pnpm-workspace.yaml')
   expect(settings?.minimumReleaseAgeExclude).toEqual(['@pnpm.e2e/foo'])
   expect(settings?.trustPolicyExclude).toEqual(['@pnpm.e2e/foo@100.0.0'])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { ...settings, configDependencies: {} })
+  await execPnpm(['add', 'is-negative@1.0.0'])
+
+  const afterRemoval = readYamlFileSync<Record<string, unknown>>('pnpm-workspace.yaml')
+  expect(afterRemoval).toMatchObject({ minimumReleaseAgeExcludePrune: true, trustPolicyExcludePrune: true })
+  expect(afterRemoval?.minimumReleaseAgeExclude).toBeUndefined()
+  expect(afterRemoval?.trustPolicyExclude).toBeUndefined()
 })

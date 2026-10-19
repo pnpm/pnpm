@@ -5,7 +5,7 @@
 //! walks the snapshot graph directly rather than running a general
 //! lockfile pruner over it.
 
-use pnpm_lockfile::{EnvLockfile, PackageKey, SnapshotEntry};
+use crate::{EnvLockfile, PackageKey, SnapshotEntry};
 use std::collections::HashSet;
 
 /// Retain only the `packages:` / `snapshots:` entries reachable from

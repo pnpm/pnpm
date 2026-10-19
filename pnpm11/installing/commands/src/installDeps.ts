@@ -42,6 +42,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'catalogs'
 | 'catalogMode'
 | 'catalogPrune'
+| 'configDependencies'
 | 'minimumReleaseAgeExcludePrune'
 | 'trustPolicyExcludePrune'
 | 'dedupePeerDependents'
