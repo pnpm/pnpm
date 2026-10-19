@@ -89,8 +89,19 @@ export async function localDirectoryDepIsUpToDate (
   pkgSnapshot: PackageSnapshot,
   parentPkgAliases: Record<string, unknown> = {}
 ): Promise<boolean> {
+  return localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, parentPkgAliases, new Set())
+}
+
+async function localDirectoryDepIsUpToDateRec (
+  ctx: LocalDirectoryDepContext,
+  pkgSnapshot: PackageSnapshot,
+  parentPkgAliases: Record<string, unknown>,
+  visitedDirs: Set<string>
+): Promise<boolean> {
   if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
   const localDepDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
+  // A dependency cycle of directory packages is not a staleness; cut it.
+  if (visitedDirs.has(localDepDir)) return true
   const manifest = await readHookedManifestOnce(ctx, localDepDir)
   if (!manifest) return false
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
@@ -105,7 +116,15 @@ export async function localDirectoryDepIsUpToDate (
     manifestsByDir: ctx.manifestsByDir,
     workspaceRoot: ctx.workspaceDir ?? ctx.lockfileDir,
   }
-  return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child))
+  return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, new Set(visitedDirs).add(localDepDir)))
+}
+
+/** The aliases the package's parent depends on, which supply its peers. */
+function dependencyAliasesOf (pkgSnapshot: PackageSnapshot): Record<string, true> {
+  return Object.fromEntries([
+    ...Object.keys(pkgSnapshot.dependencies ?? {}),
+    ...Object.keys(pkgSnapshot.optionalDependencies ?? {}),
+  ].map((alias) => [alias, true as const]))
 }
 
 /**
@@ -191,7 +210,8 @@ async function childIsUpToDate (
   ctx: LocalDirectoryDepContext,
   localDep: LocalDirectoryDep,
   pkgSnapshot: PackageSnapshot,
-  child: ManifestWantedDependency
+  child: ManifestWantedDependency,
+  visitedDirs: Set<string>
 ): Promise<boolean> {
   const recorded = child.optional ? pkgSnapshot.optionalDependencies : pkgSnapshot.dependencies
   const lockfileDep = recorded?.[child.alias]
@@ -203,12 +223,36 @@ async function childIsUpToDate (
   const currentSpec = resolveCatalogSpec(ctx, child)
   if (currentSpec == null) return false
   if (isLocalSpec(currentSpec)) {
-    return localSpecIsUpToDate(localDep, { depName: child.alias, currentSpec, lockfileDep })
+    return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, visitedDirs)
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
+}
+
+/**
+ * Whether a `link:`, `file:` or `workspace:` child still resolves to the
+ * recorded directory, and that directory's own dependencies still match its
+ * lockfile snapshot.
+ */
+async function localChildIsUpToDate (
+  ctx: LocalDirectoryDepContext,
+  localDep: LocalDirectoryDep,
+  pkgSnapshot: PackageSnapshot,
+  child: ManifestWantedDependency,
+  currentSpec: string,
+  lockfileDep: string,
+  visitedDirs: Set<string>
+): Promise<boolean> {
+  if (!await localSpecIsUpToDate(localDep, { depName: child.alias, currentSpec, lockfileDep })) return false
+  // A directory child whose spec still matches can itself be stale: its own
+  // dependencies may have changed without the directory moving. Links have
+  // no dependency snapshot to validate, so only directory children recurse.
+  const depPath = refToRelative(lockfileDep, child.alias)
+  const childSnapshot = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
+  if (childSnapshot == null) return true
+  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, dependencyAliasesOf(pkgSnapshot), visitedDirs)
 }
 
 function isLocalSpec (spec: string): boolean {
