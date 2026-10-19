@@ -202,6 +202,9 @@ impl super::WorkspaceTreeStorage {
                     if entry.get().depth > node.depth {
                         entry.get_mut().depth = node.depth;
                     }
+                    if matches!(node.children, crate::resolved_tree::TreeChildren::Lazy) {
+                        entry.get_mut().children = crate::resolved_tree::TreeChildren::Lazy;
+                    }
                 }
             }
         }

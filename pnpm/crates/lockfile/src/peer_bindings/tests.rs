@@ -1,10 +1,29 @@
-use super::PeerBindings;
+use super::{BoundProviders, PeerBindings};
 use crate::{Lockfile, PkgNameVerPeer};
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
 
 fn key(text: &str) -> PkgNameVerPeer {
     text.parse().expect("parse key")
+}
+
+#[test]
+fn bound_providers_match_targets_by_name_and_version_and_accept_all_for_hashed() {
+    let explicit = BoundProviders::from_key(&key("a@1.0.0(b@2.0.0(c@1.0.0))"));
+    assert!(!explicit.is_hashed());
+    assert!(explicit.binds(&key("b@2.0.0")));
+    assert!(explicit.binds(&key("b@2.0.0(other@1.0.0)")));
+    assert!(!explicit.binds(&key("b@1.0.0")));
+    assert!(!explicit.binds(&key("c@1.0.0")));
+
+    let none = BoundProviders::from_key(&key("a@1.0.0"));
+    assert!(!none.is_hashed());
+    assert!(!none.binds(&key("b@2.0.0")));
+
+    let hashed = BoundProviders::from_key(&key("a@1.0.0(0123456789abcdef0123456789abcdef)"));
+    assert!(hashed.is_hashed());
+    assert!(hashed.binds(&key("b@2.0.0")));
+    assert!(hashed.binds(&key("anything@9.9.9")));
 }
 
 #[test]

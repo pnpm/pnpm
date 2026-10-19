@@ -1,7 +1,7 @@
 //! Reuse of the prior lockfile's resolutions: which edges may reuse at
 //! all ([`ReuseSource`]), whether a whole subtree is reproducible from
 //! the snapshot graph, and the snapshot-driven walk a reused node's
-//! children take ([`fn@resolve_reused_node`]).
+//! children take ([`fn@seed_reused_node`], [`fn@finish_reused_node`]).
 //!
 //! What a `pacquet update` reaches, and so excludes from reuse, is
 //! [`super::update_scope`].
@@ -12,10 +12,12 @@ pub(super) use direct_versions::{
     higher_direct_dep_version, node_depends_on_changed_direct_dep, record_direct_dep_versions,
 };
 
-pub(super) use snapshot_children::pinned_specifier;
+pub(super) use snapshot_children::{
+    PendingReusedNode, reuse_key_matches_peer_scope, reuse_matches_peer_scope,
+};
 
 mod snapshot_children;
-use snapshot_children::{ReusedChildren, reused_children, snapshot_child_refs};
+use snapshot_children::{reused_children, reused_identity};
 
 mod direct_versions;
 
@@ -23,10 +25,9 @@ mod subtree;
 use subtree::subtree_fully_reusable;
 
 use async_recursion::async_recursion;
-use futures_util::future;
-use pipe_trait::Pipe;
 use pnpm_lockfile::{
-    PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry,
+    BoundProviders, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap,
+    SnapshotDepRef, SnapshotEntry,
 };
 use pnpm_resolving_resolver_base::{Resolver, WantedDependency};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -44,19 +45,21 @@ use crate::{
 
 use super::{
     ResolveDependencyTreeError, UpdateReuseScope, WantedSpec, lock_recoverable,
-    manifest::{
-        build_pkg_id_with_patch_hash, emit_deprecation_if_needed, extract_peer_dependencies,
-    },
+    manifest::{build_pkg_id_with_patch_hash, emit_deprecation_if_needed},
     tree_ctx::TreeCtx,
-    walk::{ChildEdge, closes_cycle, node_alias, node_id_for, resolve_node},
+    walk::{
+        ChildEdge, NodeSeed, closes_cycle, level_aliases, node_alias, node_id_for,
+        resolve_node_seed, walk_from_seeds,
+    },
     workspace_ctx::{
         ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, RecordedChildrenContext,
         claim_children_owner, insert_tree_node, is_current_children_owner,
-        make_non_owner_nodes_lazy, record_children,
+        make_non_owner_nodes_lazy, record_children, register_peer_dep_names,
+        register_shadowable_dep_names,
     },
 };
 
-/// How the current [`fn@resolve_node`] call may reuse the prior
+/// How the current [`fn@resolve_node_seed`] call may reuse the prior
 /// lockfile's resolution instead of re-resolving from the registry.
 ///
 /// Threaded down the recursion to drive the `resolvedDependencies` /
@@ -153,42 +156,6 @@ pub(super) fn try_reuse_node(
     }
     let result = synthesize_reused_result(lockfile, key, alias)?;
     Some(ReusedNode { key: key.clone(), result })
-}
-
-/// Whether `reused` takes as peers the names a fresh walk would in `scope`.
-/// A reused node takes every peer its `packages:` entry records, which are
-/// all the [`declared_peer_dependencies`]. One that its snapshot also lists
-/// as a child and that `scope` does not shadow (see
-/// [`peer_shadowed_dependency_names`]) may be the package's own
-/// dependency, which only the real manifest tells, so such a node resolves
-/// fresh instead.
-///
-/// [`declared_peer_dependencies`]: crate::parent_pkg_aliases::declared_peer_dependencies
-/// [`peer_shadowed_dependency_names`]: crate::peer_provider::peer_shadowed_dependency_names
-pub(super) fn reuse_matches_peer_scope(
-    ctx: &TreeCtx,
-    reused: &ReusedNode,
-    scope: &ParentPkgAliases,
-) -> bool {
-    let Some(manifest) = reused.result.package.manifest.as_deref() else { return true };
-    let snapshot = ctx.workspace.reuse.lockfile
-        .as_ref()
-        .and_then(|lockfile| lockfile.snapshots.as_ref())
-        .and_then(|snapshots| snapshots.get(&reused.key));
-    let Some(snapshot) = snapshot else { return true };
-    let is_child = |name: &str| {
-        let Ok(name) = name.parse::<PkgName>() else { return false };
-        [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-            .into_iter()
-            .flatten()
-            .any(|children| children.contains_key(&name))
-    };
-    let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    declared_peer_dependencies(manifest)
-        .into_iter()
-        .all(|(name, peer)| {
-            (auto_install_peers && !peer.optional) || scope.contains(&name) || !is_child(&name)
-        })
 }
 
 /// Whether the wanted lockfile already holds a package entry that
@@ -303,22 +270,15 @@ pub fn real_package_name_of<'edge>(
 }
 
 /// Register a node whose resolution was reused from the prior lockfile,
-/// then walk its transitive children from the snapshot graph instead of
-/// re-resolving them. Mirrors the post-resolve half of
-/// [`fn@resolve_node`], specialized for a node whose subtree
-/// [`fn@try_reuse_node`] already confirmed reusable.
-#[async_recursion]
-pub(super) async fn resolve_reused_node<Chain>(
+/// leaving its snapshot children to [`fn@finish_reused_node`] once the
+/// current level's [`ParentPkgAliases`] scope has been settled.
+pub(super) async fn seed_reused_node(
     ctx: &TreeCtx,
-    resolver: &Chain,
     wanted: WantedDependency,
     edge: &ChildEdge<'_>,
     current_is_optional: bool,
     reused: ReusedNode,
-) -> Result<Option<DirectDep>, ResolveDependencyTreeError>
-where
-    Chain: Resolver + ?Sized,
-{
+) -> Result<NodeSeed, ResolveDependencyTreeError> {
     // The synthesized result must stay out of `resolved_by_wanted`: its
     // manifest deliberately omits `dependencies` (a reused node's
     // children come from the snapshot graph), so if the fresh-resolve
@@ -332,17 +292,17 @@ where
     let id = build_pkg_id_with_patch_hash(ctx, &result).await?;
 
     if closes_cycle(edge.ancestor_ids, &id) {
-        return Ok(None);
+        return Ok(NodeSeed::Done(None));
     }
 
     let alias = node_alias(&wanted, &result, &id);
-    let identity = reused_identity(ctx, &id, &result, &reused.key)?;
+    let identity = reused_identity(ctx, &id, &result, &reused.key);
 
     let (id, created) = register_reused_package(
         ctx,
         id,
         &result,
-        identity.peer_set,
+        identity.peer_set.clone(),
         current_is_optional,
         identity.is_leaf,
     );
@@ -350,88 +310,64 @@ where
         emit_deprecation_if_needed(ctx, &result, &id, edge.depth);
     }
 
-    attach_reused_children(
-        ctx,
-        resolver,
-        edge,
-        ReusedChildren {
-            id: &id,
-            key: &reused.key,
-            snapshot: identity.snapshot,
-            child_refs: &identity.child_refs,
-            ancestry: snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional),
-        },
-        &identity.node_id,
-    )
-    .await?;
-
-    Ok(Some(DirectDep { alias, node_id: identity.node_id, id }))
+    let ancestry = snapshot_children::ReusedNodeAncestry::new(edge, &id, current_is_optional);
+    Ok(NodeSeed::Reused(Box::new(PendingReusedNode {
+        dep: DirectDep { alias, node_id: identity.node_id, id },
+        key: reused.key,
+        child_refs: identity.child_refs,
+        peer_set: identity.peer_set,
+        peer_shadowed: identity.peer_shadowed,
+        ancestry,
+    })))
 }
 
-/// What the snapshot graph says about a reused node. Leaf
-/// classification reads the snapshot graph (the source of truth for a
-/// reused node's children), not the synthesized manifest (whose
-/// `dependencies` are deliberately omitted). A node with no recorded
-/// children and no peers is a leaf, matching `pkg_is_leaf`.
-struct ReusedIdentity<'l> {
-    snapshot: Option<&'l SnapshotEntry>,
-    /// A reused node's children come from the snapshot rather than
-    /// from a manifest, so no `dependencies` entry of its synthesized
-    /// manifest can be peer-shadowed.
-    peer_set: PeerSet,
-    child_refs: Vec<(String, PkgNameVerPeer)>,
-    is_leaf: bool,
-    node_id: NodeId,
-}
-
-fn reused_identity<'l>(
-    ctx: &'l TreeCtx,
-    id: &str,
-    result: &pnpm_resolving_resolver_base::ResolveResult,
-    key: &PkgNameVerPeer,
-) -> Result<ReusedIdentity<'l>, ResolveDependencyTreeError> {
-    let snapshot = ctx.workspace.reuse.lockfile
-        .as_ref()
-        .and_then(|lockfile| lockfile.snapshots.as_ref())
-        .and_then(|snaps| snaps.get(key));
-    let peer_set = extract_peer_dependencies(result, &HashSet::default(), None)?;
-    let child_refs = snapshot_child_refs(snapshot, peer_set.taken());
-    let is_leaf = child_refs.is_empty() && peer_set.taken().is_empty();
-    Ok(ReusedIdentity {
-        snapshot,
-        peer_set,
-        child_refs,
-        is_leaf,
-        node_id: node_id_for(is_leaf, id),
-    })
-}
-
-/// Walk the reused node's children from the snapshot graph, insert the
-/// node, and demote the other occurrences to lazy when this one owns
-/// the children and their context moved.
-async fn attach_reused_children<Chain>(
+/// Walk the reused node's children from the snapshot graph under the
+/// settled `children_pkg_aliases` scope, insert the node, and demote the
+/// other occurrences to lazy when this one owns the children.
+#[async_recursion]
+pub(super) async fn finish_reused_node<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    edge: &ChildEdge<'_>,
-    reused: ReusedChildren<'_>,
-    node_id: &NodeId,
+    mut reused: PendingReusedNode,
+    children_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Result<(), ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
 {
-    let reused_id = reused.id;
-    let children_owner =
-        claim_children_owner(ctx, reused_id, edge.depth, edge.ancestor_ids, HashSet::default());
-    let (children, recording) = reused_children(ctx, resolver, &children_owner, reused).await?;
-    insert_tree_node(ctx, node_id.clone(), reused_id, children, edge.depth);
-    if children_owner.owns_children
-        && (recording == ChildrenRecording::PublishedOverStale
-            || !children_owner.children_context_unchanged)
-        && is_current_children_owner(ctx, reused_id, &children_owner.owner)
-    {
-        make_non_owner_nodes_lazy(ctx, reused_id, node_id);
+    let peer_shadowed = std::mem::take(&mut reused.peer_shadowed);
+    let peer_set = std::mem::take(&mut reused.peer_set);
+    let children_owner = claim_children_owner(
+        ctx,
+        &reused.dep.id,
+        reused.ancestry.depth,
+        &reused.ancestry.parent_ancestors,
+        peer_shadowed,
+    );
+    if children_owner.owns_children {
+        install_reused_owner_peer_set(ctx, &reused.dep.id, &peer_set);
+    }
+    let (children, _recording) =
+        reused_children(ctx, resolver, &children_owner, &reused, children_pkg_aliases).await?;
+    let depth = reused.ancestry.depth;
+    let node_id = reused.dep.node_id;
+    let id = reused.dep.id;
+    insert_tree_node(ctx, node_id.clone(), &id, children, depth);
+    if is_current_children_owner(ctx, &id, &children_owner.owner) {
+        make_non_owner_nodes_lazy(ctx, &id, &node_id);
     }
     Ok(())
+}
+
+fn install_reused_owner_peer_set(ctx: &TreeCtx, id: &Arc<str>, peer_set: &PeerSet) {
+    let mut packages = lock_recoverable(&ctx.workspace.tree.packages);
+    let Some(existing) = packages.get_mut(id) else { return };
+    if &existing.peer_set == peer_set {
+        return;
+    }
+    existing.peer_set = peer_set.clone();
+    drop(packages);
+    register_peer_dep_names(ctx, peer_set.taken());
+    ctx.workspace.record_package_write(id);
 }
 
 /// Insert a reused package into the workspace's package table, answering
@@ -450,7 +386,7 @@ fn register_reused_package(
         existing.optional = existing.optional && current_is_optional;
         return (Arc::clone(&existing.id), false);
     }
-    record_peer_dep_names(ctx, peer_set.taken());
+    register_peer_dep_names(ctx, peer_set.taken());
     ctx.workspace.record_package_write(&id);
     let shared_id: Arc<str> = Arc::from(id);
     packages.insert(
@@ -464,15 +400,6 @@ fn register_reused_package(
         }),
     );
     (shared_id, true)
-}
-
-fn record_peer_dep_names(ctx: &TreeCtx, peer_dependencies: &BTreeMap<String, PeerDep>) {
-    let mut all_peers = lock_recoverable(&ctx.workspace.tree.all_peer_dep_names);
-    for name in peer_dependencies.keys() {
-        if all_peers.insert(name.clone()) {
-            ctx.workspace.tree.record_peer_dep_name(name);
-        }
-    }
 }
 
 #[cfg(test)]

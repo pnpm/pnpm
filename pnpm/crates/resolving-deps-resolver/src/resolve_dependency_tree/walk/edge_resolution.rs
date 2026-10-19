@@ -11,8 +11,8 @@ use super::{
     opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
     parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
     pin_patched_revision, pkg_is_leaf, project_relative_cache_scope, register_peer_dep_names,
-    register_shadowable_dep_names, resolve_reused_node, resolve_wanted_cached,
-    resolves_children_through_catalogs, reuse_matches_peer_scope, try_reuse_node,
+    register_shadowable_dep_names, resolve_wanted_cached, resolves_children_through_catalogs,
+    reuse_matches_peer_scope, seed_reused_node, try_reuse_node,
 };
 
 #[async_recursion]
@@ -53,9 +53,7 @@ where
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
         && reuse_matches_peer_scope(ctx, &reused, edge.parent_pkg_aliases)
     {
-        return resolve_reused_node(ctx, resolver, wanted, &edge, current_is_optional, reused)
-            .await
-            .map(NodeSeed::Done);
+        return seed_reused_node(ctx, wanted, &edge, current_is_optional, reused).await;
     }
 
     // Locked-version pin, the fresh-resolve counterpart of subtree
@@ -393,6 +391,10 @@ pub(super) fn register_seeded_package(
     if let Some(existing) = packages.get_mut(id) {
         ensure_same_registry_revision(existing, result)?;
         existing.optional = existing.optional && current_is_optional;
+        // A package first registered from lockfile reuse carries a synthesized
+        // manifest without `dependencies`; replace it with the full manifest
+        // when a fresh resolve reaches the same package id.
+        existing.set_result(Arc::clone(result));
         return Ok((Arc::clone(&existing.id), false));
     }
     // A workspace-link node carries no peer dependencies: peer matching is the

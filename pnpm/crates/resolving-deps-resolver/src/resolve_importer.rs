@@ -23,6 +23,7 @@
 //! [`fn@crate::resolve_peers_workspace`] pass that shares the peer
 //! walker's caches across importers and applies `dedupeInjectedDeps`.
 
+pub(crate) use missing_peers::intersect_ranges;
 pub use options::{
     ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,

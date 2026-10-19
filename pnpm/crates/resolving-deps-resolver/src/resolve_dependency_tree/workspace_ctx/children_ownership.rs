@@ -63,16 +63,15 @@ pub(in super::super) struct RecordedChildrenContext {
     /// where the key pins nothing and an occurrence reached without one
     /// produces the same children.
     pub(in super::super) prior_key: Option<PkgNameVerPeer>,
+    /// Whether the children were recorded from the prior lockfile's
+    /// snapshot (`true`) rather than resolved from the package's manifest.
+    pub(in super::super) reused: bool,
     /// Whether the resolving importer had an active update policy, which
     /// re-resolves what a keep-all importer reuses.
     pub(in super::super) update_active: bool,
     /// The scope the children resolved in. It decides which of each
     /// descendant's dependencies that descendant's own peers shadow.
     pub(in super::super) children_scope: Arc<ParentPkgAliases>,
-    /// Whether the walk resolves children whose dependency and peer
-    /// split differs from the prior lockfile's. See
-    /// `mark_changed_locked_splits`.
-    pub(in super::super) changes_locked_split: bool,
 }
 
 impl RecordedChildrenContext {
@@ -82,45 +81,12 @@ impl RecordedChildrenContext {
     /// pinned subtree pointing at children the record no longer holds.
     ///
     /// An update policy re-resolves a pin on purpose, so a walk under one
-    /// is never held to the pins. Neither is a walk that splits some
-    /// package's dependencies and peers differently, which the pins do
-    /// not describe.
+    /// is never held to the pins.
     pub(in super::super) fn pins_children_over(&self, other: &Self) -> bool {
         self.peer_shadowed == other.peer_shadowed
             && self.prior_key.is_some()
             && other.prior_key.is_none()
             && !other.update_active
-            && !other.changes_locked_split
-    }
-
-    /// Two contexts produce the same children.
-    ///
-    /// The preferred-versions overlay is deliberately not part of the
-    /// test. `children_by_id` records one child list per package id,
-    /// and every occurrence that does not own the children already
-    /// expands from it whatever its own overlay says — the overlay
-    /// only ever decides which occurrence's versions get *recorded*.
-    /// Requiring identical overlays here would mean requiring identical
-    /// parents, which the occurrences that race never have.
-    ///
-    /// The two scopes only have to agree on `shadowable_dep_names`.
-    /// Every level below the children adds the same aliases to both, so
-    /// that agreement holds for the whole recorded subtree.
-    pub(in super::super) fn produces_same_children_as(
-        &self,
-        other: &Self,
-        shadowable_dep_names: &HashSet<String>,
-    ) -> bool {
-        self.peer_shadowed == other.peer_shadowed
-            && self.prior_key == other.prior_key
-            && self.update_active == other.update_active
-            && (Arc::ptr_eq(&self.children_scope, &other.children_scope)
-                || shadowable_dep_names
-                    .iter()
-                    .all(|name| {
-                        self.children_scope.contains(name)
-                            == other.children_scope.contains(name)
-                    }))
     }
 }
 
@@ -131,25 +97,6 @@ pub(in super::super) struct ChildrenOwnerClaim {
     /// occurrence's when it won the claim, the standing owner's when it
     /// lost. See [`ChildrenOwnerEntry::peer_shadowed`].
     pub(in super::super) peer_shadowed: Arc<HashSet<String>>,
-    /// A winning claim displaced an owner whose shadowed-dependency set
-    /// equals this occurrence's, so the other occurrences' realized
-    /// children — including a subtree reused from the prior lockfile —
-    /// stay valid *as far as the claim can tell*, and the winner skips
-    /// the lazy-flip (and the engine-invalidating rewrite signal) it
-    /// would otherwise broadcast. The walk it then runs can still land
-    /// on different edges, which
-    /// [`ChildrenRecording::PublishedOverStale`] reports instead.
-    ///
-    /// This is a narrower question than whether the *recorded* children
-    /// can be reused instead of walked; that one is
-    /// [`fn@recorded_children_match`], which compares the full
-    /// resolution context.
-    pub(in super::super) children_context_unchanged: bool,
-    /// The children the prior lockfile pinned for the package would split
-    /// some package's dependencies and peers differently under this
-    /// occurrence's scope, so it resolves them instead of reading the
-    /// pins. Set by `mark_changed_locked_splits`.
-    pub(in super::super) changes_locked_split: bool,
 }
 
 /// `peer_shadowed` is this occurrence's own set; it is installed as the
@@ -169,15 +116,13 @@ pub(in super::super) fn claim_children_owner(
         parent_path: Arc::clone(ancestor_ids),
         importer_id: ctx.importer.id.clone(),
     };
-    let (owns_children, peer_shadowed, children_context_unchanged) = {
+    let (owns_children, peer_shadowed) = {
         let mut owners = lock_recoverable(&ctx.workspace.children.owner_by_id);
         match owners.get(pkg_id) {
             Some(existing) if !owner.wins_over(&existing.owner) => {
-                (false, Arc::clone(&existing.peer_shadowed), false)
+                (false, Arc::clone(&existing.peer_shadowed))
             }
-            existing => {
-                let children_context_unchanged =
-                    existing.is_some_and(|entry| *entry.peer_shadowed == peer_shadowed);
+            _ => {
                 let peer_shadowed = Arc::new(peer_shadowed);
                 owners.insert(
                     Arc::clone(pkg_id),
@@ -186,23 +131,17 @@ pub(in super::super) fn claim_children_owner(
                         peer_shadowed: Arc::clone(&peer_shadowed),
                     },
                 );
-                (true, peer_shadowed, children_context_unchanged)
+                (true, peer_shadowed)
             }
         }
     };
     if owns_children {
         record_first_importer(ctx, pkg_id, &owner);
     }
-    ChildrenOwnerClaim {
-        owner,
-        owns_children,
-        peer_shadowed,
-        children_context_unchanged,
-        changes_locked_split: false,
-    }
+    ChildrenOwnerClaim { owner, owns_children, peer_shadowed }
 }
 
-fn record_first_importer(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) {
+pub(super) fn record_first_importer(ctx: &TreeCtx, pkg_id: &str, owner: &ChildrenOwner) {
     let mut first_importer = lock_recoverable(&ctx.workspace.children.first_importer_by_pkg);
     if first_importer.map().get(pkg_id) != Some(&owner.importer_id) {
         first_importer.map_mut().insert(pkg_id.to_string(), owner.importer_id.clone());
@@ -224,38 +163,6 @@ pub(in super::super) fn claim_children_warmup(ctx: &TreeCtx, pkg_id: &str) -> bo
     // turned away, so the owned key is built only for the one that
     // takes the warmup.
     !warmed.contains(pkg_id) && warmed.insert(Arc::from(pkg_id.to_string()))
-}
-
-/// Whether this package's recorded children were resolved under
-/// `context`, and can therefore be expanded from instead of walked
-/// again. The walk that recorded them need not be the one owning the
-/// children now, which is why the comparison is against the recorded
-/// context rather than against the standing claim.
-pub(in super::super) fn recorded_children_match(
-    ctx: &TreeCtx,
-    pkg_id: &str,
-    context: &RecordedChildrenContext,
-) -> bool {
-    lock_recoverable(&ctx.workspace.children.by_id)
-        .get(pkg_id)
-        .is_some_and(|recorded| {
-            recorded.context.produces_same_children_as(
-                context,
-                &lock_recoverable(&ctx.workspace.children.shadowable_dep_names),
-            ) || recorded.context.pins_children_over(context)
-        })
-}
-
-/// The scope this package's recorded children resolved in, when they are
-/// the ones the prior lockfile pinned.
-pub(in super::super) fn pinned_children_scope(
-    ctx: &TreeCtx,
-    pkg_id: &str,
-) -> Option<Arc<ParentPkgAliases>> {
-    lock_recoverable(&ctx.workspace.children.by_id)
-        .get(pkg_id)
-        .filter(|recorded| recorded.context.prior_key.is_some())
-        .map(|recorded| Arc::clone(&recorded.context.children_scope))
 }
 
 /// What [`fn@record_children`] did with a walk's child edges.
@@ -312,17 +219,13 @@ pub(in super::super) fn record_children(
             // Nothing recorded yet, so no occurrence node can hold
             // realized children of this package to stale.
             None => ChildrenRecording::Published,
-            // A recording the prior lockfile pinned outlives a fresh
-            // walk's answer, so this walk publishes nothing and reads
-            // the pinned children like every occurrence that reused the
-            // subtree. Publishing over them would re-resolve the open
-            // ranges reuse exists to hold still, and would leave those
-            // occurrences realizing children the record no longer
-            // holds. This comes before the equal-edge arm because
-            // republishing even the same edges would carry this walk's
-            // unpinned context onto the record, leaving the next fresh
-            // walk to land on different edges nothing to hold it back.
-            Some(recorded) if recorded.context.pins_children_over(&context) => {
+            // A fresh walk that resolved against a prior key outlives a
+            // later fresh walk without one unless the new walk was sent
+            // through by `recorded_children_match` because a descendant's
+            // peer-shadowed dependency split changed.
+            Some(recorded)
+                if !recorded.context.reused && recorded.context.pins_children_over(&context) =>
+            {
                 return ChildrenRecording::Declined;
             }
             Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,

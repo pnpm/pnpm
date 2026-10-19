@@ -520,9 +520,9 @@ fn recorded(edges: Vec<crate::resolved_tree::ChildEdge>) -> super::RecordedChild
         context: super::RecordedChildrenContext {
             peer_shadowed: Arc::default(),
             prior_key: None,
+            reused: false,
             update_active: false,
             children_scope: ParentPkgAliases::root(HashSet::default()),
-            changes_locked_split: false,
         },
     }
 }
@@ -534,7 +534,6 @@ fn recorded_children_match_only_under_the_recording_context() {
     use super::{
         super::{UpdateReuseScope, tree_ctx::TreeCtx},
         RecordedChildrenContext, claim_children_owner, record_children, recorded_children_match,
-        register_shadowable_dep_names,
     };
     use std::sync::Arc;
 
@@ -545,44 +544,42 @@ fn recorded_children_match_only_under_the_recording_context() {
     let context = || RecordedChildrenContext {
         peer_shadowed: Arc::default(),
         prior_key: None,
+        reused: false,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
-        changes_locked_split: false,
     };
-    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &context()), "nothing recorded yet");
+    assert!(
+        !recorded_children_match(&ctx, "pkg@1.0.0", &claim.owner, &context()),
+        "nothing recorded yet",
+    );
     assert_ne!(
         record_children(&ctx, &Arc::from("pkg@1.0.0"), &claim.owner, Vec::new(), context()),
         ChildrenRecording::Declined,
     );
 
-    assert!(recorded_children_match(&ctx, "pkg@1.0.0", &context()));
+    assert!(recorded_children_match(&ctx, "pkg@1.0.0", &claim.owner, &context()));
     let shadowed = RecordedChildrenContext {
         peer_shadowed: Arc::new(HashSet::from_iter(["peer".to_string()])),
         ..context()
     };
-    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &shadowed), "a different shadow set");
+    assert!(
+        !recorded_children_match(&ctx, "pkg@1.0.0", &claim.owner, &shadowed),
+        "a different shadow set",
+    );
     let updating = RecordedChildrenContext { update_active: true, ..context() };
-    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &updating), "a different update policy");
+    assert!(
+        !recorded_children_match(&ctx, "pkg@1.0.0", &claim.owner, &updating),
+        "a different update policy",
+    );
     let pinned = RecordedChildrenContext {
         prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
         ..context()
     };
-    assert!(!recorded_children_match(&ctx, "pkg@1.0.0", &pinned), "a different snapshot key");
+    assert!(
+        !recorded_children_match(&ctx, "pkg@1.0.0", &claim.owner, &pinned),
+        "a different snapshot key",
+    );
     assert!(matches!(ctx.update_reuse_scope(), UpdateReuseScope::All));
-
-    register_shadowable_dep_names(&ctx, &["peer".to_string()]);
-    let scoped = |name: &str| RecordedChildrenContext {
-        children_scope: ParentPkgAliases::root(HashSet::from_iter([name.to_string()])),
-        ..context()
-    };
-    assert!(
-        !recorded_children_match(&ctx, "pkg@1.0.0", &scoped("peer")),
-        "a scope that provides a dependency some package also names as a peer",
-    );
-    assert!(
-        recorded_children_match(&ctx, "pkg@1.0.0", &scoped("unrelated")),
-        "a scope that differs only in names no peer shadows",
-    );
 }
 
 /// Which of a package's dependencies its own peers supply is a
@@ -597,9 +594,9 @@ fn a_pin_stands_in_only_for_a_walk_that_shadows_the_same_dependencies() {
     let fresh = RecordedChildrenContext {
         peer_shadowed: Arc::default(),
         prior_key: None,
+        reused: false,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
-        changes_locked_split: false,
     };
     let pinned = RecordedChildrenContext {
         prior_key: Some("pkg@1.0.0".parse().expect("parse snapshot key")),
@@ -635,9 +632,9 @@ fn children_are_published_only_by_the_standing_owner() {
     let context = || RecordedChildrenContext {
         peer_shadowed: Arc::default(),
         prior_key: None,
+        reused: false,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
-        changes_locked_split: false,
     };
     let deep =
         claim_children_owner(&ctx, &Arc::from("pkg@1.0.0"), 5, &Arc::default(), HashSet::default());
@@ -674,9 +671,9 @@ fn re_recording_reports_whether_the_child_edges_moved() {
     let context = || RecordedChildrenContext {
         peer_shadowed: Arc::default(),
         prior_key: None,
+        reused: false,
         update_active: false,
         children_scope: ParentPkgAliases::root(HashSet::default()),
-        changes_locked_split: false,
     };
     let edges = |pkg_id: &str| {
         vec![crate::resolved_tree::ChildEdge {

@@ -1,11 +1,11 @@
 use super::{
     Arc, BTreeMap, ChildSpec, ChildrenOwnerClaim, ChildrenRecording, DirectDep, FrontierNode,
     HashMap, HashSet, NodeId, NodeSeed, ParentPkgAliases, PendingNode, PreferredVersionsOverlay,
-    RecordedChildrenContext, ResolveDependencyTreeError, Resolver, SeededNode,
+    RecordedChildrenContext, ResolveDependencyTreeError, SeededNode,
     SkippedOptionalDependencyParent, TreeChildren, TreeCtx, catalogs_for_children,
-    claim_children_owner, extract_peer_dependencies, insert_tree_node, is_current_children_owner,
-    lock_recoverable, make_non_owner_nodes_lazy, mark_changed_locked_splits, record_children,
-    recorded_children_match, register_peer_dep_names,
+    claim_children_owner, claim_recorded_subtree_owners, extract_peer_dependencies,
+    insert_tree_node, is_current_children_owner, lock_recoverable, make_non_owner_nodes_lazy,
+    record_children, recorded_children_match, recorded_prior_key, register_peer_dep_names,
 };
 
 /// Settle children ownership across every occurrence one level seeded.
@@ -104,52 +104,61 @@ pub(super) fn settle_seeds(
     children_overlay: Option<&Arc<PreferredVersionsOverlay>>,
     children_pkg_aliases: &Arc<ParentPkgAliases>,
 ) -> Vec<FrontierNode> {
-    let mut frontier = Vec::new();
-    for seed in seeds {
-        let NodeSeed::Pending(mut pending) = seed else { continue };
-        let claim = pending.claim.take();
-        // Linked nodes don't walk their manifest's deps — see the
-        // `is_link` comment block in [`fn@resolve_node_seed`]. They get
-        // an empty `Realized` map: a linked node has no children of its
-        // own here.
-        if pending.is_link {
-            insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
-            continue;
-        }
-        let Some(claim) = claim.filter(|claim| claim.owns_children) else {
-            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
-            continue;
-        };
-        if !pending.resolves_children_through_catalogs
-            && recorded_children_match(
-                ctx,
-                &pending.identity.id,
-                &children_context(ctx, &pending, &claim, children_pkg_aliases),
-            )
-        {
-            insert_walked_node(ctx, &pending, TreeChildren::Lazy);
-            continue;
-        }
-        frontier.push(FrontierNode {
-            pending,
-            claim,
-            children_overlay: children_overlay.cloned(),
-            children_pkg_aliases: Arc::clone(children_pkg_aliases),
-        });
+    seeds
+        .into_iter()
+        .filter_map(|seed| settle_one_seed(ctx, seed, children_overlay, children_pkg_aliases))
+        .collect()
+}
+
+fn settle_one_seed(
+    ctx: &TreeCtx,
+    seed: NodeSeed,
+    children_overlay: Option<&Arc<PreferredVersionsOverlay>>,
+    children_pkg_aliases: &Arc<ParentPkgAliases>,
+) -> Option<FrontierNode> {
+    let NodeSeed::Pending(mut pending) = seed else { return None };
+    let claim = pending.claim.take();
+    // Linked nodes don't walk their manifest's deps — see the
+    // `is_link` comment block in [`fn@resolve_node_seed`]. They get
+    // an empty `Realized` map: a linked node has no children of its
+    // own here.
+    if pending.is_link {
+        insert_walked_node(ctx, &pending, TreeChildren::Realized(Arc::new(BTreeMap::new())));
+        return None;
     }
-    frontier
+    let Some(claim) = claim.filter(|claim| claim.owns_children) else {
+        insert_walked_node(ctx, &pending, TreeChildren::Lazy);
+        return None;
+    };
+    let context = children_context(ctx, &pending, &claim, children_pkg_aliases);
+    if !pending.resolves_children_through_catalogs
+        && recorded_children_match(ctx, &pending.identity.id, &claim.owner, &context)
+    {
+        claim_recorded_subtree_owners(
+            ctx,
+            &pending.identity.id,
+            &pending.identity.node_id,
+            &claim.owner,
+        );
+        return None;
+    }
+    if pending.prior_key.is_none() && !ctx.update_scope().unpins_every_edge() {
+        pending.prior_key = recorded_prior_key(ctx, &pending.identity.id);
+    }
+    Some(FrontierNode {
+        pending,
+        claim,
+        children_overlay: children_overlay.cloned(),
+        children_pkg_aliases: Arc::clone(children_pkg_aliases),
+    })
 }
 
 /// Record what each occurrence of a seeded level resolved for its
 /// children, and settle that level's own seeds into the next frontier.
-pub(super) async fn settle_level<Chain>(
+pub(super) fn settle_level(
     ctx: &TreeCtx,
-    resolver: &Chain,
     mut seeded: Vec<SeededNode>,
-) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError>
-where
-    Chain: Resolver + ?Sized,
-{
+) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError> {
     assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()))?;
     let mut frontier = Vec::new();
     for node in seeded {
@@ -162,11 +171,11 @@ where
                     ..
                 },
             child_specs,
-            mut seeds,
+            seeds,
             grandchild_overlay,
             grandchild_pkg_aliases,
         } = node;
-        let (children, recording) = record_walked_children(
+        let (children, _recording) = record_walked_children(
             ctx,
             &pending,
             &claim,
@@ -175,12 +184,9 @@ where
             &seeds,
         );
         insert_walked_node(ctx, &pending, children);
-        if (recording == ChildrenRecording::PublishedOverStale || !claim.children_context_unchanged)
-            && is_current_children_owner(ctx, &pending.identity.id, &claim.owner)
-        {
+        if is_current_children_owner(ctx, &pending.identity.id, &claim.owner) {
             make_non_owner_nodes_lazy(ctx, &pending.identity.id, &pending.identity.node_id);
         }
-        mark_changed_locked_splits(ctx, resolver, &mut seeds, &grandchild_pkg_aliases).await;
         frontier.extend(settle_seeds(
             ctx,
             seeds,
@@ -243,6 +249,7 @@ pub(super) fn record_walked_children(
 pub(super) fn seeded_dep(seed: &NodeSeed) -> Option<DirectDep> {
     match seed {
         NodeSeed::Done(dep) => dep.clone(),
+        NodeSeed::Reused(reused) => Some(reused.dep.clone()),
         NodeSeed::Pending(pending) => Some(DirectDep {
             alias: pending.identity.alias.clone(),
             node_id: pending.identity.node_id.clone(),
@@ -261,11 +268,11 @@ pub(super) fn children_context(
 ) -> RecordedChildrenContext {
     RecordedChildrenContext {
         children_scope: Arc::clone(children_pkg_aliases),
-        changes_locked_split: claim.changes_locked_split,
         peer_shadowed: Arc::clone(&claim.peer_shadowed),
         prior_key: pending.prior_key
             .clone()
             .filter(|_| !ctx.update_scope().unpins_every_edge()),
+        reused: false,
         update_active: !matches!(ctx.update_reuse_scope(), super::super::UpdateReuseScope::All),
     }
 }
@@ -293,6 +300,7 @@ pub(in super::super) fn level_aliases(seeds: &[NodeSeed]) -> HashSet<String> {
         .iter()
         .filter_map(|seed| match seed {
             NodeSeed::Pending(pending) => Some(pending.identity.alias.clone()),
+            NodeSeed::Reused(reused) => Some(reused.dep.alias.clone()),
             NodeSeed::Done(Some(dep)) => Some(dep.alias.clone()),
             NodeSeed::Done(None) => None,
         })
@@ -311,6 +319,9 @@ pub(in super::super) fn level_versions(
     for seed in seeds {
         let name_ver = match seed {
             NodeSeed::Pending(pending) => pending.result.package.name_ver.as_ref(),
+            NodeSeed::Reused(reused) => packages
+                .get(&reused.dep.id)
+                .and_then(|pkg| pkg.result().package.name_ver.as_ref()),
             NodeSeed::Done(Some(dep)) => packages
                 .get(&dep.id)
                 .and_then(|pkg| pkg.result().package.name_ver.as_ref()),

@@ -36,7 +36,7 @@ impl Walker<'_> {
 
         let mut all_missing = context.missing_from_children.clone();
         for (peer_alias, info) in &own_missing {
-            all_missing.insert(peer_alias.clone(), info.clone());
+            super::walk_context::merge_missing_peer_info(&mut all_missing, peer_alias, info);
         }
 
         let dep_path = self.peer_dep_path(&context.pkg.id, &all_resolved);

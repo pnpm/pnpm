@@ -320,6 +320,7 @@ impl Walker<'_> {
         self.record_cache_hit_missing_issues(
             node_id,
             &output,
+            &missing_peers_of_children,
             parent_chain_names,
             parent_pkg_ids_chain,
         );
@@ -338,6 +339,7 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         output: &NodeOutput,
+        missing_peers_of_children: &HashMap<String, MissingPeerInfo>,
         parent_chain_names: &SharedChain<Arc<str>>,
         parent_pkg_ids_chain: &SharedChain<Arc<str>>,
     ) {
@@ -345,35 +347,87 @@ impl Walker<'_> {
             return;
         }
         let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
-        let own_peers = &self.tree.packages[&pkg_id].peer_set.taken();
-        let missing_own_peers: HashSet<String> = output.missing_peers
-            .keys()
-            .filter(|peer_name| own_peers.contains_key(*peer_name))
-            .cloned()
-            .collect();
+        let own_peers = self.tree.packages[&pkg_id].peer_set.taken().clone();
         let chain_with_self = parent_pkg_ids_chain.pushed(Arc::clone(&pkg_id));
+        if self.traversal.discovery {
+            self.record_discovery_cache_hit_issues(
+                &own_peers,
+                output,
+                missing_peers_of_children,
+                parent_chain_names,
+                parent_pkg_ids_chain,
+                &chain_with_self,
+            );
+            return;
+        }
         for (peer_name, info) in output.missing_peers.iter() {
-            // A package's own peers resolve against its ancestors, which
-            // another importer's walk of the package says nothing about.
-            let declaring_chain = if missing_own_peers.contains(peer_name) {
+            let declaring_chain = if own_peers.contains_key(peer_name) {
                 parent_pkg_ids_chain
             } else {
                 &chain_with_self
             };
-            if self.missing_issue_suppressed(declaring_chain, peer_name) {
-                continue;
-            }
-            self.record_missing_issue(
+            self.record_cache_hit_issue_if_needed(
                 peer_name,
-                MissingPeer {
-                    wanted_range: get_peer_version_range(&info.range),
-                    raw_range: info.range.clone(),
-                    optional: info.optional,
-                    parents: self.issue_parents(parent_chain_names),
-                },
+                &info.range,
+                info.optional,
+                parent_chain_names,
                 declaring_chain,
             );
         }
+    }
+
+    fn record_discovery_cache_hit_issues(
+        &mut self,
+        own_peers: &std::collections::BTreeMap<String, crate::PeerDep>,
+        output: &NodeOutput,
+        missing_peers_of_children: &HashMap<String, MissingPeerInfo>,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
+        chain_with_self: &SharedChain<Arc<str>>,
+    ) {
+        for (peer_name, peer_dep) in own_peers {
+            if output.missing_peers.contains_key(peer_name) {
+                self.record_cache_hit_issue_if_needed(
+                    peer_name,
+                    &peer_dep.version,
+                    peer_dep.optional,
+                    parent_chain_names,
+                    parent_pkg_ids_chain,
+                );
+            }
+        }
+        for (peer_name, info) in missing_peers_of_children {
+            self.record_cache_hit_issue_if_needed(
+                peer_name,
+                &info.range,
+                info.optional,
+                parent_chain_names,
+                chain_with_self,
+            );
+        }
+    }
+
+    fn record_cache_hit_issue_if_needed(
+        &mut self,
+        peer_name: &str,
+        raw_range: &str,
+        optional: bool,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        declaring_chain: &SharedChain<Arc<str>>,
+    ) {
+        if self.missing_issue_suppressed(declaring_chain, peer_name) {
+            return;
+        }
+        self.record_missing_issue(
+            peer_name,
+            MissingPeer {
+                wanted_range: get_peer_version_range(raw_range),
+                raw_range: raw_range.to_string(),
+                optional,
+                parents: self.issue_parents(parent_chain_names),
+            },
+            declaring_chain,
+        );
     }
 
     /// Discovery runs throw their per-node bookkeeping away, so it is only

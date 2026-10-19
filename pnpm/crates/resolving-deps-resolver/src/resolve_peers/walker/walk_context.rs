@@ -22,16 +22,11 @@ pub(in super::super) struct NodeOutput {
     pub(in super::super) subtree_missing_by_pkg: SubtreeMissingByPkg,
 }
 
-/// Sentinel for "this node's subtree is still missing peer `X`". The
-/// `range` + `optional` payload is recorded for a future `peersCache`
-/// lookup, but the issue-collection path uses
-/// [`PeerDependencyIssues::missing`](crate::PeerDependencyIssues::missing) directly, so neither field is read
-/// after construction yet.
+/// Sentinel for "this node's subtree is still missing peer `X`", carrying the
+/// peer's declared `range` and `optional` flag for `peersCache` reuse.
 #[derive(Debug, Clone)]
 pub(in super::super) struct MissingPeerInfo {
-    #[allow(dead_code, reason = "future peersCache validation")]
     pub(in super::super) range: String,
-    #[allow(dead_code, reason = "future peersCache validation")]
     pub(in super::super) optional: bool,
 }
 
@@ -45,22 +40,6 @@ pub(crate) struct MissingSummary {
 }
 
 pub(in super::super) type SubtreeMissingByPkg = Option<Arc<MissingSummary>>;
-
-pub(super) enum ChildAliases<'a> {
-    Realized(&'a BTreeMap<String, NodeId>),
-    Deferred(&'a [ChildEdge]),
-}
-
-impl ChildAliases<'_> {
-    pub(super) fn contains(&self, alias: &str) -> bool {
-        match self {
-            ChildAliases::Realized(children) => children.contains_key(alias),
-            ChildAliases::Deferred(children) => children
-                .iter()
-                .any(|edge| edge.alias == alias),
-        }
-    }
-}
 
 #[derive(Default)]
 pub(super) struct ChildOutputs {
@@ -76,7 +55,7 @@ impl ChildOutputs {
         &mut self,
         alias: &str,
         output: NodeOutput,
-        child_aliases: &ChildAliases<'_>,
+        provider_children: &BTreeMap<String, NodeId>,
         collect_dep_paths: bool,
     ) {
         let NodeOutput {
@@ -96,15 +75,37 @@ impl ChildOutputs {
         }
         self.auto_install_resolved_peers.extend(auto_install_resolved_peers);
         for (peer_alias, peer_node_id) in external_resolved_peers.iter() {
-            if !child_aliases.contains(peer_alias) {
+            if !provider_children.contains_key(peer_alias) {
                 self.external_peers.insert(peer_alias.clone(), peer_node_id.clone());
             }
         }
-        self.missing_peers.extend(
-            missing_peers
-                .iter()
-                .map(|(name, info)| (name.clone(), info.clone())),
-        );
+        for (name, info) in missing_peers.iter() {
+            merge_missing_peer_info(&mut self.missing_peers, name, info);
+        }
+    }
+}
+
+pub(super) fn merge_missing_peer_info(
+    target: &mut HashMap<String, MissingPeerInfo>,
+    name: &str,
+    incoming: &MissingPeerInfo,
+) {
+    let Some(existing) = target.get_mut(name) else {
+        target.insert(name.to_string(), incoming.clone());
+        return;
+    };
+    if existing.optional && !incoming.optional {
+        *existing = incoming.clone();
+        return;
+    }
+    if !existing.optional && incoming.optional {
+        return;
+    }
+    if existing.range != incoming.range
+        && let Some(intersection) =
+            crate::resolve_importer::intersect_ranges(&[&existing.range, &incoming.range])
+    {
+        existing.range = intersection;
     }
 }
 
@@ -211,6 +212,7 @@ pub(super) struct NodeEntry {
     pub(super) pkg: Arc<ResolvedPackage>,
     pub(super) pkg_name: Arc<str>,
     pub(super) depth: i32,
+    pub(super) children_are_lazy: bool,
     pub(super) provider_children: BTreeMap<String, NodeId>,
     pub(super) preview_undo: Option<UndoRealize>,
 }

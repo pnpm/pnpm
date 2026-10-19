@@ -64,7 +64,6 @@ impl ImporterHoistState {
                 importer_id: self.importer_id.clone(),
                 first_importer_by_pkg: Arc::clone(first_importer_by_pkg),
                 first_walk_missing_by_pkg: Arc::clone(first_walk_missing_by_pkg),
-                locked_peer_names: Arc::clone(&self.selection.locked_names),
             },
         );
     }
@@ -135,7 +134,12 @@ impl ImporterHoistState {
         Chain: Resolver + ?Sized,
     {
         loop {
-            let round = match first_round.take() {
+            let round = match first_round
+                .take()
+                .filter(|_| {
+                    self.ctx.workspace().tree.children_rewrites()
+                        == self.progress.walked_children_rewrites
+                }) {
                 Some(round) => round,
                 None => self.next_required_round(peer_discovery),
             };
@@ -204,6 +208,7 @@ impl ImporterHoistState {
 
         for name in hoisted.keys() {
             self.dependencies.parent_pkg_aliases.insert(name.clone());
+            self.dependencies.all_missing_optional_peers.remove(name);
         }
 
         // Hoisted required peers are installed at the importer
@@ -252,7 +257,6 @@ impl ImporterHoistState {
                     .workspace()
                     .children
                     .first_walk_missing_by_pkg(),
-                locked_peer_names: Arc::clone(&self.selection.locked_names),
             })),
             peer_discovery,
         )
@@ -281,6 +285,9 @@ impl ImporterHoistState {
         fresh_optional: BTreeMap<String, Vec<String>>,
     ) {
         for (name, ranges) in fresh_optional {
+            if self.dependencies.parent_pkg_aliases.contains(&name) {
+                continue;
+            }
             let bucket = self.dependencies.all_missing_optional_peers.entry(name).or_default();
             for range in ranges {
                 if !bucket
@@ -318,6 +325,7 @@ impl ImporterHoistState {
             });
             self.dependencies.hoisted_peer_provider_node_ids.insert(node_id.clone());
             self.dependencies.parent_pkg_aliases.insert(alias.clone());
+            self.dependencies.all_missing_optional_peers.remove(alias);
         }
     }
 

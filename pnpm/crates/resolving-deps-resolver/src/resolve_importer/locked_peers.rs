@@ -4,11 +4,9 @@ use pnpm_lockfile::{PeerBindings, PkgName};
 
 mod hashed_suffix;
 
-/// The peer versions the prior lockfile locked for the importer, and
-/// their names.
+/// The peer versions the prior lockfile locked for the importer.
 pub(super) struct LockedPeers {
     pub(super) versions: Arc<HashMap<String, HashSet<String>>>,
-    pub(super) names: Arc<HashSet<String>>,
 }
 
 impl LockedPeers {
@@ -19,7 +17,7 @@ impl LockedPeers {
                 .map(AsRef::as_ref),
             importer_id,
         ));
-        Self { names: Arc::new(versions.keys().cloned().collect()), versions }
+        Self { versions }
     }
 }
 
@@ -55,11 +53,6 @@ pub(super) fn importer_locked_peer_versions(
     versions
 }
 
-/// The peer versions the wanted lockfile pinned, by peer name: those on
-/// the importer's direct dependencies, or on every snapshot for an
-/// importer the lockfile does not know yet. The optional-peer hoist
-/// only picks versions from this set, and its names stay eligible for
-/// importer-local hoisting (see [`HoistMissingScope::locked_peer_names`](crate::HoistMissingScope::locked_peer_names)).
 /// Every peer version the lockfile pins anywhere, for an importer it does not
 /// list.
 pub(super) fn all_locked_peer_versions(
