@@ -36,10 +36,9 @@ fn the_lock_is_taken_once_and_free_again_after_release() {
 #[test]
 fn an_install_that_could_not_take_the_lock_does_not_try_again() {
     let temp_dir = tempfile::tempdir().unwrap();
-    // A file where the lock directory's parent must be created cannot be
-    // taken, and the attempt fails at once.
-    let modules_dir = temp_dir.path().join("node_modules");
-    let lock = ModulesSwapLock::new(&modules_dir);
+    let lock = ModulesSwapLock::new(&temp_dir.path().join("node_modules"));
+    // The outcome of an acquisition that waited out `WAIT`, which a test
+    // cannot wait for.
     *lock.state.lock().unwrap() = super::State::Unserialized;
 
     assert!(!lock.hold());
