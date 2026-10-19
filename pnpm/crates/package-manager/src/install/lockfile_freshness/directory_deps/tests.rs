@@ -569,7 +569,7 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
         };
         assert!(
             check(&locked_spec, false).is_err(),
-            "a resolving install resolves {locked_spec} again"
+            "a resolving install resolves {locked_spec} again",
         );
         assert!(check(&locked_spec, true).is_ok(), "a frozen install keeps {locked_spec}");
         assert!(check(&other_spec, true).is_err(), "a frozen install rejects {other_spec}");
