@@ -23,6 +23,7 @@ fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
         disable_registry: true,
         disable_resolver: true,
         disable_artifacts: true,
+        disable_pipeline: true,
     };
     let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
         .expect_err("all surfaces disabled must error rather than panic");
@@ -138,13 +139,12 @@ storage: /var/lib/pnpr
 backend:
   sqlite:
     url: sqlite:///var/lib/pnpr/auth.db
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
-        "expected an InvalidConfig naming the backend selection, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("unknown field `sqlite`")),
+        "expected an InvalidConfig naming the unknown field, got {err:?}",
     );
 }
 
@@ -158,7 +158,6 @@ backend:
     maxConnections: 12
     timeout: 5s
     startupTimeout: 2m
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -179,7 +178,6 @@ storage: /var/lib/pnpr
 backend:
   postgresql:
     url: postgresql://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -203,7 +201,6 @@ storage: /var/lib/pnpr
 backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -392,6 +389,8 @@ fn rule_alias_spellings_of_builtins_are_config_errors() {
         ("'@authenticated'", "$authenticated"),
         ("anonymous", "$anonymous"),
         ("'@anonymous'", "$anonymous"),
+        ("owners", "$owners"),
+        ("'@owners'", "$owners"),
     ] {
         let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
         assert!(
@@ -403,6 +402,17 @@ fn rule_alias_spellings_of_builtins_are_config_errors() {
             "unexpected error for {token:?}: {err}",
         );
     }
+}
+
+#[test]
+fn rule_accepts_owners_builtin_token() {
+    let config = hosted_rules_config(
+        "      '@team/*':\n        publish: $owners\n        unpublish: $owners\n",
+    );
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let effective = table.for_package("@team/pkg");
+    assert!(effective.publish.references_owners());
+    assert!(effective.unpublish.references_owners());
 }
 
 #[test]

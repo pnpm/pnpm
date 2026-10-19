@@ -4,8 +4,8 @@
 
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
-    PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
-    standalone_manifest, write_windows_alias_wrapper,
+    PathExtenderError, PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims,
+    render_env_path_outcome, render_setup_output, standalone_manifest, write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -59,6 +59,58 @@ fn windows_report_omits_the_source_hint() {
     assert_eq!(
         render_setup_output(&report),
         "The following configuration changes were made:\nPNPM_HOME=C:\\pnpm\n\nSetup complete. Open a new terminal to start using pnpm.",
+    );
+}
+
+#[test]
+fn unknown_shell_prints_the_lines_to_add_by_hand() {
+    let output =
+        render_env_path_outcome(Err(PathExtenderError::UnknownShell), Path::new("/root/.pnpm"))
+            .expect("an unknown shell leaves the install in place");
+    assert_eq!(
+        output,
+        "Could not infer shell type. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME='/root/.pnpm'\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+    );
+}
+
+#[test]
+fn manual_setup_lines_quote_pnpm_home_as_a_literal() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::UnknownShell),
+        Path::new("/home/o'neil/$(touch pwned)"),
+    )
+    .expect("an unknown shell leaves the install in place");
+    assert!(output.contains("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n"), "{output}");
+}
+
+#[test]
+fn sh_without_env_prints_the_lines_to_add_by_hand() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::NoShellConfig { shell: "sh".to_string() }),
+        Path::new("/root/.pnpm"),
+    )
+    .expect("a shell with no config file leaves the install in place");
+    assert!(
+        output.starts_with(
+            "Cannot find a config file for sh. The ENV environment variable is not set. No shell config file was changed.\n\n",
+        ),
+        "{output}",
+    );
+}
+
+#[test]
+fn other_env_path_errors_fail_the_setup() {
+    let error = render_env_path_outcome(
+        Err(PathExtenderError::UnsupportedShell { shell: "tcsh".to_string() }),
+        Path::new("/root/.pnpm"),
+    )
+    .expect_err("an unsupported shell still fails");
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_UNSUPPORTED_SHELL"),
     );
 }
 

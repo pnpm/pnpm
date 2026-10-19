@@ -323,6 +323,14 @@ impl<'a> InstallFrozenLockfile<'a> {
         .await
     }
 
+    fn linker_context<'p>(
+        &self,
+        layout: &'p crate::VirtualStoreLayout,
+        bin_options: &'p pnpm_cmd_shim::LinkBinsOptions,
+    ) -> crate::ModuleLinkerContext<'p> {
+        crate::ModuleLinkerContext { layout, kind: self.platform.node_linker, bin_options }
+    }
+
     async fn run_plan<Reporter: self::Reporter>(
         self,
         allow_build_policy: &AllowBuildPolicy,
@@ -330,19 +338,17 @@ impl<'a> InstallFrozenLockfile<'a> {
         seed_skipped: Option<Vec<String>>,
         verification_override: Option<LockfileVerificationOverride<'_>>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
+        let swap_lock = crate::ModulesSwapLock::new(&self.drivers.config.modules_dir);
         let ctx = crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: self.logged_methods,
+                swap_lock: Some(&swap_lock),
                 git_source_cache: &plan.git_source_cache,
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
             },
 
-            linker: crate::ModuleLinkerContext {
-                layout: &plan.layout,
-                kind: self.platform.node_linker,
-                bin_options: &plan.link_options,
-            },
+            linker: self.linker_context(&plan.layout, &plan.link_options),
             config: self.drivers.config,
             workspace_root: self.projects.workspace_root,
             requester: self.projects.requester,
@@ -404,6 +410,10 @@ impl<'a> InstallFrozenLockfile<'a> {
 
         let (linked, injected_deps) =
             self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
+        // Lifecycle scripts may start installs of their own in this project.
+        if let Some(swap_lock) = ctx.caches.swap_lock {
+            swap_lock.release();
+        }
 
         let phase_start = std::time::Instant::now();
         let built = self.build::<Reporter>(

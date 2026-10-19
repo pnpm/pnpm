@@ -1,6 +1,8 @@
 use super::{
     FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
-    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir, file_fits_at, populate_dir,
+    clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir,
+    exact::all_imported_entries_match_exactly,
+    file_fits_at, marker_file, populate_dir,
     symlinks::{SymlinkRoots, final_link_target},
 };
 use pnpm_config::PackageImportMethod;
@@ -16,6 +18,78 @@ use tempfile::tempdir;
 /// Keyed by absolute path, so tests sharing the process only ever read
 /// their own directories.
 static DIRECTORY_WRITERS: Mutex<BTreeMap<PathBuf, DirectoryWriters>> = Mutex::new(BTreeMap::new());
+
+#[test]
+fn exact_import_match_rejects_extra_files() {
+    let root = tempdir().unwrap();
+    let store = root.path().join("store");
+    let target = root.path().join("package");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&target).unwrap();
+    let manifest = store.join("package.json");
+    let source = store.join("index.js");
+    fs::write(&manifest, b"{}").unwrap();
+    fs::write(&source, b"content").unwrap();
+    fs::copy(&manifest, target.join("package.json")).unwrap();
+    fs::copy(&source, target.join("index.js")).unwrap();
+    let cas_paths =
+        HashMap::from([("package.json".to_string(), manifest), ("index.js".to_string(), source)]);
+
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
+    let stale_file = target.join("stale.js");
+    fs::write(&stale_file, b"stale").unwrap();
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+    fs::remove_file(stale_file).unwrap();
+    fs::create_dir(target.join("stale-dir")).unwrap();
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+    fs::remove_dir(target.join("stale-dir")).unwrap();
+    fs::create_dir(target.join("node_modules")).unwrap();
+    fs::write(target.join("node_modules/kept"), b"dependency").unwrap();
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, true));
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+}
+
+#[cfg(unix)]
+#[test]
+fn exact_import_match_rejects_different_file_modes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempdir().unwrap();
+    let store = root.path().join("store");
+    let target = root.path().join("package");
+    fs::create_dir(&store).unwrap();
+    fs::create_dir(&target).unwrap();
+    let manifest = store.join("package.json");
+    fs::write(&manifest, b"{}").unwrap();
+    fs::copy(&manifest, target.join("package.json")).unwrap();
+    let cas_paths = HashMap::from([("package.json".to_string(), manifest)]);
+
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
+    fs::set_permissions(target.join("package.json"), fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(!all_imported_entries_match_exactly(&target, &cas_paths, false));
+}
+
+#[cfg(unix)]
+#[test]
+fn exact_import_match_accepts_linkable_cafs_hardlink_modes() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempdir().unwrap();
+    let store = root.path().join("store/v3/files/aa");
+    let target = root.path().join("package");
+    fs::create_dir_all(&store).unwrap();
+    fs::create_dir(&target).unwrap();
+    let source = store.join("a".repeat(40));
+    fs::write(&source, b"{}").unwrap();
+    let expected_mode =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let linkable_mode = expected_mode ^ 0o020;
+    fs::set_permissions(&source, fs::Permissions::from_mode(linkable_mode)).unwrap();
+    fs::hard_link(&source, target.join("package.json")).unwrap();
+    let cas_paths = HashMap::from([("package.json".to_string(), source)]);
+
+    assert!(all_imported_entries_match_exactly(&target, &cas_paths, false));
+}
 
 #[derive(Default)]
 pub(super) struct DirectoryWriters {
@@ -92,6 +166,27 @@ fn a_directory_has_one_writer_at_a_time() {
     assert!(target.join("lib/199.js").is_file());
     assert!(target.join("lib/esm/199.js").is_file());
     assert!(target.join("package.json").is_file());
+}
+
+#[test]
+fn the_cargo_checksum_manifest_is_the_marker_of_a_vendored_crate() {
+    let cas_paths = |entries: &[&str]| -> HashMap<String, PathBuf> {
+        entries
+            .iter()
+            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry)))
+            .collect()
+    };
+
+    assert_eq!(
+        marker_file(&cas_paths(&[".appveyor.yml", ".cargo-checksum.json", "Cargo.toml"])),
+        Some(".cargo-checksum.json"),
+    );
+    assert_eq!(
+        marker_file(&cas_paths(&[".cargo-checksum.json", "package.json"])),
+        Some(".cargo-checksum.json"),
+    );
+    assert_eq!(marker_file(&cas_paths(&["index.js", "package.json"])), Some("package.json"));
+    assert_eq!(marker_file(&cas_paths(&[".appveyor.yml", "Cargo.toml"])), Some(".appveyor.yml"));
 }
 
 #[test]

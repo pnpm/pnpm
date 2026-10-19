@@ -464,6 +464,7 @@ async fn write_path_disabled_skips_upload() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -616,6 +617,7 @@ async fn upload_error_does_not_interrupt_install() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");

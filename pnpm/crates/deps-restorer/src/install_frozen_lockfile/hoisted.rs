@@ -82,6 +82,7 @@ pub struct HoistedLinkerInputs<'a> {
 /// instead of imported file by file.
 pub struct HoistedMaterialization<'a> {
     pub logged_methods: &'a AtomicU8,
+    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
     pub requester: &'a str,
     /// Prefetched build flags gate reuse of canonical package directories.
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
@@ -306,6 +307,7 @@ fn link_hoisted<Reporter: self::Reporter>(
                 config,
                 inputs.materialization.logged_methods,
                 inputs.materialization.requester,
+                inputs.materialization.swap_lock,
             ),
             graph: &walked.graph,
             prev_graph: walked.prev_graph.as_ref(),
@@ -380,7 +382,7 @@ fn link_hoisted_workspace_packages(
     }
     let workspace_packages = workspace_packages_for_hoist(
         inputs.projects.walker_lockfile_dir,
-        inputs.projects.manifests,
+        inputs.projects.package_map_manifests,
     );
     let root_links = root_dependency_aliases(inputs);
     let hoists = crate::hoist_workspace_packages_to_root(

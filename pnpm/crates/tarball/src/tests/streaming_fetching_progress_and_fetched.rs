@@ -7,6 +7,7 @@ use super::{
     incompressible_tarball, integrity, stream_extract_gzipped_tarball, tar_with_raw_entry_name,
     tar_with_root_level_entries, tempdir_with_leaked_path, write_zip_entry_to_cas,
 };
+use crate::{ArchiveLimit, TarLimits};
 
 /// `pnpm:fetching-progress` and `pnpm:progress` fire from inside the
 /// tarball pipeline:
@@ -69,7 +70,10 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     fetch_and_extract_with_retry::<RecordingReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -149,6 +153,7 @@ fn extract_zip_strips_prefix_from_entry_paths() {
         store_path,
         Some("node-v22.0.0-darwin-arm64"),
         None,
+        TarLimits::default(),
     )
     .expect("happy-path zip extraction");
 
@@ -194,6 +199,7 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
         store_path,
         Some("node-v22.0.0-darwin-arm64"),
         Some(&node_extras_filter),
+        TarLimits::default(),
     )
     .expect("zip extraction with ignore filter");
 
@@ -219,9 +225,15 @@ fn extract_zip_rejects_parent_dir_component() {
     let bytes = build_zip(&[("../evil.txt", b"evil")]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    let err =
-        extract_zip_entries(&mut archive, "https://example.test/evil.zip", store_path, None, None)
-            .expect_err("escaping zip entry must be rejected, not normalized");
+    let err = extract_zip_entries(
+        &mut archive,
+        "https://example.test/evil.zip",
+        store_path,
+        None,
+        None,
+        TarLimits::default(),
+    )
+    .expect_err("escaping zip entry must be rejected, not normalized");
 
     match err {
         TarballError::PathTraversal { url, entry_path, reason } => {
@@ -264,6 +276,7 @@ fn extract_zip_rejects_directory_entry_with_parent_component() {
         store_path,
         None,
         None,
+        TarLimits::default(),
     )
     .expect_err("escaping directory entry must be rejected, not silently skipped");
 
@@ -285,9 +298,15 @@ fn extract_zip_uses_entry_path_when_no_prefix() {
     let bytes = build_zip(&[("bin/tool", b"x"), ("README.md", b"docs")]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    let (cas_paths, _) =
-        extract_zip_entries(&mut archive, "https://example.test/flat.zip", store_path, None, None)
-            .expect("flat zip extraction");
+    let (cas_paths, _) = extract_zip_entries(
+        &mut archive,
+        "https://example.test/flat.zip",
+        store_path,
+        None,
+        None,
+        TarLimits::default(),
+    )
+    .expect("flat zip extraction");
 
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/tool"));
@@ -319,6 +338,7 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
         store_path,
         Some("node-v22.0.0-darwin-arm64"),
         None,
+        TarLimits::default(),
     )
     .expect("zip with `.` segments");
 
@@ -332,6 +352,55 @@ fn extract_zip_normalizes_dot_segments_in_entry_paths() {
         "no entry should retain a `.` segment",
     );
 
+    drop(tempdir);
+}
+
+/// A zip's files are held to the payload ceiling a tar is: the sizes its
+/// central directory claims add up against `maxTarballUnpackedSize`.
+#[test]
+fn extract_zip_rejects_files_past_the_payload_limit() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+    let first = vec![b'a'; 600];
+    let second = vec![b'b'; 600];
+    let bytes = build_zip(&[("pkg/a.bin", first.as_slice()), ("pkg/b.bin", second.as_slice())]);
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
+
+    let error = extract_zip_entries(
+        &mut archive,
+        "https://example.test/pkg.zip",
+        store_path,
+        None,
+        None,
+        TarLimits::new(1000),
+    )
+    .expect_err("1200 bytes of files exceed a 1000-byte ceiling");
+
+    assert!(
+        matches!(error, TarballError::ArchiveLimit(ArchiveLimit::Payload(1000))),
+        "got {error:?}",
+    );
+    drop(tempdir);
+}
+
+#[test]
+fn extract_zip_accepts_files_at_the_payload_limit() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+    let first = vec![b'a'; 500];
+    let second = vec![b'b'; 500];
+    let bytes = build_zip(&[("pkg/a.bin", first.as_slice()), ("pkg/b.bin", second.as_slice())]);
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
+
+    let (cas_paths, _) = extract_zip_entries(
+        &mut archive,
+        "https://example.test/pkg.zip",
+        store_path,
+        None,
+        None,
+        TarLimits::new(1000),
+    )
+    .expect("1000 bytes of files fit a 1000-byte ceiling");
+
+    assert_eq!(cas_paths.len(), 2);
     drop(tempdir);
 }
 
@@ -490,7 +559,10 @@ async fn in_progress_events_fire_only_for_big_tarballs() {
         fetch_and_extract_with_retry::<Reporter>(
             &ThrottledClient::default(),
             &url,
-            None,
+            &crate::archive_integrity::ArchiveVerification::new(
+                None,
+                crate::IntegrityKind::Resource,
+            ),
             None,
             crate::TarLimits::default(),
             0,
@@ -554,7 +626,10 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     let (verified, cas_paths, files_idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&pinned),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pinned),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -571,7 +646,11 @@ async fn streaming_download_extracts_a_big_pinned_tarball() {
     .expect("a well-formed pinned tarball must download and extract");
     mock.assert_async().await;
 
-    assert_eq!(verified.to_string(), pinned.to_string(), "the pinned integrity is what verifies");
+    assert_eq!(
+        verified.resource.to_string(),
+        pinned.to_string(),
+        "the pinned integrity is what verifies",
+    );
 
     let (reference_keep, reference_store) = tempdir_with_leaked_path();
     let (reference_paths, reference_idx) =
@@ -627,7 +706,10 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
     let (verified, cas_paths, _) = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&pinned),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pinned),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -644,7 +726,7 @@ async fn chunked_download_extracts_a_body_past_the_buffering_threshold() {
     .expect("a chunked body must download and extract");
     mock.assert_async().await;
 
-    assert_eq!(verified.to_string(), pinned.to_string());
+    assert_eq!(verified.resource.to_string(), pinned.to_string());
     assert!(cas_paths.contains_key("noise.bin"), "got {:?}", cas_paths.keys().collect::<Vec<_>>());
     drop(store_dir_keep);
 }
@@ -671,7 +753,10 @@ async fn streaming_download_corrupt_archive_retries_and_fails() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&pinned),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pinned),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,

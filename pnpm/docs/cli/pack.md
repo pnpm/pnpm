@@ -5,6 +5,18 @@ title: pnpm pack
 
 Create a tarball from a package.
 
+## Files included in the tarball
+
+Use the `files` field in `package.json` to select files and directories. Patterns
+support extglobs such as `lib/!(*.test.js)` and `@(dist|lib)`. A `files` field
+replaces the root `.npmignore` or `.gitignore`; ignore files inside selected
+subdirectories still apply. An explicitly named file or internal symlink is
+included even when its parent directory is excluded.
+
+Without `files`, pnpm reads `.npmignore`, falling back to `.gitignore`.
+Negated ignore patterns can re-include default exclusions such as `*.orig` and
+`npm-debug.log`. Root lockfiles and `.npmrc` stay excluded.
+
 ## Options
 
 ### --recursive, -r

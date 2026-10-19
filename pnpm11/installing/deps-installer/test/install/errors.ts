@@ -26,7 +26,7 @@ interface PackumentFixture {
 function loadPackument (fixtureName: string): PackumentFixture {
   const packument = loadJsonFileSync<PackumentFixture>(testFixtures.find(fixtureName))
   for (const version of Object.values(packument.versions)) {
-    version.dist.tarball = `http://localhost:${REGISTRY_MOCK_PORT}${new URL(version.dist.tarball).pathname}`
+    version.dist.tarball = `http://localhost:${REGISTRY_MOCK_PORT}/npm${new URL(version.dist.tarball).pathname}`
   }
   return packument
 }
@@ -66,14 +66,14 @@ test('fail if a package cannot be fetched', async () => {
   prepareEmpty()
   await setupMockAgent()
   const mockPool = getMockAgent().get(`http://localhost:${REGISTRY_MOCK_PORT}`)
-  mockPool.intercept({ path: '/@pnpm.e2e%2Fpkg-with-1-dep', method: 'GET' }) // cspell:disable-line
+  mockPool.intercept({ path: '/npm/@pnpm.e2e%2Fpkg-with-1-dep', method: 'GET' }) // cspell:disable-line
     .reply(200, loadPackument('pkg-with-1-dep.json'))
-  mockPool.intercept({ path: '/@pnpm.e2e%2Fdep-of-pkg-with-1-dep', method: 'GET' }) // cspell:disable-line
+  mockPool.intercept({ path: '/npm/@pnpm.e2e%2Fdep-of-pkg-with-1-dep', method: 'GET' }) // cspell:disable-line
     .reply(200, loadPackument('dep-of-pkg-with-1-dep.json'))
   const tarballContent = fs.readFileSync(testFixtures.find('pkg-with-1-dep-100.0.0.tgz'))
-  mockPool.intercept({ path: '/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz', method: 'GET' })
+  mockPool.intercept({ path: '/npm/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz', method: 'GET' })
     .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
-  mockPool.intercept({ path: '/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz', method: 'GET' })
+  mockPool.intercept({ path: '/npm/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz', method: 'GET' })
     .reply(403, 'Forbidden', { headers: { 'content-type': 'text/plain' } })
 
   let err!: PnpmError

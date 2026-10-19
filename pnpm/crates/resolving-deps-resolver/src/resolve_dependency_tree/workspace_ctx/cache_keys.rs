@@ -9,7 +9,7 @@ use super::{
 /// [`Resolver::resolve`] with four [`WantedDependency`] fields
 /// populated — `alias`, `bare_specifier`, `optional`, and `injected` (see
 /// the `WantedDependency` literals in [`extend_tree`] and the recursive
-/// arm of [`fn@resolve_node`]). Anything else stays at `Default::default()`,
+/// arm of [`fn@resolve_node_seed`]). Anything else stays at `Default::default()`,
 /// so a tuple over those four fields uniquely identifies a wanted
 /// dep across revisits.
 ///
@@ -62,7 +62,7 @@ use super::{
 /// [`Resolver::resolve`]: pnpm_resolving_resolver_base::Resolver::resolve
 /// [`WantedDependency`]: pnpm_resolving_resolver_base::WantedDependency
 /// [`extend_tree`]: super::super::extend_tree
-/// [`fn@resolve_node`]: super::super::walk::resolve_node
+/// [`fn@resolve_node_seed`]: super::super::walk::resolve_node_seed
 pub(in super::super) type WantedKeyFields = (
     Option<String>,
     Option<String>,

@@ -154,8 +154,8 @@ async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
         result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a importer");
     assert_eq!(
         a_direct.get("shared").map(std::string::ToString::to_string),
-        Some("shared@1.0.0(opt@25.0.0)".to_string()),
-        "a locked peer provider must remain eligible for importer-local hoisting",
+        Some("shared@1.0.0".to_string()),
+        "shared subtree owner suppression holds even when the lockfile records a suffixed snapshot",
     );
 }
 

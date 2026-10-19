@@ -35,6 +35,50 @@ fn filtered_install_of_the_providing_project_keeps_an_unselected_projects_pin() 
     assert_lib_peer_after_app_bump(">=1.0.0", "2.0.0", &["--filter", "app"], "1.0.0");
 }
 
+// <https://github.com/pnpm/pnpm/issues/17058>
+#[test]
+fn auto_installed_peer_follows_a_new_project_although_another_still_accepts_its_pin() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_workspace_yaml_key(&workspace, "packages", "['app', 'lib', 'other']");
+    write_manifest(
+        &workspace.join("lib"),
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "is-positive": ">=1.0.0" },
+        }),
+    );
+    write_app_manifest(&workspace, "1.0.0");
+    write_manifest(
+        &workspace.join("other"),
+        &serde_json::json!({ "name": "other", "version": "1.0.0" }),
+    );
+    install_lockfile_only(&workspace, &[]);
+    assert_eq!(locked_version(&workspace, "lib"), "1.0.0");
+
+    write_manifest(
+        &workspace.join("other"),
+        &serde_json::json!({
+            "name": "other",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "2.0.0" },
+        }),
+    );
+    install_lockfile_only(&workspace, &[]);
+    assert_eq!(locked_version(&workspace, "lib"), "2.0.0");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["dedupe", "--check"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 fn assert_lib_peer_after_app_bump(
     peer_range: &str,
     bumped_app_spec: &str,

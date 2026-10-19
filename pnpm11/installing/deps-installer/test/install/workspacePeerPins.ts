@@ -36,6 +36,30 @@ test.each([
   })
 })
 
+// https://github.com/pnpm/pnpm/issues/17058
+test('an auto-installed peer follows a new workspace project although another project still accepts its pin', async () => {
+  prepareEmpty()
+  const mutations = ['app', 'lib', 'other'].map((name) => ({ mutation: 'install' as const, rootDir: path.resolve(name) as ProjectRootDir }))
+  const opts = { autoInstallPeers: true, lockfileOnly: true }
+
+  await mutateModules(mutations, testDefaults({ ...opts, allProjects: createThreeProjects(undefined) }))
+  const project = assertProject(process.cwd())
+  expect(project.readLockfile().importers['lib'].dependencies).toStrictEqual({
+    'is-positive': { specifier: '>=1.0.0', version: '1.0.0' },
+  })
+
+  await mutateModules(mutations, testDefaults({ ...opts, allProjects: createThreeProjects('2.0.0') }))
+  expect(project.readLockfile().importers['lib'].dependencies).toStrictEqual({
+    'is-positive': { specifier: '>=1.0.0', version: '2.0.0' },
+  })
+
+  await mutateModules(mutations, testDefaults({ ...opts, allProjects: createThreeProjects('2.0.0', { 'is-negative': '1.0.0' }) }))
+  expect(project.readLockfile().importers['lib'].dependencies).toStrictEqual({
+    'is-negative': { specifier: '1.0.0', version: '1.0.0' },
+    'is-positive': { specifier: '>=1.0.0', version: '2.0.0' },
+  })
+})
+
 test('a filtered install of the providing project also moves the lockfile entry of an unselected project\'s auto-installed peer', async () => {
   prepareEmpty()
   const [appMutation, libMutation] = ['app', 'lib'].map((name) => ({ mutation: 'install' as const, rootDir: path.resolve(name) as ProjectRootDir }))
@@ -64,6 +88,19 @@ function createPeerProviderProjects (appSpec: string, peerRange: string) {
       buildIndex: 0,
       manifest: { name: 'lib', version: '1.0.0', peerDependencies: { 'is-positive': peerRange } },
       rootDir: path.resolve('lib') as ProjectRootDir,
+    },
+  ]
+}
+
+function createThreeProjects (otherSpec: string | undefined, libDependencies: Record<string, string> = {}) {
+  const [app, lib] = createPeerProviderProjects('1.0.0', '>=1.0.0')
+  return [
+    app,
+    { ...lib, manifest: { ...lib.manifest, dependencies: libDependencies } },
+    {
+      buildIndex: 0,
+      manifest: { name: 'other', version: '1.0.0', dependencies: otherSpec == null ? {} : { 'is-positive': otherSpec } },
+      rootDir: path.resolve('other') as ProjectRootDir,
     },
   ]
 }

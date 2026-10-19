@@ -106,13 +106,11 @@ pub(super) fn write_peer_heavy_packument(
         "versions": versions,
         "time": time,
     });
-    let package_dir = storage_root.join(name);
-    fs::create_dir_all(&package_dir).expect("create peer-heavy registry package directory");
-    fs::write(
-        package_dir.join("package.json"),
-        serde_json::to_vec(&packument).expect("serialize peer-heavy packument"),
-    )
-    .expect("write peer-heavy packument");
+    let document = pnpr_storage::layout::local_document_path(storage_root, "", name);
+    fs::create_dir_all(document.parent().expect("a document has a package directory"))
+        .expect("create peer-heavy registry package directory");
+    fs::write(document, serde_json::to_vec(&packument).expect("serialize peer-heavy packument"))
+        .expect("write peer-heavy packument");
 }
 pub(super) fn peer_heavy_manifest(
     name: &str,

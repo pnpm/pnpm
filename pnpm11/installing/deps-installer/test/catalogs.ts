@@ -247,8 +247,8 @@ test('lockfile contains catalog snapshots', async () => {
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
-        '@pnpm.e2e/foo': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
+        '@pnpm.e2e/foo': '^100.1.0',
       },
     },
   })
@@ -256,8 +256,8 @@ test('lockfile contains catalog snapshots', async () => {
   const lockfile = readLockfile()
   expect(lockfile.catalogs).toStrictEqual({
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
-      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' },
     },
   })
 })
@@ -375,7 +375,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '^1.0.0',
       },
     },
@@ -383,7 +383,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
 
   expect(readLockfile().catalogs).toStrictEqual({
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
       '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.3.0' },
     },
   })
@@ -394,7 +394,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '=100.0.0',
       },
     },
@@ -404,7 +404,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     default: {
       // The @pnpm.e2e/bar snapshot should be carried from the previous install,
       // despite the current filtered install not using it.
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
 
       '@pnpm.e2e/foo': { specifier: '=100.0.0', version: '100.0.0' },
     },
@@ -579,15 +579,15 @@ test('--fix-lockfile with --filter does not erase catalog snapshots', async () =
 
   const catalogs = {
     default: {
-      '@pnpm.e2e/bar': '^100.0.0',
-      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/bar': '^100.1.0',
+      '@pnpm.e2e/foo': '^100.1.0',
     },
   }
 
   const expectedCatalogsSnapshot: CatalogSnapshots = {
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
-      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' },
     },
   }
 
@@ -1416,7 +1416,7 @@ describe('add', () => {
       name: 'project1',
       dependencies: {},
     }])
-    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`
+    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`
 
     const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
       projects['project1' as ProjectId],

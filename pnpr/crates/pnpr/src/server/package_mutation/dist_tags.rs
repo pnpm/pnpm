@@ -11,8 +11,8 @@ use pnpr_policy::Identity;
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, publish::now_iso};
 
 use crate::server::{
-    Action, AppState, RegistrySource, authorize, filter_osv_vulnerable_dist_tags, hosted_storage,
-    load_packument_for_read, not_found, resolve_write_target,
+    Action, AppState, RegistrySource, authorize_package, filter_osv_vulnerable_dist_tags,
+    hosted_storage, load_packument_for_read, not_found, resolve_write_target,
 };
 
 /// `GET /-/package/:pkg/dist-tags` (path-less) or
@@ -152,13 +152,16 @@ where
         Ok(target) => target,
         Err(err) => return (err.into_response(), None),
     };
-    if let Err(err) = authorize(
+    if let Err(err) = authorize_package(
         state,
         identity,
         &RegistrySource::Hosted(target.source.clone()),
         name.as_str(),
         Action::Publish,
-    ) {
+        Some(&target.org),
+    )
+    .await
+    {
         return (err.into_response(), None);
     }
     let org = target.org;
@@ -173,18 +176,18 @@ where
     )
     .await;
     match outcome {
-        Ok(DocumentUpdate::Written) => {}
-        Ok(DocumentUpdate::NotFound) => return (not_found(), None),
-        Err(err) => return (err.into_response(), None),
+        Ok(DocumentUpdate::Written) => (ok_created_response(), Some(target.source)),
+        Ok(DocumentUpdate::NotFound) => (not_found(), None),
+        Err(err) => (err.into_response(), None),
     }
-    let body = json!({ "ok": true });
-    let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-    let response = Response::builder()
+}
+
+fn ok_created_response() -> Response {
+    Response::builder()
         .status(StatusCode::CREATED)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds");
-    (response, Some(target.source))
+        .body(Body::from(r#"{"ok":true}"#))
+        .expect("static-shape response always builds")
 }
 
 /// The stored packument with its `dist-tags` mutated and `time.modified`
@@ -200,11 +203,24 @@ where
         return Ok(None);
     };
     let mut packument: Value = serde_json::from_slice(bytes)?;
+    if let Some(format_version) = packument.get("formatVersion").and_then(Value::as_u64)
+        && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
+    {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: "packument".to_string(),
+            format_version: format_version as u32,
+            supported_version: pnpr_storage::publish::PACKUMENT_FORMAT_VERSION,
+        });
+    }
     let Some(packument_obj) = packument.as_object_mut() else {
         return Err(RegistryError::BadRequest {
             reason: "stored packument is not an object".to_string(),
         });
     };
+    packument_obj.insert(
+        "formatVersion".to_string(),
+        serde_json::json!(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION),
+    );
     let tags_entry = packument_obj
         .entry("dist-tags".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
@@ -214,6 +230,13 @@ where
         });
     };
     mutate(tags)?;
+    update_modified_time(packument_obj)?;
+    Ok(Some(serde_json::to_vec_pretty(&packument)?))
+}
+
+fn update_modified_time(
+    packument_obj: &mut serde_json::Map<String, Value>,
+) -> Result<(), RegistryError> {
     let time_entry = packument_obj
         .entry("time".to_string())
         .or_insert_with(|| Value::Object(serde_json::Map::new()));
@@ -223,5 +246,5 @@ where
         });
     };
     time_obj.insert("modified".to_string(), Value::String(now_iso()));
-    Ok(Some(serde_json::to_vec_pretty(&packument)?))
+    Ok(())
 }

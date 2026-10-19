@@ -14,8 +14,8 @@ pub(crate) use missing_names::{MissingNames, children_scc_ids, index_missing_nam
 
 mod walk_context;
 use walk_context::{
-    ChildAliases, ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren,
-    LockedPinContext, NodeEntry, NodePeers, NodePeersContext, SettledPeers, WalkResult,
+    ChildChains, ChildOutputs, ChildParentRefs, ChildrenWalk, DeferredChildren, NodeEntry,
+    NodePeers, NodePeersContext, SettledPeers, WalkResult,
 };
 
 mod missing_names;
@@ -43,18 +43,14 @@ use crate::{
         context::{
             ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
             SharedChain, importer_relative_link_dep_path, insert_parent_ref,
-            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id, satisfies_with_prereleases,
+            link_node_id_as_dep_path, peer_id_pair, remap_link_node_id,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PeerIdRecording, PendingPeerEdge, WalkedNode},
     },
     resolved_tree::{ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren},
 };
-use pnpm_deps_path::{
-    DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
-    link_path_to_peer_version,
-};
-use pnpm_resolving_resolver_base::get_peer_version_range;
+use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix, link_path_to_peer_version};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -147,6 +143,26 @@ pub(super) enum PeerWalkMode {
     Discovery,
     /// The final pass that records the graph.
     Final,
+}
+
+/// Whether [`ChildOutputs::push`] records the child's depPath.
+///
+/// [`ChildOutputs::push`]: walk_context::ChildOutputs::push
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum DepPathRecording {
+    Record,
+    Skip,
+}
+
+impl PeerWalkMode {
+    /// The realized children of a walk record their depPaths only on the
+    /// pass that records the graph.
+    pub(super) fn dep_path_recording(self) -> DepPathRecording {
+        match self {
+            PeerWalkMode::Final => DepPathRecording::Record,
+            PeerWalkMode::Discovery => DepPathRecording::Skip,
+        }
+    }
 }
 
 pub(super) struct PeerWalkProviders {

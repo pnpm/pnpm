@@ -6,13 +6,14 @@ use super::{
     json_response, private_no_cache, require_admin, team_mutations::respond,
     tokens::token_response_object,
 };
-use crate::{PasswordChange, UserCreation, UserRemoval};
+use crate::UserRemoval;
 use axum::{
     Router,
     body::Bytes,
     extract::{DefaultBodyLimit, Path, State},
     routing::{delete, get},
 };
+use pnpr_auth::UserPut;
 use serde::Deserialize;
 
 const USERS: &str = "/-/pnpr/v0/admin/users";
@@ -76,19 +77,12 @@ async fn put_user(
     let result = async {
         require_admin(&state, &identity, "manage", format!("user {:?}", path.user))?;
         let password = parse_password(&body)?;
-        let users = &state.inner.identity.auth.users;
-        if users.password_hash(&path.user).await?.is_none() {
-            // Tokens a removed account left behind must not reach the new one.
-            revoke_all_tokens(&state, &path.user).await?;
-        }
-        let (status, action) = match users.create_user(&path.user, &password).await? {
-            UserCreation::Created => (StatusCode::CREATED, "user.create"),
-            UserCreation::NameTaken => match users.set_password(&path.user, &password).await? {
-                PasswordChange::Changed => (StatusCode::OK, "user.password_update"),
-                // Another request removed the user between the two calls.
-                PasswordChange::NoSuchUser => return Err(RegistryError::NotFound),
-            },
-        };
+        let (status, action) =
+            match state.inner.identity.auth.put_user(&path.user, &password).await? {
+                Some(UserPut::Created) => (StatusCode::CREATED, "user.create"),
+                Some(UserPut::PasswordChanged) => (StatusCode::OK, "user.password_update"),
+                None => return Err(RegistryError::NotFound),
+            };
         let actor = identity.username().unwrap_or("-");
         tracing::info!(
             target: "pnpr::audit",
@@ -114,10 +108,10 @@ async fn delete_user(
 ) -> Response {
     let result = async {
         require_admin(&state, &identity, "remove", format!("user {:?}", path.user))?;
-        let revoked_before = revoke_all_tokens(&state, &path.user).await?;
+        let revoked_before = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
         let removed = state.inner.identity.auth.users.delete_user(&path.user).await?;
         state.inner.identity.oidc.revoke_user_sessions(&path.user);
-        let revoked_after = revoke_all_tokens(&state, &path.user).await?;
+        let revoked_after = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
         let had_nothing_to_revoke = revoked_before + revoked_after == 0;
         match removed {
             // A user the store never held, who also left no tokens behind,
@@ -140,19 +134,6 @@ async fn delete_user(
         Ok(StatusCode::NO_CONTENT)
     };
     respond(result.await)
-}
-
-/// Revoke every token `user` holds, returning how many there were.
-pub(super) async fn revoke_all_tokens(
-    state: &AppState,
-    user: &str,
-) -> Result<usize, RegistryError> {
-    let tokens = &state.inner.identity.auth.tokens;
-    let held = tokens.list_for_user(user).await?;
-    for (key, _) in &held {
-        tokens.revoke_by_key(key).await?;
-    }
-    Ok(held.len())
 }
 
 /// `GET /-/pnpr/v0/admin/users/{user}/tokens` — the user's tokens in the

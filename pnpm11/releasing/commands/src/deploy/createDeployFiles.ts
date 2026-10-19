@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import * as dp from '@pnpm/deps.path'
+import { getLockfilePeerDependencies } from '@pnpm/installing.deps-resolver'
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
@@ -152,11 +153,14 @@ function convertWorkspaceImporters (
       deployedProjectRealPath: ctx.deployedProjectRealPath,
       projectRootDirRealPath,
     }
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions)
+    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    const packageSnapshot = {
+      ...convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions),
+      ...(manifest == null ? {} : getLockfilePeerDependencies(manifest)),
+    }
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
-    const manifest = peerBearingProjects.get(projectRootDirRealPath)
-    if (manifest == null) continue
+    if (manifest?.peerDependencies == null) continue
     linkedWorkspaceProjects.set(depPath, {
       manifest,
       dedupedPeerResolutions: injectedWorkspace
@@ -179,7 +183,7 @@ function convertWorkspaceImporters (
 function indexPeerBearingProjects (allProjects: DeployAllProjects): Map<string, ProjectManifest> {
   const peerBearingProjects = new Map<string, ProjectManifest>()
   for (const project of allProjects) {
-    if (project.manifest.peerDependencies == null) continue
+    if (project.manifest.peerDependencies == null && project.manifest.peerDependenciesMeta == null) continue
     peerBearingProjects.set(project.rootDir, project.manifest)
     peerBearingProjects.set(project.rootDirRealPath, project.manifest)
   }

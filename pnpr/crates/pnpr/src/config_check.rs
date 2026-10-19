@@ -52,11 +52,7 @@ pub fn check_config(config_path: Option<&Path>) -> miette::Result<ConfigCheckRep
     }
 
     let default_listen: SocketAddr = Config::DEFAULT_LISTEN.parse().into_diagnostic()?;
-    let overrides = FeatureOverrides {
-        disable_registry: false,
-        disable_resolver: false,
-        disable_artifacts: false,
-    };
+    let overrides = FeatureOverrides::default();
     let auto_path = Config::auto_config_path();
     let (config, source) = Config::resolve_with_overrides(
         config_path,

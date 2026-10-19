@@ -156,7 +156,8 @@ async fn users_are_created_found_and_patched() {
 #[tokio::test]
 async fn deactivating_a_user_revokes_its_tokens_and_refuses_its_login() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
     let (_, token) = log_in(&app, "alice").await;
     let token = token.unwrap();
     assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
@@ -175,6 +176,8 @@ async fn deactivating_a_user_revokes_its_tokens_and_refuses_its_login() {
         scim(&app, "PATCH", &format!("{USERS}/alice"), Some(reactivate)).await.0,
         StatusCode::OK,
     );
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
+    auth.put_user("alice", "secret").await.unwrap();
     let (status, token) = log_in(&app, "alice").await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(whoami(&app, &token.unwrap()).await, StatusCode::OK);
@@ -183,7 +186,8 @@ async fn deactivating_a_user_revokes_its_tokens_and_refuses_its_login() {
 #[tokio::test]
 async fn a_deleted_user_stays_refused_and_unlisted_until_provisioned_again() {
     let dir = TempDir::new().unwrap();
-    let app = router(load_config(dir.path()));
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
     assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
     let path = format!("{USERS}/alice");
     assert_eq!(scim(&app, "DELETE", &path, None).await.0, StatusCode::NO_CONTENT);
@@ -192,13 +196,37 @@ async fn a_deleted_user_stays_refused_and_unlisted_until_provisioned_again() {
     let (_, listed) = scim(&app, "GET", USERS, None).await;
     assert_eq!(listed["totalResults"], json!(0));
 
-    let restarted = router(load_config(dir.path()));
+    let restarted = router_with_auth(load_config(dir.path()), auth.clone());
+    auth.put_user("alice", "secret").await.unwrap();
     assert_eq!(log_in(&restarted, "alice").await.0, StatusCode::FORBIDDEN);
     assert_eq!(
         scim(&restarted, "POST", USERS, Some(new_user("alice"))).await.0,
         StatusCode::CREATED,
     );
+    auth.put_user("alice", "secret").await.unwrap();
     assert_eq!(log_in(&restarted, "alice").await.0, StatusCode::CREATED);
+}
+
+#[tokio::test]
+async fn a_provisioned_user_cannot_self_register() {
+    let dir = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let app = router_with_auth(load_config(dir.path()), auth.clone());
+    let (_, bob_token) = log_in(&app, "bob").await;
+    assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
+    assert_eq!(scim(&app, "POST", USERS, Some(new_user("bob"))).await.0, StatusCode::CREATED);
+
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
+    assert!(
+        auth.users
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+
+    assert_eq!(whoami(&app, &bob_token.unwrap()).await, StatusCode::OK);
+    assert_eq!(log_in(&app, "bob").await.0, StatusCode::CREATED);
 }
 
 #[tokio::test]
@@ -246,25 +274,44 @@ async fn reactivating_a_user_first_removes_credentials_a_failed_cleanup_left() {
     );
 }
 
-/// A user store whose registration lets a SCIM client deactivate the user
-/// first, as if the deactivation landed while the login ran.
-struct DeactivatedDuringLogin {
+/// A user store whose login lets a SCIM client write the user, as if the
+/// write landed while the login ran.
+struct ScimWriteDuringLogin {
     users: UserStore,
     app: OnceLock<axum::Router>,
+    write: ScimWrite,
+}
+
+#[derive(Clone, Copy)]
+enum ScimWrite {
+    /// Provision the user before the login stores the account.
+    ProvisionBefore,
+    /// Deactivate the user after the login verified the account.
+    DeactivateAfter,
 }
 
 #[async_trait::async_trait]
-impl UserBackend for DeactivatedDuringLogin {
+impl UserBackend for ScimWriteDuringLogin {
     async fn add_or_login(
         &self,
         username: &str,
         password: &str,
     ) -> pnpr::Result<(UpsertOutcome, String)> {
         let app = self.app.get().expect("router set");
-        let (status, _) =
-            scim(app, "PATCH", &format!("{USERS}/{username}"), Some(deactivate())).await;
-        assert_eq!(status, StatusCode::OK);
-        self.users.add_or_login(username, password).await
+        match self.write {
+            ScimWrite::ProvisionBefore => {
+                let (status, _) = scim(app, "POST", USERS, Some(new_user(username))).await;
+                assert_eq!(status, StatusCode::CREATED);
+                self.users.add_or_login(username, password).await
+            }
+            ScimWrite::DeactivateAfter => {
+                let outcome = self.users.add_or_login(username, password).await?;
+                let (status, _) =
+                    scim(app, "PATCH", &format!("{USERS}/{username}"), Some(deactivate())).await;
+                assert_eq!(status, StatusCode::OK);
+                Ok(outcome)
+            }
+        }
     }
 
     async fn list_users(&self) -> pnpr::Result<Vec<String>> {
@@ -288,16 +335,51 @@ impl UserBackend for DeactivatedDuringLogin {
     }
 }
 
+/// A router whose user store lets a SCIM client `write` during a login.
+fn racing_router(
+    dir: &Path,
+    write: ScimWrite,
+) -> (axum::Router, Arc<ScimWriteDuringLogin>, Arc<TokenStore>) {
+    let users = Arc::new(ScimWriteDuringLogin {
+        users: UserStore::in_memory(),
+        app: OnceLock::new(),
+        write,
+    });
+    let tokens = Arc::new(TokenStore::in_memory());
+    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
+    let app = router_with_auth(load_config(dir), auth);
+    users.app.set(app.clone()).unwrap();
+    (app, users, tokens)
+}
+
 #[tokio::test]
 async fn a_login_racing_a_deactivation_keeps_no_token_or_account() {
     let dir = TempDir::new().unwrap();
-    let users =
-        Arc::new(DeactivatedDuringLogin { users: UserStore::in_memory(), app: OnceLock::new() });
-    let tokens = Arc::new(TokenStore::in_memory());
-    let auth = AuthState { users: Arc::clone(&users) as _, tokens: Arc::clone(&tokens) as _ };
-    let app = router_with_auth(load_config(dir.path()), auth);
-    users.app.set(app.clone()).unwrap();
+    let (app, users, tokens) = racing_router(dir.path(), ScimWrite::DeactivateAfter);
     assert_eq!(scim(&app, "POST", USERS, Some(new_user("alice"))).await.0, StatusCode::CREATED);
+    users.users.create_user("alice", "secret").await.unwrap();
+
+    assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
+    assert!(
+        tokens
+            .list_for_user("alice")
+            .await
+            .unwrap()
+            .is_empty(),
+    );
+    assert!(
+        users.users
+            .password_hash("alice")
+            .await
+            .unwrap()
+            .is_none(),
+    );
+}
+
+#[tokio::test]
+async fn a_registration_racing_a_provisioning_keeps_no_token_or_account() {
+    let dir = TempDir::new().unwrap();
+    let (app, users, tokens) = racing_router(dir.path(), ScimWrite::ProvisionBefore);
 
     assert_eq!(log_in(&app, "alice").await.0, StatusCode::FORBIDDEN);
     assert!(

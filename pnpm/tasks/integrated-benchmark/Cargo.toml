@@ -18,6 +18,7 @@ path = "src/main.rs"
 pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-registry-mock = { workspace = true }
+pnpr-storage = { workspace = true }
 
 clap = { workspace = true }
 itertools = { workspace = true }

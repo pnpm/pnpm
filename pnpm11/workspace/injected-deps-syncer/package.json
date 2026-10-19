@@ -37,6 +37,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",
+    "@pnpm/fs.indexed-pkg-importer": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/pkg-manifest.reader": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",

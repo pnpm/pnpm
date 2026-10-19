@@ -6,12 +6,12 @@ use std::{
 
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode, header},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use dashmap::DashMap;
 
-use super::{AppState, AuthedCaller, TargetRegistry, serve_packument};
+use super::AppState;
 
 pub(crate) const DURATION_BUCKETS: [f64; 11] =
     [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
@@ -230,28 +230,4 @@ pub(crate) async fn serve_metrics(State(state): State<AppState>) -> Response {
     let rendered = state.inner.metrics.render_prometheus();
     (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")], rendered)
         .into_response()
-}
-
-/// Serve Prometheus metrics at `/metrics`, or delegate to packument lookup when
-/// requested with npm client accept headers.
-pub(crate) async fn serve_metrics_or_packument(
-    state: State<AppState>,
-    caller: AuthedCaller,
-    target: TargetRegistry,
-    headers: HeaderMap,
-) -> Response {
-    let is_npm_packument_request = headers
-        .get(header::ACCEPT)
-        .and_then(|value| value.to_str().ok())
-        .is_some_and(|accept| {
-            (accept.contains("application/vnd.npm.install-v1+json")
-                || accept.contains("application/json"))
-                && !accept.contains("text/plain")
-        });
-
-    if is_npm_packument_request {
-        serve_packument(&state, &caller.0, &headers, target.0.as_deref(), "metrics").await
-    } else {
-        serve_metrics(state).await
-    }
 }

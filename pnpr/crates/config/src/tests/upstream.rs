@@ -307,6 +307,7 @@ registries:
         disable_registry: true,
         disable_resolver: false,
         disable_artifacts: false,
+        disable_pipeline: false,
     };
     let config =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
@@ -489,8 +490,8 @@ fn resolve_upstream_config_rejects_an_unparsable_interval() {
     file.maxage = Some(Interval("whenever".to_string()));
     let err = resolve_upstream("npmjs", file).unwrap_err();
     assert!(
-        matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("maxage")),
-        "expected an InvalidConfig naming the offending field",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.to_lowercase().contains("maxage")),
+        "expected an InvalidConfig naming the offending field, got {err:?}",
     );
 }
 

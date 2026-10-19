@@ -12,7 +12,8 @@ registry.
 
 ## Addressing an ecosystem
 
-When more than one ecosystem is configured, a path prefix selects it:
+Each ecosystem is served under its own path prefix, however many are
+configured:
 
 | Ecosystem | Prefix |
 | --- | --- |
@@ -22,13 +23,13 @@ When more than one ecosystem is configured, a path prefix selects it:
 | Container images | `/oci/` |
 
 `/<ecosystem>/~<name>/` addresses a named registry and `/<ecosystem>/` the
-ecosystem's default. A server that configures only one ecosystem omits the
-prefix entirely, so existing npm URLs keep working unchanged.
+ecosystem's default. Adding an ecosystem to a server therefore changes no URL
+an existing client uses.
 
-Two things sit outside the prefixes. Container image registries answer at
-`/v2/` on the host root whatever else is configured, because a client derives
-that path from the image reference itself. And the endpoints that belong to no
-single ecosystem stay at the root: `/-/ping`, the `/-/pnpr/v0/` protocols
+Two things sit outside the prefixes. The default container image registry
+answers at `/v2/` on the host root, because a client derives that path from the
+image reference itself. And the endpoints that belong to no single ecosystem
+sit on the root: `/-/ping`, the `/-/pnpr/v0/` protocols
 (resolve, verify-lockfile, shared artifacts, pipeline runs, and the
 cross-ecosystem publish), and the account endpoints that mint and manage tokens.
 
@@ -123,8 +124,8 @@ caches belong to the individual registry.
 
 A grouped hosted registry defaults to the storage namespace
 `<ecosystem>~<name>`. Set `org` explicitly to keep an existing namespace when
-moving a flat registry into a group, `org: ''` included for the flat storage
-root. Two hosted registries still cannot share a namespace. The flat
+moving a flat registry into a group, `org: ''` included for the default
+namespace. Two hosted registries still cannot share a namespace. The flat
 configuration format and its shared `defaultRegistry: main` remain supported.
 
 ## Cargo

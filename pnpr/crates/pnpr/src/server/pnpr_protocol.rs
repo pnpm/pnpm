@@ -20,7 +20,8 @@ use pnpr_error::RegistryError;
 /// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
 /// transaction.
 pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
-    let resolver_enabled = state.inner.config.features.resolver.enabled;
+    let config = &state.inner.config;
+    let resolver_enabled = config.features.resolver.enabled;
     let versions = resolver_enabled
         .then_some(0)
         .into_iter()
@@ -31,18 +32,13 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
     } else {
         Vec::new()
     };
-    let artifacts = state.inner.config.features.artifacts.enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let publish = state.inner.config.features.registry.enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
-    let pipeline = state.inner.config.features.pipeline.enabled
-        .then_some(0)
-        .into_iter()
-        .collect::<Vec<_>>();
+    let artifacts = enabled_version(config.features.artifacts.enabled);
+    let publish = enabled_version(config.features.registry.enabled);
+    let pipeline = enabled_version(config.features.pipeline.enabled);
+
+    let protocols = build_protocols_payload(config);
+    let features = build_features_payload(config);
+
     (
         StatusCode::OK,
         axum::Json(serde_json::json!({
@@ -53,10 +49,67 @@ pub(super) async fn serve_pnpr_handshake(State(state): State<AppState>) -> Respo
                 "fixLockfile": fix_lockfile,
                 "ecosystems": ecosystems,
                 "publish": publish,
+                "protocols": protocols,
+                "features": features,
             }
         })),
     )
         .into_response()
+}
+
+fn enabled_version(enabled: bool) -> Vec<u32> {
+    enabled
+        .then_some(0)
+        .into_iter()
+        .collect()
+}
+
+fn build_protocols_payload(config: &crate::Config) -> serde_json::Value {
+    let resolver_enabled = config.features.resolver.enabled;
+    let versions = resolver_enabled
+        .then_some(0)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let ecosystems: Vec<&str> = if resolver_enabled {
+        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
+    } else {
+        Vec::new()
+    };
+    serde_json::json!({
+        "resolver": {
+            "version": 0,
+            "versions": versions,
+            "features": [
+                "fixLockfile",
+                "verifyLockfile",
+                "projectTransforms",
+                "policyEcho",
+                "errorCodes",
+                "acceptedLockfileFormats"
+            ],
+            "ecosystems": ecosystems,
+        },
+        "artifacts": { "version": 0, "versions": enabled_version(config.features.artifacts.enabled) },
+        "compilerCache": {
+            "version": 0,
+            "versions": enabled_version(config.features.artifacts.enabled),
+        },
+        "pipeline": { "version": 0, "versions": enabled_version(config.features.pipeline.enabled) },
+        "publish": {
+            "version": 0,
+            "versions": enabled_version(config.features.registry.enabled),
+            "pnpmPublish": if config.features.registry.enabled { vec![1] } else { Vec::new() },
+        },
+    })
+}
+
+fn build_features_payload(config: &crate::Config) -> serde_json::Value {
+    serde_json::json!({
+        "registries": true,
+        "admin": !config.identity.admins.is_empty(),
+        "scim": config.identity.auth.scim.is_some(),
+        "signIn": !config.identity.auth.oidc.is_empty(),
+    })
 }
 
 /// 404 stub mounted on the capability handshake when neither pnpr protocol is

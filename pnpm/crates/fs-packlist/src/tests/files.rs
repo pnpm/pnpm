@@ -890,3 +890,61 @@ fn files_field_named_file_survives_a_subdirectory_ignore_file() {
         ],
     );
 }
+
+#[test]
+fn files_field_supports_minimatch_extglobs() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    for file in ["package.json", "lib/a.js", "lib/a.test.js", "a", "b", "foo", "foofoo"] {
+        touch(root, file);
+    }
+    let manifest = json!({ "files": ["lib/!(*.test.js)", "@(a|b)", "+(foo)"] });
+    assert_eq!(
+        packlist(root, &manifest).unwrap(),
+        ["a", "b", "foo", "foofoo", "lib/a.js", "package.json"],
+    );
+}
+
+#[test]
+fn required_paths_with_files_honor_nested_ignore_rules() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    for file in ["package.json", "dist/index.js", "dist/other.js"] {
+        touch(root, file);
+    }
+    fs::write(root.join("dist/.npmignore"), "index.js\n").unwrap();
+    let manifest = json!({ "files": [], "main": "dist/index.js" });
+    assert_eq!(packlist(root, &manifest).unwrap(), ["package.json"]);
+}
+
+#[test]
+fn files_field_names_directory_symlink_below_excluded_ancestor() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "target/index.js");
+    fs::create_dir(root.join("sub")).unwrap();
+    pnpm_fs::symlink_dir(&root.join("target"), &root.join("sub/link")).unwrap();
+    let outside = tempdir().unwrap();
+    touch(outside.path(), "secret.js");
+    pnpm_fs::symlink_dir(outside.path(), &root.join("sub/escape")).unwrap();
+    let manifest = json!({ "files": ["**", "!sub", "sub/link", "sub/escape"] });
+    assert_eq!(packlist(root, &manifest).unwrap(), ["package.json", "sub/link", "target/index.js"]);
+}
+
+#[test]
+fn soft_exclusions_can_be_overridden_but_root_lockfiles_stay_excluded() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    for file in
+        ["package.json", "file.orig", "npm-debug.log", ".DS_Store", "yarn.lock", "lib/yarn.lock"]
+    {
+        touch(root, file);
+    }
+    fs::write(root.join(".npmignore"), "!file.orig\n!npm-debug.log\n!.DS_Store\n!yarn.lock\n")
+        .unwrap();
+    let expected = [".DS_Store", "file.orig", "lib/yarn.lock", "npm-debug.log", "package.json"];
+    assert_eq!(packlist(root, &json!({})).unwrap(), expected);
+    let manifest = json!({ "files": ["file.orig", "npm-debug.log", ".DS_Store", "yarn.lock", "lib/yarn.lock"] });
+    assert_eq!(packlist(root, &manifest).unwrap(), expected);
+}

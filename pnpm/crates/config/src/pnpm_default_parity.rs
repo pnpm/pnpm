@@ -174,6 +174,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
         ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
         ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
+        ("max-tarball-unpacked-size", Int(cfg.max_tarball_unpacked_size as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",

@@ -290,6 +290,7 @@ impl<'a> CreateVirtualStore<'a> {
                     config,
                     self.ctx.caches.logged_methods,
                     self.ctx.requester,
+                    self.ctx.caches.swap_lock,
                 ),
                 link: crate::VirtualStoreLinkOptions {
                     layout: self.ctx.linker.layout,

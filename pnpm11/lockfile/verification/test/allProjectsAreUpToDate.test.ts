@@ -1,5 +1,5 @@
 import { createWriteStream } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
@@ -11,7 +11,7 @@ import type { LockfileObject, PackageSnapshot, TarballResolution } from '@pnpm/l
 import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { DependencyManifest, DepPath, ProjectId, ProjectRootDir, ReadPackageHook } from '@pnpm/types'
 import tar from 'tar-stream'
 
 const fooManifest = {
@@ -1127,6 +1127,9 @@ describe('local file dependency', () => {
           },
           dev: false,
         },
+        'is-positive@2.0.0': {
+          resolution: { integrity: 'sha512-AAAA' },
+        },
       },
       lockfileVersion: LOCKFILE_VERSION,
     } as LockfileObject,
@@ -1215,6 +1218,164 @@ describe('local file dependency', () => {
       lockfileDir: process.cwd(),
     })).toBeFalsy()
   })
+
+  test('allProjectsAreUpToDate(): returns true if the locked version satisfies a range in local file', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '^2.0.0' } })
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): reads the dependencies of local file after the readPackage hook', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '3.0.0' } })
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      readPackageHook: (manifest) => ({ ...manifest, dependencies: { 'is-positive': '2.0.0' } }),
+    })).toBeTruthy()
+  })
+
+  test('allProjectsAreUpToDate(): resolves a catalog dependency of local file from the catalogs', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': 'catalog:' } })
+    const wantedLockfile = { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '2.0.0', version: '2.0.0' } } } }
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      catalogs: { default: { 'is-positive': '2.0.0' } },
+      wantedLockfile,
+    })).toBeTruthy()
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      catalogs: { default: { 'is-positive': '3.0.0' } },
+      wantedLockfile: { ...options.wantedLockfile, catalogs: { default: { 'is-positive': { specifier: '3.0.0', version: '3.0.0' } } } },
+    })).toBeFalsy()
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): reports a dependency of local file that became optional on a frozen install', async () => {
+    await writeLocalDirManifest({ optionalDependencies: { 'is-positive': '2.0.0' } })
+    expect((await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+      resolution: { frozenLockfile: true },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate).toBe(false)
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): accepts an unresolved optional dependency of local file only on a frozen install', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '2.0.0' }, optionalDependencies: { 'is-odd': '1.0.0' } })
+    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+      resolution: { frozenLockfile },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate
+    expect(await check(true)).toBe(true)
+    expect(await check(false)).toBe(false)
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): accepts a tarball dependency of local file only on a frozen install', async () => {
+    await writeLocalDirManifest({ dependencies: { 'is-positive': 'https://example.com/is-positive-3.1.0.tgz' } })
+    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+      resolution: { frozenLockfile },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate
+    expect(await check(true)).toBe(true)
+    expect(await check(false)).toBe(false)
+  })
+
+  test('allProjectsAreUpToDate(): accepts a peer of local file that is also its dependency whether or not the lockfile records it', async () => {
+    await writeLocalDirManifest({
+      dependencies: { 'is-positive': '2.0.0' },
+      peerDependencies: { 'is-positive': '^2.0.0' },
+    })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    const check = async (snapshot: PackageSnapshot) => allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      wantedLockfile: {
+        ...options.wantedLockfile,
+        packages: { ...options.wantedLockfile.packages, 'local@file:./local-dir': snapshot } as LockfileObject['packages'],
+      },
+    })
+    expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^2.0.0' } })).toBeTruthy()
+    expect(await check(localDirSnapshot)).toBeTruthy()
+    expect(await check({ ...localDirSnapshot, peerDependencies: { 'is-positive': '^3.0.0' } })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): reads the dependencies of local file from a package.yaml', async () => {
+    await rm('./local-dir/package.json')
+    await writeFile('./local-dir/package.yaml', 'name: local-dir\nversion: 1.0.0\ndependencies:\n  is-positive: 2.0.0\n')
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeTruthy()
+    await writeFile('./local-dir/package.yaml', 'name: local-dir\nversion: 1.0.0\ndependencies:\n  is-positive: 2.0.0\n  is-negative: 1.0.0\n')
+    expect(await allProjectsAreUpToDate(projects, { ...options, lockfileDir: process.cwd() })).toBeFalsy()
+  })
+
+  test('allProjectsAreUpToDate(): keeps the manifest of local file when the readPackage hook returns nothing', async () => {
+    expect(await allProjectsAreUpToDate(projects, {
+      ...options,
+      lockfileDir: process.cwd(),
+      readPackageHook: (() => undefined) as unknown as ReadPackageHook,
+    })).toBeTruthy()
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): accepts an unchanged SSH git dependency of local file on a frozen install', async () => {
+    const gitRef = 'git+ssh://git@github.com/org/repo.git#0000000000000000000000000000000000000000'
+    await writeLocalDirManifest({ dependencies: { repo: 'git+ssh://git@github.com/org/repo.git' } })
+    const localDirSnapshot = options.wantedLockfile.packages!['local@file:./local-dir' as DepPath]
+    expect((await checkLinkedPackagesAreUpToDate({
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: {
+        'local@file:./local-dir': { ...localDirSnapshot, dependencies: { repo: gitRef } },
+        [`repo@${gitRef}`]: {
+          resolution: { type: 'git', repo: 'ssh://git@github.com/org/repo.git', commit: '0000000000000000000000000000000000000000' },
+        },
+      } as LockfileObject['packages'],
+      lockfileDir: process.cwd(),
+      resolution: { frozenLockfile: true },
+    }, {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    })).upToDate).toBe(true)
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): rereads the manifest of local file when a context is reused', async () => {
+    const ctx = {
+      linkWorkspacePackages: true,
+      manifestsByDir: {},
+      lockfilePackages: options.wantedLockfile.packages,
+      lockfileDir: process.cwd(),
+    }
+    const project = {
+      dir: path.resolve('bar'),
+      manifest: projects[0].manifest,
+      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+    }
+    expect((await checkLinkedPackagesAreUpToDate(ctx, project)).upToDate).toBe(true)
+    await writeLocalDirManifest({ dependencies: { 'is-positive': '3.0.0' } })
+    expect((await checkLinkedPackagesAreUpToDate(ctx, project)).upToDate).toBe(false)
+  })
+
+  async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
+    await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
+  }
 })
 
 describe('local tgz file dependency', () => {

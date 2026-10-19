@@ -1,3 +1,5 @@
+use pnpr_storage::layout::local_document_path;
+
 use super::{
     BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
     PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
@@ -7,12 +9,22 @@ use super::{
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
-    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
+    server_config::{
+        cold_mock_config_yaml, pnpr_auth_config_key, pnpr_benchmark_config_yaml,
+        serves_npm_under_base_path,
+    },
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
 use pnpm_lockfile::Lockfile;
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    net::TcpListener,
+    path::Path,
+    thread,
+};
 
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {
@@ -105,25 +117,21 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            registry
-                .join(peer_heavy_package_name(0, 0))
-                .join("package.json"),
-        )
-        .expect("read first peer-heavy packument"),
+        &fs::read(local_document_path(&registry, "", &peer_heavy_package_name(0, 0)))
+            .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            registry
-                .join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0))
-                .join("package.json"),
-        )
+        &fs::read(local_document_path(
+            &registry,
+            "",
+            &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0),
+        ))
         .expect("read leaf peer-heavy packument"),
     )
     .expect("parse leaf peer-heavy packument");
     let registry_package_count =
-        fs::read_dir(registry.join("@pnpmtest")).expect("read peer-heavy registry scope").count();
+        fs::read_dir(registry.join("default/packages")).expect("read peer-heavy registry").count();
     let _ = fs::remove_dir_all(&dir);
 
     let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");
@@ -436,6 +444,19 @@ fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
 }
 
 #[test]
+fn cold_mock_config_declares_public_upstream_under_registries() {
+    let storage = std::env::temp_dir().join("cold-mock-config-test-storage");
+
+    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
+
+    assert!(yaml.contains("registries:"));
+    assert!(yaml.contains("type: upstream"));
+    assert!(yaml.contains("defaultRegistry: npmjs"));
+    assert!(!yaml.contains("mounts:"));
+    assert!(!yaml.contains("defaultTarget:"));
+}
+
+#[test]
 fn diagnostics_markdown_includes_create_virtual_store_line_item() {
     let markdown = render_diagnostics_markdown(
         &super::BenchmarkDiagnostics {
@@ -669,4 +690,43 @@ fn injected_repeat_install_creates_its_lockfile_before_the_frozen_runs() {
     assert!(scenario.cleanup().remove.is_empty());
     assert!(scenario.cleanup().restore.is_empty());
     fs::remove_dir_all(dir).unwrap();
+}
+
+/// Answer one request on a loopback port with `status_line` and `body`.
+fn serve_registry_directory_once(status_line: &'static str, body: &'static str) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a registry directory stub");
+    let port = listener
+        .local_addr()
+        .expect("stub address")
+        .port();
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept the directory request");
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request).expect("read the directory request");
+        write!(
+            stream,
+            "{status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len(),
+        )
+        .expect("answer the directory request");
+    });
+    port
+}
+
+#[test]
+fn registry_directory_reports_where_npm_is_served() {
+    let prefixed = serve_registry_directory_once(
+        "HTTP/1.1 200 OK",
+        r#"{"ecosystems":{"npm":{"available":true,"prefixed":true}}}"#,
+    );
+    assert!(serves_npm_under_base_path(prefixed));
+
+    let root = serve_registry_directory_once(
+        "HTTP/1.1 200 OK",
+        r#"{"ecosystems":{"npm":{"available":true,"prefixed":false}}}"#,
+    );
+    assert!(!serves_npm_under_base_path(root));
+
+    let without_directory = serve_registry_directory_once("HTTP/1.1 404 Not Found", "{}");
+    assert!(!serves_npm_under_base_path(without_directory));
 }

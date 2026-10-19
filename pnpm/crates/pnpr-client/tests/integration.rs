@@ -152,10 +152,19 @@ async fn wait_until_ready(addr: SocketAddr) {
     panic!("pnpr server never became ready at {addr}");
 }
 
-/// Accept one HTTP request, return its full raw bytes (headers + body), and
-/// send the supplied raw HTTP response.
-async fn capture_one_request_with_response(listener: TcpListener, response: String) -> String {
-    let (mut socket, _) = listener.accept().await.expect("accept request");
+fn parse_content_length(headers: &str) -> usize {
+    for line in headers.lines() {
+        if let Some((name, value)) = line.split_once(':')
+            && name.trim().eq_ignore_ascii_case("content-length")
+            && let Ok(len) = value.trim().parse::<usize>()
+        {
+            return len;
+        }
+    }
+    0
+}
+
+async fn read_full_request(socket: &mut tokio::net::TcpStream) -> Vec<u8> {
     let mut buffer = Vec::new();
     let mut chunk = [0u8; 4096];
     loop {
@@ -164,10 +173,6 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
             break;
         }
         buffer.extend_from_slice(&chunk[..read]);
-        // Stop once the full body (per Content-Length) has arrived. The
-        // boundary is located in the raw bytes so the index stays aligned
-        // with `buffer.len()` below: decoding first would rewrite any
-        // non-UTF-8 byte as a longer replacement character and shift it.
         let Some(headers_end) = buffer
             .windows(4)
             .position(|window| window == b"\r\n\r\n")
@@ -175,23 +180,35 @@ async fn capture_one_request_with_response(listener: TcpListener, response: Stri
             continue;
         };
         let headers = String::from_utf8_lossy(&buffer[..headers_end]);
-        let content_length = headers
-            .lines()
-            .find_map(|line| {
-                let (name, value) = line.split_once(':')?;
-                name.trim()
-                    .eq_ignore_ascii_case("content-length")
-                    .then(|| value.trim().parse::<usize>().ok())
-                    .flatten()
-            })
-            .unwrap_or(0);
+        let content_length = parse_content_length(&headers);
         if buffer.len() >= headers_end + 4 + content_length {
             break;
         }
     }
-    let _ = socket.write_all(response.as_bytes()).await;
-    let _ = socket.shutdown().await;
-    String::from_utf8_lossy(&buffer).into_owned()
+    buffer
+}
+
+/// Accept one HTTP request, return its full raw bytes (headers + body), and
+/// send the supplied raw HTTP response.
+async fn capture_one_request_with_response(listener: TcpListener, response: String) -> String {
+    loop {
+        let (mut socket, _) = listener.accept().await.expect("accept request");
+        let buffer = read_full_request(&mut socket).await;
+        let request_str = String::from_utf8_lossy(&buffer);
+        if request_str.starts_with("GET /-/pnpr HTTP/") {
+            let body = r#"{"pnpr":{"versions":[0,1],"fixLockfile":[0,1]}}"#;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len(),
+            );
+            let _ = socket.write_all(resp.as_bytes()).await;
+            let _ = socket.shutdown().await;
+            continue;
+        }
+        let _ = socket.write_all(response.as_bytes()).await;
+        let _ = socket.shutdown().await;
+        return request_str.into_owned();
+    }
 }
 
 async fn capture_one_request(listener: TcpListener) -> String {

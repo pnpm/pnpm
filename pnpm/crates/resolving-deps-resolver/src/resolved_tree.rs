@@ -1,6 +1,6 @@
 pub use package_identity::ResolvedPackageInput;
 pub(crate) use package_identity::{pkg_name, pkg_name_version};
-pub use peer_set::PeerSet;
+pub use peer_set::{LockfilePeerBlocks, PeerSet, lockfile_peer_blocks};
 
 mod package_identity;
 mod peer_set;

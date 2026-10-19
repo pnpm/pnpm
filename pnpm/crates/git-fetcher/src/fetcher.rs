@@ -208,6 +208,7 @@ pub(crate) fn queue_files_index(
                 files,
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         );
     }

@@ -20,6 +20,7 @@ fn check_settings_reports_pnpmfile_checksum_between_its_pnpm_neighbors() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
                 peers_suffix_max_length: 100,
                 inject_workspace_packages: true,
@@ -34,6 +35,7 @@ fn check_settings_reports_pnpmfile_checksum_between_its_pnpm_neighbors() {
     let err = check_lockfile_settings(
         &lockfile,
         LockfileSettingsCheck {
+            integrity_target: crate::IntegrityTarget::Resource,
             resolution: crate::freshness::ResolutionSettingsCheck {
                 peers_suffix_max_length: 10,
                 inject_workspace_packages: true,

@@ -1,5 +1,7 @@
-use super::{CanonicalPackageName, RegistryError, Value, tarball_basename};
+use pnpr_upstream::tarball_basename;
 use serde_json::Map;
+
+use super::{CanonicalPackageName, RegistryError, Value};
 
 #[derive(Default)]
 pub(super) struct PendingRestores {

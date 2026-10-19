@@ -43,7 +43,7 @@ async fn bulk_advisories_with_local_osv_evaluates_database_and_returns_advisorie
 
     let response = app
         .oneshot(
-            Request::post("/-/npm/v1/security/advisories/bulk")
+            Request::post("/npm/-/npm/v1/security/advisories/bulk")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(query.to_string()))
                 .unwrap(),
@@ -106,7 +106,7 @@ async fn bulk_advisories_without_osv_proxies_to_upstream() {
 
     let response = app
         .oneshot(
-            Request::post("/-/npm/v1/security/advisories/bulk")
+            Request::post("/npm/-/npm/v1/security/advisories/bulk")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(query.to_string()))
                 .unwrap(),
@@ -139,7 +139,7 @@ async fn bulk_advisories_scoped_registry_endpoint_proxies_to_upstream() {
 
     let response = app
         .oneshot(
-            Request::post("/~npmjs/-/npm/v1/security/advisories/bulk")
+            Request::post("/npm/~npmjs/-/npm/v1/security/advisories/bulk")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"scoped-test":["1.0.0"]}"#))
                 .unwrap(),
@@ -181,7 +181,7 @@ async fn legacy_audits_forward_to_upstream_when_configured() {
     let res_full = app
         .clone()
         .oneshot(
-            Request::post("/-/npm/v1/security/audits")
+            Request::post("/npm/-/npm/v1/security/audits")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"name":"test-project"}"#))
                 .unwrap(),
@@ -194,7 +194,7 @@ async fn legacy_audits_forward_to_upstream_when_configured() {
 
     let res_quick = app
         .oneshot(
-            Request::post("/-/npm/v1/security/audits/quick")
+            Request::post("/npm/-/npm/v1/security/audits/quick")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"name":"test-project"}"#))
                 .unwrap(),
@@ -225,7 +225,7 @@ async fn legacy_audits_return_empty_report_when_upstream_returns_404() {
 
     let response = app
         .oneshot(
-            Request::post("/-/npm/v1/security/audits/quick")
+            Request::post("/npm/-/npm/v1/security/audits/quick")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"name":"test-project"}"#))
                 .unwrap(),
@@ -255,7 +255,7 @@ async fn bulk_advisories_returns_empty_map_when_no_upstream_and_no_osv() {
 
     let response = app
         .oneshot(
-            Request::post("/~acme/-/npm/v1/security/advisories/bulk")
+            Request::post("/npm/~acme/-/npm/v1/security/advisories/bulk")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"pkg":["1.0.0"]}"#))
                 .unwrap(),
@@ -284,7 +284,7 @@ async fn legacy_audits_return_empty_report_when_no_upstream() {
 
     let response = app
         .oneshot(
-            Request::post("/~acme/-/npm/v1/security/audits")
+            Request::post("/npm/~acme/-/npm/v1/security/audits")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(r#"{"name":"test-project"}"#))
                 .unwrap(),

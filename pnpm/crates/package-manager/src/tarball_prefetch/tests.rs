@@ -35,6 +35,7 @@ fn sample_index() -> PackageFilesIndex {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 
@@ -111,6 +112,7 @@ fn revision_download(
             },
             offline: false,
             tar_limits: pnpm_tarball::TarLimits::default(),
+            integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
         },
         package: crate::tarball_prefetch::TarballDownloadPackage {
             id: "revision-pkg@1.0.0".to_string(),

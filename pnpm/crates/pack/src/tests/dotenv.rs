@@ -2,7 +2,7 @@ use super::{Host, api, fixture, json, touch};
 use crate::dotenv::{is_dotenv_file, named_in_files};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter};
 use serde_json::Value;
-use std::{path::Path, sync::Mutex};
+use std::sync::Mutex;
 
 fn warnings(events: &Mutex<Vec<LogEvent>>) -> Vec<String> {
     events
@@ -109,7 +109,7 @@ fn is_named_in_files(path: &str, entries: &[&str]) -> bool {
         .iter()
         .map(|entry| json!(entry))
         .collect();
-    named_in_files(Path::new("/pkg"), &entries)(path)
+    named_in_files(&entries)(path)
 }
 
 #[test]
@@ -120,8 +120,34 @@ fn only_entries_that_name_the_dotenv_file_count_as_listing_it() {
     assert!(!is_named_in_files("config/.env", &["config"]));
     assert!(!is_named_in_files("config/.env", &["config/**"]));
     assert!(!is_named_in_files("config/.env", &[".env"]));
+    assert!(!is_named_in_files("config/.env", &[".env", "config/.env.other"]));
     assert!(!is_named_in_files(".env", &["dist/.env*"]));
     assert!(!is_named_in_files("node_modules/dep/.env", &["dist/.env*"]));
     assert!(is_named_in_files(".env.local", &[".env*", "!.env.production"]));
     assert!(!is_named_in_files(".env.production", &[".env*", "!.env.production"]));
+}
+
+#[test]
+fn listing_a_dotenv_directory_does_not_suppress_nested_file_warnings() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS
+                .lock()
+                .unwrap()
+                .push(event.clone());
+        }
+    }
+    let (dir, opts) = fixture(&json!({
+        "name": "foo", "version": "1.0.0", "files": ["config/.env"],
+    }));
+    touch(dir.path(), "config/.env/.env.local", "SECRET=1\n");
+
+    let result = api::<RecordingReporter, Host>(&opts).unwrap();
+
+    assert!(result.contents.contains(&"config/.env/.env.local".to_string()));
+    let warnings = warnings(&EVENTS);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("config/.env/.env.local"), "{}", warnings[0]);
 }

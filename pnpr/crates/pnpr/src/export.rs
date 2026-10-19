@@ -23,12 +23,7 @@ pub async fn export_storage(
 ) -> miette::Result<ExportReport> {
     fs::create_dir_all(out).await.into_diagnostic()?;
 
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )
-    .map_err(|err| miette::miette!("failed to initialize storage: {err}"))?;
+    let storage = open_hosted_storage(config).await?;
 
     let mut report = ExportReport { out_dir: out.to_path_buf(), ..Default::default() };
 
@@ -52,6 +47,21 @@ pub async fn export_storage(
     }
 
     Ok(report)
+}
+
+/// The configured hosted store, once its layout is one this pnpr reads.
+pub(crate) async fn open_hosted_storage(config: &Config) -> miette::Result<Storage> {
+    let storage = Storage::new(
+        &config.storage.hosted_backend,
+        config.storage.hosted_dir.clone(),
+        config.storage.cache_dir.clone(),
+    )
+    .map_err(|err| miette::miette!("failed to initialize storage: {err}"))?;
+    storage
+        .check_hosted_layout()
+        .await
+        .map_err(|err| miette::miette!("{err}"))?;
+    Ok(storage)
 }
 
 pub(crate) fn configured_hosted_namespaces(config: &Config) -> Vec<String> {

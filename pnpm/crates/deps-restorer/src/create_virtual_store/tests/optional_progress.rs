@@ -97,6 +97,7 @@ async fn install_unfetchable_optional_dependency(progress_reported: &SharedRepor
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: None,

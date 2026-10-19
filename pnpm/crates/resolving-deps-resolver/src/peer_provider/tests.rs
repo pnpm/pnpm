@@ -1,5 +1,6 @@
-//! Tests for [`super::hoist_peers`] and
-//! [`super::get_hoistable_optional_peers`].
+//! Tests for [`super::hoist_peers`],
+//! [`super::get_hoistable_optional_peers`], and
+//! [`super::peer_shadowed_dependencies`].
 
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{collections::BTreeMap, path::Path, sync::LazyLock};
@@ -12,8 +13,9 @@ use pretty_assertions::assert_eq;
 use super::{
     HoistPeersOptions, MissingPeerInfo, ProviderTiers, WorkspaceRootDep,
     get_hoistable_optional_peers, get_hoistable_optional_peers_with_preferred_versions,
-    hoist_peers, optional_peer_specifier,
+    hoist_peers, optional_peer_specifier, peer_shadowed_dependencies,
 };
+use crate::parent_pkg_aliases::ParentPkgAliases;
 
 fn preferred(entries: &[(&str, &[(&str, VersionSelectorEntry)])]) -> PreferredVersions {
     let mut map = PreferredVersions::new();
@@ -871,4 +873,62 @@ fn required_peer_takes_the_highest_run_resolved_version() {
 fn required_peer_falls_back_when_no_run_resolved_version_satisfies_the_range() {
     let picked = pick_required_peer(&["1.0.0", "2.0.0"], "2", &["1.0.0"]);
     assert_eq!(picked.as_deref(), Some("2.0.0"));
+}
+
+fn names<const COUNT: usize>(names: [&str; COUNT]) -> HashSet<String> {
+    names
+        .into_iter()
+        .map(str::to_string)
+        .collect()
+}
+
+#[test]
+fn only_in_scope_peers_shadow_the_own_dependency() {
+    let manifest = serde_json::json!({
+        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0", "not-a-peer": "^1.0.0" },
+        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
+    });
+    let scope = ParentPkgAliases::root(names(["in-scope"]));
+
+    assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, false), names(["in-scope"]));
+}
+
+#[test]
+fn auto_install_peers_shadows_every_own_dependency() {
+    let manifest = serde_json::json!({
+        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0" },
+        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
+    });
+    let scope = ParentPkgAliases::root(names(["in-scope"]));
+
+    assert_eq!(
+        peer_shadowed_dependencies(Some(&manifest), &scope, true),
+        names(["in-scope", "out-of-scope"]),
+    );
+}
+
+#[test]
+fn a_manifest_without_both_sections_shadows_nothing() {
+    let scope = ParentPkgAliases::root(names(["dep"]));
+    let peers_only = serde_json::json!({ "peerDependencies": { "dep": "*" } });
+    let deps_only = serde_json::json!({ "dependencies": { "dep": "^1.0.0" } });
+
+    assert!(peer_shadowed_dependencies(None, &scope, true).is_empty());
+    assert!(peer_shadowed_dependencies(Some(&peers_only), &scope, true).is_empty());
+    assert!(peer_shadowed_dependencies(Some(&deps_only), &scope, true).is_empty());
+}
+
+#[test]
+fn auto_install_peers_keeps_an_out_of_scope_optional_peer_as_a_dependency() {
+    let manifest = serde_json::json!({
+        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0" },
+        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
+        "peerDependenciesMeta": {
+            "in-scope": { "optional": true },
+            "out-of-scope": { "optional": true },
+        },
+    });
+    let scope = ParentPkgAliases::root(names(["in-scope"]));
+
+    assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, true), names(["in-scope"]));
 }

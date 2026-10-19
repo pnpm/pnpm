@@ -1,7 +1,7 @@
 use super::{
     Arc, AuthHeaders, CachedResolution, Duration, Footprint, HashMap, Lockfile, Mutex, OsvIndex,
     PackageVersionGuard, PacquetConfig, ResolveRequest, Resolver, Response, StoreCandidate,
-    StreamObserver, TarballRouter, ThrottledClient, done_frame, error_frame,
+    StreamObserver, TarballRouter, ThrottledClient, done_frame, error_frame_with_code,
     ndjson_stream_response, osv_violations_for_lockfile, resolve, store_resolution_candidate,
     violations_frame,
 };
@@ -74,7 +74,11 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
     let lockfile = match resolved {
         Ok(lockfile) => tarball_router.route_lockfile(config, &lockfile),
         Err(err) => {
-            let _ = tx.send(error_frame(&err.to_string()));
+            let code = match &err {
+                super::resolve::ResolveError::Install { code, .. } => code.as_deref(),
+                _ => None,
+            };
+            let _ = tx.send(error_frame_with_code(&err.to_string(), code));
             return;
         }
     };
@@ -92,7 +96,8 @@ pub(super) async fn stream_resolution(task: StreamedResolve) {
             lockfile: &lockfile,
         });
     }
-    let _ = tx.send(done_frame(&lockfile));
+    let applied_policies = super::protocol::AppliedPolicies::from_request(&task.inputs.request);
+    let _ = tx.send(done_frame(&lockfile, Some(&applied_policies)));
 }
 
 impl StreamedResolve {

@@ -355,20 +355,22 @@ impl Upstream {
         )))
     }
 
-    /// Fetch an immutable sha512 registry artifact without following redirects.
+    /// Fetch an immutable sha512 registry revision without following redirects.
+    /// The revision is a tar resource. The response keeps its content coding,
+    /// gzip or none, for the caller to decode and verify.
     pub async fn fetch_revision_tarball_response(
         &self,
         digest: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
-        let client =
-            self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let client = self.http.client.acquire_archive_for_url_with_priority(&url, 0, false).await;
         let started = Instant::now();
         let request = client
             .get(&url)
             .timeout(self.http.timeout)
-            .headers(self.request_headers(&url));
+            .headers(self.request_headers(&url))
+            .header(reqwest::header::ACCEPT_ENCODING, "gzip");
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();

@@ -6,7 +6,7 @@ use super::{
     make_node_require_option, package_map_path_for_execution, pnp_path_for_execution, run_stages,
     sync_injected_deps,
 };
-use crate::cli_args::reporter::script_output_colors;
+use crate::cli_args::{reporter::script_output_colors, run::project_modules_dirs};
 
 #[derive(Clone, Copy)]
 pub(super) struct RunTaskOptions<'a, 'graph> {
@@ -367,6 +367,7 @@ fn sync_injected_deps_if_configured(
         return Ok(());
     }
     let manifest = graph[node.project.as_path()].package.project.manifest.value();
+    let project_modules_dirs = project_modules_dirs(config)?;
     sync_injected_deps(&SyncInjectedDeps {
         pkg_name: manifest.get("name").and_then(Value::as_str),
         pkg_root_dir: &node.project,
@@ -374,6 +375,7 @@ fn sync_injected_deps_if_configured(
         workspace_modules_dir: &config.modules_dir,
         include_only_package_files: !config.deploy_all_files,
         manifest_before_scripts: Some(manifest),
+        project_modules_dirs: &project_modules_dirs,
         bin_links: BinLinkSettings {
             modules_dir_name: config.modules_dir_name(),
             extend_node_path: config.extend_node_path,

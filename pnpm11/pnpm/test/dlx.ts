@@ -18,7 +18,7 @@ let registriesByScope: Record<string, string>
 beforeAll(async () => {
   const { config } = await getConfig({ cliOptions: {}, packageManager: { name: '', version: '' } })
   registriesByScope = config.registriesByScope
-  registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/`
+  registriesByScope.default = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 })
 
 const createCacheKey = (...packages: string[]): string => dlx.createCacheKey({ packages, registriesByScope })
@@ -413,7 +413,7 @@ test('dlx read registry from .npmrc in the current directory', async () => {
   })
 
   fs.writeFileSync('.npmrc', [
-    `registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
+    `registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     `//localhost:${REGISTRY_MOCK_PORT}/:_authToken=${data.token}`,
   ].join('\n'))
 

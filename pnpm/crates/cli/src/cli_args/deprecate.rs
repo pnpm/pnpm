@@ -21,7 +21,6 @@ use reqwest::{Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
-const DEPRECATION_BODY_LIMIT: usize = 10 * 1024 * 1024;
 pub(crate) const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Args)]

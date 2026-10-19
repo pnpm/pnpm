@@ -109,6 +109,12 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
             "production deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
         );
     }
+    assert!(
+        !virtual_store_entries
+            .iter()
+            .any(|entry| entry.starts_with('@') && !entry.contains('+')),
+        "deploy virtual store should hold one copy of each package: {virtual_store_entries:#?}",
+    );
 
     drop((root, mock_instance));
 }

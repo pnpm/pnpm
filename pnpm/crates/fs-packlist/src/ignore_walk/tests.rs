@@ -140,6 +140,11 @@ fn gate_passes(path: &str) -> bool {
 #[test]
 fn default_rule_gate_is_a_superset_of_the_default_rules() {
     const SAMPLES: &[&str] = &[
+        "/.DS_Store",
+        "/.npmignore",
+        "/lib/.gitignore",
+        "/npm-debug.log",
+        "/lib/file.orig",
         "/.lock-wscript",
         "/.LOCK-WSCRIPT",
         "/.wafpickle-2",
@@ -186,4 +191,42 @@ fn default_rule_gate_rejects_ordinary_paths() {
     ] {
         assert!(!gate_passes(path), "{path:?}");
     }
+}
+
+#[test]
+fn manifest_metadata_lookups_stay_within_the_package() {
+    let base = tempfile::tempdir().unwrap();
+    let root = base.path().join("pkg");
+    let outside = base.path().join("outside");
+    std::fs::create_dir_all(root.join("inside")).unwrap();
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::write(outside.join("secret"), "secret").unwrap();
+    std::fs::write(root.join("inside/file"), "public").unwrap();
+    pnpm_fs::symlink_dir(&outside, &root.join("link")).unwrap();
+    let mut directories = std::collections::HashMap::new();
+
+    for entry in ["../outside/secret", "/../outside/secret", "link/secret"] {
+        assert!(
+            super::files_field::entry_metadata(&root, entry, &mut directories).is_none(),
+            "{entry}",
+        );
+    }
+    assert!(
+        super::files_field::entry_metadata(&root, "/inside/file", &mut directories)
+            .unwrap()
+            .is_file(),
+    );
+    assert!(
+        super::files_field::entry_metadata(&root, "link", &mut directories).unwrap().is_symlink(),
+    );
+    assert!(super::files_field::entry_metadata(&root, "", &mut directories).unwrap().is_dir());
+}
+
+#[test]
+fn unc_roots_follow_minimatch_platform_semantics() {
+    let unc = IgnoreRule::parse("//**");
+    assert_eq!(unc.matches("/foo", false), !cfg!(windows));
+    assert!(unc.matches("//foo", false));
+    assert!(IgnoreRule::parse("/**").matches("/foo", false));
+    assert!(IgnoreRule::parse("///**").matches("/foo", false));
 }

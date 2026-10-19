@@ -2,7 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { PatchInfo } from '@pnpm/patching.types'
 import type { PackageResponse } from '@pnpm/store.controller-types'
-import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash } from '@pnpm/types'
+import { DEPENDENCIES_OR_PEER_FIELDS, type PackageManifest, type PkgIdWithPatchHash, type ProjectManifest } from '@pnpm/types'
 
 import type { WantedDependency } from './getWantedDependencies.js'
 import type { InfoFromLockfile, PeerDependencies, PeerSet, ResolvedPackage } from './resolutionTypes.js'
@@ -153,38 +153,21 @@ export function detectNamedRegistryCollision (
   )
 }
 
-export function detectRegistryRevisionConflict (
-  resolved: ResolvedPackage,
-  pkgResponse: PackageResponse
-): void {
-  const existing = resolved.resolution as TarballResolution | undefined
-  const incoming = pkgResponse.body.resolution as TarballResolution | undefined
-  if (existing?.revision == null && incoming?.revision == null) return
-  if (existing?.revision === incoming?.revision && existing?.integrity === incoming?.integrity) return
-  throw new PnpmError(
-    'REVISION_CONFLICT',
-    `Conflicting registry revisions were requested for "${resolved.name}@${resolved.version}".`,
-    {
-      hint: 'A single package name and version can resolve to only one registry artifact in an install.',
-    }
-  )
-}
-
 /**
  * The {@link PeerSet} of `pkg`, whose `dependencies` no longer hold the names
  * its peers shadow in the scope it resolved in.
  */
-export function getPeerSet (pkg: PackageManifest): PeerSet {
+export function getPeerSet (pkg: ProjectManifest): PeerSet {
   return {
     declared: peerDependenciesExcept(pkg, []),
     taken: peerDependenciesExcept(pkg, Object.keys(pkg.dependencies ?? {})),
   }
 }
 
-function peerDependenciesExcept (pkg: PackageManifest, dependencies: string[]): PeerDependencies {
+function peerDependenciesExcept (pkg: ProjectManifest, dependencies: string[]): PeerDependencies {
   if ((pkg.peerDependencies == null) && (pkg.peerDependenciesMeta == null)) return {}
   const ownDeps = new Set([
-    pkg.name,
+    ...(pkg.name == null ? [] : [pkg.name]),
     ...dependencies,
     ...Object.keys(pkg.optionalDependencies ?? {}),
   ])

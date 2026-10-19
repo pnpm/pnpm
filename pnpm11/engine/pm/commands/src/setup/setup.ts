@@ -286,6 +286,18 @@ export async function handler (
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
   }
+  const output = await addPnpmHomeToEnvPath(opts)
+  writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
+  removeLegacyHomeDirShims(opts.pnpmHomeDir)
+  return output
+}
+
+/**
+ * A shell that names no config file to edit, as in a container with no
+ * `SHELL`, still leaves pnpm installed, so setup succeeds and prints the
+ * lines to add by hand. Every other error fails the setup.
+ */
+async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: string }): Promise<string> {
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
@@ -294,11 +306,12 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
-    writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
-    removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
+      case 'ERR_PNPM_UNKNOWN_SHELL':
+      case 'ERR_PNPM_NO_SHELL_CONFIG':
+        return renderManualSetupOutput(err.message, opts.pnpmHomeDir)
       case 'ERR_PNPM_BAD_ENV_FOUND':
         err.hint = 'If you want to override the existing env variable, use the --force option'
         break
@@ -308,6 +321,18 @@ export async function handler (
     }
     throw err
   }
+}
+
+function renderManualSetupOutput (reason: string, pnpmHomeDir: string): string {
+  return `${reason} No shell config file was changed.
+
+To start using pnpm, add these lines to your shell config file:
+export PNPM_HOME=${shSingleQuote(pnpmHomeDir)}
+export PATH="$PNPM_HOME/bin:$PATH"`
+}
+
+function shSingleQuote (text: string): string {
+  return `'${text.replace(/'/g, "'\\''")}'`
 }
 
 function renderSetupOutput (report: PathExtenderReport): string {

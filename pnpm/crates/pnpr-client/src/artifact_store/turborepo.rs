@@ -170,7 +170,7 @@ impl TurborepoArtifactStore {
             ))),
             status if status.is_success() => Ok(response),
             status => {
-                Err(PnprClientError::Server(format!("GET {} returned {status}", self.base_url)))
+                Err(PnprClientError::server(format!("GET {} returned {status}", self.base_url)))
             }
         }
     }
@@ -227,7 +227,7 @@ impl TurborepoArtifactStore {
             return Ok(None);
         }
         if !status.is_success() {
-            let error = PnprClientError::Server(format!("GET {} returned {status}", self.base_url));
+            let error = PnprClientError::server(format!("GET {} returned {status}", self.base_url));
             if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
                 return Err(LookupFailure::refused(error));
             }
@@ -246,7 +246,7 @@ impl TurborepoArtifactStore {
             .send()
             .await?;
         if !response.status().is_success() {
-            return Err(PnprClientError::Server(format!(
+            return Err(PnprClientError::server(format!(
                 "PUT {} returned {}",
                 self.base_url,
                 response.status(),

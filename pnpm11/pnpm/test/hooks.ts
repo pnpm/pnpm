@@ -402,7 +402,7 @@ export const hooks = {
   await execPnpm([
     'add',
     'is-odd@1.0.0',
-    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     '--node-linker=hoisted',
     '--fetch-retries=0',
   ])

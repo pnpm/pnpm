@@ -1,5 +1,8 @@
+pub mod args;
+pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
+
 use crate::{
-    Config, PasswordChange, RegistryError, UserCreation,
+    Config, RegistryError,
     cache_maintenance::{CacheGcEffect, CacheGcScope},
 };
 use clap::Subcommand;
@@ -8,6 +11,8 @@ use std::{path::PathBuf, time::Duration};
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Run the registry server (default when no subcommand is specified).
+    Serve(ServerArgs),
     /// Collect old, unreferenced image blobs. Stop all registry writers first.
     OciGc {
         /// Concrete hosted OCI registry from the config.
@@ -16,9 +21,9 @@ pub enum Command {
         /// Report reclaimable blobs without deleting them.
         #[arg(long)]
         dry_run: bool,
-        /// Minimum blob age to reclaim, in seconds.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
+        /// Minimum blob age to reclaim (e.g. "1d", "86400s", or bare seconds).
+        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        min_age: Duration,
     },
     /// Reclaim cached upstream tarballs and packuments.
     CacheGc {
@@ -28,9 +33,9 @@ pub enum Command {
         /// Maximum total cache size to retain (e.g. "10GB", "500MB", or raw bytes).
         #[arg(long)]
         max_size: Option<String>,
-        /// Maximum file age in seconds. Entries older than this are deleted.
-        #[arg(long)]
-        max_age_secs: Option<u64>,
+        /// Maximum file age (e.g. "30d", "1h", or bare seconds). Entries older than this are deleted.
+        #[arg(long, alias = "max-age-secs", value_parser = parse_cli_interval)]
+        max_age: Option<Duration>,
         /// Only prune orphaned upstream namespaces without evicting active cache files.
         #[arg(long)]
         orphans_only: bool,
@@ -51,9 +56,9 @@ pub enum Command {
         /// Remove orphaned blobs from storage.
         #[arg(long)]
         prune_orphans: bool,
-        /// Minimum age in seconds before an unreferenced blob is considered for pruning.
-        #[arg(long, default_value_t = 86400)]
-        min_age_secs: u64,
+        /// Minimum age before an unreferenced blob is considered for pruning (e.g. "1d", "86400s", or bare seconds).
+        #[arg(long, default_value = "1d", alias = "min-age-secs", value_parser = parse_cli_interval)]
+        min_age: Duration,
     },
     /// Export hosted packages and blobs to a directory.
     Export {
@@ -88,6 +93,13 @@ pub enum Command {
         #[arg(long)]
         verify: bool,
     },
+    /// Convert the hosted store to the current storage layout. Back the store
+    /// up and stop every pnpr process that uses it first.
+    UpgradeStorage {
+        /// Report what would change without changing anything.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Import users from an existing Verdaccio or Apache htpasswd file.
     ImportHtpasswd {
         /// Path to source htpasswd file.
@@ -103,12 +115,12 @@ pub enum Command {
         #[arg(long)]
         overwrite: bool,
     },
-    /// Add or update a user account in the configured auth backend.
+    /// Add or update a user account in the configured auth backend. With an
+    /// htpasswd file, run it while the server is stopped.
     AddUser {
         /// Username of the account to create or update.
         username: String,
-        /// Password for the account. Prompted from stdin if omitted.
-        #[arg(long)]
+        #[arg(skip)]
         password: Option<String>,
     },
 }
@@ -121,12 +133,20 @@ pub enum ConfigSubcommand {
 
 pub async fn run_command(config: &Config, command: Command) -> miette::Result<()> {
     match command {
+        Command::Serve(..) => Err(miette::miette!(
+            "`serve` is not a maintenance command; start the server with `pnpr::serve`"
+        )),
         Command::OciGc { .. } => run_oci_gc_command(config, command).await,
         Command::CacheGc { .. } => run_cache_gc_command(config, command).await,
         Command::ConfigCheck | Command::Config { .. } => run_config_check(),
         Command::Verify { .. } => run_verify_command(config, command).await,
         Command::Export { .. } => run_export_command(config, command).await,
         Command::MigrateStorage { .. } => run_migrate_command(config, command).await,
+        Command::UpgradeStorage { dry_run } => {
+            let report = crate::upgrade_storage::upgrade_storage(config, dry_run).await?;
+            print!("{}", crate::upgrade_storage::format_upgrade_report(&report));
+            Ok(())
+        }
         Command::ImportHtpasswd { .. } => run_import_command(config, command),
         Command::AddUser { username, password } => {
             run_add_user_command(config, username, password).await
@@ -135,17 +155,17 @@ pub async fn run_command(config: &Config, command: Command) -> miette::Result<()
 }
 
 async fn run_oci_gc_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::OciGc { registry, dry_run, min_age_secs } = command else {
+    let Command::OciGc { registry, dry_run, min_age } = command else {
         return Ok(());
     };
-    run_oci_gc(config, registry, dry_run, min_age_secs).await
+    run_oci_gc(config, registry, dry_run, min_age.as_secs()).await
 }
 
 async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Result<()> {
     let Command::CacheGc {
         dry_run,
         max_size,
-        max_age_secs,
+        max_age,
         orphans_only,
     } = command
     else {
@@ -153,19 +173,14 @@ async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Resu
     };
     let effect = if dry_run { CacheGcEffect::DryRun } else { CacheGcEffect::Apply };
     let scope = if orphans_only { CacheGcScope::OrphansOnly } else { CacheGcScope::Full };
-    run_cache_gc(config, effect, max_size, max_age_secs, scope).await
+    run_cache_gc(config, effect, max_size, max_age.map(|age| age.as_secs()), scope).await
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
-    let Command::Verify {
-        skip_hashes,
-        prune_orphans,
-        min_age_secs,
-    } = command
-    else {
+    let Command::Verify { skip_hashes, prune_orphans, min_age } = command else {
         return Ok(());
     };
-    run_verify(config, !skip_hashes, prune_orphans, min_age_secs).await
+    run_verify(config, !skip_hashes, prune_orphans, min_age.as_secs()).await
 }
 
 async fn run_export_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -379,37 +394,16 @@ async fn run_add_user_command(
     let auth = pnpr_auth::AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
         .map_err(|err| miette::miette!("could not connect to auth backend: {err}"))?;
-    println!("{}", add_or_update_user(&auth.users, &username, &password).await?);
-    Ok(())
-}
-
-/// Create `username`, or set the password of the user already holding the
-/// name, and answer with what to report to the operator.
-async fn add_or_update_user(
-    users: &std::sync::Arc<dyn pnpr_auth::UserBackend>,
-    username: &str,
-    password: &str,
-) -> miette::Result<String> {
-    let created = users
-        .create_user(username, password)
+    match auth
+        .put_user(&username, &password)
         .await
-        .map_err(|err| miette::miette!("{err}"))?;
-    match created {
-        UserCreation::Created => Ok(format!("User '{username}' created successfully.")),
-        UserCreation::NameTaken => {
-            let changed = users
-                .set_password(username, password)
-                .await
-                .map_err(|err| miette::miette!("{err}"))?;
-            match changed {
-                PasswordChange::Changed => {
-                    Ok(format!("Password for user '{username}' updated successfully."))
-                }
-                // Another process removed the user between the two calls.
-                PasswordChange::NoSuchUser => {
-                    Err(miette::miette!("failed to create or update user '{username}'"))
-                }
-            }
+        .map_err(|err| miette::miette!("{err}"))?
+    {
+        Some(pnpr_auth::UserPut::Created) => println!("User '{username}' created successfully."),
+        Some(pnpr_auth::UserPut::PasswordChanged) => {
+            println!("Password for user '{username}' updated successfully.");
         }
+        None => return Err(miette::miette!("failed to create or update user '{username}'")),
     }
+    Ok(())
 }

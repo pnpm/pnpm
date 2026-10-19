@@ -40,7 +40,7 @@ async function withBasicAuthRegistry (run: (registryUrl: string) => Promise<void
   })
   proxy.proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
   try {
-    await run(`${proxy.proxyBase}/`)
+    await run(`${proxy.proxyBase}/npm/`)
   } finally {
     await closeServer(server)
   }
@@ -146,7 +146,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   let opts = testDefaults({
     registriesByScope: {
       default: 'https://registry.npmjs.org/',
-      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
@@ -166,7 +166,7 @@ test('a scoped package that need authentication specific to scope', async () => 
   opts = testDefaults({
     registriesByScope: {
       default: 'https://registry.npmjs.org/',
-      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      '@private': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
@@ -237,11 +237,11 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   }
   await addDependenciesToPackage({}, ['@pnpm.e2e/needs-auth'], testDefaults({
     registriesByScope: {
-      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
-    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }, {
     configByUri,
   }))
@@ -263,11 +263,11 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   }
   let opts = testDefaults({
     registriesByScope: {
-      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
-    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }, {
     configByUri,
   })
@@ -281,11 +281,11 @@ skipOnNode17('a package that need authentication reuses authorization tokens for
   // Recreating options to clean store cache
   opts = testDefaults({
     registriesByScope: {
-      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+      default: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
     },
   }, {
     configByUri,
-    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}`,
+    registry: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }, {
     configByUri,
   })

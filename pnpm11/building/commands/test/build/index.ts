@@ -15,7 +15,7 @@ import { safeExeca as execa } from 'execa'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 const testFixtures = fixtures(import.meta.dirname)
 

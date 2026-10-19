@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
-import { EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
+import { DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import semver from 'semver'
 
 import {
@@ -122,6 +122,20 @@ test('a single dominant lockfile version makes a cached range stable', () => {
   expect(result).toBe('1.0.0')
 })
 
+test('a version resolved higher in the chain makes a cached range stable over the lockfile pin', () => {
+  const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
+      '1.1.0': { selectorType: 'version', weight: RESOLVED_VERSION_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBe('1.1.0')
+})
+
 test('a cache missing the lockfile version is not stable', () => {
   const meta = metaWithoutLatest(['1.0.0'])
   const result = pickStableCachedRangeVersion({
@@ -177,14 +191,29 @@ test('a negative preferred selector disables cached range reuse', () => {
   expect(result).toBeNull()
 })
 
-test('a movable dist-tag cannot outweigh a dominant lockfile pin', () => {
+test('a pin a movable dist-tag outweighs is not stable', () => {
   const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
   meta['dist-tags'].next = '1.1.0'
   const result = pickStableCachedRangeVersion({
     meta,
     preferredVersionSelectors: {
       '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT },
-      next: { selectorType: 'tag', weight: EXISTING_VERSION_SELECTOR_WEIGHT - 1 },
+      next: { selectorType: 'tag', weight: DIRECT_DEP_SELECTOR_WEIGHT },
+    },
+    versionRange: '^1.0.0',
+  })
+
+  expect(result).toBeNull()
+})
+
+test('a pin that outweighs every movable dist-tag is stable', () => {
+  const meta = metaWithoutLatest(['1.0.0', '1.1.0'])
+  meta['dist-tags'].next = '1.1.0'
+  const result = pickStableCachedRangeVersion({
+    meta,
+    preferredVersionSelectors: {
+      '1.0.0': { selectorType: 'version', weight: DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT },
+      next: { selectorType: 'tag', weight: RESOLVED_VERSION_SELECTOR_WEIGHT },
     },
     versionRange: '^1.0.0',
   })

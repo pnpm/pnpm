@@ -210,7 +210,7 @@ fn check_local_dep_peers(
                     .map(|(name, dep_ref)| (name.to_string(), serde_json::Value::String(dep_ref.to_string())))
                     .collect::<serde_json::Map<String, serde_json::Value>>(),
             }),
-            allow_unresolved: false,
+            frozen_lockfile: false,
             auto_install_peers: install.auto_install_peers,
             include_optional: true,
             catalogs: Catalogs::new(),
@@ -233,7 +233,7 @@ struct DirectoryDepCase {
     metadata: serde_json::Value,
     snapshot: serde_json::Value,
     /// The allowance only `--frozen-lockfile` makes.
-    allow_unresolved: bool,
+    frozen_lockfile: bool,
     auto_install_peers: bool,
     /// `false` for an install without optional dependencies.
     include_optional: bool,
@@ -284,7 +284,7 @@ fn check_directory_dep_in_scope(
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,
-            allow_unresolved: case.allow_unresolved,
+            frozen_lockfile: case.frozen_lockfile,
         },
         parsed_overrides: None,
     };
@@ -408,7 +408,7 @@ fn a_recorded_peer_the_manifest_does_not_declare_is_stale() {
 /// nothing.
 fn check_dep_with_an_unresolved_entry(
     manifest_key: &str,
-    allow_unresolved: bool,
+    frozen_lockfile: bool,
 ) -> Result<(), FreshnessCheckError> {
     let mut manifest = serde_json::json!({ "name": "lib" });
     manifest[manifest_key] = serde_json::json!({ "is-positive": "1.0.0" });
@@ -416,7 +416,7 @@ fn check_dep_with_an_unresolved_entry(
         manifest,
         metadata: serde_json::json!({ "resolution": { "type": "directory", "directory": "lib" } }),
         snapshot: serde_json::json!({}),
-        allow_unresolved,
+        frozen_lockfile,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::new(),
@@ -463,7 +463,7 @@ fn a_dependency_that_became_optional_is_outdated() {
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::new(),
@@ -477,7 +477,7 @@ fn an_install_without_optional_dependencies_ignores_the_recorded_optional_childr
         manifest: serde_json::json!({ "name": "lib" }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "optionalDependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: false,
         catalogs: Catalogs::new(),
@@ -494,7 +494,7 @@ fn a_misconfigured_catalog_child_keeps_the_catalog_error() {
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::from([(
@@ -525,7 +525,7 @@ fn a_peer_shadowed_dependency_is_not_resolved_through_the_catalogs() {
             "peerDependencies": { "react": "^18.0.0" },
         }),
         snapshot: serde_json::json!({ "dependencies": { "react": "18.3.1" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: true,
         catalogs: Catalogs::from([(
@@ -547,10 +547,117 @@ fn a_dependency_that_became_optional_is_outdated_without_optional_dependencies()
         }),
         metadata: directory_metadata(),
         snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-        allow_unresolved: false,
+        frozen_lockfile: false,
         auto_install_peers: true,
         include_optional: false,
         catalogs: Catalogs::new(),
     });
     assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
+}
+
+/// A frozen install keeps an optional child the lockfile could not resolve,
+/// but one the lockfile records as required has changed.
+#[test]
+fn a_dependency_that_became_optional_is_outdated_on_a_frozen_install() {
+    let result = check_directory_dep(&DirectoryDepCase {
+        manifest: serde_json::json!({
+            "name": "lib",
+            "optionalDependencies": { "is-positive": "1.0.0" },
+        }),
+        metadata: directory_metadata(),
+        snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+        frozen_lockfile: true,
+        auto_install_peers: true,
+        include_optional: true,
+        catalogs: Catalogs::new(),
+    });
+    assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
+}
+
+/// The lockfile does not record the spec a tarball child was resolved from,
+/// so only a frozen install keeps the recorded resolution.
+#[test]
+fn a_tarball_child_is_resolved_again_unless_the_install_is_frozen() {
+    let check = |frozen_lockfile| {
+        check_directory_dep(&DirectoryDepCase {
+            manifest: serde_json::json!({
+                "name": "lib",
+                "dependencies": { "is-positive": "https://example.com/is-positive-3.1.0.tgz" },
+            }),
+            metadata: directory_metadata(),
+            snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
+            frozen_lockfile,
+            auto_install_peers: true,
+            include_optional: true,
+            catalogs: Catalogs::new(),
+        })
+    };
+    assert!(check(false).is_err(), "a resolving install resolves the tarball again");
+    assert!(check(true).is_ok(), "a frozen install keeps the recorded resolution");
+}
+
+/// A directory without a manifest is described by its name, as the resolver
+/// describes it, but one whose manifest fails to read is not described at all.
+#[test]
+fn only_a_directory_without_a_manifest_is_described_by_its_name() {
+    let tmp = tempfile::tempdir().expect("create a temporary directory");
+    let dir = tmp.path().join("pkg");
+    std::fs::create_dir(&dir).expect("create the dependency directory");
+    let manifests_by_dir = HashMap::new();
+    let describe = || {
+        super::unhooked_manifest(&super::InjectedDirectory {
+            dir: &dir,
+            declared_as_file: true,
+            workspace_root: tmp.path(),
+            manifests_by_dir: &manifests_by_dir,
+        })
+    };
+    let named = describe().expect("a directory without a manifest is described");
+    assert_eq!(named.value()["name"], "pkg");
+    std::fs::write(dir.join("package.json"), "{").expect("write a malformed package.json");
+    assert!(describe().is_none(), "a malformed manifest is not a missing one");
+}
+
+#[test]
+fn publish_config_directory_manifest_follows_declaration_kind() {
+    let tmp = tempfile::tempdir().expect("create a temporary directory");
+    let workspace_root = tmp.path().join("ws");
+    let ws_pkg = workspace_root.join("packages/lib");
+    let ws_dist = ws_pkg.join("dist");
+    std::fs::create_dir_all(&ws_dist).expect("create workspace publish directory");
+    std::fs::write(
+        ws_pkg.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"},"dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .expect("write workspace project manifest");
+    std::fs::write(ws_dist.join("package.json"), r#"{"name":"lib","version":"1.0.0"}"#)
+        .expect("write built dist manifest");
+
+    let outside_pkg = tmp.path().join("outside");
+    let outside_dist = outside_pkg.join("dist");
+    std::fs::create_dir_all(&outside_dist).expect("create outside publish directory");
+    std::fs::write(
+        outside_pkg.join("package.json"),
+        r#"{"name":"outside","version":"2.0.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .expect("write outside project manifest");
+
+    let manifests_by_dir = HashMap::new();
+    let ws_injected = super::unhooked_manifest(&super::InjectedDirectory {
+        dir: &ws_dist,
+        declared_as_file: false,
+        workspace_root: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    })
+    .expect("workspace publish directory resolves to parent project manifest");
+    assert_eq!(ws_injected.value()["dependencies"]["foo"], "1.0.0");
+
+    let outside_file = super::unhooked_manifest(&super::InjectedDirectory {
+        dir: &outside_dist,
+        declared_as_file: true,
+        workspace_root: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    })
+    .expect("file: dependency outside workspace resolves to parent publish manifest");
+    assert_eq!(outside_file.value()["version"], "2.0.0");
 }

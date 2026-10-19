@@ -4,7 +4,7 @@ use super::{
     make_node, write_manifest,
 };
 use pnpm_deps_path::DepPath;
-use pnpm_resolving_deps_resolver::{DependenciesGraph, UpdateReuseScope};
+use pnpm_resolving_deps_resolver::DependenciesGraph;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -54,6 +54,7 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             add_missing_peer_types: None,
             inject_workspace_packages: false,
             peers_suffix_max_length: None,
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings::default(),
         },
         metadata_sources: crate::PackageMetadataSources {
@@ -71,11 +72,6 @@ fn aliased_catalog_dependency_records_catalog_snapshot() {
             package_extensions_checksum: None,
             pnpmfile_checksum: None,
             untracked_pnpmfile_read_package_hook: None,
-        },
-        reuse: crate::LockfileImporterReuse {
-            previous_importers: None,
-            scope: UpdateReuseScope::All,
-            scopes_by_importer: BTreeMap::new(),
         },
     });
 

@@ -28,6 +28,8 @@ pub(super) struct PackageSignature {
 #[derive(Debug, Deserialize)]
 pub(super) struct Dist {
     #[serde(default)]
+    pub(super) integrity: Option<String>,
+    #[serde(default)]
     pub(super) tarball: Option<String>,
     #[serde(default)]
     pub(super) signatures: Option<serde_json::Value>,

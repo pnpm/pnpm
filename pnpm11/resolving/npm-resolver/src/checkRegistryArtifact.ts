@@ -1,22 +1,11 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { ResolutionVerification } from '@pnpm/resolving.resolver-base'
-import {
-  isIntegrityAddressedRegistryTarballUrl,
-  isValidTarballRevision,
-} from '@pnpm/resolving.tarball-url'
+import { createRegistryRevisionsUnsupportedError } from '@pnpm/resolving.tarball-url'
 import type { RegistriesByScope } from '@pnpm/types'
 
 import { normalizeRegistryUrl } from './normalizeRegistryUrl.js'
-import {
-  fetchAbbreviatedMeta,
-  type PublishedAtLookupContext,
-  type RegistryArtifact,
-  type RegistryArtifactHistory,
-} from './verifierMetaLookup.js'
-import {
-  TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-  TARBALL_URL_MISMATCH_VIOLATION_CODE,
-} from './violationCodes.js'
+import { fetchAbbreviatedMeta, type PublishedAtLookupContext } from './verifierMetaLookup.js'
+import { TARBALL_URL_MISMATCH_VIOLATION_CODE } from './violationCodes.js'
 
 export type ResolutionViolation = Extract<ResolutionVerification, { ok: false }>
 
@@ -26,7 +15,6 @@ export interface RegistryPin {
   name: string
   version: string
   integrity: string
-  rawRevision: unknown
   tarballUrl: string | undefined
 }
 
@@ -34,15 +22,6 @@ export interface RegistryRouting {
   registriesByScope: RegistriesByScope
   namedRegistryPrefixes: readonly string[]
 }
-
-interface RevisionSelection {
-  revision: number
-  currentMatches: boolean
-  historical?: RegistryArtifact
-  selected?: RegistryArtifact
-}
-
-const UNVERIFIABLE_REASON = "could not be verified against the registry's published metadata"
 
 /**
  * Confirm the lockfile-pinned tarball URL is the artifact the registry's
@@ -55,9 +34,9 @@ const UNVERIFIABLE_REASON = "could not be verified against the registry's publis
  * a tampered lockfile could smuggle a malicious URL past the check by
  * pointing it at a `name@version` the registry can't vouch for.
  */
-export async function runRegistryArtifactCheck (
+export async function runTarballUrlCheck (
   context: PublishedAtLookupContext,
-  pin: RegistryPin
+  pin: RegistryPin & { tarballUrl: string }
 ): Promise<ResolutionViolation | undefined> {
   const { meta, error } = await fetchAbbreviatedMeta(context, pin.registry, pin.name)
   if (error != null) {
@@ -68,144 +47,20 @@ export async function runRegistryArtifactCheck (
     // error — still fail-closed, the entry never reaches the filesystem.
     throw error
   }
-  const artifact = meta?.versionArtifacts?.get(pin.version)
-  if (artifact == null) return reportUnlistedArtifact(pin)
-  if (!isRevisionAware(artifact, pin.rawRevision)) {
-    if (pin.tarballUrl == null) return undefined
-    return checkTarballUrlMatches(pin.tarballUrl, artifact.current.tarball)
+  if (meta?.revisionVersions?.has(pin.version)) {
+    throw createRegistryRevisionsUnsupportedError(
+      `The registry serves ${pin.name}@${pin.version} as a registry revision`
+    )
   }
-  return checkRevisionedArtifact(artifact, pin)
-}
-
-function reportUnlistedArtifact (pin: RegistryPin): ResolutionViolation | undefined {
-  if (pin.tarballUrl == null && pin.rawRevision == null) return undefined
-  return {
-    ok: false,
-    code: pin.tarballUrl == null
-      ? TARBALL_REVISION_MISMATCH_VIOLATION_CODE
-      : TARBALL_URL_MISMATCH_VIOLATION_CODE,
-    reason: UNVERIFIABLE_REASON,
-  }
-}
-
-function isRevisionAware (artifact: RegistryArtifactHistory, rawRevision: unknown): boolean {
-  return rawRevision != null || artifact.current.revision !== undefined || artifact.revisions.length > 0
-}
-
-function checkRevisionedArtifact (
-  artifact: RegistryArtifactHistory,
-  pin: RegistryPin
-): ResolutionViolation | undefined {
-  if (pin.rawRevision != null && !isValidTarballRevision(pin.rawRevision)) {
-    return revisionMismatch(`has an invalid revision (${String(pin.rawRevision)})`)
-  }
-  const currentRevision = readCurrentRevision(artifact, pin.registry)
-  if (typeof currentRevision !== 'number') return currentRevision
-  const selection = selectPinnedRevision(artifact, typeof pin.rawRevision === 'number' ? pin.rawRevision : 0, currentRevision)
-  if ('ok' in selection) return selection
-  const selected = pickIntegrityMatchedArtifact(selection, pin.integrity)
-  if (selected == null) {
-    return revisionMismatch(`has revision ${selection.revision} with an integrity that does not match the registry's current or historical metadata`)
-  }
-  return checkSelectedArtifactLocation(selected, selection, pin)
-}
-
-function readCurrentRevision (
-  artifact: RegistryArtifactHistory,
-  registry: string
-): number | ResolutionViolation {
-  const metadataRevision = artifact.current.revision
-  if (metadataRevision === undefined) return 0
-  if (!isValidTarballRevision(metadataRevision)) {
-    return revisionMismatch(`registry metadata has an invalid current revision (${String(metadataRevision)})`)
-  }
-  const currentHistory = artifact.revisions.filter(candidate => candidate.revision === metadataRevision)
-  if (!isConsistentCurrentRevision(artifact.current, currentHistory, registry)) {
-    return revisionMismatch(`registry metadata revision ${metadataRevision} does not have exactly one matching history entry`)
-  }
-  return metadataRevision
-}
-
-function selectPinnedRevision (
-  artifact: RegistryArtifactHistory,
-  revision: number,
-  currentRevision: number
-): RevisionSelection | ResolutionViolation {
-  const currentMatches = currentRevision === revision
-  const historicalCandidates = artifact.revisions.filter(candidate => candidate.revision === revision)
-  if (historicalCandidates.length > 1) {
-    return revisionMismatch(`revision ${revision} is advertised more than once in the registry's history`)
-  }
-  const historical = historicalCandidates[0]
-  return {
-    revision,
-    currentMatches,
-    historical,
-    selected: currentMatches ? artifact.current : historical,
-  }
-}
-
-function pickIntegrityMatchedArtifact (
-  selection: RevisionSelection,
-  lockfileIntegrity: string
-): RegistryArtifact | undefined {
-  const { selected, historical, currentMatches } = selection
-  if (selected == null || selected.integrity !== lockfileIntegrity) return undefined
-  if (currentMatches && historical != null && historical.integrity !== lockfileIntegrity) return undefined
-  return selected
-}
-
-function checkSelectedArtifactLocation (
-  selected: RegistryArtifact,
-  selection: RevisionSelection,
-  pin: RegistryPin
-): ResolutionViolation | undefined {
-  const mustBeIntegrityAddressed = selection.revision > 0 || !selection.currentMatches
-  if (mustBeIntegrityAddressed && !isIntegrityAddressedTarball(selected.tarball, pin)) {
-    return revisionMismatch(`has revision ${selection.revision} that is not addressed by its complete sha512 integrity`)
-  }
-  if (pin.tarballUrl == null) return undefined
-  return checkTarballUrlMatches(pin.tarballUrl, selected.tarball)
-}
-
-function isIntegrityAddressedTarball (tarball: unknown, pin: RegistryPin): boolean {
-  return typeof tarball === 'string' &&
-    isIntegrityAddressedRegistryTarballUrl(normalizeRegistryUrl(tarball), pin.integrity, pin.registry)
-}
-
-function checkTarballUrlMatches (lockfileTarball: string, registryTarball: unknown): ResolutionViolation | undefined {
-  if (typeof registryTarball === 'string' && sameTarballUrl(lockfileTarball, registryTarball)) return undefined
+  const registryTarball = meta?.versionTarballs?.get(pin.version)
+  if (typeof registryTarball === 'string' && sameTarballUrl(pin.tarballUrl, registryTarball)) return undefined
   return {
     ok: false,
     code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
     reason: typeof registryTarball !== 'string'
-      ? UNVERIFIABLE_REASON
-      : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${registryTarball})`,
+      ? "could not be verified against the registry's published metadata"
+      : `has a tarball URL (${pin.tarballUrl}) that does not match the registry's published metadata (${registryTarball})`,
   }
-}
-
-function revisionMismatch (reason: string): ResolutionViolation {
-  return { ok: false, code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE, reason }
-}
-
-/**
- * The registry's current artifact must have exactly one history entry for its
- * revision, that entry must agree with it, and its tarball URL must be
- * addressed by its own integrity.
- */
-function isConsistentCurrentRevision (
-  current: RegistryArtifact,
-  currentHistory: RegistryArtifact[],
-  registry: string
-): boolean {
-  if (currentHistory.length !== 1) return false
-  const [historyEntry] = currentHistory
-  return historyEntry.integrity === current.integrity &&
-    typeof historyEntry.tarball === 'string' &&
-    typeof current.tarball === 'string' &&
-    typeof current.integrity === 'string' &&
-    isIntegrityAddressedRegistryTarballUrl(normalizeRegistryUrl(current.tarball), current.integrity, registry) &&
-    sameTarballUrl(historyEntry.tarball, current.tarball)
 }
 
 function sameTarballUrl (leftUrl: string, rightUrl: string): boolean {

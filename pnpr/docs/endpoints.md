@@ -23,11 +23,10 @@ plus four surfaces:
 See [Configuration](configuration.md#registry-resolver-and-artifact-surfaces)
 for the config keys and [CLI reference](cli.md) for the command-line overrides.
 
-The tables below show npm paths on the path-less base. Each is equally available
-under a `/~<name>/` prefix. On a server that declares more than one ecosystem,
-the npm paths move under `/npm/`. The always-available endpoints, the
-`/-/pnpr/v0/` protocol endpoints, and the image `/v2/` API stay on the
-path-less base. Cargo, Python, and image endpoints are documented on their
+The npm tables below show paths relative to the npm base, `/npm/`. Each is
+equally available under an `/npm/~<name>/` prefix. The always-available
+endpoints, the `/-/pnpr/v0/` protocol endpoints, and the image `/v2/` API sit
+on the server root. Cargo, Python, and image endpoints are documented on their
 own pages.
 
 ## Always available
@@ -38,7 +37,7 @@ own pages.
 | `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks storage and auth backends, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure. |
 | `GET` | `/-/live` | Container / Kubernetes liveness probe. Returns `{"status": "ok"}` when the server process is alive and handling requests. |
 | `GET` | `/-/metrics` | Unauthenticated Prometheus metrics endpoint. Emits standard Prometheus text format (`text/plain; version=0.0.4`) exposing request rates, durations, response bytes, in-flight gauges, and cache stats. Unauthenticated access is intentional for cluster monitoring and metrics scrapers. |
-| `GET` | `/metrics` | Unauthenticated Prometheus metrics endpoint for scrapers. When requested with npm packument Accept headers, delegates to packument lookup for package `metrics`. |
+| `GET` | `/metrics` | Unauthenticated Prometheus metrics endpoint for scrapers. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
 | `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |
 | `POST` | `/-/oidc/handoff?flow=<flow>` | Returns `{"token": ..., "expires": ...}` for the sign-in `flow` that a sign-in with `return=ui` passes to the web UI. The token is released only to the browser that signed in, once, within a minute. |
@@ -46,20 +45,18 @@ own pages.
 The [user and token endpoints](#user-and-token-endpoints) below are also
 always available, whichever surfaces are enabled.
 
-## Registry bases: `/` and `/~<name>/`
+## Registry bases: `/npm/` and `/npm/~<name>/`
 
 Every [registry](configuration.md#registries-and-defaultregistry) is served as
-a full npm registry at `/~<name>/`. On a server that declares more than one
-ecosystem, the npm bases are `/npm/` and `/npm/~<name>/` instead, and the rest
-of this section applies to them the same way. Packument and tarball reads,
+a full npm registry at `/npm/~<name>/`. Packument and tarball reads,
 version manifests, dist-tags, search, publish, unpublish, and the login/whoami
 endpoints all work under a registry prefix. The `~` prefix keeps registry
 names out of the package-name namespace (a package name can never begin with
 `~`).
 
-The path-less base (`/`) aliases the registry named by `defaultRegistry`; with
-no `defaultRegistry` configured, the bare host serves no registry and only the
-`/~<name>/` bases answer.
+The npm base (`/npm/`) aliases the registry named by `defaultRegistry`. With
+no `defaultRegistry` configured, it serves no registry and only the
+`/npm/~<name>/` bases answer.
 
 Every request routes through the registry graph:
 
@@ -78,8 +75,8 @@ Every request routes through the registry graph:
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
 - Served `dist.tarball` URLs are rewritten onto the configured `public_url`
-  and stay canonical for the base the client addressed (`/`, `/~<name>/`,
-  `/npm/`, or `/npm/~<name>/`), so lockfiles don't bake in a registry name.
+  and stay canonical for the base the client addressed (`/npm/` or
+  `/npm/~<name>/`), so lockfiles don't bake in a registry name.
 
 ## pnpr protocol endpoints
 
@@ -148,8 +145,7 @@ decides who may read and who may publish what each one owns.
 
 Added in: v0.1.0-alpha.11
 
-These belong to no single ecosystem, so they stay at the root whatever prefixes
-the server mounts.
+These belong to no single ecosystem, so they sit on the server root.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -189,7 +185,7 @@ are checked against the serving registry's matching
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and, since v0.1.0-alpha.11, the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable artifact by its base64url SHA-512 digest, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). Not served by a tar registry. |
+| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
@@ -206,15 +202,32 @@ and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.
 
 Since v0.1.0-alpha.8, the digest route answers integrity-addressed
-[registry revisions](/registry-revisions). For a proxied upstream registry, pnpr
-forwards the request with its own credentials, verifies the integrity, and
-caches the object; for a hosted registry, every publish seals a durable
-package/version reference under the artifact's SHA-512 digest, so a digest is
-resolved with one bounded index read rather than a scan over packuments. Before
-the bytes are served, pnpr revalidates the current packument, the revision
-history, the caller's access, registry routing, and OSV policy — so a digest URL
-is not a way around any of them. Every 3xx fails a digest fetch on the client
-side, same-origin included.
+[registry revisions](/registry-revisions). The digest is the SHA-512 of the
+uncompressed tar, on every registry, `.tgz` and tar registries alike. The
+response is the tar with `Content-Type: application/x-tar`, sent with the
+`gzip` or `zstd` content coding the client's `Accept-Encoding` allows, or with
+none, and `Vary: Accept-Encoding`. It carries no `ETag`, and a `Range` request
+gets the whole body.
+
+For a proxied upstream registry, pnpr forwards the request with its own
+credentials and accepts a gzip-encoded or plain tar. It decodes the whole
+response and checks the tar against the digest before it caches or serves any
+of it. For a hosted registry, every publish decodes the `.tgz` and seals a
+durable package/version reference under the digest of its tar, so a digest is
+resolved with one bounded index read rather than a scan over packuments. A
+`.tgz` whose gzip stream does not decode in full has no tar, and gets no
+reference. Before the bytes are served, pnpr revalidates the current packument,
+the caller's access, registry routing, and OSV policy, so a digest URL is not a
+way around any of them. Every 3xx fails a digest fetch on the client side,
+same-origin included.
+
+Package metadata keeps an upstream's revision fields only when they form a
+complete revision record: `dist.revision`, including `0` for the original, a
+`dist.tarball` on the digest route, and a `dist.revisions` history that lists
+revision `0` once and the selected revision once. Such a version's `dist`
+omits `shasum` and `signatures`, which describe a `.tgz`, on either registry
+format. Any other version is served as ordinary metadata, without `revision`
+or `revisions`.
 
 ## Registry write endpoints
 
@@ -267,7 +280,7 @@ A stage id is a v4 UUID drawn from the OS CSPRNG, so the id itself acts as an
 unguessable handle. Held records live under a reserved `.staged/` namespace in
 the hosted store (both the filesystem and S3 backends), and a record is only
 visible through the same base it was created with — one staged through
-`/~<name>/` is not addressable on the path-less base, and vice versa.
+`/npm/~<name>/` is not addressable on the npm base, and vice versa.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -344,10 +357,11 @@ that declares no teams returns an empty array.
 
 ## User and token endpoints
 
-These endpoints are **always mounted**, whichever surfaces are enabled, and
-they are global — served identically on the path-less base and under any
-`/~<name>/` prefix. `pnpm login` therefore works against any pnpr URL,
-including a resolver-only server that exposes no registry surface.
+These endpoints are **always mounted** on the server root and under any
+`/~<name>/` prefix, whichever surfaces are enabled. A server with an npm
+registry also serves them under `/npm/` and `/npm/~<name>/`. `pnpm login`
+therefore works against a pnpr npm registry URL, and against the root of a
+resolver-only server that exposes no registry surface.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -363,7 +377,7 @@ including a resolver-only server that exposes no registry surface.
 
 ## Admin endpoints
 
-These endpoints are always mounted, on the path-less base only. Each requires
+These endpoints are always mounted, on the server root only. Each requires
 one of the [`auth.admins`](configuration.md#auth). Others get `401` when
 anonymous and `403` when signed in.
 

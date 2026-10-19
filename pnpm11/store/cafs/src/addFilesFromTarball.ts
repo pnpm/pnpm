@@ -33,6 +33,8 @@ type AddBufferToCafs = (buffer: Buffer, mode: number) => FileWriteResult
 type TarballImportOptions = {
   readManifest?: boolean
   ignore?: (filename: string) => boolean
+  /** Largest sum of the declared sizes of the archive's regular files, in bytes. */
+  maxTarballUnpackedSize?: number
   storeDir: string
 }
 
@@ -42,7 +44,7 @@ export function addFilesFromTarball (
   readManifest?: boolean,
   ignore?: (filename: string) => boolean
 ): AddToStoreResult {
-  return addFilesFromTarContent(addBufferToCafs, decompressTarball(tarballBuffer), readManifest, ignore)
+  return addFilesFromTarContent(addBufferToCafs, decompressTarball(tarballBuffer), { readManifest, ignore })
 }
 
 /**
@@ -57,17 +59,17 @@ export async function addFilesFromTarballBounded (
   tarballBuffer: Buffer,
   opts: TarballImportOptions
 ): Promise<AddToStoreResult> {
-  const { readManifest, ignore, storeDir } = opts
+  const { readManifest, ignore, storeDir, maxTarballUnpackedSize } = opts
   if (isBzip2(tarballBuffer)) return addFilesFromBzip2(addBufferToCafs, tarballBuffer, opts)
   const tarContent = isGzip(tarballBuffer)
     ? gunzipUpTo(tarballBuffer, MAX_IN_MEMORY_TARBALL_SIZE)
     : decompressTarball(tarballBuffer)
   if (tarContent != null) {
-    return addFilesFromTarContent(addBufferToCafs, tarContent, readManifest, ignore)
+    return addFilesFromTarContent(addBufferToCafs, tarContent, { readManifest, ignore, maxTarballUnpackedSize })
   }
   const writers = createTarballFileWriterFactory(storeDir)
   const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore, writers })
-  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, MAX_IN_MEMORY_TARBALL_SIZE)
+  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, { maxBufferedEntrySize: MAX_IN_MEMORY_TARBALL_SIZE, maxTarballUnpackedSize })
   const gunzip = createGunzip({ chunkSize: GUNZIP_CHUNK_SIZE })
   gunzip.end(tarballBuffer)
   try {
@@ -84,7 +86,7 @@ export async function addFilesFromTarballBounded (
 export async function addFilesFromTarballFile (
   addBufferToCafs: AddBufferToCafs,
   tarballFile: string,
-  { readManifest, ignore, storeDir }: TarballImportOptions
+  { readManifest, ignore, storeDir, maxTarballUnpackedSize }: TarballImportOptions
 ): Promise<AddToStoreResult> {
   const handle = await fs.open(tarballFile, 'r')
   const prefix = Buffer.alloc(3)
@@ -96,7 +98,7 @@ export async function addFilesFromTarballFile (
   if (isBzip2(prefix)) {
     const source = openBzip2Input(tarballFile)
     try {
-      return await addFilesFromBzip2(addBufferToCafs, source.input, { readManifest, ignore, storeDir })
+      return await addFilesFromBzip2(addBufferToCafs, source.input, { readManifest, ignore, storeDir, maxTarballUnpackedSize })
     } finally {
       source.close()
     }
@@ -108,7 +110,7 @@ export async function addFilesFromTarballFile (
   })
   const writers = createTarballFileWriterFactory(storeDir)
   const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore, writers })
-  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, MAX_IN_MEMORY_TARBALL_SIZE)
+  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, { maxBufferedEntrySize: MAX_IN_MEMORY_TARBALL_SIZE, maxTarballUnpackedSize })
   try {
     for await (const chunk of stream) parser.push(chunk as Buffer)
     parser.end()
@@ -124,11 +126,11 @@ export async function addFilesFromTarballFile (
 async function addFilesFromBzip2 (
   addBufferToCafs: AddBufferToCafs,
   input: Buffer | Bzip2Input,
-  { readManifest, ignore, storeDir }: TarballImportOptions
+  { readManifest, ignore, storeDir, maxTarballUnpackedSize }: TarballImportOptions
 ): Promise<AddToStoreResult> {
   const writers = createTarballFileWriterFactory(storeDir)
   const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore, writers })
-  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, MAX_IN_MEMORY_TARBALL_SIZE)
+  const parser = createTarballParser(filesIndexBuilder.addFile, filesIndexBuilder.createFileWriter, { maxBufferedEntrySize: MAX_IN_MEMORY_TARBALL_SIZE, maxTarballUnpackedSize })
   try {
     decodeBzip2(input, parser)
     await writers.publish()
@@ -146,13 +148,12 @@ async function addFilesFromBzip2 (
 function addFilesFromTarContent (
   addBufferToCafs: AddBufferToCafs,
   tarContent: Buffer,
-  readManifest?: boolean,
-  ignore?: (filename: string) => boolean
+  { readManifest, ignore, maxTarballUnpackedSize }: Pick<TarballImportOptions, 'readManifest' | 'ignore' | 'maxTarballUnpackedSize'>
 ): AddToStoreResult {
   const files = new Map<string, { mode: number, content: Buffer }>()
   const parser = createTarballParser((relativePath, mode, content) => {
     files.set(relativePath, { mode, content })
-  })
+  }, undefined, { maxTarballUnpackedSize })
   parser.push(tarContent)
   parser.end()
   const filesIndexBuilder = createFilesIndexBuilder(addBufferToCafs, { readManifest, ignore })

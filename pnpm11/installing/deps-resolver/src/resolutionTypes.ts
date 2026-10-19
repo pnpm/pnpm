@@ -311,7 +311,6 @@ export interface ResolvedDependenciesOptions {
   pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
   updateMatching?: UpdateMatchingFunction
-  updatePatches?: boolean
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
@@ -422,7 +421,6 @@ export interface ResolveDependencyOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
-  updatePatches?: boolean
   updateChecksums?: boolean
   updateDepth: number
   /**

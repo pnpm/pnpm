@@ -14,10 +14,10 @@ use tokio::sync::{Semaphore, mpsc};
 /// response ends with an error.
 const MAX_DECODED_TAR_BYTES: u64 = (4 * 1024 + 256) * 1024 * 1024;
 
-/// Tar responses that may decode at once. Each holds a blocking thread for
-/// as long as its client reads, so the cap keeps slow or many clients from
-/// taking the whole blocking pool. A response waits for a permit, and stops
-/// waiting when its client goes away.
+/// Tar responses and publishes that may decode at once. Each holds a
+/// blocking thread for as long as its client reads or its tar hashes, so the
+/// cap keeps slow or many clients from taking the whole blocking pool. A
+/// response waits for a permit, and stops waiting when its client goes away.
 pub(in super::super) const MAX_CONCURRENT_TAR_DECODES: usize = 64;
 
 /// What pnpm admits in a tar beyond the file payload `dist.unpackedSize`
@@ -39,8 +39,25 @@ pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<Integrity> {
     tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
 }
 
+/// Compute the integrity of the tar a stored tar resource holds: the tar
+/// itself, or with `gzip`, its gzip encoding. `None` when a gzip encoding does
+/// not decode in full, or the tar is larger than any `.tgz` may decode to.
+pub(in super::super) fn tar_resource_integrity(
+    resource: impl Read,
+    gzip: bool,
+) -> Option<Integrity> {
+    if gzip {
+        return tar_integrity_of(resource);
+    }
+    hash_within(resource, MAX_DECODED_TAR_BYTES)
+}
+
 pub(super) fn tar_integrity_within(tgz: impl Read, limit: u64) -> Option<Integrity> {
-    let mut decoder = flate2::read::MultiGzDecoder::new(tgz).take(limit.saturating_add(1));
+    hash_within(flate2::read::MultiGzDecoder::new(tgz), limit)
+}
+
+fn hash_within(tar: impl Read, limit: u64) -> Option<Integrity> {
+    let mut decoder = tar.take(limit.saturating_add(1));
     let mut decoded = 0u64;
     let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
     let mut buf = vec![0u8; 64 * 1024];

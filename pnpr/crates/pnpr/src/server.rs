@@ -1,6 +1,6 @@
 pub(crate) use client_ip::{ClientIp, resolve_client_ip};
 pub use lifecycle::{recover_publish_journal, serve, serve_listener};
-pub(crate) use metrics::{ServerMetrics, serve_metrics, serve_metrics_or_packument};
+pub(crate) use metrics::{ServerMetrics, serve_metrics};
 pub(crate) use request_access::compute_upstream_cache_namespace;
 pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
 pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
@@ -49,11 +49,11 @@ use tar_registry::{
 mod tar_responses;
 use tar_responses::{
     CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
-    tar_response,
+    tar_resource_integrity, tar_response,
 };
 
 mod version_tarballs;
-use version_tarballs::serve_package_tarball;
+use version_tarballs::{VersionTgzCache, serve_package_tarball};
 
 mod tar_variants;
 use tar_variants::{TarCopy, TarVariantQueue, open_variant};
@@ -61,8 +61,8 @@ use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 mod package_responses;
 use package_responses::{
     DistBlock, PackumentDists, TarballDist, expected_tarball_dist, packument_bytes_response,
-    packument_response, revision_tarball_response, tarball_integrity_error, tarball_response,
-    tarball_stream_error, tarball_stream_error_for_package,
+    packument_response, tarball_integrity_error, tarball_response, tarball_stream_error,
+    tarball_stream_error_for_package,
 };
 
 mod package_reads;
@@ -80,7 +80,7 @@ use revision_refs::{
 
 mod revision_tarballs;
 use revision_tarballs::{
-    declared_tarball_integrity, hosted_original_is_current, open_hosted_revision_tarball,
+    HostedOriginal, declared_tarball_integrity, hosted_original, open_hosted_revision_tarball,
     serve_revision_tarball,
 };
 
@@ -94,7 +94,7 @@ mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
     load_packument_for_read, load_upstream_packument, read_source_packument,
-    serve_packument_via_upstream,
+    recover_stale_upstream_packument, serve_packument_via_upstream,
 };
 
 mod request_access;
@@ -152,7 +152,7 @@ mod web_ui;
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize},
+    authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
     documents::RegistryDocuments,
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
@@ -160,8 +160,8 @@ use self::{
         update_packument,
     },
     publishing::{
-        PublishTarget, commit_publishes, publish_package, resolve_publish_target_for,
-        serve_batch_publish, stage_publish, validate_publish_doc,
+        PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
+        resolve_publish_target_for, serve_batch_publish, stage_publish, validate_publish_doc,
     },
     routing::router_with_auth_and_osv,
 };
@@ -181,7 +181,6 @@ use axum::{
 use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
-use pnpm_lockfile::TarballRevision;
 use pnpr_auth::{AuthState, UpsertOutcome, identify};
 use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;

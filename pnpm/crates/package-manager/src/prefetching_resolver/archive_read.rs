@@ -11,25 +11,28 @@ use super::PrefetchingResolver;
 use pnpm_deps_restorer::{
     CustomFetcherSession, ResolvedTarballMetadata, local_file_tarball_install_url,
 };
-use pnpm_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
+use pnpm_lockfile::{IntegrityTarget, LockfileResolution, is_git_hosted_tarball_url};
 use pnpm_reporter::{Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::{ResolveError, ResolveResult};
-use pnpm_tarball::{FetchTarballForResolution, package_mem_cache_key};
+use pnpm_tarball::{FetchTarballForResolution, IntegrityKind, package_mem_cache_key};
 use std::{path::Path, sync::Arc};
 
 impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
     /// Fill in whichever of a resolution's integrity and manifest the
     /// archive has to answer for, in one read. [`MissingTarballMetadata`]
     /// decides which of them those are, and which shapes are read at all.
+    ///
+    /// Returns whether the read settled the integrity, which then names the
+    /// hash `lockfile.integrityTarget` asks for.
     pub(super) async fn populate_missing_tarball_metadata(
         &self,
         result: &mut ResolveResult,
         lockfile_dir: &Path,
-    ) -> Result<(), ResolveError> {
+    ) -> Result<bool, ResolveError> {
         let Some((missing, tarball)) =
             MissingTarballMetadata::of(result, self.ctx.policy.custom_session.is_some())
         else {
-            return Ok(());
+            return Ok(false);
         };
         let metadata = match self.read_archive_once(result, tarball, lockfile_dir).await {
             Ok(metadata) => metadata,
@@ -39,12 +42,19 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                         tarball.integrity.is_some() && tarball.tarball.starts_with("file:")
                     }) =>
             {
-                return Ok(());
+                return Ok(false);
             }
             Err(err) => return Err(err),
         };
+        // A read that pinned the hash under a lockfile that pins tars learned
+        // the tar's hash too.
+        let pins_tar = tarball.is_some_and(|tarball| {
+            self.read_integrity_kind(tarball) == IntegrityKind::ResourceOrTar
+        });
+        let missing =
+            MissingTarballMetadata { integrity: missing.integrity || pins_tar, ..missing };
         self.record_archive_metadata(result, missing, metadata);
-        Ok(())
+        Ok(missing.integrity && self.ctx.policy.custom_session.is_none())
     }
 
     /// Write back whichever halves the read was there to settle, leaving every
@@ -172,7 +182,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         lockfile_dir: &Path,
     ) -> Result<ResolvedTarballMetadata, ResolveError> {
         let (package_url, package_id) = package;
-        let download = self.ctx.tarball_download(package_url, package_id, None, None, None);
+        let download = self.ctx.tarball_download(
+            package_url,
+            package_id,
+            (None, pnpm_tarball::IntegrityKind::Resource),
+            None,
+            None,
+        );
         let pkg = match &result.package.name_ver {
             Some(name_ver) => serde_json::json!({
                 "name": name_ver.name.to_string(), "version": name_ver.suffix.to_string(),
@@ -219,6 +235,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             http_client: &self.ctx.fetching.http_client,
             store: self.ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: self.read_integrity_kind(tarball),
                 // A resolution that already pins a hash is only read here
                 // for its manifest, and an unchecked archive would put
                 // attacker content in charge of the dependency walk.
@@ -258,6 +275,21 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             manifest: resolved.manifest.map(Arc::new),
         })
     }
+    /// What a read of `tarball` checks and yields. A hash the read learns
+    /// names what the lockfile pins. A pinned hash may name either the
+    /// resource or the tar of a lockfile that pins tars.
+    fn read_integrity_kind(&self, tarball: &pnpm_lockfile::TarballResolution) -> IntegrityKind {
+        let resolution = LockfileResolution::Tarball(tarball.clone());
+        match resolution.integrity_target(self.ctx.config.lockfile_integrity_target) {
+            IntegrityTarget::Tar
+                if tarball.integrity.is_some() && tarball.revision.is_none() =>
+            {
+                IntegrityKind::ResourceOrTar
+            }
+            target => target.into(),
+        }
+    }
+
     pub(super) fn share_commit_addressed_archive(
         &self,
         url: &str,

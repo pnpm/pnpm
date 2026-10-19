@@ -352,7 +352,7 @@ async fn readonly_token_cannot_create_tokens_or_write() {
     let publish_attempt = app
         .clone()
         .oneshot(
-            Request::put("/some-package")
+            Request::put("/npm/some-package")
                 .header(header::AUTHORIZATION, format!("Bearer {ro_token}"))
                 .header("content-type", "application/json")
                 .body(Body::from(json!({ "name": "some-package" }).to_string()))
@@ -386,7 +386,7 @@ async fn readonly_token_is_permitted_for_audit_endpoints() {
     let audit_res = app
         .clone()
         .oneshot(
-            Request::post("/-/npm/v1/security/advisories/bulk")
+            Request::post("/npm/-/npm/v1/security/advisories/bulk")
                 .header(header::AUTHORIZATION, format!("Bearer {ro_token}"))
                 .header("content-type", "application/json")
                 .body(Body::from("{}"))
@@ -399,7 +399,7 @@ async fn readonly_token_is_permitted_for_audit_endpoints() {
     let prefix_audit_res = app
         .clone()
         .oneshot(
-            Request::post("/~npmjs/-/npm/v1/security/advisories/bulk")
+            Request::post("/npm/~npmjs/-/npm/v1/security/advisories/bulk")
                 .header(header::AUTHORIZATION, format!("Bearer {ro_token}"))
                 .header("content-type", "application/json")
                 .body(Body::from("{}"))

@@ -3,6 +3,7 @@ use super::{
     foo_packument, header, json, router, router_with_auth,
 };
 use crate::tokens::issue_token;
+use pnpr_storage::layout::local_document_path;
 
 #[tokio::test]
 async fn public_packument_responses_carry_caching_headers() {
@@ -25,7 +26,7 @@ async fn public_packument_responses_carry_caching_headers() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -57,7 +58,7 @@ async fn public_packument_responses_carry_caching_headers() {
     // Abbreviated packument GET
     let abbrev_response = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -108,7 +109,7 @@ async fn packument_conditional_if_none_match() {
     let initial = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -127,7 +128,7 @@ async fn packument_conditional_if_none_match() {
     let not_modified = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, &etag)
                 .body(Body::empty())
                 .unwrap(),
@@ -162,7 +163,7 @@ async fn packument_conditional_if_none_match() {
     let weak_match = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, format!("W/{etag}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -175,7 +176,7 @@ async fn packument_conditional_if_none_match() {
     let wildcard = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, "*")
                 .body(Body::empty())
                 .unwrap(),
@@ -188,7 +189,7 @@ async fn packument_conditional_if_none_match() {
     let list_match = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, format!(r#""other", {etag}"#))
                 .body(Body::empty())
                 .unwrap(),
@@ -198,7 +199,7 @@ async fn packument_conditional_if_none_match() {
     assert_eq!(list_match.status(), StatusCode::NOT_MODIFIED);
 
     // Multiple If-None-Match headers where a later one matches returns 304
-    let mut multi_req = Request::get("/foo")
+    let mut multi_req = Request::get("/npm/foo")
         .body(Body::empty())
         .unwrap();
     multi_req
@@ -218,7 +219,7 @@ async fn packument_conditional_if_none_match() {
     let mismatch = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, r#""non-matching-etag""#)
                 .body(Body::empty())
                 .unwrap(),
@@ -232,7 +233,7 @@ async fn packument_conditional_if_none_match() {
     let unquoted = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, etag.trim_matches('"'))
                 .body(Body::empty())
                 .unwrap(),
@@ -244,7 +245,7 @@ async fn packument_conditional_if_none_match() {
     // Quoted candidate with embedded comma is not split into fragments
     let comma_etag = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, format!(r#""{},other""#, etag.trim_matches('"')))
                 .body(Body::empty())
                 .unwrap(),
@@ -275,7 +276,7 @@ async fn packument_conditional_if_modified_since() {
     let initial = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -294,7 +295,7 @@ async fn packument_conditional_if_modified_since() {
     let ims_exact = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_MODIFIED_SINCE, &last_modified)
                 .body(Body::empty())
                 .unwrap(),
@@ -315,7 +316,7 @@ async fn packument_conditional_if_modified_since() {
     let ims_later = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_MODIFIED_SINCE, "Mon, 22 Jun 2026 12:00:00 GMT")
                 .body(Body::empty())
                 .unwrap(),
@@ -328,7 +329,7 @@ async fn packument_conditional_if_modified_since() {
     let ims_earlier = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_MODIFIED_SINCE, "Sat, 20 Jun 2026 12:00:00 GMT")
                 .body(Body::empty())
                 .unwrap(),
@@ -342,7 +343,7 @@ async fn packument_conditional_if_modified_since() {
     let inm_mismatch_ims_match = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::IF_NONE_MATCH, r#""stale-etag""#)
                 .header(header::IF_MODIFIED_SINCE, &last_modified)
                 .body(Body::empty())
@@ -355,7 +356,7 @@ async fn packument_conditional_if_modified_since() {
     // Non-ASCII If-None-Match still takes precedence and ignores If-Modified-Since
     let non_ascii_inm = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(
                     header::IF_NONE_MATCH,
                     header::HeaderValue::from_bytes(&[0x80, 0x81]).unwrap(),
@@ -391,7 +392,7 @@ async fn private_and_named_registry_packuments_scoped_cache_control_and_vary() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/~npmjs/foo")
+            Request::get("/npm/~npmjs/foo")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -424,7 +425,7 @@ async fn private_and_named_registry_packuments_scoped_cache_control_and_vary() {
     // Conditional 304 on named registry preserves private, no-store and Accept, Authorization
     let not_modified = app
         .oneshot(
-            Request::get("/~npmjs/foo")
+            Request::get("/npm/~npmjs/foo")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .header(header::IF_NONE_MATCH, &etag)
                 .body(Body::empty())
@@ -469,7 +470,7 @@ async fn per_upstream_maxage_overrides_global_ttl_in_cache_control() {
 
     let response = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -488,8 +489,8 @@ async fn per_upstream_maxage_overrides_global_ttl_in_cache_control() {
 #[tokio::test]
 async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() {
     let tmp = TempDir::new().unwrap();
-    let pkg_dir = tmp.path().join("acme/@acme/widget");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let document = local_document_path(tmp.path(), "acme", "@acme/widget");
+    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     let doc = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
@@ -503,7 +504,7 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), doc.to_string()).unwrap();
+    std::fs::write(&document, doc.to_string()).unwrap();
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.http.packument_ttl = Duration::from_mins(2);
@@ -518,7 +519,7 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
 
     let response = app
         .oneshot(
-            Request::get("/@acme/widget")
+            Request::get("/npm/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -550,8 +551,8 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
 #[tokio::test]
 async fn anonymous_only_package_carries_private_cache_headers_and_denies_authenticated_caller() {
     let tmp = TempDir::new().unwrap();
-    let pkg_dir = tmp.path().join("acme/@acme/widget");
-    std::fs::create_dir_all(&pkg_dir).unwrap();
+    let document = local_document_path(tmp.path(), "acme", "@acme/widget");
+    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     let doc = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
@@ -565,7 +566,7 @@ async fn anonymous_only_package_carries_private_cache_headers_and_denies_authent
             }
         }
     });
-    std::fs::write(pkg_dir.join("package.json"), doc.to_string()).unwrap();
+    std::fs::write(&document, doc.to_string()).unwrap();
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert(
@@ -585,7 +586,7 @@ async fn anonymous_only_package_carries_private_cache_headers_and_denies_authent
     let response = app
         .clone()
         .oneshot(
-            Request::get("/@acme/widget")
+            Request::get("/npm/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -609,7 +610,7 @@ async fn anonymous_only_package_carries_private_cache_headers_and_denies_authent
 
     let auth_response = app
         .oneshot(
-            Request::get("/@acme/widget")
+            Request::get("/npm/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -640,7 +641,7 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
     let initial = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -665,7 +666,7 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
     let ims = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
                 .header(header::IF_MODIFIED_SINCE, "Sun, 21 Jun 2026 12:00:00 GMT")
                 .body(Body::empty())
@@ -678,7 +679,7 @@ async fn transformed_abbreviated_packument_skips_date_validation_but_honors_if_n
 
     let inm = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
                 .header(header::IF_NONE_MATCH, &etag)
                 .body(Body::empty())

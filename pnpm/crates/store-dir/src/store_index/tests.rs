@@ -54,6 +54,7 @@ pub(super) fn sample_index() -> PackageFilesIndex {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 

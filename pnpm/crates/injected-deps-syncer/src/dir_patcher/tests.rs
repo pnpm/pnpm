@@ -365,11 +365,12 @@ fn sync_package_files(source: &std::path::Path, target: &std::path::Path) {
     }
 }
 
-/// The packlist lists a symlinked directory as one entry. The copy gets the
-/// files under it, and a link inside it may point anywhere in the package.
+/// The packlist lists a symlinked directory as one entry. The copy keeps it
+/// as a link, as the install does, and a link inside it may point anywhere
+/// in the package.
 #[cfg(unix)]
 #[test]
-fn sync_of_package_files_copies_the_files_under_a_symlinked_directory() {
+fn sync_of_package_files_keeps_a_symlinked_directory_as_a_link() {
     let dir = TempDir::new().expect("temp dir");
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     create_file(&source.join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#);
@@ -380,6 +381,10 @@ fn sync_of_package_files_copies_the_files_under_a_symlinked_directory() {
 
     sync_package_files(&source, &target);
 
+    assert_eq!(
+        fs::read_link(target.join("link-to-a-dir")).expect("read the link"),
+        std::path::Path::new("files/foo"),
+    );
     for (path, content) in
         [("link-to-a-dir/bar.txt", "bar"), ("link-to-a-dir/other/sibling.txt", "sibling")]
     {
@@ -387,11 +392,11 @@ fn sync_of_package_files_copies_the_files_under_a_symlinked_directory() {
     }
 }
 
-/// Only the listed directories are walked, so a link the packlist leaves out
-/// may point outside the package.
+/// A link to a directory the packlist leaves out is left out of the copy, as
+/// the install leaves it out, and so is a link that leads out of the package.
 #[cfg(unix)]
 #[test]
-fn sync_of_package_files_ignores_an_unlisted_link_outside_the_package() {
+fn sync_of_package_files_leaves_out_a_link_to_an_unlisted_directory() {
     let dir = TempDir::new().expect("temp dir");
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     create_file(
@@ -405,9 +410,28 @@ fn sync_of_package_files_ignores_an_unlisted_link_outside_the_package() {
 
     sync_package_files(&source, &target);
 
-    assert_eq!(
-        fs::read_to_string(target.join("link-to-a-dir/bar.txt")).expect("read synced file"),
-        "bar",
-    );
+    assert!(target.join("package.json").exists());
+    assert!(fs::symlink_metadata(target.join("link-to-a-dir")).is_err());
     assert!(!target.join("escape").exists());
+}
+
+/// The install imports a link to a file it leaves out as that file, so the
+/// copy can open it.
+#[cfg(unix)]
+#[test]
+fn sync_of_package_files_copies_a_link_to_an_unlisted_file_as_the_file() {
+    let dir = TempDir::new().expect("temp dir");
+    let (source, target) = (dir.path().join("source"), dir.path().join("target"));
+    create_file(
+        &source.join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","files":["link.txt"]}"#,
+    );
+    create_file(&source.join("src/real.txt"), "real");
+    std::os::unix::fs::symlink("src/real.txt", source.join("link.txt")).expect("symlink");
+
+    sync_package_files(&source, &target);
+
+    let metadata = fs::symlink_metadata(target.join("link.txt")).expect("stat the synced file");
+    assert!(metadata.file_type().is_file(), "{metadata:?}");
+    assert_eq!(fs::read_to_string(target.join("link.txt")).expect("read synced file"), "real");
 }

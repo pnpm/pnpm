@@ -734,7 +734,7 @@ test('preResolution hook', async () => {
   expect(ctx.existsNonEmptyWantedLockfile).toBe(false)
 
   expect(ctx.registries).toMatchObject({
-    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     '@foo': 'https://foo.com/',
   })
 })

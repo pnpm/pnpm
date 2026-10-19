@@ -9,11 +9,19 @@ export interface SymlinkDirs {
   imported: Set<string>
 }
 
+/**
+ * The target a copy of the link at `src` holds: the link's own, with an
+ * absolute one made relative to the link's directory.
+ */
+export function internalSymlinkTarget (src: string): string {
+  const target = fs.readlinkSync(src)
+  return path.isAbsolute(target)
+    ? path.relative(realpathOrSelf(path.dirname(src)), realpathOrSelf(target))
+    : target
+}
+
 export function copyInternalSymlink (src: string, dest: string, links: SymlinkDirs): boolean {
-  let target = fs.readlinkSync(src)
-  if (path.isAbsolute(target)) {
-    target = path.relative(realpathOrSelf(path.dirname(src)), realpathOrSelf(target))
-  }
+  const target = internalSymlinkTarget(src)
   const resolved = path.resolve(path.dirname(dest), target)
   if (escapesDir(links.writtenDir, resolved)) return false
   if (!links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))) {

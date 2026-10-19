@@ -1,8 +1,8 @@
 use super::{
     BenchId, PNPR_SERVER_REGISTRY_ENV, PNPR_TARBALL_REWRITE_FROM_ENV, PnprServer, PnprServerPaths,
     RevisionMockRegistry, WorkEnv, append_pnpr_auth_to_npmrc, cold_mock_config_yaml,
-    distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth, wait_for_pnpr_ready,
-    write_pnpr_benchmark_config,
+    distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth, serves_npm_under_base_path,
+    wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 use crate::{
     cli_args::{BenchmarkScenario, RegistryMode, TargetKind},
@@ -73,12 +73,18 @@ impl WorkEnv {
 
         let cold = self.options.selection.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
         let mut command = if cold {
-            self.cold_revision_mock_command(revision, &binary, &bench_dir, mock_port, &registry.url)
+            self.cold_revision_mock_command(
+                revision,
+                &binary,
+                &bench_dir,
+                mock_port,
+                &registry.origin,
+            )
         } else {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            pnpm_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
+            pnpm_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.origin))
         };
         self.apply_serve_timing(&mut command);
         let process = command
@@ -90,6 +96,7 @@ impl WorkEnv {
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
+        self.follow_revision_npm_base_path(revision, &registry.origin, mock_port);
         server.latency_proxy =
             Some(self.front_revision_mock(revision, registry.listener, mock_port));
         server
@@ -347,6 +354,28 @@ impl WorkEnv {
         );
         Some(proxy)
     }
+    /// The npm registry URL behind a latency proxy fronting the local registry.
+    pub(super) fn proxied_registry_url(&self, proxy: &LatencyProxy) -> String {
+        self.options.network.registry.local_registry_url(&format!("http://{}", proxy.addr))
+    }
+    /// `init()` pointed this revision's targets at the npm base path before its
+    /// mock existed. A revision from before pnpr always served npm under that
+    /// path serves it at the root.
+    fn follow_revision_npm_base_path(&self, revision: &str, origin: &str, mock_port: u16) {
+        if !serves_npm_under_base_path(mock_port) {
+            self.write_revision_registry_config(revision, &format!("{origin}/"));
+        }
+    }
+    /// Point every target of `revision` at `registry`.
+    fn write_revision_registry_config(&self, revision: &str, registry: &str) {
+        for id in self
+            .benchmarked_ids()
+            .filter(|id| id.revision() == Some(revision))
+        {
+            eprintln!("Pointing {id} at {registry}...");
+            self.write_registry_config(&self.bench_dir(id), registry);
+        }
+    }
     /// The registry a given bench id resolves against from the client's
     /// point of view. Direct targets use this for every registry request;
     /// pnpr targets keep it as the materialization registry while their
@@ -401,10 +430,9 @@ impl WorkEnv {
                         .local_addr()
                         .expect("revision mock proxy local addr")
                         .port();
-                    RevisionMockRegistry {
-                        listener,
-                        url: format!("http://127.0.0.1:{listen_port}/"),
-                    }
+                    let origin = format!("http://127.0.0.1:{listen_port}");
+                    let url = pnpm_registry_mock::npm_registry_url(&origin);
+                    RevisionMockRegistry { listener, origin, url }
                 });
         }
         mocks

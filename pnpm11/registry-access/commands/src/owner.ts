@@ -109,7 +109,7 @@ async function ownerLs (
 
   const lines: string[] = []
   for (const owner of owners) {
-    lines.push(`${owner.username} <${owner.email}>`)
+    lines.push(owner.email ? `${owner.name} <${owner.email}>` : owner.name)
   }
   return lines.join('\n')
 }
@@ -198,8 +198,8 @@ function getOwnerUrl (escapedName: string, registryUrl: string, owner?: string):
 }
 
 interface Owner {
-  username: string
-  email: string
+  name: string
+  email?: string
 }
 
 async function fetchOwners (
@@ -209,9 +209,10 @@ async function fetchOwners (
   fetchFromRegistry: FetchFromRegistry,
   authHeader: string | undefined
 ): Promise<Owner[]> {
-  const ownersUrl = new URL(`-/package/${escapedName}/owners`, registryUrl).href
-  const response = await fetchFromRegistry(ownersUrl, {
+  const packageUrl = new URL(escapedName, registryUrl).href
+  const response = await fetchFromRegistry(packageUrl, {
     authHeaderValue: authHeader,
+    fullMetadata: true,
   })
 
   if (!response.ok) {
@@ -221,7 +222,8 @@ async function fetchOwners (
     await throwRegistryError(response, 'fetch owners of')
   }
 
-  return await response.json() as Owner[]
+  const metadata = await response.json() as { maintainers?: Owner[] }
+  return metadata.maintainers ?? []
 }
 
 async function throwRegistryError (response: Response, action: string): Promise<never> {

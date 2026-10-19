@@ -7,7 +7,7 @@
 //! that replaces the git source. Cargo then resolves the pinned revision
 //! without a fetch of its own.
 
-use super::add_cargo_checksum;
+use super::{add_cargo_checksum, slot_is_complete};
 use cargo_lock::package::GitReference;
 use futures_util::{StreamExt, stream};
 use manifest::{Checkout, CheckoutPackage, entry_file_type, read_directory};
@@ -211,9 +211,7 @@ fn vendor_source<Reporter: self::Reporter>(
     let mut missing = Vec::new();
     for package in options.packages {
         let slot = package.store_slot(options.store_dir.root());
-        // The checksum manifest sorts first among a crate's files, which
-        // makes it the completion marker `import_indexed_dir` writes last.
-        if slot.join(".cargo-checksum.json").exists() {
+        if slot_is_complete(&slot, None) {
             linked.push((package.link_name(), slot));
         } else {
             missing.push((package, slot));

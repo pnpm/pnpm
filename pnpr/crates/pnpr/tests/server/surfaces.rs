@@ -56,7 +56,54 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         .unwrap();
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [], "ecosystems": [], "publish": [] } }),
+        json!({
+            "pnpr": {
+                "versions": [],
+                "artifacts": [],
+                "pipeline": [0],
+                "fixLockfile": [],
+                "ecosystems": [],
+                "publish": [],
+                "protocols": {
+                    "resolver": {
+                        "version": 0,
+                        "versions": [],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": []
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": [0]
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [],
+                        "pnpmPublish": []
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
+            }
+        }),
     );
 
     // Reads and writes both authenticate; the viewer page is static HTML
@@ -406,6 +453,24 @@ async fn readiness_and_liveness_endpoints_report_status() {
     let ping_body: Value =
         serde_json::from_slice(&body_bytes(prefixed_ping.into_body()).await).unwrap();
     assert_eq!(ping_body, json!({}));
+}
+
+#[tokio::test]
+async fn npm_ping_answers_at_the_npm_registry_url() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://upstream.invalid", tmp.path().to_path_buf()));
+    for path in ["/npm/-/ping", "/npm/~hosted/-/ping"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+    }
 }
 
 #[tokio::test]

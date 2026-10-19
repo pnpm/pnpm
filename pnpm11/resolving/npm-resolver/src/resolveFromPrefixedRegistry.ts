@@ -9,7 +9,6 @@ import type { DependencyManifest } from '@pnpm/types'
 
 import { calcPrefixedSpecifier } from './calcSpecifier.js'
 import { NoMatchingVersionError } from './NoMatchingVersionError.js'
-import { createRegistryTarballResolution, selectPackageRevision } from './packageRevision.js'
 import {
   parseJsrSpecifierToRegistryPackageSpec,
   parseNamedRegistrySpecifierToRegistryPackageSpec,
@@ -17,6 +16,7 @@ import {
 import { findNonDeprecatedAlternative } from './pickPackageFromMeta.js'
 import { createPickPackageOptions } from './pickPackageOptions.js'
 import { warnOnceOnHeldBackUpdate } from './preferredVersionSelectors.js'
+import { createRegistryTarballResolution } from './registryTarballResolution.js'
 import { detectMinReleaseAgeViolation, latestAllowedByPolicy } from './releaseAgePolicy.js'
 import type {
   JsrResolveResult,
@@ -45,7 +45,6 @@ export async function resolveJsr (
         pkgName: spec.jsrPkgName,
         wantedDependency,
         version: picked.manifest.version,
-        revision: spec.revision,
         defaultRangeSpecStyle: opts.rangeSpecStyle,
         isUpdate: Boolean(opts.updateRequested),
       })
@@ -94,7 +93,6 @@ export async function resolveFromNamedRegistry (
         pkgName: spec.name,
         wantedDependency,
         version: picked.manifest.version,
-        revision: spec.revision,
         defaultRangeSpecStyle: opts.rangeSpecStyle,
         isUpdate: Boolean(opts.updateRequested),
       })
@@ -126,8 +124,7 @@ async function pickFromSimpleRegistry (request: RegistrySpecRequest): Promise<{
     throw new NoMatchingVersionError({ wantedDependency, packageMeta: meta, registry })
   }
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
-  const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
-  const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
+  const resolution = createRegistryTarballResolution(pickedPackage)
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
     id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
@@ -136,7 +133,7 @@ async function pickFromSimpleRegistry (request: RegistrySpecRequest): Promise<{
     nonDeprecatedAlternative: pickedPackage.deprecated
       ? findNonDeprecatedAlternative(meta, spec, opts)
       : undefined,
-    manifest: selectedPackage,
+    manifest: pickedPackage,
     resolution,
     publishedAt,
     policyViolation: detectMinReleaseAgeViolation({

@@ -183,7 +183,7 @@ test('current lockfile removed when no deps in package.json', async () => {
     packages: {
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -222,7 +222,7 @@ test('lockfile is fixed when it does not match package.json', async () => {
       },
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       'is-positive@3.1.0': {
@@ -285,7 +285,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async ()
       },
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       'is-positive@3.1.0': {
@@ -455,8 +455,8 @@ test('scoped module from different registry', async () => {
 
   const registries = {
     default: 'https://registry.npmjs.org/',
-    '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}`,
-    '@foo': `http://localhost:${REGISTRY_MOCK_PORT}`,
+    '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
   }
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registriesByScope: registries }, { registriesByScope: registries }))
 
@@ -699,7 +699,7 @@ test('lockfile is ignored when lockfile = false', async () => {
       'is-negative@2.1.0': {
         resolution: {
           integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=', // Invalid integrity
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -778,14 +778,14 @@ test('save tarball URL when it is non-standard', async () => {
 
   const lockfile = project.readLockfile()
 
-  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async () => {
   const project = prepareEmpty()
 
   await addDependenciesToPackage({}, [
-    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], testDefaults())
 
@@ -804,7 +804,7 @@ test('packages installed via tarball URL from the default registry are normalize
             version: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
           },
           '@pnpm.e2e/pkg-with-tarball-dep-from-registry': {
-            specifier: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
+            specifier: `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
             version: '1.0.0',
           },
         },
@@ -975,7 +975,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     packages: {
       'is-negative@2.1.0': {
         resolution: {
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       'is-positive@3.1.0': {
@@ -1480,7 +1480,7 @@ test('include tarball URL', async () => {
 
   const lockfile = project.readLockfile()
   expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
 })
 
 test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => {
@@ -1506,7 +1506,7 @@ test('keep non-standard tarball URL when lockfileIncludeTarballUrl is false', as
   const lockfile = project.readLockfile()
 
   expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
 })
 
 test('lockfile v6', async () => {

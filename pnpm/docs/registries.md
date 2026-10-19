@@ -120,14 +120,14 @@ A project uses a tar registry by keying its URL and declaring its layout:
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
-  https://pnpr.corp.example/~zstd/:
+  https://pnpr.corp.example/npm/~zstd/:
     scopes: ["@"]
     serverType: pnpr
 ```
 
 pnpm tells a tar from a `.tgz` by the first bytes of the decoded response, so nothing else needs to be declared. The lockfile keeps its `integrity` field, which for packages from a tar registry holds the hash of the tar.
 
-- **Switching** a project between a `.tgz` registry and a tar registry changes what the registry serves, so the recorded hashes no longer match. Run `pnpm install --update-checksums` after the switch.
+- **Switching** a project between a `.tgz` registry and a tar registry changes what the registry serves, so the recorded hashes no longer match. Run `pnpm install --update-checksums` after the switch. A lockfile that pins tars with [`lockfile.integrityTarget: tar`](./settings/store.md#lockfileintegritytarget) keeps every hash across the switch.
 - **A missing hash.** A tar registry that does not know a version's tar hash yet omits `dist.integrity`. pnpm then downloads the tarball during resolution and records the hash of the tar it received.
 - **Size limits.** pnpm checks a tarball's hash only after it decoded it, so it bounds what it decodes first. The files of one package may not exceed [`maxTarballUnpackedSize`](./settings/network.md#maxtarballunpackedsize). The files of a tar may not exceed the package's `dist.unpackedSize` either. The headers and skipped entries of one archive may not exceed 256 MiB, and a zstd response may not use a window larger than 8 MiB.
 

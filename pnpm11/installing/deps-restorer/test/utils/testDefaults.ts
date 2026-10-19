@@ -9,7 +9,7 @@ import { createTempStore } from '@pnpm/testing.temp-store'
 import type { DepPath, ProjectRootDir } from '@pnpm/types'
 import { temporaryDirectory } from 'tempy'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 /**
  * The options a test may override, on top of what this helper fills in.

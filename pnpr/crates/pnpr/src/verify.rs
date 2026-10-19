@@ -38,12 +38,7 @@ pub async fn verify_storage(
     config: &Config,
     options: &VerifyOptions,
 ) -> miette::Result<VerifyReport> {
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )
-    .map_err(|err| miette::miette!("failed to initialize storage: {err}"))?;
+    let storage = crate::export::open_hosted_storage(config).await?;
 
     let mut report = VerifyReport::default();
     let namespaces = crate::export::configured_hosted_namespaces(config);
@@ -224,15 +219,11 @@ async fn check_orphaned_blobs(
     let mut stream = storage.hosted_blob_files();
     while let Some(file_res) = stream.next().await {
         let file = file_res.map_err(|err| miette::miette!("failed to list blobs: {err}"))?;
-        let path = file.path.trim_start_matches('/');
-        if is_metadata_or_reserved_path(path) {
-            continue;
-        }
-
-        let Some((pkg, _)) = path.rsplit_once('/') else {
+        let Some(blob) = &file.blob else {
             continue;
         };
-        if !verified_npm_packages.contains(pkg) || referenced.contains(path) {
+        let path = format!("{}/{blob}", file.package);
+        if !verified_npm_packages.contains(&file.package) || referenced.contains(&path) {
             continue;
         }
 
@@ -243,7 +234,7 @@ async fn check_orphaned_blobs(
             continue;
         }
 
-        handle_orphan_blob(storage, path, options.prune_orphans, report).await;
+        handle_orphan_blob(storage, &path, options.prune_orphans, report).await;
     }
     Ok(())
 }
@@ -318,14 +309,6 @@ async fn prune_orphan_blob(storage: &Storage, path: &str) -> Result<(), String> 
         .await
         .map(|_| ())
         .map_err(|err| err.to_string())
-}
-
-fn is_metadata_or_reserved_path(path: &str) -> bool {
-    path.ends_with("/package.json")
-        || path == "package.json"
-        || path.starts_with(".revisions/")
-        || path.starts_with(".staged/")
-        || path.starts_with(".pnpr-artifacts/")
 }
 
 fn safe_filename(name: &str) -> Option<&str> {

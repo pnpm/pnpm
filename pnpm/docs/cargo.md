@@ -46,6 +46,8 @@ pnpm writes the dependency into `Cargo.toml` without reformatting anything else 
 5. Writes the source replacement for those crates into `.pnpm/crates/config.toml`.
 6. Adds an optional `[[include]]` of that file to `.cargo/config.toml`, between the markers `# >>> pnpm-managed cargo sources >>>` and `# <<< pnpm-managed cargo sources <<<`. Anything you wrote outside those markers is left alone. If you list your own includes, write them as `[[include]]` tables too.
 
+A crate that an earlier install unpacked into the store is linked as it is, without comparing its files with the store again. [`verifyStoreIntegrity`](./settings/store.md#verifystoreintegrity) applies when a crate is unpacked. `pnpm install --force` unpacks every crate again.
+
 `cargo build` then compiles offline against the vendored sources. pnpm does not compile anything itself. Cargo 1.95 and later read the include.
 
 Without `.pnpm`, for example in a fresh clone, Cargo skips the include and fetches crates from their registry as usual.

@@ -1,3 +1,19 @@
+pub(super) use super::{
+    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
+    MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, addressed_registry, authenticate,
+    authorize_package, batch, caller_scoped, cargo, check_publish_tombstone, delete_package,
+    delete_tarball, get_dist_tags, get_org_teams, get_team_members,
+    health::{serve_live, serve_ping, serve_ready},
+    hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
+    pypi, remove_dist_tag, resolve_write_target, serve_batch_publish, serve_metrics,
+    serve_org_packages, serve_package_tarball, serve_packument, serve_pnpr_handshake,
+    serve_revision_tarball, serve_search, serve_tarball, serve_version_manifest, set_dist_tag,
+    split_package_identifier, staged,
+    team_access::{grant_team_access, list_team_packages, revoke_team_access},
+    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
+    update_packument,
+};
+
 mod account_handlers;
 use account_handlers::account_routes;
 
@@ -12,8 +28,8 @@ use npm_handlers::{
     delete_package_dist_tag, get_package_dist_tags, get_packument,
     get_packument_or_version_manifest, get_revision_tarball, get_scoped_tarball,
     get_scoped_version_manifest, get_search, get_tarball, put_package, put_package_dist_tag,
-    put_packument_revision, put_scoped_package, unpublish_package, unpublish_scoped_tarball,
-    unpublish_tarball,
+    put_packument_revision, put_scoped_package, put_scoped_packument_revision, unpublish_package,
+    unpublish_scoped_package, unpublish_scoped_tarball, unpublish_tarball,
 };
 
 mod observability;
@@ -34,22 +50,6 @@ use pnpr_auth::AuthState;
 use pnpr_config::Config;
 use pnpr_registry::Ecosystem;
 use serde::Deserialize;
-
-use super::{
-    Action, AppInner, AppState, AuthedCaller, CanonicalPackageName, MAX_PUBLISH_BODY_BYTES,
-    MAX_TEAM_BODY_BYTES, RegistrySource, TargetRegistry, addressed_registry, authenticate,
-    authorize, batch, caller_scoped, cargo, delete_package, delete_tarball, get_dist_tags,
-    get_org_teams, get_team_members,
-    health::{serve_live, serve_ping, serve_ready},
-    is_tar_registry, not_found, oci, package_mutation, pnpr_protocols_disabled, private_no_cache,
-    publish_package, pypi, remove_dist_tag, resolve_write_target, serve_batch_publish,
-    serve_metrics, serve_metrics_or_packument, serve_org_packages, serve_package_tarball,
-    serve_packument, serve_pnpr_handshake, serve_revision_tarball, serve_search, serve_tarball,
-    serve_version_manifest, set_dist_tag, split_package_identifier, staged,
-    team_access::{grant_team_access, list_team_packages, revoke_team_access},
-    team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
-    update_packument,
-};
 
 pub(super) fn router_with_auth_and_osv(
     config: Config,
@@ -175,7 +175,7 @@ fn surface_routes(
             .route(&path("/-/ready"), get(serve_ready))
             .route(&path("/-/live"), get(serve_live))
             .route(&path("/-/metrics"), get(serve_metrics))
-            .route(&path("/metrics"), get(serve_metrics_or_packument));
+            .route(&path("/metrics"), get(serve_metrics));
     }
     router = router
         .merge(super::oidc::routes(ui_served))
@@ -227,22 +227,17 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
     let mut router = router
         .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
         .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
-    if registries.is_only_ecosystem(Ecosystem::Npm) {
-        router = router.merge(npm);
-    } else {
-        router = router.nest("/npm", account_routes().merge(npm));
+    if registries.has_ecosystem(Ecosystem::Npm) {
+        router = router.nest(&Ecosystem::Npm.base_path(), account_routes().merge(npm));
     }
     if registries.has_ecosystem(Ecosystem::Cargo) {
-        router = router.merge(cargo::routes(!registries.is_only_ecosystem(Ecosystem::Cargo)));
+        router = router.merge(cargo::routes());
     }
     if registries.has_ecosystem(Ecosystem::Pypi) {
-        router = router.merge(pypi::routes(!registries.is_only_ecosystem(Ecosystem::Pypi)));
+        router = router.merge(pypi::routes());
     }
-    // The image surface keeps `/v2/` at the host root whatever else is served,
-    // because a client derives it from the image reference's host and cannot be
-    // pointed at a prefix.
     if registries.has_ecosystem(Ecosystem::Oci) {
-        router = router.merge(oci::routes(!registries.is_only_ecosystem(Ecosystem::Oci)));
+        router = router.merge(oci::routes());
     }
     router
 }
@@ -263,7 +258,7 @@ fn npm_registry_routes() -> Router<AppState> {
     let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
-        let with_teams = team_routes(staged_routes(router, base), base);
+        let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
         router = super::security_audit::routes(with_teams, base)
             .route(&path("/-/v1/search"), get(get_search))
             .route(&path("/-/npm/v1/keys"), get(super::attestations::get_keys))
@@ -292,6 +287,10 @@ fn npm_registry_routes() -> Router<AppState> {
                 &path("/{name}/-rev/{rev}"),
                 put(put_packument_revision).delete(unpublish_package),
             )
+            .route(
+                &path("/{scope}/{name}/-rev/{rev}"),
+                put(put_scoped_packument_revision).delete(unpublish_scoped_package),
+            )
             .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
             .route(&path("/{scope}/{name}/-/{filename}"), get(get_scoped_tarball))
             .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
@@ -301,6 +300,11 @@ fn npm_registry_routes() -> Router<AppState> {
             );
     }
     router
+}
+
+/// `npm ping` asks the registry URL, not the server root.
+fn ping_route(router: Router<AppState>, base: &str) -> Router<AppState> {
+    router.route(&format!("{base}/-/ping"), get(serve_ping))
 }
 
 fn staged_routes(router: Router<AppState>, base: &str) -> Router<AppState> {

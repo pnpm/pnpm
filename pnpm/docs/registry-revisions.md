@@ -15,6 +15,9 @@ Revision 0 is always the original. A registry that replaces an artifact
 advertises the replacement as revision 1, the one after that as revision 2, and
 so on, per registry and per `name@version`.
 
+Revisions are experimental. Their metadata and lockfile format may change
+without a major release.
+
 :::note
 
 Revisions are a registry capability, not something pnpm can add to a registry
@@ -33,6 +36,11 @@ registry:
 <registry-base>/-/tarballs/sha512/<base64url-digest>
 ```
 
+The digest is the hash of the revision's uncompressed tar, on every registry
+and for every revision, the original included. The registry may compress the
+response with `gzip` or `zstd`. pnpm removes that compression and checks the
+tar, so the URL and its integrity stay the same whatever the registry sends.
+
 Registry metadata advertises that URL together with an ordinary Subresource
 Integrity value and the revision number:
 
@@ -48,49 +56,51 @@ Integrity value and the revision number:
 }
 ```
 
-`dist.revision` is present exactly when the selected artifact is a replacement.
-`dist.revisions` carries the history — every advertised revision with its own
-integrity, digest URL, and manifest.
+A revision-aware version always carries `dist.revision`, including `0` when the
+original is selected. `dist.revisions` carries the history: every advertised
+revision with its own integrity, digest URL, and manifest. It always holds
+revision 0. A version without either field is an ordinary version outside the
+revision protocol.
 
-pnpm validates all of that during resolution: the URL must sit on the selected
-registry's integrity-tarball route, its base64url digest must decode to exactly
-the digest in `dist.integrity`, and the revision number must be a canonical
-integer in `0 < N ≤ 2^53 − 1`. Anything else fails with
-`ERR_PNPM_MALFORMED_METADATA`. The fetch itself is a single authenticated
-request with no retry and no fallback, and **every** redirect — same-origin
-included — fails it.
+pnpm validates all of that during resolution:
 
-A registry may also serve an *original* through the digest route. pnpm normalizes
-that back to a plain integrity-only lockfile entry, rather than storing an
-absolute URL that would pin the lockfile to one deployment's hostname.
+* the URL must sit on the selected registry's integrity-tarball route, and its
+  base64url digest must decode to exactly the digest in `dist.integrity`;
+* the revision number must be an integer in `0 ≤ N ≤ 2^53 − 1`;
+* the history must hold revision 0 and the selected revision.
+
+Anything else fails with `ERR_PNPM_MALFORMED_METADATA`, and so does a
+digest-route URL without `dist.revision`. The fetch itself is a single
+authenticated request with no retry and no fallback, and **every** redirect,
+same-origin included, fails it.
 
 ## In the lockfile
 
-An entry with no `revision` field means revision 0, and is byte-identical to
-what pnpm has always written — the canonical `name@version` URL is pinned to the
-original forever, so nothing about an unpatched dependency changes:
+Every revision is recorded with its revision number, the original included, and
+the hash of its tar:
 
 ```yaml title="pnpm-lock.yaml"
 packages:
   ejs@2.7.4:
     resolution:
-      integrity: sha512-<original-digest>
+      integrity: sha512-<original-tar-digest>
+      revision: 0
 
   lodash@4.17.21:
     resolution:
-      integrity: sha512-<replacement-digest>
+      integrity: sha512-<replacement-tar-digest>
       revision: 1
 ```
 
-The `revision` line is what tells pnpm to fetch by digest instead of
+The `revision` line is what tells pnpm to fetch the tar by digest instead of
 reconstructing the canonical URL. It also makes the diff readable: a change from
 `revision: 1` to `revision: 2` beside a changed integrity says *why* the
-integrity changed.
+integrity changed. An entry without `revision` is an ordinary entry, fetched
+from the canonical URL as always.
 
-Because originals are unmarked, a workspace that has adopted no replacements
-produces a lockfile an older pnpm can still read, and pointing the lockfile at a
-registry without the digest route keeps the whole unpatched graph installable —
-only the `revision` entries fail, and they fail as plain unavailability.
+A lockfile written by an earlier pnpm v12 version records an original selected
+through the revision protocol as an ordinary entry. Such an entry stays valid
+for the canonical URL, and the next resolution records it as `revision: 0`.
 
 An installed lockfile is never silently upgraded: a fetch keeps the locked
 revision rather than adopting whatever the registry currently selects.
@@ -104,8 +114,8 @@ overrides:
   ejs@2.7.4: 2.7.4+r1
 ```
 
-* `+r0` keeps the original — the opt-out from a replacement the registry has
-  selected.
+* `+r0` keeps the original: the opt-out from a replacement the registry has
+  selected. It is recorded as `revision: 0`.
 * A positive number adopts a replacement the registry advertises but has not
   selected, or freezes one it has.
 
@@ -124,7 +134,8 @@ The rules around it:
   (`ERR_PNPM_NO_MATCHING_REVISION`); pnpm never falls forward to the selected
   one.
 * On a version that is not revision-aware, `+r0` is trivially satisfied by the
-  only artifact, and a positive number is an error.
+  only artifact, which stays an ordinary entry, and a positive number is an
+  error.
 * Version-changing targets compose: `"ejs@2.7.4": "2.7.5+r1"` rewrites the spec
   to `2.7.5` and then selects its revision 1.
 * Rewriting applies once, so revision selection can neither chain nor cycle.

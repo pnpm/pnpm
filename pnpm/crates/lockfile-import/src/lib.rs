@@ -23,8 +23,8 @@ use std::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_resolving_resolver_base::{
-    EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight,
+    PreferredVersions, REQUESTED_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry,
+    VersionSelectorType, VersionSelectorWithWeight,
 };
 
 mod npm;
@@ -129,7 +129,7 @@ pub fn read_foreign_lockfile_versions(
 /// Turn collected versions into resolver preferences.
 ///
 /// Every version becomes a `version` selector with
-/// [`EXISTING_VERSION_SELECTOR_WEIGHT`], matching the TypeScript CLI. That
+/// [`REQUESTED_VERSION_SELECTOR_WEIGHT`], matching the TypeScript CLI. That
 /// weight outranks the direct-dependency ranges every workspace project
 /// contributes, so another project's wider range cannot pull a project off
 /// its pinned version. A range collected from npm's flat format only takes
@@ -145,7 +145,7 @@ pub fn to_preferred_versions(versions: &VersionsByPackageName) -> PreferredVersi
                 .map(|version| {
                     let selector = VersionSelectorWithWeight {
                         selector_type: VersionSelectorType::Version,
-                        weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+                        weight: REQUESTED_VERSION_SELECTOR_WEIGHT,
                     };
                     (version.clone(), VersionSelectorEntry::Weighted(selector))
                 })

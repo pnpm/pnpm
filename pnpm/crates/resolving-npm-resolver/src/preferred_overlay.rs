@@ -4,8 +4,8 @@ use crate::pick_package_from_meta::{
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
-    VersionSelectors,
+    RESOLVED_VERSION_SELECTOR_WEIGHT, ResolveOptions, VersionSelectorEntry, VersionSelectorType,
+    VersionSelectorWithWeight, VersionSelectors,
 };
 use std::{borrow::Cow, sync::Mutex};
 
@@ -60,7 +60,7 @@ pub(crate) fn overlay_merged_selectors(
                 })
             });
         let existing_weight = match entry {
-            VersionSelectorEntry::Plain(_) => 1,
+            VersionSelectorEntry::Plain(_) => RESOLVED_VERSION_SELECTOR_WEIGHT,
             VersionSelectorEntry::Weighted(w) => w.weight,
         };
         *entry = VersionSelectorEntry::Weighted(VersionSelectorWithWeight {

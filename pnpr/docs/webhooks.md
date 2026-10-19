@@ -99,7 +99,7 @@ For publishing workflows orchestrated by continuous integration (such as GitHub 
 
 ```yaml title=".github/workflows/release.yml"
 - name: Publish to pnpr
-  run: pnpm publish --registry https://registry.example.com
+  run: pnpm publish --registry https://registry.example.com/npm/
 
 - name: Dispatch notification webhook
   if: success()

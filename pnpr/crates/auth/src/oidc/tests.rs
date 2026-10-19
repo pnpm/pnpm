@@ -623,3 +623,21 @@ fn a_handoff_code_redeems_its_session_once() {
     assert_eq!(redeemed.returns_to, LoginReturn::Ui);
     assert!(state.redeem_handoff(&code).is_err());
 }
+
+#[test]
+fn empty_client_secret_is_rejected() {
+    let mut config = config("https://issuer.example");
+    config.login = Some(OidcLogin {
+        client_secret: Some("   ".to_string()),
+        users: vec![OidcBinding {
+            subject: "user-1".to_string(),
+            username: "alice".to_string(),
+            claims: BTreeMap::new(),
+        }],
+        groups: None,
+    });
+    let Err(err) = OidcState::new(&[config], "https://registry.example") else {
+        panic!("expected invalid config error");
+    };
+    assert!(err.to_string().contains("client secret cannot be empty"), "{err}");
+}

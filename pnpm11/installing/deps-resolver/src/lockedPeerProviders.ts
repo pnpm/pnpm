@@ -1,9 +1,8 @@
 import { parseDepPath } from '@pnpm/deps.path'
-import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { DepPath } from '@pnpm/types'
-import * as semverUtils from '@yarnpkg/core/semverUtils'
 import pDefer from 'p-defer'
 
+import { providerFor } from './hoistPeers.js'
 import type { NodeId } from './nextNodeId.js'
 import { toPkgByName } from './parentRefs.js'
 import type {
@@ -84,15 +83,17 @@ function getPinnableLockedPeer<Pkg extends PartialResolvedPackage> (
   const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
   if (peerNodeId == null || peerDependency == null) return undefined
   if (!lockedPeerProviderIsStable(ctx, peerNodeId, previousPeerDepPath)) return undefined
-  if (hasCurrentPeerProviderThatMustWin(peerName, opts.parentPkgs, ctx)) return undefined
-  const lockedPeer = toPkgByName([{
-    alias: peerName,
-    node: ctx.dependenciesTree.get(peerNodeId)!,
-    nodeId: peerNodeId,
-    parentNodeIds: opts.parentNodeIds,
-  }])[peerName]
-  if (!semverUtils.satisfiesWithPrereleases(lockedPeer.version, getPeerVersionRange(peerDependency.version), true)) return undefined
-  return { peerNodeId, lockedPeer }
+  const pick = providerFor(peerDependency.version, {
+    inheritedMustWin: () => hasCurrentPeerProviderThatMustWin(peerName, opts.parentPkgs, ctx),
+    locked: () => toPkgByName([{
+      alias: peerName,
+      node: ctx.dependenciesTree.get(peerNodeId)!,
+      nodeId: peerNodeId,
+      parentNodeIds: opts.parentNodeIds,
+    }])[peerName],
+  })
+  if (pick.kind !== 'bound' || !pick.pinnedByLockfile) return undefined
+  return { peerNodeId, lockedPeer: pick.provider }
 }
 
 function lockedPeerProviderIsStable<Pkg extends PartialResolvedPackage> (

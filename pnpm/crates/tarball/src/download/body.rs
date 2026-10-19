@@ -1,20 +1,21 @@
 use super::{
-    Arc, BodyChunkSender, Duration, HashMap, IgnoreEntryFilter, Instant, Integrity, NetworkError,
-    PackageFilesIndex, PathBuf, Reporter, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SemaphorePermit, StoreDir, Stream, StreamExt,
-    TarballError, ThrottledClient, allocate_tarball_buffer, body_chunk_channel, fetch_error,
-    redact_url_for_display, spawn_extraction,
+    Arc, BodyChunkSender, Duration, IgnoreEntryFilter, Instant, NetworkError, Reporter,
+    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SemaphorePermit,
+    StoreDir, Stream, StreamExt, TarballError, ThrottledClient, allocate_tarball_buffer,
+    body_chunk_channel, fetch_error, redact_url_for_display, spawn_extraction,
 };
 use crate::{
-    BodyHasher, TarLimits,
+    TarLimits,
+    archive_integrity::ArchiveVerification,
     content_coding::ContentCoding,
+    download::buffered::ExtractedFiles,
     extract::{BodyChunkReceiver, ExtractedResource, StreamedResource, stream_extract_channel},
 };
 
 /// How a body extracted while it downloads is decoded, checked, and stored.
 pub(super) struct BodyVerification {
     pub(super) content_coding: ContentCoding,
-    pub(super) hasher: BodyHasher,
+    pub(super) verification: ArchiveVerification,
     pub(super) limits: TarLimits,
     pub(super) store_dir: &'static StoreDir,
     pub(super) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
@@ -33,8 +34,8 @@ impl BodyVerification {
             stream_extract_channel(
                 chunks,
                 self.content_coding,
-                StreamedResource {
-                    hasher: self.hasher,
+                &StreamedResource {
+                    verification: self.verification,
                     package_url: &package_url,
                     limits: self.limits,
                     store_dir: self.store_dir,
@@ -74,7 +75,7 @@ pub(super) async fn extract_body_while_downloading<Reporter, Body, Guard>(
     streaming_permit: SemaphorePermit<'static>,
     http_client: &ThrottledClient,
     package_url: &str,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+) -> Result<ExtractedFiles, TarballError>
 where
     Reporter: self::Reporter,
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -115,7 +116,7 @@ where
 fn rank_verdicts(
     body_error: Option<TarballError>,
     resource: ExtractedResource,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedFiles, TarballError> {
     if let Some(error) = body_error {
         return Err(error);
     }

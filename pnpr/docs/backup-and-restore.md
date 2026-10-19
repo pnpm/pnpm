@@ -10,7 +10,7 @@ This guide covers backing up authoritative package data and authentication recor
 A pnpr instance stores two categories of data:
 
 1. **Authoritative data (required)**:
-   - **Hosted storage (`storage`)**: Contains authoritative package metadata (`package.json`) and tarball blobs. Back this up regularly.
+   - **Hosted storage (`storage`)**: Contains authoritative package metadata and tarball blobs. Back this up regularly.
    - **Authentication and user state**:
      - `htpasswd` file (when configured).
      - SQLite token database (`tokens.db`, when configured).
@@ -64,7 +64,7 @@ When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs a
 
 pnpr uses a commit journal for hosted publishes. For the S3 backend:
 - The local publish journal lives beside staged blobs in the local cache scratch directory (`cache_dir`), coordinating write-ahead publication before promotion to S3. Ensure instances stop cleanly and startup recovery completes before discarding local cache state.
-- Revision digest records (`.revisions/`) live in the S3 bucket itself. When restoring an S3 bucket from a point-in-time snapshot, restore the `.revisions/` prefix alongside package directories to keep revision digest references intact.
+- Revision digest records (`.revisions/`) live in the S3 bucket itself. When restoring an S3 bucket from a point-in-time snapshot, restore the namespaces' `.revisions/` prefixes alongside their `packages/` to keep revision digest references intact.
 - After a restore, run `pnpr verify` to audit whether any references point to missing blobs:
   ```sh
   pnpr verify
@@ -86,7 +86,7 @@ pnpr verify --prune-orphans
 ```
 
 `pnpr verify` checks:
-- **Missing blobs**: Tarballs referenced in `package.json` version metadata that do not exist in storage.
+- **Missing blobs**: Tarballs referenced in a package document's version metadata that do not exist in storage.
 - **Corrupted blobs**: Tarballs whose content hashes do not match the declared `shasum` or `integrity`.
 - **Orphaned blobs**: Physical files in the store that are not referenced by any version of any hosted package document.
 

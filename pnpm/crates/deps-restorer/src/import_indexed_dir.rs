@@ -11,7 +11,9 @@ use staging::stage_and_swap;
 #[cfg(windows)]
 mod windows_filenames;
 
-use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_binaries};
+use crate::{
+    LinkFileError, ModulesSwapLock, remove_quarantine::remove_quarantine_from_native_binaries,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
@@ -32,7 +34,7 @@ use std::{
 /// shape (no force, no nested-modules preservation); the hoisted
 /// linker passes both flags set to `true`.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct ImportIndexedDirOpts {
+pub struct ImportIndexedDirOpts<'a> {
     /// When `true`, re-import even when `dir_path` already exists,
     /// overwriting the existing contents. Without `force`, an
     /// existing directory short-circuits this function (matches
@@ -55,6 +57,11 @@ pub struct ImportIndexedDirOpts {
     /// When `true`, preserve safe symlinks in the imported package instead of
     /// assuming all entries are regular files.
     pub preserve_symlinks: bool,
+    /// The install's [`ModulesSwapLock`], which serializes this install's
+    /// forced replacements of private targets with those of the other
+    /// installs under the same modules directory. `None` replaces
+    /// unserialized.
+    pub swap_lock: Option<&'a ModulesSwapLock>,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -252,13 +259,12 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        (None, _) => import_absent_dir::<Reporter>(
+        (None, _) => import_absent_target::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
-            opts.safe_to_skip,
-            opts.preserve_symlinks,
+            opts,
         )
         .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
@@ -292,6 +298,38 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
         )
         .inspect(|()| unquarantine()),
     }
+}
+
+/// A forced import of a private target stages even when the target is
+/// absent, so that a sibling forced import's swap cannot remove a
+/// directory this one is filling in place. A shared slot is claimed in
+/// place instead, because nothing may remove it (see
+/// [`import_into_shared_dir`]).
+fn import_absent_target<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    opts: ImportIndexedDirOpts,
+) -> Result<(), ImportIndexedDirError> {
+    if opts.force && !opts.safe_to_skip {
+        return staging::stage_and_swap::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            staging::SwapTarget::Absent,
+            opts,
+        );
+    }
+    placement::import_absent_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        opts.safe_to_skip,
+        opts.preserve_symlinks,
+    )
 }
 
 fn force_import_existing_dir<Reporter: self::Reporter>(
@@ -336,8 +374,8 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
         import_method,
         dir_path,
         cas_paths,
-        opts.keep_modules_dir,
-        opts.preserve_symlinks,
+        staging::SwapTarget::Occupied,
+        opts,
     )
 }
 
@@ -363,7 +401,7 @@ fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndex
 /// what is there, because a slot that exists is either finished, being
 /// filled right now, or left behind by an importer that died mid-file —
 /// and the three are indistinguishable from the outside.
-fn import_into_shared_dir<Reporter: self::Reporter>(
+pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
@@ -409,35 +447,6 @@ fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
         Err(error) => {
             Err(ImportIndexedDirError::CreateDir { dirname: dir_path.to_path_buf(), error })
         }
-    }
-}
-
-// An absent shared target can be created concurrently; exclusive mkdir establishes ownership.
-fn import_absent_dir<Reporter: self::Reporter>(
-    logged_methods: &AtomicU8,
-    import_method: PackageImportMethod,
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-    safe_to_skip: bool,
-    preserve_symlinks: bool,
-) -> Result<(), ImportIndexedDirError> {
-    if safe_to_skip {
-        import_into_shared_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            preserve_symlinks,
-        )
-    } else {
-        populate_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            Placement::Fresh,
-            preserve_symlinks.then_some(dir_path),
-        )
     }
 }
 

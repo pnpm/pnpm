@@ -18,6 +18,7 @@ use axum::{
 };
 use common::{HostedSource, body_bytes, find_file, mixed_router_config, sha256_hex};
 use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
+use pnpr_storage::layout::{local_blob_path, write_local_layout_marker};
 use serde_json::{Value, json};
 use std::{
     io::Write as _,
@@ -124,9 +125,10 @@ fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
 /// the crate document leaves behind: the staged tmp file plus the sealed
 /// journal entry that says where it belongs.
 fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
-    let crate_dir = storage.join("crates/demo");
-    std::fs::create_dir_all(&crate_dir).unwrap();
-    let tmp_path = crate_dir.join("demo-0.1.0.crate.tmp.999.0");
+    write_local_layout_marker(storage).unwrap();
+    let blob = local_blob_path(storage, "crates", "demo", "demo-0.1.0.crate");
+    std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
+    let tmp_path = blob.with_file_name("demo-0.1.0.crate.tmp.999.0");
     std::fs::write(&tmp_path, archive).unwrap();
 
     let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");

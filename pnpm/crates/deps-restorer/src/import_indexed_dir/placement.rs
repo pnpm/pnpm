@@ -1,6 +1,10 @@
+pub(super) mod exact;
 pub(super) mod symlinks;
 
-use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
+use super::{
+    ImportIndexedDirError, Placement, import_into_shared_dir, remove_non_dir_dirent,
+    staging::import_atomic,
+};
 use crate::{import_into_fresh_target, link_pool::in_link_pool};
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::Host;
@@ -48,6 +52,34 @@ pub(super) fn populate_dir<Reporter: self::Reporter>(
             symlinks_final_dir,
         )
     })
+}
+
+pub(super) fn import_absent_dir<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    safe_to_skip: bool,
+    preserve_symlinks: bool,
+) -> Result<(), ImportIndexedDirError> {
+    if safe_to_skip {
+        import_into_shared_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            preserve_symlinks,
+        )
+    } else {
+        populate_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            Placement::Fresh,
+            preserve_symlinks.then_some(dir_path),
+        )
+    }
 }
 
 fn populate_dir_on_current_pool<Reporter: self::Reporter>(
@@ -340,15 +372,21 @@ pub(super) fn clear_dirent_blocking_dir<Sys: FsRemoveNonDirDirent>(
     Ok(())
 }
 /// The completion-marker filename, mirroring pnpm's `pickFileFromFilesMap`:
-/// `package.json` when present, else a fallback file for old store entries
-/// indexed before the synthetic manifest. pnpm picks the first inserted
-/// key; `cas_paths` is unordered, so we pick the lexicographically
-/// smallest non-build-marker entry instead — deterministic, which is all
-/// the gate and the write need. `None` only when no package file is present.
+/// Cargo's checksum manifest ([`crate::CARGO_CHECKSUM_FILE`]) for a
+/// vendored crate, which the Cargo installer probes and which a crate may
+/// ship next to a `package.json` of its own; else `package.json`; else a
+/// fallback file for old store entries indexed before the synthetic
+/// manifest. pnpm picks the first inserted key; `cas_paths` is unordered,
+/// so we pick the lexicographically smallest non-build-marker entry
+/// instead — deterministic, which is all the gate and the write need.
+/// `None` only when no package file is present.
 pub(super) fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     const PACKAGE_JSON: &str = "package.json";
-    if cas_paths.contains_key(PACKAGE_JSON) {
-        return Some(PACKAGE_JSON);
+    if let Some(marker) = [crate::CARGO_CHECKSUM_FILE, PACKAGE_JSON]
+        .into_iter()
+        .find(|marker| cas_paths.contains_key(*marker))
+    {
+        return Some(marker);
     }
     cas_paths
         .keys()
@@ -374,6 +412,7 @@ pub(super) fn all_files_match(dir_path: &Path, cas_paths: &HashMap<String, PathB
             .filter(|(entry, _)| entry.as_str() != crate::NEEDS_BUILD_MARKER)
             .all(|(entry, store_path)| file_matches_store_entry(&dir_path.join(entry), store_path))
 }
+
 /// Whether `target` already carries `store_path`'s content. Imports that
 /// hardlink or reflink share the store file, which settles it without a
 /// read; the copy tier falls back to comparing size and then bytes, the
@@ -394,11 +433,40 @@ pub(super) fn file_matches_store_entry(target: &Path, store_path: &Path) -> bool
     let Ok(store_meta) = fs::metadata(store_path) else {
         return false;
     };
-    if file_identity_matches((target, &target_meta), (store_path, &store_meta)) {
+    let same_identity = file_identity_matches((target, &target_meta), (store_path, &store_meta));
+    #[cfg(unix)]
+    if !file_mode_matches_store_entry(&target_meta, (store_path, &store_meta), same_identity) {
+        return false;
+    }
+    if same_identity {
         return true;
     }
     target_meta.len() == store_meta.len()
         && files_have_equal_contents(target, store_path).unwrap_or(false)
+}
+
+#[cfg(unix)]
+fn file_mode_matches_store_entry(
+    target_meta: &fs::Metadata,
+    store: (&Path, &fs::Metadata),
+    same_identity: bool,
+) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let (store_path, store_meta) = store;
+    let is_store_entry = pnpm_fs::file_mode::is_cas_file_path(store_path);
+    let expected_mode = if is_store_entry {
+        pnpm_fs::file_mode::store_entry_mode(
+            pnpm_fs::file_mode::cas_path_is_executable(store_path),
+            pnpm_fs::file_mode::current_umask(),
+        )
+    } else {
+        store_meta.permissions().mode() & 0o777
+    };
+    let target_mode = target_meta.permissions().mode() & 0o777;
+    target_mode == expected_mode
+        || same_identity
+            && is_store_entry
+            && pnpm_fs::file_mode::store_inode_mode_is_linkable(target_mode, expected_mode)
 }
 
 /// Byte-compare two files without buffering either one.

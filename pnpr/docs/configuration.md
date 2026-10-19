@@ -98,9 +98,9 @@ outside the namespace is a definitive 404 answered before storage or the
 upstream is consulted, and an off-namespace publish is rejected. This closes
 the dependency-confusion class of attacks by construction.
 
-`defaultRegistry` names the registry that the path-less base URL
-(`https://<pnpr>/`) aliases — usually a router. When omitted, the bare host
-serves no registry and clients must address a `/~<name>/` URL.
+`defaultRegistry` names the registry that an ecosystem's base URL, such as
+`https://<pnpr>/npm/`, aliases — usually a router. When omitted, the base serves
+no registry and clients must address a `/~<name>/` URL under it.
 
 A registry name is served as the single URL path segment `/~<name>/`, so it
 must be one URL-safe segment: it cannot be empty, `.` or `..`, start with `.`,
@@ -109,8 +109,8 @@ or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 
 Since v0.1.0-alpha.11, a registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
-A server that serves more than one addresses them through `/npm/`, `/cargo/`,
-`/pypi/`, and `/oci/` path prefixes, and registry names can be reused across ecosystems
+Each ecosystem is addressed through its own path prefix (`/npm/`, `/cargo/`,
+`/pypi/`, or `/oci/`), and registry names can be reused across ecosystems
 by grouping the entries under an ecosystem key. See
 [Cargo and Python registries](ecosystems.md) and
 [Container images](container-images.md).
@@ -145,6 +145,8 @@ which rule applies. A duplicate key is a config error.
 Each value can set `access`, `publish`, and `unpublish`. When a field is
 omitted, `access` falls back to the registry-level `access:` default, `publish`
 defaults to `$authenticated`, and `unpublish` defaults to nobody.
+Cargo and PyPI registries reject `unpublish` rules because those ecosystems do
+not support package unpublishing.
 
 Every one of those fields takes either a single access token or a YAML list of
 them, and the grammar is deliberately small:
@@ -192,7 +194,7 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | Storage namespace for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the flat `storage` root. Must be a single path-safe segment. |
+| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide — `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>` — see [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules — see [above](#the-packages-map). Only these names can be served from or published to this registry. |
@@ -311,7 +313,7 @@ A router also takes [`tarballs`](#tar-registries).
 
 ### Tar registries
 
-A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
+A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A version with [registry revisions](/registry-revisions) keeps its `dist.tarball` on the digest route, its `dist.revision`, and its `dist.revisions` history, because a revision is always addressed by the digest of its tar. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
 
 To offer tars next to `.tgz` files, add a router over the same sources:
 
@@ -337,9 +339,10 @@ registries:
 defaultRegistry: main
 ```
 
-npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm project opts in by keying `https://<pnpr>/~zstd/` with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries).
+npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm project opts in by keying `https://<pnpr>/npm/~zstd/` with `serverType: pnpr` in its [`registries`](https://pnpm.io/registries#tar-registries).
 
 - Every registry serves a version's tarball at `<registry>/<name>@<version>`. A tar registry serves no `.tgz` path.
+- For an upstream package without fresh cached metadata, pnpr reads the version's metadata from `<upstream>/<name>/<version>`. If the upstream does not serve it, pnpr reads the package's full metadata.
 - pnpr keeps the published `.tgz` and derives the tar from it:
   - A `gzip` client gets the `.tgz` itself, which is the gzip encoding of its tar.
   - A `zstd` client gets a level-19 encoding once pnpr has stored one. Until then pnpr compresses the tar at level 3 as it streams, and a background worker stores the level-19 encoding. Tars larger than 256 MiB stay at level 3. The level-19 encodings live in the cache, so they can be evicted and are made again.
@@ -426,7 +429,7 @@ registries:
 - The `teams:` map is used only until the first change is stored. After that,
   editing `teams:` has no effect.
 - A team that a `packages:` rule names cannot be destroyed.
-- Only hosted registries accept `teamsManagedBy`.
+- Only npm hosted registries accept `teamsManagedBy`. Non-npm registries (such as Cargo and PyPI) reject `teamsManagedBy: api` because team management is specific to the npm org/team API.
 
 See [Team endpoints](endpoints.md#team-endpoints).
 
@@ -535,6 +538,19 @@ Can be specified as an integer number of seconds (e.g. `30`) or with a duration 
 requestTimeout: 60s
 ```
 
+## `packumentTtl`
+
+How long cached upstream packuments remain fresh before pnpr revalidates them against the upstream registry.
+
+Defaults to `10s`. Can be overridden per-process with the `--packument-ttl` CLI flag.
+
+Accepts `packumentTtl` (camelCase) or `packument_ttl` (snake_case).
+Can be specified as an integer number of seconds (e.g. `10`) or with a duration suffix (e.g. `10s`, `1m`).
+
+```yaml title="pnpr.yaml"
+packumentTtl: 30s
+```
+
 ## Security limits and protections
 
 pnpr includes built-in protections against denial-of-service and brute-force attacks:
@@ -590,9 +606,10 @@ may:
 - change the rules of every registry with
   [`rulesManagedBy: api`](#changing-rules-through-the-api).
 
-The first admin account still has to exist. Let it self-register before you
-set `max_users` to `-1`, or create it in the htpasswd file or the shared
-database.
+Nobody can self-register an admin's username, a username an
+[OIDC binding](oidc.md) maps to, or a username a
+[SCIM client](scim.md) provisioned. Create the first admin account with
+[`pnpr add-user`](cli.md#add-user).
 
 ```yaml title="pnpr.yaml"
 auth:
@@ -606,26 +623,47 @@ publishing alongside the password backend — see
 `auth.scim` lets an identity provider deprovision accounts — see
 [SCIM deprovisioning](scim.md).
 
-## `secret`
+## `secret` and `secrets`
 
 ```yaml title="pnpr.yaml"
+# Master secret:
 secret: ${PNPR_SECRET}
+
+# Or independently configured subkeys:
+#secrets:
+#  cache: ${PNPR_CACHE_SECRET}
+#  oci: ${PNPR_OCI_SECRET}
 ```
 
-The HMAC key for pnpr's private cache namespaces — private resolution-cache
-entries and private per-registry cache directories are keyed with it, so
-on-disk paths reveal neither registry names nor credentials. It must be at
-least 16 bytes. When omitted, a fresh random secret is generated per process,
-which means private cache entries only survive for that process's lifetime —
-set an explicit secret to keep private caches warm across restarts.
+pnpr uses secret keys to isolate private cache namespaces and sign bearer tokens:
+
+- **`cache`** — private cache namespaces: private resolution-cache entries and
+  private per-registry cache directories are keyed with it, so on-disk paths
+  reveal neither registry names nor credentials.
+- **`oci`** — bearer token signing key for the OCI registry surface.
+
+When `secret:` is configured, the cache key defaults to the root secret
+(preserving existing on-disk cache directories across upgrades), while the OCI
+bearer token signing key derives a domain-separated subkey from `secret:` via
+SHA-256 (`pnpr OCI token signing v1`).
+
+To rotate the OCI bearer token signing key without invalidating the resolution
+and upstream caches (or vice versa), configure independent secrets via
+`secrets.cache` and `secrets.oci`. Each explicit secret must be at least 16
+bytes.
+
+When neither `secret` nor `secrets` is configured, a random 32-byte secret is
+generated per process. Private cache entries and issued OCI bearer tokens only
+survive for that process's lifetime — set an explicit secret in multi-replica
+or production deployments.
 
 ## Registry, resolver, artifact, and pipeline surfaces {#registry-resolver-and-artifact-surfaces}
 
 pnpr exposes four independently deployable HTTP surfaces:
 
 - The **registry surface** — package and tarball reads, publish,
-  unpublish, dist-tags, and search, on the path-less base and on every
-  `/~<name>/` endpoint, for [every ecosystem](ecosystems.md) the config
+  unpublish, dist-tags, and search, on each ecosystem's base and on every
+  `/~<name>/` endpoint under it, for [every ecosystem](ecosystems.md) the config
   declares. It has no config toggle: it is served exactly when at
   least one registry is declared under `registries:`. The CLI flag
   `--disable-registry` turns it off for one process.
@@ -828,3 +866,9 @@ s3:
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 ```
+
+Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
+`secrets.cache`, `secrets.oci`, `s3.secretAccessKey`, `auth.scim.token`,
+OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token`) fail fast at
+startup with a fatal configuration error. This prevents accidental fallback to
+empty credentials or per-process secrets when an environment variable is unset.

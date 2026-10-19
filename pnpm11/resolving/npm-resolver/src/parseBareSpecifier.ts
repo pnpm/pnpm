@@ -1,6 +1,6 @@
 import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
-import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
+import { createRegistryRevisionsUnsupportedError } from '@pnpm/resolving.tarball-url'
 import semver from 'semver'
 import validateNpmPackageName from 'validate-npm-package-name'
 import getVersionSelectorType from 'version-selector-type'
@@ -9,7 +9,6 @@ export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range'
   name: string
   fetchSpec: string
-  revision?: number
   normalizedBareSpecifier?: string
 }
 
@@ -64,13 +63,13 @@ export function parseBareSpecifier (
     const selector = getVersionSelectorType(bareSpecifier)
     if (selector != null) {
       return {
-        ...parseRevisionSelector(selector, bareSpecifier),
+        ...parseVersionSelector(selector, bareSpecifier),
         name,
       }
     }
   }
   if (bareSpecifier.startsWith(registry)) {
-    const pkg = parseNpmTarballUrl(bareSpecifier)
+    const pkg = parseNpmTarballUrl(bareSpecifier, registry)
     if (pkg != null) {
       return {
         fetchSpec: pkg.version,
@@ -81,6 +80,47 @@ export function parseBareSpecifier (
     }
   }
   return null
+}
+
+interface NpmTarballUrl {
+  name: string
+  version: string
+}
+
+/**
+ * Extracts the name and version from an npm tarball URL like
+ * `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. The name is read from the
+ * path after the path of `registry`, so a registry served under a path such as
+ * `https://example.com/npm/` adds nothing to the name. Returns null when the
+ * URL doesn't fit the npm tarball layout under `registry` or the trailing
+ * version segment isn't valid semver.
+ */
+function parseNpmTarballUrl (url: string, registry: string): NpmTarballUrl | null {
+  const parsed = URL.parse(url)
+  const registryUrl = URL.parse(registry)
+  if (!parsed?.host || registryUrl == null) return null
+  const registryPath = registryUrl.pathname.replace(/\/+$/, '')
+  if (!parsed.pathname.startsWith(registryPath)) return null
+  const parts = parsed.pathname.slice(registryPath.length).split('/-/')
+  if (parts.length !== 2 || !parts[0].startsWith('/')) return null
+  const name = safeDecodeURIComponent(parts[0].slice(1))
+  if (!name) return null
+  // The tarball filename starts with the scopeless name followed by `-`.
+  // Anchoring on that prefix rejects a URL like `foo/-/bar-1.0.0.tgz`.
+  const scopelessNamePrefix = `${name.slice(name.lastIndexOf('/') + 1)}-`
+  const fileName = parts[1].replace(/\.tgz$/, '')
+  if (!fileName.startsWith(scopelessNamePrefix)) return null
+  const version = fileName.slice(scopelessNamePrefix.length)
+  if (!semver.valid(version, true)) return null
+  return { name, version }
+}
+
+function safeDecodeURIComponent (encoded: string): string | null {
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -114,7 +154,7 @@ export function parseJsrSpecifierToRegistryPackageSpec (
   if (selector == null) return null
 
   return {
-    ...parseRevisionSelector(selector, spec.versionSelector ?? defaultTag),
+    ...parseVersionSelector(selector, spec.versionSelector ?? defaultTag),
     name: spec.npmPkgName,
     jsrPkgName: spec.jsrPkgName,
   }
@@ -163,7 +203,7 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   if (selector == null) return null
 
   return {
-    ...parseRevisionSelector(selector, versionSelector ?? defaultTag),
+    ...parseVersionSelector(selector, versionSelector ?? defaultTag),
     name: pkgName,
     registryName,
   }
@@ -206,33 +246,22 @@ function splitPackageNameAndSelector (body: string): PackageNameAndSelector {
   }
 }
 
-function parseRevisionSelector (
+function parseVersionSelector (
   selector: VersionSelector,
   rawSelector: string
-): Pick<RegistryPackageSpec, 'fetchSpec' | 'revision' | 'type'> {
-  if (selector.type !== 'version') {
-    return { fetchSpec: selector.normalized, type: selector.type }
+): Pick<RegistryPackageSpec, 'fetchSpec' | 'type'> {
+  if (selector.type === 'version' && hasRegistryRevisionSelector(rawSelector)) {
+    throw createRegistryRevisionsUnsupportedError(
+      `Cannot resolve version specifier "${rawSelector}": it selects a registry revision.`)
   }
+  return { fetchSpec: selector.normalized, type: selector.type }
+}
+
+/** Whether the version's build metadata is a `+rN` registry revision selector. */
+function hasRegistryRevisionSelector (rawSelector: string): boolean {
   const normalizedInput = rawSelector.trim()
   const buildIndex = normalizedInput.indexOf('+')
-  if (buildIndex === -1) {
-    return { fetchSpec: selector.normalized, type: selector.type }
-  }
+  if (buildIndex === -1) return false
   const build = normalizedInput.slice(buildIndex + 1)
-  if (build.length < 2 || build[0] !== 'r' || build.includes('.')) {
-    return { fetchSpec: selector.normalized, type: selector.type }
-  }
-  const digits = build.slice(1)
-  if (![...digits].every((char) => char >= '0' && char <= '9')) {
-    return { fetchSpec: selector.normalized, type: selector.type }
-  }
-  const revision = Number(digits)
-  if ((digits.length > 1 && digits[0] === '0') || !Number.isSafeInteger(revision)) {
-    throw new PnpmError('INVALID_REVISION_SPEC', `Invalid registry revision in version specifier "${rawSelector}"`)
-  }
-  return {
-    fetchSpec: selector.normalized,
-    revision,
-    type: selector.type,
-  }
+  return build.length >= 2 && build[0] === 'r' && [...build.slice(1)].every((char) => char >= '0' && char <= '9')
 }

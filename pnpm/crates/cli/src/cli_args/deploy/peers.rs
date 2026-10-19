@@ -1,7 +1,7 @@
 use super::{
     Config, ConvertCtx, DependencyGroup, DeployError, HashMap, HashSet, ImporterDepVersion,
     Lockfile, PackageKey, PeerSatisfactionEdges, PkgName, PkgNameVerPeer, ProjectInfo,
-    ProjectSnapshot, ResolveBases, SnapshotDepRef, SnapshotEntry, Value, VecDeque,
+    ProjectSnapshot, ResolveBases, SnapshotDepRef, SnapshotEntry, Value, VecDeque, VersionPart,
     convert_importer_version_to_snapshot_ref, convert_package_key,
 };
 
@@ -87,12 +87,13 @@ pub(super) fn bind_singleton_peers(
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return Ok(()) };
     let importer = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY);
 
+    let bound_cache = std::cell::RefCell::new(HashMap::new());
     let graph = DeployedGraph {
         importer,
         snapshots,
         candidates: resolution_candidates(importer, snapshots),
-        dependents: dependents_by_snapshot(importer, snapshots, |parent, alias| {
-            declares_peer(lockfile, linked_workspace_projects, parent, alias)
+        dependents: dependents_by_snapshot(importer, snapshots, |parent, alias, child| {
+            is_peer_edge(lockfile, linked_workspace_projects, &bound_cache, parent, alias, child)
         }),
     };
     let bindings = collect_peer_bindings(&graph, linked_workspace_projects)?;
@@ -106,25 +107,52 @@ pub(super) fn bind_singleton_peers(
     Ok(())
 }
 
-/// Whether the package at `key` declares `alias` as a peer dependency, in its
-/// lockfile metadata or, for a linked workspace package, in its manifest. A
-/// linked package that also depends on `alias` resolves it as that
-/// dependency.
-fn declares_peer(
+/// Whether the edge `alias -> child` of `parent` only satisfies a peer of
+/// `parent`. A package that also depends on a peer resolves it as that
+/// dependency unless a parent shadowed it, which is recorded in `parent`'s
+/// peer bindings.
+fn is_peer_edge(
     lockfile: &Lockfile,
     linked_workspace_projects: &HashMap<PkgNameVerPeer, LinkedWorkspaceProject>,
-    key: &PkgNameVerPeer,
+    bound_cache: &std::cell::RefCell<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
+    parent: &PkgNameVerPeer,
     alias: &PkgName,
+    child: &PkgNameVerPeer,
 ) -> bool {
-    if let Some(linked) = linked_workspace_projects.get(key) {
+    if let Some(linked) = linked_workspace_projects.get(parent) {
         return linked.project.peer_dependencies.contains(alias)
             && !linked.project.declared_dependencies.contains(alias);
     }
-    lockfile.packages
+    let declares_peer = lockfile.packages
         .as_ref()
-        .and_then(|packages| packages.get(&key.without_peer()))
+        .and_then(|packages| packages.get(&parent.without_peer()))
         .and_then(|metadata| metadata.peer_dependencies.as_ref())
-        .is_some_and(|peers| peers.contains_key(&alias.to_string()))
+        .is_some_and(|peers| peers.contains_key(&alias.to_string()));
+    if !declares_peer {
+        return false;
+    }
+    // Deploy rewrites a linked or `file:` target to a `file://` key without
+    // rewriting the peer suffix that bound it, and an external package cannot
+    // declare a workspace link as its own dependency.
+    matches!(child.suffix.version(), VersionPart::File(_))
+        || parent_binds_child(lockfile, bound_cache, parent, child)
+}
+
+fn parent_binds_child(
+    lockfile: &Lockfile,
+    bound_cache: &std::cell::RefCell<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
+    parent: &PkgNameVerPeer,
+    child: &PkgNameVerPeer,
+) -> bool {
+    let providers = pnpm_lockfile::BoundProviders::from_key(parent);
+    if !providers.is_hashed() {
+        return providers.binds(child);
+    }
+    bound_cache
+        .borrow_mut()
+        .entry(parent.clone())
+        .or_insert_with(|| pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), parent))
+        .binds(child)
 }
 
 /// The `(package, peer, reference)` triples the deployed graph can bind

@@ -335,6 +335,10 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
 
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
+    // Lifecycle scripts may start installs of their own in this project.
+    if let Some(swap_lock) = ctx.caches.swap_lock {
+        swap_lock.release();
+    }
     let crate::BuildModulesOutput {
         ignored_builds,
         deferred_builds,

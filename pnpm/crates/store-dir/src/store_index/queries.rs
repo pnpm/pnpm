@@ -41,13 +41,25 @@ impl StoreIndex {
     ///
     /// Cost is one `Vec<u8>` allocation + memcpy per read, dwarfed by
     /// the `SQLite` query and disk I/O.
+    ///
+    /// A key with no row of its own reads the row it is an alias of.
     pub fn get(&self, key: &str) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
-        let row = match &self.backend {
-            Backend::Sqlite { conn, .. } => sqlite_get(conn, key)?,
-            Backend::Files(files) => files.get(key)?,
+        let row = match self.get_raw(key)? {
+            Some(row) => Some(row),
+            None => match self.alias_target(key)? {
+                Some(target) => self.get_raw(&target)?,
+                None => None,
+            },
         };
         let Some(bytes) = row else { return Ok(None) };
         decode_index_value(&bytes).map(Some)
+    }
+
+    fn get_raw(&self, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_get(conn, key),
+            Backend::Files(files) => files.get(key),
+        }
     }
 
     /// Look up the first package-files index whose key ends with `\t{pkg_id}`.
@@ -122,7 +134,38 @@ impl StoreIndex {
     /// [`SharedReadonlyStoreIndex`](super::SharedReadonlyStoreIndex) lock serialises N installs back to
     /// one thread; doing it after the lock releases lets each prefetch
     /// fan out across the rayon pool.
+    ///
+    /// A key with no row of its own returns the row it is an alias of,
+    /// under the requested key.
     pub fn get_many_raw(&self, keys: &[String]) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
+        let mut rows = self.get_many_rows(keys)?;
+        let found: HashSet<&str> = rows
+            .iter()
+            .map(|(key, _)| key.as_str())
+            .collect();
+        let missing: Vec<String> = keys
+            .iter()
+            .filter(|key| !found.contains(key.as_str()))
+            .cloned()
+            .collect();
+        let aliases = self.alias_targets(&missing)?;
+        if aliases.is_empty() {
+            return Ok(rows);
+        }
+        let targets: Vec<String> = aliases.values().cloned().collect();
+        let by_target: HashMap<String, Vec<u8>> = self
+            .get_many_rows(&targets)?
+            .into_iter()
+            .collect();
+        for (alias, target) in aliases {
+            if let Some(bytes) = by_target.get(&target) {
+                rows.push((alias, bytes.clone()));
+            }
+        }
+        Ok(rows)
+    }
+
+    fn get_many_rows(&self, keys: &[String]) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
         match &self.backend {
             Backend::Sqlite { conn, .. } => sqlite_get_many_raw(conn, keys),
             Backend::Files(files) => files.get_many(keys),
@@ -161,7 +204,32 @@ impl StoreIndex {
     /// posture) as [`Self::get_many_raw`], but selects only the key column,
     /// so no row data is copied — for callers that decide *whether* to do
     /// work per key and leave reading the row to a later pass.
+    ///
+    /// A key with no row of its own is contained when the row it is an
+    /// alias of is.
     pub fn contains_many(&self, keys: &[String]) -> Result<HashSet<String>, StoreIndexError> {
+        let mut out = self.contains_rows(keys)?;
+        let missing: Vec<String> = keys
+            .iter()
+            .filter(|key| !out.contains(*key))
+            .cloned()
+            .collect();
+        let aliases = self.alias_targets(&missing)?;
+        if aliases.is_empty() {
+            return Ok(out);
+        }
+        let targets: Vec<String> = aliases.values().cloned().collect();
+        let present = self.contains_rows(&targets)?;
+        out.extend(
+            aliases
+                .into_iter()
+                .filter(|(_, target)| present.contains(target))
+                .map(|(alias, _)| alias),
+        );
+        Ok(out)
+    }
+
+    fn contains_rows(&self, keys: &[String]) -> Result<HashSet<String>, StoreIndexError> {
         let conn = match &self.backend {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => {
@@ -273,8 +341,18 @@ impl StoreIndex {
             .map_err(|source| StoreIndexError::Write { source })
     }
 
-    /// `true` iff a row with this key exists.
+    /// `true` iff a row with this key exists, directly or through an alias.
     pub fn contains_key(&self, key: &str) -> Result<bool, StoreIndexError> {
+        if self.contains_row(key)? {
+            return Ok(true);
+        }
+        match self.alias_target(key)? {
+            Some(target) => self.contains_row(&target),
+            None => Ok(false),
+        }
+    }
+
+    fn contains_row(&self, key: &str) -> Result<bool, StoreIndexError> {
         let conn = match &self.backend {
             Backend::Sqlite { conn, .. } => conn,
             Backend::Files(files) => return files.contains(key),

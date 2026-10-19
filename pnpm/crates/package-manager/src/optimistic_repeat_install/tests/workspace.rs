@@ -765,32 +765,37 @@ fn workspace_content_check_does_not_bless_a_manifest_edited_after_it_passed() {
 }
 #[test]
 fn returns_up_to_date_when_aliased_workspace_dependency_satisfies_range() {
-    assert_eq!(
-        linked_sibling_decision_for_spec(
-            "alias",
-            "npm:pkg-a@^1.0.0",
-            "link:pkg-a",
-            "1.5.0",
-            pnpm_config::LinkWorkspacePackages::DirectOnly,
-            false,
-        ),
-        Decision::UpToDate,
-    );
+    for spec in ["npm:pkg-a@^1.0.0", "workspace:pkg-a@^1.0.0"] {
+        assert_eq!(
+            linked_sibling_decision_for_spec(
+                "alias",
+                spec,
+                "link:pkg-a",
+                "1.5.0",
+                pnpm_config::LinkWorkspacePackages::DirectOnly,
+                false,
+            ),
+            Decision::UpToDate,
+            "spec {spec} should be satisfied by 1.5.0",
+        );
+    }
 }
 #[test]
 fn returns_skipped_when_aliased_workspace_dependency_version_is_outdated() {
-    let decision = linked_sibling_decision_for_spec(
-        "alias",
-        "npm:pkg-a@^1.0.0",
-        "link:pkg-a",
-        "2.0.0",
-        pnpm_config::LinkWorkspacePackages::DirectOnly,
-        false,
-    );
-    assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
-        "expected Skipped(linked package out of date), got {decision:?}",
-    );
+    for spec in ["npm:pkg-a@^1.0.0", "workspace:pkg-a@^1.0.0"] {
+        let decision = linked_sibling_decision_for_spec(
+            "alias",
+            spec,
+            "link:pkg-a",
+            "2.0.0",
+            pnpm_config::LinkWorkspacePackages::DirectOnly,
+            false,
+        );
+        assert!(
+            matches!(decision, Decision::Skipped { reason } if reason.contains("linked")),
+            "spec {spec}: expected Skipped(linked package out of date), got {decision:?}",
+        );
+    }
 }
 #[test]
 fn returns_up_to_date_when_linked_workspace_dependency_uses_a_tag() {

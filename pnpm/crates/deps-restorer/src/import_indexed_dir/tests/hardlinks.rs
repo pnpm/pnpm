@@ -4,12 +4,13 @@ use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, fs, path::PathBuf, sync::atomic::AtomicU8};
 use tempfile::tempdir;
 
-const REUSE: ImportIndexedDirOpts = ImportIndexedDirOpts {
+const REUSE: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     force: true,
     reuse_hardlinks: true,
     keep_modules_dir: true,
     safe_to_skip: false,
     preserve_symlinks: true,
+    swap_lock: None,
 };
 
 #[test]

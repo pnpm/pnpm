@@ -1,7 +1,7 @@
 use super::{
     Body, Duration, Request, ServiceExt, StatusCode, TempDir, Value, body_bytes, config_for,
-    foo_packument, json, mock_packument_for_tarball, public_cache_pkg, router, sha1_hex_of,
-    sha512_integrity, tarball_cache_entries, to_bytes,
+    foo_packument, json, mock_packument_for_tarball, public_cache_blobs, public_cache_pkg, router,
+    sha1_hex_of, sha512_integrity, tarball_cache_entries, to_bytes,
 };
 
 #[tokio::test]
@@ -64,7 +64,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     let selected = app
         .clone()
         .oneshot(
-            Request::get("/foo/latest")
+            Request::get("/npm/foo/latest")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -72,12 +72,12 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
         .unwrap();
     assert_eq!(selected.status(), StatusCode::OK);
     let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
-    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-2.0.0.tgz");
+    assert_eq!(selected["dist"]["tarball"], "http://example.test/npm/foo/-/foo-2.0.0.tgz");
 
     let full = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -86,11 +86,11 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     let full: Value = serde_json::from_slice(&body_bytes(full.into_body()).await).unwrap();
     assert_eq!(
         full["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/foo/-/foo-2.0.0.tgz",
+        "http://example.test/npm/foo/-/foo-2.0.0.tgz",
     );
     assert_eq!(
         full["versions"]["2.0.0"]["dist"]["tarball"],
-        "http://example.test/foo/-/foo-1.0.0.tgz",
+        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
     );
 
     let route = selected["dist"]["tarball"]
@@ -109,8 +109,8 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     assert_eq!(first.status(), StatusCode::OK);
     assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
 
-    let package_dir = public_cache_pkg(&storage, "foo");
-    assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-2.0.0.tgz".to_string()]);
+    let blobs_dir = public_cache_blobs(&storage, "foo");
+    assert_eq!(tarball_cache_entries(&blobs_dir), vec!["foo-2.0.0.tgz".to_string()]);
 
     // A fresh instance over the same storage and the same origin replays the
     // cached entry; the `expect(1)` mocks prove the upstream is never
@@ -174,13 +174,13 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let cache_path = public_cache_pkg(&storage, "poisoned").join("poisoned-1.0.0.tgz");
+    let cache_path = public_cache_blobs(&storage, "poisoned").join("poisoned-1.0.0.tgz");
 
     let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response = app
         .clone()
         .oneshot(
-            Request::get("/poisoned")
+            Request::get("/npm/poisoned")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -190,7 +190,7 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
 
     let tarball_response = app
         .oneshot(
-            Request::get("/poisoned/-/poisoned-1.0.0.tgz")
+            Request::get("/npm/poisoned/-/poisoned-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -212,7 +212,7 @@ async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     drop(upstream);
     let cached_response = router(config_for(&url, storage))
         .oneshot(
-            Request::get("/poisoned/-/poisoned-1.0.0.tgz")
+            Request::get("/npm/poisoned/-/poisoned-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -260,7 +260,7 @@ async fn missing_integrity_is_computed_cached_and_returned_in_the_packument() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -273,7 +273,7 @@ async fn missing_integrity_is_computed_cached_and_returned_in_the_packument() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -283,7 +283,7 @@ async fn missing_integrity_is_computed_cached_and_returned_in_the_packument() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
     assert_eq!(
-        tarball_cache_entries(&public_cache_pkg(&storage, "foo")),
+        tarball_cache_entries(&public_cache_blobs(&storage, "foo")),
         vec!["foo-1.0.0.tgz".to_string()],
     );
     packument_mock.assert_async().await;
@@ -348,7 +348,7 @@ async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -361,7 +361,7 @@ async fn version_with_unfetchable_tarball_does_not_break_the_packument() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -414,7 +414,7 @@ async fn version_with_unfetchable_tarball_keeps_its_declared_shasum() {
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -466,7 +466,7 @@ async fn pins_land_even_when_the_cached_packument_went_stale_meanwhile() {
         Some(Duration::ZERO);
     let response = router(config)
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -517,7 +517,7 @@ async fn a_refresh_that_fails_to_cache_is_served_unpinned() {
     let resolve = || {
         app.clone()
             .oneshot(
-                Request::get("/foo")
+                Request::get("/npm/foo")
                     .header("accept", "application/vnd.npm.install-v1+json")
                     .body(Body::empty())
                     .unwrap(),
@@ -530,7 +530,7 @@ async fn a_refresh_that_fails_to_cache_is_served_unpinned() {
     assert_eq!(resolved["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(bytes));
 
     // A directory where the packument file belongs makes the next cache write fail.
-    let document = public_cache_pkg(&storage, "foo").join("package.json");
+    let document = public_cache_pkg(&storage, "foo").join("document.json");
     std::fs::remove_file(&document).unwrap();
     std::fs::create_dir_all(document.join("blocker")).unwrap();
 
@@ -575,7 +575,7 @@ async fn cached_packument_reads_do_not_refetch_unpinnable_tarballs() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/foo")
+                Request::get("/npm/foo")
                     .header("accept", "application/vnd.npm.install-v1+json")
                     .body(Body::empty())
                     .unwrap(),
@@ -639,7 +639,7 @@ async fn version_with_malformed_dist_does_not_break_the_packument() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -652,7 +652,7 @@ async fn version_with_malformed_dist_does_not_break_the_packument() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-0.1.0.tgz")
+            Request::get("/npm/foo/-/foo-0.1.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -700,7 +700,7 @@ async fn cache_disabled_upstream_serves_the_packument_it_declared() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -712,7 +712,7 @@ async fn cache_disabled_upstream_serves_the_packument_it_declared() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -771,7 +771,7 @@ async fn the_pinned_version_count_is_capped_per_packument() {
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -831,7 +831,7 @@ async fn an_integrity_string_that_pins_nothing_is_computed() {
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept", "application/vnd.npm.install-v1+json")
                 .body(Body::empty())
                 .unwrap(),
@@ -876,7 +876,7 @@ async fn shasum_only_tarball_gets_a_computed_sha512_integrity() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -888,7 +888,7 @@ async fn shasum_only_tarball_gets_a_computed_sha512_integrity() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -935,7 +935,7 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -952,11 +952,11 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         resolved["versions"]["1.0.0"]["dist"].get("integrity").is_none(),
         "an integrity over bytes that contradict the declared shasum must not be pinned",
     );
-    assert!(tarball_cache_entries(&public_cache_pkg(&cache, "foo")).is_empty());
+    assert!(tarball_cache_entries(&public_cache_blobs(&cache, "foo")).is_empty());
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -966,7 +966,7 @@ async fn shasum_only_tarball_with_mismatched_bytes_is_not_cached() {
         to_bytes(response.into_body(), usize::MAX).await.is_err(),
         "the tarball stream must abort rather than deliver bytes that contradict the declared shasum",
     );
-    assert!(tarball_cache_entries(&public_cache_pkg(&cache, "foo")).is_empty());
+    assert!(tarball_cache_entries(&public_cache_blobs(&cache, "foo")).is_empty());
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;
 }
@@ -1019,7 +1019,7 @@ async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1070,7 +1070,7 @@ async fn invalid_tarball_integrities_are_controlled_failures() {
         let tmp = TempDir::new().unwrap();
         let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
             .oneshot(
-                Request::get("/foo/-/foo-1.0.0.tgz")
+                Request::get("/npm/foo/-/foo-1.0.0.tgz")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -1103,7 +1103,7 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
 
     let response = app
         .oneshot(
-            Request::get("/big/-/big-1.0.0.tgz")
+            Request::get("/npm/big/-/big-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1117,11 +1117,11 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
 
     // Verification and finalization complete before the response is
     // built, leaving only the canonical cache path.
-    let package_dir = public_cache_pkg(&cache_dir, "big");
-    let entries = tarball_cache_entries(&package_dir);
+    let blobs_dir = public_cache_blobs(&cache_dir, "big");
+    let entries = tarball_cache_entries(&blobs_dir);
     assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
 
-    let cached = std::fs::read(package_dir.join("big-1.0.0.tgz")).unwrap();
+    let cached = std::fs::read(blobs_dir.join("big-1.0.0.tgz")).unwrap();
     assert_eq!(cached.len(), bytes.len());
     assert_eq!(cached, bytes);
 }
@@ -1149,16 +1149,16 @@ async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-    let package_dir = public_cache_pkg(&cache_dir, "foo");
+    let blobs_dir = public_cache_blobs(&cache_dir, "foo");
     assert!(
-        tarball_cache_entries(&package_dir).is_empty(),
+        tarball_cache_entries(&blobs_dir).is_empty(),
         "a rejected cache:false tarball must leave no mirror entry",
     );
 

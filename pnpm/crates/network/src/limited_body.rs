@@ -1,4 +1,5 @@
 use crate::error_chain::is_unclean_tls_close;
+use bytes::Bytes;
 use reqwest::{
     Response,
     header::{CONTENT_LENGTH, HeaderMap, TRANSFER_ENCODING},
@@ -37,8 +38,26 @@ pub async fn read_limited_body(
     Ok(LimitedBody { bytes, truncated })
 }
 
-/// Read a whole response body as text, decoding invalid UTF-8 lossily, when
-/// the body's format proves its own completeness, such as a JSON document.
+/// A response body as the chunks it arrived in.
+///
+/// Joining them is left to [`Self::into_text`], so a caller decides which
+/// thread allocates the whole body.
+pub struct BodyChunks(Vec<Bytes>);
+
+impl BodyChunks {
+    /// Join the chunks, decoding invalid UTF-8 lossily.
+    pub fn into_text(self) -> String {
+        let mut bytes = Vec::with_capacity(self.0.iter().map(Bytes::len).sum());
+        for chunk in self.0 {
+            bytes.extend_from_slice(&chunk);
+        }
+        String::from_utf8(bytes)
+            .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
+    }
+}
+
+/// Read a whole response body when the body's format proves its own
+/// completeness, such as a JSON document.
 ///
 /// A server or a TLS-intercepting proxy can end a body that has neither a
 /// `Content-Length` nor chunked framing by closing the connection without a
@@ -48,19 +67,20 @@ pub async fn read_limited_body(
 /// (<https://github.com/pnpm/pnpm/issues/16704>). Decompression drops
 /// `Content-Length`, so a cut-short compressed body is left to the caller's
 /// parse to reject.
-pub async fn read_self_delimiting_text(mut response: Response) -> Result<String, reqwest::Error> {
+pub async fn read_self_delimiting_body(
+    mut response: Response,
+) -> Result<BodyChunks, reqwest::Error> {
     let close_delimited = !has_body_framing(response.headers());
-    let mut bytes = Vec::new();
+    let mut chunks = Vec::new();
     loop {
         match response.chunk().await {
-            Ok(Some(chunk)) => bytes.extend_from_slice(&chunk),
+            Ok(Some(chunk)) => chunks.push(chunk),
             Ok(None) => break,
             Err(error) if close_delimited && is_unclean_tls_close(&error) => break,
             Err(error) => return Err(error),
         }
     }
-    Ok(String::from_utf8(bytes)
-        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned()))
+    Ok(BodyChunks(chunks))
 }
 
 fn has_body_framing(headers: &HeaderMap) -> bool {

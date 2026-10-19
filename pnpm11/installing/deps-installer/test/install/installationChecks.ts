@@ -7,6 +7,7 @@ import { createHexHashFromFile } from '@pnpm/crypto.hash'
 import { depPathToFilename } from '@pnpm/deps.path'
 import { addDependenciesToPackage, install, type MutatedProject, mutateModules, type PackageManifest } from '@pnpm/installing.deps-installer'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import { testDefaults } from '../utils/index.js'
@@ -152,6 +153,7 @@ test('readPackage hook is applied once per package request', async () => {
 
 test('a compatible package installs under engineStrict without a readPackage hook', async () => {
   const project = prepareEmpty()
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
 
   await addDependenciesToPackage({}, ['@pnpm.e2e/foo'], testDefaults({}, {}, {}, { engineStrict: true }))
 

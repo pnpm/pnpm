@@ -828,7 +828,7 @@ function configByUri (): Record<string, Record<string, { authToken: string }>> {
 }
 
 async function fetchPackument (pkgName: string): Promise<Response> {
-  return fetch(`${REGISTRY_URL}/${pkgName.replaceAll('/', '%2F')}`, {
+  return fetch(`${REGISTRY_URL}${pkgName.replaceAll('/', '%2F')}`, {
     headers: { authorization: `Bearer ${getRegistryMockToken()}` },
   })
 }

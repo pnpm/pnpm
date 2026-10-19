@@ -4,15 +4,17 @@ pub(super) use namespace::{
 };
 
 mod namespace;
+mod rules;
 
 use std::collections::BTreeSet;
 
+use rules::{build_rules, registry_access_list};
+
 use super::{
-    AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
-    IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
-    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, TarballFormat,
-    TeamDirectory, UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams,
-    resolve_upstream_config,
+    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, Management,
+    PackageAccess, PackagePattern, Registries, Registry, RegistryConfigError, RegistryError,
+    RegistryFile, RegistryGroupFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig,
+    UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -265,6 +267,14 @@ pub(super) fn build_hosted_entry(
         return Err(org_collision_error(name, &org, other));
     }
     let ecosystem = registry.ecosystem.unwrap_or_default();
+    if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "hosted registry `{name}` specifies `teamsManagedBy: api`, but team management API \
+                 is only available for npm registries",
+            ),
+        });
+    }
     let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
     let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
@@ -312,62 +322,6 @@ pub(super) fn build_upstream_entry(
     let mut resolved = resolve_upstream_registry::<SystemEnv>(name, upstream, &teams)?;
     resolved.rules = rules;
     Ok((Some(resolved), ecosystem, patterns))
-}
-
-/// Compile a `registries:` entry's registry-level `access:` value, naming the
-/// registry in the error.
-pub(super) fn registry_access_list(
-    name: &str,
-    spec: Option<&AccessSpec>,
-    teams: &TeamDirectory,
-) -> Result<Option<AccessList>, RegistryError> {
-    spec.map(|spec| spec.to_access_list(teams))
-        .transpose()
-        .map_err(|reason| RegistryError::InvalidConfig {
-            reason: format!("registry {name:?} has an invalid `access` list: {reason}"),
-        })
-}
-
-/// Compile a concrete registry's `packages:` map into its [`PackageRules`]:
-/// keys parsed into the decidable [`PackagePattern`] language, values into
-/// per-package permission rules (`{}`/null ⇒ all fields default). Selection
-/// is by specificity, so key order carries no meaning; a duplicate key is the
-/// only within-registry error, and the YAML parser already rejects literal
-/// duplicates in one mapping — the check here guards the graph invariant for
-/// any other construction path. Routing-graph checks are handled later by
-/// [`Registries::validate`] once the whole graph exists.
-pub(super) fn build_rules(
-    registry: &str,
-    ecosystem: Ecosystem,
-    packages: &IndexMap<String, Option<PackageAccess>>,
-    default_access: Option<AccessList>,
-    teams: &TeamDirectory,
-) -> Result<PackageRules, RegistryError> {
-    let rules = packages
-        .iter()
-        .map(|(key, rule)| {
-            let pattern = PackagePattern::parse(key, ecosystem).map_err(|err| {
-                RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
-            })?;
-            let fields = rule.as_ref();
-            let list = |field: &str, spec: Option<&AccessSpec>| {
-                spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
-                    RegistryError::InvalidConfig {
-                        reason: format!(
-                            "registry {registry:?}: {key:?} has an invalid `{field}` list: {reason}",
-                        ),
-                    }
-                })
-            };
-            Ok(PackageRule {
-                pattern,
-                access: list("access", fields.and_then(|fields| fields.access.as_ref()))?,
-                publish: list("publish", fields.and_then(|fields| fields.publish.as_ref()))?,
-                unpublish: list("unpublish", fields.and_then(|fields| fields.unpublish.as_ref()))?,
-            })
-        })
-        .collect::<Result<Vec<_>, RegistryError>>()?;
-    Ok(PackageRules::new(rules, default_access))
 }
 
 /// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.

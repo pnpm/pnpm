@@ -1,5 +1,7 @@
 import path from 'node:path'
 
+import { refToRelative } from '@pnpm/deps.path'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { DepPath, PkgResolutionId } from '@pnpm/types'
 import normalize from 'normalize-path'
 
@@ -21,6 +23,7 @@ export interface DedupeInjectedDepsOptions<Pkg extends PartialResolvedPackage> {
   pathsByNodeId: Map<NodeId, DepPath>
   projects: ProjectToResolve[]
   resolvedImporters: ResolvedImporters
+  wantedLockfile?: Pick<LockfileObject, 'importers'>
   workspaceProjectIds: Set<string>
 }
 
@@ -65,17 +68,21 @@ function getInjectedWorkspaceDepsOfProject<Pkg extends PartialResolvedPackage> (
 
 type DedupeMap = Map<string, Map<string, string>>
 
-type DedupeMapOptions<Pkg extends PartialResolvedPackage> = Pick<DedupeInjectedDepsOptions<Pkg>, 'depGraph' | 'dependenciesByProjectId'>
+type DedupeMapOptions<Pkg extends PartialResolvedPackage> = Pick<DedupeInjectedDepsOptions<Pkg>, 'depGraph' | 'dependenciesByProjectId' | 'wantedLockfile'>
 
 function getDedupeMap<Pkg extends PartialResolvedPackage> (
   injectedDepsByProjects: InjectedDepsByProjects,
   opts: DedupeMapOptions<Pkg>
 ): DedupeMap {
   const toDedupe = new Map<string, Map<string, string>>()
+  const targetProjectDeps = new Map<string, Map<string, DepPath> | undefined>()
   for (const [id, deps] of injectedDepsByProjects.entries()) {
     const dedupedInjectedDeps = new Map<string, string>()
     for (const [alias, dep] of deps.entries()) {
-      if (canDedupeInjectedDep(dep, opts)) {
+      if (!targetProjectDeps.has(dep.id)) {
+        targetProjectDeps.set(dep.id, getTargetProjectDeps(dep.id, opts))
+      }
+      if (canDedupeInjectedDep(dep, targetProjectDeps.get(dep.id), opts)) {
         dedupedInjectedDeps.set(alias, dep.id)
       }
     }
@@ -86,10 +93,10 @@ function getDedupeMap<Pkg extends PartialResolvedPackage> (
 
 function canDedupeInjectedDep<Pkg extends PartialResolvedPackage> (
   dep: { depPath: DepPath, id: string },
+  targetProjectDeps: Map<string, DepPath> | undefined,
   opts: DedupeMapOptions<Pkg>
 ): boolean {
   const node = opts.depGraph[dep.depPath]
-  const targetProjectDeps = opts.dependenciesByProjectId[dep.id]
   // In single-project operations (e.g. `pnpm rm` from inside a workspace package) the target
   // workspace project isn't being resolved, so its children aren't in
   // `dependenciesByProjectId`. The injected dep was resolved against the same workspace
@@ -104,6 +111,33 @@ function canDedupeInjectedDep<Pkg extends PartialResolvedPackage> (
   // The injected project in the workspace may have dev deps
   return Object.entries(node.children)
     .every(([alias, depPath]) => isChildProvidedByTargetProject(opts.depGraph, targetProjectDeps.get(alias), depPath))
+}
+
+/**
+ * The target project's dependencies by alias: the ones this install resolved,
+ * plus the locked ones of the dependencies it left as installed. The resolver
+ * skips a dependency that is installed and not updated (see
+ * `resolveDependency`), so the resolved ones alone are not all of them
+ * (pnpm/pnpm#17094). `undefined` when the target project is not being
+ * resolved.
+ */
+function getTargetProjectDeps<Pkg extends PartialResolvedPackage> (
+  id: string,
+  opts: DedupeMapOptions<Pkg>
+): Map<string, DepPath> | undefined {
+  const resolved = opts.dependenciesByProjectId[id]
+  const importer = opts.wantedLockfile?.importers[id as keyof LockfileObject['importers']]
+  if (resolved == null || importer == null) return resolved
+  return new Map([...lockedDepPaths(importer), ...resolved])
+}
+
+function lockedDepPaths (importer: LockfileObject['importers'][keyof LockfileObject['importers']]): Array<[string, DepPath]> {
+  return [importer.dependencies, importer.optionalDependencies, importer.devDependencies]
+    .flatMap((locked) => Object.entries(locked ?? {}))
+    .flatMap(([alias, ref]): Array<[string, DepPath]> => {
+      const depPath = refToRelative(ref, alias)
+      return depPath == null ? [] : [[alias, depPath]]
+    })
 }
 
 function isChildProvidedByTargetProject<Pkg extends PartialResolvedPackage> (

@@ -43,7 +43,7 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response_body_bounded(response, 64 * 1024).await?;
-            return Err(PnprClientError::Server(format!(
+            return Err(PnprClientError::server(format!(
                 "/-/pnpr/v0/pipeline/runs returned {status}: {}",
                 String::from_utf8_lossy(&body),
             )));

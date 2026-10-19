@@ -203,6 +203,7 @@ async fn cold_batch_falls_back_when_prefetch_failed() {
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: None,
@@ -539,6 +540,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                     tar_limits: pnpm_tarball::TarLimits::default(),
                 },
                 package: pnpm_tarball::TarballPackage {
+                    integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                     integrity: None,
                     unpacked_size: None,
                     file_count: None,

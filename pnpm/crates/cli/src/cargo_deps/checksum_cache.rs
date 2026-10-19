@@ -1,12 +1,10 @@
-use super::add_cargo_checksum;
+use super::{CARGO_CHECKSUM_FILE, add_cargo_checksum};
 use miette::Result;
 use pnpm_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, StoreDir, StoreIndexWriter, VerifiedFilesCache,
     check_pkg_files_integrity,
 };
 use std::{collections::HashMap, path::PathBuf};
-
-const CHECKSUM_FILE: &str = ".cargo-checksum.json";
 
 pub(super) struct ChecksumCache<'a> {
     pub store_dir: &'a StoreDir,
@@ -23,10 +21,10 @@ impl ChecksumCache<'_> {
         cas_paths: &mut HashMap<String, PathBuf>,
         package_checksum: &str,
     ) -> Result<()> {
-        cas_paths.remove(CHECKSUM_FILE);
+        cas_paths.remove(CARGO_CHECKSUM_FILE);
         let key = checksum_cache_key(cas_paths, package_checksum);
         if let Some(path) = self.read(&key) {
-            cas_paths.insert(CHECKSUM_FILE.to_string(), path);
+            cas_paths.insert(CARGO_CHECKSUM_FILE.to_string(), path);
             return Ok(());
         }
         let info = add_cargo_checksum(self.store_dir, cas_paths, Some(package_checksum))?;
@@ -34,7 +32,7 @@ impl ChecksumCache<'_> {
             key,
             PackageFilesIndex {
                 algo: "sha512".to_string(),
-                files: HashMap::from([(CHECKSUM_FILE.to_string(), info)]),
+                files: HashMap::from([(CARGO_CHECKSUM_FILE.to_string(), info)]),
                 ..PackageFilesIndex::default()
             },
         );
@@ -55,7 +53,7 @@ impl ChecksumCache<'_> {
         };
         let mut verified = check_pkg_files_integrity(self.store_dir, entry, self.verified_files);
         verified.passed
-            .then(|| verified.files_map.remove(CHECKSUM_FILE))
+            .then(|| verified.files_map.remove(CARGO_CHECKSUM_FILE))
             .flatten()
     }
 }

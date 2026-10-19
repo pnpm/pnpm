@@ -15,27 +15,30 @@ pub(super) struct SpecDirs<'a> {
     pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
 }
 
+/// Whether the recorded resolution of a local directory dependency's child
+/// still satisfies its spec. `None` when the lockfile cannot tell (see
+/// [`npm_or_registry_spec_satisfies`]).
 pub(super) fn spec_satisfies_snapshot_dep(
     dirs: &SpecDirs<'_>,
     local_dep_dir: &Path,
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
-) -> bool {
+) -> Option<bool> {
     if let Some(matches) =
         file_or_link_spec_satisfies(dirs.lockfile_dir, local_dep_dir, spec, lockfile_dep)
     {
-        return matches;
+        return Some(matches);
     }
     if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
-        return workspace_spec_satisfies(
+        return Some(workspace_spec_satisfies(
             dirs,
             local_dep_dir,
             dep_name,
             spec,
             workspace_spec,
             lockfile_dep,
-        );
+        ));
     }
     npm_or_registry_spec_satisfies(dep_name, spec, lockfile_dep)
 }
@@ -264,29 +267,36 @@ fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Resu
 /// specifier (see [`locked_child_admits`]). It resolves any other specifier
 /// again, which a freshness check cannot do, so those are accepted when the
 /// recorded package is the one they name.
+/// `None` when the spec is not a range the locked version can be checked
+/// against, such as a tag or a git or tarball spec.
 fn npm_or_registry_spec_satisfies(
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
-) -> bool {
+) -> Option<bool> {
     if let Ok(alias) = pnpm_lockfile::PkgName::parse(dep_name)
         && let Some(key) = lockfile_dep.resolve(&alias)
         && let Some(admits) = locked_child_admits(&alias, &key, spec)
     {
-        return admits;
+        return Some(admits);
     }
     let (target_pkg, clean_spec) = parse_npm_spec(spec);
     let expected_name = target_pkg.unwrap_or(dep_name);
     if !npm_alias_matches(dep_name, expected_name, lockfile_dep) {
-        return false;
+        return Some(false);
     }
-    let Ok(range) = clean_spec.parse::<node_semver::Range>() else {
-        return true;
-    };
-    let Some(version) = lockfile_dep.ver_peer().and_then(extract_semver) else {
-        return true;
-    };
-    range.satisfies(version)
+    let range = clean_spec.parse::<node_semver::Range>().ok()?;
+    let version = lockfile_dep.ver_peer().and_then(extract_semver)?;
+    Some(range.satisfies(version))
+}
+
+/// The aliased package name (if any) and version range of a `workspace:`,
+/// `npm:`, or bare dependency specifier.
+pub(crate) fn spec_target_and_range(spec: &str) -> (Option<&str>, &str) {
+    if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
+        return parse_workspace_range(workspace_spec);
+    }
+    parse_npm_spec(spec)
 }
 
 fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
@@ -297,7 +307,10 @@ fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
         return (None, stripped);
     }
     match stripped.rfind('@') {
-        Some(idx) if idx > 0 => (Some(&stripped[..idx]), &stripped[idx + 1..]),
+        Some(idx) if idx > 0 => {
+            let range = &stripped[idx + 1..];
+            (Some(&stripped[..idx]), if range.is_empty() { "*" } else { range })
+        }
         _ => (Some(stripped), "*"),
     }
 }

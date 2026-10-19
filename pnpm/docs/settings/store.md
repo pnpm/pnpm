@@ -199,6 +199,33 @@ pnpm v11 and earlier v12 versions do not keep these settings and remove them whe
 
 This setting needs local dependency resolution, so an install that is not frozen fails when `pnprServer` is set.
 
+### lockfile.integrityTarget
+
+Added in: v12.15.0
+
+* Default: **resource**
+* Type: **resource**, **tar**
+
+Which hash the `integrity` of each package tarball in `pnpm-lock.yaml` pins.
+
+* `resource` pins the file at the tarball URL. That is the `.tgz` on most registries.
+* `tar` pins the uncompressed tar inside it, for registry packages, `tarball:` URLs, and `file:` tarballs alike.
+
+```yaml title="pnpm-workspace.yaml"
+lockfile:
+  integrityTarget: tar
+```
+
+With `tar`, the lockfile no longer changes when a registry recompresses its tarballs, starts serving [tar registries](../registries.md#tar-registries), or is replaced by a mirror that does either. pnpm checks every download by decoding it and hashing the tar. The hash it records comes from a `.tgz` that matched the registry's published integrity, so it is as trustworthy as that integrity. Git dependencies and [registry revisions](../registry-revisions.md) are unaffected: git dependencies pin a commit, and revisions always pin the tar.
+
+The lockfile records the setting as `integrityTarget: tar` in its `settings`. A lockfile resolved under the other value is outdated. `pnpm install` resolves it again and rewrites every hash, and `pnpm install --frozen-lockfile` fails with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+
+The store remembers the tar hash of every `.tgz` it extracts, whatever this setting says. A version already in the store therefore needs no download to learn its tar hash, and a frozen install finds its files under either hash. A version the store has not extracted is downloaded once to learn the hash, even by `pnpm install --lockfile-only`, and so is an optional dependency for another platform, which the lockfile records but no install on this machine extracts. Packages extracted by pnpm versions without this setting are downloaded once too.
+
+`pnpm audit signatures` checks the registry signature of the `.tgz` and ties it to the tar hash in the lockfile, through the store or by downloading the package.
+
+pnpm versions before v12.15.0 cannot install from a lockfile that pins tars. Turn this setting on when everyone working on the project uses v12.15.0 or later. A resolution by `pnprServer` cannot pin tars, so an install that is not frozen fails when `pnprServer` is set.
+
 ### gitBranchLockfile
 
 * Default: **false**

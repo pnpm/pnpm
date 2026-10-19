@@ -25,7 +25,10 @@ import {
   resolveSpecPath,
   versionSatisfies,
 } from './dependencySpec.js'
-import { localDirectoryDepIsUpToDate } from './localDirectoryDepIsUpToDate.js'
+import {
+  localDirectoryDepIsUpToDate,
+  type LocalDirectoryResolution,
+} from './localDirectoryDepIsUpToDate.js'
 
 export interface CheckLinkedPackagesResult {
   upToDate: boolean
@@ -42,11 +45,15 @@ export interface LinkedPackagesContext {
   injectWorkspacePackages?: boolean
   /**
    * Skips comparing the dependencies of local directory dependencies with
-   * their lockfile snapshots. That comparison errs toward reporting a stale
-   * lockfile, which only costs a re-resolve, so a caller that fails on a
-   * stale verdict skips it.
+   * their lockfile snapshots, for a lockfile whose snapshots already carry
+   * the effects of hooks, overrides, and peer binding, such as the one
+   * `pnpm deploy` writes.
    */
   skipLocalDirectoryDependencies?: boolean
+  /** The settings and hooks the lockfile was resolved with. */
+  resolution?: LocalDirectoryResolution
+  /** See `LocalDirectoryDepContext.hookedManifests`. */
+  hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
 }
 
 interface ProjectToCheck {
@@ -115,7 +122,7 @@ async function checkLocalDirectoryDependency (
   if (pkgSnapshot == null) {
     return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
   }
-  if (!ctx.skipLocalDirectoryDependencies && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot)) {
+  if (!ctx.skipLocalDirectoryDependencies && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
   return isWorkspaceRange
@@ -262,4 +269,9 @@ function isLocalDirectoryRef (ref: string): boolean {
 
 function outdated (detailedReason: string): CheckLinkedPackagesResult {
   return { upToDate: false, detailedReason }
+}
+
+/** The aliases a project depends on, which supply the peers of its dependencies. */
+function dependencyAliases (manifest: ProjectManifest): Record<string, true> {
+  return Object.fromEntries(DEPENDENCIES_FIELDS.flatMap((depField) => Object.keys(manifest[depField] ?? {}).map((alias) => [alias, true as const])))
 }

@@ -8,14 +8,14 @@ use std::io::{Read, Write};
 
 const MANIFEST: &[u8] = br#"{"name":"tar-pkg","version":"1.0.0"}"#;
 
-fn small_tar() -> Vec<u8> {
+pub(super) fn small_tar() -> Vec<u8> {
     tar_with_entries(&[
         ("package/package.json", MANIFEST),
         ("package/index.js", b"module.exports = 1\n"),
     ])
 }
 
-fn sha512(bytes: &[u8]) -> Integrity {
+pub(super) fn sha512(bytes: &[u8]) -> Integrity {
     let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
     opts.input(bytes);
     opts.result()
@@ -27,7 +27,7 @@ fn zstd_bytes(bytes: &[u8]) -> Vec<u8> {
 
 /// A tar larger than the threshold at which a body with a known length is
 /// extracted while it downloads, recovered from the `.tgz` fixture builder.
-fn large_tar() -> Vec<u8> {
+pub(super) fn large_tar() -> Vec<u8> {
     let tgz = incompressible_tarball(5 * 1024 * 1024);
     let mut tar = Vec::new();
     flate2::read::GzDecoder::new(tgz.as_slice()).read_to_end(&mut tar).expect("gunzip fixture");
@@ -43,7 +43,10 @@ async fn fetch(
     fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         url,
-        integrity,
+        &crate::archive_integrity::ArchiveVerification::new(
+            integrity,
+            crate::IntegrityKind::Resource,
+        ),
         unpacked_size,
         crate::TarLimits::default(),
         0,
@@ -57,10 +60,10 @@ async fn fetch(
         false,
     )
     .await
-    .map(|(integrity, files, _)| (integrity, files))
+    .map(|(integrity, files, _)| (integrity.resource, files))
 }
 
-async fn serve(
+pub(super) async fn serve(
     body: Vec<u8>,
     content_encoding: Option<&str>,
 ) -> (mockito::ServerGuard, mockito::Mock, String) {
@@ -197,7 +200,7 @@ async fn the_configured_payload_ceiling_applies_without_an_unpacked_size() {
     let error = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        None,
+        &crate::archive_integrity::ArchiveVerification::new(None, crate::IntegrityKind::Resource),
         None,
         crate::TarLimits::new(8),
         0,
@@ -300,7 +303,7 @@ async fn a_streamed_payload_failure_is_reported_over_the_drain_that_follows() {
     let error = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        None,
+        &crate::archive_integrity::ArchiveVerification::new(None, crate::IntegrityKind::Resource),
         streamed_size,
         limits,
         0,

@@ -18,11 +18,14 @@ pub use logging::{LogConfig, LogFormat, LogLevel};
 pub use pnpr_policy::{TeamDirectory, Teams};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
+pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
 pub use storage_config::{CacheConfig, StorageConfig, default_cache_dir};
-pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
 pub use trusted_proxy_header::TrustedProxyHeader;
 pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
 pub use web_ui::UiConfig;
+
+pub(crate) use secrets::resolve_secrets;
+pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
 
 mod access;
 use access::{build_admins, build_teams};
@@ -38,15 +41,15 @@ mod byte_size;
 mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
-    DefaultRegistryFile, FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile,
-    RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
-    parse_config_file, reject_removed_blocks,
+    DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
+    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock,
+    RemovedUplinksBlock, RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile,
+    UpstreamFile,
 };
 
 mod hosted;
 mod ip_network;
 mod loading;
-
 mod logging;
 use logging::build_log_config;
 
@@ -58,9 +61,8 @@ use registry_graph::{
 
 mod s3;
 mod scim;
-
+mod secrets;
 mod storage_config;
-
 mod trusted_proxy_header;
 
 mod upstream;
@@ -90,8 +92,7 @@ use std::{
     time::Duration,
 };
 
-/// The bundled verdaccio-shaped YAML config, mirrored from
-/// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
+/// The bundled default YAML config. Other crates can
 /// pull this in directly when they need pnpr's defaults
 /// (upstreams, package routing) without reading a file from disk —
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
@@ -115,14 +116,9 @@ pub enum ConfigSource {
 
 /// Runtime configuration for the pnpm registry server.
 ///
-/// The persisted (YAML) shape follows verdaccio's `config.yaml` —
-/// `storage`, `upstreams`, `packages` — restricted to the subset
-/// pnpr implements (no web UI, auth, plugins, or logs
-/// routing).
-///
+/// Top-level sections configure storage, auth, routing, and server behavior.
 /// Runtime-only fields (`listen`, `public_url`, `packument_ttl`)
-/// are set by the binary's CLI flags after the YAML is loaded,
-/// matching verdaccio's CLI overrides.
+/// can be overridden by the binary's CLI flags after the YAML is loaded.
 #[cfg_attr(
     dylint_lib = "perfectionist",
     expect(
@@ -133,8 +129,8 @@ pub enum ConfigSource {
 #[derive(Clone)]
 pub struct Config {
     /// Format and level for the `tracing-subscriber` the binary
-    /// installs at startup. Sourced from the YAML `log:` object
-    /// (Verdaccio 6+ shape). Defaults to pretty/info.
+    /// installs at startup. Sourced from the YAML `log:` object.
+    /// Defaults to pretty/info.
     pub logs: LogConfig,
     /// Optional local OSV database used by mounted surfaces to reject
     /// known vulnerable npm package versions without live API calls.
@@ -145,7 +141,11 @@ pub struct Config {
     /// 32-byte value from the OS CSPRNG at startup (private entries then
     /// live only for this process's lifetime).
     pub resolution_cache_secret: Arc<[u8]>,
-    /// Whether `secret:` was explicitly provided in configuration rather than generated randomly.
+    /// Secret keying private cache HMACs (resolution cache and upstream cache digest).
+    pub cache_secret: Arc<[u8]>,
+    /// Secret keying OCI token signing.
+    pub oci_secret: Arc<[u8]>,
+    /// Whether `secret:` or `secrets:` was explicitly provided in configuration rather than generated randomly.
     pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,
@@ -160,6 +160,8 @@ impl std::fmt::Debug for Config {
             .field("logs", &self.logs)
             .field("osv", &self.osv)
             .field("resolution_cache_secret", &"[redacted]")
+            .field("cache_secret", &"[redacted]")
+            .field("oci_secret", &"[redacted]")
             .field("has_configured_secret", &self.has_configured_secret)
             .field("http", &self.http)
             .field("storage", &self.storage)
@@ -252,8 +254,11 @@ pub enum TarballFormat {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct OciConfig {
+    #[serde(default, rename = "bearerAuth", alias = "bearer_auth")]
     pub bearer_auth: bool,
+    #[serde(default, rename = "maxBlobBytes", alias = "max_blob_bytes")]
     pub max_blob_bytes: u64,
+    #[serde(default, rename = "maxManifestBytes", alias = "max_manifest_bytes")]
     pub max_manifest_bytes: usize,
 }
 
@@ -377,6 +382,7 @@ pub struct FeatureOverrides {
     pub disable_registry: bool,
     pub disable_resolver: bool,
     pub disable_artifacts: bool,
+    pub disable_pipeline: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -421,7 +427,7 @@ fn build_features(
             orgs: parse_storage_access(artifacts_file.orgs)?,
             quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
-        pipeline: PipelineFeature { enabled: pipeline_file.enabled },
+        pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },
     })
 }
 
@@ -462,41 +468,6 @@ fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryE
             .map(|network| IpNetwork::parse(network))
             .collect::<Result<_, _>>()?,
     })
-}
-
-/// Minimum length for an operator-configured `secret:`. A shorter value makes
-/// the private-cache descriptor HMAC guessable, defeating its "not
-/// correlatable offline" property; a generated secret is 32 bytes.
-const MIN_RESOLUTION_SECRET_LEN: usize = 16;
-
-/// The HMAC secret keying private resolution-cache entries: the YAML
-/// `secret:` when set (rejected if too short to be a safe HMAC key), else a
-/// fresh per-process value.
-fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
-    match secret {
-        Some(secret) if !secret.is_empty() => {
-            if secret.len() < MIN_RESOLUTION_SECRET_LEN {
-                return Err(RegistryError::InvalidConfig {
-                    reason: format!(
-                        "`secret:` must be at least {MIN_RESOLUTION_SECRET_LEN} bytes to key the \
-                         private resolution-cache HMAC (it is {})",
-                        secret.len(),
-                    ),
-                });
-            }
-            Ok(Arc::from(secret.as_bytes().to_vec()))
-        }
-        _ => Ok(random_secret()),
-    }
-}
-
-/// 32 bytes from the OS CSPRNG, for a deployment that configures no
-/// `secret:`. Private cache entries then live only for this process.
-#[must_use]
-pub fn random_secret() -> Arc<[u8]> {
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
-    Arc::from(bytes.to_vec())
 }
 
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {

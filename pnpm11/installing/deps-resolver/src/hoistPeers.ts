@@ -1,6 +1,8 @@
 import { getPeerVersionRange } from '@pnpm/deps.peer-range'
 import type { PreferredVersions, VersionSelectors } from '@pnpm/resolving.resolver-base'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import type { PackageManifest } from '@pnpm/types'
+import * as semverUtils from '@yarnpkg/core/semverUtils'
 import semver from 'semver'
 
 /** One workspace-root dependency that a missing peer can be satisfied with. */
@@ -8,6 +10,60 @@ export interface HoistableRootDep {
   alias: string
   pkgName: string
   normalizedBareSpecifier?: string
+}
+
+export type ProviderPick<Provider> =
+  | { kind: 'bound', provider: Provider, pinnedByLockfile: boolean }
+  | { kind: 'missing' }
+
+/** What a node's scope offers for one of its declared peers. */
+export interface PeerScope<Provider extends { version: string }> {
+  /** The provider the nearest ancestor binds the name to. */
+  inherited?: Provider
+  /** Whether `inherited` wins over a locked provider. Only asked when a locked provider would otherwise win. */
+  inheritedMustWin: () => boolean
+  /** The provider the wanted lockfile recorded, resolved to the same path in this pass. Built only when asked. */
+  locked?: () => Provider
+}
+
+/**
+ * Binds the peer `peerRange` of a node to a provider in `scope`. The locked
+ * provider wins when the inherited one need not win and it satisfies the
+ * range. Otherwise the inherited provider binds.
+ *
+ * Two decisions that shape a peer suffix are not provider picks: the cycle
+ * cut, and the variant `dedupePeerDependents` keeps.
+ */
+export function providerFor<Provider extends { version: string }> (
+  peerRange: string,
+  scope: PeerScope<Provider>
+): ProviderPick<Provider> {
+  if (scope.locked != null && !scope.inheritedMustWin()) {
+    const locked = scope.locked()
+    if (semverUtils.satisfiesWithPrereleases(locked.version, getPeerVersionRange(peerRange), true)) {
+      return { kind: 'bound', provider: locked, pinnedByLockfile: true }
+    }
+  }
+  return scope.inherited == null
+    ? { kind: 'missing' }
+    : { kind: 'bound', provider: scope.inherited, pinnedByLockfile: false }
+}
+
+/**
+ * The peers of `pkg` that shadow its own `dependencies` entry of the same
+ * name, which the peer edge therefore supplies. Under `autoInstallPeers`
+ * every required peer shadows, since it is auto-installed. Otherwise, and
+ * for optional peers, only the peers `inScope` shadow.
+ */
+export function getPeerShadowedDependencies (
+  pkg: Pick<PackageManifest, 'dependencies' | 'peerDependencies' | 'peerDependenciesMeta'>,
+  opts: { autoInstallPeers: boolean, inScope: (alias: string) => boolean }
+): string[] {
+  const { dependencies, peerDependencies, peerDependenciesMeta } = pkg
+  if (!peerDependencies || !dependencies) return []
+  return Object.keys(peerDependencies).filter((peerDep) =>
+    (opts.autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true) || opts.inScope(peerDep)
+  )
 }
 
 export interface HoistPeersOptions {
@@ -122,6 +178,22 @@ function pickPreferredPeerSpec (
 }
 
 /**
+ * The `locked` versions this run resolved, then every version it resolved,
+ * then the `locked` ones. A locked version the run no longer resolves
+ * survives only as a lockfile weight, since whatever provided it has moved
+ * on, so it must not outrank what the graph now holds. A version only the
+ * lockfile holds loses to the resolved ones even when nothing is locked.
+ */
+function getOptionalPeerTiers (
+  selectors: VersionSelectors,
+  { locked = new Set(), lockfileOnly }: { locked?: Set<string>, lockfileOnly?: Set<string> }
+): Array<Set<string>> {
+  const resolved = new Set(Object.keys(selectors).filter((version) => !lockfileOnly?.has(version)))
+  const reached = new Set([...locked].filter((version) => resolved.has(version)))
+  return [reached, resolved, locked].filter((tier) => tier.size > 0)
+}
+
+/**
  * The versions this install resolved, so a version in `lockfileOnly` is
  * picked only when no other version qualifies. Its provider has moved on, so
  * it must not outrank a version the install resolved.
@@ -206,6 +278,14 @@ function omitLockfilePins (selectors: VersionSelectors | undefined): VersionSele
   return Object.keys(resolvedSelectors).length > 0 ? resolvedSelectors : undefined
 }
 
+/** The wanted lockfile's view of the optional peers an importer may hoist. */
+export interface OptionalPeerLockfileVersions {
+  /** The peer versions the wanted lockfile pinned for the importer. See `getImporterLockedPeerVersions`. */
+  lockedVersions?: Map<string, Set<string>>
+  /** See `HoistPeersOptions.lockfileOnlyVersions`. */
+  lockfileOnlyVersions?: Map<string, Set<string>>
+}
+
 export function getHoistableOptionalPeers (
   allMissingOptionalPeers: Record<string, string[]>,
   allPreferredVersions: PreferredVersions,
@@ -214,7 +294,8 @@ export function getHoistableOptionalPeers (
    * Rejects a candidate that cannot be installed at the importer, such as one
    * whose own peers the importer provides at versions outside their ranges.
    */
-  acceptsCandidate: (name: string, version: string) => boolean = () => true
+  acceptsCandidate: (name: string, version: string) => boolean = () => true,
+  lockfile: OptionalPeerLockfileVersions = {}
 ): Record<string, string> {
   const optionalDependencies: Record<string, string> = {}
   for (const [missingOptionalPeerName, ranges] of Object.entries(allMissingOptionalPeers)) {
@@ -223,7 +304,12 @@ export function getHoistableOptionalPeers (
     // Strict, unlike the required-peer pick: an optional peer nobody declared
     // is installed only to deduplicate, so a prerelease its range rejects is
     // not worth splitting a package family over.
-    const maxSatisfyingVersion = pickProviderVersion(allPreferredVersions[missingOptionalPeerName], {
+    const selectors = allPreferredVersions[missingOptionalPeerName]
+    const maxSatisfyingVersion = pickProviderVersion(selectors, {
+      tiers: getOptionalPeerTiers(selectors, {
+        locked: lockfile.lockedVersions?.get(missingOptionalPeerName),
+        lockfileOnly: lockfile.lockfileOnlyVersions?.get(missingOptionalPeerName),
+      }),
       qualifies: (version) => (rootRange == null || semver.satisfies(version, rootRange)) &&
         ranges.every(range => semver.satisfies(version, range)) &&
         acceptsCandidate(missingOptionalPeerName, version),

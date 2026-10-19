@@ -1,6 +1,6 @@
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { REGISTRY_MOCK_URL } from '@pnpm/testing.registry-mock'
 
-export const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+export const REGISTRY_URL = REGISTRY_MOCK_URL
 
 /**
  * Common default options shared across all command handler tests.

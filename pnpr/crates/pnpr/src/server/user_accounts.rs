@@ -54,6 +54,55 @@ pub(crate) async fn get_profile(
     private_no_cache(serve_profile(&identity))
 }
 
+/// `GET /-/user/org.couchdb.user:{name}` — fetch a `CouchDB` user document.
+/// Used by `npm owner add` to verify that the prospective maintainer exists
+/// before mutating the package document.
+pub(crate) async fn get_user(
+    State(state): State<AppState>,
+    TargetRegistry(_): TargetRegistry,
+    Path(path): Path<UserPath>,
+) -> Response {
+    let Some(name) = path.user.strip_prefix("org.couchdb.user:") else {
+        return not_found();
+    };
+    private_no_cache(match check_user_exists(&state, name).await {
+        Ok(true) => json_response(
+            StatusCode::OK,
+            &json!({
+                "_id": format!("org.couchdb.user:{name}"),
+                "name": name,
+                "email": "",
+                "roles": [],
+            }),
+        ),
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            [(header::CONTENT_TYPE, "application/json")],
+            json!({
+                "error": "not_found",
+                "reason": "User not found",
+            })
+            .to_string(),
+        )
+            .into_response(),
+        Err(err) => err.into_response(),
+    })
+}
+
+pub(super) async fn check_user_exists(state: &AppState, name: &str) -> Result<bool, RegistryError> {
+    if super::scim::is_deprovisioned(state, name)? {
+        return Ok(false);
+    }
+    let users = &state.inner.identity.auth.users;
+    if users.password_hash(name).await?.is_some() {
+        return Ok(true);
+    }
+    if super::scim::is_active_scim_user(state, name)? {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 /// The account routes capture their own parameter alongside the optional
 /// `{registry}`, so each needs a named shape rather than a bare `Path<String>`:
 /// the prefixed registration captures two segments and a single-value `Path`
@@ -138,8 +187,10 @@ pub(super) async fn add_user(
     user_upsert_response(outcome, &username, &token)
 }
 
-fn is_reserved_username(state: &AppState, name: &str) -> bool {
-    state.inner.config.identity.is_reserved_name(name)
+/// A configured reserved name, or a username a SCIM client provisioned.
+fn is_reserved_username(state: &AppState, name: &str) -> Result<bool, RegistryError> {
+    Ok(state.inner.config.identity.is_reserved_name(name)
+        || super::scim::is_provisioned(state, name)?)
 }
 
 fn user_upsert_response(outcome: UpsertOutcome, username: &str, token: &str) -> Response {
@@ -171,14 +222,17 @@ async fn log_in(
     let users = &state.inner.identity.auth.users;
     let verified = users.password_hash(name).await?;
     if verified.is_none() {
-        if is_reserved_username(state, name) {
+        if is_reserved_username(state, name)? {
             return Err(RegistryError::ReservedUsername { name: name.to_string() });
         }
         // Tokens a removed account left behind must not reach the account
         // this login may create, not even while it is being created.
-        super::user_admin::revoke_all_tokens(state, name).await?;
+        state.inner.identity.auth.revoke_all_tokens(name).await?;
     }
     let (outcome, username) = users.add_or_login(name, password).await?;
+    if matches!(outcome, UpsertOutcome::Created) {
+        take_back_if_reserved(state, &username, password).await?;
+    }
     let token = state.inner.identity.auth.tokens.issue(&username).await?;
     let refused = match super::scim::is_deprovisioned(state, &username) {
         Ok(false) => None,
@@ -219,6 +273,31 @@ async fn undo_login(
         auth.users.delete_user(username).await?;
     }
     Ok(())
+}
+
+/// Fail, removing the account a login created, if its name is reserved or the
+/// unreadable SCIM directory cannot clear it. A login sees an unreserved name
+/// when an admin removes the account, or a SCIM client provisions the name,
+/// after the login looked it up. An account that no longer accepts the login's
+/// password is an admin's rewrite and stays. The name's tokens are revoked
+/// either way, since a concurrent login may have issued one for the created
+/// account.
+async fn take_back_if_reserved(
+    state: &AppState,
+    username: &str,
+    password: &str,
+) -> Result<(), RegistryError> {
+    let refused = match is_reserved_username(state, username) {
+        Ok(false) => return Ok(()),
+        Ok(true) => RegistryError::ReservedUsername { name: username.to_string() },
+        Err(err) => err,
+    };
+    let auth = &state.inner.identity.auth;
+    if still_the_same_account(state, username, password, None).await? {
+        auth.users.delete_user(username).await?;
+    }
+    auth.revoke_all_tokens(username).await?;
+    Err(refused)
 }
 
 /// Whether the account a login verified, or created, is still the one stored,

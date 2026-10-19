@@ -480,13 +480,13 @@ fn config_drift_full_resolve_keeps_still_satisfied_pins() {
         )
         .expect("write the member package.json");
     };
-    // The direct exact dep dedupes foobar's `^100.0.0` edge onto
-    // 100.0.0 while it is the only locked version.
+    // Member `a`'s direct exact dep dedupes foobar's `^100.0.0` edge
+    // onto 100.0.0 while member `b` locks 100.1.0.
     write_member(
         "a",
         serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0", "@pnpm.e2e/foo": "100.0.0" }),
     );
-    write_member("b", serde_json::json!({}));
+    write_member("b", serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }));
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
@@ -507,10 +507,9 @@ fn config_drift_full_resolve_keeps_still_satisfied_pins() {
         .expect("wanted lockfile");
     assert_eq!(foobar_foo_child(&wanted).as_deref(), Some("@pnpm.e2e/foo@100.0.0"));
 
-    // Lock a second, higher foo through the other member; foobar's
+    // Drop `a`'s direct foo while `b`'s 100.1.0 stays unchanged; foobar's
     // subtree is untouched and keeps its recorded 100.0.0 child.
     write_member("a", serde_json::json!({ "@pnpm.e2e/foobar": "100.0.0" }));
-    write_member("b", serde_json::json!({ "@pnpm.e2e/foo": "100.1.0" }));
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()

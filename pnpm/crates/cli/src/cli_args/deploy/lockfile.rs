@@ -223,6 +223,10 @@ fn convert_deploy_packages(
         }
         let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
+        let (peer_dependencies, peer_dependencies_meta) = selected
+            .project_info(&project_root)
+            .map(|project| project.peer_blocks.clone())
+            .unwrap_or_default();
         packages.insert(
             package_key,
             PackageMetadata {
@@ -238,8 +242,8 @@ fn convert_deploy_packages(
                 has_bin: selected.has_bin(&project_root),
                 prepare: None,
                 bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
+                peer_dependencies,
+                peer_dependencies_meta,
             },
         );
     }

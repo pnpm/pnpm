@@ -2,12 +2,14 @@
 import { expect, test } from '@jest/globals'
 import {
   depPathToFilename,
+  getBoundPeerProviders,
   getPkgIdWithPatchHash,
   hasPatchHash,
   isAbsolute,
   isRuntimeDepPath,
   packageRootLinkTarget,
   parse,
+  parsePeerBindings,
   parseRegistryQualifiedVersion,
   refToRelative,
   removeSuffix,
@@ -251,4 +253,17 @@ test('depPathToFilename() keeps registry versions with build metadata without a 
   expect(depPathToFilename('foo@1.0.0+build.5', 120)).toBe('foo@1.0.0+build.5')
   expect(depPathToFilename('esbuild@0.0.0-dev+abc(foo@1.0.0)', 120)).toBe('esbuild@0.0.0-dev+abc_foo@1.0.0')
   expect(depPathToFilename('foo@work:1.0.0+build', 120)).toBe('foo@work+1.0.0+build')
+})
+
+test('parsePeerBindings()', () => {
+  expect(parsePeerBindings('a@1.0.0')).toBeUndefined()
+  const explicit = parsePeerBindings('a@1.0.0(b@2.0.0(c@1.0.0))(c@1.0.0)')!
+  expect(explicit).toStrictEqual({
+    kind: 'explicit',
+    segments: ['b@2.0.0(c@1.0.0)', 'c@1.0.0'],
+  })
+  expect(getBoundPeerProviders(explicit)).toStrictEqual(new Set(['b@2.0.0', 'c@1.0.0']))
+  const hashed = parsePeerBindings('a@1.0.0(0123456789abcdef0123456789abcdef)')!
+  expect(hashed).toStrictEqual({ kind: 'hashed' })
+  expect(getBoundPeerProviders(hashed)).toBeUndefined()
 })

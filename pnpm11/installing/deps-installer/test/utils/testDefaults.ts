@@ -6,7 +6,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { createTempStore } from '@pnpm/testing.temp-store'
 import type { RegistriesByScope } from '@pnpm/types'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 export function testDefaults<ExtraOptions> (
   opts?: ExtraOptions & {

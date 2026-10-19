@@ -3,7 +3,7 @@ import path from 'node:path'
 import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import * as dp from '@pnpm/deps.path'
 import type { PackageSnapshot, ResolvedDependencies } from '@pnpm/lockfile.types'
-import type { PkgResolutionId, PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { type PkgResolutionId, type PreferredVersions, RESOLVED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import type { SupportedArchitectures } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 
@@ -45,7 +45,6 @@ export { getPkgsInfoFromIds } from './requestDependencyPackage.js'
 export type * from './resolutionTypes.js'
 export {
   detectNamedRegistryCollision,
-  detectRegistryRevisionConflict,
   getManifestFromResponse,
 } from './resolvedPackage.js'
 export type { WantedDependency }
@@ -64,7 +63,7 @@ export async function resolveDependencies (
   const { currentParentPkgAliases, newPreferredVersions } = indexResolvedDependencies(ctx, pkgAddresses, {
     markUpdated: options.currentDepth === 0,
     preferredVersions,
-    selectorWeight: 1,
+    selectorWeight: RESOLVED_VERSION_SELECTOR_WEIGHT,
   })
   const postponedResolutionOpts: PostponedResolutionOpts = {
     directDepVersions: options.directDepVersions,
@@ -230,7 +229,6 @@ function createPostponedChildrenResolution (
     parentDepth: options.currentDepth,
     parentIds: [...options.parentIds, parentPkg.pkgId],
     updateDepth: plan.updateDepth,
-    updatePatches: options.updatePatches,
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
@@ -285,7 +283,6 @@ interface ParentOfChildren {
   lockedDependencies?: ResolvedDependencies
   parentDepth: number
   updateDepth: number
-  updatePatches?: boolean
   prefix: string
   updateMatching?: UpdateMatchingFunction
   supportedArchitectures?: SupportedArchitectures
@@ -328,7 +325,7 @@ async function resolveChildren (
 }
 
 function getChildrenResolutionOptions (
-  { parentPkg, parentIds, dependencyLockfile, lockedDependencies, parentDepth, updateDepth, updatePatches, updateMatching, prefix, supportedArchitectures }: ParentOfChildren,
+  { parentPkg, parentIds, dependencyLockfile, lockedDependencies, parentDepth, updateDepth, updateMatching, prefix, supportedArchitectures }: ParentOfChildren,
   { directDepVersions, parentPkgAliases, publishedBy }: PostponedResolutionOpts
 ): ResolvedDependenciesOptions {
   const currentResolvedDependencies = (dependencyLockfile != null)
@@ -358,7 +355,6 @@ function getChildrenResolutionOptions (
     publishedBy,
     resolvedDependencies: parentPkg.updated ? undefined : currentResolvedDependencies,
     updateDepth,
-    updatePatches,
     updateMatching,
     supportedArchitectures,
     parentIds,

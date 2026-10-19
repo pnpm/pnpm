@@ -4,13 +4,12 @@
 use super::super::{
     AppState, RegistryError,
     managed_state::{WRITE_ATTEMPTS, store_registry_record},
-    user_admin::revoke_all_tokens,
 };
 use pnpr_storage::{RegistryRecord, SCIM_DIRECTORY};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     sync::{
         Arc, Mutex, PoisonError, RwLock,
         atomic::{AtomicBool, Ordering},
@@ -57,10 +56,11 @@ impl Directory {
     }
 }
 
-/// This replica's copy of the usernames the directory marks inactive.
+/// This replica's copy of the directory's usernames, each with whether it is
+/// active.
 #[derive(Debug, Default)]
 pub(in super::super) struct ScimState {
-    inactive: RwLock<Arc<BTreeSet<String>>>,
+    active_by_name: RwLock<Arc<BTreeMap<String, bool>>>,
     /// The deprovision count of each user as this replica last read it.
     seen: Mutex<HashMap<String, u64>>,
     /// Set by a failed read of the directory, cleared by the next successful
@@ -70,12 +70,12 @@ pub(in super::super) struct ScimState {
 
 impl ScimState {
     fn publish(&self, state: &AppState, directory: &Directory) {
-        let inactive = directory.users
+        let active_by_name = directory.users
             .iter()
-            .filter(|(_, user)| !user.active)
-            .map(|(name, _)| name.clone())
+            .map(|(name, user)| (name.clone(), user.active))
             .collect();
-        *self.inactive.write().unwrap_or_else(PoisonError::into_inner) = Arc::new(inactive);
+        *self.active_by_name.write().unwrap_or_else(PoisonError::into_inner) =
+            Arc::new(active_by_name);
         self.unreadable.store(false, Ordering::Release);
         let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
         for name in newly_deprovisioned(&mut seen, directory) {
@@ -106,21 +106,45 @@ pub(in super::super) fn is_deprovisioned(
     state: &AppState,
     username: &str,
 ) -> Result<bool, RegistryError> {
+    Ok(directory_entry(state, username)? == Some(false))
+}
+
+/// Whether the directory holds `username`, active or not. Fails closed like
+/// [`is_deprovisioned`].
+pub(in super::super) fn is_provisioned(
+    state: &AppState,
+    username: &str,
+) -> Result<bool, RegistryError> {
+    Ok(directory_entry(state, username)?.is_some())
+}
+
+/// Whether `username` is active in the directory, or `None` if the directory
+/// does not hold it.
+fn directory_entry(state: &AppState, username: &str) -> Result<Option<bool>, RegistryError> {
     let Some(scim) = &state.inner.identity.managed.scim else {
-        return Ok(false);
+        return Ok(None);
     };
     if scim.unreadable.load(Ordering::Acquire) {
         return Err(RegistryError::Internal {
             reason: "the SCIM directory could not be read; sign-ins resume once it can".to_string(),
         });
     }
-    Ok(scim.inactive
+    Ok(scim.active_by_name
         .read()
         .unwrap_or_else(PoisonError::into_inner)
-        .contains(username))
+        .get(username)
+        .copied())
 }
 
-/// Read the directory and publish its inactive usernames. After a failed read
+/// Whether a user exists and is active in the SCIM directory.
+pub(in super::super) fn is_active_scim_user(
+    state: &AppState,
+    username: &str,
+) -> Result<bool, RegistryError> {
+    Ok(directory_entry(state, username)? == Some(true))
+}
+
+/// Read the directory and publish its usernames. After a failed read
 /// [`is_deprovisioned`] fails closed until a read succeeds. Reports whether the read
 /// succeeded.
 pub(in super::super) async fn reload_directory(state: &AppState, scim: &ScimState) -> bool {
@@ -199,9 +223,10 @@ pub(super) async fn clean_up_before_reactivating(
 /// replica. Other replicas refuse its sessions once they reload the
 /// directory. Safe to repeat.
 pub(super) async fn deprovision(state: &AppState, username: &str) -> Result<(), RegistryError> {
-    revoke_all_tokens(state, username).await?;
-    state.inner.identity.auth.users.delete_user(username).await?;
-    revoke_all_tokens(state, username).await?;
+    let auth = &state.inner.identity.auth;
+    auth.revoke_all_tokens(username).await?;
+    auth.users.delete_user(username).await?;
+    auth.revoke_all_tokens(username).await?;
     state.inner.identity.oidc.revoke_user_sessions(username);
     Ok(())
 }

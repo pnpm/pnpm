@@ -10,7 +10,7 @@ import { renderHelp } from 'render-help'
 import { createGlobalPolicyCallbacks } from '../resolutionPolicyManifest.js'
 import { interactiveUpdate } from './interactiveUpdate.js'
 import { selectGlobalPackageGroups } from './selectGlobalPackageGroups.js'
-import { assertPatchesOptions, update, type UpdateCommandOptions } from './update.js'
+import { update, type UpdateCommandOptions } from './update.js'
 
 export type { UpdateCommandOptions } from './update.js'
 
@@ -79,7 +79,6 @@ export function cliOptionsTypes (): Record<string, unknown> {
     'include-github-actions': Boolean,
     interactive: Boolean,
     latest: Boolean,
-    patches: Boolean,
     peer: Boolean,
     recursive: Boolean,
     workspace: Boolean,
@@ -118,10 +117,6 @@ For options that may be used with `-r`, see "pnpm help recursive"',
     description: 'Ignore version ranges in package.json',
     name: '--latest',
     shortAlias: '-L',
-  },
-  {
-    description: 'Refresh registry revisions without changing package versions',
-    name: '--patches',
   },
   {
     description: 'Update packages only in "dependencies" and "optionalDependencies"',
@@ -191,7 +186,6 @@ export async function handler (
   params: string[] = [],
   commands?: CommandHandlerMap
 ): Promise<string | undefined> {
-  assertPatchesOptions(params, opts)
   if (opts.global) {
     return updateGlobalPackages(params, opts, commands)
   }

@@ -51,14 +51,23 @@ pub(super) fn parse_storage_access(
         .into_iter()
         .map(|(name, policy)| {
             validate_registry_name(&name)?;
-            let parse = |spec: &AccessSpec| {
-                spec.to_access_list(&TeamDirectory::default())
+            let parse = |field: &str, spec: &AccessSpec| {
+                let list = spec
+                    .to_access_list(&TeamDirectory::default())
                     .map_err(|reason| RegistryError::InvalidConfig {
                         reason: format!("organization {name:?}: {reason}"),
-                    })
+                    })?;
+                if list.references_owners() {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "organization {name:?}: `$owners` is not valid for artifact `{field}` rules",
+                        ),
+                    });
+                }
+                Ok(list)
             };
             let access =
-                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
+                StorageAccess { access: parse("access", &policy.access)?, publish: parse("publish", &policy.publish)? };
             Ok((name, access))
         })
         .collect()

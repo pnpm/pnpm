@@ -1,3 +1,5 @@
+pub(crate) use spec::spec_target_and_range;
+
 mod peers;
 mod spec;
 
@@ -8,7 +10,6 @@ use super::manifest::ImporterSatisfactionCheck;
 use crate::install::lockfile_freshness::FreshnessCheckError;
 use peers::PeerShadowing;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_injected_deps_syncer::publish_source_dir;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
@@ -136,7 +137,7 @@ fn dependency_is_injected(
         .unwrap_or(false)
 }
 
-pub(super) fn is_declared_local_directory(spec: &str) -> bool {
+pub(crate) fn is_declared_local_directory(spec: &str) -> bool {
     let Some(path) = spec.strip_prefix("file:") else {
         return false;
     };
@@ -231,41 +232,56 @@ pub(super) fn unhooked_manifest(injected: &InjectedDirectory<'_>) -> Option<Pack
     };
     let on_disk = || pnpm_workspace::safe_read_project_manifest_only(injected.dir).ok().flatten();
     let publishing_project = || manifest_of_project_publishing_from(injected);
-    if injected.declared_as_file {
+    let manifest = if injected.declared_as_file {
         project_manifest().or_else(on_disk).or_else(publishing_project)
     } else {
         project_manifest().or_else(publishing_project).or_else(on_disk)
-    }
+    };
+    manifest.or_else(|| directory_name_manifest(injected.dir))
 }
 
-/// The manifest of the workspace project whose `publishConfig.directory` is
+/// The manifest the resolver gives an existing directory that nothing else
+/// describes: its name alone. A manifest that fails to read describes it
+/// too, so it gets none.
+fn directory_name_manifest(dir: &Path) -> Option<PackageManifest> {
+    if !dir.is_dir() || !matches!(pnpm_workspace::safe_read_project_manifest_only(dir), Ok(None)) {
+        return None;
+    }
+    let name = dir
+        .file_name()?
+        .to_string_lossy()
+        .into_owned();
+    Some(PackageManifest::from_value(dir.join("package.json"), serde_json::json!({ "name": name })))
+}
+
+/// The manifest of the project whose `publishConfig.directory` is
 /// `injected.dir`: the project's entry in `manifests_by_dir` when it has one,
-/// else its `package.json`. Only projects between `injected.dir` and the
-/// workspace root are considered.
+/// else its `package.json`. Workspace dependencies only consider projects
+/// within the workspace root; `file:` dependencies walk every ancestor,
+/// matching [`pnpm_package_manifest::find_parent_publish_manifest`].
 fn manifest_of_project_publishing_from(
     injected: &InjectedDirectory<'_>,
 ) -> Option<PackageManifest> {
     let target = pnpm_fs::lexical_normalize(injected.dir);
-    if !target.starts_with(pnpm_fs::lexical_normalize(injected.workspace_root)) {
+    let workspace_root = pnpm_fs::lexical_normalize(injected.workspace_root);
+    if !injected.declared_as_file && !target.starts_with(&workspace_root) {
         return None;
     }
-    let mut candidate = injected.dir.parent()?;
-    loop {
+    for candidate in target.ancestors().skip(1) {
+        if !injected.declared_as_file && !candidate.starts_with(&workspace_root) {
+            return None;
+        }
         let manifest = injected.manifests_by_dir
-            .get(&pnpm_fs::lexical_normalize(candidate))
+            .get(candidate)
             .map(|manifest| (*manifest).clone())
             .or_else(|| pnpm_workspace::safe_read_project_manifest_only(candidate).ok().flatten());
         if let Some(manifest) = manifest
-            && pnpm_fs::lexical_normalize(&publish_source_dir(candidate, Some(manifest.value())))
-                == target
+            && pnpm_package_manifest::publishes_from_directory(candidate, manifest.value(), &target)
         {
             return Some(manifest);
         }
-        if candidate == injected.workspace_root {
-            return None;
-        }
-        candidate = candidate.parent()?;
     }
+    None
 }
 
 fn check_single_directory_dep_freshness(
@@ -348,8 +364,14 @@ fn child_is_fresh(
     match recorded_child(snapshot, name, recorded_in) {
         Some(recorded) => {
             spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, &child.bare_specifier, recorded)
+                .unwrap_or(check.optional_exclusions.frozen_lockfile)
         }
-        None => child.optional && check.optional_exclusions.allow_unresolved,
+        // A child recorded as required has changed, not gone unresolved.
+        None => {
+            child.optional
+                && check.optional_exclusions.frozen_lockfile
+                && recorded_child(snapshot, name, RecordedDeps::Required).is_none()
+        }
     }
 }
 

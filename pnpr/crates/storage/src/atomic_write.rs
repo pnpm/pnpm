@@ -97,6 +97,12 @@ pub async fn remove_atomic_write_temps(path: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Whether `name` is a file name [`unique_tmp_path`] produced.
+pub(crate) fn is_atomic_write_temp_name(name: &str) -> bool {
+    name.match_indices(".tmp.")
+        .any(|(at, marker)| is_atomic_write_temp_suffix(&name.as_bytes()[at + marker.len()..]))
+}
+
 pub(super) fn is_atomic_write_temp_suffix(suffix: &[u8]) -> bool {
     let mut parts = suffix.split(|byte| *byte == b'.');
     let (Some(pid), Some(counter), Some(random), None) =

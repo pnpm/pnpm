@@ -5,8 +5,8 @@ use super::{
 };
 use pnpm_lockfile::{
     BundledDependencies, LockfileFormError, LockfileFormOptions, LockfileResolution, PackageKey,
-    PackageMetadata, PeerDependencyMeta, PkgName, PkgNameVerPeer, PkgVerPeer, RegistryOptions,
-    SnapshotDepRef, SnapshotEntry, registry_for_package, registry_server_type,
+    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, RegistryOptions, SnapshotDepRef,
+    SnapshotEntry, registry_for_package, registry_server_type,
 };
 use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use rayon::prelude::*;
@@ -171,7 +171,8 @@ pub(super) fn build_package_metadata(
     lockfile_form: LockfileFormOptions<'_>,
 ) -> Result<PackageMetadata, LockfileFormError> {
     let manifest = node.resolve_result.package.manifest.as_deref();
-    let (peer_dependencies, peer_dependencies_meta) = build_peer_dep_blocks(node);
+    let (peer_dependencies, peer_dependencies_meta) =
+        pnpm_resolving_deps_resolver::lockfile_peer_blocks(node.edges.peer_set.declared());
     let resolution_version = match metadata_key.suffix.registry_qualified() {
         Some((_, version)) => version.to_string(),
         None => metadata_key.suffix.version().to_string(),
@@ -289,30 +290,6 @@ pub fn manifest_has_bin(manifest: Option<&Value>) -> Option<bool> {
                 .is_some_and(|path| !path.is_empty())
         });
     (has_bin || has_bin_directory).then_some(true)
-}
-/// Returned `Option`-pair from [`build_peer_dep_blocks`].
-pub(super) type PeerDepBlocks =
-    (Option<HashMap<String, String>>, Option<HashMap<String, PeerDependencyMeta>>);
-/// Split the package's declared peers into the `peerDependencies`
-/// (name → range) and `peerDependenciesMeta` (name → `{ optional: true }`)
-/// blocks written onto `packages:`. Every declared peer is recorded,
-/// whether or not this install takes it, so the entry is the same in every
-/// scope the package resolves in.
-pub(super) fn build_peer_dep_blocks(node: &DependenciesGraphNode) -> PeerDepBlocks {
-    let declared = node.edges.peer_set.declared();
-    if declared.is_empty() {
-        return (None, None);
-    }
-    let mut peers: HashMap<String, String> = HashMap::new();
-    let mut peers_meta: HashMap<String, PeerDependencyMeta> = HashMap::new();
-    for (name, peer) in declared {
-        peers.insert(name.clone(), peer.version.clone());
-        if peer.optional {
-            peers_meta.insert(name.clone(), PeerDependencyMeta { optional: true });
-        }
-    }
-    let peers_meta = (!peers_meta.is_empty()).then_some(peers_meta);
-    (Some(peers), peers_meta)
 }
 /// Build the per-snapshot [`SnapshotEntry`] for this depPath: the
 /// `dependencies` / `optionalDependencies` partition follows the

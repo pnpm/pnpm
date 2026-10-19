@@ -43,7 +43,6 @@ s3:
   prefix: packages
   accessKeyId: AKIA-test
   secretAccessKey: secret-test
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.storage.hosted_backend {
@@ -66,7 +65,6 @@ backend:
   libsql:
     url: libsql://db.turso.io
     authToken: tok-secret
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -85,7 +83,6 @@ storage: /var/lib/pnpr
 backend:
   libsql:
     url: http://127.0.0.1:8080
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -105,8 +102,7 @@ backend:
   libsql:
     url: libsql://db.turso.io
     replicaPath: auth-replica.db
-    syncIntervalSecs: 15
-upstreams: {}
+    syncInterval: 15s
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -130,7 +126,6 @@ backend:
   libsql:
     url: libsql://db.turso.io
     replicaPath: /var/lib/pnpr/auth-replica.db
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -151,11 +146,24 @@ backend:
     url: libsql://db.turso.io
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("a backend block must not select two databases");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn libsql_backend_rejects_subsecond_sync_interval() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+    syncInterval: 500ms
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("subsecond syncInterval must be rejected");
+    assert!(err.to_string().contains("backend.libsql.syncInterval"), "{err}");
 }
 
 // ----- serde defaults ---------------------------------------------------
@@ -165,7 +173,7 @@ fn yaml_with_no_storage_uses_default_storage_string() {
     // `storage:` is absent entirely — `default_storage_string`
     // supplies `"./storage"`, which `resolve_relative` then joins
     // to the config-file's parent dir.
-    let yaml = "upstreams: {}\n";
+    let yaml = "cors: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage.hosted_dir, PathBuf::from("/etc/pnpr/./storage"));
 }

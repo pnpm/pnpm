@@ -1,8 +1,12 @@
 pub mod journal;
 
+pub mod layout;
+
 pub mod publish;
 
 pub mod streaming;
+
+pub mod tombstones;
 
 pub mod upload;
 
@@ -28,7 +32,14 @@ pub use registry_records::{RegistryRecord, SCIM_DIRECTORY};
 
 pub use staged_records::PipelineRunKey;
 
+pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
+
+pub use layout_state::HostedLayout;
+
 mod tar_integrities;
+
+mod layout_state;
+use layout_state::namespace;
 
 mod staged_records;
 
@@ -77,15 +88,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
-const DOCUMENT_FILE: &str = "package.json";
-/// How deep the hosted walk looks for a package document.
-///
-/// A name is at most 255 bytes and every component past the first costs at
-/// least two of them, so this is the deepest a name can be rather than a
-/// policy of its own: the object-store backend applies no depth limit, and a
-/// walk that stopped shallower would hide a repository from one backend that
-/// the other lists.
-const MAX_NAME_COMPONENTS: usize = 128;
+use layout::{BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, decode_segment, encode_segment};
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
 pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
 /// Bounds both the persisted candidate set and work triggered by one digest request.
@@ -122,8 +125,7 @@ pub enum CachedDocument {
     Stale,
 }
 
-/// Verdaccio-shaped storage split into two stores with different
-/// durability guarantees:
+/// Storage split into two stores with different durability guarantees:
 ///
 /// * `hosted` — the authoritative source of truth: packages this
 ///   server hosts directly (published through its API) plus the content
@@ -136,26 +138,15 @@ pub enum CachedDocument {
 ///   wipe at any time; it self-heals on the next request. Always local,
 ///   on scratch/ephemeral disk.
 ///
-/// Both use the same logical layout:
-///
-/// ```text
-/// <root>/
-///   <package>/
-///     package.json
-///     <blob filename>
-///   .revisions/sha512/<digest>/
-///     index.json
-///     <package-version-hash>.json
-/// ```
-///
-/// For scoped packages the package directory is `<root>/@scope/<name>/`.
-/// A package's document is always `package.json`; its blobs sit flat
-/// beside it (`<basename>-<version>.tgz` on npm) — no `-/` subdirectory.
-/// This is the layout `@pnpm/registry-mock` (and verdaccio itself)
-/// publishes, so a populated verdaccio storage can be served directly
-/// in static mode.
+/// Both lay out packages as [`layout`] describes. A `Storage` addresses one
+/// hosted namespace, the default one unless [`Storage::for_hosted`] picked
+/// an org's, and the records every namespace shares.
 #[derive(Debug, Clone)]
 pub struct Storage {
+    /// The whole hosted store: its layout marker, the shared records, and
+    /// the publish journal.
+    pub(crate) root: Arc<dyn HostedBackend>,
+    /// One namespace of `root`.
     hosted: Arc<dyn HostedBackend>,
     cached: Store,
     /// The hosted backend's tar-integrity namespace, shared by every
@@ -173,7 +164,20 @@ pub enum RangedBlob {
 /// A file in the hosted namespace, for offline maintenance.
 #[derive(Debug)]
 pub struct HostedBlobFile {
-    pub path: String,
+    /// The package or repository the file belongs to.
+    pub package: String,
+    /// The blob's file name, or `None` for the package's document.
+    pub blob: Option<String>,
+    pub modified: SystemTime,
+    pub size: u64,
+}
+
+/// When a cached document was written and how large it is, so a value
+/// derived from it can tell whether it still describes the document: any
+/// rewrite changes the stamp, save one of the same size within a timestamp
+/// tick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentStamp {
     pub modified: SystemTime,
     pub size: u64,
 }
@@ -206,7 +210,7 @@ impl Storage {
         cache_storage: PathBuf,
     ) -> Result<Self> {
         let cached = Store::new(cache_storage.clone());
-        let hosted: Arc<dyn HostedBackend> = match hosted {
+        let root: Arc<dyn HostedBackend> = match hosted {
             HostedStoreConfig::Fs => Arc::new(Store::new(storage)),
             HostedStoreConfig::S3(settings) => Arc::new(S3Store::new(
                 build_s3_store(settings)?,
@@ -219,8 +223,9 @@ impl Storage {
                 cache_storage,
             )),
         };
-        let tar_integrities = hosted.namespaced(tar_integrities::NAMESPACE);
-        Ok(Self { hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
+        let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
+        let hosted = namespace(&root, "");
+        Ok(Self { root, hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
     }
 
     /// Inventory all regular files, including repositories with no document
@@ -230,15 +235,10 @@ impl Storage {
         self.hosted.list_blob_files()
     }
 
-    /// Build the filesystem listing index for legacy stores before serving requests.
-    pub async fn rebuild_package_index(&self) -> Result<()> {
-        self.hosted.rebuild_package_index().await
-    }
-
     /// Check that the hosted backend and the cache directory are reachable
     /// and accessible for operations.
     pub async fn check_readiness(&self) -> Result<()> {
-        self.hosted.check_readiness().await?;
+        self.root.check_readiness().await?;
         fs::create_dir_all(&self.cached.root).await
             .map_err(|err| RegistryError::StorageUnavailable {
                 reason: format!(
@@ -251,6 +251,13 @@ impl Storage {
 
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
+    }
+
+    pub async fn hosted_package_blobs(
+        &self,
+        canonical: &CanonicalPackageName,
+    ) -> Result<Vec<String>> {
+        self.hosted.list_package_blobs(canonical).await
     }
 
     pub async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
@@ -293,22 +300,6 @@ impl Storage {
         validate_revision_ref_id(ref_id)?;
         validate_revision_ref_owner(owner)?;
         self.hosted.commit_revision_ref(digest, ref_id, owner).await
-    }
-
-    /// A view whose hosted store is namespaced under `org`, so a hosted
-    /// registry's packages live in their own storage namespace — two orgs hosting
-    /// the same `name@version` can't collide. The disposable proxy cache is
-    /// shared (org registries never touch it). Used by hosted serving and the
-    /// org-routed publish flow; the flat (un-namespaced) store remains the
-    /// legacy path-less hosted surface.
-    #[must_use]
-    pub fn for_hosted(&self, org: &str) -> Storage {
-        Storage {
-            hosted: self.hosted.namespaced(org),
-            cached: self.cached.clone(),
-            tar_integrities: Arc::clone(&self.tar_integrities),
-            tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
-        }
     }
 
     // --- Authoritative (hosted) store -----------------------------------
@@ -454,6 +445,16 @@ impl Storage {
         }
     }
 
+    /// The [`DocumentStamp`] of the cached upstream document. `None` when
+    /// there is none.
+    pub async fn upstream_document_stamp(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<DocumentStamp>> {
+        self.cached.namespaced(namespace).document_stamp(name).await
+    }
+
     /// The cached upstream document regardless of freshness (fresh or stale).
     /// A defensive fallback for an unsolicited upstream `304`: the upstream path
     /// sends no conditional validators, so a `304` means "unchanged" and the
@@ -547,21 +548,20 @@ impl Storage {
         self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 
-    /// Where the hosted backend stages locally: the store root on the fs
-    /// backend, the cache scratch on the S3 backend. The publish journal and
-    /// in-progress blob uploads both live here.
+    /// Where this namespace stages locally: the namespace's directory on the
+    /// fs backend, the cache scratch on the S3 backend. In-progress blob
+    /// uploads live here.
     #[must_use]
     pub fn hosted_scratch_root(&self) -> &Path {
         self.hosted.local_scratch_root()
     }
 
-    /// The commit journal for this storage's publish flow. It lives in
-    /// the same local root as the staged tmp files: the hosted store
-    /// root on the fs backend, the cache scratch on the S3 backend
-    /// (whose staging paths live there too).
+    /// The commit journal for this storage's publish flow: in the hosted
+    /// store root on the fs backend, the cache scratch on the S3 backend,
+    /// whatever namespace this view addresses.
     #[must_use]
     pub fn publish_journal(&self) -> crate::journal::PublishJournal {
-        let root = self.hosted.local_scratch_root();
+        let root = self.root.local_scratch_root();
         crate::journal::PublishJournal::new(root.join(crate::journal::JOURNAL_DIR))
     }
 

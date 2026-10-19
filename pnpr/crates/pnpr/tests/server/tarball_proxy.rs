@@ -1,7 +1,7 @@
 use super::{
     AccessList, AuthState, Body, PackageRules, Request, ServiceExt, StatusCode, TempDir, Value,
     access_rule, body_bytes, body_json, config_for, enable_osv, foo_packument, header, json,
-    mock_packument_for_tarball, osv_database, public_cache_pkg, router, router_with_auth,
+    mock_packument_for_tarball, osv_database, public_cache_blobs, router, router_with_auth,
     sha512_integrity, upstream_endpoint_config,
 };
 use crate::tokens::issue_token;
@@ -37,7 +37,7 @@ async fn upstream_dist_tags_enforce_package_access() {
 
     let response = app
         .oneshot(
-            Request::get("/-/package/restricted/dist-tags")
+            Request::get("/npm/-/package/restricted/dist-tags")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -76,7 +76,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
 
     let response = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -108,7 +108,7 @@ async fn tarball_is_proxied_and_cached() {
     let first = app
         .clone()
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -121,7 +121,7 @@ async fn tarball_is_proxied_and_cached() {
     // copy; the `expect(1)` mocks prove the upstream is never asked twice.
     let second = router(config_for(&upstream.url(), storage))
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -161,7 +161,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
 
     let response = app
         .oneshot(
-            Request::get("/~npmjs/foo")
+            Request::get("/npm/~npmjs/foo")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -189,7 +189,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
     // URL is canonical for the client's configured registry (integrity-only).
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/~npmjs/foo/-/foo-1.0.0.tgz",
+        "http://example.test/npm/~npmjs/foo/-/foo-1.0.0.tgz",
     );
     mock.assert_async().await;
 }
@@ -203,7 +203,7 @@ async fn upstream_endpoint_rejects_unauthorized_caller() {
     // request fails closed before any upstream fetch.
     let response = app
         .oneshot(
-            Request::get("/~npmjs/foo")
+            Request::get("/npm/~npmjs/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -253,7 +253,7 @@ async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/~npmjs/foo/-/foo-1.0.0.tgz")
+                Request::get("/npm/~npmjs/foo/-/foo-1.0.0.tgz")
                     .header(header::AUTHORIZATION, format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -321,7 +321,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     let private = app
         .clone()
         .oneshot(
-            Request::get("/~corp/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/~corp/foo/-/foo-1.0.0.tgz")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -335,7 +335,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     // private upstream's cached copy.
     let public = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -383,7 +383,7 @@ async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let app = router(config_for(&old_origin.url(), tmp.path().to_path_buf()));
     let primed = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -397,7 +397,7 @@ async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
     let repointed = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -446,7 +446,7 @@ async fn upstream_endpoint_cache_false_streams_without_caching() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/~npmjs/foo/-/foo-1.0.0.tgz")
+                Request::get("/npm/~npmjs/foo/-/foo-1.0.0.tgz")
                     .header(header::AUTHORIZATION, format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -481,7 +481,7 @@ async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -514,7 +514,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
 
     let response = app
         .oneshot(
-            Request::get("/@pnpm.e2e/needs-auth/-/needs-auth-1.0.0.tgz")
+            Request::get("/npm/@pnpm.e2e/needs-auth/-/needs-auth-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -544,7 +544,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 
     let warmed = warming_app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -561,7 +561,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 
     let response = screened_app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -617,7 +617,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
     let warmed = warming_app
         .oneshot(
-            Request::get("/foo/-/foo-0.0.1.tgz")
+            Request::get("/npm/foo/-/foo-0.0.1.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -629,7 +629,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // The warm-up must have written the tarball to the proxy cache, so the
     // screened request below genuinely exercises the cache-hit path rather than
     // silently falling back to a miss that would be refused anyway.
-    let cached_tarball = public_cache_pkg(&cache_dir, "foo").join("foo-0.0.1.tgz");
+    let cached_tarball = public_cache_blobs(&cache_dir, "foo").join("foo-0.0.1.tgz");
     assert!(
         cached_tarball.is_file(),
         "warm-up must populate the proxy cache at {cached_tarball:?}",
@@ -645,7 +645,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
 
     let response = screened_app
         .oneshot(
-            Request::get("/foo/-/foo-0.0.1.tgz")
+            Request::get("/npm/foo/-/foo-0.0.1.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -672,7 +672,7 @@ async fn upstream_404_is_propagated() {
 
     let response = app
         .oneshot(
-            Request::get("/missing")
+            Request::get("/npm/missing")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -696,7 +696,7 @@ async fn upstream_5xx_maps_to_bad_gateway() {
 
     let response = app
         .oneshot(
-            Request::get("/broken")
+            Request::get("/npm/broken")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -720,7 +720,7 @@ async fn unreachable_upstream_maps_to_service_unavailable() {
 
     let response = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -750,7 +750,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo/-/bar-1.0.0.tgz")
+            Request::get("/npm/foo/-/bar-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -762,7 +762,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
     // before any packument or tarball I/O.
     let unsafe_name = app
         .oneshot(
-            Request::get("/foo/-/..%5Cescape.tgz")
+            Request::get("/npm/foo/-/..%5Cescape.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -816,7 +816,7 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
     let served = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -824,12 +824,12 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
         .unwrap();
     let doc = body_json(served.into_body()).await;
     let advertised = doc["versions"]["3001.1.0-exotic"]["dist"]["tarball"].as_str().unwrap();
-    assert!(advertised.ends_with(&format!("/foo/-/{exotic}")), "got {advertised}");
+    assert!(advertised.ends_with(&format!("/npm/foo/-/{exotic}")), "got {advertised}");
 
     // And fetching that URL back serves the verified bytes.
     let response = app
         .oneshot(
-            Request::get(format!("/foo/-/{exotic}").as_str())
+            Request::get(format!("/npm/foo/-/{exotic}").as_str())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -859,7 +859,7 @@ async fn scoped_tarball_is_proxied() {
 
     let response = app
         .oneshot(
-            Request::get("/@types/node/-/node-20.0.0.tgz")
+            Request::get("/npm/@types/node/-/node-20.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -891,7 +891,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     let noncanonical = app
         .clone()
         .oneshot(
-            Request::get("/@types/node/-/%40types%2Fnode-20.0.0.tgz")
+            Request::get("/npm/@types/node/-/%40types%2Fnode-20.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -902,7 +902,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
 
     let canonical = app
         .oneshot(
-            Request::get("/@types/node/-/node-20.0.0.tgz")
+            Request::get("/npm/@types/node/-/node-20.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -910,8 +910,8 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
         .unwrap();
     assert_eq!(canonical.status(), StatusCode::OK);
     assert_eq!(body_bytes(canonical.into_body()).await, bytes);
-    assert!(public_cache_pkg(&storage, "@types/node").join("node-20.0.0.tgz").exists());
-    assert!(!public_cache_pkg(&storage, "@types/node").join("@types").exists());
+    assert!(public_cache_blobs(&storage, "@types/node").join("node-20.0.0.tgz").exists());
+    assert!(!public_cache_blobs(&storage, "@types/node").join("@types").exists());
     packument_mock.assert_async().await;
     mock.assert_async().await;
 }

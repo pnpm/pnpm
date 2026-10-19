@@ -10,7 +10,7 @@ export const REGISTRY_MOCK_CREDENTIALS = {
   password: 'password',
 }
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/`
+export const REGISTRY_MOCK_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 /**
  * The bearer token the with-registry jest globalSetup mints for the test user
@@ -71,7 +71,7 @@ export async function addDistTag (opts: AddDistTagOptions): Promise<void> {
     packageName: opts.package,
     version: opts.version,
     distTag: opts.distTag,
-    registryUrl: REGISTRY_URL,
+    registryUrl: REGISTRY_MOCK_URL,
     authHeader: `Bearer ${getRegistryMockToken()}`,
     fetchFromRegistry: createFetchFromRegistry({}),
   })
@@ -90,7 +90,7 @@ export async function addUser (opts: AddUserOptions): Promise<AddUserResult> {
     username: opts.username,
     password: opts.password,
     email: opts.email,
-    registryUrl: REGISTRY_URL,
+    registryUrl: REGISTRY_MOCK_URL,
     fetch: createFetchFromRegistry({}),
   })
 }
@@ -106,11 +106,11 @@ type Packument = { versions: Record<string, { dist: { integrity: string } }> }
  * the test harness built from the fixtures. The storage path is published as
  * `PNPM_REGISTRY_MOCK_STORAGE` by the with-registry jest globalSetup.
  *
- * Hosted (fixture) packuments live at `<storage>/<pkg>/package.json`; upstream
- * packages are proxied into a per-upstream namespace of the cache mirror
- * (`<storage>/.pnpr-cache/~public/<digest>/<pkg>/package.json`), written
- * lazily on first request — so every namespace is tried and the read is
- * retried while the cache write is still in flight.
+ * Hosted (fixture) packuments live in the storage's default namespace;
+ * upstream packages are proxied into a per-upstream namespace of the cache
+ * mirror (`<storage>/.pnpr-cache/~public/<digest>/`), written lazily on first
+ * request — so every namespace is tried and the read is retried while the
+ * cache write is still in flight.
  */
 export function getIntegrity (pkgName: string, pkgVersion: string): string {
   const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
@@ -127,9 +127,9 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
     // created lazily along with the first cached packument, so it may not
     // exist yet on the first attempt.
     const candidatePaths = [
-      path.join(storage, pkgName, 'package.json'),
+      documentPath(path.join(storage, 'default'), pkgName),
       ...listPublicProxyNamespaces(path.join(storage, PROXY_CACHE_DIR, '~public'))
-        .map((namespace) => path.join(namespace, pkgName, 'package.json')),
+        .map((namespace) => documentPath(namespace, pkgName)),
     ]
     const content = readPackument(candidatePaths)
     if (content) {
@@ -140,6 +140,39 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
     delay *= 2
   }
   throw new Error(`Failed to read package.json for ${pkgName}@${pkgVersion} after ${maxRetries} attempts`)
+}
+
+/**
+ * Where the registry mock's storage keeps a fixture package's blob, such as
+ * its tarball.
+ */
+export function hostedBlobPath (pkgName: string, fileName: string): string {
+  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
+  if (!storage) {
+    throw new Error('PNPM_REGISTRY_MOCK_STORAGE is not set; run the test under the with-registry jest preset.')
+  }
+  return path.join(packageDir(path.join(storage, 'default'), pkgName), 'blobs', encodeSegment(fileName))
+}
+
+function documentPath (namespace: string, pkgName: string): string {
+  return path.join(packageDir(namespace, pkgName), 'document.json')
+}
+
+function packageDir (namespace: string, pkgName: string): string {
+  return path.join(namespace, 'packages', encodeSegment(pkgName))
+}
+
+/**
+ * The storage's encoding of a name as one path segment: `[a-z0-9._-]` as is,
+ * every other byte as `!` and two lowercase hex digits.
+ */
+function encodeSegment (text: string): string {
+  let encoded = ''
+  for (const byte of Buffer.from(text, 'utf8')) {
+    const char = String.fromCharCode(byte)
+    encoded += /[a-z0-9._-]/.test(char) ? char : `!${byte.toString(16).padStart(2, '0')}`
+  }
+  return encoded
 }
 
 // The public proxy cache is namespaced per upstream mount by a digest of its

@@ -7,7 +7,8 @@ pub(crate) use lockfile_freshness::{
     CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
     ImporterSatisfactionCheck, OptionalDependencyExclusions, ProjectManifestsByDir,
     WorkspaceProjects, check_importer_satisfies, check_lockfile_settings_drift,
-    dependency_manifests_by_dir, parse_config_overrides, project_manifests_by_dir,
+    dependency_manifests_by_dir, is_declared_local_directory, parse_config_overrides,
+    project_manifests_by_dir, spec_target_and_range,
 };
 pub use lockfile_freshness::{
     WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,

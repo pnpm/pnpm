@@ -137,6 +137,7 @@ async fn fetch_source<Reporter: self::Reporter>(
     let registry_url = registry_delegate_url(download, source, config)?;
     let download = IngestTarballToStore {
         package: TarballPackage {
+            integrity_kind: source.integrity_target(config.lockfile_integrity_target).into(),
             url: registry_url.as_deref().unwrap_or(download.package.url),
             ..download.package
         },

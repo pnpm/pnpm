@@ -1,4 +1,4 @@
-import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { type PreferredVersions, RESOLVED_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 
 import type {
   PkgAddress,
@@ -106,7 +106,7 @@ function addPreferredVersionSelector (
   const existingSelector = newPreferredVersions[name][version]
   const existingWeight = typeof existingSelector === 'object' && existingSelector != null
     ? existingSelector.weight
-    : typeof existingSelector === 'string' ? 1 : 0
+    : typeof existingSelector === 'string' ? RESOLVED_VERSION_SELECTOR_WEIGHT : 0
   newPreferredVersions[name][version] = {
     selectorType: 'version',
     weight: existingWeight + selectorWeight,

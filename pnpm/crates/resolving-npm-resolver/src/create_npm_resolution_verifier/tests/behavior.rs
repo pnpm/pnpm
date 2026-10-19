@@ -1,9 +1,10 @@
 use super::{
     FAKE_INTEGRITY, HashMap, LockfileResolution, PkgName, REVISION_ONE_DIGEST, REVISION_TWO_DIGEST,
-    RegistryResolution, ResolutionVerification, TarballResolution, TarballRevision, TrustPolicy,
-    Utc, abbreviated_packument_json, assert_eq, create_npm_resolution_verifier,
-    create_package_version_policy, ctx, default_opts, fake_integrity, min_age_packument_json,
-    now_at, registry_resolution, revision_integrity, tarball_resolution,
+    REVISION_ZERO_DIGEST, RegistryResolution, ResolutionVerification, TarballResolution,
+    TarballRevision, TrustPolicy, Utc, abbreviated_packument_json, assert_eq,
+    create_npm_resolution_verifier, create_package_version_policy, ctx, default_opts,
+    fake_integrity, min_age_packument_json, now_at, registry_resolution, revision_integrity,
+    tarball_resolution,
 };
 use pnpm_resolving_resolver_base::ResolutionVerifier;
 
@@ -19,7 +20,7 @@ fn does_not_verify_a_revision_without_an_active_policy() {
 }
 
 #[tokio::test]
-async fn rejects_an_explicit_zero_current_revision() {
+async fn rejects_a_current_revision_without_history() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let packument = serde_json::json!({
@@ -30,8 +31,8 @@ async fn rejects_an_explicit_zero_current_revision() {
                 "name": "revision-pkg",
                 "version": "1.0.0",
                 "dist": {
-                    "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
-                    "tarball": format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
+                    "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
+                    "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
                     "revision": 0,
                 }
             }
@@ -47,16 +48,60 @@ async fn rejects_an_explicit_zero_current_revision() {
     let mut opts = default_opts(&registry);
     opts.release_age.minimum_minutes = Some(1);
     let verifier = create_npm_resolution_verifier(opts);
-    let resolution = tarball_resolution(
-        &format!("{registry}revision-pkg/-/revision-pkg-1.0.0.tgz"),
-        Some(fake_integrity()),
-    );
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: revision_integrity(REVISION_ZERO_DIGEST),
+        revision: Some(TarballRevision::try_from(0).unwrap()),
+    });
     let name = "revision-pkg".parse::<PkgName>().unwrap();
     let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
     let ResolutionVerification::Err { code, .. } = result else {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_REVISION_MISMATCH");
+}
+
+#[tokio::test]
+async fn accepts_a_selected_revision_zero() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let original = serde_json::json!({
+        "revision": 0,
+        "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
+        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+        "manifest": {},
+    });
+    let packument = serde_json::json!({
+        "name": "revision-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "revision-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": original["integrity"],
+                    "tarball": original["tarball"],
+                    "revision": 0,
+                    "revisions": [original],
+                }
+            }
+        },
+        "time": { "1.0.0": "2020-01-01T00:00:00.000Z" }
+    });
+    server
+        .mock("GET", "/revision-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let mut opts = default_opts(&registry);
+    opts.release_age.minimum_minutes = Some(1);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Registry(RegistryResolution {
+        integrity: revision_integrity(REVISION_ZERO_DIGEST),
+        revision: Some(TarballRevision::try_from(0).unwrap()),
+    });
+    let name = "revision-pkg".parse::<PkgName>().unwrap();
+    assert_eq!(verifier.verify(&resolution, ctx(&name, "1.0.0")).await, ResolutionVerification::Ok);
 }
 
 #[tokio::test]
@@ -116,6 +161,11 @@ async fn accepts_an_advertised_historical_revision() {
                     "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
                     "revision": 2,
                     "revisions": [{
+                        "revision": 0,
+                        "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
+                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+                        "manifest": {},
+                    }, {
                         "revision": 1,
                         "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
                         "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ONE_DIGEST}"),

@@ -130,8 +130,8 @@ impl RegistryLink {
             && matches!(args.network.registry, RegistryMode::Verdaccio)
             && (args.network.registry_latency_ms > 0 || rate_limit.is_some());
         let (spawned_port, cache_populator) =
-            upstream_registry(proxied, args.network.registry_port, &url);
-        let public_url = url.trim_end_matches('/').to_string();
+            upstream_registry(args.network.registry, proxied, args.network.registry_port, &url);
+        let public_url = local_origin(args.network.registry_port);
         RegistryLink { url, rate_limit, proxied, spawned_port, cache_populator, public_url }
     }
 }
@@ -282,7 +282,7 @@ fn prepared_work_env(work_env: &std::path::Path) -> std::path::PathBuf {
 fn registry_url(registry_mode: RegistryMode, registry_port: u16) -> String {
     match registry_mode {
         RegistryMode::Verdaccio | RegistryMode::Virtual => {
-            format!("http://localhost:{registry_port}/")
+            registry_mode.local_registry_url(&local_origin(registry_port))
         }
         RegistryMode::Npm => "https://registry.npmjs.org/".to_string(),
     }
@@ -295,6 +295,7 @@ fn registry_url(registry_mode: RegistryMode, registry_port: u16) -> String {
 /// one clients are pointed at; the populator then talks to the mock
 /// directly, since warming the cache through the delay is pure wait.
 fn upstream_registry(
+    registry_mode: RegistryMode,
     proxy_spawned_registry: bool,
     registry_port: u16,
     registry: &str,
@@ -304,5 +305,10 @@ fn upstream_registry(
     }
     let port = pnpm_registry_mock::pick_unused_port()
         .expect("pick an unused port for the registry upstream");
-    (port, format!("http://localhost:{port}/"))
+    (port, registry_mode.local_registry_url(&local_origin(port)))
+}
+
+/// The origin, without a trailing `/`, of a local server on `port`.
+fn local_origin(port: u16) -> String {
+    format!("http://localhost:{port}")
 }

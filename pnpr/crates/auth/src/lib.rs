@@ -108,6 +108,13 @@ pub struct AuthState {
     pub tokens: Arc<dyn TokenBackend>,
 }
 
+/// The outcome of [`AuthState::put_user`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserPut {
+    Created,
+    PasswordChanged,
+}
+
 impl std::fmt::Debug for AuthState {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.debug_struct("AuthState").finish_non_exhaustive()
@@ -128,6 +135,33 @@ impl AuthState {
         let users = Arc::new(UserStore::in_memory_with_max_users(max_users));
         let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
         Self { users, tokens: Arc::new(tokens) }
+    }
+
+    /// Revoke every token `username` holds. Returns how many were revoked.
+    pub async fn revoke_all_tokens(&self, username: &str) -> Result<usize> {
+        let held = self.tokens.list_for_user(username).await?;
+        for (key, _) in &held {
+            self.tokens.revoke_by_key(key).await?;
+        }
+        Ok(held.len())
+    }
+
+    /// Create `username` with `password`, or change the password of the
+    /// account that exists. Tokens a removed account left under the name are
+    /// revoked first, so they never reach the new account. `None` means
+    /// another writer removed the account between the two steps.
+    pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
+        if self.users.password_hash(username).await?.is_none() {
+            self.revoke_all_tokens(username).await?;
+        }
+        match self.users.create_user(username, password).await? {
+            UserCreation::Created => Ok(Some(UserPut::Created)),
+            UserCreation::NameTaken => match self.users.set_password(username, password).await? {
+                PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
+                // Another caller removed the user between the two calls.
+                PasswordChange::NoSuchUser => Ok(None),
+            },
+        }
     }
 
     /// Check that the auth backends (users and tokens) are reachable and ready.

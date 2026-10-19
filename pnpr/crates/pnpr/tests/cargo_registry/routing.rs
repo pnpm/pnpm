@@ -443,7 +443,7 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, valid_index.as_bytes());
-    let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "package.json").unwrap();
+    let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "document.json").unwrap();
     tokio::fs::write(cached_index, [0xff]).await.unwrap();
     let response = app
         .oneshot(

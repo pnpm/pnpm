@@ -10,6 +10,7 @@ use tarball::{build_tarball, fixture_files};
 use base64::{Engine, engine::general_purpose};
 use flate2::{Compression, write::GzEncoder};
 use node_semver::{Range, Version};
+use pnpr_storage::layout::{local_blob_path, local_document_path, write_local_layout_marker};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
 use std::{
@@ -120,7 +121,7 @@ pub fn remove_version_field(storage: &Path, package: &str, version: &str, field:
 }
 
 fn edit_packument(storage: &Path, package: &str, edit: impl FnOnce(&mut Map<String, Value>)) {
-    let path = storage.join(package).join("package.json");
+    let path = local_document_path(storage, "", package);
     let bytes = fs::read(&path)
         .unwrap_or_else(|err| panic!("read fixture packument at {}: {err}", path.display()));
     let mut packument: Value = serde_json::from_slice(&bytes).expect("parse fixture packument");
@@ -247,6 +248,8 @@ fn scratch_name(prefix: &str) -> String {
 
 fn fixture_fingerprint(root: &Path) -> String {
     let mut hasher = Sha256::new();
+    // A storage tree built in another layout must not be reused.
+    hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
     for entry in fixture_files(root) {
         let path = entry.path();
         let relative = path.strip_prefix(root).expect("fixture entry under root");
@@ -274,6 +277,7 @@ fn build_storage(fixtures_root: &Path, storage_root: &Path, substitutions: &[(&s
             latest_version(package.versions.keys()).expect("package has at least one version");
         package.write(storage_root);
     }
+    write_local_layout_marker(storage_root).expect("write registry fixture layout marker");
 }
 
 struct Package {
@@ -288,14 +292,18 @@ impl Package {
     }
 
     fn write(&self, storage_root: &Path) {
-        let package_dir = storage_root.join(&self.name);
-        fs::create_dir_all(&package_dir).expect("create test registry package storage dir");
+        let blobs = local_blob_path(storage_root, "", &self.name, "-");
+        fs::create_dir_all(blobs.parent().expect("blob has a directory"))
+            .expect("create test registry package storage dir");
         for version in self.versions.values() {
-            fs::write(package_dir.join(&version.tarball_name), &version.tarball)
-                .expect("write fixture tarball to test registry storage");
+            fs::write(
+                local_blob_path(storage_root, "", &self.name, &version.tarball_name),
+                &version.tarball,
+            )
+            .expect("write fixture tarball to test registry storage");
         }
         fs::write(
-            package_dir.join("package.json"),
+            local_document_path(storage_root, "", &self.name),
             serde_json::to_vec(&self.packument()).expect("serialize fixture packument"),
         )
         .expect("write fixture packument to test registry storage");

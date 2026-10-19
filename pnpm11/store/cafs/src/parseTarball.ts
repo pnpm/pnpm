@@ -1,6 +1,8 @@
 import path from 'node:path'
 
 import { assertBufferedTarballEntry } from './assertBufferedTarballEntry.js'
+import { assertUnpackedSize } from './assertUnpackedSize.js'
+import { parseOctal, SPACE } from './parseOctal.js'
 
 export type OnTarballFile = (relativePath: string, mode: number, content: Buffer) => void
 
@@ -11,6 +13,13 @@ export interface TarballFileWriter {
 
 export type CreateTarballFileWriter = (relativePath: string, mode: number, size: number) => TarballFileWriter | undefined
 
+export interface TarballParserLimits {
+  /** Largest entry whose content the parser may hold in memory. */
+  maxBufferedEntrySize?: number
+  /** Largest sum of the declared sizes of the archive's regular files. */
+  maxTarballUnpackedSize?: number
+}
+
 export interface TarballParser {
   push: (chunk: Buffer) => void
   end: () => void
@@ -20,7 +29,6 @@ const ZERO: number = '0'.charCodeAt(0)
 const FILE_TYPE_HARD_LINK: number = '1'.charCodeAt(0)
 const FILE_TYPE_SYMLINK: number = '2'.charCodeAt(0)
 const FILE_TYPE_DIRECTORY: number = '5'.charCodeAt(0)
-const SPACE: number = ' '.charCodeAt(0)
 const NEWLINE: number = '\n'.charCodeAt(0)
 const SLASH: number = '/'.charCodeAt(0)
 const BACKSLASH: number = '\\'.charCodeAt(0)
@@ -53,11 +61,13 @@ interface PendingEntry {
  *
  * See the TAR specification: https://www.gnu.org/software/tar/manual/html_node/Standard.html
  */
-export function createTarballParser (onFile: OnTarballFile, createFileWriter?: CreateTarballFileWriter, maxBufferedEntrySize?: number): TarballParser {
+export function createTarballParser (onFile: OnTarballFile, createFileWriter?: CreateTarballFileWriter, { maxBufferedEntrySize, maxTarballUnpackedSize }: TarballParserLimits = {}): TarballParser {
   const state: ParserState = {
     onFile,
     createFileWriter,
     maxBufferedEntrySize,
+    maxTarballUnpackedSize,
+    unpackedSize: 0,
     writer: undefined,
     chunks: [],
     chunkOffset: 0,
@@ -81,6 +91,8 @@ interface ParserState {
   onFile: OnTarballFile
   createFileWriter?: CreateTarballFileWriter
   maxBufferedEntrySize?: number
+  maxTarballUnpackedSize?: number
+  unpackedSize: number
   writer: { sink: TarballFileWriter, remaining: number } | undefined
   chunks: Buffer[]
   chunkOffset: number
@@ -160,8 +172,12 @@ function consumeStreamedContent (state: ParserState): boolean {
   return true
 }
 
+function isRegularFile (fileType: number): boolean {
+  return fileType === 0 || fileType === ZERO || fileType === FILE_TYPE_HARD_LINK
+}
+
 function startEntryWriter (state: ParserState, entry: PendingEntry): void {
-  if (entry.fileType !== 0 && entry.fileType !== ZERO && entry.fileType !== FILE_TYPE_HARD_LINK) return
+  if (!isRegularFile(entry.fileType)) return
   const sink = state.createFileWriter?.(entry.fileName, entry.mode, entry.size)
   if (sink) state.writer = { sink, remaining: entry.size }
 }
@@ -181,6 +197,10 @@ function consumeHeader (state: ParserState): boolean {
   const nextEntry = parseHeader(state, header, headerOffset)
   if (entryHasContent(nextEntry.fileType)) {
     state.entry = nextEntry
+    if (isRegularFile(nextEntry.fileType)) {
+      state.unpackedSize += nextEntry.size
+      assertUnpackedSize(state.unpackedSize, state.maxTarballUnpackedSize)
+    }
     startEntryWriter(state, nextEntry)
     if (!state.writer) assertBufferedTarballEntry(nextEntry, state.maxBufferedEntrySize)
   } else {
@@ -474,37 +494,4 @@ function checkSum (header: Buffer): number {
   }
 
   return sum
-}
-
-/**
- * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
- * a NUL or a space.
- */
-function parseOctal (buffer: Buffer, offset: number, length: number): number {
-  const val = buffer.subarray(offset, offset + length)
-  offset = 0
-
-  // Older versions of tar can prefix with spaces
-  while (offset < val.length && val[offset] === SPACE) offset++
-  const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
-  while (offset < end && val[offset] === 0) offset++
-  if (end === offset) return 0
-  return parseInt(val.subarray(offset, end).toString(), 8)
-}
-
-function indexOf (block: Buffer, num: number, offset: number, end: number): number {
-  for (; offset < end; offset++) {
-    if (block[offset] === num) return offset
-  }
-  return end
-}
-
-function clamp (index: number, len: number, defaultValue: number): number {
-  if (typeof index !== 'number') return defaultValue
-  index = ~~index // Coerce to integer.
-  if (index >= len) return len
-  if (index >= 0) return index
-  index += len
-  if (index >= 0) return index
-  return 0
 }

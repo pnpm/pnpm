@@ -23,6 +23,7 @@ impl StalenessReason {
             StalenessReason::InjectWorkspacePackagesChanged { .. } => {
                 Some("settings.injectWorkspacePackages")
             }
+            StalenessReason::IntegrityTargetChanged { .. } => Some("settings.integrityTarget"),
             _ => None,
         }
     }
@@ -187,4 +188,17 @@ pub fn recorded_peers_suffix_max_length(recorded: Option<&LockfileSettings>) -> 
 #[must_use]
 pub fn recorded_inject_workspace_packages(recorded: Option<&LockfileSettings>) -> bool {
     recorded.is_some_and(|settings| settings.inject_workspace_packages)
+}
+
+/// `settings.integrityTarget`, compared whether or not the lockfile records
+/// any other setting.
+pub(super) fn check_integrity_target(
+    lockfile: &Lockfile,
+    configured: crate::IntegrityTarget,
+) -> Result<(), StalenessReason> {
+    let recorded = lockfile.integrity_target();
+    if recorded == configured {
+        return Ok(());
+    }
+    Err(StalenessReason::IntegrityTargetChanged { lockfile: recorded, config: configured })
 }

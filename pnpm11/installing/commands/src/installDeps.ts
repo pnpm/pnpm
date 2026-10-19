@@ -140,7 +140,6 @@ export type InstallDepsOptions = Pick<Config,
    */
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
-  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean

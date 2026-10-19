@@ -8,12 +8,11 @@ name: PR review automation (privileged)
 # checking the review through GitHub's API. It never checks out or executes PR
 # content.
 on:
-  # zizmor: ignore[dangerous-triggers]
   # The capture workflow runs with no token permissions. This workflow runs from
   # the default branch via workflow_run, validates the requested review against
   # GitHub's API, then performs fixed repo-controlled actions (label + Discord)
   # without ever checking out or executing PR content.
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: ["PR review automation"]
     types: [requested]
 

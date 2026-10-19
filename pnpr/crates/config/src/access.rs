@@ -189,10 +189,10 @@ pub fn validate_member_name(member: &str) -> Result<(), String> {
 pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
     validate_single_token(token)?;
     if let Some(builtin) = token.strip_prefix('$') {
-        if !matches!(builtin, "all" | "authenticated" | "anonymous") {
+        if !matches!(builtin, "all" | "authenticated" | "anonymous" | "owners") {
             return Err(format!(
                 "unknown built-in access token {token:?}; the built-in groups are `$all`, \
-                 `$authenticated`, and `$anonymous`",
+                 `$authenticated`, `$anonymous`, and `$owners`",
             ));
         }
         return Ok(());
@@ -215,7 +215,7 @@ pub(super) fn validate_access_token(token: &str) -> Result<(), String> {
         };
     }
     let bare = token.strip_prefix('@').unwrap_or(token);
-    if matches!(bare, "all" | "authenticated" | "anonymous") {
+    if matches!(bare, "all" | "authenticated" | "anonymous" | "owners") {
         return Err(format!(r#"unknown access token {token:?}; did you mean "${bare}"?"#));
     }
     Ok(())

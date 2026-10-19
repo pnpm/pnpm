@@ -154,6 +154,8 @@ pub struct PrefetchingResolver<Reporter: self::Reporter> {
     spawned_downloads: DashSet<String>,
     /// Shares completed archive reads, including custom resolution rewrites.
     tarball_metadata_cache: DashMap<String, Arc<OnceCell<ResolvedTarballMetadata>>>,
+    /// Shares the tar integrity a read learned for a pinned archive.
+    tar_integrity_cache: DashMap<String, Arc<OnceCell<ssri::Integrity>>>,
     /// Shared with every prefetch task the resolver spawns.
     ctx: Arc<OwnedFetchCtx>,
     _phantom: PhantomData<fn() -> Reporter>,
@@ -171,6 +173,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             inner,
             spawned_downloads: DashSet::new(),
             tarball_metadata_cache: DashMap::new(),
+            tar_integrity_cache: DashMap::new(),
             ctx: Arc::new(ctx),
             _phantom: PhantomData,
         }
@@ -222,9 +225,13 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         }
 
         let package_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+        let integrity_kind: pnpm_tarball::IntegrityKind =
+            result.resolution.integrity_target(self.ctx.config.lockfile_integrity_target).into();
         let package_url = package_url.to_string();
-        let package_unpacked_size = manifest_unpacked_size(result.package.manifest.as_deref());
-        let package_file_count = manifest_file_count(result.package.manifest.as_deref());
+        let dist_stats = (
+            manifest_unpacked_size(result.package.manifest.as_deref()),
+            manifest_file_count(result.package.manifest.as_deref()),
+        );
         let ctx = Arc::clone(&self.ctx);
         let tracked_url = package_url.clone();
 
@@ -237,9 +244,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             let download = ctx.tarball_download(
                 &package_url,
                 &package_id,
-                Some(&integrity),
-                package_unpacked_size,
-                package_file_count,
+                (Some(&integrity), integrity_kind),
+                dist_stats.0,
+                dist_stats.1,
             );
             let fetched = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache).await
@@ -315,13 +322,17 @@ impl OwnedFetchCtx {
         &'a self,
         package_url: &'a str,
         package_id: &'a str,
-        package_integrity: Option<&'a ssri::Integrity>,
+        (package_integrity, integrity_kind): (
+            Option<&'a ssri::Integrity>,
+            pnpm_tarball::IntegrityKind,
+        ),
         package_unpacked_size: Option<usize>,
         package_file_count: Option<usize>,
     ) -> IngestTarballToStore<'a> {
         IngestTarballToStore {
             fetching: self.fetching.options(),
             package: pnpm_tarball::TarballPackage {
+                integrity_kind,
                 integrity: package_integrity,
                 unpacked_size: package_unpacked_size,
                 file_count: package_file_count,
@@ -387,8 +398,12 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
-                self.populate_missing_tarball_metadata(result_mut, &opts.project.lockfile_dir)
-                    .await?;
+                let integrity_settled =
+                    self.populate_missing_tarball_metadata(result_mut, &opts.project.lockfile_dir)
+                        .await?;
+                if !integrity_settled {
+                    self.pin_tar_integrity(result_mut).await?;
+                }
                 if self.ctx.policy.downloads
                     && !self.should_skip_prefetch(wanted_dependency, result_mut)
                 {
@@ -414,6 +429,8 @@ fn is_remote_tarball(resolution: &LockfileResolution) -> bool {
 }
 
 mod archive_read;
+
+mod tar_integrity;
 
 #[cfg(test)]
 mod tests;

@@ -139,7 +139,7 @@ pub(super) fn freshness_inputs<'r>(
             ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
             prune_stale_importers: scope.prune_stale_importers,
             allow_missing_dependency_free_importers: true,
-            allow_unresolved_optional_dependencies: false,
+            frozen_lockfile: false,
             patches_only: false,
         },
     }

@@ -433,9 +433,9 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
-    // A request to pnpr's own `/~corp/` endpoint resolves through the corp
-    // upstream, using its current credential (the URL carries none).
-    let url = format!("{}/~corp/@acme%2fwidget", config.http.public_url);
+    // A request to pnpr's own `/npm/~corp/` endpoint resolves through the
+    // corp upstream, using its current credential (the URL carries none).
+    let url = format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url);
     assert_eq!(
         context.classify(&user("alice"), &url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
@@ -446,7 +446,7 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     // itself rejects is the fail-closed point.
     assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Public);
     // An unknown upstream name is treated the same way.
-    let ghost = format!("{}/~ghost/@acme%2fwidget", config.http.public_url);
+    let ghost = format!("{}/npm/~ghost/@acme%2fwidget", config.http.public_url);
     assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Public);
 }
 
@@ -460,12 +460,12 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
-    // The path-preserving hosted prefix still recognizes the `/pnpr/~corp/`
+    // The path-preserving hosted prefix still recognizes the `/pnpr/npm/~corp/`
     // endpoint instead of dropping the `/pnpr` path and misclassifying it.
     assert_eq!(
         context.classify(
             &user("alice"),
-            "https://host.example/pnpr/~corp/@acme%2fwidget",
+            "https://host.example/pnpr/npm/~corp/@acme%2fwidget",
             Some("@acme/widget"),
         ),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },

@@ -1,6 +1,4 @@
-use super::{
-    ParentPkgAliases, declared_peer_dependencies, own_dependency_names, peer_shadowed_dependencies,
-};
+use super::{ParentPkgAliases, declared_peer_dependencies, own_dependency_names};
 use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 
@@ -22,57 +20,6 @@ fn a_level_sees_every_alias_above_it() {
     assert!(level2.contains("grandchild"));
     assert!(!level2.contains("unrelated"));
     assert!(!root.contains("child"), "a level's aliases stay out of the scopes above it");
-}
-
-#[test]
-fn only_in_scope_peers_shadow_the_own_dependency() {
-    let manifest = serde_json::json!({
-        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0", "not-a-peer": "^1.0.0" },
-        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
-    });
-    let scope = ParentPkgAliases::root(names(["in-scope"]));
-
-    assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, false), names(["in-scope"]));
-}
-
-#[test]
-fn auto_install_peers_shadows_every_own_dependency() {
-    let manifest = serde_json::json!({
-        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0" },
-        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
-    });
-    let scope = ParentPkgAliases::root(names(["in-scope"]));
-
-    assert_eq!(
-        peer_shadowed_dependencies(Some(&manifest), &scope, true),
-        names(["in-scope", "out-of-scope"]),
-    );
-}
-
-#[test]
-fn a_manifest_without_both_sections_shadows_nothing() {
-    let scope = ParentPkgAliases::root(names(["dep"]));
-    let peers_only = serde_json::json!({ "peerDependencies": { "dep": "*" } });
-    let deps_only = serde_json::json!({ "dependencies": { "dep": "^1.0.0" } });
-
-    assert!(peer_shadowed_dependencies(None, &scope, true).is_empty());
-    assert!(peer_shadowed_dependencies(Some(&peers_only), &scope, true).is_empty());
-    assert!(peer_shadowed_dependencies(Some(&deps_only), &scope, true).is_empty());
-}
-
-#[test]
-fn auto_install_peers_keeps_an_out_of_scope_optional_peer_as_a_dependency() {
-    let manifest = serde_json::json!({
-        "dependencies": { "in-scope": "^1.0.0", "out-of-scope": "^1.0.0" },
-        "peerDependencies": { "in-scope": "*", "out-of-scope": "*" },
-        "peerDependenciesMeta": {
-            "in-scope": { "optional": true },
-            "out-of-scope": { "optional": true },
-        },
-    });
-    let scope = ParentPkgAliases::root(names(["in-scope"]));
-
-    assert_eq!(peer_shadowed_dependencies(Some(&manifest), &scope, true), names(["in-scope"]));
 }
 
 #[test]

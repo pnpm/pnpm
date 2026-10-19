@@ -148,7 +148,7 @@ test('don\'t hoist a peer dependency when there is a root dependency by that nam
     '@pnpm/xyz-parent-parent-parent-parent',
     '@pnpm/xyz-parent-parent-with-xyz',
     '@pnpm/x@npm:@pnpm.e2e/peer-a@1.0.0',
-    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm/y/-/y-2.0.0.tgz`,
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   const suffix1 = createPeerDepGraphHash([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
@@ -175,7 +175,7 @@ test('don\'t auto-install a peer dependency, when that dependency is in the root
   await addDependenciesToPackage({}, [
     '@pnpm/xyz-parent-parent-parent-parent',
     '@pnpm/x@npm:@pnpm.e2e/peer-a@1.0.0',
-    `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm/y/-/y-2.0.0.tgz`,
+    `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm/y/-/y-2.0.0.tgz`,
   ], testDefaults({ autoInstallPeers: true }))
   const lockfile = project.readLockfile()
   const suffix = createPeerDepGraphHash([{ name: '@pnpm/y', version: '2.0.0' }, { name: '@pnpm/z', version: '1.0.0' }, { name: '@pnpm.e2e/peer-a', version: '1.0.0' }])
@@ -942,13 +942,12 @@ test('an optional peer is not supplied from the lockfile by a package whose own 
   expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/y-v2-peer-user@1.0.0(@pnpm/y@1.0.0)')
 })
 
-test('a locked optional peer version is not rewritten when a sibling workspace package declares a lower version', async () => {
-  // Regression test for https://github.com/pnpm/pnpm/pull/12075
-  // The optional peer is locked at the higher 1.0.1. A sibling workspace
-  // package then declares the lower 1.0.0 directly. The locked 1.0.1 is seeded
-  // into the preferred versions as a weighted selector, which optional peer
-  // hoisting must still consider — otherwise the only candidate left is the
-  // sibling's 1.0.0 and the lockfile is needlessly rewritten.
+// https://github.com/pnpm/pnpm/issues/16443
+test('a locked optional peer follows a sibling workspace package down to a lower version', async () => {
+  // The optional peer is locked at the higher 1.0.1 that a sibling workspace
+  // package brings in. Once the sibling declares the lower 1.0.0, nothing in
+  // the graph holds 1.0.1 any more, so the optional peer follows to 1.0.0
+  // instead of keeping a second copy.
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
 
@@ -982,13 +981,12 @@ test('a locked optional peer version is not rewritten when a sibling workspace p
     expect(lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version).toContain('(@pnpm.e2e/peer-c@1.0.1)')
   }
 
-  // The sibling now declares the lower 1.0.0, but the optional peer stays at 1.0.1.
   await mutateModules(mutations, testDefaults({ autoInstallPeers: true, allProjects: allProjects('1.0.0') }))
   {
     const lockfile = project.readLockfile()
     const optionalPeerVersion = lockfile.importers.project1.dependencies?.['@pnpm.e2e/abc-optional-peers']?.version
-    expect(optionalPeerVersion).toContain('(@pnpm.e2e/peer-c@1.0.1)')
-    expect(optionalPeerVersion).not.toContain('(@pnpm.e2e/peer-c@1.0.0)')
+    expect(optionalPeerVersion).toContain('(@pnpm.e2e/peer-c@1.0.0)')
+    expect(Object.keys(lockfile.snapshots)).not.toContain('@pnpm.e2e/peer-c@1.0.1')
   }
 })
 

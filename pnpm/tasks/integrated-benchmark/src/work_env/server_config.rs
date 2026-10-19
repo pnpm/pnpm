@@ -21,8 +21,10 @@ pub(super) struct RevisionMockRegistry {
     /// window and can't be stolen before `benchmark()` hands it to
     /// [`LatencyProxy::spawn_with_listener`].
     pub(super) listener: TcpListener,
-    /// `http://127.0.0.1:<port>/` — the registry URL baked into each target's
-    /// `.npmrc` at `init()`, before the mock itself exists.
+    /// `http://127.0.0.1:<port>`, the mock's `--public-url`.
+    pub(super) origin: String,
+    /// The npm registry URL under `origin`, baked into each target's `.npmrc`
+    /// at `init()`, before the mock itself exists.
     pub(super) url: String,
 }
 /// Where one benchmark's pnpr server binary, config and storage live.
@@ -87,24 +89,12 @@ pub(super) fn write_pnpr_benchmark_config(
 /// A config for the cold mock: isolated `storage` and a single public upstream
 /// at the warm origin, so every request is a cache miss proxied through to it.
 ///
-/// The routing is expressed in *two* shapes so one file drives every
-/// benchmarked `pnpr` binary back to the mount model: the `registries:` +
-/// `defaultRegistry:` model that current `pnpr` reads, and the `mounts:` +
-/// `defaultTarget:` shape it replaced. Each server ignores the block it
-/// doesn't recognize, so both proxy every request to the same `origin`. The
-/// pre-mount `uplinks:` + `packages: proxy:` shape can no longer ride along:
-/// current `pnpr` deliberately *rejects* a top-level `packages:` block at
-/// startup (per-package rules live on each registry now, and silently
-/// dropping a formerly-enforced ACL would be a security regression), so a
-/// revision older than the mount model cannot share a config file with
-/// current ones.
+/// The routing is expressed with `registries:` + `defaultRegistry:`.
 pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
     let upstream =
         || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
-        mounts: ColdMockUpstreamTable { npmjs: upstream() },
-        default_target: "npmjs",
         registries: ColdMockUpstreamTable { npmjs: upstream() },
         default_registry: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
@@ -116,21 +106,17 @@ pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
 #[derive(Serialize)]
 pub(super) struct ColdMockConfig {
     storage: String,
-    mounts: ColdMockUpstreamTable,
-    #[serde(rename = "defaultTarget")]
-    default_target: &'static str,
     registries: ColdMockUpstreamTable,
     #[serde(rename = "defaultRegistry")]
     default_registry: &'static str,
     log: ColdMockLog,
 }
-/// The `mounts:` / `registries:` table — the same single-upstream entry under
-/// either key, since the registries model kept the tagged-entry shape.
+/// The `registries:` table — a single-upstream entry.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamTable {
     npmjs: ColdMockUpstreamEntry,
 }
-/// One `mounts:`/`registries:` entry: the `type:` tag selects the kind
+/// One `registries:` entry: the `type:` tag selects the kind
 /// (`upstream` here), and the kind's fields sit alongside it.
 #[derive(Serialize)]
 pub(super) struct ColdMockUpstreamEntry {
@@ -229,44 +215,69 @@ pub(super) fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str, token: &s
         "append pnpr auth to benchmark .npmrc",
     );
 }
-/// Log in as the seeded benchmark user and return a bearer token. The login
-/// runs on a dedicated thread with its own runtime so it doesn't reach into the
-/// harness's ambient `#[tokio::main]` runtime (which would make a blocking
-/// client panic).
-pub(super) fn mint_pnpr_token(port: u16) -> String {
+/// Run `future` to completion on a dedicated thread with its own runtime, so
+/// the synchronous benchmark path doesn't reach into the harness's ambient
+/// `#[tokio::main]` runtime (which would make a blocking client panic).
+fn block_on_own_runtime<Output: Send + 'static>(
+    future: impl Future<Output = Output> + Send + 'static,
+) -> Output {
     std::thread::spawn(move || {
-        let runtime = tokio::runtime::Runtime::new().expect("runtime for pnpr token mint");
-        runtime.block_on(async move {
-            let url = format!(
-                "http://127.0.0.1:{port}/-/user/org.couchdb.user:{PNPR_BENCHMARK_USERNAME}",
-            );
-            let body = serde_json::json!({
-                "_id": format!("org.couchdb.user:{PNPR_BENCHMARK_USERNAME}"),
-                "name": PNPR_BENCHMARK_USERNAME,
-                "password": PNPR_BENCHMARK_PASSWORD,
-                "type": "user",
-                "roles": [],
-            });
-            let response = reqwest::Client::new()
-                .put(&url)
-                .json(&body)
-                .send()
-                .await
-                .expect("log in to pnpr to mint a benchmark token");
-            assert!(
-                response.status().is_success(),
-                "pnpr login returned {} when minting a benchmark token",
-                response.status(),
-            );
-            let payload: Value = response.json().await.expect("parse pnpr login response");
-            payload["token"]
-                .as_str()
-                .expect("token field in pnpr login response")
-                .to_string()
-        })
+        tokio::runtime::Runtime::new()
+            .expect("create a runtime for a benchmark request")
+            .block_on(future)
     })
     .join()
-    .expect("pnpr token mint thread panicked")
+    .expect("benchmark request thread panicked")
+}
+/// Whether the pnpr server on `port` serves npm under a path of its own, per
+/// its registry directory. A server whose directory is missing or does not
+/// say so serves npm at its root.
+pub(super) fn serves_npm_under_base_path(port: u16) -> bool {
+    block_on_own_runtime(async move {
+        let url = format!("http://127.0.0.1:{port}/-/pnpr/v0/registries");
+        let response = reqwest::get(&url).await
+            .unwrap_or_else(|error| panic!("query the registry directory at {url}: {error}"));
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return false;
+        }
+        assert!(
+            response.status().is_success(),
+            "the registry directory at {url} returned {}",
+            response.status(),
+        );
+        let directory: Value = response.json().await.expect("parse the registry directory");
+        directory["ecosystems"]["npm"]["prefixed"].as_bool() == Some(true)
+    })
+}
+/// Log in as the seeded benchmark user and return a bearer token.
+pub(super) fn mint_pnpr_token(port: u16) -> String {
+    block_on_own_runtime(async move {
+        let url =
+            format!("http://127.0.0.1:{port}/-/user/org.couchdb.user:{PNPR_BENCHMARK_USERNAME}");
+        let body = serde_json::json!({
+            "_id": format!("org.couchdb.user:{PNPR_BENCHMARK_USERNAME}"),
+            "name": PNPR_BENCHMARK_USERNAME,
+            "password": PNPR_BENCHMARK_PASSWORD,
+            "type": "user",
+            "roles": [],
+        });
+        let response = reqwest::Client::new()
+            .put(&url)
+            .json(&body)
+            .send()
+            .await
+            .expect("log in to pnpr to mint a benchmark token");
+        assert!(
+            response.status().is_success(),
+            "pnpr login returned {} when minting a benchmark token",
+            response.status(),
+        );
+        let payload: Value = response.json().await.expect("parse pnpr login response");
+        payload["token"]
+            .as_str()
+            .expect("token field in pnpr login response")
+            .to_string()
+    })
 }
 pub(super) fn pnpr_auth_config_key(pnpr_server: &str) -> String {
     let Some(without_scheme) = pnpr_server

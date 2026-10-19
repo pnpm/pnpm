@@ -1,8 +1,9 @@
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_lockfile::Lockfile;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::fs;
+use std::{collections::HashMap, fs, path::Path};
 
 #[test]
 fn frozen_install_accepts_default_catalog_peers_with_a_shared_lockfile() {
@@ -69,12 +70,14 @@ fn assert_frozen_install_accepts_catalog_peers(shared_lockfile: bool, peer_speci
         .assert()
         .success();
 
-    let lockfile_path = if shared_lockfile {
-        workspace.join("pnpm-lock.yaml")
-    } else {
-        workspace.join("app/pnpm-lock.yaml")
-    };
+    let lockfile_dir = if shared_lockfile { workspace.clone() } else { workspace.join("app") };
+    let lockfile_path = lockfile_dir.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read generated lockfile");
+    assert_eq!(
+        recorded_lib_peers(&lockfile_dir),
+        HashMap::from([("@pnpm.e2e/foo".to_string(), peer_specifier.to_string())]),
+        "the lockfile records the peer as the manifest writes it",
+    );
     let mut changed_manifest = lib_manifest;
     changed_manifest["peerDependencies"]["@pnpm.e2e/foo"] = serde_json::json!("2.0.0");
     fs::write(workspace.join("lib/package.json"), changed_manifest.to_string())
@@ -90,4 +93,19 @@ fn assert_frozen_install_accepts_catalog_peers(shared_lockfile: bool, peer_speci
     assert_eq!(fs::read_to_string(lockfile_path).expect("read unchanged lockfile"), lockfile);
 
     drop((root, mock_instance));
+}
+
+/// The `peerDependencies` of the `packages` entry of the injected `lib`.
+fn recorded_lib_peers(lockfile_dir: &Path) -> HashMap<String, String> {
+    Lockfile::load_wanted_from_dir(lockfile_dir)
+        .expect("read the lockfile")
+        .expect("the lockfile exists")
+        .packages
+        .expect("the lockfile has packages")
+        .into_iter()
+        .find(|(key, _)| key.to_string().starts_with("lib@"))
+        .expect("the lockfile has an entry for lib")
+        .1
+        .peer_dependencies
+        .expect("lib records its peers")
 }

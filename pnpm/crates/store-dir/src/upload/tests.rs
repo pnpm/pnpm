@@ -351,5 +351,6 @@ fn create_base_index(store_dir: &StoreDir, pkg_dir: &Path) -> PackageFilesIndex 
         files: base_files.files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }

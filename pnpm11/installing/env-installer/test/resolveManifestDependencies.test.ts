@@ -5,7 +5,7 @@ import { createTempStore } from '@pnpm/testing.temp-store'
 
 import { resolveManifestDependencies } from '../src/resolveManifestDependencies.js'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 // `0.0.5` was published without the provenance an earlier version carries.
 const downgradedTrust = { dependencies: { '@pnpm/e2e.test-provenance': '0.0.5' } }

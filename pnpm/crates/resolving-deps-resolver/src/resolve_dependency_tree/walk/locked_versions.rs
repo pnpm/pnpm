@@ -81,7 +81,7 @@ pub(super) fn pin_patched_revision(
 ///
 /// `parent_pkg_aliases` is the scope this edge's level resolves in; it
 /// decides which of the resolved package's `dependencies` its own
-/// `peerDependencies` shadow (see [`peer_shadowed_dependencies`](crate::parent_pkg_aliases::peer_shadowed_dependencies)).
+/// `peerDependencies` shadow (see [`peer_shadowed_dependencies`](crate::peer_provider::peer_shadowed_dependencies)).
 /// Locked-version pin, the fresh-resolve counterpart of subtree reuse: a
 /// transitive edge whose recorded version still satisfies its manifest range
 /// (`prior_key` is satisfies-gated) resolves to exactly that version even when

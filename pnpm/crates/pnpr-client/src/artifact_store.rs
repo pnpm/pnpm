@@ -150,7 +150,7 @@ mod turborepo;
 /// through: it marks content the server got wrong, which callers quarantine.
 fn remote_cache_error(error: PnprClientError) -> PnprClientError {
     match error {
-        PnprClientError::Server(message) => PnprClientError::RemoteCache(message),
+        PnprClientError::Server { message, .. } => PnprClientError::RemoteCache(message),
         PnprClientError::Http(error) => PnprClientError::RemoteCache(with_causes(&error)),
         other => other,
     }

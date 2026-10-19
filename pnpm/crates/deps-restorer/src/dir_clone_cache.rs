@@ -102,6 +102,9 @@ impl<'install> DirCloneCache<'install> {
         cfg!(target_os = "macos")
             && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Hoisted)
             && !config.enable_global_virtual_store
+            // A canonical root inside the virtual store, as under `pnpm deploy`,
+            // would leave a second copy of every package in the project.
+            && config.global_virtual_store_dir != config.virtual_store_dir()
             && matches!(
                 config.package_import_method,
                 PackageImportMethod::Auto

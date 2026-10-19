@@ -66,9 +66,10 @@ pub(in crate::cli_args::pre_command) struct UnparsedArgv {
 
 impl UnparsedArgv {
     /// `None` when the command line cannot be read reliably: an option
-    /// that no command declares comes before the command name, or one the
-    /// named command does not declare comes right before a flag that sets
-    /// its scope, and whether that option takes the next token is unknown.
+    /// that no command declares comes before the command name but not
+    /// right before it, or one the named command does not declare comes
+    /// right before a flag that sets its scope, and whether that option
+    /// takes the next token is unknown.
     /// A non-UTF-8 token is `None` too.
     pub(in crate::cli_args::pre_command) fn scan(argv: &[OsString]) -> Option<Self> {
         let cli = with_boolean_negations(CliArgs::command());
@@ -84,7 +85,10 @@ impl UnparsedArgv {
                 .get(index + 1)
                 .map(OsString::as_os_str);
             let named_command = scan.command.is_some();
-            index += scan.absorb(token, next, &options)?;
+            let next_is_command = next
+                .and_then(OsStr::to_str)
+                .is_some_and(|next| cli.find_subcommand(next).is_some());
+            index += scan.absorb(token, next, &options, next_is_command)?;
             if let Some(command) = scan.command.as_deref().filter(|_| !named_command) {
                 options = command_options(&cli, command);
             }
@@ -110,12 +114,18 @@ struct UnparsedScan {
 }
 
 impl UnparsedScan {
-    fn absorb(&mut self, token: &str, next: Option<&OsStr>, options: &ArgTable) -> Option<usize> {
+    fn absorb(
+        &mut self,
+        token: &str,
+        next: Option<&OsStr>,
+        options: &ArgTable,
+        next_is_command: bool,
+    ) -> Option<usize> {
         if self.absorb_scope_flag(token, next, options) && self.after_undeclared_option {
             return None;
         }
         self.after_undeclared_option = may_take_undeclared_value(token, options);
-        self.absorb_token(token, next, options)
+        self.absorb_token(token, next, options, next_is_command)
     }
 
     /// Read `--global`, `-g` in a short cluster, or `--location`,
@@ -141,6 +151,7 @@ impl UnparsedScan {
         token: &str,
         next: Option<&OsStr>,
         options: &ArgTable,
+        next_is_command: bool,
     ) -> Option<usize> {
         if !token.starts_with('-') {
             self.command.get_or_insert_with(|| canonical_command_name(token));
@@ -152,7 +163,9 @@ impl UnparsedScan {
         if self.command.is_some() {
             return Some(width);
         }
-        declared_option_width(token, options)
+        // An undeclared option right before a command name is read as a
+        // flag without a value, as pnpm v11 reads it.
+        declared_option_width(token, options).or_else(|| next_is_command.then_some(1))
     }
 }
 

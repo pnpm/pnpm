@@ -6,7 +6,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { bravoDepMatureUpTo101MinimumReleaseAge } from '@pnpm/testing.registry-mock'
+import { bravoDepMatureUpTo101MinimumReleaseAge, hostedBlobPath } from '@pnpm/testing.registry-mock'
 import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
@@ -15,32 +15,17 @@ import {
   execPnpm,
   execPnpmSync,
 } from './utils/index.js'
-import { closeServer } from './utils/localServer.js'
+import { closeServer, listenOnLocalhost } from './utils/localServer.js'
 
-test('update --patches refreshes a registry revision without changing the version', async () => {
-  const storage = process.env.PNPM_REGISTRY_MOCK_STORAGE
-  if (storage == null) throw new Error('PNPM_REGISTRY_MOCK_STORAGE is required')
-  const firstTarball = fs.readFileSync(path.join(storage, 'ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
-  const secondTarball = Buffer.from(firstTarball)
-  secondTarball[9] = firstTarball[9] === 0xff ? 0x03 : 0xff
-  const firstIntegrity = `sha512-${createHash('sha512').update(firstTarball).digest('base64')}`
-  const secondIntegrity = `sha512-${createHash('sha512').update(secondTarball).digest('base64')}`
+test('install rejects a version the registry serves as a registry revision', async () => {
+  const tarball = fs.readFileSync(hostedBlobPath('ajv-keywords', 'ajv-keywords-1.5.0.tgz'))
+  const digest = createHash('sha512').update(tarball).digest()
+  const integrity = `sha512-${digest.toString('base64')}`
 
-  let revision = 1
   let registry = ''
   const server = http.createServer((request, response) => {
-    const artifacts = [firstTarball, secondTarball].map((tarball, index) => {
-      const digest = createHash('sha512').update(tarball).digest()
-      return {
-        integrity: `sha512-${digest.toString('base64')}`,
-        manifest: {},
-        revision: index + 1,
-        tarball: `${registry}-/tarballs/sha512/${digest.toString('base64url')}`,
-        bytes: tarball,
-      }
-    })
     if (request.url === '/ajv-keywords') {
-      const current = artifacts[revision - 1]
+      const digestTarball = `${registry}-/tarballs/sha512/${digest.toString('base64url')}`
       response.writeHead(200, { 'Content-Type': 'application/json' })
       response.end(JSON.stringify({
         name: 'ajv-keywords',
@@ -50,80 +35,27 @@ test('update --patches refreshes a registry revision without changing the versio
             name: 'ajv-keywords',
             version: '1.5.0',
             dist: {
-              integrity: current.integrity,
-              revision,
-              revisions: artifacts.slice(0, revision).map((artifact) => ({
-                integrity: artifact.integrity,
-                manifest: artifact.manifest,
-                revision: artifact.revision,
-                tarball: artifact.tarball,
-              })),
-              tarball: current.tarball,
+              integrity,
+              revision: 0,
+              revisions: [{ integrity, manifest: {}, revision: 0, tarball: digestTarball }],
+              tarball: digestTarball,
             },
           },
         },
       }))
       return
     }
-    const artifact = artifacts.find(({ tarball }) => request.url === new URL(tarball).pathname)
-    if (artifact != null) {
-      response.writeHead(200, { 'Content-Type': 'application/octet-stream' })
-      response.end(artifact.bytes)
-      return
-    }
     response.writeHead(404).end()
   })
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await listenOnLocalhost(server)
   registry = `http://127.0.0.1:${(server.address() as { port: number }).port}/`
 
   try {
-    const project = prepare({ dependencies: { 'ajv-keywords': '^1.5.0' } })
-    await execPnpm(['install', `--registry=${registry}`])
-    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
-      integrity: firstIntegrity,
-      revision: 1,
-    })
-    const manifest = await readPackageJsonFromDir('.')
-
-    revision = 2
-    await execPnpm(['update', '--patches', `--registry=${registry}`])
-
-    expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
-    expect(project.readLockfile().packages['ajv-keywords@1.5.0'].resolution).toStrictEqual({
-      integrity: secondIntegrity,
-      revision: 2,
-    })
+    prepare({ dependencies: { 'ajv-keywords': '^1.5.0' } })
+    await expect(execPnpm(['install', `--registry=${registry}`])).rejects.toThrow('ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED')
   } finally {
     await closeServer(server)
   }
-})
-
-test('update --patches preserves an implicit workspace dependency', async () => {
-  preparePackages([
-    {
-      name: 'project',
-      version: '1.0.0',
-      dependencies: { 'workspace-only': '^1.0.0' },
-    },
-    {
-      name: 'workspace-only',
-      version: '1.0.0',
-    },
-  ])
-  writeYamlFileSync('pnpm-workspace.yaml', {
-    linkWorkspacePackages: true,
-    packages: ['**', '!store/**'],
-  })
-  await execPnpm(['recursive', 'install'])
-
-  process.chdir('project')
-  const manifest = await readPackageJsonFromDir('.')
-  await execPnpm(['update', '--patches'])
-
-  expect(await readPackageJsonFromDir('.')).toStrictEqual(manifest)
-  expect(fs.realpathSync('node_modules/workspace-only')).toBe(fs.realpathSync('../workspace-only'))
-  const lockfile = readYamlFileSync<any>('../pnpm-lock.yaml') // eslint-disable-line
-  expect(lockfile.importers.project.dependencies['workspace-only'].version).toBe('link:../workspace-only')
 })
 
 test('update <dep>', async () => {

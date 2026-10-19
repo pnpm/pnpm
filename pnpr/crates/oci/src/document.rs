@@ -52,6 +52,12 @@ pub struct TagEntry {
     pub updated: u64,
 }
 
+pub const IMAGE_DOCUMENT_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    IMAGE_DOCUMENT_FORMAT_VERSION
+}
+
 /// The stored shape, which [`ImageDocument`] sorts on the way in.
 ///
 /// It is a separate type so that the ordering that document guarantees is
@@ -60,6 +66,8 @@ pub struct TagEntry {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredImageDocument {
+    #[serde(default = "default_format_version")]
+    format_version: u32,
     name: String,
     #[serde(default)]
     manifests: Vec<ManifestEntry>,
@@ -74,6 +82,7 @@ struct StoredImageDocument {
 impl From<StoredImageDocument> for ImageDocument {
     fn from(stored: StoredImageDocument) -> Self {
         let StoredImageDocument {
+            format_version,
             name,
             mut manifests,
             mut tags,
@@ -82,7 +91,7 @@ impl From<StoredImageDocument> for ImageDocument {
         } = stored;
         manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Self { name, manifests, tags, generation, deleting_blob }
+        Self { format_version, name, manifests, tags, generation, deleting_blob }
     }
 }
 
@@ -96,9 +105,11 @@ impl From<StoredImageDocument> for ImageDocument {
 /// lookup here is a binary search: a document whose entries reached storage
 /// in another order would hide entries it holds. The ordering holds however
 /// a document was built, not only on the paths that maintain it.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", from = "StoredImageDocument")]
 pub struct ImageDocument {
+    #[serde(default = "default_format_version")]
+    pub format_version: u32,
     pub name: String,
     #[serde(default)]
     manifests: Vec<ManifestEntry>,
@@ -110,6 +121,19 @@ pub struct ImageDocument {
     /// Blocks new publishes until the deletion completes or offline collection recovers it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deleting_blob: Option<Digest>,
+}
+
+impl Default for ImageDocument {
+    fn default() -> Self {
+        Self {
+            format_version: IMAGE_DOCUMENT_FORMAT_VERSION,
+            name: String::new(),
+            manifests: Vec::new(),
+            tags: Vec::new(),
+            generation: 0,
+            deleting_blob: None,
+        }
+    }
 }
 
 impl ImageDocument {

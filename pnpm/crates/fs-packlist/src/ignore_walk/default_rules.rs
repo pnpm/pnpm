@@ -13,7 +13,12 @@ static DEFAULT_RULES: LazyLock<Vec<IgnoreRule>> = LazyLock::new(|| {
         .collect()
 });
 
-pub(super) const DEFAULT_PATTERNS: [&str; 8] = [
+pub(super) const DEFAULT_PATTERNS: [&str; 13] = [
+    ".npmignore",
+    ".gitignore",
+    "npm-debug.log",
+    ".DS_Store",
+    "*.orig",
     "/.lock-wscript",
     "/.wafpickle-*",
     "/build/config.gypi",
@@ -44,9 +49,18 @@ pub(super) fn may_match_default_rules(segment: &str) -> bool {
     starts_with("._")
         || (starts_with(".") && ends_with(".swp"))
         || starts_with(".wafpickle-")
-        || ["config.gypi", ".lock-wscript", "archived-packages", ".ds_store"]
-            .iter()
-            .any(|name| segment.eq_ignore_ascii_case(name))
+        || ends_with(".orig")
+        || [
+            "config.gypi",
+            ".lock-wscript",
+            "archived-packages",
+            ".ds_store",
+            ".npmignore",
+            ".gitignore",
+            "npm-debug.log",
+        ]
+        .iter()
+        .any(|name| segment.eq_ignore_ascii_case(name))
 }
 
 /// A directory's default rules, see [`DEFAULT_RULES`].
@@ -59,9 +73,6 @@ pub(super) struct DirDefaults {
 }
 
 impl DirDefaults {
-    /// A directory that applies none, such as the root of a `files` walk.
-    pub(super) const NONE: Self = Self { rules: &[], has_candidate_segment: false };
-
     pub(super) fn root() -> Self {
         Self { rules: &DEFAULT_RULES, has_candidate_segment: false }
     }

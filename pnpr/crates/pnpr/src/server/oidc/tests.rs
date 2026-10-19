@@ -44,32 +44,31 @@ fn workload_credentials_only_permit_named_package_publication() {
     let config = config(CONFIG);
     validate_workloads(&config).unwrap();
     let workload = &config.identity.auth.oidc[0].workloads[0];
-    for path in ["/~private/@org/pkg", "/~private/@org%2fpkg", "/~private/%40org%2Fpkg"] {
-        check_workload_request(&config, workload, &Method::PUT, path).unwrap();
+    for path in ["/npm/~private/@org/pkg", "/npm/~private/@org%2fpkg", "/npm/~private/%40org%2Fpkg"]
+    {
+        check_workload_request(workload, &Method::PUT, path).unwrap();
     }
     for path in [
-        "/@org/pkg",
-        "/~other/@org/pkg",
-        "/~private/@org/other",
-        "/~private/@org/pkg/-rev/1",
-        "/~private/-/package/@org%2fpkg/dist-tags/latest",
+        "/~private/@org/pkg",
+        "/npm/@org/pkg",
+        "/npm/~other/@org/pkg",
+        "/npm/~private/@org/other",
+        "/npm/~private/@org/pkg/-rev/1",
+        "/npm/~private/-/package/@org%2fpkg/dist-tags/latest",
         "/-/user/org.couchdb.user:ci",
         "/-/npm/v1/tokens",
         "/-/pnpr/v0/publish",
-        "/-/pnpm/v1/publish",
+        "/npm/-/pnpm/v1/publish",
         "/v2/token",
-        "/~private/@org%252fpkg",
-        "/~private/@org/pkg/",
-        "/~private/@org/pkg/../other",
+        "/npm/~private/@org%252fpkg",
+        "/npm/~private/@org/pkg/",
+        "/npm/~private/@org/pkg/../other",
     ] {
-        assert!(
-            check_workload_request(&config, workload, &Method::PUT, path).is_err(),
-            "accepted {path}",
-        );
+        assert!(check_workload_request(workload, &Method::PUT, path).is_err(), "accepted {path}");
     }
     for method in [Method::GET, Method::POST, Method::DELETE, Method::PATCH] {
         assert!(
-            check_workload_request(&config, workload, &method, "/~private/@org/pkg").is_err(),
+            check_workload_request(workload, &method, "/npm/~private/@org/pkg").is_err(),
             "accepted {method}",
         );
     }

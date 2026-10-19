@@ -54,6 +54,10 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
+export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+export { getPeerSet } from './resolvedPackage.js'
+export { getLockfilePeerDependencies } from './updateLockfile.js'
 export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
@@ -254,6 +258,7 @@ async function resolvePeersOfProjects (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
     resolvedImporters: resolution.resolvedImporters,
+    wantedLockfile: opts.wantedLockfile,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
   }

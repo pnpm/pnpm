@@ -14,12 +14,22 @@ use super::{
 /// since the silent skip would erase the locked entries (see
 /// [`fn@wanted_lockfile_contains_satisfying_entry`]). `Ok(())` means the edge
 /// is dropped; every other failure propagates.
+/// Whether dropping a failed optional edge reaches the
+/// `skipped_optional_log` hook. A cached probe resolves the same edge the
+/// uncached pass already reported, so only one of them tells the user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SkippedOptionalReport {
+    Emit,
+    Suppress,
+}
+
 pub(super) fn drop_failed_edge(
     ctx: &TreeCtx,
     wanted: &WantedDependency,
     edge: &ChildEdge<'_>,
     opts: &ResolveOptions,
     err: ResolveDependencyTreeError,
+    report: SkippedOptionalReport,
 ) -> Result<(), ResolveDependencyTreeError> {
     let optional = wanted.optional.unwrap_or(false);
     let broken_parent = edge.ancestor_ids
@@ -40,6 +50,10 @@ pub(super) fn drop_failed_edge(
             err,
         );
         return Ok(());
+    }
+    match report {
+        SkippedOptionalReport::Emit => {}
+        SkippedOptionalReport::Suppress => return Ok(()),
     }
     if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {

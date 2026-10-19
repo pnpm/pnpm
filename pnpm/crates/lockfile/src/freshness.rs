@@ -36,6 +36,7 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub integrity_target: crate::IntegrityTarget,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -178,6 +179,13 @@ pub enum StalenessReason {
         "`injectWorkspacePackages` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
     InjectWorkspacePackagesChanged { lockfile: bool, config: bool },
+
+    /// The hash the lockfile's package tarball entries pin, its
+    /// `settings.integrityTarget`, differs from `lockfile.integrityTarget`.
+    #[display(
+        "`integrityTarget` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    IntegrityTargetChanged { lockfile: crate::IntegrityTarget, config: crate::IntegrityTarget },
 
     /// `settings.peersSuffixMaxLength` in the lockfile differs from
     /// the value the current install would use. An unset field in the
@@ -323,7 +331,8 @@ impl StalenessReason {
             | StalenessReason::AddMissingPeerTypesChanged { .. }
             | StalenessReason::ExcludeLinksFromLockfileChanged { .. }
             | StalenessReason::PeersSuffixMaxLengthChanged { .. }
-            | StalenessReason::InjectWorkspacePackagesChanged { .. } => self.settings_block_key(),
+            | StalenessReason::InjectWorkspacePackagesChanged { .. }
+            | StalenessReason::IntegrityTargetChanged { .. } => self.settings_block_key(),
             StalenessReason::PnpmfileChecksumChanged { .. } => Some("pnpmfileChecksum"),
             StalenessReason::ResolutionSettingChanged { setting, .. } => {
                 Some(setting.lockfile_key())
@@ -368,6 +377,7 @@ pub fn check_lockfile_settings(
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
     check_recorded_settings(lockfile, &check.resolution)?;
+    check_integrity_target(lockfile, check.integrity_target)?;
     // Last, because every gate above reports a cause this one cannot: each
     // compares the lockfile against a configured value the user can act on,
     // while this compares the lockfile against itself. A lockfile that drifted
@@ -506,4 +516,4 @@ mod recorded_settings;
 mod spec_diff;
 
 use manifest::dependency_specifiers_equal;
-use recorded_settings::check_recorded_settings;
+use recorded_settings::{check_integrity_target, check_recorded_settings};

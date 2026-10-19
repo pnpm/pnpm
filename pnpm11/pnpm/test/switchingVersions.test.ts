@@ -60,7 +60,7 @@ test('switch to the pinned pnpm version although this pnpm cannot read any of th
   expect(stdout.toString()).toContain('Version 9.3.0')
 })
 
-test('a pnpm-workspace.yaml that fails partway leaves none of its settings in force', async () => {
+test('a setting outside the pin decision does not drop the pmOnFail beside it', async () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
   const env = { PNPM_HOME: pnpmHome }
@@ -73,9 +73,23 @@ test('a pnpm-workspace.yaml that fails partway leaves none of its settings in fo
     catalogs: { default: { 'is-positive': '1.0.0' } },
   })
 
-  const { stdout } = execPnpmSync(['help'], { env, expectSuccess: true })
+  const { stdout } = execPnpmSync(['--version'], { env, expectSuccess: true })
 
-  expect(stdout.toString()).toContain('Version 9.3.0')
+  expect(stdout.toString().trim()).not.toBe('9.3.0')
+})
+
+test('an unreadable packages setting does not drop the pmOnFail beside it', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    packageManager: 'pnpm@9.3.0',
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', { pmOnFail: 'ignore', packages: 5 })
+
+  const { stdout } = execPnpmSync(['--version'], { env, expectSuccess: true })
+
+  expect(stdout.toString().trim()).not.toBe('9.3.0')
 })
 
 test('a broken pnpm-workspace.yaml does not override the machine\'s opt-out from switching', async () => {
@@ -161,6 +175,7 @@ test('packageManager field does not write pnpm resolution info to pnpm-lock.yaml
   // manifest itself, so pnpm resolution info must not leak into the lockfile.
   // This keeps the v10 -> v11 transition quiet.
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+  expect(fs.existsSync('sub/lf')).toBe(false)
 })
 
 test('do not switch to the pnpm version specified in the packageManager field of package.json, if pmOnFail is set to ignore', async () => {
@@ -174,9 +189,9 @@ test('do not switch to the pnpm version specified in the packageManager field of
     packageManager: 'pnpm@9.3.0',
   })
 
-  const { stdout } = execPnpmSync(['help'], { env })
+  const { stdout } = execPnpmSync(['--version'], { env, expectSuccess: true })
 
-  expect(stdout.toString()).not.toContain('Version 9.3.0')
+  expect(stdout.toString().trim()).not.toBe('9.3.0')
 })
 
 test('do not switch to pnpm version that is specified not with a semver version', async () => {
@@ -281,6 +296,33 @@ test('devEngines.packageManager with onFail=download reuses resolved version fro
 
   // Verify env lockfile was written
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(true)
+})
+
+test('devEngines.packageManager is recorded in the lockfile directory set by pnpm-workspace.yaml', async () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  const env = { PNPM_HOME: pnpmHome }
+  writeJsonFileSync('package.json', {
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '>=9.1.0 <9.1.4',
+        onFail: 'download',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+  fs.mkdirSync('sub')
+  writeJsonFileSync('sub/package.json', { name: 'sub' })
+  writeYamlFileSync('pnpm-workspace.yaml', { lockfileDir: 'lf', packages: ['sub'] })
+
+  const firstRun = execPnpmSync(['help'], { env })
+  expect(firstRun.stdout.toString()).toContain('Version 9.1.3')
+  const secondRun = execPnpmSync(['help'], { env, cwd: path.resolve('sub') })
+  expect(secondRun.stdout.toString()).toContain('Version 9.1.3')
+
+  expect(fs.readFileSync('lf/pnpm-lock.yaml', 'utf8')).toContain('packageManagerDependencies')
+  expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
 })
 
 test('devEngines.packageManager re-resolves when locked version no longer satisfies updated range', async () => {

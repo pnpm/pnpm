@@ -29,6 +29,9 @@ impl RegistryError {
 
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
+        if let Some(kind) = self.package_log_kind() {
+            return kind;
+        }
         match self {
             RegistryError::Upstream { .. } | RegistryError::UpstreamBody { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
@@ -52,7 +55,6 @@ impl RegistryError {
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
-            RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
             RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
@@ -61,7 +63,6 @@ impl RegistryError {
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
-            RegistryError::ReservedUsername { .. } => "reserved_username",
             RegistryError::TooManyRequests { .. } => "too_many_requests",
             RegistryError::RequestTimeout { .. } => "request_timeout",
             RegistryError::Shared(inner) => inner.log_kind(),
@@ -69,8 +70,23 @@ impl RegistryError {
         }
     }
 
+    fn package_log_kind(&self) -> Option<&'static str> {
+        match self {
+            RegistryError::ReservedUsername { .. } => Some("reserved_username"),
+            RegistryError::NotPackageMaintainer { .. } => Some("not_package_maintainer"),
+            RegistryError::PackageTombstoned { .. } => Some("package_tombstoned"),
+            RegistryError::CannotRepublishUnpublishedVersion { .. } => {
+                Some("cannot_republish_unpublished_version")
+            }
+            RegistryError::EmptyMaintainers { .. } => Some("empty_maintainers"),
+            _ => None,
+        }
+    }
+
     fn storage_log_kind(&self) -> &'static str {
         match self {
+            RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
+            RegistryError::DocumentFormatTooNew { .. } => "document_format_too_new",
             RegistryError::StorageUnavailable { .. } => "storage_unavailable",
             RegistryError::Internal { .. } => "internal",
             RegistryError::InvalidHtpasswdFile { .. } => "invalid_htpasswd_file",
@@ -158,6 +174,9 @@ impl RegistryError {
     ///   wasn't usable. Not retryable.
     #[must_use]
     pub fn status_code(&self) -> StatusCode {
+        if let Some(code) = self.client_status_code() {
+            return code;
+        }
         match self {
             RegistryError::Upstream { source, .. } => upstream_status_code(source),
             RegistryError::UpstreamBody { source, .. } => upstream_body_status_code(source),
@@ -165,12 +184,6 @@ impl RegistryError {
             | RegistryError::UpstreamResponse { .. }
             | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
-            RegistryError::InvalidPackageName { .. }
-            | RegistryError::InvalidEcosystemPackageName { .. }
-            | RegistryError::InvalidTarballName { .. }
-            | RegistryError::InvalidConfig { .. }
-            | RegistryError::InvalidAttachment { .. }
-            | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
             | RegistryError::PublishNotRecorded { .. }
@@ -180,20 +193,39 @@ impl RegistryError {
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. }
             | RegistryError::AdminConflict { .. } => StatusCode::CONFLICT,
-            RegistryError::NotFound => StatusCode::NOT_FOUND,
-            RegistryError::PreconditionFailed { .. } => StatusCode::PRECONDITION_FAILED,
-            RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
+            RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
+            RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
+            RegistryError::Shared(inner) => inner.status_code(),
+            _ => self.storage_status_code(),
+        }
+    }
+
+    fn client_status_code(&self) -> Option<StatusCode> {
+        match self {
+            RegistryError::InvalidPackageName { .. }
+            | RegistryError::InvalidEcosystemPackageName { .. }
+            | RegistryError::InvalidTarballName { .. }
+            | RegistryError::InvalidConfig { .. }
+            | RegistryError::InvalidAttachment { .. }
+            | RegistryError::EmptyMaintainers { .. }
+            | RegistryError::BadRequest { .. } => Some(StatusCode::BAD_REQUEST),
+            RegistryError::NotFound => Some(StatusCode::NOT_FOUND),
+            RegistryError::PreconditionFailed { .. } => Some(StatusCode::PRECONDITION_FAILED),
+            RegistryError::Unauthenticated { .. } => Some(StatusCode::UNAUTHORIZED),
             RegistryError::Forbidden { .. }
             | RegistryError::TeamsConfigManaged { .. }
             | RegistryError::RulesConfigManaged
             | RegistryError::OsvVulnerability { .. }
             | RegistryError::RegistrationDisabled
             | RegistryError::TooManyUsers { .. }
-            | RegistryError::ReservedUsername { .. } => StatusCode::FORBIDDEN,
-            RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
-            RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,
-            RegistryError::Shared(inner) => inner.status_code(),
-            _ => self.storage_status_code(),
+            | RegistryError::ReservedUsername { .. }
+            | RegistryError::NotPackageMaintainer { .. }
+            | RegistryError::PackageTombstoned { .. }
+            | RegistryError::CannotRepublishUnpublishedVersion { .. } => {
+                Some(StatusCode::FORBIDDEN)
+            }
+            RegistryError::DocumentFormatTooNew { .. } => Some(StatusCode::CONFLICT),
+            _ => None,
         }
     }
 }

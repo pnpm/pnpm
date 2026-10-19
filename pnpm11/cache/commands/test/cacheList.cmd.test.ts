@@ -10,7 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 
 const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 describe('cache', () => {
   let cacheDir: string
@@ -53,7 +53,7 @@ describe('cache', () => {
       pnpmHomeDir: storeDir,
     }, ['list'])
 
-    expect(result).toBe(`http%3A+localhost+${REGISTRY_MOCK_PORT}/is-negative.jsonl
+    expect(result).toBe(`http%3A+localhost+${REGISTRY_MOCK_PORT}%2Fnpm/is-negative.jsonl
 https%3A+registry.npmjs.org/is-negative.jsonl
 https%3A+registry.npmjs.org/is-positive.jsonl`)
   })
@@ -85,7 +85,7 @@ https%3A+registry.npmjs.org/is-positive.jsonl`)
       pnpmHomeDir: storeDir,
     }, ['list-registries'])
 
-    expect(result).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/
+    expect(result).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/
 https://registry.npmjs.org/`)
   })
   test('list registries skips stray files, as pnpm 12 does', async () => {
@@ -99,7 +99,7 @@ https://registry.npmjs.org/`)
       pnpmHomeDir: storeDir,
     }, ['list-registries'])
 
-    expect(result).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/
+    expect(result).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/
 https://registry.npmjs.org/`)
   })
 })

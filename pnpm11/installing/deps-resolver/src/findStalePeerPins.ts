@@ -1,7 +1,7 @@
 import { resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { LockfileObject, ResolvedDependencies } from '@pnpm/lockfile.types'
-import { EXISTING_VERSION_SELECTOR_WEIGHT, type PreferredVersions } from '@pnpm/resolving.resolver-base'
+import { EXISTING_VERSION_SELECTOR_WEIGHT, pinnedByLockfile, type PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectManifest } from '@pnpm/types'
 import semver from 'semver'
 
@@ -47,11 +47,11 @@ function addSemverSpecs (
 
 /**
  * Returns, by alias, the locked versions of the importer's auto-installed
- * peers (peer dependencies it does not also declare as a dependency) that no
- * workspace project's specifier for that package accepts any more, although
- * one of them still overlaps the peer range. Such a peer has to be re-resolved, or it
+ * peers (peer dependencies it does not also declare as a dependency) that a
+ * workspace project's specifier for that package rejects, although the
+ * specifier overlaps the peer range. Such a peer has to be re-resolved, or it
  * stays on its first resolution while the projects that provide it move on
- * (pnpm/pnpm#11800).
+ * (pnpm/pnpm#11800, pnpm/pnpm#17058).
  */
 export function findStalePeerPins (
   resolvedDependencies: ResolvedDependencies,
@@ -70,7 +70,7 @@ export function findStalePeerPins (
     const overlappingSpecs = [...directSpecs].filter((spec) => semver.intersects(spec, peerRange))
     if (!overlappingSpecs.length) continue
     const pinned = getPinnedNameVer(opts.lockfile, resolvedDependencies[alias], alias)
-    if (pinned != null && !overlappingSpecs.some((spec) => semver.satisfies(pinned.version, spec, true))) {
+    if (pinned != null && overlappingSpecs.some((spec) => !semver.satisfies(pinned.version, spec, true))) {
       stale.set(alias, pinned.version)
     }
   }
@@ -98,10 +98,15 @@ function isAutoInstalledPeerWithRange (
  * lockfile's weight from their locked versions in its preferred versions, so
  * the peers resolve the way a fresh install resolves them. Returns copies and
  * leaves the inputs unchanged.
+ *
+ * The versions a project's specifier names exactly lose the lockfile's weight
+ * too. Their specifier already weights them, and the lockfile's weight would
+ * outrank a higher version that only a new specifier names.
  */
 export function releaseStalePeerPins (
   stalePeerPins: Map<string, string>,
   opts: {
+    directSpecsByName: Map<string, Set<string>>
     preferredVersions: PreferredVersions
     resolvedDependencies: ResolvedDependencies
   }
@@ -111,16 +116,26 @@ export function releaseStalePeerPins (
   const preferredVersions: PreferredVersions = Object.assign(Object.create(null), opts.preferredVersions)
   for (const [alias, pinnedVersion] of stalePeerPins) {
     delete resolvedDependencies[alias]
-    const selector = opts.preferredVersions[alias]?.[pinnedVersion]
-    if (typeof selector !== 'object' || selector.selectorType !== 'version' || selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT) continue
+    if (opts.preferredVersions[alias] == null) continue
     const selectors = Object.assign(Object.create(null), opts.preferredVersions[alias])
-    const manifestWeight = selector.weight - EXISTING_VERSION_SELECTOR_WEIGHT
-    if (manifestWeight > 0) {
-      selectors[pinnedVersion] = { selectorType: 'version', weight: manifestWeight }
-    } else {
-      delete selectors[pinnedVersion]
+    const namedVersions = [...opts.directSpecsByName.get(alias) ?? []]
+      .map((spec) => semver.clean(spec))
+      .filter((version) => version != null)
+    for (const version of [pinnedVersion, ...namedVersions]) {
+      removeLockfileWeight(selectors, version)
     }
     preferredVersions[alias] = selectors
   }
   return { preferredVersions, resolvedDependencies }
+}
+
+function removeLockfileWeight (selectors: PreferredVersions[string], version: string): void {
+  const selector = selectors[version]
+  if (typeof selector !== 'object' || selector.selectorType !== 'version' || !pinnedByLockfile(selector.weight)) return
+  const manifestWeight = selector.weight - EXISTING_VERSION_SELECTOR_WEIGHT
+  if (manifestWeight > 0) {
+    selectors[version] = { selectorType: 'version', weight: manifestWeight }
+  } else {
+    delete selectors[version]
+  }
 }

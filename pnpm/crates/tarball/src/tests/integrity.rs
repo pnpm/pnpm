@@ -14,7 +14,7 @@ async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     IngestTarballToStore {
 fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false, tar_limits: crate::TarLimits::default()},
-package: crate::TarballPackage {integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
+package: crate::TarballPackage {integrity_kind: crate::IntegrityKind::Resource,integrity: Some(&integrity("sha512-aaaan1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
 store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
 
 
@@ -79,6 +79,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -130,6 +131,7 @@ async fn falls_through_when_digest_is_malformed() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -144,6 +146,7 @@ async fn falls_through_when_digest_is_malformed() {
             tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -184,7 +187,8 @@ async fn read_local_tarball_metadata_reads_integrity_and_bundled_manifest() {
     let tarball_path = local_dir.path().join("pkg.tgz");
     std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
 
-    let metadata = read_local_tarball_metadata(&tarball_path).await
+    let metadata = read_local_tarball_metadata(&tarball_path, crate::IntegrityKind::Resource)
+        .await
         .expect("read the local tarball's metadata");
 
     assert_eq!(metadata.integrity.to_string(), FASTIFY_ERROR_INTEGRITY);
@@ -219,6 +223,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
                 tar_limits: crate::TarLimits::default(),
             },
             package: crate::TarballPackage {
+                integrity_kind: crate::IntegrityKind::Resource,
                 integrity: package_integrity,
                 unpacked_size: Some(16697),
                 file_count: None,
@@ -292,7 +297,10 @@ async fn retries_integrity_mismatch_until_exhausted() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -333,6 +341,7 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
         http_client: &client,
         store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -386,7 +395,10 @@ async fn oversized_non_gzip_body_reports_the_integrity_verdict_first() {
         fetch_and_extract_with_retry::<SilentReporter>(
             &ThrottledClient::default(),
             url,
-            Some(pinned),
+            &crate::archive_integrity::ArchiveVerification::new(
+                Some(pinned),
+                crate::IntegrityKind::Resource,
+            ),
             None,
             crate::TarLimits::default(),
             0,
@@ -438,7 +450,10 @@ async fn streaming_download_integrity_mismatch_retries_and_fails() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&wrong),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&wrong),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,
@@ -478,7 +493,10 @@ async fn streaming_download_tampered_and_corrupt_body_reports_integrity() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&wrong),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&wrong),
+            crate::IntegrityKind::Resource,
+        ),
         None,
         crate::TarLimits::default(),
         0,

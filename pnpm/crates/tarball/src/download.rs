@@ -4,16 +4,16 @@
 //! events the reporter renders during a fetch.
 
 pub(crate) use body::{BodyProgress, slow_download_warning};
-pub(crate) use buffered::{BufferedArchive, extract_tarball_buffer};
+pub(crate) use buffered::{BufferedArchive, ExtractedFiles, extract_tarball_buffer};
 pub(crate) use fetch::{AttemptedFetch, ExtractedArchive, fetch_and_extract_once};
 pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
 
 use super::{
-    Arc, BodyHasher, Duration, HashMap, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES,
-    NetworkError, Path, PathBuf, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
-    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SharedReportedProgressKeys, TarLimits, TarballError,
-    VerifyChecksumError, allocate_tarball_buffer, body_chunk_channel,
+    Arc, Duration, HashMap, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError,
+    Path, PathBuf, STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    SharedReportedProgressKeys, TarLimits, TarballError, VerifyChecksumError,
+    allocate_tarball_buffer, body_chunk_channel,
     content_coding::ContentCoding,
     extract::{BodyChunkSender, ExtractedResource, StreamedResource},
     extract_archive_bytes, extract_resource_stream,
@@ -21,6 +21,7 @@ use super::{
     local_file_tarball_path, open_local_tarball, post_download_semaphore,
     read_local_tarball_buffer, streaming_extract_semaphore,
 };
+use crate::archive_integrity::ArchiveVerification;
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
     AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, is_permanent_error,
@@ -238,6 +239,7 @@ fn retry_error_code(err: &TarballError) -> Option<&'static str> {
             "ERR_PNPM_TARBALL_CONTENT_ENCODING"
         }
         TarballError::UnrecognizedArchive => "ERR_PNPM_TARBALL_UNRECOGNIZED",
+        TarballError::IncompleteTar { .. } => "ERR_PNPM_TARBALL_INCOMPLETE_TAR",
         TarballError::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
         TarballError::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
         TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
@@ -403,7 +405,7 @@ impl<'a> BodyProgress<'a> {
 pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
     tar_limits: TarLimits,
     download_priority: u64,
@@ -415,11 +417,11 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedFiles, TarballError> {
     match fetch_and_extract_conditional::<Reporter>(
         http_client,
         package_url,
-        expected_integrity,
+        verification,
         package_unpacked_size,
         tar_limits,
         download_priority,
@@ -457,7 +459,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
 pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
     tar_limits: TarLimits,
     download_priority: u64,
@@ -482,7 +484,7 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
             fetch_and_extract_once::<Reporter>(
                 http_client,
                 package_url,
-                expected_integrity,
+                verification,
                 package_unpacked_size,
                 tar_limits,
                 download_priority,

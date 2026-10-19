@@ -7,13 +7,13 @@ use super::{
     WantedDependency, WantedKey, async_recursion, build_pkg_id_with_patch_hash,
     catalogs_for_children, current_pkg_from_lockfile, dependencies_named_as_peers,
     emit_deprecation_if_needed, ensure_same_registry_revision, extract_peer_dependencies,
-    is_exotic_resolved_via, is_update_target, keeps_locked_version, lock_recoverable, node_alias,
-    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest, overlay_version_view,
-    package_root_link_result, parent_ids_contain_sequence, peer_shadowed_dependencies,
-    pin_locked_version, pin_patched_revision, project_relative_cache_scope,
-    register_peer_dep_names, register_shadowable_dep_names, resolve_reused_node,
-    resolve_wanted_cached, resolves_children_through_catalogs, reuse_matches_peer_scope,
-    try_reuse_node,
+    failed_edge::SkippedOptionalReport, is_exotic_resolved_via, is_update_target,
+    keeps_locked_version, lock_recoverable, node_alias, node_depends_on_changed_direct_dep,
+    opts_relative_to_declaring_manifest, overlay_version_view, package_root_link_result,
+    parent_ids_contain_sequence, peer_shadowed_dependencies, pin_locked_version,
+    pin_patched_revision, project_relative_cache_scope, register_peer_dep_names,
+    register_shadowable_dep_names, resolve_wanted_cached, resolves_children_through_catalogs,
+    reuse_matches_peer_scope, seed_reused_node, try_reuse_node,
 };
 
 #[async_recursion]
@@ -54,9 +54,7 @@ where
         && let Some(reused) = try_reuse_node(ctx, &wanted, prior_key.as_ref(), edge.depth)
         && reuse_matches_peer_scope(ctx, &reused, edge.parent_pkg_aliases)
     {
-        return resolve_reused_node(ctx, resolver, wanted, &edge, current_is_optional, reused)
-            .await
-            .map(NodeSeed::Done);
+        return seed_reused_node(ctx, wanted, &edge, current_is_optional, reused).await;
     }
 
     // Locked-version pin, the fresh-resolve counterpart of subtree
@@ -119,6 +117,34 @@ pub(super) async fn resolve_edge<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Emit).await
+}
+
+pub(in super::super) async fn try_resolve_edge_cached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, SkippedOptionalReport::Suppress)
+        .await
+}
+
+async fn resolve_edge_inner<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+    report: SkippedOptionalReport,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
     if let Some(result) = package_root_link_result(wanted) {
         return Ok(Some(Arc::new(result)));
     }
@@ -130,7 +156,7 @@ where
     {
         Ok(result) => Ok(Some(result)),
         Err(err) => {
-            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err)?;
+            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err, report)?;
             Ok(None)
         }
     }
@@ -373,6 +399,10 @@ pub(super) fn register_seeded_package(
     if let Some(existing) = packages.get_mut(id) {
         ensure_same_registry_revision(existing, result)?;
         existing.optional = existing.optional && current_is_optional;
+        // A package first registered from lockfile reuse carries a synthesized
+        // manifest without `dependencies`; replace it with the full manifest
+        // when a fresh resolve reaches the same package id.
+        existing.set_result(Arc::clone(result));
         return Ok(PackageRegistration::Existing(Arc::clone(&existing.id)));
     }
     // A workspace-link node carries no peer dependencies: peer matching is the

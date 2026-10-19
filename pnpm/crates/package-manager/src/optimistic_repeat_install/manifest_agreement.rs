@@ -210,7 +210,7 @@ fn project_content_check(
             workspace: context.workspace,
             optional_exclusions: crate::install::OptionalDependencyExclusions {
                 ignored: context.ignored_optional_matcher,
-                allow_unresolved: false,
+                frozen_lockfile: false,
             },
             parsed_overrides: context.parsed_overrides,
         })
@@ -303,7 +303,7 @@ fn linked_dep_is_up_to_date(
     dep: &pnpm_lockfile::ResolvedDependencySpec,
     current_spec: &str,
 ) -> bool {
-    if ref_is_local_directory(&dep.specifier) {
+    if crate::install::is_declared_local_directory(&dep.specifier) {
         // A `file:` specifier that resolved to `link:` (e.g. an
         // injected self-reference) is a local link with no
         // `packages:` entry — up to date by construction.
@@ -320,14 +320,16 @@ fn linked_dep_is_up_to_date(
     if is_linked && linked_spec_needs_no_resolution(current_spec) {
         return true;
     }
-    let Some(linked_dir) = linked_package_dir(ctx, project_dir, dep_name, dep, link_target) else {
+    let (target_name, available_range) = crate::install::spec_target_and_range(current_spec);
+    let package_name = target_name.unwrap_or(dep_name);
+    let Some(linked_dir) = linked_package_dir(ctx, project_dir, package_name, dep, link_target)
+    else {
         return true;
     };
     if !ctx.link_workspace_packages && !current_spec.starts_with("workspace:") {
         // A linkable dir exists, but nothing requests linking it.
         return true;
     }
-    let available_range = version_range_of_spec(current_spec);
     let local_package_satisfies_range = matches!(available_range, "*" | "^" | "~")
         || ctx
             .linked_version(&linked_dir)
@@ -363,15 +365,6 @@ fn linked_package_dir<'a>(
     }
 }
 
-/// Whether a specifier points at a local directory: a `file:`
-/// specifier that is not a tarball.
-pub(crate) fn ref_is_local_directory(specifier: &str) -> bool {
-    specifier.starts_with("file:")
-        && !(specifier.ends_with(".tgz")
-            || specifier.ends_with(".tar.gz")
-            || specifier.ends_with(".tar"))
-}
-
 /// Whether a bare specifier is an npm distribution tag (`latest`,
 /// `beta`, ...): anything that doesn't parse as a semver range and
 /// contains only characters a tag name may carry. Protocol-ish specs
@@ -383,29 +376,6 @@ pub(crate) fn spec_is_distribution_tag(spec: &str) -> bool {
         && spec
             .chars()
             .all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
-}
-
-/// Strip the `workspace:` / `npm:` envelope so the remainder can be
-/// compared as a semver range.
-pub(crate) fn version_range_of_spec(spec: &str) -> &str {
-    if let Some(rest) = spec.strip_prefix("workspace:") {
-        return rest;
-    }
-    if let Some(rest) = spec.strip_prefix("npm:") {
-        // `npm:<alias>@<range>` — the `@` search starts at index 1 so a
-        // leading scope `@` isn't mistaken for the separator.
-        return match rest
-            .get(1..)
-            .and_then(|tail| tail.find('@'))
-        {
-            Some(at) => {
-                let range = &rest[at + 2..];
-                if range.is_empty() { "*" } else { range }
-            }
-            None => "*",
-        };
-    }
-    spec
 }
 
 /// `semver.satisfies(version, range, { loose: true })` — a version or

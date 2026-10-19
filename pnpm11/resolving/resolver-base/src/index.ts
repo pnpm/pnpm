@@ -18,7 +18,6 @@ export interface TarballResolution {
   type?: undefined
   tarball: string
   integrity?: string
-  revision?: number
   path?: string
   /**
    * True for tarballs sourced from a git host (codeload.github.com /
@@ -373,19 +372,45 @@ export type WorkspacePackagesByVersion = Map<string, WorkspacePackage>
 
 export type WorkspacePackages = Map<string, WorkspacePackagesByVersion>
 
-// This weight is set for selectors that are used on direct dependencies.
-// It is important to give a bigger weight to direct dependencies.
-export const DIRECT_DEP_SELECTOR_WEIGHT = 1000
+/**
+ * The weight of a version the wanted lockfile pins.
+ *
+ * A selector's weight is the sum of the weights of its sources, one per tier,
+ * so the sum orders the tiers and a version with several sources outranks one
+ * with fewer. The picker takes the heaviest satisfying version, highest first
+ * on a tie. Highest tier first:
+ *
+ * 1. `REQUESTED_VERSION_SELECTOR_WEIGHT`: a version named on the command line,
+ *    or locked by the lockfile `pnpm import` reads.
+ * 2. `DIRECT_DEP_SELECTOR_WEIGHT`: a specifier a project manifest declares.
+ * 3. `RESOLVED_VERSION_SELECTOR_WEIGHT`: a version this install already
+ *    resolved higher in the dependency chain, so a range dedupes onto it.
+ * 4. `EXISTING_VERSION_SELECTOR_WEIGHT`: a version the wanted lockfile pins. It
+ *    breaks the tie against the versions nothing else prefers, so an unchanged
+ *    edge keeps its pin and a re-resolved edge lands where a fresh install
+ *    lands.
+ *
+ * Each tier is a digit of a base-1000 number, so a tier's sources must not add
+ * up past it. `pinnedByLockfile` reads the lowest digit.
+ */
+export const EXISTING_VERSION_SELECTOR_WEIGHT = 1
 
-// This weight is set for concrete versions of dependencies preexisting in the
-// wanted lockfile. When adding a dependency, prefer existing versions first.
-//
-// This needs to be a higher weight than DIRECT_DEP_SELECTOR_WEIGHT since direct
-// dependency specifiers can match a range of versions. Versions on the registry
-// not present in the lockfile should be considered at a lower weight than
-// matching pre-existing versions. If this is not the case, pnpm could suddenly
-// introduce a new version in the lockfile when an existing version works.
-export const EXISTING_VERSION_SELECTOR_WEIGHT = 1_000_000
+/** The weight of a version resolved higher in the dependency chain. See `EXISTING_VERSION_SELECTOR_WEIGHT`. */
+export const RESOLVED_VERSION_SELECTOR_WEIGHT = 1000
+
+/** The weight of a specifier a project manifest declares. See `EXISTING_VERSION_SELECTOR_WEIGHT`. */
+export const DIRECT_DEP_SELECTOR_WEIGHT = 1_000_000
+
+/** The weight of a version named on the command line. See `EXISTING_VERSION_SELECTOR_WEIGHT`. */
+export const REQUESTED_VERSION_SELECTOR_WEIGHT = 1_000_000_000
+
+/**
+ * Whether the wanted lockfile contributes to `weight`. A negative weight, such
+ * as an `audit --fix` penalty, never carries a pin.
+ */
+export function pinnedByLockfile (weight: number): boolean {
+  return weight > 0 && weight % RESOLVED_VERSION_SELECTOR_WEIGHT !== 0
+}
 
 export type VersionSelectorType = 'version' | 'range' | 'tag'
 
@@ -419,7 +444,6 @@ export interface ResolveOptions {
   preferWorkspacePackages?: boolean
   workspacePackages?: WorkspacePackages
   update?: false | 'compatible' | 'latest'
-  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated

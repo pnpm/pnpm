@@ -23,7 +23,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_deps_resolver::UpdateTargets;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::Path,
     sync::Arc,
 };
@@ -41,7 +41,7 @@ pub(super) struct Resolved<'a, Reporter> {
     pub(super) overrides: ResolvedOverrides,
     pub(super) patches: super::setup::Patches,
     pub(super) hooks: ResolvedHooks,
-    pub(super) reuse: ResolutionReuseGuard<'a>,
+    pub(super) reuse: ResolutionReuse,
     pub(super) graph: ResolvedGraph,
 }
 
@@ -56,12 +56,7 @@ pub(super) struct ResolvedHooks {
     pub(super) after_all_resolved_log: Option<pnpm_hooks::LogFn>,
 }
 
-pub(super) struct ResolutionReuseGuard<'a> {
-    pub(super) guard_previous_importers:
-        Option<&'a HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
-    pub(super) guard_update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
-    pub(super) guard_update_reuse_scopes_by_importer:
-        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
+pub(super) struct ResolutionReuse {
     pub(super) full_resolution: bool,
 }
 

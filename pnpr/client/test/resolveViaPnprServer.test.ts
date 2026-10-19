@@ -11,7 +11,6 @@ interface CapturedResolveRequest {
   patchedDependencies?: Record<string, string>
   packageExtensions?: Record<string, unknown>
   allowUnusedPatches?: boolean
-  updatePatches?: boolean
 }
 
 const resolverSettingNames = ['autoInstallPeers', 'dedupePeers', 'excludeLinksFromLockfile'] as const
@@ -227,18 +226,6 @@ test('omits an absent publishConfig so servers that predate the field see the sa
   const request = await captureResolveRequest({ dependencies: {} })
 
   expect(Object.hasOwn(request.projects[0], 'publishConfig')).toBe(false)
-})
-
-test.each([true, false])('serializes updatePatches %s', async (updatePatches) => {
-  const request = await captureResolveRequest({ dependencies: {}, updatePatches })
-
-  expect(request).toMatchObject({ updatePatches })
-})
-
-test('omits updatePatches when the caller has none', async () => {
-  const request = await captureResolveRequest({ dependencies: {} })
-
-  expect(Object.hasOwn(request, 'updatePatches')).toBe(false)
 })
 
 async function captureResolveRequest (

@@ -212,6 +212,9 @@ impl InstallPackageBySnapshot<'_> {
                 tar_limits: config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: metadata.resolution
+                    .integrity_target(config.lockfile_integrity_target)
+                    .into(),
                 integrity: metadata.resolution.checkable_integrity(),
                 unpacked_size: None,
                 file_count: None,
@@ -361,6 +364,7 @@ impl InstallPackageBySnapshot<'_> {
                 config,
                 self.ctx.caches.logged_methods,
                 self.ctx.requester,
+                self.ctx.caches.swap_lock,
             ),
             source: crate::SlotImportSource {
                 is_mutable: slot.source_is_mutable,

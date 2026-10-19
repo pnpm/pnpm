@@ -270,6 +270,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: None,
@@ -354,6 +355,7 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: &warm_logged,
+                swap_lock: None,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: None,

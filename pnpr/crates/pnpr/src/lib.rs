@@ -21,8 +21,12 @@ pub mod export;
 pub mod htpasswd_import;
 pub mod migrate_storage;
 pub mod oci_maintenance;
+pub mod upgrade_storage;
 pub mod verify;
 
+pub use cli_commands::{
+    Command, ConfigSubcommand, FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval, run_command,
+};
 pub use pnpr_auth::{
     AuthState, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
     UserBackend, UserCreation, UserRemoval, UserStore, identify,

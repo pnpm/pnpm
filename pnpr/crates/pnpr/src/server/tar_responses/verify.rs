@@ -9,20 +9,20 @@ use std::io::{self, Read};
 /// cached copy.
 pub(super) struct StaleTgz {
     pub(super) storage: Storage,
-    pub(super) name: CanonicalPackageName,
+    pub(super) name: Option<CanonicalPackageName>,
     pub(super) cached: Option<CachedTgz>,
     pub(super) runtime: tokio::runtime::Handle,
 }
 
 impl StaleTgz {
     pub(super) fn evict(self) -> io::Error {
-        if let Some(cached) = self.cached {
+        if let (Some(cached), Some(name)) = (self.cached, self.name) {
             self.runtime.spawn(async move {
-                let removed = self.storage
-                    .remove_upstream_blob(&cached.namespace, &self.name, &cached.filename)
-                    .await;
+                let removed =
+                    self.storage.remove_upstream_blob(&cached.namespace, &name, &cached.filename)
+                        .await;
                 if let Err(err) = removed {
-                    tracing::warn!(?err, package = %self.name.as_str(), "evicting a stale tgz failed");
+                    tracing::warn!(?err, package = %name.as_str(), "evicting a stale tgz failed");
                 }
             });
         }

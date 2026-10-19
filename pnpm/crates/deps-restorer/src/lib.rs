@@ -80,6 +80,7 @@ pub use materialization_options::{
     ModuleLinkerContext, PackageImportOptions, RegistryFetchContext, SlotImportSource,
     SnapshotDependencyLinks, SnapshotFetchContext, VirtualStoreLinkOptions,
 };
+pub use modules_swap_lock::ModulesSwapLock;
 pub use package_map::*;
 pub use phase_options::{
     BuildPhaseCache, BuildPhaseDirectories, BuildPhaseGraph, BuildPhasePolicy, HoistedLinkGraph,
@@ -104,6 +105,12 @@ mod link_pool;
 mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
+
+/// Cargo's checksum manifest of a vendored package directory. The Cargo
+/// installer imports it with the package's files, and
+/// [`import_indexed_dir()`] places it last, as the import's completion
+/// marker.
+pub const CARGO_CHECKSUM_FILE: &str = ".cargo-checksum.json";
 
 pub fn store_index_key_for_resolution(
     resolution: &pnpm_lockfile::LockfileResolution,
@@ -187,6 +194,7 @@ mod build_options;
 mod build_scope;
 
 mod materialization_options;
+mod modules_swap_lock;
 
 mod frozen_install_options;
 

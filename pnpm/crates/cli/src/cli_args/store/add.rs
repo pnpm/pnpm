@@ -216,6 +216,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
     IngestTarballToStore {
         fetching: args.archive_options(),
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: integrity.as_ref(),
             unpacked_size: manifest_unpacked_size(resolved.package.manifest.as_deref()),
             file_count: manifest_file_count(resolved.package.manifest.as_deref()),

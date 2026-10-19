@@ -3,8 +3,10 @@
 use super::{FileId, InodeMap, PatchError, Value};
 use pnpm_directory_fetcher::DirectoryFetcher;
 use std::{
-    collections::HashMap,
-    fs, io,
+    collections::{HashMap, HashSet},
+    fs,
+    hash::{DefaultHasher, Hash, Hasher},
+    io,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -14,9 +16,20 @@ pub(super) fn load_inode_map(
     include_only_package_files: bool,
 ) -> Result<InodeMap, PatchError> {
     let files_map = list_files(dir, include_only_package_files)?;
-    let mut inode_map = extend_files_map(&files_map)?;
-    if include_only_package_files {
-        add_files_under_listed_directories(dir, &files_map, &mut inode_map)?;
+    let listed = listed_paths(files_map.keys());
+    let mut inode_map = InodeMap::from([(".".to_string(), Value::Dir)]);
+    for (relative_path, path) in &files_map {
+        let Some(metadata) = stat_skipping_missing(path, |path| fs::symlink_metadata(path))? else {
+            continue;
+        };
+        let value = if metadata.file_type().is_symlink() {
+            link_value(dir, path, &listed)?
+        } else {
+            value_of(path, &metadata)?
+        };
+        if let Some(value) = value {
+            add_inode_and_ancestors(&mut inode_map, relative_path, value);
+        }
     }
     Ok(inode_map)
 }
@@ -29,51 +42,63 @@ fn list_files(
         directory: dir.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
-        preserve_symlinks: false,
+        preserve_symlinks: true,
         allow_path_escape: false,
     }
     .list_files()
     .map_err(|error| PatchError::ReadDir { dir: dir.to_path_buf(), error })
 }
 
-/// The packlist names a symlinked directory as one entry, where the walk of
-/// every file lists the files under it. Replace the entry with those files,
-/// with links confined to `dir` as that walk confines them, so the copy gets
-/// the same tree whichever walk read the source.
-fn add_files_under_listed_directories(
-    dir: &Path,
-    files_map: &HashMap<String, PathBuf>,
-    inode_map: &mut InodeMap,
-) -> Result<(), PatchError> {
-    let directories: Vec<&String> = files_map
-        .keys()
-        .filter(|path| inode_map.get(*path) == Some(&Value::Dir))
-        .collect();
-    for directory in directories {
-        inode_map.remove(directory);
-        let nested: HashMap<String, PathBuf> = list_all_files_within(dir, directory)?
-            .into_iter()
-            .map(|(path, real_path)| (format!("{directory}/{path}"), real_path))
-            .collect();
-        inode_map.extend(extend_files_map(&nested)?);
+/// Every listed path and each directory above it, the root included as `""`.
+fn listed_paths<'a>(paths: impl Iterator<Item = &'a String>) -> HashSet<&'a str> {
+    let mut listed = HashSet::from([""]);
+    for entry in paths {
+        let mut path = entry.as_str();
+        while !path.is_empty() && listed.insert(path) {
+            path = path.rsplit_once('/').map_or("", |(parent, _)| parent);
+        }
     }
-    Ok(())
+    listed
 }
 
-fn list_all_files_within(
+/// What the install writes for the link at `path`, as the importer decides
+/// it: the link itself when it points at a listed path, the file it points
+/// at when that file is not listed, and nothing for an unlisted directory.
+fn link_value(
     dir: &Path,
-    directory: &str,
-) -> Result<HashMap<String, PathBuf>, PatchError> {
-    let directory = dir.join(directory);
-    DirectoryFetcher {
-        directory: directory.clone(),
-        include_only_package_files: false,
-        resolve_symlinks: false,
-        preserve_symlinks: false,
-        allow_path_escape: false,
+    path: &Path,
+    listed: &HashSet<&str>,
+) -> Result<Option<Value>, PatchError> {
+    let Some(destination) = link_destination(dir, path)? else {
+        return Ok(None);
+    };
+    if listed.contains(destination.as_str()) {
+        let mut hasher = DefaultHasher::new();
+        destination.hash(&mut hasher);
+        return Ok(Some(Value::Symlink(hasher.finish())));
     }
-    .list_all_files_within(dir)
-    .map_err(|error| PatchError::ReadDir { dir: directory, error })
+    match stat_skipping_missing(path, |path| fs::metadata(path))? {
+        Some(metadata) if metadata.is_file() => Ok(Some(Value::File(file_id(path, &metadata)?))),
+        _ => Ok(None),
+    }
+}
+
+/// Where the link at `path` points, as a `/`-separated path relative to
+/// `dir`, or `None` when it points outside `dir`.
+fn link_destination(dir: &Path, path: &Path) -> Result<Option<String>, PatchError> {
+    let stat_error = |error| PatchError::Stat { path: path.to_path_buf(), error };
+    let link = pnpm_fs::read_symlink_dir(path).map_err(stat_error)?;
+    let link = pnpm_fs::relative_link_target(path, link);
+    let root = fs::canonicalize(dir).map_err(stat_error)?;
+    let link_dir = path
+        .parent()
+        .map_or_else(|| Ok(root.clone()), fs::canonicalize)
+        .map_err(stat_error)?;
+    let destination = pnpm_fs::lexical_normalize(&link_dir.join(link));
+    Ok(destination
+        .strip_prefix(&root)
+        .ok()
+        .map(|relative| relative.to_string_lossy().replace('\\', "/")))
 }
 
 /// Expand a relative-path → real-path map into an [`InodeMap`] that
@@ -85,25 +110,35 @@ fn list_all_files_within(
 pub fn extend_files_map(files_map: &HashMap<String, PathBuf>) -> Result<InodeMap, PatchError> {
     let mut result = InodeMap::from([(".".to_string(), Value::Dir)]);
     for (relative_path, real_path) in files_map {
-        let Some(metadata) = stat_skipping_missing(real_path)? else {
+        let Some(metadata) = stat_skipping_missing(real_path, |path| fs::metadata(path))? else {
             continue;
         };
-        let value = if metadata.is_file() {
-            Value::File(file_id(real_path, &metadata)?)
-        } else if metadata.is_dir() {
-            Value::Dir
-        } else {
-            continue;
-        };
-        add_inode_and_ancestors(&mut result, relative_path, value);
+        if let Some(value) = value_of(real_path, &metadata)? {
+            add_inode_and_ancestors(&mut result, relative_path, value);
+        }
     }
     Ok(result)
 }
 
+/// A file or a directory. Anything else is left out, see
+/// [`extend_files_map`].
+fn value_of(path: &Path, metadata: &fs::Metadata) -> Result<Option<Value>, PatchError> {
+    if metadata.is_file() {
+        Ok(Some(Value::File(file_id(path, metadata)?)))
+    } else if metadata.is_dir() {
+        Ok(Some(Value::Dir))
+    } else {
+        Ok(None)
+    }
+}
+
 /// A path the walker listed can be gone by the time it is stat'd — a
 /// build script that deletes as it goes, or a symlink that broke.
-fn stat_skipping_missing(path: &Path) -> Result<Option<fs::Metadata>, PatchError> {
-    match fs::metadata(path) {
+fn stat_skipping_missing(
+    path: &Path,
+    stat: fn(&Path) -> io::Result<fs::Metadata>,
+) -> Result<Option<fs::Metadata>, PatchError> {
+    match stat(path) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         result => result
             .map(Some)

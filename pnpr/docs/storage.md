@@ -14,6 +14,30 @@ pnpr keeps two kinds of data:
   staging scratch. Lives under `cache` (defaults to
   `<storage>/.pnpr-cache`).
 
+## Layout
+
+The hosted store has the same layout on disk and in a bucket:
+
+```text
+<storage>/
+  layout.json                     marks the layout version
+  default/packages/<name>/        registries without an org
+  orgs/<org>/packages/<name>/     one namespace per org
+<namespace>/packages/<name>/document.json
+<namespace>/packages/<name>/blobs/<file>
+```
+
+Every package name, org and file name is one path segment. Lowercase
+letters, digits, `.`, `_` and `-` are kept, and every other byte is written
+as `!` and two hex digits, so `@scope/pkg` is stored as `!40scope!2fpkg`.
+
+pnpr refuses to start on a store written by a newer pnpr, or on one in the
+layout pnpr used before `layout.json` existed. Convert such a store with
+[`pnpr upgrade-storage`](cli.md#upgrade-storage). A cache in another layout is
+emptied on startup and refilled on demand.
+
+## Backends
+
 By default both are local directories. Adding an `s3:` block moves the
 **hosted** store and the enabled **shared-artifact** store into an S3-compatible
 object store, so they can be shared by several stateless pnpr replicas. The

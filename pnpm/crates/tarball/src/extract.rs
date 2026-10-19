@@ -1,5 +1,7 @@
 //! Tarball decompression and entry extraction into the CAS.
 
+pub(crate) use gzip::{GzipExtraction, extract_gzipped_tarball_with_tar};
+pub(crate) use limits::TarBudget;
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
@@ -7,7 +9,7 @@ pub(crate) use manifest::{
 pub(crate) use streaming::{
     BodyChunkReceiver, BodyChunkSender, ExtractedResource, STREAM_ENTRY_BUFFER_MAX,
     StreamedResource, body_chunk_channel, extract_resource_stream, stream_extract_channel,
-    stream_extract_gzipped_tarball, tar_entry_payload,
+    stream_extract_gzipped_tarball_with_tar, tar_entry_payload,
 };
 
 use super::{
@@ -19,6 +21,7 @@ use pnpm_package_manifest::{BuildTriggers, parse_manifest_bytes};
 use pnpm_store_dir::{
     CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
 };
+use ssri::Integrity;
 use tar::Archive;
 use tracing::instrument;
 use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
@@ -105,13 +108,15 @@ pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
 
 /// Extract a fully buffered archive, a `.tgz` or a plain tar, into the CAFS.
 /// A body that opens with the gzip magic is a `.tgz`; any other body is a tar.
+///
+/// For a `.tgz` it also returns the outcome of hashing the tar it decodes to.
 pub(crate) fn extract_archive_bytes(
     resource: &[u8],
     unpacked_size: Option<usize>,
     limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedArchiveBytes, TarballError> {
     if !resource.starts_with(&GZIP_MAGIC)
         && !resource.is_empty()
         && !is_tar_block(&resource[..resource.len().min(TAR_BLOCK)])
@@ -119,58 +124,26 @@ pub(crate) fn extract_archive_bytes(
         return Err(TarballError::UnrecognizedArchive);
     }
     if resource.starts_with(&GZIP_MAGIC) {
-        return extract_gzipped_tarball(
+        let (files, index, tar) = extract_gzipped_tarball_with_tar(
             resource,
             unpacked_size,
             limits,
             store_dir,
             ignore_file_pattern,
-        );
+        )?;
+        return Ok(ExtractedArchiveBytes { files, index, tar: Some(tar) });
     }
-    extract_tarball_entries(resource, limits.for_tar(), store_dir, ignore_file_pattern)
+    let (files, index) =
+        extract_tarball_entries(resource, limits.for_tar(), store_dir, ignore_file_pattern)?;
+    Ok(ExtractedArchiveBytes { files, index, tar: None })
 }
 
-/// Extract a fully buffered gzipped tarball into the CAFS through
-/// whichever of the two extractors suits its size.
-///
-/// Eager extraction buys zero-copy payload slices and one big parallel
-/// write phase, and holds the whole decompressed archive to do it —
-/// multiplied across every extraction running concurrently. It is
-/// therefore taken only while the archive is small:
-/// [`should_stream_extract`] routes on the size signals available
-/// before decoding, and [`decompress_gzip`]'s ceiling catches an
-/// archive that only turns out to be large once it inflates.
-///
-/// No archive is refused for its size beyond `limits`. Both outcomes route to
-/// [`stream_extract_gzipped_tarball`], which decodes the same bytes
-/// with the same results in bounded memory.
-pub(crate) fn extract_gzipped_tarball(
-    gz_data: &[u8],
-    unpacked_size: Option<usize>,
-    limits: TarLimits,
-    store_dir: &StoreDir,
-    ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    // Route on the larger of the two claims about the unpacked size.
-    // Neither is trustworthy, and taking the larger is the conservative
-    // reading: a registry hint that under-reports cannot hide a trailer
-    // that does not, or the other way round.
-    let unpacked_size = unpacked_size.max(gzip_isize_hint(gz_data));
-    if should_stream_extract(gz_data.len(), unpacked_size) {
-        return stream_extract_gzipped_tarball(gz_data, limits, store_dir, ignore_file_pattern);
-    }
-    match decompress_gzip(gz_data, unpacked_size) {
-        Ok(tar_data) => extract_tarball_entries(&tar_data, limits, store_dir, ignore_file_pattern),
-        Err(error) if is_eager_decode_limit_exceeded(&error) => {
-            tracing::debug!(
-                target: "pacquet::download",
-                gz_data_len = gz_data.len(),
-                "archive inflated past the eager decode ceiling; extracting it as a stream",
-            );
-            stream_extract_gzipped_tarball(gz_data, limits, store_dir, ignore_file_pattern)
-        }
-        Err(error) => Err(error),
-    }
+/// The output of [`extract_archive_bytes`]. `tar` is `None` for a tar
+/// resource, which is its own tar.
+pub(crate) struct ExtractedArchiveBytes {
+    pub(crate) files: HashMap<String, PathBuf>,
+    pub(crate) index: PackageFilesIndex,
+    pub(crate) tar: Option<Result<Integrity, TarballError>>,
 }
 
 /// The uncompressed size a gzip stream records in its own trailer.
@@ -216,7 +189,7 @@ const GZIP_CM_DEFLATE: u8 = 8;
 pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 
 /// Whether a downloaded tarball should be extracted through the
-/// streaming path ([`stream_extract_gzipped_tarball`]) instead of the
+/// streaming path ([`stream_extract_gzipped_tarball_with_tar`]) instead of the
 /// eager whole-archive decompression
 /// ([`decompress_gzip`] + [`extract_tarball_entries`]).
 ///
@@ -224,7 +197,7 @@ pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 /// contiguous buffer, which for a large package multiplies across every
 /// concurrently extracting task. Stream once either signal says the
 /// archive is large: the exact compressed length, or an unpacked-size
-/// claim ([`extract_gzipped_tarball`] takes the larger of the
+/// claim ([`extract_gzipped_tarball_with_tar`] takes the larger of the
 /// registry's `dist.unpackedSize` and the gzip trailer's). A claim is
 /// attacker-controlled, but here it only picks between two correct
 /// extraction paths — a lying value costs at most the wrong path's
@@ -412,6 +385,7 @@ fn assemble_extract_output(
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     (cas_paths, pkg_files_idx)
 }
@@ -608,8 +582,10 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
     (!segments.is_empty()).then_some(segments)
 }
 
+mod gzip;
+
 mod limits;
-use limits::{TAR_BLOCK, TarBudget, check_trailer, is_tar_block};
+use limits::{TAR_BLOCK, check_trailer, is_tar_block};
 
 mod streaming;
 

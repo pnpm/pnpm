@@ -42,13 +42,17 @@ impl TokenBackend for OwnedTokens {
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let owner = self.tokens.lookup(raw).await?;
-        Ok(owner.filter(|owner| self.users.holds(owner)))
+        let Some(owner) = self.tokens.lookup(raw).await? else {
+            return Ok(None);
+        };
+        if self.users.holds(&owner)? { Ok(Some(owner)) } else { Ok(None) }
     }
 
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let record = self.tokens.lookup_record(raw).await?;
-        Ok(record.filter(|record| self.users.holds(&record.username)))
+        let Some(record) = self.tokens.lookup_record(raw).await? else {
+            return Ok(None);
+        };
+        if self.users.holds(&record.username)? { Ok(Some(record)) } else { Ok(None) }
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {

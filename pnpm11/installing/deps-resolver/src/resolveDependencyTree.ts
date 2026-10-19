@@ -87,7 +87,6 @@ export interface Importer<WantedDepExtraProps> {
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string, version?: string) => boolean
-  updatePatches?: boolean
   updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
@@ -249,7 +248,6 @@ function toImporterToResolve<WantedDepExtraProps> (
     resolvedDependencies,
     updateDepth: -1,
     updateMatching: importer.updateMatching,
-    updatePatches: importer.updatePatches,
     updateToLatest: importer.updateToLatest,
     prefix: importer.rootDir,
     supportedArchitectures: opts.supportedArchitectures,
@@ -277,18 +275,19 @@ function getLockedDependenciesOfImporter<WantedDepExtraProps> (
     ...projectSnapshot.devDependencies,
     ...projectSnapshot.optionalDependencies,
   }
-  const stalePeerPins = directSpecsByName == null
-    ? undefined
-    : findStalePeerPins(lockedDependencies, {
-      directSpecsByName,
-      lockfile: opts.wantedLockfile,
-      manifest: importer.manifest,
-    })
   const preferredVersions = importer.preferredVersions ?? {}
-  if (!stalePeerPins?.size) {
+  if (directSpecsByName == null) {
     return { preferredVersions, resolvedDependencies: lockedDependencies }
   }
-  return releaseStalePeerPins(stalePeerPins, { preferredVersions, resolvedDependencies: lockedDependencies })
+  const stalePeerPins = findStalePeerPins(lockedDependencies, {
+    directSpecsByName,
+    lockfile: opts.wantedLockfile,
+    manifest: importer.manifest,
+  })
+  if (!stalePeerPins.size) {
+    return { preferredVersions, resolvedDependencies: lockedDependencies }
+  }
+  return releaseStalePeerPins(stalePeerPins, { directSpecsByName, preferredVersions, resolvedDependencies: lockedDependencies })
 }
 
 function attachNewCatalogEntry (directDep: PkgAddress, catalogs: Catalogs | undefined): void {

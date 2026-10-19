@@ -244,6 +244,44 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
                 "fixLockfile": [0],
                 "ecosystems": ["npm", "cargo", "pypi"],
                 "publish": [],
+                "protocols": {
+                    "resolver": {
+                        "version": 0,
+                        "versions": [0],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": ["npm", "cargo", "pypi"]
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [],
+                        "pnpmPublish": []
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );
@@ -265,7 +303,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let packument = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -276,7 +314,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let publish = app
         .clone()
         .oneshot(
-            Request::put("/foo")
+            Request::put("/npm/foo")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -287,7 +325,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let batch_publish = app
         .clone()
         .oneshot(
-            Request::put("/-/pnpm/v1/publish")
+            Request::put("/npm/-/pnpm/v1/publish")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -401,7 +439,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     let packument = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -431,6 +469,44 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
                 "fixLockfile": [],
                 "ecosystems": [],
                 "publish": [0],
+                "protocols": {
+                    "resolver": {
+                        "version": 0,
+                        "versions": [],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": []
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [0],
+                        "pnpmPublish": [1]
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );

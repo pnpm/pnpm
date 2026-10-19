@@ -2652,6 +2652,43 @@ test('pnpm install --frozen-lockfile fails when an injected workspace package ve
   ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
 })
 
+test('pnpm install --frozen-lockfile fails when a dependency of an injected workspace package changes and sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        lib: 'workspace:*',
+      },
+    },
+    {
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['--filter=app', 'install', '--frozen-lockfile'])
+
+  const libManifest = JSON.parse(fs.readFileSync('lib/package.json', 'utf8'))
+  libManifest.dependencies['is-positive'] = '3.1.0'
+  fs.writeFileSync('lib/package.json', JSON.stringify(libManifest, null, 2))
+
+  await expect(
+    execPnpm(['--filter=app', 'install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
 test('pnpm install --frozen-lockfile accepts dependenciesMeta on a project whose dependencies are all workspace links', async () => {
   preparePackages([
     {

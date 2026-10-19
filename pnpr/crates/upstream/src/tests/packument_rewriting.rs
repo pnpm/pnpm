@@ -45,6 +45,9 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
                 "dist": {
                     "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
                     "integrity": format!("sha512-{current_digest}=="),
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "signatures": [{ "keyid": "SHA256:key", "sig": "signature" }],
+                    "npm-signature": "signature",
                     "revision": 2,
                     "revisions": [{
                         "revision": 0,
@@ -83,6 +86,66 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
         doc["versions"]["1.0.0"]["dist"]["revisions"][1]["tarball"],
         format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
     );
+    for source_field in ["shasum", "signatures", "npm-signature"] {
+        assert!(
+            doc["versions"]["1.0.0"]["dist"].get(source_field).is_none(),
+            "a revision omits dist.{source_field}",
+        );
+    }
+}
+
+fn revision_zero_dist(history_revisions: &[u64]) -> serde_json::Value {
+    let digest = "A".repeat(86);
+    let history: Vec<_> = history_revisions
+        .iter()
+        .map(|revision| {
+            json!({
+                "revision": revision,
+                "integrity": format!("sha512-{digest}=="),
+                "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+                "manifest": {},
+            })
+        })
+        .collect();
+    json!({
+        "version": "1.0.0",
+        "dist": {
+            "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+            "integrity": format!("sha512-{digest}=="),
+            "shasum": "0000000000000000000000000000000000000000",
+            "revision": 0,
+            "revisions": history,
+        }
+    })
+}
+
+#[test]
+fn preserves_an_explicit_revision_zero() {
+    let digest = "A".repeat(86);
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let mut doc = revision_zero_dist(&[0]);
+
+    rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
+
+    assert_eq!(doc["dist"]["revision"], 0);
+    assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/-/tarballs/sha512/{digest}"));
+    assert!(doc["dist"].get("shasum").is_none());
+}
+
+#[test]
+fn a_revision_history_must_list_revision_zero_exactly_once() {
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    for history in [&[][..], &[0, 0][..]] {
+        let mut doc = revision_zero_dist(history);
+        rewrite_upstream_tarball_urls(
+            &mut doc,
+            &name,
+            "https://upstream.test/",
+            "http://pnpr.test/",
+        );
+        assert!(doc["dist"].get("revision").is_none(), "{history:?}");
+        assert!(doc["dist"].get("revisions").is_none(), "{history:?}");
+    }
 }
 
 #[test]

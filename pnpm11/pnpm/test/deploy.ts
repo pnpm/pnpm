@@ -248,6 +248,32 @@ test('deploy with a shared lockfile honors --no-optional in the graph and virtua
 // A deployed lockfile must never reference a package the graph filter drops:
 // a later install in the deploy directory would link the missing package and
 // leave the dangling symlinks of https://github.com/pnpm/pnpm/issues/13623.
+// has-optional-peer-also-in-deps keeps bravo-dep as its own dependency when
+// nothing in its scope provides the peer. A devDependency on the same package
+// under another alias does not make that dependency a peer.
+test('deploy --prod keeps an optional peer that a package resolved as its own dependency', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: { '@pnpm.e2e/has-optional-peer-also-in-deps': '1.0.0' },
+        devDependencies: { 'bravo-alias': 'npm:@pnpm.e2e/bravo-dep@1.0.0' },
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  await execPnpm(['install'])
+
+  const deployDir = path.join(tempDir(false), 'deploy')
+  await execPnpm(['--filter=app', 'deploy', '--prod', deployDir])
+
+  const hostDir = fs.realpathSync(path.join(deployDir, 'node_modules/@pnpm.e2e/has-optional-peer-also-in-deps'))
+  expect(fs.existsSync(path.join(hostDir, '../bravo-dep'))).toBe(true)
+})
+
 test('deploy with a shared lockfile drops excluded direct dependency groups', async () => {
   preparePackages([
     { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
@@ -325,6 +351,48 @@ test('deploy with a shared lockfile drops excluded direct dependency groups', as
     '@pnpm.e2e/bar': { optional: true },
     '@pnpm.e2e/peer-c': { optional: true },
   })
+})
+
+// https://github.com/pnpm/pnpm/issues/17093
+test('a deployed workspace package keeps its declared peers, so the deployed lockfile installs frozen', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/lib',
+      package: {
+        name: 'lib',
+        version: '1.0.0',
+        peerDependencies: { '@pnpm.e2e/foo': '100' },
+        peerDependenciesMeta: { '@pnpm.e2e/bar': { optional: true } },
+      },
+    },
+    {
+      location: 'packages/app',
+      package: { name: 'app', version: '1.0.0', dependencies: { lib: 'workspace:*', '@pnpm.e2e/foo': '100.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    injectWorkspacePackages: false,
+  })
+  await execPnpm(['install'])
+
+  const workspaceDir = process.cwd()
+  const deployDir = path.join(tempDir(false), 'deploy')
+  await execPnpm(['--filter=app', 'deploy', deployDir])
+
+  const deployLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
+  const libEntry = Object.entries(deployLockfile.packages ?? {}).find(([key]) => key.startsWith('lib@'))?.[1]
+  expect(libEntry?.peerDependencies).toStrictEqual({ '@pnpm.e2e/foo': '100', '@pnpm.e2e/bar': '*' })
+  expect(libEntry?.peerDependenciesMeta).toStrictEqual({ '@pnpm.e2e/bar': { optional: true } })
+
+  fs.rmSync(path.join(deployDir, 'node_modules'), { recursive: true })
+  process.chdir(deployDir)
+  try {
+    await execPnpm(['install', '--frozen-lockfile'])
+  } finally {
+    process.chdir(workspaceDir)
+  }
 })
 
 // `pacquet` is fetched from the real npm registry — registry-mock doesn't

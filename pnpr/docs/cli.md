@@ -4,17 +4,21 @@ title: CLI reference
 ---
 
 ```sh
-pnpr [OPTIONS]
+pnpr [serve] [OPTIONS]
 pnpr config check
 pnpr verify [OPTIONS]
 pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
+pnpr upgrade-storage [--dry-run]
 pnpr import-htpasswd --source <path> [OPTIONS]
-pnpr [OPTIONS] oci-gc --registry <name>
-pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
+pnpr add-user <username> [--password <password>]
+pnpr oci-gc --registry <name> [OPTIONS]
+pnpr cache-gc [OPTIONS]
 ```
 
 ## Options
+
+Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c`, `--storage`, `--cache`) apply across subcommands.
 
 | Flag | Description |
 | --- | --- |
@@ -23,12 +27,13 @@ pnpr [OPTIONS] cache-gc [CACHE_OPTIONS]
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config — the source of truth for hosted packages. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. Defaults to `300`. A registry's `maxage` overrides it for that registry. |
+| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Alias: `--packument-ttl-secs`. A registry's `maxage` overrides it for that registry. |
 | `--osv` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
 | `--disable-resolver` | Disable the install-accelerator surface: `GET /-/pnpr`, `POST /-/pnpr/v0/resolve`, and `POST /-/pnpr/v0/verify-lockfile`. Overrides `resolver.enabled`. |
 | `--disable-artifacts` | Disable the signed shared-artifact surface. Overrides `artifacts.enabled` independently of the resolver. |
+| `--disable-pipeline` | Disable the pipeline run-record surface: `/-/pnpr/v0/pipeline`. Overrides `pipeline.enabled`. |
 | `-h, --help` | Print help. |
 | `-V, --version` | Print version. |
 
@@ -79,7 +84,7 @@ pnpr verify --prune-orphans --min-age-secs 0
 | --- | --- |
 | `--skip-hashes` | Skip recomputing and verifying tarball checksums (cryptographic hashes are verified by default). Alias: `--no-check-hashes`. |
 | `--prune-orphans` | Automatically delete orphaned blobs not referenced by any hosted package version. Recommended when registry writers are stopped. |
-| `--min-age-secs <secs>` | Minimum age in seconds before an unreferenced blob is considered for pruning (defaults to 86400, or 24 hours). |
+| `--min-age <interval>` | Minimum age before an unreferenced blob is considered for pruning (e.g. `1d`, `86400s`, or bare seconds; defaults to `1d`). Alias: `--min-age-secs`. |
 
 ### export
 
@@ -116,6 +121,27 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 | `--dry-run` | Report packages and blobs to migrate without uploading. |
 | `--verify` | Read back and verify content of uploaded blobs after transfer. |
 
+### upgrade-storage
+
+Converts the hosted store to the current [storage layout](storage.md#layout).
+Back the store up and stop every pnpr process that uses it first. The org of
+each configured hosted registry decides which top-level directories are org
+namespaces, so run it with the configuration the store was written with.
+It refuses what the earlier layout cannot tell apart from the new one: an org
+named `default`, a top-level directory that is both an org and a package, and
+a repository whose name starts with `default/packages/` or `orgs/`.
+In-progress image uploads are discarded. Files that belong to no package are
+reported and left where they are. An interrupted conversion can be run again.
+
+```sh
+pnpr upgrade-storage --dry-run
+pnpr upgrade-storage
+```
+
+| Flag | Description |
+| --- | --- |
+| `--dry-run` | Report what would move without changing anything. |
+
 ### import-htpasswd
 
 Imports users from an Apache or Verdaccio `htpasswd` file into pnpr's user store. Supports standard bcrypt hashes (`$2a$`, `$2b$`, `$2y$`) as well as legacy `{SHA}` hashes (which are upgraded to bcrypt upon first login).
@@ -136,6 +162,25 @@ pnpr import-htpasswd --source /path/to/old/htpasswd
 | `--target <path>` | Path to destination htpasswd file. Defaults to `auth.htpasswd.file` from config. |
 | `--dry-run` | Preview imported user counts without writing to target file. |
 | `--overwrite` | Overwrite conflicting credentials for existing users in destination file (skipped by default). |
+
+### add-user
+
+Creates a user account, or changes the password of an existing one. Use it to
+create admin accounts, which cannot self-register. Creating an account revokes
+any tokens left under that username.
+
+The command needs `auth.htpasswd.file` or a database backend. With the
+htpasswd file, run it while pnpr is stopped. A running pnpr does not see the
+new account, and its next account change overwrites the file.
+
+```sh
+# Prompts for the password, or reads it from stdin
+pnpr add-user alice
+```
+
+| Flag | Description |
+| --- | --- |
+| `--password <password>` | The account's password. Read from the terminal or stdin when omitted. |
 
 ### oci-gc
 

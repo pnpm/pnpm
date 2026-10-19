@@ -44,11 +44,11 @@ pub(super) fn resolution_candidates(
 }
 
 /// The nodes that depend on each snapshot of the deployed graph, leaving out
-/// an edge from `parent` under an alias that `is_peer_of(parent, alias)`.
+/// an edge `parent -> child` under `alias` that `is_peer_edge(parent, alias, child)`.
 pub(super) fn dependents_by_snapshot<'a>(
     importer: Option<&'a ProjectSnapshot>,
     snapshots: &'a HashMap<PkgNameVerPeer, SnapshotEntry>,
-    is_peer_of: impl Fn(&PkgNameVerPeer, &PkgName) -> bool,
+    is_peer_edge: impl Fn(&PkgNameVerPeer, &PkgName, &PkgNameVerPeer) -> bool,
 ) -> HashMap<PkgNameVerPeer, Vec<Dependent<'a>>> {
     let importer_edges = importer_dependencies(importer)
         .filter_map(|(alias, version)| version.resolved_key(alias))
@@ -60,9 +60,9 @@ pub(super) fn dependents_by_snapshot<'a>(
         .iter()
         .flat_map(|(parent, snapshot)| {
             snapshot_dependencies(snapshot)
-                .filter(|(alias, _)| !is_peer_of(parent, alias))
-                .filter_map(|(alias, dependency)| dependency.resolve(alias))
-                .map(move |child| (child, Dependent::Snapshot(parent)))
+                .filter_map(|(alias, dependency)| Some((alias, dependency.resolve(alias)?)))
+                .filter(|(alias, child)| !is_peer_edge(parent, alias, child))
+                .map(move |(_, child)| (child, Dependent::Snapshot(parent)))
         })
         .collect::<Vec<_>>();
     let mut dependents: HashMap<PkgNameVerPeer, Vec<Dependent<'a>>> = HashMap::new();

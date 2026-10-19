@@ -49,11 +49,17 @@ pub(super) fn tarball_url_violation(
     }
 }
 
-/// The revision the registry currently serves; an absent one is revision 0.
+/// The revision the registry currently serves. A version without one is
+/// outside the revision protocol and cannot vouch for a lockfile revision.
 pub(super) fn current_revision_number(
     artifact: &RegistryArtifactHistory,
 ) -> Result<u64, ResolutionVerification> {
-    let Some(raw_revision) = artifact.current.revision.as_ref() else { return Ok(0) };
+    let Some(raw_revision) = artifact.current.revision.as_ref() else {
+        return Err(ResolutionVerification::Err {
+            code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+            reason: "registry metadata has no current revision".to_string(),
+        });
+    };
     let revision = raw_revision
         .as_u64()
         .and_then(|revision| TarballRevision::try_from(revision).ok())
@@ -64,16 +70,22 @@ pub(super) fn current_revision_number(
     })
 }
 
-/// The current revision must appear exactly once in the published history,
-/// with the same integrity and tarball the current record carries, and be
-/// addressed by that integrity.
+/// The published history must hold revision 0, and the current revision
+/// must appear in it exactly once, with the same integrity and tarball the
+/// current record carries, and be addressed by that integrity.
 pub(super) fn current_history_violation(
     artifact: &RegistryArtifactHistory,
     current_revision: u64,
     registry: &str,
 ) -> Option<ResolutionVerification> {
-    if current_revision == 0 {
-        return None;
+    let has_original = artifact.revisions
+        .iter()
+        .any(|candidate| candidate.revision.as_ref().and_then(JsonValue::as_u64) == Some(0));
+    if !has_original {
+        return Some(ResolutionVerification::Err {
+            code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+            reason: "registry metadata has no revision 0 in its history".to_string(),
+        });
     }
     let current_history: Vec<_> = artifact.revisions
         .iter()

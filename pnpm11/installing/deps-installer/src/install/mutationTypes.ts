@@ -23,7 +23,6 @@ import type { InstallOptions, ProcessedInstallOptions as StrictInstallOptions } 
 
 export interface InstallMutationOptions {
   update?: boolean
-  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean

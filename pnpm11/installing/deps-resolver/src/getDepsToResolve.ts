@@ -13,9 +13,10 @@ import {
 import { logger } from '@pnpm/logger'
 import {
   DIRECT_DEP_SELECTOR_WEIGHT,
-  EXISTING_VERSION_SELECTOR_WEIGHT,
+  pinnedByLockfile,
   type PkgResolutionId,
   type PreferredVersions,
+  REQUESTED_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
 } from '@pnpm/resolving.resolver-base'
 import type { RegistryContext } from '@pnpm/types'
@@ -152,10 +153,8 @@ function reuseOrRaisePinnedReference (
       preferredVersions: lookup.preferredVersions,
     })
   if (higherDirectVersion == null) return { reference: pinnedRef }
-  // `preferredVersion` (singular) overrides the
-  // EXISTING_VERSION_SELECTOR_WEIGHT stability bias that would
-  // otherwise re-pick the lower version. The lower version is then
-  // never resolved or fetched.
+  // `preferredVersion` (singular) pins the pick to the higher version, so
+  // the lower version is never resolved or fetched.
   return { proceed: true, preferredVersion: higherDirectVersion }
 }
 
@@ -206,7 +205,7 @@ function referenceSatisfiesWantedSpec (
  * checked against, or `undefined` when the locked package cannot satisfy the
  * wanted dependency whatever its version.
  */
-function getRangeOfLockedPackage (
+export function getRangeOfLockedPackage (
   wantedDep: { alias: string, bareSpecifier: string },
   { name, registryName }: { name: string, registryName?: string }
 ): string | undefined {
@@ -220,14 +219,26 @@ function getRangeOfLockedPackage (
     // resolve to a package of any name.
     return name === wantedDep.alias || semver.validRange(bareSpecifier) == null ? bareSpecifier : undefined
   }
+  return getRangeOfNamedRegistrySpec(wantedDep, { name, registryName })
+}
+
+function getRangeOfNamedRegistrySpec (
+  wantedDep: { alias: string, bareSpecifier: string },
+  { name, registryName }: { name: string, registryName: string }
+): string | undefined {
+  const { bareSpecifier } = wantedDep
   // A registry-qualified entry may only satisfy a spec of the same named
   // registry. A plain semver range means a default/scope-registry dep, which
   // the qualified entry must never be substituted for.
   if (!bareSpecifier.startsWith(`${registryName}:`)) return undefined
   // Reduce `<registryName>:[<name>@]<range>` to its range for the semver check.
+  // A spec that names no package names the alias.
   const body = bareSpecifier.slice(registryName.length + 1)
   const versionDelimiter = body.lastIndexOf('@')
-  return versionDelimiter > 0 ? body.slice(versionDelimiter + 1) : body
+  if (versionDelimiter > 0) {
+    return body.slice(0, versionDelimiter) === name ? body.slice(versionDelimiter + 1) : undefined
+  }
+  return name === wantedDep.alias ? body : undefined
 }
 
 /**
@@ -297,7 +308,8 @@ function getDirectDepVersionsFromSelectors (selectors: VersionSelectors | undefi
       selector !== null &&
       selector.selectorType === 'version' &&
       selector.weight >= DIRECT_DEP_SELECTOR_WEIGHT &&
-      selector.weight < EXISTING_VERSION_SELECTOR_WEIGHT)
+      selector.weight < REQUESTED_VERSION_SELECTOR_WEIGHT &&
+      !pinnedByLockfile(selector.weight))
     .map(([candidate]) => candidate)
 }
 

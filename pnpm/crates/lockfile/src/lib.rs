@@ -7,12 +7,14 @@ pub use env_lockfile::*;
 pub use filter_by_importers::*;
 pub use freshness::*;
 pub use injected_deps::*;
+pub use integrity_target::*;
 pub use lazy_lockfile::*;
 pub use load_lockfile::*;
 pub use lockfile_version::*;
 pub use merge_lockfile_changes::*;
 pub use package_metadata::*;
 pub use patched_dep_paths::*;
+pub use peer_bindings::*;
 pub use peer_edges::*;
 pub use pkg_id_with_patch_hash::*;
 pub use pkg_name::*;
@@ -39,12 +41,14 @@ mod freshness;
 mod git_branch_lockfile;
 mod git_merge_file;
 mod injected_deps;
+mod integrity_target;
 mod lazy_lockfile;
 mod load_lockfile;
 mod lockfile_version;
 mod merge_lockfile_changes;
 mod package_metadata;
 mod patched_dep_paths;
+mod peer_bindings;
 mod peer_edges;
 mod pkg_id_with_patch_hash;
 mod pkg_name;
@@ -108,8 +112,32 @@ pub struct LockfileSettings {
     /// so existing lockfiles round-trip byte-for-byte.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub peers_suffix_max_length: Option<u64>,
+    /// Recorded as `Some(Tar)` when the lockfile's package tarball
+    /// entries pin tar hashes, omitted otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub integrity_target: Option<IntegrityTarget>,
     #[serde(flatten)]
     pub resolution: ResolutionSettings,
+}
+
+impl LockfileSettings {
+    /// Which hash the lockfile's package tarball entries pin.
+    #[must_use]
+    pub fn integrity_target(&self) -> IntegrityTarget {
+        self.integrity_target.unwrap_or_default()
+    }
+}
+
+impl Lockfile {
+    /// Which hash the lockfile's package tarball entries pin. A lockfile
+    /// without a `settings` block pins the resource.
+    #[must_use]
+    pub fn integrity_target(&self) -> IntegrityTarget {
+        self.settings
+            .as_ref()
+            .map(LockfileSettings::integrity_target)
+            .unwrap_or_default()
+    }
 }
 
 /// Top-level lockfile keys pnpm itself does not define, in the order they

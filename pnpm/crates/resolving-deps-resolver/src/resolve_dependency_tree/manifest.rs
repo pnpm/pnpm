@@ -273,32 +273,28 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
 /// [`declared_peer_dependencies`], taking the ones a `dependencies` entry
 /// does not supply. A same-named entry supplies the package directly
 /// unless it is `peer_shadowed` (see [`peer_shadowed_dependencies`]). When
-/// [`Catalogs`] are supplied, `catalog:` ranges are dereferenced.
+/// [`Catalogs`] are supplied, the `catalog:` ranges of the taken peers are
+/// dereferenced. The declared ones stay as written, which is what the
+/// lockfile records.
 ///
-/// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+/// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
 ) -> Result<PeerSet, ResolveDependencyTreeError> {
     let Some(manifest) = result.package.manifest.as_ref() else { return Ok(PeerSet::default()) };
-    let mut declared = declared_peer_dependencies(manifest);
-    if let Some(catalogs) = catalogs {
-        for (name, peer) in &mut declared {
-            // A peer range names a version range, never a path, so a
-            // `file:` / `link:` entry has nothing to re-anchor.
-            peer.version = resolve_catalog_specifier(
-                name.clone(),
-                std::mem::take(&mut peer.version),
-                catalogs,
-                CatalogAnchor::AsWritten,
-            )?
-            .1;
-        }
-    }
     let own_deps: HashSet<&str> =
         own_dependency_names(manifest, |name| peer_shadowed.contains(name)).collect();
-    Ok(PeerSet::new(declared, |name| own_deps.contains(name)))
+    let peer_set =
+        PeerSet::new(declared_peer_dependencies(manifest), |name| own_deps.contains(name));
+    let Some(catalogs) = catalogs else { return Ok(peer_set) };
+    // A peer range names a version range, never a path, so a `file:` /
+    // `link:` entry has nothing to re-anchor.
+    peer_set.try_map_taken_ranges(|name, range| {
+        resolve_catalog_specifier(name.to_string(), range, catalogs, CatalogAnchor::AsWritten)
+            .map(|(_, range)| range)
+    })
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

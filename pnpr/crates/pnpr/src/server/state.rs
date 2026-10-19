@@ -49,9 +49,10 @@ pub(super) struct ProxyState {
     pub(super) cache_namespaces: IndexMap<String, String>,
     pub(super) packument_singleflight: PackumentSingleflight,
     pub(super) tar_variants: super::TarVariantQueue,
-    /// Permits for tar responses that decode a `.tgz`. See
+    /// Permits for tar responses and publishes that decode a `.tgz`. See
     /// [`super::MAX_CONCURRENT_TAR_DECODES`].
     pub(super) tar_decodes: Arc<tokio::sync::Semaphore>,
+    pub(super) version_tgzs: super::VersionTgzCache,
 }
 
 pub(super) struct MutationLocks {
@@ -128,6 +129,7 @@ impl ProxyState {
             packument_singleflight: Singleflight::new(),
             tar_variants: super::TarVariantQueue::new(),
             tar_decodes: Arc::new(tokio::sync::Semaphore::new(super::MAX_CONCURRENT_TAR_DECODES)),
+            version_tgzs: super::VersionTgzCache::default(),
         }
     }
 }

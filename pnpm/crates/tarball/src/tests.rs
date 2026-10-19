@@ -11,9 +11,9 @@ use super::{
     extract::{
         STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
         apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
-        extract_gzipped_tarball, extract_tarball_entries, gzip_isize_hint,
+        extract_gzipped_tarball_with_tar, extract_tarball_entries, gzip_isize_hint,
         is_eager_decode_limit_exceeded, normalize_bundled_manifest, should_stream_extract,
-        stream_extract_gzipped_tarball,
+        stream_extract_gzipped_tarball_with_tar,
     },
     local_tarball::{
         allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
@@ -124,6 +124,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(index_key, &entry).unwrap();
@@ -611,3 +612,28 @@ mod lockfile;
 mod fetch_for_resolution;
 
 mod tar_resources;
+
+mod tar_integrity;
+
+/// [`extract_gzipped_tarball_with_tar`] without the tar's integrity.
+fn extract_gzipped_tarball(
+    gz_data: &[u8],
+    unpacked_size: Option<usize>,
+    limits: crate::TarLimits,
+    store_dir: &pnpm_store_dir::StoreDir,
+    ignore_file_pattern: Option<&crate::IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, pnpm_store_dir::PackageFilesIndex), TarballError> {
+    extract_gzipped_tarball_with_tar(gz_data, unpacked_size, limits, store_dir, ignore_file_pattern)
+        .map(|(files, index, _)| (files, index))
+}
+
+/// [`stream_extract_gzipped_tarball_with_tar`] without the tar's integrity.
+fn stream_extract_gzipped_tarball(
+    gz_data: &[u8],
+    limits: crate::TarLimits,
+    store_dir: &pnpm_store_dir::StoreDir,
+    ignore_file_pattern: Option<&crate::IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, pnpm_store_dir::PackageFilesIndex), TarballError> {
+    stream_extract_gzipped_tarball_with_tar(gz_data, limits, store_dir, ignore_file_pattern)
+        .map(|(files, index, _)| (files, index))
+}

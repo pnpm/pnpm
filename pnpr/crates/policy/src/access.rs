@@ -11,6 +11,8 @@ pub enum AccessToken {
     Authenticated,
     /// `$anonymous` — only callers *without* valid credentials.
     Anonymous,
+    /// `$owners` — package owners / maintainers.
+    Owners,
     /// A bare token: a username. Matches an authenticated caller whose
     /// username equals it — never a team name; teams are referenced with
     /// the explicit `team:` form.
@@ -34,6 +36,7 @@ impl From<&str> for AccessToken {
             "$all" => AccessToken::All,
             "$authenticated" => AccessToken::Authenticated,
             "$anonymous" => AccessToken::Anonymous,
+            "$owners" => AccessToken::Owners,
             name => AccessToken::User(name.to_string()),
         }
     }
@@ -73,6 +76,23 @@ impl AccessList {
         self.0
             .iter()
             .any(|token| identity.satisfies(token))
+    }
+
+    /// Whether `identity` satisfies any token in the list, given whether the
+    /// caller is a package maintainer/owner (or admin).
+    #[must_use]
+    pub fn allows_with_context(&self, identity: &Identity, is_owner: bool) -> bool {
+        self.0
+            .iter()
+            .any(|token| identity.satisfies_with_context(token, is_owner))
+    }
+
+    /// Whether the list holds the `$owners` token.
+    #[must_use]
+    pub fn references_owners(&self) -> bool {
+        self.0
+            .iter()
+            .any(|token| matches!(token, AccessToken::Owners))
     }
 
     #[must_use]
@@ -153,10 +173,15 @@ impl Identity {
     }
 
     fn satisfies(&self, token: &AccessToken) -> bool {
+        self.satisfies_with_context(token, false)
+    }
+
+    fn satisfies_with_context(&self, token: &AccessToken, is_owner: bool) -> bool {
         match (token, self) {
             (AccessToken::All, _) => true,
             (AccessToken::Authenticated, Identity::User { .. }) => true,
             (AccessToken::Anonymous, Identity::Anonymous) => true,
+            (AccessToken::Owners, Identity::User { .. }) => is_owner,
             (AccessToken::User(name), Identity::User { username, .. }) => name == username,
             (AccessToken::Team { name, directory }, Identity::User { username, memberships }) => {
                 directory.has_member(name, username)
@@ -178,6 +203,7 @@ impl std::fmt::Display for AccessToken {
             AccessToken::All => formatter.write_str("$all"),
             AccessToken::Authenticated => formatter.write_str("$authenticated"),
             AccessToken::Anonymous => formatter.write_str("$anonymous"),
+            AccessToken::Owners => formatter.write_str("$owners"),
             AccessToken::User(name) => formatter.write_str(name),
             AccessToken::Team { name, .. } => write!(formatter, "team:{name}"),
         }

@@ -40,7 +40,7 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => {
     server.listen(0, resolve)
   })
-  registry = `http://localhost:${(server.address() as AddressInfo).port}/`
+  registry = `http://localhost:${(server.address() as AddressInfo).port}/npm/`
 })
 
 afterAll(async () => {
@@ -118,7 +118,7 @@ async function forwardDroppingPeerMeta (pkgName: string, req: http.IncomingMessa
     headers: { accept: req.headers.accept ?? '*/*' },
   })
   const contentType = upstream.headers.get('content-type') ?? ''
-  if (decodeURIComponent(req.url!) !== `/${pkgName}` || !contentType.includes('json')) {
+  if (decodeURIComponent(req.url!) !== `/npm/${pkgName}` || !contentType.includes('json')) {
     res.writeHead(upstream.status, { 'content-type': contentType })
     res.end(Buffer.from(await upstream.arrayBuffer()))
     return

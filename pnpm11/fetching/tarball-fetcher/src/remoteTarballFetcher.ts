@@ -6,9 +6,10 @@ import path from 'node:path'
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, FetchTimeoutError, isError, isFetchTimeoutError, redactUrlForDisplay } from '@pnpm/error'
 import type { FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
-import type { FetchFromRegistry, GetAuthHeader, RetryTimeoutOptions } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
 import { isNonRetryableError } from '@pnpm/network.fetch'
+import { DEFAULT_MAX_TARBALL_UNPACKED_SIZE } from '@pnpm/store.cafs'
 import type { Cafs } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import { addFilesFromTarball } from '@pnpm/worker'
@@ -32,8 +33,6 @@ export type DownloadOptions = {
   onStart?: (totalSize: number | null, attempt: number) => void
   onProgress?: (downloaded: number) => void
   integrity?: string
-  redirect?: RequestRedirect
-  retry?: Pick<RetryTimeoutOptions, 'retries'>
   storeIndex: StoreIndex
   pkg?: FetchOptions['pkg']
   pkgId?: string
@@ -56,13 +55,14 @@ export interface CreateDownloaderOptions {
   }
   timeout?: number
   fetchMinSpeedKiBps?: number
+  maxTarballUnpackedSize?: number
 }
 
 export function createDownloader (
   fetchFromRegistry: FetchFromRegistry,
   gotOpts: CreateDownloaderOptions
 ): DownloadFunction {
-  const defaultRetryOpts = {
+  const downloadRetryOpts = {
     factor: 10,
     maxTimeout: 6e4, // 1 minute
     minTimeout: 1e4, // 10 seconds
@@ -70,6 +70,7 @@ export function createDownloader (
     ...gotOpts.retry,
   }
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
+  const maxTarballUnpackedSize = gotOpts.maxTarballUnpackedSize ?? DEFAULT_MAX_TARBALL_UNPACKED_SIZE
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
     const authHeaderValue = getSecureNodeMirrorAuthHeader(
@@ -78,7 +79,6 @@ export function createDownloader (
       opts.appendManifest?.name
     )
 
-    const downloadRetryOpts = { ...defaultRetryOpts, ...opts.retry }
     const op = retry.operation(downloadRetryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
@@ -90,6 +90,7 @@ export function createDownloader (
           fetchFromRegistry,
           fetchMinSpeedKiBps,
           gotOpts,
+          maxTarballUnpackedSize,
           op,
           opts,
           reject,
@@ -108,6 +109,7 @@ interface DownloadAttemptContext {
   fetchFromRegistry: FetchFromRegistry
   fetchMinSpeedKiBps: number
   gotOpts: CreateDownloaderOptions
+  maxTarballUnpackedSize: number
   op: ReturnType<typeof retry.operation>
   opts: DownloadOptions
   reject: (err: any) => void // eslint-disable-line
@@ -123,6 +125,7 @@ async function executeDownloadAttempt (ctx: DownloadAttemptContext): Promise<voi
       fetchFromRegistry: ctx.fetchFromRegistry,
       fetchMinSpeedKiBps: ctx.fetchMinSpeedKiBps,
       gotOpts: ctx.gotOpts,
+      maxTarballUnpackedSize: ctx.maxTarballUnpackedSize,
       opts: ctx.opts,
       url: ctx.url,
     })
@@ -146,6 +149,7 @@ interface FetchTarballContext {
   fetchFromRegistry: FetchFromRegistry
   fetchMinSpeedKiBps: number
   gotOpts: CreateDownloaderOptions
+  maxTarballUnpackedSize: number
   opts: DownloadOptions
   url: string
 }
@@ -157,7 +161,6 @@ async function fetchTarball (ctx: FetchTarballContext): Promise<FetchResult> {
       authHeaderValue: ctx.authHeaderValue,
       headers: { 'accept-encoding': 'identity' },
       retry: { retries: 0 },
-      redirect: ctx.opts.redirect,
       timeout: ctx.gotOpts.timeout,
     })
 
@@ -201,6 +204,7 @@ async function importDownloadedTarball (ctx: FetchTarballContext, data: Download
       pkg: ctx.opts.pkg,
       appendManifest: ctx.opts.appendManifest,
       ignoreFilePattern: ctx.opts.ignoreFilePattern,
+      maxTarballUnpackedSize: ctx.maxTarballUnpackedSize,
     })
   } finally {
     await data.cleanup?.()
@@ -349,13 +353,12 @@ function handleDownloadRetry (opts: {
   url: string
 }): void {
   const status = opts.error.response?.status
-  const isManualRedirect = opts.opts.redirect === 'manual' && status >= 300 && status < 400
-  const isFatal = isManualRedirect ||
-    status === 401 ||
+  const isFatal = status === 401 ||
     status === 403 ||
     status === 404 ||
     opts.error.code === 'ERR_PNPM_PREPARE_PKG_FAILURE' ||
     opts.error.code === 'ERR_PNPM_TARBALL_ENTRY_TOO_LARGE' ||
+    opts.error.code === 'ERR_PNPM_TARBALL_TOO_LARGE' ||
     isNonRetryableError(opts.error)
 
   if (isFatal) {

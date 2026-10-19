@@ -281,7 +281,7 @@ async fn explicit_current_revision_accepts_its_matching_history_record() {
 }
 
 #[tokio::test]
-async fn explicit_original_revision_omits_the_lockfile_revision() {
+async fn explicit_original_revision_records_revision_zero() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     server
@@ -304,13 +304,93 @@ async fn explicit_original_revision_omits_the_lockfile_revision() {
     let LockfileResolution::Tarball(resolution) = &result.resolution else {
         panic!("expected tarball resolution");
     };
-    assert_eq!(resolution.revision, None);
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(0));
+    assert!(resolution.tarball.ends_with("/-/tarballs/sha512/H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ"));
     assert_eq!(
         result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
             "original": "1.0.0",
         }),
     );
+}
+
+#[tokio::test]
+async fn selected_revision_zero_is_resolved_from_the_digest_route() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_package_body(&tarball, &json!(0)))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+
+    let LockfileResolution::Tarball(resolution) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(resolution.tarball, tarball);
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(0));
+}
+
+#[tokio::test]
+async fn incomplete_revision_metadata_is_rejected() {
+    for (case, edit) in [
+        ("history without a selected revision", "remove-revision"),
+        ("selected revision without revision 0", "remove-original"),
+        ("digest URL without revision metadata", "remove-both"),
+        ("digest URL of another archive without revision metadata", "remove-both-mismatched"),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+        let mut body: serde_json::Value =
+            serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
+        let dist = body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+        match edit {
+            "remove-revision" => {
+                dist.remove("revision");
+            }
+            "remove-original" => {
+                dist["revisions"]
+                    .as_array_mut()
+                    .unwrap()
+                    .remove(0);
+            }
+            "remove-both" => {
+                dist.remove("revision");
+                dist.remove("revisions");
+            }
+            "remove-both-mismatched" => {
+                dist.remove("revision");
+                dist.remove("revisions");
+                dist.insert("integrity".to_string(), json!(format!("sha512-{}==", "B".repeat(86))));
+            }
+            _ => unreachable!(),
+        }
+        server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(body.to_string())
+            .create_async()
+            .await;
+        let (resolver, _tempdir) = build_resolver(&registry);
+        let wanted =
+            WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
+
+        assert!(result.is_err(), "{case} must fail the resolve; got {result:?}");
+    }
 }
 
 #[tokio::test]

@@ -370,10 +370,10 @@ catalog:
   empathic: ^2.1.0
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
-  eslint: ^10.12.0
+  eslint: ^10.13.0
   eslint-plugin-import-x: ^4.17.1
   eslint-plugin-jest: ^29.17.0
-  eslint-plugin-n: ^18.4.1
+  eslint-plugin-n: ^18.5.0
   eslint-plugin-promise: ^7.3.0
   eslint-plugin-regexp: ^3.1.1
   eslint-plugin-simple-import-sort: ^14.0.0
@@ -451,7 +451,6 @@ catalog:
   p-limit: ^7.3.3
   p-queue: ^10.0.0
   parse-json: ^8.3.0
-  parse-npm-tarball-url: ^5.0.0
   path-absolute: ^2.0.0
   path-exists: ^5.0.0
   path-name: ^1.0.0
@@ -574,7 +573,6 @@ minimumReleaseAgeExclude:
   - is-subdir
   - make-empty-dir
   - normalize-registry-url
-  - parse-npm-tarball-url@5.0.0
   - path-absolute
   - path-temp
   - pnpm

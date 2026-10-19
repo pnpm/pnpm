@@ -480,3 +480,50 @@ fn drop_lost_versions_removes_references_to_lost_versions() {
         }),
     );
 }
+
+#[test]
+fn merge_manifest_stamps_format_version() {
+    let incoming = json!({
+        "name": "pkg",
+        "versions": {
+            "1.0.0": { "version": "1.0.0" }
+        }
+    });
+    let merged = merge_manifest(None, &incoming, None, "2026-01-01T00:00:00.000Z");
+    assert_eq!(merged["formatVersion"], super::PACKUMENT_FORMAT_VERSION);
+}
+
+#[test]
+fn merge_journaled_packument_rejects_newer_format_version() {
+    let name =
+        pnpr_package_name::CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm)
+            .unwrap();
+    let existing_future = json!({
+        "formatVersion": 999,
+        "name": "pkg",
+        "versions": {}
+    });
+    let existing_bytes = serde_json::to_vec(&existing_future).unwrap();
+    let journaled = json!({
+        "name": "pkg",
+        "versions": { "1.0.0": {} }
+    });
+    let journaled_bytes = serde_json::to_vec(&journaled).unwrap();
+    let lost_blobs = HashSet::new();
+    let merge = super::DocumentMerge {
+        ecosystem: pnpr_package_name::Ecosystem::Npm,
+        name: &name,
+        existing: Some(&existing_bytes),
+        journaled: &journaled_bytes,
+        lost_blobs: &lost_blobs,
+    };
+    let err = super::merge_journaled_packument(&merge).unwrap_err();
+    assert!(matches!(
+        err,
+        pnpr_error::RegistryError::DocumentFormatTooNew {
+            format_version: 999,
+            supported_version: 1,
+            ..
+        }
+    ));
+}

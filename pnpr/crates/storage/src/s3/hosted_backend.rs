@@ -151,41 +151,33 @@ impl HostedBackend for S3Store {
     fn list_blob_files(
         &self,
     ) -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>> {
-        let prefix =
-            (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')));
-        let normalized_prefix = prefix
-            .as_ref()
-            .map(|p| format!("{}/", p.as_ref()))
-            .unwrap_or_default();
-        self.store
-            .list(prefix.as_ref())
-            .filter_map(move |result| {
-                let normalized_prefix = normalized_prefix.clone();
-                async move {
-                    let meta = match result {
-                        Ok(meta) => meta,
-                        Err(error) => return Some(Err(error.into())),
-                    };
-                    let path = meta.location.as_ref().strip_prefix(normalized_prefix.as_str())?;
-                    let path = percent_encoding::percent_decode_str(path).decode_utf8_lossy();
-                    if path
-                        .split('/')
-                        .any(|part| part.starts_with('.'))
-                    {
-                        return None;
-                    }
-                    Some(Ok(crate::HostedBlobFile {
-                        path: path.into_owned(),
-                        modified: meta.last_modified.into(),
-                        size: meta.size,
-                    }))
-                }
+        self.list_package_files()
+            .map(|file| {
+                let (package, file, meta) = file?;
+                let blob = match file {
+                    super::PackageFile::Document => None,
+                    super::PackageFile::Blob(blob) => Some(blob),
+                };
+                Ok(crate::HostedBlobFile {
+                    package,
+                    blob,
+                    modified: meta.last_modified.into(),
+                    size: meta.size,
+                })
             })
             .boxed()
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
         S3Store::list_package_names(self).await
+    }
+
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
+        S3Store::list_package_blobs(self, name).await
+    }
+
+    async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
+        S3Store::list_top_level_dirs(self).await
     }
 
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
@@ -242,6 +234,15 @@ impl HostedBackend for S3Store {
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
         S3Store::remove_record(self, namespace, key).await
+    }
+
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        S3Store::remove_record_if_current(self, namespace, key, expected).await
     }
 
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {

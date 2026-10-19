@@ -9,7 +9,7 @@ pub use initialization::{InitAuthor, InitOptions};
 pub use metadata::{extract_author, extract_homepage, extract_license};
 pub use project::{
     PROJECT_MANIFEST_BASENAMES, find_parent_publish_manifest, project_manifest_path,
-    safe_read_project_manifest_from_dir,
+    publishes_from_directory, safe_read_project_manifest_from_dir,
 };
 pub use readme::{ReadmeKind, decode_readme, is_preferred_readme, readme_kind};
 pub use runtime::{

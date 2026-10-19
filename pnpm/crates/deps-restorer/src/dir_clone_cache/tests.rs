@@ -34,6 +34,16 @@ fn eligible_for_clone_capable_local_materialization() {
     );
 }
 
+#[test]
+fn not_eligible_when_the_canonical_root_is_the_virtual_store() {
+    let config = Config { enable_global_virtual_store: false, ..Config::default() };
+    let config = Config { global_virtual_store_dir: config.install_state_dir.clone(), ..config };
+    assert!(
+        !DirCloneCache::eligible(&config, NodeLinker::Isolated),
+        "canonical slots under the virtual store would be a second copy of every package",
+    );
+}
+
 #[cfg(target_os = "macos")]
 mod macos {
     use super::{Config, DirCloneCache, NodeLinker, PackageImportMethod};
