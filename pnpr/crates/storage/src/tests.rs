@@ -735,7 +735,7 @@ async fn replace_registry_record_migrates_legacy_record_atomically() {
     );
     assert_eq!(
         storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
-        None,
+        Some(b"legacy-val".to_vec()),
     );
 }
 
@@ -831,6 +831,52 @@ async fn replace_registry_record_returns_conflict_if_both_records_are_absent() {
     assert_eq!(
         storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
         None,
+    );
+}
+
+#[tokio::test]
+async fn editing_one_grouped_registry_preserves_other_effective_rules() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    assert!(
+        storage
+            .create_registry_record(
+                RegistryRecord::RuleOverrides,
+                "shared",
+                b"initial-shared-rules"
+            )
+            .await
+            .unwrap(),
+    );
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::RuleOverrides, "npm/shared").await.unwrap(),
+        Some(b"initial-shared-rules".to_vec()),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::RuleOverrides, "pypi/shared").await.unwrap(),
+        Some(b"initial-shared-rules".to_vec()),
+    );
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::RuleOverrides,
+            "npm/shared",
+            b"initial-shared-rules",
+            b"updated-npm-rules",
+        )
+        .await
+        .unwrap();
+    assert_eq!(write_result, DocumentWrite::Written);
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::RuleOverrides, "npm/shared").await.unwrap(),
+        Some(b"updated-npm-rules".to_vec()),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::RuleOverrides, "pypi/shared").await.unwrap(),
+        Some(b"initial-shared-rules".to_vec()),
     );
 }
 

@@ -236,15 +236,6 @@ impl HostedBackend for S3Store {
         S3Store::remove_record(self, namespace, key).await
     }
 
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        S3Store::remove_record_if_current(self, namespace, key, expected).await
-    }
-
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         S3Store::list_record_keys(self, namespace).await
     }

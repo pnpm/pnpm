@@ -214,15 +214,6 @@ impl HostedBackend for Store {
         Store::remove_record(self, namespace, key).await
     }
 
-    async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        Store::remove_record_if_current(self, namespace, key, expected).await
-    }
-
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         Store::list_record_keys(self, namespace).await
     }
