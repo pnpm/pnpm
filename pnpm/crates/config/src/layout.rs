@@ -42,8 +42,16 @@ impl Config {
                 _ => self.store_dir.links(),
             };
         }
+        self.apply_install_state_dir(virtual_store_dir_explicit);
+    }
+
+    fn apply_install_state_dir(&mut self, virtual_store_dir_explicit: bool) {
         if self.enable_global_virtual_store {
-            self.install_state_dir = self.modules_dir.join(".pnpm");
+            self.install_state_dir = if self.node_linker == NodeLinker::Loaded {
+                self.modules_dir.clone()
+            } else {
+                self.modules_dir.join(".pnpm")
+            };
         } else if virtual_store_dir_explicit && let Some(dir) = &self.configured_virtual_store_dir {
             self.install_state_dir.clone_from(dir);
         }
@@ -157,6 +165,7 @@ impl Config {
             }
             _ => self.follow_modules_dir_with_install_state_dir(),
         }
+        self.apply_cas_layout();
     }
 
     /// Put [`Self::install_state_dir`] at `<modules_dir>/.pnpm`, pnpm's
@@ -275,11 +284,13 @@ impl Config {
             })
             .flatten()
             .unwrap_or_else(|| {
-                let raw = self.explicit_settings
+                self.explicit_settings
                     .get("modulesDir")
                     .and_then(serde_json::Value::as_str)
-                    .unwrap_or("node_modules");
-                project_dir.join(raw)
+                    .map_or_else(
+                        || project_dir.join(self.modules_dir_name()),
+                        |raw| project_dir.join(raw),
+                    )
             });
         pnpm_fs::lexical_normalize(&modules_dir)
     }

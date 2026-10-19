@@ -39,9 +39,12 @@ impl CreateVirtualStore<'_> {
         check: &mut Option<ConcurrentCheck<'_>>,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         validate_config(self.ctx.config)?;
-        let selected = self.ctx
+        let mut selected = self.ctx
             .select_loaded_snapshots(self.entries.snapshots)
-            .expect("loaded linker selection");
+            .expect("loaded linker selection")
+            .clone();
+        let snapshots = self.entries.snapshots;
+        let packages = self.entries.packages;
         let fetch_context = crate::InstallContext {
             linker: crate::ModuleLinkerContext { kind: NodeLinker::Hoisted, ..self.ctx.linker },
             ..self.ctx.clone()
@@ -51,19 +54,203 @@ impl CreateVirtualStore<'_> {
             ..self.ctx.clone()
         };
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
-        let materialized_snapshots = (!selected.is_empty()).then_some(selected);
-        let (fetched, prefetch) =
-            installer.run_retaining::<Report>(materialized_snapshots, check).await?;
-        validate_cas_builds(&fetched, selected, installer.ctx.config)?;
+        let (mut fetched, prefetch) = installer.run_retaining::<Report>(snapshots, check).await?;
+        prepare_loaded_packages(&mut selected, snapshots, packages, &mut fetched, installer.ctx)?;
         installer.ctx = &materialize_context;
-        installer.entries.snapshots = materialized_snapshots;
+        installer.entries.snapshots = (!selected.is_empty()).then_some(&selected);
         installer.fetching.cas_prefetch = prefetch;
         let mut materialized = installer.run_inner::<Report>(check).await?;
+        materialized.snapshot_selection.loaded = Some(selected.keys().cloned().collect());
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
+        materialized.cas_paths_by_snapshot = fetched.cas_paths_by_snapshot;
         materialized.package_manifests.extend(fetched.package_manifests);
         materialized.package_bins.extend(fetched.package_bins);
         materialized.fetch_failed.extend(fetched.fetch_failed);
         Ok(materialized)
+    }
+}
+
+pub(super) fn retain_native_addon_packages(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    fetched: &CreateVirtualStoreOutput,
+) {
+    let Some(snapshots) = snapshots else { return };
+    let Some(cas_paths) = fetched.cas_paths_by_pkg_id.as_ref() else { return };
+    let roots = snapshots
+        .keys()
+        .filter(|key| {
+            cas_paths
+                .get(&cas_paths_key(key))
+                .is_some_and(|files| {
+                    files.cas_paths
+                        .keys()
+                        .any(|path| path.ends_with(".node"))
+                })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    retain_dependency_closure(selected, snapshots, roots);
+}
+
+struct CachedBuildInputs<'a> {
+    selected: &'a mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&'a HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    fetched: &'a CreateVirtualStoreOutput,
+    config: &'a pnpm_config::Config,
+    allow_build_policy: &'a crate::AllowBuildPolicy,
+    engine_name: Option<&'a str>,
+}
+
+impl CachedBuildInputs<'_> {
+    fn retain(mut self) -> HashMap<PackageKey, String> {
+        let Some(snapshots) = self.snapshots else { return HashMap::new() };
+        let Some(packages) = self.packages else { return HashMap::new() };
+        if !self.config.side_effects_cache_read()
+            && self.config.remote_side_effects_cache.is_none()
+        {
+            return HashMap::new();
+        }
+        let roots = self.fetched.requires_build_by_snapshot
+            .iter()
+            .filter(|(_, requires_build)| **requires_build)
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let graph = crate::build_deps_subgraph(snapshots, packages, roots);
+        let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
+        pnpm_graph_hasher::warm_deps_state_cache(
+            &graph,
+            &mut deps_state_cache,
+            crate::deps_graph::in_lockfile_order(&graph).into_iter().map(|(key, _)| key),
+        );
+        self.fetched.requires_build_by_snapshot
+            .iter()
+            .filter(|(_, requires_build)| **requires_build)
+            .filter_map(|(key, _)| {
+                self.cache_key(&graph, &mut deps_state_cache, key)
+                    .map(|cache_key| (key.clone(), cache_key))
+            })
+            .collect()
+    }
+
+    fn cache_key(
+        &mut self,
+        graph: &HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>,
+        deps_state_cache: &mut pnpm_graph_hasher::DepsStateCache<PackageKey>,
+        key: &PackageKey,
+    ) -> Option<String> {
+        if self.selected.contains_key(key) || !self.allow_build_policy.caches_build(key) {
+            return None;
+        }
+        let snapshots = self.snapshots?;
+        if immutable_download(self.fetched.cas_paths_by_pkg_id.as_ref()?, key).is_none() {
+            retain_dependency_closure(self.selected, snapshots, vec![key.clone()]);
+            return None;
+        }
+        let overlays = self.fetched.side_effects_maps_by_snapshot.get(key)?;
+        let should_run_scripts = !self.config.ignore_scripts
+            && self.allow_build_policy.check(&key.without_peer().to_string()) == Some(true);
+        let cache_key = pnpm_graph_hasher::calc_dep_state(
+            graph,
+            deps_state_cache,
+            key,
+            &pnpm_graph_hasher::CalcDepStateOptions {
+                engine_name: self.engine_name?,
+                patch_file_hash: None,
+                include_dep_graph_hash: should_run_scripts,
+            },
+        );
+        let overlay = overlays.get(&cache_key)?;
+        if !overlay.symlinks.is_empty()
+            || overlay.files
+                .keys()
+                .any(|path| path.ends_with(".node"))
+        {
+            retain_dependency_closure(self.selected, snapshots, vec![key.clone()]);
+            return None;
+        }
+        Some(cache_key)
+    }
+}
+
+fn retain_cached_builds(inputs: CachedBuildInputs<'_>) -> HashMap<PackageKey, String> {
+    inputs.retain()
+}
+
+fn prepare_loaded_packages(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    fetched: &mut CreateVirtualStoreOutput,
+    context: &crate::InstallContext<'_>,
+) -> Result<(), CreateVirtualStoreError> {
+    let cached_builds = retain_cached_builds(CachedBuildInputs {
+        selected,
+        snapshots,
+        packages,
+        fetched,
+        config: context.config,
+        allow_build_policy: context.allow_build_policy,
+        engine_name: context.linker.layout.engine_name(),
+    });
+    retain_native_addon_packages(selected, snapshots, fetched);
+    retain_build_misses(selected, snapshots, fetched, &cached_builds);
+    fetched.cas_paths_by_snapshot = cached_build_maps(fetched, &cached_builds);
+    validate_cas_builds(fetched, selected, &cached_builds, context.config)
+}
+
+fn retain_build_misses(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    fetched: &CreateVirtualStoreOutput,
+    cached: &HashMap<PackageKey, String>,
+) {
+    let Some(snapshots) = snapshots else { return };
+    let roots = fetched.requires_build_by_snapshot
+        .iter()
+        .filter(|(key, requires_build)| **requires_build && !cached.contains_key(*key))
+        .map(|(key, _)| key.clone())
+        .collect();
+    retain_dependency_closure(selected, snapshots, roots);
+}
+
+fn cached_build_maps(
+    fetched: &CreateVirtualStoreOutput,
+    cached: &HashMap<PackageKey, String>,
+) -> Option<crate::CasPathsBySnapshot> {
+    let mut maps = HashMap::new();
+    for (key, cache_key) in cached {
+        let Some(overlay) = fetched.side_effects_maps_by_snapshot
+            .get(key)
+            .and_then(|overlays| overlays.get(cache_key))
+        else {
+            continue;
+        };
+        maps.insert(key.clone(), Arc::new(overlay.files.clone()));
+    }
+    (!maps.is_empty()).then_some(maps)
+}
+
+fn retain_dependency_closure(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    roots: Vec<PackageKey>,
+) {
+    let mut pending = roots;
+    while let Some(key) = pending.pop() {
+        if selected.contains_key(&key) {
+            continue;
+        }
+        let Some(snapshot) = snapshots.get(&key) else { continue };
+        pending.extend(
+            snapshot.dependencies
+                .iter()
+                .flatten()
+                .chain(snapshot.optional_dependencies.iter().flatten())
+                .filter_map(|(alias, reference)| reference.resolve(alias)),
+        );
+        selected.insert(key, snapshot.clone());
     }
 }
 
@@ -163,7 +350,7 @@ pub(crate) fn materialized_snapshots(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> HashMap<PackageKey, SnapshotEntry> {
     let Some(snapshots) = snapshots else { return HashMap::new() };
-    let mut pending: Vec<_> = snapshots
+    let pending: Vec<_> = snapshots
         .keys()
         .filter(|key| {
             config.node_linker_excluded.contains(&key.name.to_string())
@@ -173,37 +360,22 @@ pub(crate) fn materialized_snapshots(
         })
         .cloned()
         .collect();
-    let mut selected = HashSet::new();
-    while let Some(key) = pending.pop() {
-        if !selected.insert(key.clone()) {
-            continue;
-        }
-        let Some(snapshot) = snapshots.get(&key) else { continue };
-        pending.extend(
-            snapshot.dependencies
-                .iter()
-                .flatten()
-                .chain(snapshot.optional_dependencies.iter().flatten())
-                .filter_map(|(alias, reference)| reference.resolve(alias)),
-        );
-    }
-    snapshots
-        .iter()
-        .filter(|(key, _)| selected.contains(*key))
-        .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
-        .collect()
+    let mut selected = HashMap::new();
+    retain_dependency_closure(&mut selected, snapshots, pending);
+    selected
 }
 
 fn validate_cas_builds(
     fetched: &CreateVirtualStoreOutput,
     selected: &HashMap<PackageKey, SnapshotEntry>,
+    cached: &HashMap<PackageKey, String>,
     config: &pnpm_config::Config,
 ) -> Result<(), CreateVirtualStoreError> {
     if config.ignore_scripts {
         return Ok(());
     }
     for (key, requires_build) in &fetched.requires_build_by_snapshot {
-        if *requires_build && !selected.contains_key(key) {
+        if *requires_build && !selected.contains_key(key) && !cached.contains_key(key) {
             return Err(CreateVirtualStoreError::CasRequiresMaterialization {
                 package: key.name.to_string(),
             });

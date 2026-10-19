@@ -258,7 +258,7 @@ pub struct CreateVirtualStoreOutput {
     /// The build phase uses this list to record only newly deferred
     /// builds under `ignoreScripts`; earlier debt is retained from
     /// `.modules.yaml` by the install orchestrator.
-    pub materialized_snapshots: Vec<PackageKey>,
+    pub snapshot_selection: SnapshotSelection,
     pub fetch_failed: HashSet<PackageKey>,
     /// Per-package CAS index, populated only when
     /// [`crate::ModuleLinkerContext::kind`] is
@@ -271,6 +271,18 @@ pub struct CreateVirtualStoreOutput {
     /// the bridge into the link phase instead). Pacquet decouples
     /// fetch and walk, so the index is built here at fetch time.
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
+    pub cas_paths_by_snapshot: Option<crate::CasPathsBySnapshot>,
+}
+
+pub struct SnapshotSelection {
+    pub materialized: Vec<PackageKey>,
+    pub loaded: Option<Vec<PackageKey>>,
+}
+
+impl SnapshotSelection {
+    pub(super) fn materialized(materialized: Vec<PackageKey>) -> Self {
+        Self { materialized, loaded: None }
+    }
 }
 
 impl CreateVirtualStoreOutput {
@@ -629,9 +641,10 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
         side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
         side_effects_by_snapshot: SideEffectsBySnapshot::new(),
         requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
-        materialized_snapshots: Vec::new(),
+        snapshot_selection: SnapshotSelection::materialized(Vec::new()),
         fetch_failed: HashSet::new(),
         cas_paths_by_pkg_id: is_hoisted.then(CasPathsByPkgId::new),
+        cas_paths_by_snapshot: None,
     }
 }
 
