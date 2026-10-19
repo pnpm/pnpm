@@ -116,6 +116,33 @@ pub(super) async fn resolve_edge<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, true).await
+}
+
+pub(in super::super) async fn try_resolve_edge_cached<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, false).await
+}
+
+async fn resolve_edge_inner<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+    log_skipped: bool,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
     if let Some(result) = package_root_link_result(wanted) {
         return Ok(Some(Arc::new(result)));
     }
@@ -127,7 +154,7 @@ where
     {
         Ok(result) => Ok(Some(result)),
         Err(err) => {
-            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err)?;
+            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err, log_skipped)?;
             Ok(None)
         }
     }

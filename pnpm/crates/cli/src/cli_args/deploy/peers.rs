@@ -133,7 +133,7 @@ fn is_peer_edge(
     // rewriting the peer suffix that bound it, and an external package cannot
     // declare a workspace link as its own dependency.
     matches!(child.suffix.version(), VersionPart::File(_))
-        || pnpm_lockfile::BoundProviders::from_key(parent).binds(child)
+        || pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), parent).binds(child)
 }
 
 /// The `(package, peer, reference)` triples the deployed graph can bind

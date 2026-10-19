@@ -95,6 +95,27 @@ fn package_version(package_count: usize) -> impl Strategy<Value = PackageVersion
     )
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Settings {
+    pub(super) peers_suffix_max_length: usize,
+    pub(super) auto_install_peers: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self { peers_suffix_max_length: 1000, auto_install_peers: true }
+    }
+}
+
+pub(super) fn settings() -> impl Strategy<Value = Settings> {
+    (prop::sample::select(vec![1000usize, 20usize]), any::<bool>()).prop_map(
+        |(peers_suffix_max_length, auto_install_peers)| Settings {
+            peers_suffix_max_length,
+            auto_install_peers,
+        },
+    )
+}
+
 /// Two to five packages, each at both [`MAJORS`], depended on by one to
 /// three importers. Self edges are dropped when the manifests are built,
 /// so any target is fair game here and peer cycles arise naturally.
@@ -104,6 +125,53 @@ pub(super) fn workspace() -> impl Strategy<Value = Workspace> {
         (vec(versions, package_count), vec(vec(edge(package_count), 1..=3), 1..=IMPORTER_IDS.len()))
             .prop_map(|(packages, importers)| Workspace { packages, importers })
     })
+}
+
+/// Pin the chosen dependency to one major in the initial workspace and flip it
+/// to the other major across the moved workspace, keeping the dependency's own
+/// manifest shape identical across both majors so only its version changes.
+pub(super) fn move_dependency(
+    workspace: &Workspace,
+    importer: usize,
+    edge: usize,
+) -> (Workspace, Workspace) {
+    let mut initial = workspace.clone();
+    let importer_count = initial.importers.len();
+    let (target, initial_major) = {
+        let edges = &initial.importers[importer % importer_count];
+        let picked = &edges[edge % edges.len()];
+        (picked.target, picked.major)
+    };
+    initial.packages[target][1] = initial.packages[target][0].clone();
+    set_target_major(&mut initial, target, initial_major);
+    let mut moved = initial.clone();
+    let moved_major = if initial_major == 1 { 2 } else { 1 };
+    set_target_major(&mut moved, target, moved_major);
+    (initial, moved)
+}
+
+fn set_target_major(workspace: &mut Workspace, target: usize, major: u8) {
+    let importer_edges = workspace.importers.iter_mut().flatten();
+    let package_deps = workspace.packages
+        .iter_mut()
+        .flatten()
+        .flat_map(|version| &mut version.dependencies);
+    for edge in importer_edges
+        .chain(package_deps)
+        .filter(|edge| edge.target == target)
+    {
+        edge.major = major;
+    }
+    for peer in workspace.packages
+        .iter_mut()
+        .flatten()
+        .flat_map(|version| &mut version.peers)
+        .filter(|peer| peer.target == target)
+    {
+        if let PeerRange::Major(peer_major) = &mut peer.range {
+            *peer_major = major;
+        }
+    }
 }
 
 fn caret(major: u8) -> String {

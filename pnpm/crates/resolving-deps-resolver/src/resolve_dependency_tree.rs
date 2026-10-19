@@ -14,7 +14,9 @@ pub(crate) use catalogs::resolve_catalog_specifiers;
 
 pub(crate) use importer::importer_direct_wanted_specs;
 
-pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
+pub(crate) use reuse::{
+    preseed_changed_direct_versions, record_changed_direct_deps, unwrap_package_name,
+};
 
 pub(crate) use workspace_ctx::SyncCursor;
 

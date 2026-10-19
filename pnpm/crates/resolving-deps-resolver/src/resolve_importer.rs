@@ -182,6 +182,86 @@ pub(crate) struct RequiredRound {
     walk_was_full: bool,
 }
 
+pub(crate) struct SeededImporter {
+    importer_id: String,
+    ctx: TreeCtx,
+    seeds: DirectSeeds,
+    locked: LockedPeers,
+    settings: HoistSettings,
+}
+
+impl SeededImporter {
+    pub(crate) fn prepare<DependencyGroupList>(
+        importer_id: &str,
+        importer_order: usize,
+        manifest: &PackageManifest,
+        dependency_groups: DependencyGroupList,
+        opts: ResolveImporterOptions,
+        workspace: Arc<WorkspaceTreeCtx>,
+    ) -> Result<Self, ResolveImporterError>
+    where
+        DependencyGroupList: IntoIterator<Item = DependencyGroup>,
+    {
+        let seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
+        let (ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
+        let locked = LockedPeers::of(&ctx, importer_id);
+        record_changed_direct_deps(&ctx, importer_id, &seeds.initial_wanted);
+        Ok(Self { importer_id: importer_id.to_string(), ctx, seeds, locked, settings })
+    }
+
+    pub(crate) async fn seed_changed_direct<Chain>(
+        &self,
+        resolver: &Chain,
+    ) -> Result<(), ResolveImporterError>
+    where
+        Chain: Resolver + ?Sized,
+    {
+        if self.ctx
+            .workspace()
+            .wanted_lockfile()
+            .is_none()
+        {
+            return Ok(());
+        }
+        crate::resolve_dependency_tree::preseed_changed_direct_versions(
+            &self.ctx,
+            resolver,
+            &self.seeds.initial_wanted,
+            &self.importer_id,
+            &ParentPkgAliases::root(self.seeds.parent_pkg_aliases.clone()),
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn init<Chain>(
+        mut self,
+        resolver: &Chain,
+    ) -> Result<ImporterHoistState, ResolveImporterError>
+    where
+        Chain: Resolver + ?Sized,
+    {
+        let direct = extend_tree(
+            &self.ctx,
+            resolver,
+            std::mem::take(&mut self.seeds.initial_wanted),
+            &self.importer_id,
+            &ParentPkgAliases::root(self.seeds.parent_pkg_aliases.clone()),
+        )
+        .await?;
+        self.seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
+        self.ctx.resolve_new_direct_deps_as_subdeps();
+        Ok(ImporterHoistState::assemble(
+            &self.importer_id,
+            self.ctx,
+            direct,
+            self.seeds,
+            self.locked,
+            self.settings,
+        ))
+    }
+}
+
 impl ImporterHoistState {
     /// Resolve the importer's initial direct-dependency wave and set
     /// up the hoist-round state.
@@ -198,21 +278,16 @@ impl ImporterHoistState {
         DependencyGroupList: IntoIterator<Item = DependencyGroup>,
         Chain: Resolver + ?Sized,
     {
-        let mut seeds = DirectSeeds::of(manifest, dependency_groups, &opts)?;
-        let (mut ctx, settings) = opts.into_tree_ctx(importer_id, importer_order, workspace);
-        let locked = LockedPeers::of(&ctx, importer_id);
-        record_changed_direct_deps(&ctx, importer_id, &seeds.initial_wanted);
-        let direct = extend_tree(
-            &ctx,
-            resolver,
-            std::mem::take(&mut seeds.initial_wanted),
+        SeededImporter::prepare(
             importer_id,
-            &ParentPkgAliases::root(seeds.parent_pkg_aliases.clone()),
-        )
-        .await?;
-        seeds.parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
-        ctx.resolve_new_direct_deps_as_subdeps();
-        Ok(Self::assemble(importer_id, ctx, direct, seeds, locked, settings))
+            importer_order,
+            manifest,
+            dependency_groups,
+            opts,
+            workspace,
+        )?
+        .init(resolver)
+        .await
     }
 
     pub(crate) fn importer_id(&self) -> &str {

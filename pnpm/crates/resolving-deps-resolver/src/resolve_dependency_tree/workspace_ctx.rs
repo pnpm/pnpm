@@ -262,22 +262,25 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Memoised result of [`WorkspaceTreeCtx::run_preferred_versions`], keyed by the
     /// `(revision, children_rewrites)` pair it was computed at.
     run_versions_cache: Mutex<RunVersionsCache>,
-    /// Per importer: direct-dep aliases whose manifest specifier differs
-    /// from the prior lockfile (new deps included). Gates the stale-pin
-    /// refresh's reuse-decline; only a changed direct dep can re-resolve
-    /// away from a transitive occurrence's pin. Keyed by importer: this
-    /// crate resolves importers sequentially (no workspace-wide
-    /// directs-before-transitives barrier), so a shared map would refresh
-    /// one importer's edges from another's direct deps order-dependently.
-    /// (pnpm has that barrier and so converges cross-importer; pacquet
-    /// stays per-importer to stay deterministic.)
-    pub(super) changed_direct_deps: Mutex<HashMap<String, HashSet<PkgName>>>,
-    /// Per importer: the parsed resolved versions of its direct
-    /// dependencies, recorded once the direct-dep level finishes resolving.
-    /// The direct-dep versions folded into the children's
-    /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
-    /// `Arc` so the hot child walk snapshots the importer's map with one
-    /// lock + refcount bump instead of locking per edge.
+    /// Direct-dep aliases whose manifest specifier differs from the prior
+    /// lockfile (new deps included), across all importers. Gates the
+    /// stale-pin refresh's reuse-decline: only a changed direct dep can
+    /// re-resolve away from a transitive occurrence's pin, and the
+    /// workspace-wide directs-before-transitives barrier populates this
+    /// set before any importer walks its subtrees.
+    pub(super) changed_direct_deps: Mutex<Arc<HashSet<PkgName>>>,
+    /// The parsed resolved versions of direct dependencies that changed
+    /// in this install across the workspace, pre-seeded before any
+    /// importer walks its transitive subtrees. Merged into each
+    /// importer's [`Self::direct_dep_versions`] for package names the
+    /// importer does not declare directly.
+    pub(super) changed_direct_dep_versions: Mutex<Arc<DirectDepVersions>>,
+    /// Per importer: the parsed resolved versions of its own direct
+    /// dependencies, plus [`Self::changed_direct_dep_versions`] for
+    /// names the importer does not declare directly. Consulted by
+    /// [`fn@higher_direct_dep_version`]. `Arc` so the hot child walk
+    /// snapshots the importer's map with one lock + refcount bump
+    /// instead of locking per edge.
     ///
     /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
     pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,

@@ -27,6 +27,41 @@ fn bound_providers_match_targets_by_name_and_version_and_accept_all_for_hashed()
 }
 
 #[test]
+fn bound_providers_of_snapshot_disambiguates_bound_peer_from_own_dependency_under_a_hashed_suffix()
+{
+    let suffix = PeerBindings::Explicit(vec!["bound@1.0.0".to_string()])
+        .to_suffix(3)
+        .expect("hashed suffix");
+    let pkg_key = key(&format!("pkg@1.0.0{suffix}"));
+    let yaml = format!(
+        r"lockfileVersion: '9.0'
+packages:
+  pkg@1.0.0:
+    resolution: {{integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}}
+    peerDependencies:
+      bound: ^1.0.0
+      own: ^1.0.0
+snapshots:
+  '{pkg_key}':
+    dependencies:
+      bound: 1.0.0
+      own: 2.0.0
+",
+    );
+    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).expect("parse lockfile");
+    let providers = BoundProviders::of_snapshot(
+        crate::LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: lockfile.snapshots.as_ref(),
+        },
+        &pkg_key,
+    );
+    assert!(!providers.is_hashed());
+    assert!(providers.binds(&key("bound@1.0.0")));
+    assert!(!providers.binds(&key("own@2.0.0")));
+}
+
+#[test]
 fn an_explicit_suffix_names_its_providers_in_order() {
     let bindings = PeerBindings::from_key(&key("a@1.0.0(b@2.0.0(c@1.0.0))(c@1.0.0)")).unwrap();
     let providers: Vec<String> = bindings

@@ -128,7 +128,7 @@ fn locked_peer_keys(
         .and_then(|packages| packages.get(&key.without_peer()));
     let peers: Vec<pnpm_lockfile::PkgNameVerPeer> = match PeerBindings::from_key(key) {
         None => return Vec::new(),
-        Some(PeerBindings::Hashed) => return hashed_peer_keys(lockfile, snapshot, metadata),
+        Some(PeerBindings::Hashed) => return hashed_peer_keys(lockfile, key, snapshot, metadata),
         Some(bindings) => bindings.providers().collect(),
     };
     if peers.is_empty() {

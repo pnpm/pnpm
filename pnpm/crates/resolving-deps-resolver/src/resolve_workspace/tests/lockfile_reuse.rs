@@ -694,3 +694,148 @@ async fn warm_up_of_a_cycle_with_reused_children_terminates() {
         [(2, 1), (1, 1), (0, 0), (0, 0), (1, 2)],
     );
 }
+
+/// When a later importer (`b`) upgrades a direct dependency (`shared` from
+/// `^1.0.0` to `^1.2.0`), an earlier importer (`a`) whose reused subtree
+/// depends on `shared@^1.0.0` must decline wholesale reuse of that parent and
+/// refresh `shared` onto `1.2.0` so both importers converge in one pass.
+#[tokio::test]
+async fn cross_importer_direct_dep_change_refreshes_earlier_importer_transitive_pin() {
+    let resolver = RecordingResolver {
+        table: HashMap::from_iter([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "^1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let mut lockfile = reuse_graph_lockfile(
+        "a",
+        &[("wrapper", "1.0.0", "1.0.0")],
+        &[("wrapper@1.0.0", &[("shared", "1.0.0")]), ("shared@1.0.0", &[])],
+        &[],
+    );
+    let b_lockfile =
+        reuse_graph_lockfile("b", &[("shared", "^1.0.0", "1.0.0")], &[("shared@1.0.0", &[])], &[]);
+    lockfile.importers.insert("b".to_string(), b_lockfile.importers["b"].clone());
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.2.0" }));
+    let importers = [
+        WorkspaceImporter { id: "a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace after cross-importer direct dep upgrade");
+
+    assert_eq!(
+        graph_versions_of(&result, "shared"),
+        ["1.2.0"],
+        "earlier importer's transitive pin must refresh to the later importer's upgraded direct dep",
+    );
+}
+
+#[tokio::test]
+async fn cross_importer_direct_dep_change_respects_local_direct_dep_version() {
+    let resolver = RecordingResolver {
+        table: HashMap::from_iter([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.0.0" }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "^1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let mut lockfile = reuse_graph_lockfile(
+        "a",
+        &[("wrapper", "1.0.0", "1.0.0"), ("shared", "1.0.0", "1.0.0")],
+        &[("wrapper@1.0.0", &[("shared", "1.0.0")]), ("shared@1.0.0", &[])],
+        &[],
+    );
+    let b_lockfile =
+        reuse_graph_lockfile("b", &[("shared", "^1.0.0", "1.0.0")], &[("shared@1.0.0", &[])], &[]);
+    lockfile.importers.insert("b".to_string(), b_lockfile.importers["b"].clone());
+    let (_a_tmp, a_manifest) =
+        fake_manifest(serde_json::json!({ "wrapper": "1.0.0", "shared": "1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.2.0" }));
+    let importers = [
+        WorkspaceImporter { id: "a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace when earlier importer pins shared directly");
+
+    assert_eq!(
+        graph_versions_of(&result, "shared"),
+        ["1.0.0", "1.2.0"],
+        "importer `a`'s own direct dependency on shared@1.0.0 must shadow `b`'s bumped 1.2.0",
+    );
+}

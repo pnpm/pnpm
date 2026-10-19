@@ -228,18 +228,18 @@ pub(in super::super) fn reuse_key_matches_peer_scope(
     key: &PkgNameVerPeer,
     scope: &ParentPkgAliases,
 ) -> bool {
-    let Some(manifest) = manifest else {
+    let (Some(manifest), Some(lockfile)) = (manifest, ctx.workspace.reuse.lockfile.as_deref())
+    else {
         return true;
     };
-    let Some(snapshot) = ctx.workspace.reuse.lockfile
+    let Some(snapshot) = lockfile.snapshots
         .as_ref()
-        .and_then(|lf| lf.snapshots.as_ref())
         .and_then(|s| s.get(key))
     else {
         return true;
     };
     let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let providers = BoundProviders::from_key(key);
+    let providers = BoundProviders::of_snapshot(lockfile.into(), key);
     declared_peer_dependencies(manifest)
         .into_iter()
         .all(|(name, peer)| {
@@ -269,18 +269,18 @@ pub(super) fn reused_identity(
     id: &str,
     result: &pnpm_resolving_resolver_base::ResolveResult,
     key: &PkgNameVerPeer,
+    scope: &ParentPkgAliases,
 ) -> ReusedIdentity {
     let snapshot = ctx.workspace.reuse.lockfile
         .as_ref()
-        .and_then(|lf| lf.snapshots.as_ref())
-        .and_then(|s| s.get(key));
+        .and_then(|lf| lf.snapshots.as_ref()?.get(key));
     let declared: BTreeMap<String, PeerDep> = result.package.manifest
         .as_deref()
         .map(declared_peer_dependencies)
         .unwrap_or_default()
         .into_iter()
         .collect();
-    let (own_deps, peer_shadowed) = split_reused_peers(ctx, key, snapshot, &declared);
+    let (own_deps, peer_shadowed) = split_reused_peers(ctx, key, snapshot, &declared, scope);
     let peer_set = PeerSet::new(declared, |name| own_deps.contains(name));
     let child_refs = snapshot_child_refs(snapshot, peer_set.taken());
     let is_leaf = child_refs.is_empty() && peer_set.declared().is_empty();
@@ -293,17 +293,27 @@ fn split_reused_peers(
     key: &PkgNameVerPeer,
     snapshot: Option<&SnapshotEntry>,
     declared: &BTreeMap<String, PeerDep>,
+    scope: &ParentPkgAliases,
 ) -> (HashSet<String>, HashSet<String>) {
     let Some(snapshot) = snapshot else {
         return (HashSet::default(), HashSet::default());
     };
     let auto_install_peers = ctx.workspace.policy.auto_install_peers;
-    let providers = BoundProviders::from_key(key);
+    let providers = ctx.workspace.reuse.lockfile
+        .as_deref()
+        .map_or_else(
+            || BoundProviders::from_key(key),
+            |lf| BoundProviders::of_snapshot(lf.into(), key),
+        );
     let mut own_deps = HashSet::default();
     let mut peer_shadowed = HashSet::default();
     let mut shadowable = Vec::new();
     for (name, peer) in declared {
-        let Some(is_bound) = classify_reused_peer(snapshot, &providers, name) else { continue };
+        let Some(is_bound) =
+            classify_reused_peer(snapshot, &providers, name, peer, scope, auto_install_peers)
+        else {
+            continue;
+        };
         if !auto_install_peers || peer.optional {
             shadowable.push(name);
         }
@@ -321,10 +331,13 @@ fn classify_reused_peer(
     snapshot: &SnapshotEntry,
     providers: &BoundProviders,
     name: &str,
+    peer: &PeerDep,
+    scope: &ParentPkgAliases,
+    auto_install_peers: bool,
 ) -> Option<bool> {
     let dep_ref = snapshot_dep_ref(snapshot, name)?;
     if providers.is_hashed() {
-        return Some(true);
+        return Some((auto_install_peers && !peer.optional) || scope.contains(name));
     }
     let pkg_name = name.parse::<PkgName>().ok()?;
     let target = dep_ref.resolve(&pkg_name)?;

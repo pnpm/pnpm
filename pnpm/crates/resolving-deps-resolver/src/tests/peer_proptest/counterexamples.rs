@@ -226,3 +226,45 @@ fn a_second_dedupe_keeps_an_optional_peer_on_a_cycle() {
         .expect("second dedupe");
     assert_eq!(outcome_of(&first, &workspace), outcome_of(&second, &workspace));
 }
+
+/// `p0@1` has required peer `p1@^1`, optional peer `p2@^1`, and peer `p3@^2`
+/// that is also an own dependency (`p3@^2`). With `peers_suffix_max_length: 20`
+/// and `auto_install_peers: false`, `p0@1`'s suffix `(p1@1.0.0)(p2@1.0.0)` is
+/// hashed while `p3@2.0.0` remains an unshadowed own dependency. Re-resolving
+/// over the lockfile must recover the hashed bindings rather than treating
+/// `p3` as a bound peer.
+#[test]
+fn hashed_suffix_keeps_unshadowed_own_dependency_without_auto_install_peers() {
+    let workspace = Workspace {
+        packages: vec![
+            vec![
+                version(
+                    Vec::new(),
+                    vec![
+                        peer(1, 1, false, false),
+                        peer(2, 1, true, false),
+                        peer(3, 2, false, true),
+                    ],
+                ),
+                leaf(),
+            ],
+            vec![leaf(), leaf()],
+            vec![leaf(), leaf()],
+            vec![leaf(), leaf()],
+        ],
+        importers: vec![vec![
+            Edge { target: 0, major: 1 },
+            Edge { target: 1, major: 1 },
+            Edge { target: 2, major: 1 },
+        ]],
+    };
+    let settings =
+        super::model::Settings { peers_suffix_max_length: 20, auto_install_peers: false };
+    let order = in_order(&workspace);
+    let fresh =
+        super::resolve_with(&workspace, &order, settings, Reuse::Fresh).expect("fresh resolve");
+    let lockfile = lockfile_of(&fresh, &workspace);
+    let reused = super::resolve_with(&workspace, &order, settings, Reuse::Install(&lockfile))
+        .expect("reuse resolve");
+    assert_eq!(outcome_of(&fresh, &workspace), outcome_of(&reused, &workspace));
+}
