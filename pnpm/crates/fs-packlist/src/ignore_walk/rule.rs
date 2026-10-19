@@ -102,15 +102,20 @@ fn parse_segments(pattern: &str, literal_case: LiteralCase) -> Vec<Segment> {
     segments
 }
 
-/// Splits like JavaScript's `split(/\/+/)`: a leading or trailing slash
-/// yields an empty first or last segment.
+/// Split slash runs, preserving Windows UNC roots as minimatch does.
 fn split_on_slash_runs(path: &str) -> Vec<&str> {
+    let preserve_unc = cfg!(windows)
+        && path
+            .strip_prefix("//")
+            .is_some_and(|suffix| !suffix.is_empty() && !suffix.starts_with('/'));
     let parts: Vec<&str> = path.split('/').collect();
     let last = parts.len() - 1;
     parts
         .iter()
         .enumerate()
-        .filter(|&(index, part)| !part.is_empty() || index == 0 || index == last)
+        .filter(|&(index, part)| {
+            !part.is_empty() || index == 0 || index == last || (preserve_unc && index == 1)
+        })
         .map(|(_, part)| *part)
         .collect()
 }

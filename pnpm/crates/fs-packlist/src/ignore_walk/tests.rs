@@ -221,3 +221,12 @@ fn manifest_metadata_lookups_stay_within_the_package() {
     );
     assert!(super::files_field::entry_metadata(&root, "", &mut directories).unwrap().is_dir());
 }
+
+#[test]
+fn unc_roots_follow_minimatch_platform_semantics() {
+    let unc = IgnoreRule::parse("//**");
+    assert_eq!(unc.matches("/foo", false), !cfg!(windows));
+    assert!(unc.matches("//foo", false));
+    assert!(IgnoreRule::parse("/**").matches("/foo", false));
+    assert!(IgnoreRule::parse("///**").matches("/foo", false));
+}
