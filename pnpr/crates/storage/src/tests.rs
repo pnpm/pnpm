@@ -808,6 +808,32 @@ async fn replace_registry_record_returns_conflict_if_legacy_was_concurrently_mod
     );
 }
 
+#[tokio::test]
+async fn replace_registry_record_returns_conflict_if_both_records_are_absent() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    let write_result = storage
+        .replace_registry_record_if_current(
+            RegistryRecord::TeamRoster,
+            "npm/shared",
+            b"expected-val",
+            b"new-val",
+        )
+        .await
+        .unwrap();
+    assert_eq!(write_result, DocumentWrite::Conflict);
+
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        None,
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
+        None,
+    );
+}
+
 #[test]
 fn iso_from_unix_millis_formats_negative_millis_correctly() {
     assert_eq!(super::publish::iso_from_unix_millis(-1), "1969-12-31T23:59:59.999Z");

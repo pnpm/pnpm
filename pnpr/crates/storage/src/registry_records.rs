@@ -83,6 +83,10 @@ impl Storage {
                 .await;
         }
         let legacy_key = registry_record_key(local_name)?;
+        if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref() != Some(expected)
+        {
+            return Ok(DocumentWrite::Conflict);
+        }
         if !self.root.create_record(kind.namespace(), &key, bytes).await? {
             return Ok(DocumentWrite::Conflict);
         }
