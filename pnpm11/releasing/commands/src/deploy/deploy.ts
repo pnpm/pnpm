@@ -334,9 +334,10 @@ function buildDeployInstallOptions (opts: DeployOptions, { deployDir, deployFile
     ignorePnpmfile: workspaceManifest.ignorePnpmfile,
     ignoredOptionalDependencies: workspaceManifest.ignoredOptionalDependencies,
     injectWorkspacePackages: workspaceManifest.injectWorkspacePackages, // the effects of injecting workspace packages should already be part of the package snapshots
+    linkWorkspacePackages: false,
     overrides: undefined, // the effects of the overrides should already be part of the package snapshots
     packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
-    patchedDependencies: resolveDeployPatchedDependencies(deployDir, workspaceManifest.patchedDependencies),
+    patchedDependencies: pickDeployPatchedDependencies(opts.patchedDependencies, workspaceManifest.patchedDependencies),
     peersSuffixMaxLength: workspaceManifest.peersSuffixMaxLength,
     pnpmfile: [],
     configDependencies: undefined, // configDependencies (e.g. pacquet) are not installed into the deploy dir, so the install engine they designate isn't on disk to invoke
@@ -353,13 +354,15 @@ function buildDeployHooks (hooks: DeployOptions['hooks']): DeployOptions['hooks'
   }
 }
 
-function resolveDeployPatchedDependencies (
-  deployDir: string,
-  patchedDependencies: Record<string, string> | undefined
+function pickDeployPatchedDependencies (
+  sourcePatchedDependencies: Record<string, string> | undefined,
+  manifestPatchedDependencies: Record<string, string> | undefined
 ): Record<string, string> | undefined {
-  if (patchedDependencies == null) return undefined
+  if (sourcePatchedDependencies == null || manifestPatchedDependencies == null) return undefined
   return Object.fromEntries(
-    Object.entries(patchedDependencies).map(([key, patchFile]) => [key, path.resolve(deployDir, patchFile)])
+    Object.keys(manifestPatchedDependencies)
+      .filter(key => Object.hasOwn(sourcePatchedDependencies, key))
+      .map(key => [key, sourcePatchedDependencies[key]])
   )
 }
 

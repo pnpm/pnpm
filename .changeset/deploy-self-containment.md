@@ -7,4 +7,4 @@
 "pacquet": patch
 ---
 
-`pnpm deploy` now writes self-contained workspace and lockfile settings, prunes unused `patchedDependencies`, and preserves workspace-level dependency resolutions on deployed directory dependencies during post-deploy `pnpm install --frozen-lockfile` and `verifyDepsBeforeRun` checks.
+Fixed `pnpm install --frozen-lockfile` and `verifyDepsBeforeRun` failing inside a directory created by `pnpm deploy`. `pnpm deploy` now writes self-contained workspace and lockfile settings. `pnpm deploy` also prunes unused `patchedDependencies` and preserves workspace-level dependency resolutions on deployed directory dependencies.

@@ -648,6 +648,9 @@ test('post-deploy self-containment oracle passes with workspace catalog, overrid
 
   fs.rmSync(path.join(deployDir, 'node_modules'), { recursive: true, force: true })
   await execPnpm(['--dir', deployDir, 'install', '--frozen-lockfile'])
+  await execPnpm(['--dir', deployDir, '--config.verify-deps-before-run=error', 'run', 'start'], {
+    env: { CI: 'false' },
+  })
   const libNodeModules = path.dirname(fs.realpathSync(path.join(deployDir, 'node_modules/lib')))
   expect(fs.existsSync(path.join(libNodeModules, '@pnpm.e2e/foo'))).toBe(true)
   expect(fs.existsSync(path.join(libNodeModules, '@pnpm.e2e/bar'))).toBe(true)

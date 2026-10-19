@@ -50,22 +50,32 @@ impl DeployPeerSettings {
 }
 
 pub(super) struct DeployLockfileSettings {
+    pub(super) auto_dedupe: bool,
     pub(super) exclude_links_from_lockfile: bool,
     pub(super) include_resolution_settings: bool,
     pub(super) integrity_target: pnpm_lockfile::IntegrityTarget,
+    pub(super) link_workspace_packages: bool,
 }
 
 impl DeployLockfileSettings {
     fn from_config(config: &Config) -> Self {
         Self {
+            auto_dedupe: false,
             exclude_links_from_lockfile: config.exclude_links_from_lockfile,
             include_resolution_settings: config.lockfile_include_resolution_settings,
             integrity_target: config.lockfile_integrity_target,
+            link_workspace_packages: false,
         }
     }
 
     fn apply_to_config(&self, config: &mut Config) {
+        config.auto_dedupe = self.auto_dedupe;
         config.exclude_links_from_lockfile = self.exclude_links_from_lockfile;
+        config.link_workspace_packages = if self.link_workspace_packages {
+            pnpm_config::LinkWorkspacePackages::DirectOnly
+        } else {
+            pnpm_config::LinkWorkspacePackages::Off
+        };
         config.lockfile_include_resolution_settings = self.include_resolution_settings;
         config.lockfile_integrity_target = self.integrity_target;
     }
@@ -84,6 +94,11 @@ impl DeployLockfileSettings {
             );
         }
         if self.include_resolution_settings {
+            manifest.insert("autoDedupe".to_string(), Value::Bool(self.auto_dedupe));
+            manifest.insert(
+                "linkWorkspacePackages".to_string(),
+                Value::Bool(self.link_workspace_packages),
+            );
             lockfile_settings.insert("includeResolutionSettings".to_string(), Value::Bool(true));
         }
         if !lockfile_settings.is_empty() {
@@ -188,10 +203,11 @@ impl DeployWorkspaceSettings {
             resolution.dedupe_peer_dependents = Some(self.peers.dedupe_peer_dependents);
         }
         if resolution.auto_dedupe.is_some() {
-            resolution.auto_dedupe = Some(false);
+            resolution.auto_dedupe = Some(self.lockfile.auto_dedupe);
         }
         if resolution.link_workspace_packages.is_some() {
-            resolution.link_workspace_packages = Some(Value::Bool(false));
+            resolution.link_workspace_packages =
+                Some(Value::Bool(self.lockfile.link_workspace_packages));
         }
     }
 
@@ -204,8 +220,6 @@ impl DeployWorkspaceSettings {
         self.peers.apply_to_config(config);
         self.lockfile.apply_to_config(config);
         self.store.apply_to_config(config);
-        config.auto_dedupe = false;
-        config.link_workspace_packages = pnpm_config::LinkWorkspacePackages::Off;
         config.isolate_local_directory_imports = true;
         config.overrides = None;
         config.package_extensions = None;

@@ -113,5 +113,7 @@ fn unhooked_injected_manifests(
 fn is_deploy_injected_dependency(dependency: &pnpm_lockfile::InjectedDependency<'_>) -> bool {
     dependency.spec.version
         .resolved_key(dependency.alias)
-        .is_some_and(|key| is_deploy_file_url_key(&key))
+        .is_some_and(|key| {
+            is_deploy_file_url_key(dependency.spec, &key, &dependency.directory.directory)
+        })
 }

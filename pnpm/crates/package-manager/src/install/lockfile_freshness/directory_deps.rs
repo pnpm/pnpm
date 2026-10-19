@@ -1,5 +1,5 @@
 pub use injected_manifest::ProjectManifestsByDir;
-pub(super) use injected_manifest::{InjectedDirectory, unhooked_manifest};
+pub(super) use injected_manifest::{InjectedDirectory, is_deploy_file_url_key, unhooked_manifest};
 pub(crate) use injected_manifest::{dependency_manifests_by_dir, project_manifests_by_dir};
 pub(crate) use spec::spec_target_and_range;
 
@@ -153,17 +153,6 @@ fn should_check_directory_dep(
             || is_declared_local_directory(specifier))
 }
 
-/// Whether `key` is a `<name>@file://...` directory entry synthesized by
-/// `pnpm deploy`, whose snapshot already carries the source workspace's
-/// resolved catalog entries, overrides, extensions, hooks, and peer bindings.
-pub(super) fn is_deploy_file_url_key(key: &pnpm_lockfile::PackageKey) -> bool {
-    matches!(
-        key.suffix.version(),
-        pnpm_lockfile::VersionPart::File(path)
-            if path.starts_with("//") && !pnpm_lockfile::is_local_tarball_path(path),
-    )
-}
-
 fn check_single_dep_spec_directory_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
@@ -214,7 +203,7 @@ fn check_directory_resolution(
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|s| s.get(pkg_key));
-    if is_deploy_file_url_key(pkg_key) {
+    if is_deploy_file_url_key(dep_spec, pkg_key, rel_path) {
         return snapshot
             .map(|_| ())
             .ok_or_else(|| local_dependency_outdated(dep_str, rel_path));

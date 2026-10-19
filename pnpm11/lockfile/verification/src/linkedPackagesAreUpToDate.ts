@@ -124,7 +124,7 @@ async function checkLocalDirectoryDependency (
   }
   if (
     !ctx.skipLocalDirectoryDependencies &&
-    !isDeployDirectoryRef(lockfileRef) &&
+    !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
     !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))
   ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
@@ -281,13 +281,14 @@ function isLocalDirectoryRef (ref: string): boolean {
  * because the deployed directory intentionally drops those source-workspace
  * settings.
  */
-function isDeployDirectoryRef (ref: string): boolean {
+function isDeployDirectoryRef (ref: string, pkgSnapshot: PackageSnapshot): boolean {
   const refWithoutSuffix = removeSuffix(ref)
-  if (refWithoutSuffix.startsWith('file://')) {
-    return refIsLocalDirectory(`file:${refWithoutSuffix.slice('file://'.length)}`)
-  }
   const aliasEnd = refWithoutSuffix.indexOf('@file://', 1)
-  return aliasEnd !== -1 && refIsLocalDirectory(`file:${refWithoutSuffix.slice(aliasEnd + '@file://'.length)}`)
+  if (aliasEnd === -1) return false
+  const filePath = refWithoutSuffix.slice(aliasEnd + '@file:'.length)
+  if (!refIsLocalDirectory(`file:${filePath}`)) return false
+  const directory = (pkgSnapshot.resolution as DirectoryResolution | undefined)?.directory
+  return filePath.startsWith('///') || filePath !== directory
 }
 
 function outdated (detailedReason: string): CheckLinkedPackagesResult {

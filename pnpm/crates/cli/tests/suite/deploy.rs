@@ -233,6 +233,14 @@ fn deploy_records_its_own_resolution_settings() {
     let deployed_workspace_manifest =
         fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap();
     assert!(
+        deployed_workspace_manifest.contains("autoDedupe: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("linkWorkspacePackages: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
         deployed_workspace_manifest.contains("includeResolutionSettings: true"),
         "{deployed_workspace_manifest}",
     );

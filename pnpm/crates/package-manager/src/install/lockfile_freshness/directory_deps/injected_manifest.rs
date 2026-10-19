@@ -245,3 +245,25 @@ fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Resu
     }
     Ok(canonical_root)
 }
+
+/// Whether `key` is a `<name>@file://...` directory entry synthesized by
+/// `pnpm deploy`, whose snapshot already carries the source workspace's
+/// resolved catalog entries, overrides, extensions, hooks, and peer bindings.
+///
+/// Requires `dep_spec.version` to use the `<name>@file://...` alias shape and
+/// distinguishes a two-slash `file://server/share/...` deploy URL from an
+/// ordinary Windows UNC `file:` dependency whose `resolution.directory` is the
+/// same `//server/share/...` string.
+pub(in crate::install::lockfile_freshness) fn is_deploy_file_url_key(
+    dep_spec: &pnpm_lockfile::ResolvedDependencySpec,
+    key: &pnpm_lockfile::PackageKey,
+    directory: &str,
+) -> bool {
+    matches!(dep_spec.version, pnpm_lockfile::ImporterDepVersion::Alias(_))
+        && matches!(
+            key.suffix.version(),
+            pnpm_lockfile::VersionPart::File(path)
+                if !pnpm_lockfile::is_local_tarball_path(path)
+                    && (path.starts_with("///") || (path.starts_with("//") && path != directory)),
+        )
+}
