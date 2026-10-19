@@ -96,12 +96,14 @@ async function localDirectoryDepIsUpToDateRec (
   ctx: LocalDirectoryDepContext,
   pkgSnapshot: PackageSnapshot,
   parentPkgAliases: Record<string, unknown>,
-  visitedDirs: Set<string>
+  visited: Set<PackageSnapshot>
 ): Promise<boolean> {
   if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
+  // Each snapshot is checked once: a revisit is a cycle or a shared
+  // dependency already being checked.
+  if (visited.has(pkgSnapshot)) return true
+  visited.add(pkgSnapshot)
   const localDepDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
-  // A dependency cycle of directory packages is not a staleness; cut it.
-  if (visitedDirs.has(localDepDir)) return true
   const manifest = await readHookedManifestOnce(ctx, localDepDir)
   if (!manifest) return false
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
@@ -116,7 +118,7 @@ async function localDirectoryDepIsUpToDateRec (
     manifestsByDir: ctx.manifestsByDir,
     workspaceRoot: ctx.workspaceDir ?? ctx.lockfileDir,
   }
-  return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, new Set(visitedDirs).add(localDepDir)))
+  return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, visited))
 }
 
 /** The aliases the package's parent depends on, which supply its peers. */
@@ -211,7 +213,7 @@ async function childIsUpToDate (
   localDep: LocalDirectoryDep,
   pkgSnapshot: PackageSnapshot,
   child: ManifestWantedDependency,
-  visitedDirs: Set<string>
+  visited: Set<PackageSnapshot>
 ): Promise<boolean> {
   const recorded = child.optional ? pkgSnapshot.optionalDependencies : pkgSnapshot.dependencies
   const lockfileDep = recorded?.[child.alias]
@@ -223,7 +225,7 @@ async function childIsUpToDate (
   const currentSpec = resolveCatalogSpec(ctx, child)
   if (currentSpec == null) return false
   if (isLocalSpec(currentSpec)) {
-    return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, visitedDirs)
+    return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, visited)
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
@@ -243,7 +245,7 @@ async function localChildIsUpToDate (
   child: ManifestWantedDependency,
   currentSpec: string,
   lockfileDep: string,
-  visitedDirs: Set<string>
+  visited: Set<PackageSnapshot>
 ): Promise<boolean> {
   if (!await localSpecIsUpToDate(localDep, { depName: child.alias, currentSpec, lockfileDep })) return false
   // A directory child whose spec still matches can itself be stale: its own
@@ -259,7 +261,7 @@ async function localChildIsUpToDate (
     // entry: its own dependencies cannot be validated, so it is stale.
     return currentSpec.startsWith('workspace:')
   }
-  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, dependencyAliasesOf(pkgSnapshot), visitedDirs)
+  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, dependencyAliasesOf(pkgSnapshot), visited)
 }
 
 function isLocalSpec (spec: string): boolean {
