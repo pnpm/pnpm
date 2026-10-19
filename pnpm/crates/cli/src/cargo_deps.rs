@@ -17,11 +17,11 @@ use lockfile::{
     LockedCrate, discover_workspace_roots, parse_lockfile, read_or_resolve_lockfile,
     validate_package_field, verify_existing_lockfile,
 };
-use materialize::{DownloadOptions, add_cargo_checksum, download_crates};
+use materialize::{DownloadOptions, add_cargo_checksum, download_crates, slot_is_complete};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_cargo_resolver::is_crates_io;
 use pnpm_config::Config;
-use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_deps_restorer::{CARGO_CHECKSUM_FILE, ImportIndexedDirOpts, import_indexed_dir};
 use pnpm_install_coordinator::{InstallTask, PreparedInstall};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};

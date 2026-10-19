@@ -11,9 +11,10 @@ use super::{
     write_cargo_config, write_cargo_config_in,
 };
 use crate::cargo_deps::{
-    materialize::{MaterializeOptions, materialize},
+    materialize::{DownloadOptions, MaterializeOptions, materialize, slot_is_complete},
     sparse_registry::{download_auth_headers, fetch_sparse_index_file, sparse_index_path},
 };
+
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -31,6 +32,111 @@ use std::{
     sync::{Arc, atomic::AtomicU8},
     time::Duration,
 };
+
+const CHECKSUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+fn write_checksum_manifest(slot: &std::path::Path, manifest: &str) {
+    fs::create_dir_all(slot).unwrap();
+    fs::write(slot.join(".cargo-checksum.json"), manifest).unwrap();
+}
+
+#[test]
+fn a_registry_crate_slot_is_complete_once_its_checksum_manifest_names_the_crate() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path().join("slot");
+    assert!(!slot_is_complete(&slot, Some(CHECKSUM)));
+    fs::create_dir_all(slot.join("src")).unwrap();
+    fs::write(slot.join("Cargo.toml"), "[package]\n").unwrap();
+    assert!(!slot_is_complete(&slot, Some(CHECKSUM)));
+
+    for manifest in ["not json", "{}", r#"{"files":{},"package":null}"#] {
+        write_checksum_manifest(&slot, manifest);
+        assert!(!slot_is_complete(&slot, Some(CHECKSUM)), "{manifest}");
+    }
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+    assert!(!slot_is_complete(&slot, Some("b".repeat(64).as_str())));
+
+    assert!(slot_is_complete(&slot, Some(CHECKSUM)));
+}
+
+#[test]
+fn a_git_crate_slot_is_complete_once_its_checksum_manifest_has_no_package() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path().join("slot");
+    assert!(!slot_is_complete(&slot, None));
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+    assert!(!slot_is_complete(&slot, None));
+
+    write_checksum_manifest(&slot, r#"{"files":{},"package":null}"#);
+
+    assert!(slot_is_complete(&slot, None));
+}
+
+fn offline_config_without_a_cached_registry(temp_dir: &std::path::Path) -> &'static Config {
+    let mut config = Config::new();
+    config.store_dir = StoreDir::from(temp_dir.join("store"));
+    config.cache_dir = temp_dir.join("cache");
+    config.offline = true;
+    config.indexes_by_ecosystem.insert(
+        pnpm_config::Ecosystem::Cargo,
+        vec!["https://registry.example.test/index/".to_string().into()],
+    );
+    Box::leak(Box::new(config))
+}
+
+fn download_options(config: &'static Config, package: &LockedCrate) -> DownloadOptions {
+    DownloadOptions {
+        config,
+        packages: vec![package.clone()],
+        http_client: Arc::new(ThrottledClient::default()),
+        logged_methods: Arc::new(AtomicU8::new(0)),
+        requester: "test".to_string(),
+    }
+}
+
+#[tokio::test]
+async fn links_a_complete_registry_crate_slot_without_asking_the_registry() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = offline_config_without_a_cached_registry(temp_dir.path());
+    let package = LockedCrate {
+        name: "demo".to_string(),
+        version: "1.0.0".to_string(),
+        checksum: CHECKSUM.to_string(),
+    };
+    let slot = package.store_slot(config.store_dir.root());
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+
+    let slots =
+        super::materialize::download_crates::<SilentReporter>(download_options(config, &package))
+            .await
+            .unwrap();
+
+    assert_eq!(slots, vec![(package.link_name(), slot)]);
+}
+
+#[tokio::test]
+async fn force_materializes_a_complete_registry_crate_slot_again() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = offline_config_without_a_cached_registry(temp_dir.path());
+    let package = LockedCrate {
+        name: "demo".to_string(),
+        version: "1.0.0".to_string(),
+        checksum: CHECKSUM.to_string(),
+    };
+    let slot = package.store_slot(config.store_dir.root());
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+    let mut forced = config.clone();
+    forced.force = true;
+    let forced: &'static Config = Box::leak(Box::new(forced));
+
+    let error =
+        super::materialize::download_crates::<SilentReporter>(download_options(forced, &package))
+            .await
+            .unwrap_err();
+
+    eprintln!("The registry is asked again with --force: {error:?}");
+    assert!(format!("{error:?}").contains("Cargo registry config"), "{error:?}");
+}
 
 #[test]
 fn parses_crates_io_packages_and_ignores_workspace_packages() {
@@ -351,6 +457,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
     fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();
     fs::write(slot.join("src/lib.rs"), "pub fn substituted() {}\n").unwrap();
     fs::write(slot.join(".cargo-checksum.json"), "{}").unwrap();
+    assert!(!slot_is_complete(&slot, Some(checksum)));
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
 
     materialize::<SilentReporter>(MaterializeOptions {

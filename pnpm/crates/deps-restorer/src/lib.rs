@@ -106,6 +106,12 @@ mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
 
+/// Cargo's checksum manifest of a vendored package directory. The Cargo
+/// installer imports it with the package's files, and
+/// [`import_indexed_dir()`] places it last, as the import's completion
+/// marker.
+pub const CARGO_CHECKSUM_FILE: &str = ".cargo-checksum.json";
+
 pub fn store_index_key_for_resolution(
     resolution: &pnpm_lockfile::LockfileResolution,
     pkg_id: &str,
