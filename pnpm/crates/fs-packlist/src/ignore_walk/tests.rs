@@ -140,6 +140,11 @@ fn gate_passes(path: &str) -> bool {
 #[test]
 fn default_rule_gate_is_a_superset_of_the_default_rules() {
     const SAMPLES: &[&str] = &[
+        "/.DS_Store",
+        "/.npmignore",
+        "/lib/.gitignore",
+        "/npm-debug.log",
+        "/lib/file.orig",
         "/.lock-wscript",
         "/.LOCK-WSCRIPT",
         "/.wafpickle-2",

@@ -172,7 +172,6 @@ icu_collator = { version = "2.2.0", features = ["compiled_data"] }
 icu_locale_core = { version = "2.2.0" }
 icu_normalizer = { version = "2.2.0", default-features = false, features = ["compiled_data"] }
 icu_provider = { version = "2.2.0" }
-ignore = { version = "0.4.25" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.15.0" }

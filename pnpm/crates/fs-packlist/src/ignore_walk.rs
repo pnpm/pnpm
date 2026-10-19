@@ -3,6 +3,8 @@
 //! together with the rules of its ancestors, so a negation such as
 //! `!lib/**` re-includes files under a directory that `*` excluded.
 
+pub(crate) mod files_field;
+
 mod default_rules;
 mod rule;
 mod segment;
@@ -18,26 +20,12 @@ use std::{
     path::{Component, Path},
 };
 
-/// Which ignore files the walk reads.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum IgnoreFiles<'a> {
-    /// Each subdirectory's, as for [`Self::Read`], but not the package
-    /// root's or any inherited ones, and not the default rules at the root:
-    /// a `files` allowlist takes their place.
-    /// The walk keeps `named_files`, package-relative paths with `/`
-    /// separators, even where a subdirectory's rules exclude them.
-    SubdirectoriesOnly { named_files: &'a BTreeSet<String> },
-    /// Each directory's `.npmignore`, or its `.gitignore` when it has no
-    /// `.npmignore`. For a package inside `workspace_dir` that has no
-    /// `.npmignore`, the ignore files of the directories from `workspace_dir`
-    /// down to the package's parent apply too, matched against paths
-    /// relative to the package.
-    Read {
-        workspace_dir: Option<&'a Path>,
-        /// Package-relative paths that the root re-includes after its ignore
-        /// files, see [`IgnoreRule::reinclude_path`].
-        required_paths: &'a [String],
-    },
+#[derive(Clone, Copy)]
+pub(crate) struct PackageRules<'a> {
+    pub workspace_dir: Option<&'a Path>,
+    pub manifest: &'a serde_json::Value,
+    /// Alternate manifests are required only for the package being packed.
+    pub include_alternate_manifests: bool,
 }
 
 /// Calls `on_file` with every non-directory entry under `pkg_dir` that the
@@ -45,36 +33,49 @@ pub(crate) enum IgnoreFiles<'a> {
 /// into a version-control directory, and does not follow symlinks.
 pub(crate) fn walk_files(
     pkg_dir: &Path,
-    ignore_files: IgnoreFiles<'_>,
+    options: PackageRules<'_>,
     on_file: &mut dyn FnMut(&Path, fs::FileType),
 ) -> io::Result<()> {
-    let (root_rules, root_defaults, named_files) = match ignore_files {
-        IgnoreFiles::SubdirectoriesOnly { named_files } => {
-            (Vec::new(), DirDefaults::NONE, Some(named_files))
-        }
-        IgnoreFiles::Read { workspace_dir, required_paths } => {
-            let mut rules = inherited_rules(pkg_dir, workspace_dir)?;
-            rules.extend(read_dir_rules(pkg_dir)?);
-            rules.extend(required_paths.iter().map(|path| IgnoreRule::reinclude_path(path)));
-            (rules, DirDefaults::root(), None)
-        }
-    };
+    let matcher = root_rules(pkg_dir, options)?;
+    let root_rules = matcher.rules;
     let root = DirRules {
         parent: None,
         name: String::new(),
-        rel_path: String::new(),
         named_only: false,
-        any_rules: !root_rules.is_empty(),
-        defaults: root_defaults,
+        rel_path: String::new(),
+        has_exclusions: root_rules.iter().any(|rule| !rule.negate),
+        defaults: DirDefaults::root(),
         rules: root_rules,
         exact: false,
     };
-    let mut walker = Walker { named_files: named_files.filter(|named| !named.is_empty()), on_file };
+    let mut walker = Walker { named_files: &matcher.named_files, on_file };
     walker.walk_dir(pkg_dir, &root, 0)
 }
 
+fn root_rules(pkg_dir: &Path, options: PackageRules<'_>) -> io::Result<files_field::FilesMatcher> {
+    let files = options.manifest.get("files").and_then(serde_json::Value::as_array);
+    let mut matcher =
+        files_field::compile_files_rules(pkg_dir, files.map_or(&[][..], Vec::as_slice));
+    if files.is_none() {
+        matcher.rules = inherited_rules(pkg_dir, options.workspace_dir)?;
+        matcher.rules.extend(read_dir_rules(pkg_dir)?);
+    }
+    matcher.rules.extend(root_required_rules());
+    matcher.rules.extend(
+        crate::required_field_paths(options.manifest)
+            .iter()
+            .map(|path| IgnoreRule::reinclude_path(path)),
+    );
+    if options.include_alternate_manifests {
+        matcher.rules.extend(["!/package.yaml", "!/package.json5"].map(
+            IgnoreRule::parse_ascii_case,
+        ));
+    }
+    Ok(matcher)
+}
+
 struct Walker<'a> {
-    named_files: Option<&'a BTreeSet<String>>,
+    named_files: &'a BTreeSet<String>,
     on_file: &'a mut dyn FnMut(&Path, fs::FileType),
 }
 
@@ -96,6 +97,9 @@ impl Walker<'_> {
             .file_name()
             .to_string_lossy()
             .into_owned();
+        if name == ".npmrc" || is_pruned(&name, depth) {
+            return Ok(());
+        }
         let included = rules.included(&name);
         let kept = self.kept(rules, &name, included);
         if !kept.as_file && !kept.as_dir {
@@ -108,7 +112,7 @@ impl Walker<'_> {
             }
             return Ok(());
         }
-        if kept.as_dir && !is_pruned(&name, depth) {
+        if kept.as_dir {
             self.walk_child_dir(&entry.path(), rules, name, included, depth)?;
         }
         Ok(())
@@ -129,7 +133,7 @@ impl Walker<'_> {
 
     /// How `named_files` refers to the entry `name` of the directory `dir`.
     fn named(&self, dir: &DirRules<'_>, name: &str) -> Named {
-        let Some(named_files) = self.named_files else { return Named::No };
+        let named_files = self.named_files;
         let rel_path = dir.child_rel_path(name);
         if named_files.contains(&rel_path) {
             return Named::File;
@@ -151,18 +155,19 @@ impl Walker<'_> {
         depth: usize,
     ) -> io::Result<()> {
         let rules = read_dir_rules(path)?;
+        let rel_path = parent.child_rel_path(&name);
         let defaults = parent.defaults.child(&name);
         let exact = included.as_file
             || parent.includes(&format!("{name}/"), false, None, defaults.has_candidate_segment);
         let child = DirRules {
             parent: Some(parent),
-            rel_path: parent.child_rel_path(&name),
+            rel_path,
+            named_only: !included.as_dir,
             name,
-            any_rules: parent.any_rules || !rules.is_empty(),
+            has_exclusions: parent.has_exclusions || rules.iter().any(|rule| !rule.negate),
             defaults,
             rules,
             exact,
-            named_only: !included.as_dir,
         };
         self.walk_dir(path, &child, depth + 1)
     }
@@ -185,11 +190,18 @@ enum Named {
 }
 
 fn is_pruned(name: &str, depth: usize) -> bool {
-    (depth == 0 && name == "node_modules") || ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name)
+    (depth == 0
+        && matches!(
+            name,
+            "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
+        ))
+        || ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name)
 }
 
 /// The rules of one directory on the walk, linked to its ancestors'.
 struct DirRules<'a> {
+    /// Only explicitly named files may be kept below an excluded directory.
+    named_only: bool,
     parent: Option<&'a DirRules<'a>>,
     /// The directory's name in its parent.
     name: String,
@@ -202,11 +214,8 @@ struct DirRules<'a> {
     /// below it. Only then may the directory's own rules re-include an entry
     /// its ancestors exclude.
     exact: bool,
-    /// Whether this directory or an ancestor has any rule.
-    any_rules: bool,
-    /// Whether the walk entered the directory only for the named files
-    /// below it, which are then the only entries it keeps.
-    named_only: bool,
+    /// Whether this directory or an ancestor has an exclusion rule.
+    has_exclusions: bool,
 }
 
 impl DirRules<'_> {
@@ -241,7 +250,7 @@ impl DirRules<'_> {
         entry_basename: Option<&str>,
         may_match_defaults: bool,
     ) -> bool {
-        if !self.any_rules && !may_match_defaults {
+        if !self.has_exclusions && !may_match_defaults {
             return true;
         }
         let mut included = true;
@@ -346,4 +355,16 @@ fn inherited_rules(pkg_dir: &Path, workspace_dir: Option<&Path>) -> io::Result<V
         rules.extend(read_dir_rules(&current)?);
     }
     Ok(rules)
+}
+
+fn root_required_rules() -> impl Iterator<Item = IgnoreRule> {
+    [
+        "!/package.json",
+        "!/readme{,.*[^~$]}",
+        "!/copying{,.*[^~$]}",
+        "!/license{,.*[^~$]}",
+        "!/licence{,.*[^~$]}",
+    ]
+    .into_iter()
+    .map(IgnoreRule::parse_ascii_case)
 }
