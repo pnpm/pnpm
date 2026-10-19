@@ -1497,6 +1497,36 @@ describe('transitive local directory dependency', () => {
     } as LockfileObject['packages']
     expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(false)
   })
+
+  test('checkLinkedPackagesAreUpToDate(): checks a peer-free shared directory again where a descendant peer is not supplied', async () => {
+    await mkdir('c')
+    await mkdir('d')
+    await mkdir('e')
+    await mkdir('g')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b', e: 'file:../e' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { c: 'file:../c', p: '2.0.0' } }))
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { d: 'file:../d' } }))
+    await writeFile('./d/package.json', JSON.stringify({ name: 'd', version: '1.0.0', dependencies: { p: '1.0.0' }, peerDependencies: { p: '*' } }))
+    await writeFile('./e/package.json', JSON.stringify({ name: 'e', version: '1.0.0', dependencies: { g: 'file:../g' } }))
+    await writeFile('./g/package.json', JSON.stringify({ name: 'g', version: '1.0.0', dependencies: { c: 'file:../c' } }))
+    const directory = (dir: string, dependencies: Record<string, string>) => ({
+      resolution: { directory: dir, type: 'directory' },
+      version: '1.0.0',
+      dependencies,
+    })
+    const packages = {
+      'a@file:./a': directory('./a', { b: 'file:./b', e: 'file:./e' }),
+      'b@file:./b': directory('./b', { c: 'file:./c', p: '2.0.0' }),
+      'c@file:./c': directory('./c', { d: 'file:./d' }),
+      'd@file:./d': { ...directory('./d', { p: '2.0.0' }), peerDependencies: { p: '*' } },
+      'e@file:./e': directory('./e', { g: 'file:./g' }),
+      'g@file:./g': directory('./g', { c: 'file:./c' }),
+      'p@2.0.0': { resolution: { integrity: 'sha512-p' }, version: '2.0.0' },
+    } as LockfileObject['packages']
+    // Through b, p is supplied, so d's own p is shadowed. Through e it is not,
+    // so d keeps p@1.0.0 and the recorded 2.0.0 is stale.
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(false)
+  })
 })
 
 describe('local tgz file dependency', () => {
