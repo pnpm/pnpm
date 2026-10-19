@@ -1,6 +1,6 @@
 use super::{Body, ObjectStore, S3Store};
 use crate::{DocumentWrite, HostedRevisionRefWrite};
-use futures_util::TryStreamExt;
+use futures_util::{StreamExt, TryStreamExt};
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use pnpr_config::S3Settings;
 use pnpr_package_name::CanonicalPackageName;
@@ -642,21 +642,22 @@ async fn remove_record_if_current_requires_matching_content() {
 }
 
 #[derive(Debug)]
-struct ReplaceOnGetStore {
+struct HookStore {
     inner: Arc<dyn ObjectStore>,
-    target_path: ObjectPath,
+    target_path: Option<ObjectPath>,
     replacement: Vec<u8>,
     replaced: std::sync::atomic::AtomicBool,
+    fail_delete: bool,
 }
 
-impl std::fmt::Display for ReplaceOnGetStore {
+impl std::fmt::Display for HookStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ReplaceOnGetStore")
+        write!(f, "HookStore")
     }
 }
 
 #[async_trait::async_trait]
-impl ObjectStore for ReplaceOnGetStore {
+impl ObjectStore for HookStore {
     async fn put_opts(
         &self,
         location: &ObjectPath,
@@ -680,7 +681,7 @@ impl ObjectStore for ReplaceOnGetStore {
         options: object_store::GetOptions,
     ) -> object_store::Result<object_store::GetResult> {
         let result = self.inner.get_opts(location, options).await?;
-        if location == &self.target_path
+        if self.target_path.as_ref() == Some(location)
             && !self.replaced.swap(true, std::sync::atomic::Ordering::SeqCst)
         {
             self.inner.put(location, PutPayload::from(self.replacement.clone())).await?;
@@ -692,7 +693,17 @@ impl ObjectStore for ReplaceOnGetStore {
         &self,
         locations: futures_util::stream::BoxStream<'static, object_store::Result<ObjectPath>>,
     ) -> futures_util::stream::BoxStream<'static, object_store::Result<ObjectPath>> {
-        self.inner.delete_stream(locations)
+        if self.fail_delete {
+            futures_util::stream::once(futures_util::future::ready(Err(
+                object_store::Error::Generic {
+                    store: "test",
+                    source: "injected delete failure".into(),
+                },
+            )))
+            .boxed()
+        } else {
+            self.inner.delete_stream(locations)
+        }
     }
 
     fn list(
@@ -725,11 +736,12 @@ async fn remove_record_if_current_preserves_concurrent_replacement() {
     let staging = tempdir().expect("tempdir");
     let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let target_path = ObjectPath::from(".staged/stage.json");
-    let hook_store = Arc::new(ReplaceOnGetStore {
+    let hook_store = Arc::new(HookStore {
         inner: Arc::clone(&inner),
-        target_path,
+        target_path: Some(target_path),
         replacement: br#"{"id":"stage","v":2}"#.to_vec(),
         replaced: std::sync::atomic::AtomicBool::new(false),
+        fail_delete: false,
     });
     let store = S3Store::new(hook_store, String::new(), staging.path().to_path_buf());
 
@@ -749,6 +761,27 @@ async fn remove_record_if_current_preserves_concurrent_replacement() {
             .as_deref(),
         Some(&br#"{"id":"stage","v":2}"#[..]),
     );
+}
+
+#[tokio::test]
+async fn remove_record_if_current_propagates_delete_failure() {
+    let staging = tempdir().expect("tempdir");
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let hook_store = Arc::new(HookStore {
+        inner,
+        target_path: None,
+        replacement: Vec::new(),
+        replaced: std::sync::atomic::AtomicBool::new(false),
+        fail_delete: true,
+    });
+    let store = S3Store::new(hook_store, String::new(), staging.path().to_path_buf());
+
+    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
+
+    let result =
+        store.remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#).await;
+    assert!(result.is_err());
+    assert_eq!(store.read_record(".staged", "stage.json").await.unwrap(), None);
 }
 
 /// A record that must not be rewritten is created, not put: the second

@@ -12,7 +12,10 @@ impl S3Store {
 
     pub async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
         match self.store.get(&self.record_key(namespace, key)).await {
-            Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
+            Ok(result) => {
+                let bytes = result.bytes().await?;
+                if bytes.is_empty() { Ok(None) } else { Ok(Some(bytes.to_vec())) }
+            }
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
         }
@@ -113,10 +116,10 @@ impl S3Store {
         )
         .await
         {
-            Ok(_) => {
-                let _ = self.store.delete(&key).await;
-                Ok(true)
-            }
+            Ok(_) => match self.store.delete(&key).await {
+                Ok(()) | Err(object_store::Error::NotFound { .. }) => Ok(true),
+                Err(err) => Err(err.into()),
+            },
             Err(
                 object_store::Error::AlreadyExists { .. }
                 | object_store::Error::NotFound { .. }
@@ -132,6 +135,9 @@ impl S3Store {
         let mut keys = Vec::new();
         while let Some(meta) = listing.next().await {
             let meta = meta?;
+            if meta.size == 0 {
+                continue;
+            }
             // `ObjectPath` normalizes what it is built from, so compare
             // against the same normalization rather than the raw prefix.
             let Some(key) = meta.location

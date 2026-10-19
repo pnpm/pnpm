@@ -86,11 +86,17 @@ impl Storage {
         if !self.root.create_record(kind.namespace(), &key, bytes).await? {
             return Ok(DocumentWrite::Conflict);
         }
-        if !self.root.remove_record_if_current(kind.namespace(), &legacy_key, expected).await? {
-            let _ = self.root.remove_record_if_current(kind.namespace(), &key, bytes).await;
-            return Ok(DocumentWrite::Conflict);
+        match self.root.remove_record_if_current(kind.namespace(), &legacy_key, expected).await {
+            Ok(true) => Ok(DocumentWrite::Written),
+            Ok(false) => {
+                let _ = self.root.remove_record_if_current(kind.namespace(), &key, bytes).await;
+                Ok(DocumentWrite::Conflict)
+            }
+            Err(err) => {
+                let _ = self.root.remove_record_if_current(kind.namespace(), &key, bytes).await;
+                Err(err)
+            }
         }
-        Ok(DocumentWrite::Written)
     }
 
     pub async fn remove_registry_record(
