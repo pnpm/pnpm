@@ -78,11 +78,13 @@ impl Storage {
         let local_name = registry.split_once('/').map_or(registry, |(_, name)| name);
         if result == DocumentWrite::Conflict && local_name != registry {
             let legacy_key = registry_record_key(local_name)?;
-            if self.root.read_record(kind.namespace(), &legacy_key).await?.as_deref()
-                == Some(expected)
-                && self.root.create_record(kind.namespace(), &key, bytes).await?
+            if self.root.replace_record_if_current(kind.namespace(), &legacy_key, expected, bytes)
+                .await?
+                == DocumentWrite::Written
             {
-                let _ = self.root.remove_record(kind.namespace(), &legacy_key).await;
+                if self.root.create_record(kind.namespace(), &key, bytes).await? {
+                    let _ = self.root.remove_record(kind.namespace(), &legacy_key).await;
+                }
                 return Ok(DocumentWrite::Written);
             }
         }
