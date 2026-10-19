@@ -2,7 +2,7 @@ use super::{
     post_install_prune, prune_against_project_lockfiles, record_resolved_package_versions,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{EnvLockfile, Lockfile};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_manifest_writer::ResolvedPackageVersions;
 use std::path::Path;
@@ -10,7 +10,10 @@ use tempfile::tempdir;
 
 fn resolved_package_versions(lockfile: &Lockfile) -> ResolvedPackageVersions {
     let mut resolved = ResolvedPackageVersions::new();
-    record_resolved_package_versions(lockfile, &mut resolved);
+    record_resolved_package_versions(
+        lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        &mut resolved,
+    );
     resolved
 }
 
@@ -205,4 +208,68 @@ fn skips_the_pass_when_a_project_has_no_lockfile() {
             .expect("read pnpm-workspace.yaml"),
         workspace_yaml,
     );
+}
+
+#[test]
+fn preserves_config_dependency_excludes_in_all_lockfile_layouts() {
+    for layout in ["shared", "per-project", "relocated"] {
+        let tmp = tempdir().expect("temp dir");
+        let workspace_dir = tmp.path();
+        let mut config = Config::new();
+        config.minimum_release_age_exclude_prune = true;
+        config.trust_policy_exclude_prune = true;
+        config.shared_workspace_lockfile = layout != "per-project";
+        if layout == "relocated" {
+            config.lockfile_dir = Some(workspace_dir.join("locks"));
+        }
+        let lockfile_dir = config.lockfile_dir_for(workspace_dir);
+        std::fs::create_dir_all(lockfile_dir).expect("create lockfile directory");
+        std::fs::write(workspace_dir.join("package.json"), r#"{"name":"root"}"#)
+            .expect("write manifest");
+        std::fs::write(
+            workspace_dir.join("pnpm-workspace.yaml"),
+            "packages: ['.']\n\
+             minimumReleaseAgeExclude:\n  \
+             - '@example/plugin'\n  \
+             - 'foo@1.0.0 || 2.0.0 || 3.0.0'\n  \
+             - unused-plugin\n\
+             trustPolicyExclude:\n  \
+             - '@example/plugin@1.0.0 || 2.0.0'\n  \
+             - foo\n  \
+             - unused-plugin\n",
+        )
+        .expect("write workspace settings");
+        std::fs::write(
+            lockfile_dir.join("pnpm-lock.yaml"),
+            "lockfileVersion: '9.0'\nsnapshots:\n  foo@1.0.0: {}\n",
+        )
+        .expect("write main lockfile");
+        let mut env = EnvLockfile::create();
+        env.snapshots = serde_saphyr::from_str("'@example/plugin@2.0.0': {}\nfoo@2.0.0: {}\n")
+            .expect("parse env snapshots");
+        env.write(lockfile_dir).expect("write env lockfile");
+        let manifest =
+            PackageManifest::from_path(workspace_dir.join("package.json")).expect("read manifest");
+
+        if layout == "per-project" {
+            prune_against_project_lockfiles(&config, workspace_dir).expect("cleanup runs");
+        } else {
+            post_install_prune(&config, Some(workspace_dir), &manifest).expect("cleanup runs");
+        }
+
+        let yaml = std::fs::read_to_string(workspace_dir.join("pnpm-workspace.yaml"))
+            .expect("read workspace settings");
+        let settings: pnpm_config::WorkspaceSettings =
+            serde_saphyr::from_str(&yaml).expect("parse workspace settings");
+        assert_eq!(
+            settings.minimum_release_age_exclude,
+            Some(vec!["@example/plugin".into(), "foo@1.0.0 || 2.0.0".into()]),
+            "{layout}",
+        );
+        assert_eq!(
+            settings.trust_policy_exclude,
+            Some(vec!["@example/plugin@2.0.0".into(), "foo".into()]),
+            "{layout}",
+        );
+    }
 }

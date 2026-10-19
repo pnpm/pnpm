@@ -1,8 +1,11 @@
-import { readWantedLockfile } from '@pnpm/lockfile.fs'
+import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { CatalogSnapshots, LockfileObject } from '@pnpm/lockfile.types'
 import { resolvedPackageVersionsFromLockfile } from '@pnpm/lockfile.utils'
 
 export interface MinimumReleaseAgeExcludePruneOptions {
+  dir?: string
+  workspaceDir?: string
+  lockfileDir?: string
   lockfile?: boolean
   sharedWorkspaceLockfile?: boolean
   useGitBranchLockfile?: boolean
@@ -10,19 +13,19 @@ export interface MinimumReleaseAgeExcludePruneOptions {
 }
 
 /**
- * The versions the freshly resolved lockfile records, or `undefined` when the
+ * The versions the main and env lockfiles record, or `undefined` when the
  * pass must not run.
  */
-export function resolvedPackageVersionsForPrune (
+export async function resolvedPackageVersionsForPrune (
   opts: MinimumReleaseAgeExcludePruneOptions,
   newLockfile: LockfileObject | undefined
-): Map<string, Set<string>> | undefined {
+): Promise<Map<string, Set<string>> | undefined> {
   if (
     newLockfile == null ||
     opts.lockfile === false ||
     opts.sharedWorkspaceLockfile === false
   ) return undefined
-  return resolvedPackageVersionsFromLockfile(newLockfile)
+  return withEnvPackageVersions(opts, resolvedPackageVersionsFromLockfile(newLockfile))
 }
 
 /**
@@ -62,7 +65,7 @@ export async function resolvedPackageVersionsOfProjectLockfiles (
     if (lockfile == null) return undefined
     mergeResolvedPackageVersions(resolved, resolvedPackageVersionsFromLockfile(lockfile))
   }
-  return resolved
+  return withEnvPackageVersions(opts, resolved)
 }
 
 function mergeResolvedPackageVersions (
@@ -77,4 +80,20 @@ function mergeResolvedPackageVersions (
     }
     for (const version of versions) merged.add(version)
   }
+}
+
+async function withEnvPackageVersions (
+  opts: MinimumReleaseAgeExcludePruneOptions,
+  resolved: Map<string, Set<string>>
+): Promise<Map<string, Set<string>>> {
+  const rootDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
+  if (rootDir == null) return resolved
+  const envLockfile = await readEnvLockfile(rootDir)
+  if (envLockfile != null) {
+    mergeResolvedPackageVersions(resolved, resolvedPackageVersionsFromLockfile({
+      ...envLockfile,
+      importers: {},
+    }))
+  }
+  return resolved
 }

@@ -240,7 +240,7 @@ async function persistManifests (
     updatedCatalogs,
     catalogPrune: opts.catalogPrune,
     keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
-    resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+    resolvedPackageVersions: await resolvedPackageVersionsForPrune(opts, newLockfile),
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects,
