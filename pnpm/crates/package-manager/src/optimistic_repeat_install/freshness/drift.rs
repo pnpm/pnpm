@@ -71,10 +71,10 @@ impl<'a> InputDrift<'a> {
             && lockfile.digest()
                 != recorded_lockfile.map(|signature| signature.digest.as_str());
         let patches = patch_drift(check, state, &digests);
-        let stats = project_stats(check, recorded, lockfile.digest());
+        let current = CurrentLockfile::new(&check.config.install_state_dir);
         Self {
-            stats,
-            current: CurrentLockfile::new(&check.config.install_state_dir),
+            stats: project_stats(check, &current, recorded, lockfile.digest()),
+            current,
             lockfile_path,
             lockfile,
             lockfile_changed,
@@ -191,23 +191,100 @@ fn patch_drift(
 /// projects against the lockfile whose digest was `lockfile_digest`.
 fn project_stats<'a>(
     check: &OptimisticRepeatInstallCheck<'a>,
+    current: &CurrentLockfile<'_>,
     recorded: Option<&Validation>,
     lockfile_digest: Option<&str>,
 ) -> Vec<ManifestStat<'a>> {
-    super::super::manifest_agreement::manifest_stats(check.project_manifests, |root_dir, digest| {
-        let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
-        let Some(record) = recorded.and_then(|validation| validation.project(&importer_id)) else {
-            return ProjectStatus::Unrecorded;
-        };
-        // A changed lockfile calls for every check a changed manifest does,
-        // and more.
-        if record.lockfile != lockfile_digest {
-            ProjectStatus::LockfileChanged
-        } else if record.manifest != digest {
-            ProjectStatus::ManifestChanged
-        } else {
-            ProjectStatus::Proven
+    let mut stats = super::super::manifest_agreement::manifest_stats(
+        check.project_manifests,
+        |root_dir, digest| {
+            let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
+            let Some(record) = recorded.and_then(|validation| validation.project(&importer_id))
+            else {
+                return ProjectStatus::Unrecorded;
+            };
+            // A changed lockfile calls for every check a changed manifest does,
+            // and more.
+            if record.lockfile != lockfile_digest {
+                ProjectStatus::LockfileChanged
+            } else if record.manifest != digest {
+                ProjectStatus::ManifestChanged
+            } else {
+                ProjectStatus::Proven
+            }
+        },
+    );
+    mark_importers_of_unproven_directory_deps(check, current, &mut stats);
+    stats
+}
+
+/// A project whose importer entry records a `file:` dependency on an unproven
+/// workspace project is itself unproven: only the consumer's satisfaction
+/// check compares the injected project's manifest with its `file:` snapshot.
+fn mark_importers_of_unproven_directory_deps(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    current: &CurrentLockfile<'_>,
+    stats: &mut [ManifestStat<'_>],
+) {
+    let unproven_dirs: Vec<PathBuf> = stats
+        .iter()
+        .filter(|stat| stat.status != ProjectStatus::Proven)
+        .map(|stat| pnpm_fs::lexical_normalize(stat.root_dir))
+        .collect();
+    if unproven_dirs.is_empty()
+        || !stats
+            .iter()
+            .any(|stat| stat.status == ProjectStatus::Proven)
+    {
+        return;
+    }
+    let lockfile = match check.lockfile.get() {
+        Ok(Some(wanted)) => wanted,
+        Ok(None) => match current.get() {
+            Some(Some(current)) => current,
+            _ => return,
+        },
+        Err(_) => return,
+    };
+    for stat in stats
+        .iter_mut()
+        .filter(|stat| stat.status == ProjectStatus::Proven)
+    {
+        let importer_id = importer_id_from_root_dir(check.workspace_root, stat.root_dir);
+        if lockfile.importers
+            .get(&importer_id)
+            .is_some_and(|importer| {
+                importer_injects_any(check.workspace_root, importer, &unproven_dirs)
+            })
+        {
+            stat.status = ProjectStatus::ManifestChanged;
         }
+    }
+}
+
+fn importer_injects_any(
+    workspace_root: &Path,
+    importer: &pnpm_lockfile::ProjectSnapshot,
+    unproven_dirs: &[PathBuf],
+) -> bool {
+    [
+        importer.dependencies.as_ref(),
+        importer.dev_dependencies.as_ref(),
+        importer.optional_dependencies.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .flat_map(|deps| deps.values())
+    .filter_map(|spec| match spec.version.ver_peer()?.version() {
+        pnpm_lockfile::VersionPart::File(dir) => {
+            Some(pnpm_fs::lexical_normalize(&workspace_root.join(dir)))
+        }
+        _ => None,
+    })
+    .any(|dep_dir| {
+        unproven_dirs
+            .iter()
+            .any(|unproven| dep_dir.starts_with(unproven))
     })
 }
 

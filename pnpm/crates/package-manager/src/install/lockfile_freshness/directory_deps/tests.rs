@@ -574,3 +574,47 @@ fn only_a_directory_without_a_manifest_is_described_by_its_name() {
     std::fs::write(dir.join("package.json"), "{").expect("write a malformed package.json");
     assert!(describe().is_none(), "a malformed manifest is not a missing one");
 }
+
+#[test]
+fn publish_config_directory_manifest_follows_declaration_kind() {
+    let tmp = tempfile::tempdir().expect("create a temporary directory");
+    let workspace_root = tmp.path().join("ws");
+    let ws_pkg = workspace_root.join("packages/lib");
+    let ws_dist = ws_pkg.join("dist");
+    std::fs::create_dir_all(&ws_dist).expect("create workspace publish directory");
+    std::fs::write(
+        ws_pkg.join("package.json"),
+        r#"{"name":"lib","version":"1.0.0","publishConfig":{"directory":"dist"},"dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .expect("write workspace project manifest");
+    std::fs::write(ws_dist.join("package.json"), r#"{"name":"lib","version":"1.0.0"}"#)
+        .expect("write built dist manifest");
+
+    let outside_pkg = tmp.path().join("outside");
+    let outside_dist = outside_pkg.join("dist");
+    std::fs::create_dir_all(&outside_dist).expect("create outside publish directory");
+    std::fs::write(
+        outside_pkg.join("package.json"),
+        r#"{"name":"outside","version":"2.0.0","publishConfig":{"directory":"dist"}}"#,
+    )
+    .expect("write outside project manifest");
+
+    let manifests_by_dir = HashMap::new();
+    let ws_injected = super::unhooked_manifest(&super::InjectedDirectory {
+        dir: &ws_dist,
+        declared_as_file: false,
+        workspace_root: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    })
+    .expect("workspace publish directory resolves to parent project manifest");
+    assert_eq!(ws_injected.value()["dependencies"]["foo"], "1.0.0");
+
+    let outside_file = super::unhooked_manifest(&super::InjectedDirectory {
+        dir: &outside_dist,
+        declared_as_file: true,
+        workspace_root: &workspace_root,
+        manifests_by_dir: &manifests_by_dir,
+    })
+    .expect("file: dependency outside workspace resolves to parent publish manifest");
+    assert_eq!(outside_file.value()["version"], "2.0.0");
+}

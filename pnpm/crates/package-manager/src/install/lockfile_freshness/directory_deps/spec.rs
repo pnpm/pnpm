@@ -290,6 +290,15 @@ fn npm_or_registry_spec_satisfies(
     Some(range.satisfies(version))
 }
 
+/// The aliased package name (if any) and version range of a `workspace:`,
+/// `npm:`, or bare dependency specifier.
+pub(crate) fn spec_target_and_range(spec: &str) -> (Option<&str>, &str) {
+    if let Some(workspace_spec) = spec.strip_prefix("workspace:") {
+        return parse_workspace_range(workspace_spec);
+    }
+    parse_npm_spec(spec)
+}
+
 fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
     let Some(stripped) = spec.strip_prefix("npm:") else {
         return (None, spec);
@@ -298,7 +307,10 @@ fn parse_npm_spec(spec: &str) -> (Option<&str>, &str) {
         return (None, stripped);
     }
     match stripped.rfind('@') {
-        Some(idx) if idx > 0 => (Some(&stripped[..idx]), &stripped[idx + 1..]),
+        Some(idx) if idx > 0 => {
+            let range = &stripped[idx + 1..];
+            (Some(&stripped[..idx]), if range.is_empty() { "*" } else { range })
+        }
         _ => (Some(stripped), "*"),
     }
 }
