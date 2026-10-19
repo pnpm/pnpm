@@ -114,7 +114,14 @@ impl BundleWalk<'_> {
             .ok()
             .flatten()
             .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        for rel in collect_own_files(&dir, &manifest, None)? {
+        for rel in collect_own_files(
+            &dir,
+            super::PackageRules {
+                workspace_dir: None,
+                manifest: &manifest,
+                include_alternate_manifests: false,
+            },
+        )? {
             out.insert(format!("{prefix}/{rel}"), dir.join(rel));
         }
         self.slots.insert(packed.clone(), real_dir.clone());

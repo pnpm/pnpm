@@ -2874,22 +2874,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ignore"
-version = "0.4.32"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b17771570a2b94107741a7b033f19132c2eee21d59d21b24d2ced26500bd66e"
-dependencies = [
- "crossbeam-deque",
- "globset",
- "log",
- "memchr",
- "regex-automata",
- "same-file",
- "walkdir",
- "winapi-util",
-]
-
-[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5264,7 +5248,6 @@ name = "pnpm-fs-packlist"
 version = "0.0.1"
 dependencies = [
  "derive_more",
- "ignore",
  "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",

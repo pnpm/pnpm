@@ -5,13 +5,6 @@ use std::{
     path::{Component, Path},
 };
 
-/// Whether a root entry is a file, or a symlink [`is_internal_symlink`] admits.
-pub(super) fn is_admissible_root_file(pkg_dir: &Path, entry: &fs::DirEntry) -> bool {
-    entry
-        .file_type()
-        .is_ok_and(|file_type| is_packable(pkg_dir, &entry.path(), file_type))
-}
-
 /// Whether the entry at `path` is a file, or a symlink [`is_internal_symlink`]
 /// admits.
 pub(super) fn is_packable(pkg_dir: &Path, path: &Path, file_type: fs::FileType) -> bool {
