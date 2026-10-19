@@ -276,6 +276,7 @@ jobs:
           - isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr
           - gvs-linker.fresh-restore.hot-cache.hot-store
           - store-only.unlocked-direct-deps.cold-cache.hot-store
+          - cargo.repeat-install.hot-cache.hot-store
     name: ${{ matrix.scenario }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
@@ -346,7 +347,8 @@ jobs:
         if: >-
           matrix.scenario != 'isolated-linker.peer-heavy-resolve.hot-cache.offline' &&
           matrix.scenario != 'isolated-linker.linked-workspace-resolve.hot-cache.offline' &&
-          matrix.scenario != 'isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store'
+          matrix.scenario != 'isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store' &&
+          matrix.scenario != 'cargo.repeat-install.hot-cache.hot-store'
         # Persists pnpm-registry's `--storage` dir across CI runs so
         # cold-cache benchmark scenarios don't refetch ~2.3k unscoped
         # packages from npmjs on every run. Replaces the older
@@ -682,6 +684,15 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.json
 
+      - name: 'Benchmark: Cargo: repeat install, hot cache + hot store'
+        if: matrix.scenario == 'cargo.repeat-install.hot-cache.hot-store'
+        shell: bash
+        timeout-minutes: 20
+        run: |
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=cargo.repeat-install.hot-cache.hot-store --registry=npm $WORKSPACE_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+
       # When a scenario fails, hyperfine aborts and the benchmarked install's
       # own output is invisible: each target's script redirects stdout+stderr to
       # `bench-work-env/<target>/BENCHMARK_OUTPUT.ndjson` (to keep hyperfine's
@@ -781,7 +792,7 @@ jobs:
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
-            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked and injected workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked, injected, and Cargo workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo 'The tables below show mean ± σ. Bencher tracks absolute minimum latency; PR regression checks compare HEAD and main samples from the same runner. Historical timing alerts do not gate PRs.'
             echo
@@ -956,6 +967,20 @@ jobs:
             echo '```'
             echo
             echo '</details>'
+            echo
+            echo '### Scenario: Cargo: repeat install, hot cache + hot store'
+            echo
+            echo 'Frozen repeat install of a Cargo workspace (`cargo.enabled: true`) whose crates are already materialized in `<storeDir>/v11/crates/` and linked into `.pnpm/crates/crates-io`. Direct installs only.'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
           ) > bench-work-env/SUMMARY.md
 
       - name: Build Bencher-shaped report
@@ -1014,7 +1039,8 @@ jobs:
             'ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
             'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store' \
-            'STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE:store-only.unlocked-direct-deps.cold-cache.hot-store'
+            'STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE:store-only.unlocked-direct-deps.cold-cache.hot-store' \
+            'CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:cargo.repeat-install.hot-cache.hot-store'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \

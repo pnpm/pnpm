@@ -3,8 +3,9 @@ use super::{
     PEER_HEAVY_WIDTH,
 };
 use crate::{
-    cli_args::BenchmarkScenario, fixtures::PACKAGE_JSON,
-    workspace_manifest::MinimalWorkspaceManifest,
+    cli_args::BenchmarkScenario,
+    fixtures::PACKAGE_JSON,
+    workspace_manifest::{CargoSettings, MinimalWorkspaceManifest},
 };
 use serde_json::Value;
 use std::{
@@ -28,6 +29,11 @@ pub(super) fn create_package_json(
             .expect("write injected workspace root manifest");
         return;
     }
+    if scenario.uses_cargo_workspace_fixture() {
+        fs::write(dst, super::cargo_workspace::root_manifest())
+            .expect("write cargo workspace root manifest");
+        return;
+    }
     if scenario.uses_linked_workspace_fixture() {
         fs::write(dst, super::linked_workspace::root_manifest())
             .expect("write linked-workspace package.json");
@@ -40,6 +46,17 @@ pub(super) fn create_package_json(
         fs::copy(src, dst).expect("copy package.json for the revision");
     } else {
         fs::write(dst, PACKAGE_JSON).expect("write package.json for the revision");
+    }
+}
+pub(super) fn create_generated_projects(dir: &Path, scenario: BenchmarkScenario) {
+    if scenario.uses_injected_workspace_fixture() {
+        super::injected_workspace::create_project(dir);
+    }
+    if scenario.uses_cargo_workspace_fixture() {
+        super::cargo_workspace::create_project(dir);
+    }
+    if scenario.uses_linked_workspace_fixture() {
+        super::linked_workspace::create_projects(dir);
     }
 }
 pub(super) fn peer_heavy_root_manifest() -> String {
@@ -213,6 +230,9 @@ pub(super) fn create_pnpm_workspace(
 fn apply_scenario_settings(manifest: &mut MinimalWorkspaceManifest, scenario: BenchmarkScenario) {
     if scenario.uses_injected_workspace_fixture() {
         manifest.dedupe_injected_deps = Some(false);
+    }
+    if scenario.uses_cargo_workspace_fixture() {
+        manifest.cargo = Some(CargoSettings { enabled: true });
     }
     if scenario.uses_linked_workspace_fixture() || scenario.uses_injected_workspace_fixture() {
         manifest.packages = Some(vec![".".to_string(), "packages/*".to_string()]);
