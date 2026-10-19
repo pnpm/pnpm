@@ -99,12 +99,29 @@ impl S3Store {
             Err(object_store::Error::NotFound { .. }) => return Ok(false),
             Err(err) => return Err(err.into()),
         };
+        let version = UpdateVersion {
+            e_tag: result.meta.e_tag.clone(),
+            version: result.meta.version.clone(),
+        };
         if result.bytes().await?.as_ref() != expected {
             return Ok(false);
         }
-        match self.store.delete(&key).await {
-            Ok(()) => Ok(true),
-            Err(object_store::Error::NotFound { .. }) => Ok(false),
+        match self.store.put_opts(
+            &key,
+            PutPayload::from(Vec::new()),
+            PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
+        )
+        .await
+        {
+            Ok(_) => {
+                let _ = self.store.delete(&key).await;
+                Ok(true)
+            }
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::NotFound { .. }
+                | object_store::Error::Precondition { .. },
+            ) => Ok(false),
             Err(err) => Err(err.into()),
         }
     }
