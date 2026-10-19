@@ -116,21 +116,7 @@ pub(super) async fn resolve_edge<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    if let Some(result) = package_root_link_result(wanted) {
-        return Ok(Some(Arc::new(result)));
-    }
-    let base = edge_opts(ctx, wanted, edge, prior_key);
-    let opts = opts_relative_to_declaring_manifest(&base, wanted, edge.parent_dir);
-    let cache_key = edge_cache_key(ctx, wanted, &opts, edge, prior_key);
-    match resolve_wanted_cached(ctx, resolver, wanted, &opts, edge.pick_overlay.as_ref(), cache_key)
-        .await
-    {
-        Ok(result) => Ok(Some(result)),
-        Err(err) => {
-            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err)?;
-            Ok(None)
-        }
-    }
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, true).await
 }
 
 pub(in super::super) async fn try_resolve_edge_cached<Chain>(
@@ -139,6 +125,20 @@ pub(in super::super) async fn try_resolve_edge_cached<Chain>(
     wanted: &mut WantedDependency,
     edge: &ChildEdge<'_>,
     prior_key: Option<&PkgNameVerPeer>,
+) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
+where
+    Chain: Resolver + ?Sized,
+{
+    resolve_edge_inner(ctx, resolver, wanted, edge, prior_key, false).await
+}
+
+async fn resolve_edge_inner<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    wanted: &mut WantedDependency,
+    edge: &ChildEdge<'_>,
+    prior_key: Option<&PkgNameVerPeer>,
+    log_skipped: bool,
 ) -> Result<Option<Arc<pnpm_resolving_resolver_base::ResolveResult>>, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -153,9 +153,8 @@ where
         .await
     {
         Ok(result) => Ok(Some(result)),
-        Err(_) if wanted.optional.unwrap_or(false) => Ok(None),
         Err(err) => {
-            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err)?;
+            super::failed_edge::drop_failed_edge(ctx, wanted, edge, &opts, err, log_skipped)?;
             Ok(None)
         }
     }

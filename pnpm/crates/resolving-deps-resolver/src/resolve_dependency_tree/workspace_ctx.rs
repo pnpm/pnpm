@@ -268,7 +268,7 @@ pub(crate) struct WorkspacePreferredVersions {
     /// re-resolve away from a transitive occurrence's pin, and the
     /// workspace-wide directs-before-transitives barrier populates this
     /// set before any importer walks its subtrees.
-    pub(super) changed_direct_deps: Mutex<HashSet<PkgName>>,
+    pub(super) changed_direct_deps: Mutex<Arc<HashSet<PkgName>>>,
     /// The parsed resolved versions of direct dependencies that changed
     /// in this install across the workspace, pre-seeded before any
     /// importer walks its transitive subtrees. Merged into each

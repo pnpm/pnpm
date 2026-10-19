@@ -8,6 +8,7 @@ use crate::{
 };
 
 const MAX_COMBINATIONS: usize = 4096;
+const MAX_VISITED_SNAPSHOTS: usize = 1024;
 
 pub(super) fn recover_hashed_providers(
     entries: LockfileEntries<'_>,
@@ -18,7 +19,7 @@ pub(super) fn recover_hashed_providers(
     let snapshot = snapshots.get(key)?;
     let package = entries.packages?.get(&key.without_peer())?;
 
-    let candidates = peer_candidates_by_name(snapshots, snapshot, package, &key.name);
+    let candidates = peer_candidates_by_name(snapshots, snapshot, package, &key.name)?;
     match_candidates(&candidates, &hash_hex)
 }
 
@@ -36,7 +37,34 @@ fn peer_candidates_by_name(
     snapshot: &SnapshotEntry,
     package: &PackageMetadata,
     self_name: &PkgName,
-) -> Vec<Vec<PkgNameVerPeer>> {
+) -> Option<Vec<Vec<PkgNameVerPeer>>> {
+    let peers = peer_names_of_snapshot(snapshot, package, self_name);
+    let transitive_peers: Vec<(PkgName, &str)> = peers
+        .iter()
+        .filter(|(_, name)| lists_transitive_peer(snapshot, name))
+        .cloned()
+        .collect();
+    let descendant_targets = if transitive_peers.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        collect_descendant_targets(snapshots, snapshot, &transitive_peers)?
+    };
+    Some(
+        peers
+            .into_iter()
+            .map(|(peer, _)| {
+                targets_for_peer(snapshot, &peer, descendant_targets.get(&peer).map(Vec::as_slice))
+            })
+            .filter(|targets| !targets.is_empty())
+            .collect(),
+    )
+}
+
+fn peer_names_of_snapshot<'a>(
+    snapshot: &'a SnapshotEntry,
+    package: &'a PackageMetadata,
+    self_name: &PkgName,
+) -> Vec<(PkgName, &'a str)> {
     let mut names: Vec<&str> = package.peer_dependencies
         .iter()
         .flatten()
@@ -60,22 +88,22 @@ fn peer_candidates_by_name(
         .into_iter()
         .filter_map(|name| {
             let peer = name.parse::<PkgName>().ok()?;
-            (peer != *self_name).then(|| targets_for_peer(snapshots, snapshot, &peer, name))
+            (peer != *self_name).then_some((peer, name))
         })
-        .filter(|targets| !targets.is_empty())
         .collect()
 }
 
 fn targets_for_peer(
-    snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     snapshot: &SnapshotEntry,
     peer: &PkgName,
-    peer_name: &str,
+    descendants: Option<&[PkgNameVerPeer]>,
 ) -> Vec<PkgNameVerPeer> {
     let mut targets = Vec::new();
     record_peer_target(&mut targets, snapshot, peer);
-    if lists_transitive_peer(snapshot, peer_name) {
-        collect_descendant_targets(snapshots, snapshot, peer, peer_name, &mut targets);
+    for target in descendants.into_iter().flatten() {
+        if !targets.contains(target) {
+            targets.push(target.clone());
+        }
     }
     targets
 }
@@ -94,28 +122,42 @@ fn snapshot_dep_ref<'a>(snapshot: &'a SnapshotEntry, name: &PkgName) -> Option<&
 fn collect_descendant_targets(
     snapshots: &std::collections::HashMap<PkgNameVerPeer, SnapshotEntry>,
     root: &SnapshotEntry,
-    peer: &PkgName,
-    peer_name: &str,
-    targets: &mut Vec<PkgNameVerPeer>,
-) {
+    transitive_peers: &[(PkgName, &str)],
+) -> Option<std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>> {
+    let mut by_peer: std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>> =
+        std::collections::HashMap::new();
     let mut visited = HashSet::new();
+    let mut visited_count = 0usize;
     let mut pending = vec![root];
     while let Some(current) = pending.pop() {
         for child in unvisited_child_snapshots(snapshots, current, &mut visited) {
-            record_peer_target(targets, child, peer);
-            if lists_transitive_peer(child, peer_name) {
+            visited_count += 1;
+            if visited_count > MAX_VISITED_SNAPSHOTS {
+                return None;
+            }
+            if record_transitive_child(&mut by_peer, current, child, transitive_peers) {
                 pending.push(child);
             }
         }
     }
+    Some(by_peer)
 }
 
-fn record_peer_target(targets: &mut Vec<PkgNameVerPeer>, snapshot: &SnapshotEntry, peer: &PkgName) {
-    if let Some(target) = resolved_peer_target(snapshot, peer)
-        && !targets.contains(&target)
-    {
-        targets.push(target);
+fn record_transitive_child(
+    by_peer: &mut std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>,
+    current: &SnapshotEntry,
+    child: &SnapshotEntry,
+    transitive_peers: &[(PkgName, &str)],
+) -> bool {
+    let mut carries_transitive = false;
+    for (peer, peer_name) in transitive_peers {
+        if !lists_transitive_peer(current, peer_name) {
+            continue;
+        }
+        record_peer_target(by_peer.entry(peer.clone()).or_default(), child, peer);
+        carries_transitive |= lists_transitive_peer(child, peer_name);
     }
+    carries_transitive
 }
 
 fn unvisited_child_snapshots<'a>(
@@ -131,6 +173,14 @@ fn unvisited_child_snapshots<'a>(
                 .then(|| snapshots.get(&child_key))
                 .flatten()
         })
+}
+
+fn record_peer_target(targets: &mut Vec<PkgNameVerPeer>, snapshot: &SnapshotEntry, peer: &PkgName) {
+    if let Some(target) = resolved_peer_target(snapshot, peer)
+        && !targets.contains(&target)
+    {
+        targets.push(target);
+    }
 }
 
 fn resolved_peer_target(snapshot: &SnapshotEntry, peer: &PkgName) -> Option<PkgNameVerPeer> {

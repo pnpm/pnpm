@@ -1,5 +1,5 @@
 use super::{
-    Arc, BTreeMap, DirectDepVersions, HashSet, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    Arc, BTreeMap, DirectDepVersions, PkgName, PkgNameVerPeer, ProjectSnapshot,
     ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx, WantedSpec, lock_recoverable,
 };
 
@@ -14,24 +14,20 @@ use super::{
 /// depending on them.
 ///
 /// [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::changed_direct_deps`]: crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::changed_direct_deps
-pub(crate) fn record_changed_direct_deps(
-    ctx: &TreeCtx,
-    importer_id: &str,
-    wanted: &[WantedSpec],
-) -> HashSet<PkgName> {
+pub(crate) fn record_changed_direct_deps(ctx: &TreeCtx, importer_id: &str, wanted: &[WantedSpec]) {
     let Some(lockfile) = ctx.workspace.reuse.lockfile.as_deref() else {
-        return HashSet::default();
+        return;
     };
     let prior = lockfile.importers.get(importer_id);
     let mut changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
+    let set = Arc::make_mut(&mut *changed);
     for (alias, spec, _optional, _injected) in wanted {
         if !direct_dep_specifier_unchanged(lockfile, prior, alias, spec)
             && let Ok(name) = alias.parse::<PkgName>()
         {
-            changed.insert(name);
+            set.insert(name);
         }
     }
-    changed.clone()
 }
 
 fn direct_dep_specifier_unchanged(
@@ -132,13 +128,12 @@ pub(super) fn reused_parent_has_changed_direct_child(
     ctx: &TreeCtx,
     snapshot: &SnapshotEntry,
 ) -> bool {
-    // Copy the (small) changed set out and drop the lock before scanning.
     let changed_set = {
         let changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps);
         if changed.is_empty() {
             return false;
         }
-        changed.clone()
+        Arc::clone(&changed)
     };
     let depends_on = |map: Option<&std::collections::HashMap<PkgName, SnapshotDepRef>>| {
         map.is_some_and(|deps| {
@@ -204,22 +199,29 @@ where
         return Ok(());
     };
     let prior = lockfile.importers.get(importer_id);
+    let resolved = futures_util::future::try_join_all(
+        wanted
+            .iter()
+            .filter(|(alias, bare_spec, ..)| {
+                !direct_dep_specifier_unchanged(lockfile, prior, alias, bare_spec)
+            })
+            .map(|spec| {
+                preseed_one_changed_direct(
+                    ctx,
+                    resolver,
+                    spec.clone(),
+                    importer_id,
+                    parent_pkg_aliases,
+                )
+            }),
+    )
+    .await?;
     let mut versions: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    for spec in wanted
-        .iter()
-        .filter(|(alias, bare_spec, ..)| {
-            !direct_dep_specifier_unchanged(lockfile, prior, alias, bare_spec)
-        })
-    {
-        if let Some((name, version)) =
-            preseed_one_changed_direct(ctx, resolver, spec.clone(), importer_id, parent_pkg_aliases)
-                .await?
-        {
-            versions
-                .entry(name)
-                .or_default()
-                .push(version);
-        }
+    for (name, version) in resolved.into_iter().flatten() {
+        versions
+            .entry(name)
+            .or_default()
+            .push(version);
     }
     if !versions.is_empty() {
         let mut changed_versions =

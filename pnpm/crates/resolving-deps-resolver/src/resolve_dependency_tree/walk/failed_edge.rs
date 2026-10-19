@@ -20,6 +20,7 @@ pub(super) fn drop_failed_edge(
     edge: &ChildEdge<'_>,
     opts: &ResolveOptions,
     err: ResolveDependencyTreeError,
+    log_skipped: bool,
 ) -> Result<(), ResolveDependencyTreeError> {
     let optional = wanted.optional.unwrap_or(false);
     let broken_parent = edge.ancestor_ids
@@ -41,7 +42,7 @@ pub(super) fn drop_failed_edge(
         );
         return Ok(());
     }
-    if let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
+    if log_skipped && let Some(log) = ctx.workspace.hooks.skipped_optional_log.as_ref() {
         log(SkippedOptionalDependency {
             details: err.to_string(),
             name: wanted.alias.clone(),

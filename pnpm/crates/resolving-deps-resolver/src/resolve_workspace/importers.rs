@@ -102,9 +102,12 @@ where
         )?);
     }
     if seeded_importers.len() > 1 {
-        for seeded in &seeded_importers {
-            Box::pin(seeded.seed_changed_direct(resolver)).await?;
-        }
+        futures_util::future::try_join_all(
+            seeded_importers
+                .iter()
+                .map(|seeded| Box::pin(seeded.seed_changed_direct(resolver))),
+        )
+        .await?;
     }
     let mut states = Vec::with_capacity(seeded_importers.len());
     for seeded in seeded_importers {
