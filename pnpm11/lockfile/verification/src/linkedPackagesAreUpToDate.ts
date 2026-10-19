@@ -122,7 +122,11 @@ async function checkLocalDirectoryDependency (
   if (pkgSnapshot == null) {
     return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
   }
-  if (!ctx.skipLocalDirectoryDependencies && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))) {
+  if (
+    !ctx.skipLocalDirectoryDependencies &&
+    !isDeployDirectoryRef(lockfileRef) &&
+    !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))
+  ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
   return isWorkspaceRange
@@ -265,6 +269,25 @@ function isLocalDirectoryRef (ref: string): boolean {
   const refWithoutSuffix = removeSuffix(ref)
   const aliasEnd = refWithoutSuffix.indexOf('@file:', 1)
   return aliasEnd !== -1 && refIsLocalDirectory(refWithoutSuffix.slice(aliasEnd + 1))
+}
+
+/**
+ * `pnpm deploy` rewrites workspace/link/file directory dependencies to
+ * `<name>@file://...` snapshots whose transitive dependencies have already
+ * been converted from the source workspace lockfile (catalogs, overrides,
+ * packageExtensions, readPackage hooks, and singleton peer bindings).
+ * Comparing those snapshots against the raw on-disk `package.json` in a
+ * post-deploy install or `verifyDepsBeforeRun` check would false-positive
+ * because the deployed directory intentionally drops those source-workspace
+ * settings.
+ */
+function isDeployDirectoryRef (ref: string): boolean {
+  const refWithoutSuffix = removeSuffix(ref)
+  if (refWithoutSuffix.startsWith('file://')) {
+    return refIsLocalDirectory(`file:${refWithoutSuffix.slice('file://'.length)}`)
+  }
+  const aliasEnd = refWithoutSuffix.indexOf('@file://', 1)
+  return aliasEnd !== -1 && refIsLocalDirectory(`file:${refWithoutSuffix.slice(aliasEnd + '@file://'.length)}`)
 }
 
 function outdated (detailedReason: string): CheckLinkedPackagesResult {

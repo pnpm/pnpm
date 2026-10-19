@@ -53,7 +53,7 @@ use target::{
     apply_deploy_hook, copy_project, prepare_deploy_dir, real_deploy_dir, relative_path,
     resolve_target_dir, validate_deploy_target, write_deploy_files,
 };
-use workspace_manifest::deploy_workspace_settings;
+use workspace_manifest::{DeployWorkspaceSettings, deploy_workspace_settings};
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -147,14 +147,9 @@ impl SelectedProject {
     }
 }
 
-struct DeployWorkspaceConfig {
-    patched_dependencies: Option<indexmap::IndexMap<String, String>>,
-    allow_builds: HashMap<String, bool>,
-}
-
 enum DeployInstallMode {
     Legacy,
-    Shared { workspace_config: DeployWorkspaceConfig },
+    Shared { workspace_config: Box<DeployWorkspaceSettings> },
 }
 
 impl DeployArgs {
@@ -288,7 +283,7 @@ impl DeployArgs {
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
-            DeployInstallMode::Shared { workspace_config: deploy_files.workspace_config },
+            DeployInstallMode::Shared { workspace_config: Box::new(deploy_files.workspace_config) },
             true,
             source_hooks,
             None,

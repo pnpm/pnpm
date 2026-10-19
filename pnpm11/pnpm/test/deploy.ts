@@ -156,8 +156,11 @@ test('running a script in a deployed project does not trigger an install outside
 
   expect(readYamlFileSync(path.join(deployDir, 'pnpm-workspace.yaml'))).toStrictEqual({
     autoInstallPeers: false,
+    dedupeInjectedDeps: false,
+    dedupePeerDependents: false,
     dedupePeers: true,
     excludeLinksFromLockfile: true,
+    ignorePnpmfile: true,
     ignoredOptionalDependencies: ['never-matches'],
     injectWorkspacePackages: false,
     packages: ['.'],
@@ -545,4 +548,109 @@ test('deploy respects --package-import-method from CLI', async () => {
   expect(fs.statSync(hardlinkDepFile).nlink).toBeGreaterThanOrEqual(2)
 })
 
+test('post-deploy self-containment oracle passes with workspace catalog, overrides, packageExtensions, pnpmfile, and unused patches', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '0.0.0', private: true } },
+    {
+      location: 'packages/app',
+      package: {
+        name: 'app',
+        version: '1.0.0',
+        dependencies: {
+          lib: 'workspace:*',
+        },
+        scripts: {
+          start: 'node --eval ""',
+        },
+      },
+    },
+    {
+      location: 'packages/lib',
+      package: {
+        name: 'lib',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/foo': 'catalog:',
+          '@pnpm.e2e/bar': '^100.0.0',
+        },
+      },
+    },
+    {
+      location: 'packages/other',
+      package: {
+        name: 'other',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/qar': '100.0.0',
+        },
+      },
+    },
+  ])
 
+  fs.mkdirSync('patches', { recursive: true })
+  fs.writeFileSync('patches/@pnpm.e2e__qar@100.0.0.patch', [
+    'diff --git a/patched.js b/patched.js',
+    'new file mode 100644',
+    'index 0000000..1111111',
+    '--- /dev/null',
+    '+++ b/patched.js',
+    '@@ -0,0 +1 @@',
+    '+module.exports = true',
+    '',
+  ].join('\n'))
+
+  fs.writeFileSync('.pnpmfile.cjs', [
+    'module.exports = {',
+    '  hooks: {',
+    '    readPackage (pkg) {',
+    '      if (pkg.name === "lib") {',
+    '        pkg.dependencies = { ...pkg.dependencies, "@pnpm.e2e/hello-world-js-bin": "1.0.0" }',
+    '      }',
+    '      return pkg',
+    '    },',
+    '  },',
+    '}',
+  ].join('\n'))
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    catalog: {
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+    overrides: {
+      '@pnpm.e2e/bar': '100.1.0',
+    },
+    packageExtensions: {
+      lib: {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.0.0',
+        },
+      },
+    },
+    patchedDependencies: {
+      '@pnpm.e2e/qar@100.0.0': 'patches/@pnpm.e2e__qar@100.0.0.patch',
+    },
+  })
+
+  await execPnpm(['install'])
+
+  const deployDir = path.join(tempDir(false), 'deploy')
+  await execPnpm(['--filter=app', 'deploy', deployDir])
+
+  const deployedWorkspaceManifest = readYamlFileSync<Record<string, unknown>>(path.join(deployDir, 'pnpm-workspace.yaml'))
+  expect(deployedWorkspaceManifest.patchedDependencies).toBeUndefined()
+  const deployedLockfile = readYamlFileSync<LockfileFile>(path.join(deployDir, 'pnpm-lock.yaml'))
+  expect(deployedLockfile.patchedDependencies).toBeUndefined()
+
+  await execPnpm(['--dir', deployDir, '--config.verify-deps-before-run=error', 'run', 'start'], {
+    env: { CI: 'false' },
+  })
+
+  fs.rmSync(path.join(deployDir, 'node_modules'), { recursive: true, force: true })
+  await execPnpm(['--dir', deployDir, 'install', '--frozen-lockfile'])
+  const libNodeModules = path.dirname(fs.realpathSync(path.join(deployDir, 'node_modules/lib')))
+  expect(fs.existsSync(path.join(libNodeModules, '@pnpm.e2e/foo'))).toBe(true)
+  expect(fs.existsSync(path.join(libNodeModules, '@pnpm.e2e/bar'))).toBe(true)
+  expect(fs.existsSync(path.join(libNodeModules, '@pnpm.e2e/hello-world-js-bin'))).toBe(true)
+  expect(fs.existsSync(path.join(libNodeModules, '@pnpm.e2e/dep-of-pkg-with-1-dep'))).toBe(true)
+})

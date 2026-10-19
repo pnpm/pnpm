@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import * as dp from '@pnpm/deps.path'
-import { getLockfilePeerDependencies } from '@pnpm/installing.deps-resolver'
+import { getAppliedPatchKeys, getLockfilePeerDependencies, groupPatchedDependencies } from '@pnpm/installing.deps-resolver'
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
@@ -53,8 +53,11 @@ export interface CreateDeployFilesOptions {
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers: boolean
+  dedupeInjectedDeps: false
+  dedupePeerDependents: false
   dedupePeers: boolean
   excludeLinksFromLockfile: boolean
+  ignorePnpmfile: true
   ignoredOptionalDependencies: string[]
   injectWorkspacePackages: false
   packages: ['.']
@@ -91,8 +94,14 @@ export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles 
   }
 
   if (opts.lockfile.patchedDependencies && opts.patchedDependencies) {
-    result.lockfile.patchedDependencies = { ...opts.lockfile.patchedDependencies }
-    workspaceManifest.patchedDependencies = relativizePatchPaths(opts.patchedDependencies, opts.deployDir)
+    const appliedKeys = getAppliedPatchKeys(result.lockfile, groupPatchedDependencies(opts.lockfile.patchedDependencies))
+    if (appliedKeys.size > 0) {
+      result.lockfile.patchedDependencies = pick(Array.from(appliedKeys), opts.lockfile.patchedDependencies)
+      workspaceManifest.patchedDependencies = relativizePatchPaths(
+        pick(Array.from(appliedKeys), opts.patchedDependencies),
+        opts.deployDir
+      )
+    }
   }
 
   if (opts.allowBuilds) {
@@ -253,8 +262,11 @@ function addDeployImporterDependency (
 function createDeployWorkspaceManifest (lockfile: LockfileObject): DeployWorkspaceManifest {
   return {
     autoInstallPeers: lockfile.settings?.autoInstallPeers ?? true,
+    dedupeInjectedDeps: false,
+    dedupePeerDependents: false,
     dedupePeers: lockfile.settings?.dedupePeers ?? false,
     excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
+    ignorePnpmfile: true,
     ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies ?? [],
     injectWorkspacePackages: false,
     packages: ['.'],

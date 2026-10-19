@@ -481,3 +481,82 @@ test('createDeployFiles keeps a link into the declaring package', () => {
 
   expect(deployLockfile.packages?.[parentDepPath]?.dependencies).toStrictEqual({ child: 'link:<root>/child' })
 })
+
+test('createDeployFiles prunes unused patchedDependencies and writes self-contained workspaceManifest settings', () => {
+  const lockfileDir = path.resolve('workspace')
+  const deployDir = path.join(lockfileDir, 'out')
+  const projectId = 'app' as ProjectId
+  const usedPatchedDepPath = 'used@1.0.0(patch_hash=0000000000000000)' as DepPath
+  const unusedPatchedDepPath = 'unused@1.0.0(patch_hash=1111111111111111)' as DepPath
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    patchedDependencies: {
+      'used@1.0.0': '0000000000000000',
+      'unused@1.0.0': '1111111111111111',
+    },
+    importers: {
+      [projectId]: {
+        specifiers: { used: '1.0.0' },
+        dependencies: { used: '1.0.0(patch_hash=0000000000000000)' },
+      },
+      ['other' as ProjectId]: {
+        specifiers: { unused: '1.0.0' },
+        dependencies: { unused: '1.0.0(patch_hash=1111111111111111)' },
+      },
+    },
+    packages: {
+      [usedPatchedDepPath]: {
+        resolution: { integrity: 'sha512-used' },
+        version: '1.0.0',
+      },
+      [unusedPatchedDepPath]: {
+        resolution: { integrity: 'sha512-unused' },
+        version: '1.0.0',
+      },
+    },
+  }
+
+  const { lockfile: deployLockfile, workspaceManifest } = createDeployFiles({
+    allProjects: [{
+      rootDir: path.join(lockfileDir, 'app') as ProjectRootDir,
+      rootDirRealPath: path.join(lockfileDir, 'app') as ProjectRootDirRealPath,
+      manifest: { name: 'app', version: '1.0.0' },
+    }],
+    deployDir,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+    lockfile,
+    lockfileDir,
+    patchedDependencies: {
+      'used@1.0.0': path.join(lockfileDir, 'patches/used.patch'),
+      'unused@1.0.0': path.join(lockfileDir, 'patches/unused.patch'),
+    },
+    selectedProjectManifest: { name: 'app', version: '1.0.0', dependencies: { used: '1.0.0' } },
+    projectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+
+  expect(deployLockfile.patchedDependencies).toStrictEqual({
+    'used@1.0.0': '0000000000000000',
+  })
+  expect(workspaceManifest).toStrictEqual({
+    autoInstallPeers: true,
+    dedupeInjectedDeps: false,
+    dedupePeerDependents: false,
+    dedupePeers: false,
+    excludeLinksFromLockfile: false,
+    ignorePnpmfile: true,
+    ignoredOptionalDependencies: [],
+    injectWorkspacePackages: false,
+    packages: ['.'],
+    patchedDependencies: {
+      'used@1.0.0': '../patches/used.patch',
+    },
+    peersSuffixMaxLength: 1000,
+    virtualStoreType: 'project',
+  })
+})
+

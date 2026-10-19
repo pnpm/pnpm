@@ -20,7 +20,7 @@ use super::{
     index_projects,
 };
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
+use super::{DeployFiles, DeployWorkspaceSettings, write_deploy_files};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 use crate::cli_args::deploy::{
@@ -211,10 +211,7 @@ fn write_deploy_files_replaces_lockfile_symlink() {
         manifest: json!({ "name": "app" }),
         lockfile,
         workspace_manifest: None,
-        workspace_config: DeployWorkspaceConfig {
-            patched_dependencies: None,
-            allow_builds: std::collections::HashMap::new(),
-        },
+        workspace_config: DeployWorkspaceSettings::from_config(&Config::default()),
     };
 
     write_deploy_files(&deploy_dir, &deploy_files).expect("write deploy files");

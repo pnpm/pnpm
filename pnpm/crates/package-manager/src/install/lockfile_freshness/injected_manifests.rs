@@ -3,7 +3,9 @@
 
 use super::{
     FreshnessCheckError, LockfileFreshnessInputs,
-    directory_deps::{InjectedDirectory, is_declared_local_directory, unhooked_manifest},
+    directory_deps::{
+        InjectedDirectory, is_declared_local_directory, is_deploy_file_url_key, unhooked_manifest,
+    },
     project_manifests_by_dir,
 };
 use crate::install::{Arc, Lockfile, PackageManifest, PathBuf};
@@ -80,29 +82,36 @@ fn unhooked_injected_manifests(
     let workspace_root = inputs.config.workspace_dir.as_deref().unwrap_or(inputs.lockfile_dir);
     let mut manifests: Vec<InjectedManifest> = Vec::new();
     let mut seen: HashSet<PathBuf> = HashSet::new();
-    for (importer_id, _) in inputs.manifests {
-        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        for dependency in lockfile.injected_dependencies(importer_id, groups) {
-            let dir = pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(
-                &dependency.directory.directory,
-            ));
-            if manifests_by_dir.contains_key(&dir) || !seen.insert(dir.clone()) {
-                continue;
-            }
-            let Some(manifest) = unhooked_manifest(&InjectedDirectory {
-                dir: &dir,
-                declared_as_file: is_declared_local_directory(&dependency.spec.specifier),
-                workspace_root,
-                manifests_by_dir: &manifests_by_dir,
-            }) else {
-                continue;
-            };
-            manifests.push(InjectedManifest {
-                dir,
-                recorded_directory: dependency.directory.directory.clone(),
-                manifest,
-            });
+    let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let dependencies = inputs.manifests
+        .iter()
+        .flat_map(|(importer_id, _)| lockfile.injected_dependencies(importer_id, groups))
+        .filter(|dep| !is_deploy_injected_dependency(dep));
+    for dependency in dependencies {
+        let dir =
+            pnpm_fs::lexical_normalize(&inputs.lockfile_dir.join(&dependency.directory.directory));
+        if manifests_by_dir.contains_key(&dir) || !seen.insert(dir.clone()) {
+            continue;
         }
+        let Some(manifest) = unhooked_manifest(&InjectedDirectory {
+            dir: &dir,
+            declared_as_file: is_declared_local_directory(&dependency.spec.specifier),
+            workspace_root,
+            manifests_by_dir: &manifests_by_dir,
+        }) else {
+            continue;
+        };
+        manifests.push(InjectedManifest {
+            dir,
+            recorded_directory: dependency.directory.directory.clone(),
+            manifest,
+        });
     }
     manifests
+}
+
+fn is_deploy_injected_dependency(dependency: &pnpm_lockfile::InjectedDependency<'_>) -> bool {
+    dependency.spec.version
+        .resolved_key(dependency.alias)
+        .is_some_and(|key| is_deploy_file_url_key(&key))
 }
