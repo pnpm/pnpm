@@ -97,16 +97,10 @@ impl TarballResolver {
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else {
             return Ok(None);
         };
-        if !is_http_url(bare) {
+        let Some(normalized_bare_specifier) = remote_tarball_id(bare) else {
             return Ok(None);
-        }
-
-        // Round-trip through `Url::parse` to drop a redundant default
-        // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
-        // it reaches the lockfile.
-        let normalized_bare_specifier = reqwest::Url::parse(bare)
-            .map_err(|err| Box::new(err) as ResolveError)?
-            .to_string();
+        };
+        let normalized_bare_specifier = normalized_bare_specifier?;
 
         // The bundled manifest carries the same dependency fields a fresh
         // extraction would, so transitive resolution is unchanged. Done
@@ -307,6 +301,19 @@ fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
         return None;
     }
     Some(LatestInfo { latest_manifest: None })
+}
+
+/// The id an `http(s)` tarball spec resolves to, which the lockfile keys the
+/// package by: the URL without a redundant default port
+/// (`registry.npmjs.org:443` → `registry.npmjs.org`). `None` for any other
+/// spec.
+pub fn remote_tarball_id(bare: &str) -> Option<Result<String, ResolveError>> {
+    is_http_url(bare)
+        .then(|| {
+            reqwest::Url::parse(bare)
+                .map(|url| url.to_string())
+                .map_err(|err| Box::new(err) as ResolveError)
+        })
 }
 
 fn is_http_url(bare: &str) -> bool {

@@ -207,6 +207,7 @@ async function childIsUpToDate (
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
+  if (isLockedToOtherSource(currentSpec, locked.depPath)) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
 }
@@ -215,15 +216,30 @@ function isLocalSpec (spec: string): boolean {
   return spec.startsWith('link:') || spec.startsWith('file:') || spec.startsWith('workspace:')
 }
 
-/** The name, version and registry of the package a dependency is locked to. */
+/**
+ * Whether a spec that names one exact source, a tarball URL or a git commit,
+ * asks for a source other than the one the package is locked to. The lockfile
+ * keys such a package by the URL or commit it resolved.
+ */
+function isLockedToOtherSource (spec: string, depPath: string): boolean {
+  const lockedId = removeSuffix(depPath)
+  if (spec.startsWith('http:') || spec.startsWith('https:')) {
+    return !URL.canParse(spec) || !lockedId.endsWith(`@${new URL(spec).toString()}`)
+  }
+  const commit = spec.slice(spec.lastIndexOf('#') + 1)
+  return spec.includes('#') && /^[0-9a-f]{40}$/i.test(commit) &&
+    !lockedId.toLowerCase().endsWith(commit.toLowerCase())
+}
+
+/** The dependency path, name, version and registry of the package a dependency is locked to. */
 function lockedPackage (
   ctx: LocalDirectoryDepContext,
   alias: string,
   lockfileDep: string
-): { name: string, version: string, registryName?: string } | undefined {
+): { depPath: string, name: string, version: string, registryName?: string } | undefined {
   const depPath = refToRelative(lockfileDep, alias)
   const locked = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
-  return depPath == null || locked == null ? undefined : nameVerFromPkgSnapshot(depPath, locked)
+  return depPath == null || locked == null ? undefined : { depPath, ...nameVerFromPkgSnapshot(depPath, locked) }
 }
 
 /**

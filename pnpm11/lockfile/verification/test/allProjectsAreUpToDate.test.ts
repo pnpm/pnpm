@@ -1282,21 +1282,38 @@ describe('local file dependency', () => {
     expect(await check(false)).toBe(false)
   })
 
-  test('checkLinkedPackagesAreUpToDate(): accepts a tarball dependency of local file only on a frozen install', async () => {
-    await writeLocalDirManifest({ dependencies: { 'is-positive': 'https://example.com/is-positive-3.1.0.tgz' } })
-    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
-      linkWorkspacePackages: true,
-      manifestsByDir: {},
-      lockfilePackages: options.wantedLockfile.packages,
-      lockfileDir: process.cwd(),
-      resolution: { frozenLockfile },
-    }, {
-      dir: path.resolve('bar'),
-      manifest: projects[0].manifest,
-      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
-    })).upToDate
-    expect(await check(true)).toBe(true)
-    expect(await check(false)).toBe(false)
+  test.each([
+    ['a tarball', 'https://example.com/is-positive-2.0.0.tgz', 'https://example.com/is-positive-3.0.0.tgz'],
+    ['a git commit', 'github:kevva/is-positive#97edff6f525f192a3f83cea1944765f769ae2678', 'github:kevva/is-positive#1111111111111111111111111111111111111111'],
+  ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec) => {
+    const lockedRef = lockedSpec.startsWith('https:')
+      ? lockedSpec
+      : 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678'
+    const lockfilePackages = {
+      ...options.wantedLockfile.packages,
+      'local@file:./local-dir': {
+        ...options.wantedLockfile.packages!['local@file:./local-dir' as DepPath],
+        dependencies: { 'is-positive': lockedRef },
+      },
+      [`is-positive@${lockedRef}`]: { resolution: { tarball: lockedRef } },
+    } as LockfileObject['packages']
+    const check = async (spec: string, frozenLockfile: boolean) => {
+      await writeLocalDirManifest({ dependencies: { 'is-positive': spec } })
+      return (await checkLinkedPackagesAreUpToDate({
+        linkWorkspacePackages: true,
+        manifestsByDir: {},
+        lockfilePackages,
+        lockfileDir: process.cwd(),
+        resolution: { frozenLockfile },
+      }, {
+        dir: path.resolve('bar'),
+        manifest: projects[0].manifest,
+        snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+      })).upToDate
+    }
+    expect(await check(lockedSpec, true)).toBe(true)
+    expect(await check(lockedSpec, false)).toBe(false)
+    expect(await check(otherSpec, true)).toBe(false)
   })
 
   test('allProjectsAreUpToDate(): accepts a peer of local file that is also its dependency whether or not the lockfile records it', async () => {
