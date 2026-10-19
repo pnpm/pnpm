@@ -178,26 +178,26 @@ function pickPreferredPeerSpec (
 }
 
 /**
- * The versions this install resolved, so a version in `lockfileOnly` is
- * picked only when no other version qualifies. Its provider has moved on, so
- * it must not outrank a version the install resolved.
- */
-/**
  * The `locked` versions this run resolved, then every version it resolved,
  * then the `locked` ones. A locked version the run no longer resolves
  * survives only as a lockfile weight, since whatever provided it has moved
- * on, so it must not outrank what the graph now holds.
+ * on, so it must not outrank what the graph now holds. A version only the
+ * lockfile holds loses to the resolved ones even when nothing is locked.
  */
 function getOptionalPeerTiers (
   selectors: VersionSelectors,
-  { locked, lockfileOnly }: { locked?: Set<string>, lockfileOnly?: Set<string> }
+  { locked = new Set(), lockfileOnly }: { locked?: Set<string>, lockfileOnly?: Set<string> }
 ): Array<Set<string>> {
-  if (locked == null) return []
   const resolved = new Set(Object.keys(selectors).filter((version) => !lockfileOnly?.has(version)))
   const reached = new Set([...locked].filter((version) => resolved.has(version)))
   return [reached, resolved, locked].filter((tier) => tier.size > 0)
 }
 
+/**
+ * The versions this install resolved, so a version in `lockfileOnly` is
+ * picked only when no other version qualifies. Its provider has moved on, so
+ * it must not outrank a version the install resolved.
+ */
 function getRequiredPeerTiers (selectors: VersionSelectors, lockfileOnly: Set<string> | undefined): Array<Set<string>> {
   if (lockfileOnly == null) return []
   return [new Set(Object.keys(selectors).filter((version) => !lockfileOnly.has(version)))]

@@ -236,7 +236,7 @@ function collectSnapshotOptionalPeerEntries (
   if (snapshot.peerDependencies == null || snapshot.peerDependenciesMeta == null) return
   const bindings = dp.parsePeerBindings(parent)
   if (bindings == null) return
-  const site = { parent, snapshot, bindings }
+  const site = { parent, snapshot, providers: getBoundProviders(bindings) }
   collectDepsOptionalPeerEntries(site, snapshot.dependencies, entries)
   collectDepsOptionalPeerEntries(site, snapshot.optionalDependencies, entries)
 }
@@ -247,7 +247,7 @@ function collectSnapshotOptionalPeerEntries (
  * the parent's own dependency.
  */
 function collectDepsOptionalPeerEntries (
-  { parent, snapshot, bindings }: { parent: DepPath, snapshot: PackageSnapshot, bindings: dp.PeerBindings },
+  { parent, snapshot, providers }: { parent: DepPath, snapshot: PackageSnapshot, providers: Set<string> | undefined },
   deps: ResolvedDependencies | undefined,
   entries: OptionalPeerEntry[]
 ): void {
@@ -255,18 +255,20 @@ function collectDepsOptionalPeerEntries (
   for (const [alias, ref] of Object.entries(deps)) {
     if (!isOptionalPeer(snapshot, alias)) continue
     const target = dp.refToRelative(ref, alias)
-    if (target != null && bindsProvider(bindings, target)) entries.push({ parent, alias, target })
+    if (target != null && (providers == null || providers.has(dp.removePeersSuffix(target)))) {
+      entries.push({ parent, alias, target })
+    }
   }
 }
 
 /**
- * A hashed suffix names no provider, so every target counts. Peer segments may
- * omit a provider's own peers (`dedupePeers`), so the comparison ignores them.
+ * The providers `bindings` name, without their own peers: peer segments may
+ * omit them (`dedupePeers`). `undefined` for a hashed suffix, which names
+ * none, so every target counts.
  */
-function bindsProvider (bindings: dp.PeerBindings, target: DepPath): boolean {
-  if (bindings.kind === 'hashed') return true
-  const targetWithoutPeers = dp.removePeersSuffix(target)
-  return dp.getPeerBindingProviders(bindings).some((provider) => dp.removePeersSuffix(provider) === targetWithoutPeers)
+function getBoundProviders (bindings: dp.PeerBindings): Set<string> | undefined {
+  if (bindings.kind === 'hashed') return undefined
+  return new Set(dp.getPeerBindingProviders(bindings).map((provider) => dp.removePeersSuffix(provider)))
 }
 
 

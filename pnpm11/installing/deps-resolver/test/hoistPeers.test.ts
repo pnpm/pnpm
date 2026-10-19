@@ -616,7 +616,7 @@ test('getHoistableOptionalPeers keeps candidates unbounded when the workspace ro
 
 function pickOptionalPeer (
   candidates: string[],
-  { locked, lockfileOnly }: { locked: string[], lockfileOnly?: string[] }
+  { locked, lockfileOnly }: { locked?: string[], lockfileOnly?: string[] }
 ): string | undefined {
   return getHoistableOptionalPeers(
     { peer: ['*'] },
@@ -624,7 +624,7 @@ function pickOptionalPeer (
     [],
     () => true,
     {
-      lockedVersions: new Map([['peer', new Set(locked)]]),
+      lockedVersions: locked == null ? undefined : new Map([['peer', new Set(locked)]]),
       lockfileOnlyVersions: lockfileOnly == null ? undefined : new Map([['peer', new Set(lockfileOnly)]]),
     }
   ).peer
@@ -642,4 +642,8 @@ test('getHoistableOptionalPeers ignores a locked version no longer in the graph'
 // https://github.com/pnpm/pnpm/issues/16443
 test('getHoistableOptionalPeers prefers a version this run resolved over a stale locked one', () => {
   expect(pickOptionalPeer(['1.0.0', '1.0.1'], { locked: ['1.0.1'], lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
+})
+
+test('getHoistableOptionalPeers prefers a version this run resolved over one only the lockfile holds, with nothing locked', () => {
+  expect(pickOptionalPeer(['1.0.0', '1.0.1'], { lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
 })

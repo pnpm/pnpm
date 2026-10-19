@@ -190,29 +190,41 @@ fn optional_peer_edges<'a>(
         .iter()
         .filter_map(|(key, snapshot)| {
             let package = packages.get(&key.without_peer())?;
-            let bindings = PeerBindings::from_key(key)?;
+            let providers = BoundProviders::of(&PeerBindings::from_key(key)?);
             let edges = all_entries(snapshot)
                 .filter(|(alias, _)| is_optional_peer(package, alias))
                 .filter_map(|(alias, dep_ref)| Some((alias, dep_ref.resolve(alias)?)))
-                .filter(|(_, target)| binds(&bindings, target))
+                .filter(|(_, target)| providers.binds(target))
                 .collect::<Vec<_>>();
             (!edges.is_empty()).then_some((key, edges))
         })
         .collect()
 }
 
-/// Whether `bindings` name `target` as a provider. A hashed suffix names
-/// none, so every target counts. Peer segments may omit a provider's own
-/// peers (`dedupePeers`), so the comparison ignores them.
-fn binds(bindings: &PeerBindings, target: &PackageKey) -> bool {
-    match bindings {
-        PeerBindings::Hashed => true,
-        PeerBindings::Explicit(_) => {
-            let target = target.without_peer();
-            bindings
-                .providers()
-                .any(|provider| provider.without_peer() == target)
+/// The providers one key's bindings name, without their own peers: peer
+/// segments may omit them (`dedupePeers`). `None` for a hashed suffix,
+/// which names none.
+struct BoundProviders(Option<HashSet<PackageKey>>);
+
+impl BoundProviders {
+    fn of(bindings: &PeerBindings) -> Self {
+        match bindings {
+            PeerBindings::Hashed => BoundProviders(None),
+            PeerBindings::Explicit(_) => BoundProviders(Some(
+                bindings
+                    .providers()
+                    .map(|provider| provider.without_peer())
+                    .collect(),
+            )),
         }
+    }
+
+    /// Whether the bindings name `target`. Every target counts for a hashed
+    /// suffix.
+    fn binds(&self, target: &PackageKey) -> bool {
+        self.0
+            .as_ref()
+            .is_none_or(|providers| providers.contains(&target.without_peer()))
     }
 }
 

@@ -331,7 +331,8 @@ export function parsePeerBindings (depPath: string): PeerBindings | undefined {
   if (peerDepGraphHash === '') return undefined
   const segments = splitPeerSuffixSegments(peerDepGraphHash)
   if (segments == null) return undefined
-  if (segments.length > 0 && isPeerSuffixHash(segments[segments.length - 1])) return { kind: 'hashed' }
+  const providerSegments = segments.filter((segment) => !segment.startsWith('patch_hash='))
+  if (providerSegments.length === 1 && isPeerSuffixHash(providerSegments[0])) return { kind: 'hashed' }
   return { kind: 'explicit', segments }
 }
 

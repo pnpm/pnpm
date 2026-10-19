@@ -10,8 +10,9 @@ pub enum PeerBindings {
     /// The spelled-out segments, in suffix order. A segment is a
     /// provider's key, or a `patch_hash=` marker.
     Explicit(Vec<String>),
-    /// The opaque hash written once the spelled-out segments exceed
-    /// `peersSuffixMaxLength`. It names no provider.
+    /// The opaque hash written in place of the provider segments once they
+    /// exceed `peersSuffixMaxLength`. It names no provider. A `patch_hash=`
+    /// marker before it is not part of the hash.
     Hashed,
 }
 
@@ -31,7 +32,12 @@ impl PeerBindings {
             return None;
         }
         let segments = split_peer_suffix_segments(peer_suffix)?;
-        if segments.last().is_some_and(|segment| is_peer_suffix_hash(segment)) {
+        let mut provider_segments = segments
+            .iter()
+            .filter(|segment| !is_patch_marker(segment));
+        if let (Some(only), None) = (provider_segments.next(), provider_segments.next())
+            && is_peer_suffix_hash(only)
+        {
             return Some(PeerBindings::Hashed);
         }
         Some(PeerBindings::Explicit(segments))
@@ -58,16 +64,28 @@ impl PeerBindings {
     }
 
     /// The peer suffix that records these bindings; see
-    /// [`Self::suffix_of`]. `None` for [`PeerBindings::Hashed`], whose
-    /// segments are gone.
+    /// [`Self::suffix_of`]. `patch_hash=` markers stay in front, verbatim,
+    /// and only the provider segments are sorted and hashed. `None` for
+    /// [`PeerBindings::Hashed`], whose segments are gone.
     #[must_use]
     pub fn to_suffix(&self, max_length: usize) -> Option<String> {
         let PeerBindings::Explicit(segments) = self else { return None };
-        let peer_ids: Vec<PeerId> = segments
-            .iter()
-            .map(|segment| PeerId::DepPath(DepPath::from(segment.clone())))
-            .collect();
-        Some(Self::suffix_of(&peer_ids, max_length))
+        let (patch_markers, providers): (Vec<&String>, Vec<&String>) =
+            segments.iter().partition(|segment| is_patch_marker(segment));
+        let mut suffix = String::new();
+        for marker in patch_markers {
+            suffix.push('(');
+            suffix.push_str(marker);
+            suffix.push(')');
+        }
+        if !providers.is_empty() {
+            let peer_ids: Vec<PeerId> = providers
+                .into_iter()
+                .map(|segment| PeerId::DepPath(DepPath::from(segment.clone())))
+                .collect();
+            suffix.push_str(&Self::suffix_of(&peer_ids, max_length));
+        }
+        Some(suffix)
     }
 }
 
@@ -102,6 +120,10 @@ fn matching_close_paren(body: &str) -> Option<usize> {
 
 /// Whether a segment is the hash [`PeerBindings::suffix_of`] writes for an
 /// over-long suffix.
+fn is_patch_marker(segment: &str) -> bool {
+    segment.starts_with("patch_hash=")
+}
+
 fn is_peer_suffix_hash(segment: &str) -> bool {
     segment.len() == 32 && segment.chars().all(|character| character.is_ascii_hexdigit())
 }

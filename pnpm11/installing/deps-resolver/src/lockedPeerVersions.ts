@@ -11,7 +11,9 @@ type LockedPeer = [peerName: string, provider: DepPath]
  */
 export function getImporterLockedPeerVersions (lockfile: LockfileObject, importerId: ProjectId): Map<string, Set<string>> {
   const versions = new Map<string, Set<string>>()
-  const importer = lockfile.importers?.[importerId]
+  const importer = lockfile.importers != null && Object.hasOwn(lockfile.importers, importerId)
+    ? lockfile.importers[importerId]
+    : undefined
   const depPaths: DepPath[] = importer == null
     ? Object.keys(lockfile.packages ?? {}) as DepPath[]
     : [importer.dependencies, importer.optionalDependencies, importer.devDependencies]
@@ -84,7 +86,7 @@ function restoreAliasedPeerNames (snapshot: PackageSnapshot, providers: DepPath[
       aliases = { declaredPeers: [], claimed: 0, ordinaries: 0 }
       aliasesByProvider.set(providerWithoutPeers, aliases)
     }
-    recordProviderAlias(aliases, edgeName, snapshot.peerDependencies?.[edgeName] != null)
+    recordProviderAlias(aliases, edgeName, declaresPeer(snapshot, edgeName))
   }
   providers.forEach((provider, index) => {
     const aliases = aliasesByProvider.get(removePeersSuffix(provider))
@@ -134,7 +136,7 @@ function claimProviderAlias (aliases: ProviderAliases): string | undefined {
  */
 function getHashedPeerKeys (lockfile: LockfileObject, snapshot: PackageSnapshot | undefined): LockedPeer[] {
   if (snapshot == null) return []
-  const keys: LockedPeer[] = getPeerEdgeKeys(snapshot, (name) => snapshot.peerDependencies?.[name] != null)
+  const keys: LockedPeer[] = getPeerEdgeKeys(snapshot, (name) => declaresPeer(snapshot, name))
   for (const peerName of snapshot.transitivePeerDependencies ?? []) {
     for (const provider of getTransitivePeerProviders(lockfile, snapshot, peerName)) {
       keys.push([peerName, provider])
@@ -160,7 +162,7 @@ function visitTransitivePeerChild (
   child: PackageSnapshot,
   { peerName, pending, providers }: { peerName: string, pending: PackageSnapshot[], providers: DepPath[] }
 ): void {
-  if (child.peerDependencies?.[peerName] != null) {
+  if (declaresPeer(child, peerName)) {
     providers.push(...getPeerEdgeKeys(child, (name) => name === peerName).map(([, provider]) => provider))
   } else if (child.transitivePeerDependencies?.includes(peerName)) {
     pending.push(child)
@@ -194,4 +196,11 @@ function getDependencyEdges (snapshot: PackageSnapshot): Array<[string, string]>
     ...Object.entries(snapshot.dependencies ?? {}),
     ...Object.entries(snapshot.optionalDependencies ?? {}),
   ]
+}
+
+// Own-property check: a lockfile is untrusted input, and a plain lookup also
+// matches inherited Object.prototype names (`constructor`, `toString`, ...),
+// some of which are valid package names.
+function declaresPeer (snapshot: PackageSnapshot, name: string): boolean {
+  return snapshot.peerDependencies != null && Object.hasOwn(snapshot.peerDependencies, name)
 }

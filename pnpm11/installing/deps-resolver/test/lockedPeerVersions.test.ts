@@ -45,3 +45,14 @@ test('a hashed suffix pins the providers its snapshot edges name', () => {
     ['peer', new Set(['2.0.0'])],
   ]))
 })
+
+test('a dependency named after an Object.prototype member is no peer', () => {
+  const lockfile = lockfileOf({
+    'a@1.0.0(0123456789abcdef0123456789abcdef)': {
+      resolution: { integrity: 'sha512-a' },
+      dependencies: { constructor: '1.0.0' },
+      peerDependencies: {},
+    },
+  } as unknown as LockfileObject['packages'], { a: '1.0.0(0123456789abcdef0123456789abcdef)' })
+  expect(getImporterLockedPeerVersions(lockfile, '.' as ProjectId)).toStrictEqual(new Map())
+})

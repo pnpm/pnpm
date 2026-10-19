@@ -37,7 +37,7 @@ interface PeerHoisting {
   importers: ImporterToResolve[]
   /** See `HoistPeersOptions.lockfileOnlyVersions`. */
   lockfileOnlyVersions?: Map<string, Set<string>>
-  /** Each importer's `getImporterLockedPeerVersions`, read when its optional peers are first hoisted. */
+  /** Each importer's `getImporterLockedPeerVersions`, read when its optional peers are first hoisted, keyed by importer index. */
   lockedPeerVersionsByImporter: Map<number, Map<string, Set<string>>>
   publishedBy?: Date
   /** The versions of the workspace root's direct dependencies. */
@@ -346,11 +346,21 @@ function getHoistedPeersUpdateDepth ({ options, wantedDependencies }: ImporterTo
   )
 }
 
+/**
+ * Every importer the wanted lockfile does not list reads the same versions,
+ * those of the whole lockfile, so they share one entry.
+ */
 function getLockedPeerVersionsOfImporter (hoisting: PeerHoisting, index: number): Map<string, Set<string>> {
-  let versions = hoisting.lockedPeerVersionsByImporter.get(index)
+  const { wantedLockfile } = hoisting.ctx
+  const importerId = hoisting.importers[index].options.parentIds[0] as string as ProjectId
+  const listed = wantedLockfile.importers != null && Object.hasOwn(wantedLockfile.importers, importerId)
+  const cacheKey = listed ? index : UNLISTED_IMPORTER
+  let versions = hoisting.lockedPeerVersionsByImporter.get(cacheKey)
   if (versions == null) {
-    versions = getImporterLockedPeerVersions(hoisting.ctx.wantedLockfile, hoisting.importers[index].options.parentIds[0] as string as ProjectId)
-    hoisting.lockedPeerVersionsByImporter.set(index, versions)
+    versions = getImporterLockedPeerVersions(wantedLockfile, importerId)
+    hoisting.lockedPeerVersionsByImporter.set(cacheKey, versions)
   }
   return versions
 }
+
+const UNLISTED_IMPORTER = -1

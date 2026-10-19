@@ -49,6 +49,22 @@ fn an_over_long_suffix_is_written_as_its_hash() {
     assert_eq!(PeerBindings::from_suffix(&hashed), Some(PeerBindings::Hashed));
 }
 
+#[test]
+fn a_patch_marker_stays_in_front_of_the_sorted_providers() {
+    let suffix = "(patch_hash=abc)(a@1.0.0)(z@1.0.0)";
+    let bindings = PeerBindings::from_suffix(suffix).unwrap();
+    assert_eq!(bindings.to_suffix(1000).as_deref(), Some(suffix));
+    let hashed = bindings.to_suffix(3).unwrap();
+    assert!(hashed.starts_with("(patch_hash=abc)("), "{hashed}");
+    assert_eq!(PeerBindings::from_suffix(&hashed), Some(PeerBindings::Hashed));
+}
+
+#[test]
+fn a_hash_looking_last_segment_after_providers_is_no_hash() {
+    let suffix = "(a@1.0.0)(0123456789abcdef0123456789abcdef)";
+    assert!(matches!(PeerBindings::from_suffix(suffix), Some(PeerBindings::Explicit(_))));
+}
+
 /// Every lockfile checked into the repository, outside `node_modules`.
 fn checked_in_lockfiles(dir: &Path, found: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
