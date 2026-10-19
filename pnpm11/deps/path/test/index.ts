@@ -2,6 +2,7 @@
 import { expect, test } from '@jest/globals'
 import {
   depPathToFilename,
+  getBoundPeerProviders,
   getPkgIdWithPatchHash,
   hasPatchHash,
   isAbsolute,
@@ -256,9 +257,13 @@ test('depPathToFilename() keeps registry versions with build metadata without a 
 
 test('parsePeerBindings()', () => {
   expect(parsePeerBindings('a@1.0.0')).toBeUndefined()
-  expect(parsePeerBindings('a@1.0.0(b@2.0.0(c@1.0.0))(c@1.0.0)')).toStrictEqual({
+  const explicit = parsePeerBindings('a@1.0.0(b@2.0.0(c@1.0.0))(c@1.0.0)')!
+  expect(explicit).toStrictEqual({
     kind: 'explicit',
     segments: ['b@2.0.0(c@1.0.0)', 'c@1.0.0'],
   })
-  expect(parsePeerBindings('a@1.0.0(0123456789abcdef0123456789abcdef)')).toStrictEqual({ kind: 'hashed' })
+  expect(getBoundPeerProviders(explicit)).toStrictEqual(new Set(['b@2.0.0', 'c@1.0.0']))
+  const hashed = parsePeerBindings('a@1.0.0(0123456789abcdef0123456789abcdef)')!
+  expect(hashed).toStrictEqual({ kind: 'hashed' })
+  expect(getBoundPeerProviders(hashed)).toBeUndefined()
 })

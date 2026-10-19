@@ -93,3 +93,25 @@ test('bindSingletonPeers binds to a parent that also declares the linked package
   ]))
   expect(packages[LIB].dependencies?.peer).toBe('1.0.1')
 })
+
+// wrapper declares mid in both dependencies and peerDependencies and resolved
+// mid@1.0.0 from its own dependencies (no mid@1.0.0 peer binding in wrapper's
+// depPath), so wrapper -> mid remains a parent edge.
+test('bindSingletonPeers walks through a non-linked ancestor that resolved a declared peer from its own dependencies', () => {
+  const importer: ProjectSnapshot = {
+    specifiers: {},
+    dependencies: { wrapper: '1.0.0', peer: '1.0.0' },
+  }
+  const packages: PackageSnapshots = {
+    [LIB]: snapshot(),
+    ['mid@1.0.0' as DepPath]: snapshot({ lib: 'file:lib' }),
+    ['wrapper@1.0.0' as DepPath]: { ...snapshot({ mid: '1.0.0', peer: '1.0.1' }), peerDependencies: { mid: '^1.0.0' } },
+    ['peer@1.0.0' as DepPath]: snapshot(),
+    ['peer@1.0.1' as DepPath]: snapshot(),
+  }
+  bindSingletonPeers(importer, packages, new Map([[LIB, {
+    manifest: { name: 'lib', version: '1.0.0', peerDependencies: { peer: '*' } },
+    dedupedPeerResolutions: undefined,
+  }]]))
+  expect(packages[LIB].dependencies?.peer).toBe('1.0.1')
+})
