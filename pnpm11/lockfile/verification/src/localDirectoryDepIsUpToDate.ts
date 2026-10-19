@@ -250,8 +250,15 @@ async function localChildIsUpToDate (
   // dependencies may have changed without the directory moving. Links have
   // no dependency snapshot to validate, so only directory children recurse.
   const depPath = refToRelative(lockfileDep, child.alias)
-  const childSnapshot = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
-  if (childSnapshot == null) return true
+  if (depPath == null) return true
+  const childSnapshot = ctx.lockfilePackages?.[depPath]
+  if (childSnapshot == null) {
+    // A workspace child recorded through a file:-resolved parent has no
+    // snapshot of its own; the workspace verifies it through its importer
+    // entry. A file: child with no snapshot has an incomplete lockfile
+    // entry: its own dependencies cannot be validated, so it is stale.
+    return currentSpec.startsWith('workspace:')
+  }
   return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, dependencyAliasesOf(pkgSnapshot), visitedDirs)
 }
 
