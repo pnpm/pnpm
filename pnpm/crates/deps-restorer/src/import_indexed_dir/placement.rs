@@ -372,15 +372,20 @@ pub(super) fn clear_dirent_blocking_dir<Sys: FsRemoveNonDirDirent>(
     Ok(())
 }
 /// The completion-marker filename, mirroring pnpm's `pickFileFromFilesMap`:
-/// `package.json` when present, else a fallback file for old store entries
-/// indexed before the synthetic manifest. pnpm picks the first inserted
-/// key; `cas_paths` is unordered, so we pick the lexicographically
-/// smallest non-build-marker entry instead — deterministic, which is all
-/// the gate and the write need. `None` only when no package file is present.
+/// `package.json` when present, else Cargo's checksum manifest
+/// ([`crate::CARGO_CHECKSUM_FILE`]) for a vendored crate, else a fallback
+/// file for old store entries indexed before the synthetic manifest. pnpm
+/// picks the first inserted key; `cas_paths` is unordered, so we pick the
+/// lexicographically smallest non-build-marker entry instead —
+/// deterministic, which is all the gate and the write need. `None` only
+/// when no package file is present.
 pub(super) fn marker_file(cas_paths: &HashMap<String, PathBuf>) -> Option<&str> {
     const PACKAGE_JSON: &str = "package.json";
-    if cas_paths.contains_key(PACKAGE_JSON) {
-        return Some(PACKAGE_JSON);
+    if let Some(marker) = [PACKAGE_JSON, crate::CARGO_CHECKSUM_FILE]
+        .into_iter()
+        .find(|marker| cas_paths.contains_key(*marker))
+    {
+        return Some(marker);
     }
     cas_paths
         .keys()

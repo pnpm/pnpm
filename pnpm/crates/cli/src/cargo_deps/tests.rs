@@ -11,272 +11,10 @@ use super::{
     write_cargo_config, write_cargo_config_in,
 };
 use crate::cargo_deps::{
-    materialize::{DownloadOptions, MaterializeOptions, materialize},
+    materialize::{DownloadOptions, MaterializeOptions, materialize, slot_is_complete},
     sparse_registry::{download_auth_headers, fetch_sparse_index_file, sparse_index_path},
 };
 
-#[test]
-fn rejects_a_registry_crate_slot_without_verified_store_data() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path();
-    let cargo_toml = "[package]\n";
-    fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        format!(
-            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"checksum"}}"#,
-            pnpm_crypto_hash::create_hex_hash(cargo_toml),
-        ),
-    )
-    .unwrap();
-
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
-}
-
-#[test]
-fn rejects_a_registry_crate_slot_with_a_missing_or_corrupted_file() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path().join("slot");
-    fs::create_dir(&slot).unwrap();
-    let cargo_toml = "[package]\n";
-    fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
-    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    let store_dir = StoreDir::from(temp_dir.path().join("store"));
-    seed_indexed_cargo_file(
-        &store_dir,
-        checksum,
-        "demo",
-        "1.0.0",
-        "Cargo.toml",
-        cargo_toml.as_bytes(),
-    );
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        format!(
-            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"{}"}}"#,
-            pnpm_crypto_hash::create_hex_hash(cargo_toml),
-            checksum,
-        ),
-    )
-    .unwrap();
-    assert!(slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
-
-    fs::write(slot.join("Cargo.toml"), "[package]\nname = \"changed\"\n").unwrap();
-
-    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
-    fs::remove_file(slot.join("Cargo.toml")).unwrap();
-
-    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
-}
-
-#[cfg(unix)]
-#[test]
-fn rejects_a_registry_crate_slot_with_a_symlinked_parent_directory() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path().join("slot");
-    let external_dir = temp_dir.path().join("external");
-    fs::create_dir_all(&slot).unwrap();
-    fs::create_dir_all(&external_dir).unwrap();
-    let cargo_toml = "[package]\n";
-    fs::write(external_dir.join("Cargo.toml"), cargo_toml).unwrap();
-    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    let store_dir = StoreDir::from(temp_dir.path().join("store"));
-    seed_indexed_cargo_file(
-        &store_dir,
-        checksum,
-        "demo",
-        "1.0.0",
-        "src/Cargo.toml",
-        cargo_toml.as_bytes(),
-    );
-    symlink(&external_dir, slot.join("src")).unwrap();
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        format!(
-            r#"{{"files":{{"src/Cargo.toml":"{}"}},"package":"{}"}}"#,
-            pnpm_crypto_hash::create_hex_hash(cargo_toml),
-            checksum,
-        ),
-    )
-    .unwrap();
-
-    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir));
-}
-
-#[tokio::test]
-async fn reuses_a_complete_registry_crate_slot_without_loading_registry_config() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let mut config = Config::new();
-    config.store_dir = StoreDir::from(temp_dir.path().join("store"));
-    config.cache_dir = temp_dir.path().join("cache");
-    config.offline = true;
-    config.indexes_by_ecosystem.insert(
-        pnpm_config::Ecosystem::Cargo,
-        vec!["https://registry.example.test/index/".to_string().into()],
-    );
-    let config = Box::leak(Box::new(config));
-    let package = LockedCrate {
-        name: "demo".to_string(),
-        version: "1.0.0".to_string(),
-        checksum: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
-    };
-    let slot = package.store_slot(config.store_dir.root());
-    fs::create_dir_all(&slot).unwrap();
-    let cargo_toml = "[package]\n";
-    fs::write(slot.join("Cargo.toml"), cargo_toml).unwrap();
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        format!(
-            r#"{{"files":{{"Cargo.toml":"{}"}},"package":"{}"}}"#,
-            pnpm_crypto_hash::create_hex_hash(cargo_toml),
-            package.checksum,
-        ),
-    )
-    .unwrap();
-    config.store_dir.init().unwrap();
-    let (cargo_toml_path, cargo_toml_digest) =
-        config.store_dir.write_cas_file(cargo_toml.as_bytes(), false).unwrap();
-    let integrity = Integrity::from_hex(&package.checksum, Algorithm::Sha256).unwrap();
-    StoreIndex::open_in(&config.store_dir)
-        .unwrap()
-        .set(
-            &ArchiveStoreProjection::RawArchive.store_index_key(
-                &integrity.to_string(),
-                "crate:demo@1.0.0",
-            ),
-            &PackageFilesIndex {
-                algo: "sha512".to_string(),
-                files: HashMap::from([(
-                    "Cargo.toml".to_string(),
-                    CafsFileInfo {
-                        digest: format!("{cargo_toml_digest:x}"),
-                        mode: 0o644,
-                        size: cargo_toml.len() as u64,
-                        checked_at: None,
-                    },
-                )]),
-                ..PackageFilesIndex::default()
-            },
-        )
-        .unwrap();
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        format!(
-            r#"{{"files":{{"Cargo.toml":"untrusted-manifest-hash"}},"package":"{}"}}"#,
-            package.checksum,
-        ),
-    )
-    .unwrap();
-    fs::write(slot.join("build.rs"), "fn main() {}\n").unwrap();
-    assert!(!slot_is_complete(&slot, "demo", "1.0.0", &package.checksum, &config.store_dir,));
-    fs::remove_file(slot.join("build.rs")).unwrap();
-    let hardlink_slot = temp_dir.path().join("hardlink-slot");
-    fs::create_dir(&hardlink_slot).unwrap();
-    fs::hard_link(&cargo_toml_path, hardlink_slot.join("Cargo.toml")).unwrap();
-    fs::write(
-        hardlink_slot.join(".cargo-checksum.json"),
-        format!(
-            r#"{{"files":{{"Cargo.toml":"untrusted-manifest-hash"}},"package":"{}"}}"#,
-            package.checksum,
-        ),
-    )
-    .unwrap();
-    assert!(slot_is_complete(
-        &hardlink_slot,
-        "demo",
-        "1.0.0",
-        &package.checksum,
-        &config.store_dir,
-    ));
-
-    let slots = super::materialize::download_crates::<SilentReporter>(DownloadOptions {
-        config,
-        packages: vec![package.clone()],
-        http_client: Arc::new(ThrottledClient::default()),
-        logged_methods: Arc::new(AtomicU8::new(0)),
-        requester: "test".to_string(),
-    })
-    .await
-    .unwrap();
-
-    assert_eq!(slots, vec![(package.link_name(), slot)]);
-    fs::write(&cargo_toml_path, "corrupted CAS data").unwrap();
-    assert!(!slot_is_complete(
-        &package.store_slot(config.store_dir.root()),
-        "demo",
-        "1.0.0",
-        &package.checksum,
-        &config.store_dir,
-    ));
-}
-
-#[test]
-fn rejects_an_incomplete_registry_crate_slot() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path();
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
-    fs::write(slot.join(".cargo-checksum.json"), "not json").unwrap();
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        r#"{"files":{"Cargo.toml":"hash"},"package":"other-checksum"}"#,
-    )
-    .unwrap();
-
-    let store_dir = StoreDir::from(temp_dir.path().join("store"));
-    assert!(!slot_is_complete(slot, "demo", "1.0.0", "checksum", &store_dir));
-    assert!(!slot_is_complete(slot, "demo", "1.0.0", "different-checksum", &store_dir,));
-}
-
-#[test]
-fn rejects_a_registry_crate_slot_with_a_corrupt_manifest() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path();
-    fs::write(slot.join(".cargo-checksum.json"), "not json").unwrap();
-
-    assert!(!slot_is_complete(
-        slot,
-        "demo",
-        "1.0.0",
-        "checksum",
-        &StoreDir::from(temp_dir.path().join("store")),
-    ));
-}
-
-#[test]
-fn rejects_a_registry_crate_slot_with_an_unsafe_file_path() {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let slot = temp_dir.path().join("slot");
-    fs::create_dir(&slot).unwrap();
-    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    let store_dir = StoreDir::from(temp_dir.path().join("store"));
-    seed_indexed_cargo_file(&store_dir, checksum, "demo", "1.0.0", "../Cargo.toml", b"[package]\n");
-    fs::write(
-        slot.join(".cargo-checksum.json"),
-        format!(r#"{{"files":{{"../Cargo.toml":"hash"}},"package":"{checksum}"}}"#),
-    )
-    .unwrap();
-
-    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, &store_dir,));
-}
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -295,58 +33,109 @@ use std::{
     time::Duration,
 };
 
-fn seed_indexed_cargo_file(
-    store_dir: &StoreDir,
-    checksum: &str,
-    name: &str,
-    version: &str,
-    file: &str,
-    contents: &[u8],
-) {
-    store_dir.init().unwrap();
-    let (_, digest) = store_dir.write_cas_file(contents, false).unwrap();
-    let integrity = Integrity::from_hex(checksum, Algorithm::Sha256).unwrap();
-    let package_id = format!("crate:{name}@{version}");
-    StoreIndex::open_in(store_dir)
-        .unwrap()
-        .set(
-            &ArchiveStoreProjection::RawArchive.store_index_key(
-                &integrity.to_string(),
-                &package_id,
-            ),
-            &PackageFilesIndex {
-                algo: "sha512".to_string(),
-                files: HashMap::from([(
-                    file.to_string(),
-                    CafsFileInfo {
-                        digest: format!("{digest:x}"),
-                        mode: 0o644,
-                        size: contents.len() as u64,
-                        checked_at: None,
-                    },
-                )]),
-                ..PackageFilesIndex::default()
-            },
-        )
-        .unwrap();
+const CHECKSUM: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+fn write_checksum_manifest(slot: &std::path::Path, manifest: &str) {
+    fs::create_dir_all(slot).unwrap();
+    fs::write(slot.join(".cargo-checksum.json"), manifest).unwrap();
 }
 
-fn slot_is_complete(
-    slot: &std::path::Path,
-    name: &str,
-    version: &str,
-    checksum: &str,
-    store_dir: &StoreDir,
-) -> bool {
-    let index = StoreIndex::shared_readonly_in(store_dir);
-    super::materialize::slot::slot_is_complete_with_index(
-        slot,
-        name,
-        version,
-        checksum,
-        store_dir,
-        index.as_ref(),
-    )
+#[test]
+fn a_registry_crate_slot_is_complete_once_its_checksum_manifest_names_the_crate() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path().join("slot");
+    assert!(!slot_is_complete(&slot, Some(CHECKSUM)));
+    fs::create_dir_all(slot.join("src")).unwrap();
+    fs::write(slot.join("Cargo.toml"), "[package]\n").unwrap();
+    assert!(!slot_is_complete(&slot, Some(CHECKSUM)));
+
+    for manifest in ["not json", "{}", r#"{"files":{},"package":null}"#] {
+        write_checksum_manifest(&slot, manifest);
+        assert!(!slot_is_complete(&slot, Some(CHECKSUM)), "{manifest}");
+    }
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+    assert!(!slot_is_complete(&slot, Some("b".repeat(64).as_str())));
+
+    assert!(slot_is_complete(&slot, Some(CHECKSUM)));
+}
+
+#[test]
+fn a_git_crate_slot_is_complete_once_its_checksum_manifest_has_no_package() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let slot = temp_dir.path().join("slot");
+    assert!(!slot_is_complete(&slot, None));
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+    assert!(!slot_is_complete(&slot, None));
+
+    write_checksum_manifest(&slot, r#"{"files":{},"package":null}"#);
+
+    assert!(slot_is_complete(&slot, None));
+}
+
+fn offline_config_without_a_cached_registry(temp_dir: &std::path::Path) -> &'static Config {
+    let mut config = Config::new();
+    config.store_dir = StoreDir::from(temp_dir.join("store"));
+    config.cache_dir = temp_dir.join("cache");
+    config.offline = true;
+    config.indexes_by_ecosystem.insert(
+        pnpm_config::Ecosystem::Cargo,
+        vec!["https://registry.example.test/index/".to_string().into()],
+    );
+    Box::leak(Box::new(config))
+}
+
+fn download_options(config: &'static Config, package: &LockedCrate) -> DownloadOptions {
+    DownloadOptions {
+        config,
+        packages: vec![package.clone()],
+        http_client: Arc::new(ThrottledClient::default()),
+        logged_methods: Arc::new(AtomicU8::new(0)),
+        requester: "test".to_string(),
+    }
+}
+
+#[tokio::test]
+async fn links_a_complete_registry_crate_slot_without_asking_the_registry() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = offline_config_without_a_cached_registry(temp_dir.path());
+    let package = LockedCrate {
+        name: "demo".to_string(),
+        version: "1.0.0".to_string(),
+        checksum: CHECKSUM.to_string(),
+    };
+    let slot = package.store_slot(config.store_dir.root());
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+
+    let slots =
+        super::materialize::download_crates::<SilentReporter>(download_options(config, &package))
+            .await
+            .unwrap();
+
+    assert_eq!(slots, vec![(package.link_name(), slot)]);
+}
+
+#[tokio::test]
+async fn force_materializes_a_complete_registry_crate_slot_again() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let config = offline_config_without_a_cached_registry(temp_dir.path());
+    let package = LockedCrate {
+        name: "demo".to_string(),
+        version: "1.0.0".to_string(),
+        checksum: CHECKSUM.to_string(),
+    };
+    let slot = package.store_slot(config.store_dir.root());
+    write_checksum_manifest(&slot, &format!(r#"{{"files":{{}},"package":"{CHECKSUM}"}}"#));
+    let mut forced = config.clone();
+    forced.force = true;
+    let forced: &'static Config = Box::leak(Box::new(forced));
+
+    let error =
+        super::materialize::download_crates::<SilentReporter>(download_options(forced, &package))
+            .await
+            .unwrap_err();
+
+    eprintln!("The registry is asked again with --force: {error:?}");
+    assert!(format!("{error:?}").contains("Cargo registry config"), "{error:?}");
 }
 
 #[test]
@@ -668,7 +457,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
     fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();
     fs::write(slot.join("src/lib.rs"), "pub fn substituted() {}\n").unwrap();
     fs::write(slot.join(".cargo-checksum.json"), "{}").unwrap();
-    assert!(!slot_is_complete(&slot, "demo", "1.0.0", checksum, store_dir,));
+    assert!(!slot_is_complete(&slot, Some(checksum)));
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
 
     materialize::<SilentReporter>(MaterializeOptions {

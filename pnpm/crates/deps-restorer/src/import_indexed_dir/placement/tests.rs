@@ -2,7 +2,7 @@ use super::{
     FsRemoveDirAll, FsRemoveNonDirDirent, Placement, clear_dir_blocking_file,
     clear_dirent_blocking_dir, dir_fits_at, entries_by_target_dir,
     exact::all_imported_entries_match_exactly,
-    file_fits_at, populate_dir,
+    file_fits_at, marker_file, populate_dir,
     symlinks::{SymlinkRoots, final_link_target},
 };
 use pnpm_config::PackageImportMethod;
@@ -166,6 +166,26 @@ fn a_directory_has_one_writer_at_a_time() {
     assert!(target.join("lib/199.js").is_file());
     assert!(target.join("lib/esm/199.js").is_file());
     assert!(target.join("package.json").is_file());
+}
+
+#[test]
+fn the_cargo_checksum_manifest_is_the_marker_of_a_vendored_crate() {
+    let cas_paths = |entries: &[&str]| -> HashMap<String, PathBuf> {
+        entries
+            .iter()
+            .map(|entry| (entry.to_string(), PathBuf::from("store").join(entry)))
+            .collect()
+    };
+
+    assert_eq!(
+        marker_file(&cas_paths(&[".appveyor.yml", ".cargo-checksum.json", "Cargo.toml"])),
+        Some(".cargo-checksum.json"),
+    );
+    assert_eq!(
+        marker_file(&cas_paths(&[".cargo-checksum.json", "package.json"])),
+        Some("package.json"),
+    );
+    assert_eq!(marker_file(&cas_paths(&[".appveyor.yml", "Cargo.toml"])), Some(".appveyor.yml"));
 }
 
 #[test]
