@@ -113,6 +113,8 @@ fn manifests() -> Vec<Value> {
     let mut manifests = vec![json!({}), json!({ "bundleDependencies": ["bundled"] })];
     for files in [
         json!([]),
+        json!([""]),
+        json!(["./"]),
         json!(["**"]),
         json!(["lib"]),
         json!(["lib/*"]),

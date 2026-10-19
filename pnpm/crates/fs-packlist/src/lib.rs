@@ -163,13 +163,8 @@ fn relative_forward_slash(root: &Path, full: &Path) -> String {
     buf
 }
 
-/// Whether a [`normalize_field_path`]-ed `main` / `browser` / `bin` value stays inside
-/// the package: non-empty, only normal path components (no `..`, root, or
-/// drive/UNC prefix), and no backslash (a separator on Windows, where the
-/// git fetcher may import a package). The packlist feeds both `pack` and
-/// the git fetcher on attacker-controlled manifests, so an escaping field
-/// must never be force-included — a `main: "../secret"` would otherwise be
-/// read into the tarball / CAS.
+/// Whether a normalized manifest path stays lexically inside the package:
+/// non-empty, normal path components only, and no Windows separators.
 fn is_contained_field_path(normalized: &str) -> bool {
     !normalized.is_empty()
         && !normalized.contains('\\')

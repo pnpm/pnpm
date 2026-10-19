@@ -2,7 +2,11 @@
 
 use super::{IgnoreRule, apply_rules, rule_matches};
 use serde_json::Value;
-use std::{collections::BTreeSet, fs, path::Path};
+use std::{
+    collections::{BTreeSet, HashMap},
+    fs,
+    path::{Path, PathBuf},
+};
 
 /// Compiled file patterns for package selection and explicit listings.
 #[derive(Debug)]
@@ -18,7 +22,7 @@ impl FilesMatcher {
         apply_rules(self.rules.iter(), true, path, false, None)
     }
 
-    fn add_entry(&mut self, pkg_dir: &Path, entry: &str) {
+    fn add_entry(&mut self, pkg_dir: &Path, entry: &str, directories: &mut HashMap<PathBuf, bool>) {
         let mut entry = entry
             .strip_prefix("./")
             .map_or_else(|| entry.to_string(), |entry| format!("/{entry}"));
@@ -26,20 +30,18 @@ impl FilesMatcher {
             entry.push('*');
         }
         let inverse = format!("!{entry}");
-        let metadata = fs::symlink_metadata(pkg_dir.join(
-            entry.trim_start_matches('!').trim_start_matches('/'),
-        ));
+        let metadata = entry_metadata(pkg_dir, &entry, directories);
         match metadata {
-            Ok(metadata) if metadata.is_file() || metadata.is_symlink() => {
+            Some(metadata) if metadata.is_file() || metadata.is_symlink() => {
                 self.add_named_file(&entry, IgnoreRule::parse(&inverse));
             }
-            Ok(metadata) if metadata.is_dir() => {
+            Some(metadata) if metadata.is_dir() => {
                 self.rules.push(IgnoreRule::parse(&inverse));
                 self.rules.push(IgnoreRule::parse(&format!("{inverse}/**")));
             }
-            Ok(_) => {}
+            Some(_) => {}
             // npm-packlist treats every failed metadata lookup as a glob entry.
-            Err(_) => self.rules.push(IgnoreRule::parse(&inverse)),
+            None => self.rules.push(IgnoreRule::parse(&inverse)),
         }
     }
 
@@ -99,8 +101,9 @@ pub fn build_files_matcher(entries: &[Value]) -> FilesMatcher {
 pub(super) fn compile_files_rules(pkg_dir: &Path, entries: &[Value]) -> FilesMatcher {
     let mut matcher =
         FilesMatcher { rules: vec![IgnoreRule::parse("*")], named_files: BTreeSet::new() };
+    let mut directories = HashMap::new();
     for entry in entries.iter().filter_map(Value::as_str) {
-        matcher.add_entry(pkg_dir, entry);
+        matcher.add_entry(pkg_dir, entry, &mut directories);
     }
     matcher.apply_named_file_exclusions();
     matcher
@@ -110,4 +113,33 @@ pub(super) fn compile_files_rules(pkg_dir: &Path, entries: &[Value]) -> FilesMat
 pub(crate) fn normalize_field_path(path: &str) -> String {
     let trimmed = path.trim_start_matches("./");
     trimmed.trim_start_matches('/').to_string()
+}
+
+/// Read entry metadata without escaping the package or following directory symlinks.
+pub(super) fn entry_metadata(
+    pkg_dir: &Path,
+    entry: &str,
+    directories: &mut HashMap<PathBuf, bool>,
+) -> Option<fs::Metadata> {
+    let relative = entry.trim_start_matches('!').trim_start_matches('/');
+    if !relative.is_empty() && !crate::is_contained_field_path(relative) {
+        return None;
+    }
+    let mut parent = PathBuf::new();
+    for component in Path::new(relative)
+        .parent()
+        .unwrap_or_else(|| Path::new(""))
+        .components()
+    {
+        parent.push(component);
+        let is_directory = directories
+            .entry(parent.clone())
+            .or_insert_with(|| {
+                fs::symlink_metadata(pkg_dir.join(&parent)).is_ok_and(|metadata| metadata.is_dir())
+            });
+        if !*is_directory {
+            return None;
+        }
+    }
+    fs::symlink_metadata(pkg_dir.join(relative)).ok()
 }
