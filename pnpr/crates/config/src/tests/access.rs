@@ -377,6 +377,47 @@ fn teams_managed_by_is_hosted_only() {
                     url: https://registry.npmjs.org/\n    public: true\n    teamsManagedBy: api\n";
     Config::from_yaml_str(upstream, Path::new("/x"), listen(), None)
         .expect_err("an upstream has no roster to manage");
+
+    for eco in ["cargo", "pypi", "oci"] {
+        let yaml = format!(
+            "storage: ./s\nregistries:\n  local:\n    type: hosted\n    ecosystem: {eco}\n    teamsManagedBy: api\n",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("teamsManagedBy: api is only valid for npm");
+        match err {
+            RegistryError::InvalidConfig { reason } => {
+                assert!(
+                    reason.contains("only available for npm registries"),
+                    "unexpected error for {eco}: {reason}",
+                );
+            }
+            other => panic!("expected InvalidConfig for {eco}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn unpublish_rule_rejected_on_cargo_and_pypi_but_accepted_on_oci() {
+    for eco in ["cargo", "pypi"] {
+        let yaml = format!(
+            "storage: ./s\nregistries:\n  local:\n    type: hosted\n    ecosystem: {eco}\n    packages:\n      pkg:\n        unpublish: $authenticated\n",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("unpublish is not supported on cargo/pypi");
+        match err {
+            RegistryError::InvalidConfig { reason } => {
+                assert!(
+                    reason.contains("does not support unpublishing"),
+                    "unexpected error for {eco}: {reason}",
+                );
+            }
+            other => panic!("expected InvalidConfig for {eco}, got {other:?}"),
+        }
+    }
+
+    let oci_yaml = "storage: ./s\nregistries:\n  images:\n    type: hosted\n    ecosystem: oci\n    packages:\n      image:\n        unpublish: $authenticated\n";
+    let oci_config = Config::from_yaml_str(oci_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(oci_config.routing.hosted.contains_key("images"));
 }
 
 #[test]

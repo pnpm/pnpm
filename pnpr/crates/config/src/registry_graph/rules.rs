@@ -50,6 +50,63 @@ fn compile_rule_access_list(
     Ok(Some(list))
 }
 
+fn validate_unpublish_supported(
+    registry: &str,
+    ecosystem: Ecosystem,
+    key: &str,
+    rule: Option<&PackageAccess>,
+) -> Result<(), RegistryError> {
+    if (ecosystem == Ecosystem::Cargo || ecosystem == Ecosystem::Pypi)
+        && rule.and_then(|fields| fields.unpublish.as_ref()).is_some()
+    {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {registry:?} serves {ecosystem}, which does not support unpublishing; \
+                 `unpublish` rule on {key:?} is invalid",
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn compile_package_rule(
+    registry: &str,
+    ecosystem: Ecosystem,
+    key: &str,
+    rule: Option<&PackageAccess>,
+    teams: &TeamDirectory,
+) -> Result<PackageRule, RegistryError> {
+    let pattern = PackagePattern::parse(key, ecosystem)
+        .map_err(|err| RegistryError::InvalidConfig {
+            reason: format!("registry {registry:?}: {err}"),
+        })?;
+    validate_unpublish_supported(registry, ecosystem, key, rule)?;
+    Ok(PackageRule {
+        pattern,
+        access: compile_rule_access_list(
+            registry,
+            key,
+            "access",
+            rule.and_then(|fields| fields.access.as_ref()),
+            teams,
+        )?,
+        publish: compile_rule_access_list(
+            registry,
+            key,
+            "publish",
+            rule.and_then(|fields| fields.publish.as_ref()),
+            teams,
+        )?,
+        unpublish: compile_rule_access_list(
+            registry,
+            key,
+            "unpublish",
+            rule.and_then(|fields| fields.unpublish.as_ref()),
+            teams,
+        )?,
+    })
+}
+
 pub(super) fn build_rules(
     registry: &str,
     ecosystem: Ecosystem,
@@ -59,35 +116,7 @@ pub(super) fn build_rules(
 ) -> Result<PackageRules, RegistryError> {
     let mut rules = Vec::with_capacity(packages.len());
     for (key, rule) in packages {
-        let pattern = PackagePattern::parse(key, ecosystem)
-            .map_err(|err| RegistryError::InvalidConfig {
-                reason: format!("registry {registry:?}: {err}"),
-            })?;
-        let fields = rule.as_ref();
-        rules.push(PackageRule {
-            pattern,
-            access: compile_rule_access_list(
-                registry,
-                key,
-                "access",
-                fields.and_then(|fields| fields.access.as_ref()),
-                teams,
-            )?,
-            publish: compile_rule_access_list(
-                registry,
-                key,
-                "publish",
-                fields.and_then(|fields| fields.publish.as_ref()),
-                teams,
-            )?,
-            unpublish: compile_rule_access_list(
-                registry,
-                key,
-                "unpublish",
-                fields.and_then(|fields| fields.unpublish.as_ref()),
-                teams,
-            )?,
-        });
+        rules.push(compile_package_rule(registry, ecosystem, key, rule.as_ref(), teams)?);
     }
     Ok(PackageRules::new(rules, default_access))
 }

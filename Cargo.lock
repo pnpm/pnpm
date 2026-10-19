@@ -6835,6 +6835,8 @@ dependencies = [
  "reqwest",
  "serde",
  "serde-saphyr",
+ "serde_json",
+ "sha2",
  "tempfile",
  "tracing",
  "tracing-subscriber",

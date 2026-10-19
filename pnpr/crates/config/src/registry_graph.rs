@@ -11,10 +11,10 @@ use std::collections::BTreeSet;
 use rules::{build_rules, registry_access_list};
 
 use super::{
-    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, PackageAccess,
-    PackagePattern, Registries, Registry, RegistryConfigError, RegistryError, RegistryFile,
-    RegistryGroupFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig, UpstreamConfigFile,
-    UpstreamFile, build_teams, resolve_upstream_config,
+    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, Management,
+    PackageAccess, PackagePattern, Registries, Registry, RegistryConfigError, RegistryError,
+    RegistryFile, RegistryGroupFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig,
+    UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -267,6 +267,14 @@ pub(super) fn build_hosted_entry(
         return Err(org_collision_error(name, &org, other));
     }
     let ecosystem = registry.ecosystem.unwrap_or_default();
+    if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "hosted registry `{name}` specifies `teamsManagedBy: api`, but team management API \
+                 is only available for npm registries",
+            ),
+        });
+    }
     let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
     let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;

@@ -287,14 +287,28 @@ pub(super) struct ConfigFile {
     /// public.
     #[serde(default)]
     pub(super) routes: Option<RoutesFile>,
-    /// Secret keying the private resolution-cache HMAC. A random
-    /// per-process secret is used when absent.
+    /// Master secret from which purpose-specific subkeys (cache HMAC, OCI token signing)
+    /// are derived when individual secrets are not configured. A random per-process
+    /// secret is generated when absent.
     #[serde(default)]
     pub(super) secret: Option<String>,
+    /// Optional purpose-specific secrets for independent rotation.
+    #[serde(default)]
+    pub(super) secrets: Option<SecretsFile>,
     #[serde(default)]
     pub(super) auth: AuthFile,
     #[serde(default)]
     pub(super) log: Option<LogEntryFile>,
+}
+
+/// Purpose-specific secrets allowing independent rotation of cache and OCI signing keys.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(super) struct SecretsFile {
+    #[serde(default)]
+    pub(super) cache: Option<String>,
+    #[serde(default)]
+    pub(super) oci: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

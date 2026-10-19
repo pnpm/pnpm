@@ -102,3 +102,19 @@ When the `backend:` block is absent, auth stays on local disk and the
 `auth.htpasswd.max_users` registration cap is honored either way. Omitted
 `max_users` and `max_users: -1` both disable self-registration; set a
 non-negative cap to let new users register.
+
+## Extensibility model
+
+pnpr v1 relies on compile-time Rust trait implementations rather than a
+dynamic plugin runtime (such as WebAssembly, Lua, or dynamic C libraries).
+Custom user storage and token management implement the `UserBackend` and
+`TokenBackend` traits defined in `pnpr-auth`:
+
+- **`UserBackend`** — handles user lookup, credential verification (bcrypt
+  password hashing), user creation, password updates, and deprovisioning.
+- **`TokenBackend`** — manages bearer token creation, validation, listing, and
+  revocation.
+
+Compiling custom backends directly into the server keeps authentication on the
+request hot path free from dynamic runtime overhead, preserves static memory
+and concurrency safety guarantees, and avoids external runtime dependencies.

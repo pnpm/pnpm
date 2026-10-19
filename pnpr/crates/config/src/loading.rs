@@ -1,10 +1,12 @@
 use super::{
-    Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
-    Path, PathBuf, RegistryError, ResolvedFileRegistries, RoutesFile, SocketAddr, SystemEnv,
-    build_backend_config, build_cors_config, build_features, build_identity_config,
-    build_log_config, build_osv_config, build_route_policy, build_ui_config, config_file_in,
-    env_replace_lossy, resolution_secret, resolve_file_registries, resolve_storage_paths,
+    Arc, Config, ConfigFile, ConfigSource, DEFAULT_CONFIG_YAML, EnvVar, FeatureOverrides,
+    HostedStoreConfig, Path, PathBuf, RegistryError, ResolvedFileRegistries, RoutesFile,
+    SocketAddr, SystemEnv, build_backend_config, build_cors_config, build_features,
+    build_identity_config, build_log_config, build_osv_config, build_route_policy, build_ui_config,
+    config_file_in, env_replace_lossy, resolve_file_registries, resolve_secrets,
+    resolve_storage_paths,
 };
+use crate::secrets::validate_secret_env_vars;
 
 impl Config {
     /// Load YAML from `path` and merge it with runtime values
@@ -228,11 +230,14 @@ impl Config {
             features.registry.enabled,
         )?;
         let routing = build_routing_config(resolved, file.routes)?;
+        let secrets = resolve_secrets(file.secret.as_deref(), file.secrets.as_ref())?;
         Ok(Self {
             logs: build_log_config(file.log.as_ref()),
             osv: build_osv_config(&file.osv, base_dir),
-            resolution_cache_secret: resolution_secret(file.secret.as_deref())?,
-            has_configured_secret: file.secret.is_some(),
+            resolution_cache_secret: Arc::clone(&secrets.cache),
+            cache_secret: secrets.cache,
+            oci_secret: secrets.oci,
+            has_configured_secret: secrets.has_configured,
             http,
             storage,
             identity: build_identity_config(&file.auth, base_dir, backend)?,
@@ -315,7 +320,14 @@ fn build_storage_config(
 }
 
 pub(super) fn parse_config_file(raw: &str) -> Result<ConfigFile, RegistryError> {
-    let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
+    parse_config_file_with_env::<SystemEnv>(raw)
+}
+
+pub(super) fn parse_config_file_with_env<Sys: EnvVar>(
+    raw: &str,
+) -> Result<ConfigFile, RegistryError> {
+    validate_secret_env_vars::<Sys>(raw)?;
+    let (substituted, unresolved) = env_replace_lossy::<Sys>(raw);
     if !unresolved.is_empty() {
         tracing::warn!(?unresolved, "config references unset environment variables");
     }

@@ -145,6 +145,8 @@ which rule applies. A duplicate key is a config error.
 Each value can set `access`, `publish`, and `unpublish`. When a field is
 omitted, `access` falls back to the registry-level `access:` default, `publish`
 defaults to `$authenticated`, and `unpublish` defaults to nobody.
+Non-npm registries (such as Cargo and PyPI) reject `unpublish` rules because
+those ecosystems do not support package unpublishing.
 
 Every one of those fields takes either a single access token or a YAML list of
 them, and the grammar is deliberately small:
@@ -427,7 +429,7 @@ registries:
 - The `teams:` map is used only until the first change is stored. After that,
   editing `teams:` has no effect.
 - A team that a `packages:` rule names cannot be destroyed.
-- Only hosted registries accept `teamsManagedBy`.
+- Only npm hosted registries accept `teamsManagedBy`. Non-npm registries (such as Cargo and PyPI) reject `teamsManagedBy: api` because team management is specific to the npm org/team API.
 
 See [Team endpoints](endpoints.md#team-endpoints).
 
@@ -621,18 +623,37 @@ publishing alongside the password backend — see
 `auth.scim` lets an identity provider deprovision accounts — see
 [SCIM deprovisioning](scim.md).
 
-## `secret`
+## `secret` and `secrets`
 
 ```yaml title="pnpr.yaml"
+# Master secret:
 secret: ${PNPR_SECRET}
+
+# Or independently configured subkeys:
+#secrets:
+#  cache: ${PNPR_CACHE_SECRET}
+#  oci: ${PNPR_OCI_SECRET}
 ```
 
-The HMAC key for pnpr's private cache namespaces — private resolution-cache
-entries and private per-registry cache directories are keyed with it, so
-on-disk paths reveal neither registry names nor credentials. It must be at
-least 16 bytes. When omitted, a fresh random secret is generated per process,
-which means private cache entries only survive for that process's lifetime —
-set an explicit secret to keep private caches warm across restarts.
+pnpr uses secret keys to isolate private cache namespaces and sign bearer tokens:
+
+- **`cache`** — private cache namespaces: private resolution-cache entries and
+  private per-registry cache directories are keyed with it, so on-disk paths
+  reveal neither registry names nor credentials.
+- **`oci`** — bearer token signing key for the OCI registry surface.
+
+When `secret:` is configured, domain-separated subkeys (`pnpr-cache-key-v1` and
+`pnpr-oci-bearer-signing-key-v1`) are derived from it using HMAC-SHA256.
+
+To rotate the OCI bearer token signing key without invalidating the resolution
+and upstream caches (or vice versa), configure independent secrets via
+`secrets.cache` and `secrets.oci`. Each explicit secret must be at least 16
+bytes.
+
+When neither `secret` nor `secrets` is configured, a random 32-byte secret is
+generated per process. Private cache entries and issued OCI bearer tokens only
+survive for that process's lifetime — set an explicit secret in multi-replica
+or production deployments.
 
 ## Registry, resolver, artifact, and pipeline surfaces {#registry-resolver-and-artifact-surfaces}
 
@@ -843,3 +864,9 @@ s3:
   accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 ```
+
+Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
+`secrets.cache`, `secrets.oci`, `s3.secretAccessKey`, `auth.scim.token`,
+OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token`) fail fast at
+startup with a fatal configuration error. This prevents accidental fallback to
+empty credentials or per-process secrets when an environment variable is unset.
