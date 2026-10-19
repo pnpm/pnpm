@@ -123,16 +123,20 @@ fn extend_parsed_versions(by_name: &mut DirectDepVersions, level: &BTreeMap<Stri
 /// True when `snapshot` depends on one of this importer's changed direct
 /// deps, or on a dependency whose pinned version differs from a version
 /// resolved for a changed direct dep in another importer.
-pub(super) fn reused_parent_has_changed_direct_child(
+fn reused_parent_has_changed_direct_child(
     ctx: &TreeCtx,
     snapshot: &SnapshotEntry,
+    include_cross_importer: bool,
 ) -> bool {
     let own_changed = lock_recoverable(&ctx.workspace.versions.changed_direct_deps)
         .get(&ctx.importer.id)
         .cloned();
-    let cross_changed =
-        Arc::clone(&lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions));
-    if own_changed.as_ref().is_none_or(|set| set.is_empty()) && cross_changed.is_empty() {
+    let cross_changed = include_cross_importer.then(|| {
+        Arc::clone(&lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions))
+    });
+    if own_changed.as_ref().is_none_or(|set| set.is_empty())
+        && cross_changed.as_ref().is_none_or(|map| map.is_empty())
+    {
         return false;
     }
     snapshot.dependencies
@@ -143,7 +147,9 @@ pub(super) fn reused_parent_has_changed_direct_child(
             own_changed
                 .as_ref()
                 .is_some_and(|set| set.contains(name))
-                || cross_importer_changed_version(&cross_changed, name, dep_ref)
+                || cross_changed
+                    .as_deref()
+                    .is_some_and(|cross| cross_importer_changed_version(cross, name, dep_ref))
         })
 }
 
@@ -152,18 +158,22 @@ fn cross_importer_changed_version(
     name: &PkgName,
     dep_ref: &SnapshotDepRef,
 ) -> bool {
-    let Some(candidates) = cross_changed.get(&name.to_string()) else {
-        return false;
+    let (target_name, ver_peer) = match dep_ref {
+        SnapshotDepRef::Plain(ver_peer) => (name, ver_peer),
+        SnapshotDepRef::Alias(key) => (&key.name, &key.suffix),
+        SnapshotDepRef::Link(_) => return false,
     };
-    let Some(child_key) = dep_ref.resolve(name) else {
-        return false;
-    };
-    let Some(pinned) = child_key.suffix.version_semver() else {
-        return false;
+    let candidates = match &target_name.scope {
+        None => cross_changed.get(target_name.bare.as_str()),
+        Some(_) => cross_changed.get(&target_name.to_string()),
     };
     candidates
-        .iter()
-        .any(|version| version != pinned)
+        .zip(ver_peer.version_semver())
+        .is_some_and(|(versions, pinned)| {
+            versions
+                .iter()
+                .any(|version| version != pinned)
+        })
 }
 
 /// Reuse-decline gate: whether `prior_key`'s prior snapshot depends on a
@@ -172,13 +182,23 @@ pub(in super::super) fn node_depends_on_changed_direct_dep(
     ctx: &TreeCtx,
     prior_key: Option<&PkgNameVerPeer>,
 ) -> bool {
+    node_depends_on_changed_direct_dep_with(ctx, prior_key, true)
+}
+
+fn node_depends_on_changed_direct_dep_with(
+    ctx: &TreeCtx,
+    prior_key: Option<&PkgNameVerPeer>,
+    include_cross_importer: bool,
+) -> bool {
     let Some(key) = prior_key else {
         return false;
     };
     ctx.workspace.reuse.lockfile
         .as_ref()
         .and_then(|lf| lf.snapshots.as_ref()?.get(key))
-        .is_some_and(|snapshot| reused_parent_has_changed_direct_child(ctx, snapshot))
+        .is_some_and(|snapshot| {
+            reused_parent_has_changed_direct_child(ctx, snapshot, include_cross_importer)
+        })
 }
 
 /// The highest resolved direct-dependency version of `name` strictly
@@ -265,7 +285,7 @@ where
     let prior_key = reuse.prior_key(ctx, &wanted_dep);
     if ctx.workspace.reuse.subtrees
         && reuse.allows_reuse()
-        && !node_depends_on_changed_direct_dep(ctx, prior_key.as_ref())
+        && !node_depends_on_changed_direct_dep_with(ctx, prior_key.as_ref(), false)
         && let Some(reused) = super::try_reuse_node(ctx, &wanted_dep, prior_key.as_ref(), 0)
         && super::reuse_matches_peer_scope(ctx, &reused, parent_pkg_aliases)
     {

@@ -270,9 +270,9 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Per importer: direct-dep aliases whose manifest specifier differs
     /// from the prior lockfile (new deps included). Gates the stale-pin
     /// refresh's reuse-decline within that importer; cross-importer
-    /// direct-dep upgrades decline reuse via
-    /// [`Self::changed_direct_dep_versions`] when a strictly higher
-    /// version resolved.
+    /// direct-dep version changes decline reuse via
+    /// [`Self::changed_direct_dep_versions`] when a resolved version
+    /// differs from the pinned version.
     pub(super) changed_direct_deps: Mutex<HashMap<String, Arc<HashSet<PkgName>>>>,
     /// The parsed resolved versions of direct dependencies that changed
     /// in this install across the workspace, pre-seeded before any

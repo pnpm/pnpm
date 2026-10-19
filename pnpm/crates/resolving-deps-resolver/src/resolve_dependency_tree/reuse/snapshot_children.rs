@@ -269,7 +269,8 @@ pub(in super::super) fn cached_bound_providers(
     }
     let recovered = ctx.workspace.reuse.lockfile
         .as_deref()
-        .map_or(providers, |lf| BoundProviders::of_snapshot(lf.into(), key));
+        .map(|lf| BoundProviders::of_snapshot(lf.into(), key))
+        .unwrap_or(providers);
     super::lock_recoverable(&ctx.workspace.cache.bound_providers)
         .insert(key.clone(), recovered.clone());
     recovered

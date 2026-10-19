@@ -135,11 +135,24 @@ fn is_peer_edge(
     // rewriting the peer suffix that bound it, and an external package cannot
     // declare a workspace link as its own dependency.
     matches!(child.suffix.version(), VersionPart::File(_))
-        || bound_cache
-            .borrow_mut()
-            .entry(parent.clone())
-            .or_insert_with(|| pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), parent))
-            .binds(child)
+        || parent_binds_child(lockfile, bound_cache, parent, child)
+}
+
+fn parent_binds_child(
+    lockfile: &Lockfile,
+    bound_cache: &std::cell::RefCell<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
+    parent: &PkgNameVerPeer,
+    child: &PkgNameVerPeer,
+) -> bool {
+    let providers = pnpm_lockfile::BoundProviders::from_key(parent);
+    if !providers.is_hashed() {
+        return providers.binds(child);
+    }
+    bound_cache
+        .borrow_mut()
+        .entry(parent.clone())
+        .or_insert_with(|| pnpm_lockfile::BoundProviders::of_snapshot(lockfile.into(), parent))
+        .binds(child)
 }
 
 /// The `(package, peer, reference)` triples the deployed graph can bind

@@ -126,7 +126,8 @@ fn collect_descendant_targets(
 ) -> Option<std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>> {
     let mut by_peer: std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>> =
         std::collections::HashMap::new();
-    let mut visited: HashSet<(PkgNameVerPeer, usize)> = HashSet::new();
+    let mut visited: std::collections::HashMap<PkgNameVerPeer, HashSet<usize>> =
+        std::collections::HashMap::new();
     let initial: Vec<usize> = (0..transitive_peers.len()).collect();
     let mut pending = vec![(root, initial)];
     while let Some((current, active)) = pending.pop() {
@@ -152,15 +153,16 @@ fn collect_descendant_targets(
 
 fn record_child_peers(
     by_peer: &mut std::collections::HashMap<PkgName, Vec<PkgNameVerPeer>>,
-    visited: &mut HashSet<(PkgNameVerPeer, usize)>,
+    visited: &mut std::collections::HashMap<PkgNameVerPeer, HashSet<usize>>,
     child_key: &PkgNameVerPeer,
     child: &SnapshotEntry,
     active: &[usize],
     transitive_peers: &[(PkgName, &str)],
 ) -> Vec<usize> {
+    let seen = visited.entry(child_key.clone()).or_default();
     let mut next = Vec::new();
     for &idx in active {
-        if !visited.insert((child_key.clone(), idx)) {
+        if !seen.insert(idx) {
             continue;
         }
         let (peer, peer_name) = &transitive_peers[idx];
