@@ -83,6 +83,13 @@ impl Storage {
                 == DocumentWrite::Written
             {
                 if !self.root.create_record(kind.namespace(), &key, bytes).await? {
+                    let _ = self.root.replace_record_if_current(
+                        kind.namespace(),
+                        &legacy_key,
+                        bytes,
+                        expected,
+                    )
+                    .await;
                     return Ok(DocumentWrite::Conflict);
                 }
                 let _ = self.root.remove_record(kind.namespace(), &legacy_key).await;

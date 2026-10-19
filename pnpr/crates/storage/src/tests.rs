@@ -771,7 +771,7 @@ async fn replace_registry_record_returns_conflict_if_namespaced_creation_conflic
     );
     assert_eq!(
         storage.read_registry_record(RegistryRecord::TeamRoster, "shared").await.unwrap(),
-        Some(b"new-val".to_vec()),
+        Some(b"legacy-val".to_vec()),
     );
 }
 
