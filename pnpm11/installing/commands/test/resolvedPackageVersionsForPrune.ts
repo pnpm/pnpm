@@ -25,25 +25,25 @@ const newLockfile = {
   },
 }
 
-test('the versions of the freshly resolved lockfile', () => {
-  expect(resolvedPackageVersionsForPrune({}, newLockfile))
+test('the versions of the freshly resolved lockfile', async () => {
+  expect(await resolvedPackageVersionsForPrune({}, newLockfile))
     .toEqual(new Map([['foo', new Set(['1.0.0'])]]))
 })
 
-test('no versions when the lockfile is not used', () => {
-  expect(resolvedPackageVersionsForPrune({
+test('no versions when the lockfile is not used', async () => {
+  expect(await resolvedPackageVersionsForPrune({
     lockfile: false,
   }, newLockfile)).toBeUndefined()
 })
 
-test('no versions when the lockfile is not shared by the whole workspace', () => {
-  expect(resolvedPackageVersionsForPrune({
+test('no versions when the lockfile is not shared by the whole workspace', async () => {
+  expect(await resolvedPackageVersionsForPrune({
     sharedWorkspaceLockfile: false,
   }, newLockfile)).toBeUndefined()
 })
 
-test('no versions when no lockfile is available', () => {
-  expect(resolvedPackageVersionsForPrune({}, undefined)).toBeUndefined()
+test('no versions when no lockfile is available', async () => {
+  expect(await resolvedPackageVersionsForPrune({}, undefined)).toBeUndefined()
 })
 
 const wantedLockfile = {
@@ -71,6 +71,54 @@ test('the versions every project lockfile records together', async () => {
 
     expect(await resolvedPackageVersionsOfProjectLockfiles({}, projectDirs))
       .toEqual(new Map([['foo', new Set(['1.0.0', '2.0.0'])]]))
+  })
+})
+
+test.each(['shared', 'per-project', 'relocated'])('includes config dependency versions with %s lockfiles', async (layout) => {
+  await withWorkspaceDir(async (workspaceDir) => {
+    const projectDirs = writeProjectLockfiles(workspaceDir, { a: 'foo@1.0.0' })
+    const envLockfile = actualLockfileFs.createEnvLockfile()
+    envLockfile.importers['.'].configDependencies = {
+      '@example/plugin': { specifier: '2.0.0', version: '2.0.0' },
+      'unused-plugin': { specifier: '1.0.0', version: '1.0.0' },
+    }
+    envLockfile.packages = {
+      '@example/plugin@2.0.0': { resolution: { tarball: 'https://example.com/plugin.tgz' } },
+      'foo@2.0.0': { resolution: { tarball: 'https://example.com/foo.tgz' } },
+      'unused-plugin@1.0.0': { resolution: { tarball: 'https://example.com/unused.tgz' } },
+    }
+    envLockfile.snapshots = { '@example/plugin@2.0.0': { dependencies: { foo: '2.0.0' } }, 'foo@2.0.0': {}, 'unused-plugin@1.0.0': {} }
+    const lockfileDir = layout === 'relocated' ? path.join(workspaceDir, 'locks') : undefined
+    if (lockfileDir != null) fs.mkdirSync(lockfileDir)
+    await actualLockfileFs.writeEnvLockfile(lockfileDir ?? workspaceDir, envLockfile)
+
+    const opts = {
+      workspaceDir,
+      lockfileDir,
+      lockfile: true,
+      minimumReleaseAgeExcludePrune: true,
+      configDependencies: { '@example/plugin': '2.0.0' },
+    }
+    const resolved = layout === 'per-project'
+      ? await resolvedPackageVersionsOfProjectLockfiles(opts, projectDirs)
+      : await resolvedPackageVersionsForPrune(opts, newLockfile)
+    expect(resolved).toEqual(new Map([
+      ['foo', new Set(['1.0.0', '2.0.0'])],
+      ['@example/plugin', new Set(['2.0.0'])],
+    ]))
+  })
+})
+
+test('ignores a malformed env document when exclusion pruning is disabled', async () => {
+  await withWorkspaceDir(async (workspaceDir) => {
+    fs.writeFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), '---\ninvalid: [\n---\n')
+
+    expect(await resolvedPackageVersionsForPrune({ workspaceDir }, newLockfile))
+      .toEqual(new Map([['foo', new Set(['1.0.0'])]]))
+    await expect(resolvedPackageVersionsForPrune({
+      workspaceDir,
+      trustPolicyExcludePrune: true,
+    }, newLockfile)).rejects.toThrow()
   })
 })
 

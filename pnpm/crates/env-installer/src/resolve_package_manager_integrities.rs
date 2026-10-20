@@ -2,7 +2,7 @@ use crate::{
     ConfigDepError,
     manifest_lockfile::{package_metadata, read_dependency_map},
     options::ConfigDepsInstallOptions,
-    prune::prune_env_lockfile,
+    prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
     verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
 };

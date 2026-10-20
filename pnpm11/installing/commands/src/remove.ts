@@ -9,8 +9,7 @@ import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalRemove } from '@pnpm/global.commands'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
-import { mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
-import type { LockfileObject } from '@pnpm/lockfile.types'
+import { mutateModulesInSingleProject, type MutateModulesInSingleProjectResult } from '@pnpm/installing.deps-installer'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
 import { createStoreController, type CreateStoreControllerOptions, type StoreControllerHandle } from '@pnpm/store.connection-manager'
 import type { DependenciesField, IncludedDependencies, Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
@@ -162,6 +161,7 @@ export type RemoveCommandOptions = CreateStoreControllerOptions & Pick<Config,
 | 'sharedWorkspaceLockfile'
 | 'lockfile'
 | 'catalogPrune'
+| 'configDependencies'
 | 'minimumReleaseAgeExcludePrune'
 | 'trustPolicyExcludePrune'
 | 'trustLockfile'
@@ -323,26 +323,26 @@ async function removeFromProject ({ opts, params, include, store }: RemoveContex
     },
     removeOpts
   )
-  await writeProjectManifest(mutationResult.updatedProject.manifest)
-
-  await pruneWorkspaceManifest(opts, {
-    allProjects: replaceUpdatedProjectManifest(allProjects ?? [], mutationResult.updatedProject),
-    newLockfile: mutationResult.newLockfile,
-    wantedLockfile: mutationResult.wantedLockfile,
-  })
+  await persistRemoveManifests(opts, { allProjects, mutationResult, writeProjectManifest })
 }
 
-async function pruneWorkspaceManifest (
+async function persistRemoveManifests (
   opts: RemoveCommandOptions,
-  { allProjects, newLockfile, wantedLockfile }: { allProjects: Project[], newLockfile: LockfileObject | undefined, wantedLockfile: LockfileObject | undefined }
+  { allProjects, mutationResult, writeProjectManifest }: {
+    allProjects: Project[] | undefined
+    mutationResult: MutateModulesInSingleProjectResult
+    writeProjectManifest: (manifest: ProjectManifest) => Promise<void>
+  }
 ): Promise<void> {
+  const resolvedPackageVersions = await resolvedPackageVersionsForPrune(opts, mutationResult.newLockfile)
+  await writeProjectManifest(mutationResult.updatedProject.manifest)
   await updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
     catalogPrune: opts.catalogPrune,
-    keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
-    resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+    keptCatalogs: keptCatalogsForPrune(opts, mutationResult.newLockfile, mutationResult.wantedLockfile),
+    resolvedPackageVersions,
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
-    allProjects,
+    allProjects: replaceUpdatedProjectManifest(allProjects ?? [], mutationResult.updatedProject),
   })
 }
 

@@ -2,6 +2,7 @@ import { expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/testing.registry-mock'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
@@ -46,4 +47,29 @@ test('installing configDependencies succeeds with --frozen-lockfile if env lockf
 
   // Second install with frozen-lockfile should succeed
   await execPnpm(['install', '--frozen-lockfile'])
+})
+
+test('pruning excludes preserves config dependencies and removes unused versions', async () => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: { '@pnpm.e2e/foo': '~100.0.0' },
+    minimumReleaseAgeExcludePrune: true,
+    trustPolicyExcludePrune: true,
+    minimumReleaseAgeExclude: ['@pnpm.e2e/foo', 'unused-plugin'],
+    trustPolicyExclude: ['@pnpm.e2e/foo@99.0.0 || 100.0.0', 'unused-plugin'],
+  })
+
+  await execPnpm(['add', 'is-positive@1.0.0'])
+
+  const settings = readYamlFileSync<{ minimumReleaseAgeExclude: string[], trustPolicyExclude: string[] }>('pnpm-workspace.yaml')
+  expect(settings?.minimumReleaseAgeExclude).toEqual(['@pnpm.e2e/foo'])
+  expect(settings?.trustPolicyExclude).toEqual(['@pnpm.e2e/foo@100.0.0'])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { ...settings, configDependencies: {} })
+  await execPnpm(['add', 'is-negative@1.0.0'])
+
+  const afterRemoval = readYamlFileSync<Record<string, unknown>>('pnpm-workspace.yaml')
+  expect(afterRemoval).toMatchObject({ minimumReleaseAgeExcludePrune: true, trustPolicyExcludePrune: true })
+  expect(afterRemoval?.minimumReleaseAgeExclude).toBeUndefined()
+  expect(afterRemoval?.trustPolicyExclude).toBeUndefined()
 })
