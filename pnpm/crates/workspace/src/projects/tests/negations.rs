@@ -58,21 +58,66 @@ fn subtree_exclusions_do_not_read_excluded_directories() {
     let root = TempDir::new().unwrap();
     make_project(root.path(), ".", "root");
     make_project(root.path(), "generated/child", "excluded");
+    make_project(root.path(), "packages/keep", "keep");
+    make_project(root.path(), "packages/generated/child", "excluded-pkg");
     let generated = root.path().join("generated");
+    let pkg_generated = root.path().join("packages/generated");
     let permissions = fs::metadata(&generated).unwrap().permissions();
+    let pkg_permissions = fs::metadata(&pkg_generated).unwrap().permissions();
     fs::set_permissions(&generated, fs::Permissions::from_mode(0o000)).unwrap();
+    fs::set_permissions(&pkg_generated, fs::Permissions::from_mode(0o000)).unwrap();
     let projects = std::panic::catch_unwind(|| {
-        find_workspace_projects(
+        let root_glob = find_workspace_projects(
             root.path(),
             &FindWorkspaceProjectsOpts {
-                patterns: Some(vec!["**".to_string(), "!generated/**".to_string()]),
+                patterns: Some(vec![
+                    "**".to_string(),
+                    "!generated/**".to_string(),
+                    "!packages/generated/**".to_string(),
+                ]),
                 ..Default::default()
             },
-        )
+        )?;
+        let prefixed_glob = find_workspace_projects(
+            root.path(),
+            &FindWorkspaceProjectsOpts {
+                patterns: Some(vec![
+                    "packages/**".to_string(),
+                    "!packages/generated/**".to_string(),
+                ]),
+                ..Default::default()
+            },
+        )?;
+        Ok::<_, super::FindWorkspaceProjectsError>((root_glob.len(), prefixed_glob.len()))
     });
     fs::set_permissions(&generated, permissions).unwrap();
+    fs::set_permissions(&pkg_generated, pkg_permissions).unwrap();
     let projects = projects.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-    assert_eq!(projects.unwrap().len(), 1);
+    assert_eq!(projects.unwrap(), (2, 2));
+}
+
+#[test]
+fn wildcard_exclusions_match_dot_directories_included_explicitly() {
+    let root = TempDir::new().unwrap();
+    make_project(root.path(), ".", "root");
+    make_project(root.path(), "packages/.dev/tool", "excluded-dot");
+    make_project(root.path(), "packages/.dev/keep", "keep-dot");
+    assert_eq!(
+        find_project_names(root.path(), &["packages/.dev/*", "!packages/*/tool"]),
+        vec!["root", "keep-dot"],
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn recursive_globs_stop_at_ancestor_symlink_cycles() {
+    use std::os::unix::fs::symlink;
+    let root = TempDir::new().unwrap();
+    make_project(root.path(), ".", "root");
+    make_project(root.path(), "packages/alpha", "alpha");
+    symlink(root.path().join("packages"), root.path().join("packages/alpha/loop")).unwrap();
+    assert_eq!(find_project_names(root.path(), &["packages/**"]), vec!["root", "alpha"]);
+    assert_eq!(find_project_names(root.path(), &["packages/**/alpha"]), vec!["root", "alpha"]);
 }
 
 #[cfg(target_os = "linux")]

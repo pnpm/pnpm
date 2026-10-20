@@ -758,3 +758,31 @@ fn install_args_reproduce_the_recorded_dependency_groups() {
     assert_eq!(args(Some(true), Some(true), Some(true)), [] as [&str; 0]);
     assert_eq!(args(Some(true), Some(false), Some(true)), ["--no-optional"]);
 }
+
+#[test]
+fn install_already_up_to_date_bails_before_walking_projects_when_workspace_state_is_missing() {
+    use crate::install::{UpToDateFastPathCheck, install_already_up_to_date};
+    use pnpm_package_manifest::DependencyGroup;
+
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let broken_dir = workspace_root.join("packages/broken");
+    fs::create_dir_all(&broken_dir).unwrap();
+    fs::write(broken_dir.join("package.json"), "{invalid json").unwrap();
+
+    let manifest_path = workspace_root.join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    let config = config.leak();
+
+    let result = install_already_up_to_date(&UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![DependencyGroup::Prod],
+        node_linker: pnpm_config::NodeLinker::Isolated,
+        supported_architectures: None,
+    });
+    assert_eq!(result, Err("no workspace state on disk"));
+}

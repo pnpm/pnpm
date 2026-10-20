@@ -172,6 +172,14 @@ pub(crate) fn check_optimistic_repeat_install_in(
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
+    check_optimistic_repeat_install_with_state(check, state, scope)
+}
+
+pub(crate) fn check_optimistic_repeat_install_with_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: WorkspaceState,
+    scope: Scope<'_>,
+) -> Decision {
     let (state, moved) =
         relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
             .map_or((state, false), |relocated| (relocated, true));
@@ -208,7 +216,7 @@ fn skip_reason(stale: &Stale) -> &'static str {
 
 /// The configuration alone can rule the fast path out, before anything is
 /// read from disk.
-fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
+pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
         return Some("CAS installation requires manifest verification");
     }

@@ -1,8 +1,14 @@
+pub(super) use glob::collect_glob_manifests;
+
 use super::{
-    BTreeSet, DirEntry, Entry, ErrorKind, FindWorkspaceProjectsError, PROJECT_MANIFEST_BASENAMES,
-    Path, PathBuf, fs, managed::is_under_ignored_directory,
+    BTreeSet, DirEntry, ErrorKind, FindWorkspaceProjectsError, Glob, MergePatterns,
+    PROJECT_MANIFEST_BASENAMES, Path, PathBuf, WorkspacePattern, fs,
+    managed::is_under_ignored_directory,
+    negations::{is_negated_directory, is_pruned_by_subtree_negation},
 };
-use wax::Program as _;
+use ancestors::AncestorStack;
+use glob::WalkContext;
+use std::{ffi::OsStr, path::Component};
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SpecializedPattern<'pattern> {
@@ -19,20 +25,16 @@ pub(super) fn specialized_pattern(pattern: &str) -> Option<SpecializedPattern<'_
 }
 
 fn is_safe_relative_literal(pattern: &str) -> bool {
-    !pattern
-        .chars()
-        .any(|ch| ch == '\\' || wax::is_meta_character(ch))
-        && !pattern.starts_with('/')
-        && pattern
-            .split('/')
-            .all(|component| !component.is_empty() && component != "." && component != "..")
+    !pattern.is_empty() && !pattern.starts_with('/') && pattern.split('/').all(is_literal_segment)
 }
 
-pub(super) fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
-    PROJECT_MANIFEST_BASENAMES
-        .iter()
-        .map(|basename| format!("{pattern}/{basename}"))
-        .collect()
+pub(super) fn is_literal_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && !segment
+            .chars()
+            .any(|ch| ch == '\\' || wax::is_meta_character(ch))
 }
 
 pub(super) fn collect_manifests_in_children(
@@ -46,7 +48,7 @@ pub(super) fn collect_manifests_in_children(
         if starts_with_dot(&entry.file_name()) {
             return Ok(());
         }
-        if !entry_is_directory(&entry, workspace_root)? {
+        if entry_is_directory(&entry, workspace_root)?.is_none() {
             return Ok(());
         }
         collect_candidate_manifests_in(
@@ -60,25 +62,48 @@ pub(super) fn collect_manifests_in_children(
     })
 }
 
-fn entry_is_directory(
+pub(super) fn entry_is_directory(
     entry: &DirEntry,
-    workspace_root: &Path,
+    walk_root: &Path,
+) -> Result<Option<bool>, FindWorkspaceProjectsError> {
+    let Some(file_type) = ignore_not_found_or_loop(entry.file_type())
+        .map_err(|source| workspace_walk_error(walk_root, source))?
+    else {
+        return Ok(None);
+    };
+    if file_type.is_dir() {
+        return Ok(Some(false));
+    }
+    if file_type.is_symlink() {
+        let Some(metadata) = ignore_not_found_or_loop(fs::metadata(entry.path()))
+            .map_err(|source| workspace_walk_error(walk_root, source))?
+        else {
+            return Ok(None);
+        };
+        return Ok(metadata.is_dir().then_some(true));
+    }
+    Ok(None)
+}
+
+pub(super) fn entry_is_file(
+    entry: &DirEntry,
+    walk_root: &Path,
 ) -> Result<bool, FindWorkspaceProjectsError> {
     let Some(file_type) = ignore_not_found_or_loop(entry.file_type())
-        .map_err(|source| workspace_walk_error(workspace_root, source))?
+        .map_err(|source| workspace_walk_error(walk_root, source))?
     else {
         return Ok(false);
     };
-    if file_type.is_dir() {
+    if file_type.is_file() {
         return Ok(true);
     }
     if file_type.is_symlink() {
         let Some(metadata) = ignore_not_found_or_loop(fs::metadata(entry.path()))
-            .map_err(|source| workspace_walk_error(workspace_root, source))?
+            .map_err(|source| workspace_walk_error(walk_root, source))?
         else {
             return Ok(false);
         };
-        return Ok(metadata.is_dir());
+        return Ok(metadata.is_file());
     }
     Ok(false)
 }
@@ -97,19 +122,19 @@ fn ignore_not_found_or_loop<Value>(
 /// which exist: the read phase absorbs a candidate that is not there,
 /// so learning the answer here would pay a directory enumeration for
 /// what one failed open later reports for free.
-fn collect_candidate_manifests_in(
+pub(super) fn collect_candidate_manifests_in(
     directory: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
     ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
+    if is_ignored_manifest_directory(directory, workspace_root, user_negations, ignored_directories)
+    {
+        return;
+    }
     for basename in PROJECT_MANIFEST_BASENAMES {
-        let manifest_path = directory.join(basename);
-        if !is_ignored_manifest(&manifest_path, workspace_root, user_negations, ignored_directories)
-        {
-            manifest_paths.insert(manifest_path);
-        }
+        manifest_paths.insert(directory.join(basename));
     }
 }
 
@@ -120,34 +145,31 @@ pub(super) fn collect_literal_manifests_in(
     ignored_directories: &[PathBuf],
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
+    if is_ignored_manifest_directory(directory, workspace_root, user_negations, ignored_directories)
+    {
+        return;
+    }
     for basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = directory.join(basename);
-        if manifest_path.is_file()
-            && !is_ignored_manifest(
-                &manifest_path,
-                workspace_root,
-                user_negations,
-                ignored_directories,
-            )
-        {
+        if manifest_path.is_file() {
             manifest_paths.insert(manifest_path);
         }
     }
 }
 
-fn for_each_directory_entry(
+pub(super) fn for_each_directory_entry(
     directory: &Path,
-    workspace_root: &Path,
+    walk_root: &Path,
     mut visit: impl FnMut(DirEntry) -> Result<(), FindWorkspaceProjectsError>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     let entries = match fs::read_dir(directory) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
-        Err(source) => return Err(workspace_walk_error(workspace_root, source)),
+        Err(source) => return Err(workspace_walk_error(walk_root, source)),
     };
     for entry in entries {
-        if let Some(entry) =
-            ignore_not_found(entry).map_err(|source| workspace_walk_error(workspace_root, source))?
+        if let Some(entry) = ignore_not_found_or_loop(entry)
+            .map_err(|source| workspace_walk_error(walk_root, source))?
         {
             visit(entry)?;
         }
@@ -155,47 +177,50 @@ fn for_each_directory_entry(
     Ok(())
 }
 
-fn ignore_not_found<Value>(result: std::io::Result<Value>) -> std::io::Result<Option<Value>> {
-    match result {
-        Ok(value) => Ok(Some(value)),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error),
-    }
+fn workspace_walk_error(walk_root: &Path, source: std::io::Error) -> FindWorkspaceProjectsError {
+    FindWorkspaceProjectsError::Walk { root: walk_root.to_path_buf(), source }
 }
 
-fn workspace_walk_error(
-    workspace_root: &Path,
-    source: std::io::Error,
-) -> FindWorkspaceProjectsError {
-    FindWorkspaceProjectsError::Walk { root: workspace_root.to_path_buf(), source }
-}
-
-fn is_ignored_manifest(
-    manifest_path: &Path,
+fn is_ignored_manifest_directory(
+    directory: &Path,
     workspace_root: &Path,
     user_negations: &wax::Any<'_>,
     ignored_directories: &[PathBuf],
 ) -> bool {
-    let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
-    is_under_ignored_directory(manifest_path, ignored_directories)
+    let relative = directory.strip_prefix(workspace_root).unwrap_or(directory);
+    is_under_ignored_directory(directory, ignored_directories)
         || has_always_ignored_component(relative)
-        || user_negations.is_match(relative)
+        || is_negated_directory(directory, workspace_root, user_negations)
 }
 
-/// [`IGNORE_PATTERNS`](super::IGNORE_PATTERNS) by hand: `**/node_modules/**` and
-/// `**/bower_components/**` hold exactly when some non-final component
-/// bears one of those names, and a manifest candidate's final component
-/// is always a manifest basename, so any-component equality answers the
-/// match without running the glob engine once per candidate.
+fn is_ignored_directory(dir: &Path, ctx: &WalkContext<'_>) -> bool {
+    is_under_ignored_directory(dir, ctx.ignored_directories)
+        || is_negated_directory(dir, ctx.workspace_root, ctx.user_negations)
+}
+
+fn is_pruned_subtree(dir: &Path, ctx: &WalkContext<'_>) -> bool {
+    is_under_ignored_directory(dir, ctx.ignored_directories)
+        || is_pruned_by_subtree_negation(dir, ctx.workspace_root, ctx.subtree_negations)
+}
+
 pub(super) fn has_always_ignored_component(path: &Path) -> bool {
-    use std::path::Component;
     path.components()
         .any(|component| {
             matches!(
                 component,
-                Component::Normal(name) if name == "node_modules" || name == "bower_components",
+                Component::Normal(name) if is_always_ignored_name(name),
             )
         })
+}
+
+fn is_always_ignored_name(name: &OsStr) -> bool {
+    name == "node_modules" || name == "bower_components"
+}
+
+fn is_manifest_basename(name: &OsStr) -> bool {
+    PROJECT_MANIFEST_BASENAMES
+        .iter()
+        .any(|basename| name == *basename)
 }
 
 /// Strip the pattern's leading `../` components, walking `workspace_root`
@@ -213,12 +238,56 @@ pub(super) fn split_parent_prefix<'root, 'pattern>(
         walk_root = walk_root.parent()?;
         rest = tail;
     }
+    if rest == ".." {
+        walk_root = walk_root.parent()?;
+        rest = ".";
+    }
     Some((walk_root, rest))
+}
+
+/// The walk ignores of a pattern that names no dot component: built once and
+/// cloned for every such walk.
+pub(super) fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProjectsError>
+{
+    compile_walk_ignores(None)
+        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<built-in ignore>".to_string(),
+            message: err.to_string(),
+        })
+}
+
+pub(super) fn manifest_walk_ignores<'a>(
+    normalized: &str,
+    dot_pruning_ignore_template: &wax::Any<'a>,
+) -> Result<wax::Any<'a>, wax::BuildError> {
+    let Some(dot_ignores) = positional_dot_ignores(normalized) else {
+        return Ok(dot_pruning_ignore_template.clone());
+    };
+    compile_walk_ignores(Some(&dot_ignores))
+}
+
+fn compile_walk_ignores(
+    dot_ignores: Option<&[String]>,
+) -> Result<wax::Any<'static>, wax::BuildError> {
+    let dot_ignores: Vec<&str> = match dot_ignores {
+        None => vec![DOT_COMPONENT_IGNORE_PATTERN],
+        Some(dot_ignores) => dot_ignores
+            .iter()
+            .map(String::as_str)
+            .collect(),
+    };
+    let patterns = IGNORE_PATTERNS
+        .iter()
+        .copied()
+        .chain(dot_ignores)
+        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
+        .collect::<Result<Vec<_>, _>>()?;
+    wax::any(patterns)
 }
 
 /// Ignore globs that forbid a dot-prefixed component at each position where
 /// `pattern` has a wildcard, or `None` when no segment names a dot component
-/// and the hoisted [`DOT_COMPONENT_IGNORE_PATTERN`](super::DOT_COMPONENT_IGNORE_PATTERN) already says the same thing.
+/// and the hoisted [`DOT_COMPONENT_IGNORE_PATTERN`] already says the same thing.
 ///
 /// A wildcard must never match a dot-prefixed component, but a pattern that
 /// spells one out must still reach it, and only there. Deriving one ignore per
@@ -246,86 +315,28 @@ pub(super) fn positional_dot_ignores(pattern: &str) -> Option<Vec<String>> {
     Some(ignores)
 }
 
-/// Drain a prepared walk into `manifest_paths`, absorbing `NotFound` and
-/// applying the user negations that `Walk::not` cannot express.
-pub(super) fn collect_walk_manifests<Entries, Matched, Failure>(
-    walk: Entries,
-    walk_root: &Path,
-    workspace_root: &Path,
-    user_negations: &wax::Any<'_>,
-    ignored_directories: &[PathBuf],
-    manifest_paths: &mut BTreeSet<PathBuf>,
-) -> Result<(), FindWorkspaceProjectsError>
-where
-    Entries: Iterator<Item = Result<Matched, Failure>>,
-    Matched: Entry,
-    Failure: Into<std::io::Error>,
-{
-    for entry in walk {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(err) => {
-                // Converting rather than restringifying keeps the underlying
-                // `io::ErrorKind`, which the skip below needs.
-                let err: std::io::Error = err.into();
-                if is_ignorable_walk_error(&err) {
-                    continue;
-                }
-                return Err(FindWorkspaceProjectsError::Walk {
-                    root: walk_root.to_path_buf(),
-                    source: err,
-                });
-            }
-        };
-        let manifest_path = entry.path();
-        if is_under_ignored_directory(manifest_path, ignored_directories) {
-            continue;
-        }
-        if pathdiff::diff_paths(manifest_path, workspace_root)
-            .is_some_and(|relative| user_negations.is_match(relative.as_path()))
-        {
-            continue;
-        }
-        manifest_paths.insert(manifest_path.to_path_buf());
-    }
-    Ok(())
-}
-
-fn names_a_dot_component(segment: &str) -> bool {
+pub(super) fn names_a_dot_component(segment: &str) -> bool {
     segment.starts_with('.') && segment != "." && segment != ".."
 }
 
-fn starts_with_dot(name: &std::ffi::OsStr) -> bool {
+pub(super) fn starts_with_dot(name: &OsStr) -> bool {
     name.as_encoded_bytes().first() == Some(&b'.')
 }
 
-pub(super) fn is_literal_pattern(pattern: &str) -> bool {
+fn is_literal_pattern(pattern: &str) -> bool {
     !pattern
         .chars()
         .any(|ch| matches!(ch, '*' | '?' | '[' | ']' | '{' | '}'))
 }
 
-fn is_ignorable_walk_error(error: &std::io::Error) -> bool {
-    error.kind() == ErrorKind::NotFound || is_symlink_loop(error)
-}
-
 fn is_symlink_loop(error: &std::io::Error) -> bool {
-    is_raw_loop_error(error) || is_filesystem_loop_kind(error.kind()) || is_wax_link_cycle(error)
+    is_raw_loop_error(error) || is_filesystem_loop_kind(error.kind())
 }
 
 fn is_filesystem_loop_kind(kind: ErrorKind) -> bool {
     // `ErrorKind::FilesystemLoop` is unstable in the standard library (rust-lang/rust#86442).
     // Matching its debug representation recognizes the standard library enum variant structurally.
     format!("{kind:?}") == "FilesystemLoop"
-}
-
-fn is_wax_link_cycle(error: &std::io::Error) -> bool {
-    if let Some(walk_err) =
-        error.get_ref().and_then(|err| err.downcast_ref::<wax::walk::WalkError>())
-    {
-        return walk_err.to_string().contains("symbolic link cycle");
-    }
-    false
 }
 
 #[cfg(unix)]
@@ -337,3 +348,17 @@ fn is_raw_loop_error(error: &std::io::Error) -> bool {
 fn is_raw_loop_error(_error: &std::io::Error) -> bool {
     false
 }
+
+/// Hardcoded ignore patterns. Enumerating a real workspace excludes
+/// only `node_modules` and `bower_components`, not the `**/test/**` /
+/// `**/tests/**` directories that the lower-level package-finding path
+/// excludes.
+const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
+
+/// Prunes every path with a dot-prefixed component, so a wildcard cannot
+/// descend into `.git`, `.cache`, and friends. Applied only to patterns that
+/// do not name a dot component themselves — see [`positional_dot_ignores`].
+const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
+
+mod ancestors;
+mod glob;
