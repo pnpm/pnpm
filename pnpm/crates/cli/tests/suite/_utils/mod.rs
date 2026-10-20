@@ -15,7 +15,7 @@ use pnpm_workspace_state::WorkspaceState;
 use serde_json::{Map, Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
@@ -24,6 +24,13 @@ use std::{
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
+
+pub fn read_v11_bundle_path() -> Option<OsString> {
+    std::env::var_os("PNPM_V11_BUNDLE")
+        .map(|bundle| {
+            std::path::absolute(bundle).expect("resolve the pnpm v11 bundle path").into_os_string()
+        })
+}
 
 #[cfg(unix)]
 pub fn write_executable(path: &Path, body: &str) {
