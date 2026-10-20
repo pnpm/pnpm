@@ -5,6 +5,19 @@ import { describe, expect, test } from '@jest/globals'
 import { createCliConfigArgs } from '../src/runDepsStatusCheck.js'
 
 describe('createCliConfigArgs', () => {
+  test.each([true, false])('resolves a relative store against the install root (workspace: %s)', (workspace) => {
+    const dir = path.resolve('workspace/packages/project')
+    const workspaceDir = workspace ? path.resolve('workspace') : undefined
+    expect(createCliConfigArgs({
+      dir,
+      workspaceDir,
+      storeDir: '.store',
+      cliOptions: { 'store-dir': '.store' },
+    })).toStrictEqual([
+      `--config.store-dir=${path.join(workspaceDir ?? dir, '.store')}`,
+    ])
+  })
+
   test('returns empty array when rawCliConfig is not provided or empty', () => {
     expect(createCliConfigArgs({})).toStrictEqual([])
     expect(createCliConfigArgs({ rawCliConfig: {} })).toStrictEqual([])

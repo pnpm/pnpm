@@ -400,7 +400,7 @@ const FORWARDED_CLI_OPTION_SET = new Set<string>(INSTALL_CLI_OPTION_NAMES)
 export type CliConfigArgsOptions = Pick<
   RunDepsStatusCheckOptions,
   'cacheDir' | 'cliOptions' | 'globalDir' | 'lockfileDir' | 'npmrcAuthFile' | 'rawCliConfig' | 'stateDir' | 'storeDir'
->
+> & Partial<Pick<RunDepsStatusCheckOptions, 'dir' | 'workspaceDir'>>
 
 /**
  * The command line's install-relevant flags and `--config.*` options, which
@@ -445,7 +445,11 @@ function formatCliConfigEntry (key: string, value: unknown): string[] {
 
 function resolvedPathOverride (key: string, opts: CliConfigArgsOptions): string | undefined {
   const raw = rawPathOverride(key, opts)
-  return raw != null ? path.resolve(raw) : undefined
+  if (raw == null) return undefined
+  if (key === 'store-dir') {
+    return path.resolve(opts.workspaceDir ?? opts.dir ?? process.cwd(), raw)
+  }
+  return path.resolve(raw)
 }
 
 function rawPathOverride (key: string, opts: CliConfigArgsOptions): string | undefined {

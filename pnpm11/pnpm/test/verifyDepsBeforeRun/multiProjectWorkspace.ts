@@ -767,6 +767,29 @@ test('filtered install accepts a touched lockfile with unchanged contents', asyn
 })
 
 // https://github.com/pnpm/pnpm/issues/17011
+test('verification-triggered installs retain a relative workspace store from a project directory', async () => {
+  const projects = preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { location: 'packages/app', package: { name: 'app', dependencies: { '@pnpm.e2e/foo': '100.0.0' } } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  await execPnpm(['install', '--store-dir=.store'])
+  projects.app.writePackageJson({
+    name: 'app',
+    dependencies: { '@pnpm.e2e/foo': '100.0.0', '@pnpm.e2e/bar': '100.0.0' },
+  })
+  await execPnpm(['install', '--store-dir=.store', '--lockfile-only'])
+
+  const cwd = path.resolve('packages/app')
+  execPnpmSync(['--store-dir=.store', '--config.verify-deps-before-run=install', 'exec', 'node', '-e', '0'], {
+    cwd,
+    expectSuccess: true,
+  })
+  expect(fs.existsSync(path.join(cwd, 'node_modules/@pnpm.e2e/bar'))).toBe(true)
+  expect(fs.existsSync(path.join(cwd, '.store'))).toBe(false)
+  execPnpmSync(['--store-dir=.store', ...CONFIG, 'exec', 'node', '-e', '0'], { cwd, expectSuccess: true })
+})
+
 test('a filtered command for a project another filtered install left behind after a pull', async () => {
   const manifest = (name: string, dependencies: Record<string, string>): ProjectManifest => ({
     name,

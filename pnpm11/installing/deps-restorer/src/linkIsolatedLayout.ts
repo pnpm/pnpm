@@ -41,9 +41,6 @@ export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: Headle
       },
     })
   }
-  if ((ctx.currentLockfile != null) && !equals(depGraph.importerIds.sort(), Object.keys(depGraph.filteredLockfile.importers).sort())) {
-    Object.assign(depGraph.filteredLockfile.packages!, ctx.currentLockfile.packages)
-  }
   return {
     heldBackBinsDirs: [],
     linkedToRoot: await symlinkDirectDependenciesOfProjects(ctx, depGraph),
