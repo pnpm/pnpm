@@ -72,6 +72,11 @@ const CASES: &[(&str, &str, bool, bool)] = &[
     ("{a,b}/part{1..3}.js", "b/part2.js", false, true),
     ("part{1..3}{a,b}.js", "part2b.js", false, true),
     ("part{1..{2,3}}.js", "part3.js", false, true),
+    ("part{a..c}.js", "partb.js", false, true),
+    ("part{a..c}.js", "partd.js", false, false),
+    ("part{e..a..2}.js", "partc.js", false, true),
+    ("part{e..a..2}.js", "partb.js", false, false),
+    ("part{a..1}.js", "part{a..1}.js", false, true),
 ];
 
 #[test]
@@ -136,6 +141,15 @@ fn comma_brace_groups_keep_the_expansion_byte_limit() {
     eprintln!("pattern length: {}", pattern.len());
     assert!(IgnoreRule::parse(&expanded_name).matches(&expanded_name, false));
     assert!(!rule.matches(&expanded_name, false));
+}
+
+#[test]
+fn numeric_brace_ranges_pad_beyond_the_formatter_width_limit() {
+    let padding = "0".repeat(usize::from(u16::MAX));
+    let pattern = format!("part{{{padding}1..{padding}2}}.js");
+    let rule = IgnoreRule::parse(&pattern);
+    eprintln!("pattern length: {}", pattern.len());
+    assert!(rule.matches(&format!("part{padding}2.js"), false));
 }
 
 #[test]

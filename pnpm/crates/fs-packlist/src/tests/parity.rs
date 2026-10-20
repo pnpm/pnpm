@@ -59,6 +59,10 @@ fn file_selection_matches_typescript_packlist() {
             "part2.js",
             "part3.js",
             "part4.js",
+            "parta.js",
+            "partb.js",
+            "partc.js",
+            "partd.js",
             "part1a.js",
             "part2b.js",
             "part3a.js",
@@ -176,6 +180,8 @@ fn manifests() -> Vec<Value> {
         json!(["part{01..03}.js"]),
         json!(["part{-03..01}.js"]),
         json!(["part{1..3}{a,b}.js"]),
+        json!(["part{a..c}.js"]),
+        json!(["part{d..a..2}.js"]),
         json!(["*.js", "!part{1..3}.js"]),
     ] {
         manifests.push(json!({ "files": files }));

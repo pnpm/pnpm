@@ -13,8 +13,9 @@ replaces the root `.npmignore` or `.gitignore`; ignore files inside selected
 subdirectories still apply. An explicitly named file or internal symlink is
 included even when its parent directory is excluded.
 
-Numeric brace ranges expand to individual values. For example, `part{1..3}.js`
-matches `part1.js`, `part2.js`, and `part3.js`. Ranges support descending values,
+Brace ranges expand to individual values. For example, `part{1..3}.js`
+matches `part1.js`, `part2.js`, and `part3.js`, and `part{a..c}.js` matches
+`parta.js`, `partb.js`, and `partc.js`. Ranges support descending values,
 steps such as `part{1..5..2}.js`, and zero padding such as `part{01..03}.js`.
 A zero step uses the default increment of 1. Padding in a step such as
 `part{1..10..02}.js` also pads the results to the wider endpoint's width.

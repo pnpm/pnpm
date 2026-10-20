@@ -1,10 +1,10 @@
 //! One `.npmignore` / `.gitignore` line, matched the way ignore-walk matches
 //! it: minimatch with `matchBase`, `dot`, `nocase`, and `flipNegate`.
 
-mod numeric_range;
+mod sequence;
 
 use super::segment::{LiteralCase, SegmentPattern};
-use numeric_range::NumericRange;
+use sequence::Sequence;
 use std::{collections::HashSet, iter};
 
 /// Brace expansion stops after this many alternatives, or once it has
@@ -176,7 +176,7 @@ fn match_globstar(
     partial
 }
 
-/// Expands brace alternatives and numeric ranges up to
+/// Expands brace alternatives and sequences up to
 /// [`MAX_BRACE_ALTERNATIVES`] and [`MAX_BRACE_EXPANSION_BYTES`].
 fn expand_braces(pattern: &str) -> Vec<String> {
     let mut pending = vec![pattern.to_string()];
@@ -205,7 +205,7 @@ fn expand_braces(pattern: &str) -> Vec<String> {
 
 enum Expansion {
     Alternation(Alternation),
-    Range { open: usize, close: usize, range: NumericRange },
+    Range { open: usize, close: usize, range: Sequence },
 }
 
 impl Expansion {
@@ -271,7 +271,7 @@ impl Alternation {
     }
 }
 
-/// The first completed brace group with alternatives or a numeric range.
+/// The first completed brace group with alternatives or a sequence.
 fn find_expansion(pattern: &str) -> Option<Expansion> {
     let bytes = pattern.as_bytes();
     let mut open_stack: Vec<(usize, Vec<usize>)> = Vec::new();
@@ -304,8 +304,7 @@ fn completed_expansion(
     if !commas.is_empty() {
         return Some(Expansion::Alternation(Alternation { open, close, commas }));
     }
-    NumericRange::parse(&pattern[open + 1..close])
-        .map(|range| Expansion::Range { open, close, range })
+    Sequence::parse(&pattern[open + 1..close]).map(|range| Expansion::Range { open, close, range })
 }
 
 /// Records a comma for the innermost open brace, up to
