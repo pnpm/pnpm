@@ -52,6 +52,9 @@
       "path": "../../pkg-manifest/reader"
     },
     {
+      "path": "../../resolving/git-resolver"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

@@ -549,7 +549,17 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
         (
             format!("github:kevva/is-positive#{COMMIT}"),
             format!("github:kevva/is-positive#{}", "1".repeat(40)),
-            codeload,
+            codeload.clone(),
+        ),
+        (
+            format!("https://github.com/kevva/is-positive.git#{COMMIT}"),
+            format!("https://github.com/kevva/is-positive.git#{}", "1".repeat(40)),
+            codeload.clone(),
+        ),
+        (
+            format!("github:kevva/is-positive#{COMMIT}&path:/sub"),
+            format!("github:kevva/is-positive#{}&path:/sub", "1".repeat(40)),
+            format!("{codeload}#path:/sub"),
         ),
     ];
     for (locked_spec, other_spec, locked_ref) in cases {

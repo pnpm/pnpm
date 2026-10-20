@@ -1282,13 +1282,15 @@ describe('local file dependency', () => {
     expect(await check(false)).toBe(false)
   })
 
+  const commit = '97edff6f525f192a3f83cea1944765f769ae2678'
+  const otherCommit = '1'.repeat(40)
+  const codeload = `https://codeload.github.com/kevva/is-positive/tar.gz/${commit}`
   test.each([
-    ['a tarball', 'https://example.com/is-positive-2.0.0.tgz', 'https://example.com/is-positive-3.0.0.tgz'],
-    ['a git commit', 'github:kevva/is-positive#97edff6f525f192a3f83cea1944765f769ae2678', 'github:kevva/is-positive#1111111111111111111111111111111111111111'],
-  ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec) => {
-    const lockedRef = lockedSpec.startsWith('https:')
-      ? lockedSpec
-      : 'https://codeload.github.com/kevva/is-positive/tar.gz/97edff6f525f192a3f83cea1944765f769ae2678'
+    ['a tarball', 'https://example.com/is-positive-2.0.0.tgz', 'https://example.com/is-positive-3.0.0.tgz', 'https://example.com/is-positive-2.0.0.tgz'],
+    ['a git commit', `github:kevva/is-positive#${commit}`, `github:kevva/is-positive#${otherCommit}`, codeload],
+    ['an https git commit', `https://github.com/kevva/is-positive.git#${commit}`, `https://github.com/kevva/is-positive.git#${otherCommit}`, codeload],
+    ['a git commit with a path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${otherCommit}&path:/sub`, `${codeload}#path:/sub`],
+  ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec, lockedRef) => {
     const lockfilePackages = {
       ...options.wantedLockfile.packages,
       'local@file:./local-dir': {

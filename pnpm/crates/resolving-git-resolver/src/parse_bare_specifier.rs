@@ -94,6 +94,19 @@ pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
     }))
 }
 
+/// The committish a git spec asks for: `None` when `bare` is not a git
+/// spec, `Some(None)` when it asks for no committish or only a semver
+/// range.
+#[must_use]
+pub fn git_spec_committish(bare: &str) -> Option<Option<String>> {
+    Some(match parse_bare_specifier(bare)? {
+        PartialSpec::Hosted(hosted) => {
+            parse_git_params(hosted.committish.as_deref()).git_committish
+        }
+        PartialSpec::Direct(spec) => spec.git_committish,
+    })
+}
+
 /// Check whether the input contains `.git` as a path suffix (`.git#` or
 /// `.git` at end-of-string).
 fn contains_dot_git_at_end(bare: &str) -> bool {

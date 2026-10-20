@@ -55,16 +55,16 @@ fn is_locked_to_other_source(spec: &str, lockfile_dep: &pnpm_lockfile::SnapshotD
         Some(pnpm_lockfile::VersionPart::NonSemver(raw)) => raw.as_str(),
         _ => "",
     };
-    if let Some(tarball_id) = pnpm_resolving_tarball_resolver::remote_tarball_id(spec) {
-        return tarball_id.ok().as_deref() != Some(locked_id);
-    }
-    spec.rsplit_once('#')
-        .is_some_and(|(_, commit)| {
-            is_full_commit(commit)
+    if let Some(committish) = pnpm_resolving_git_resolver::git_spec_committish(spec) {
+        return committish.is_some_and(|commit| {
+            is_full_commit(&commit)
                 && !locked_id
-                    .to_ascii_lowercase()
-                    .ends_with(&commit.to_ascii_lowercase())
-        })
+                    .split(['#', '&', '/'])
+                    .any(|segment| segment.eq_ignore_ascii_case(&commit))
+        });
+    }
+    pnpm_resolving_tarball_resolver::remote_tarball_id(spec)
+        .is_some_and(|tarball_id| tarball_id.ok().as_deref() != Some(locked_id))
 }
 
 fn is_full_commit(committish: &str) -> bool {

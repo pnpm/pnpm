@@ -7,9 +7,9 @@ import semver from 'semver'
 
 import { createGitHostedPkgId } from './createGitHostedPkgId.js'
 import { lsRemote } from './lsRemote.js'
-import { type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
+import { gitSpecCommittish, type HostedPackageSpec, parseBareSpecifier } from './parseBareSpecifier.js'
 
-export { createGitHostedPkgId }
+export { createGitHostedPkgId, gitSpecCommittish }
 
 export type { HostedPackageSpec }
 

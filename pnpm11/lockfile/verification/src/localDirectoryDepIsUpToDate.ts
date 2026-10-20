@@ -14,6 +14,7 @@ import {
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { gitSpecCommittish } from '@pnpm/resolving.git-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -223,12 +224,15 @@ function isLocalSpec (spec: string): boolean {
  */
 function isLockedToOtherSource (spec: string, depPath: string): boolean {
   const lockedId = removeSuffix(depPath)
+  const committish = gitSpecCommittish(spec)
+  if (committish !== undefined) {
+    return committish != null && /^[0-9a-f]{40}$/i.test(committish) &&
+      !lockedId.toLowerCase().split(/[#&/]/).includes(committish.toLowerCase())
+  }
   if (spec.startsWith('http:') || spec.startsWith('https:')) {
     return !URL.canParse(spec) || !lockedId.endsWith(`@${new URL(spec).toString()}`)
   }
-  const commit = spec.slice(spec.lastIndexOf('#') + 1)
-  return spec.includes('#') && /^[0-9a-f]{40}$/i.test(commit) &&
-    !lockedId.toLowerCase().endsWith(commit.toLowerCase())
+  return false
 }
 
 /** The dependency path, name, version and registry of the package a dependency is locked to. */
