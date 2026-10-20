@@ -3,13 +3,19 @@
 //! order, and the workspace dependencies a selection reaches.
 
 use super::{RecursiveSelection, filter_against, recursive_filter_options};
-use crate::cli_args::verify_deps::with_dependencies;
+use crate::cli_args::{
+    catalogs::{configured_catalogs, workspace_catalogs},
+    verify_deps::with_dependencies,
+};
 use indexmap::IndexMap;
+use pnpm_catalogs_resolver::{
+    CatalogAnchor, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_workspace_projects_graph::ProjectGraph;
+use pnpm_workspace_projects_graph::{ProjectGraph, WorkspaceCatalogs};
 use rayon::prelude::*;
 use std::{
     collections::{HashMap, HashSet},
@@ -154,13 +160,21 @@ pub fn projects_to_verify<'dirs>(
     // depends on it, which that project's own install covers; explicit `link:`
     // dependencies remain symlinks and still need their target project installed.
     let only_linked = !config.shares_one_lockfile() && config.inject_workspace_packages;
+    let catalogs = if only_linked { Some(configured_catalogs(config)?) } else { None };
+    let ws_catalogs = catalogs.as_ref().and_then(|catalogs| workspace_catalogs(config, catalogs));
     let mut projects = projects_with_workspace_dependencies_filtered(
         project_dirs.iter().copied(),
         selection.full_graph(),
         selection.prod_all.as_ref(),
         &selection.prod_only_selected,
-        |parent_dir, pkg, dep_dir| {
-            !only_linked || has_link_dependency_to(parent_dir, &pkg.project.manifest, dep_dir)
+        |parent_dir, pkg, deps| {
+            retained_dependency_dirs(
+                parent_dir,
+                &pkg.project.manifest,
+                deps,
+                only_linked,
+                ws_catalogs,
+            )
         },
     );
     if config.shares_one_lockfile() && has_negated_selector(config) {
@@ -171,12 +185,31 @@ pub fn projects_to_verify<'dirs>(
     Ok(projects)
 }
 
-fn has_link_dependency_to(
+fn retained_dependency_dirs<'graph>(
     parent_dir: &Path,
     manifest: &PackageManifest,
-    target_dir: &Path,
-) -> bool {
-    let resolved_target = lexical_normalize(target_dir);
+    deps: &'graph [PathBuf],
+    only_linked: bool,
+    catalogs: Option<WorkspaceCatalogs<'_>>,
+) -> Vec<&'graph Path> {
+    if !only_linked || deps.is_empty() {
+        return deps
+            .iter()
+            .map(PathBuf::as_path)
+            .collect();
+    }
+    let linked = linked_dependency_dirs(parent_dir, manifest, catalogs);
+    deps.iter()
+        .map(PathBuf::as_path)
+        .filter(|dep_dir| linked.contains(&lexical_normalize(dep_dir)))
+        .collect()
+}
+
+fn linked_dependency_dirs(
+    parent_dir: &Path,
+    manifest: &PackageManifest,
+    catalogs: Option<WorkspaceCatalogs<'_>>,
+) -> rustc_hash::FxHashSet<PathBuf> {
     manifest
         .dependencies([
             DependencyGroup::Prod,
@@ -184,12 +217,35 @@ fn has_link_dependency_to(
             DependencyGroup::Optional,
             DependencyGroup::Peer,
         ])
-        .any(|(_, spec)| {
-            spec.strip_prefix("link:")
-                .is_some_and(|rel| {
-                    lexical_normalize(&parent_dir.join(rel.replace('\\', "/"))) == resolved_target
-                })
+        .filter_map(|(dep_name, raw_spec)| {
+            let resolved = resolve_catalog_spec(parent_dir, dep_name, raw_spec, catalogs);
+            let spec = resolved.as_deref().unwrap_or(raw_spec);
+            let rel = spec.strip_prefix("link:")?;
+            Some(lexical_normalize(&parent_dir.join(rel.replace('\\', "/"))))
         })
+        .collect()
+}
+
+fn resolve_catalog_spec(
+    consumer_dir: &Path,
+    dep_name: &str,
+    raw_spec: &str,
+    catalogs: Option<WorkspaceCatalogs<'_>>,
+) -> Option<String> {
+    let catalogs = catalogs?;
+    if !raw_spec.starts_with("catalog:") {
+        return None;
+    }
+    let wanted =
+        WantedDependency { alias: dep_name.to_string(), bare_specifier: raw_spec.to_string() };
+    let anchor = CatalogAnchor::Reanchor {
+        workspace_dir: catalogs.workspace_dir,
+        consumer_dir: Some(consumer_dir),
+    };
+    match resolve_from_catalog(catalogs.catalogs, &wanted, anchor) {
+        CatalogResolutionResult::Found(found) => Some(found.resolution.specifier),
+        CatalogResolutionResult::Misconfiguration(_) | CatalogResolutionResult::Unused => None,
+    }
 }
 
 fn has_negated_selector(config: &Config) -> bool {
@@ -227,8 +283,9 @@ fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
 }
 
 /// `project_dirs` together with every workspace project they depend on,
-/// directly or transitively, along the edges `(parent_dir, &parent_node.package,
-/// dependency_dir)` that `follow_edge` accepts.
+/// directly or transitively, along the dependency edges that `filter_edges`
+/// retains for each parent node `(parent_dir, &parent_node.package,
+/// &parent_node.dependencies)`.
 ///
 /// The install a gated command spawns selects the dependencies of the projects
 /// the command selected, so a project whose workspace dependency has no modules
@@ -239,18 +296,18 @@ fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
 ///
 /// Each graph keeps one visited set across all roots, so a dependency shared
 /// by several selected projects is walked once.
-pub(super) fn projects_with_workspace_dependencies_filtered<'graph, 'dirs, Pkg, Follow>(
+pub(super) fn projects_with_workspace_dependencies_filtered<'graph, 'dirs, Pkg, Filter>(
     project_dirs: impl IntoIterator<Item = &'dirs Path>,
     all: &'graph ProjectGraph<Pkg>,
     prod_all: Option<&'graph ProjectGraph<Pkg>>,
     prod_only_selected: &HashSet<PathBuf>,
-    follow_edge: Follow,
+    filter_edges: Filter,
 ) -> Vec<PathBuf>
 where
-    Follow: Fn(&Path, &Pkg, &Path) -> bool,
+    Filter: Fn(&Path, &Pkg, &'graph [PathBuf]) -> Vec<&'graph Path>,
 {
-    let mut all_walk = DependencyWalk::new(all, &follow_edge);
-    let mut prod_walk = prod_all.map(|graph| DependencyWalk::new(graph, &follow_edge));
+    let mut all_walk = DependencyWalk::new(all, &filter_edges);
+    let mut prod_walk = prod_all.map(|graph| DependencyWalk::new(graph, &filter_edges));
     let mut outside_graph: Vec<&Path> = Vec::new();
     for project_dir in project_dirs {
         let walk = match &mut prod_walk {
@@ -272,22 +329,22 @@ where
 }
 
 /// A walk along the dependency edges of one graph, from any number of roots.
-struct DependencyWalk<'graph, 'follow, Pkg, Follow> {
+struct DependencyWalk<'graph, 'filter, Pkg, Filter> {
     graph: &'graph ProjectGraph<Pkg>,
-    follow_edge: &'follow Follow,
+    filter_edges: &'filter Filter,
     seen: rustc_hash::FxHashSet<&'graph Path>,
     /// The projects reached, in the order they were first reached.
     visited: Vec<&'graph Path>,
 }
 
-impl<'graph, 'follow, Pkg, Follow> DependencyWalk<'graph, 'follow, Pkg, Follow>
+impl<'graph, 'filter, Pkg, Filter> DependencyWalk<'graph, 'filter, Pkg, Filter>
 where
-    Follow: Fn(&Path, &Pkg, &Path) -> bool,
+    Filter: Fn(&Path, &Pkg, &'graph [PathBuf]) -> Vec<&'graph Path>,
 {
-    fn new(graph: &'graph ProjectGraph<Pkg>, follow_edge: &'follow Follow) -> Self {
+    fn new(graph: &'graph ProjectGraph<Pkg>, filter_edges: &'filter Filter) -> Self {
         DependencyWalk {
             graph,
-            follow_edge,
+            filter_edges,
             seen: rustc_hash::FxHashSet::default(),
             visited: Vec::new(),
         }
@@ -304,23 +361,15 @@ where
             return true;
         }
         self.visited.push(root.as_path());
-        let mut stack: Vec<&'graph Path> = node.dependencies
-            .iter()
-            .map(PathBuf::as_path)
-            .filter(|dep_dir| (self.follow_edge)(root, &node.package, dep_dir))
-            .collect();
+        let mut stack: Vec<&'graph Path> =
+            (self.filter_edges)(root, &node.package, &node.dependencies);
         while let Some(project_dir) = stack.pop() {
             if !self.seen.insert(project_dir) {
                 continue;
             }
             self.visited.push(project_dir);
             if let Some(node) = self.graph.get(project_dir) {
-                stack.extend(
-                    node.dependencies
-                        .iter()
-                        .map(PathBuf::as_path)
-                        .filter(|dep_dir| (self.follow_edge)(project_dir, &node.package, dep_dir)),
-                );
+                stack.extend((self.filter_edges)(project_dir, &node.package, &node.dependencies));
             }
         }
         true

@@ -33,7 +33,11 @@ fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
         all,
         prod_all,
         prod_only_selected,
-        |_, _, _| true,
+        |_, _, deps| {
+            deps.iter()
+                .map(PathBuf::as_path)
+                .collect()
+        },
     )
 }
 
@@ -279,6 +283,11 @@ fn projects_with_workspace_dependencies_lists_a_shared_dependency_once() {
 #[test]
 fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link_edges() {
     let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - '*'\ncatalog:\n  d: link:./d\n",
+    )
+    .unwrap();
     let write_project = |name: &str, json: &str| {
         let dir = tmp.path().join(name);
         fs::create_dir_all(&dir).unwrap();
@@ -292,16 +301,21 @@ fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link
     };
     let pkg_a = write_project(
         "a",
-        r#"{"name":"a","version":"1.0.0","dependencies":{"b":"workspace:*","c":"link:../c"}}"#,
+        r#"{"name":"a","version":"1.0.0","dependencies":{"b":"workspace:*","c":"link:../c","d":"catalog:"}}"#,
     );
     let pkg_b = write_project("b", r#"{"name":"b","version":"1.0.0"}"#);
     let pkg_c = write_project("c", r#"{"name":"c","version":"1.0.0"}"#);
+    let pkg_d = write_project("d", r#"{"name":"d","version":"1.0.0"}"#);
     let all: ProjectGraph<GraphPkg<'_>> = [
         (
             pkg_a.root_dir.clone(),
             ProjectGraphNode {
                 package: GraphPkg { project: &pkg_a },
-                dependencies: vec![pkg_b.root_dir.clone(), pkg_c.root_dir.clone()],
+                dependencies: vec![
+                    pkg_b.root_dir.clone(),
+                    pkg_c.root_dir.clone(),
+                    pkg_d.root_dir.clone(),
+                ],
             },
         ),
         (
@@ -311,6 +325,10 @@ fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link
         (
             pkg_c.root_dir.clone(),
             ProjectGraphNode { package: GraphPkg { project: &pkg_c }, dependencies: Vec::new() },
+        ),
+        (
+            pkg_d.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_d }, dependencies: Vec::new() },
         ),
     ]
     .into_iter()
@@ -327,13 +345,14 @@ fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link
         verify_deps_before_run: VerifyDepsBeforeRun::Error,
         shared_workspace_lockfile: false,
         inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
         ..Config::default()
     };
 
     let mut verified =
         projects_to_verify([pkg_a.root_dir.as_path()], &selection, &config, tmp.path()).unwrap();
     verified.sort();
-    let mut expected = vec![pkg_a.root_dir, pkg_c.root_dir];
+    let mut expected = vec![pkg_a.root_dir, pkg_c.root_dir, pkg_d.root_dir];
     expected.sort();
     assert_eq!(verified, expected);
 }
