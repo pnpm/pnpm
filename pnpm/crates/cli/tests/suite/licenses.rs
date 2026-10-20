@@ -211,6 +211,11 @@ fn licenses_does_not_use_root_dependencies_for_an_unrecorded_workspace_project()
         .expect("run licenses");
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout), "{}\n");
+
+    assert_eq!(
+        listed_names(workspace.path(), &["--recursive", "licenses", "list", "--json"]),
+        ["alpha"],
+    );
 }
 
 #[test]

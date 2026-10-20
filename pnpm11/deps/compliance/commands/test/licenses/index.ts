@@ -155,6 +155,7 @@ test('pnpm licenses: a workspace package missing from the lockfile has no record
   const projectDir = path.join(workspaceDir, 'new-pkg')
   fs.mkdirSync(projectDir)
   fs.writeFileSync(path.join(projectDir, 'package.json'), '{"name":"new-pkg"}')
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - new-pkg\n')
 
   const { output, exitCode } = await licenses.handler({
     ...DEFAULT_OPTS,
@@ -164,6 +165,19 @@ test('pnpm licenses: a workspace package missing from the lockfile has no record
   }, ['list'])
   expect(exitCode).toBe(0)
   expect(JSON.parse(output)).toEqual({})
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const recursiveResult = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    selectedProjectsGraph,
+    recursive: true,
+    json: true,
+  }, ['list'])
+  expect(recursiveResult.exitCode).toBe(0)
+  const packages = Object.values(JSON.parse(recursiveResult.output) as Record<string, Array<{ name: string }>>).flat()
+  expect(packages.map(({ name }) => name)).toEqual(['is-positive'])
 })
 
 test('pnpm licenses: paths point at the packages placed by the hoisted linker', async () => {
