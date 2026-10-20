@@ -222,7 +222,7 @@ fn prune_workspace_project_hoists(
 /// Remove the `@scope` directory of a scoped `alias` once its last link is
 /// gone. The removal fails, and keeps the directory, while other scoped
 /// packages are in it.
-fn remove_emptied_scope_dir(target_dir: &Path, alias: &str) {
+pub(crate) fn remove_emptied_scope_dir(target_dir: &Path, alias: &str) {
     let Some((scope, _)) = alias.split_once('/') else { return };
     let scope_dir = target_dir.join(scope);
     if is_real_dir(&scope_dir) {
@@ -249,13 +249,15 @@ fn unlink_stale_direct_deps<Reporter: self::Reporter>(
         if still_wanted && !deduped_by_root {
             continue;
         }
-        remove_direct_dep_link(modules_dir, &alias.to_string())?;
+        let alias_name = alias.to_string();
+        remove_direct_dep_link(modules_dir, &alias_name)?;
+        remove_emptied_scope_dir(modules_dir, &alias_name);
         Reporter::emit(&LogEvent::Root(RootLog {
             level: LogLevel::Debug,
             message: RootMessage::Removed {
                 prefix: prefix.to_owned(),
                 removed: RemovedRoot {
-                    name: alias.to_string(),
+                    name: alias_name,
                     version: removed_version(current_spec),
                     dependency_type: Some(dependency_type(group)),
                 },
@@ -372,7 +374,7 @@ fn unlink_hoisted_aliases(
 
 /// The `(alias, spec, group)` view of an importer snapshot, in the
 /// prod → dev → optional order pnpm merges the maps in.
-fn direct_deps_of<'a>(
+pub(crate) fn direct_deps_of<'a>(
     snapshot: &'a ProjectSnapshot,
     groups: &[DependencyGroup],
 ) -> Vec<(&'a PkgName, &'a ResolvedDependencySpec, DependencyGroup)> {

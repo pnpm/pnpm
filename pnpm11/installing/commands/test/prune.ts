@@ -186,4 +186,6 @@ test('cliOptionsTypes', () => {
   expect(prune.cliOptionsTypes()).toHaveProperty('dev')
   expect(prune.cliOptionsTypes()).toHaveProperty('ignore-scripts')
   expect(prune.cliOptionsTypes()).toHaveProperty('optional')
+  expect(prune.cliOptionsTypes()).toHaveProperty('recursive')
+  expect(prune.rcOptionsTypes()).not.toHaveProperty('recursive')
 })

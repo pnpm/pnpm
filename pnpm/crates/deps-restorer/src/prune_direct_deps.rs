@@ -16,7 +16,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
 use pnpm_config::Config;
-use pnpm_fs::{read_symlink_dir, remove_symlink_dir};
+use pnpm_fs::{read_symlink_dir, remove_dirent, remove_symlink_dir};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
@@ -52,6 +52,14 @@ pub enum PruneDirectDepsError {
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_REMOVE_BIN))]
     RemoveBin {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to read {path:?} while pruning direct dependencies: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_READ_MODULES_DIR))]
+    ReadModulesDir {
         path: PathBuf,
         #[error(source)]
         error: io::Error,
@@ -235,6 +243,43 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(PruneDirectDepsError::RemoveLink { path: link, error }),
+    }
+}
+
+/// Remove an extraneous entry (symlink, directory, or file) at
+/// `<modules_dir>/<name>` during `pnpm prune`, returning its manifest
+/// version (if readable) when an entry was removed.
+pub(crate) fn remove_extraneous_direct_dep(
+    modules_dir: &Path,
+    name: &str,
+) -> Result<Option<Option<String>>, PruneDirectDepsError> {
+    let pkg_dir =
+        safe_join_modules_dir(modules_dir, name).map_err(PruneDirectDepsError::InvalidAlias)?;
+    if let Some(parent) = pkg_dir.parent()
+        && parent != modules_dir
+        && !is_real_dir(parent)
+    {
+        return Ok(None);
+    }
+    match fs::symlink_metadata(&pkg_dir) {
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(PruneDirectDepsError::RemoveLink { path: pkg_dir, error }),
+    }
+    let version = fs::read(pkg_dir.join("package.json"))
+        .ok()
+        .and_then(|bytes| parse_manifest_bytes(&bytes).ok())
+        .and_then(|manifest| {
+            manifest
+                .get("version")
+                .and_then(|v| v.as_str())
+                .map(str::to_owned)
+        });
+    remove_dep_bins(modules_dir, &pkg_dir)?;
+    match remove_dirent(&pkg_dir) {
+        Ok(()) => Ok(Some(version)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(PruneDirectDepsError::RemoveLink { path: pkg_dir, error }),
     }
 }
 

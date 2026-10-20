@@ -309,3 +309,212 @@ fn prune_offline_honors_trust_lockfile() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn prune_removes_extraneous_direct_packages_when_lockfile_is_up_to_date() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let extraneous_dir = workspace.join("node_modules/extraneous-pkg");
+    fs::create_dir_all(&extraneous_dir).expect("create extraneous package dir");
+    fs::write(
+        extraneous_dir.join("package.json"),
+        r#"{"name":"extraneous-pkg","version":"1.0.0"}"#,
+    )
+    .expect("write extraneous package.json");
+
+    let extraneous_scoped_dir = workspace.join("node_modules/@extraneous/scoped-pkg");
+    fs::create_dir_all(&extraneous_scoped_dir).expect("create extraneous scoped package dir");
+    fs::write(
+        extraneous_scoped_dir.join("package.json"),
+        r#"{"name":"@extraneous/scoped-pkg","version":"1.0.0"}"#,
+    )
+    .expect("write extraneous scoped package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("prune")
+        .assert()
+        .success();
+
+    assert!(has_link(&workspace, "is-positive"));
+    assert!(!extraneous_dir.exists(), "extraneous direct package must be removed");
+    assert!(
+        !workspace.join("node_modules/@extraneous").exists(),
+        "emptied extraneous scope dir must be removed",
+    );
+
+    // Also verify pruning extraneous direct packages when the project has zero dependencies.
+    fs::write(workspace.join("package.json"), r#"{"name":"empty-project","version":"1.0.0"}"#)
+        .expect("write empty package.json");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::create_dir_all(&extraneous_dir).expect("recreate extraneous package dir");
+    fs::write(
+        extraneous_dir.join("package.json"),
+        r#"{"name":"extraneous-pkg","version":"1.0.0"}"#,
+    )
+    .expect("write extraneous package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("prune")
+        .assert()
+        .success();
+
+    assert!(
+        !extraneous_dir.exists(),
+        "extraneous direct package must be removed even when project has zero dependencies",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn prune_respects_workspace_filter() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "workspace-root",
+            "private": true,
+            "devDependencies": { FILTERED: "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let pkg_a = workspace.join("packages/pkg-a");
+    let pkg_b = workspace.join("packages/pkg-b");
+    fs::create_dir_all(&pkg_a).expect("create pkg-a");
+    fs::create_dir_all(&pkg_b).expect("create pkg-b");
+
+    for (name, dir) in [("pkg-a", &pkg_a), ("pkg-b", &pkg_b)] {
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "is-positive": "1.0.0" },
+                "devDependencies": { "is-negative": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write member package.json");
+    }
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(has_link(&workspace, FILTERED));
+    assert!(has_link(&pkg_a, "is-positive"));
+    assert!(has_link(&pkg_a, "is-negative"));
+    assert!(has_link(&pkg_b, "is-positive"));
+    assert!(has_link(&pkg_b, "is-negative"));
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "pkg-a", "prune", "--prod"])
+        .assert()
+        .success();
+
+    assert!(has_link(&pkg_a, "is-positive"));
+    assert!(!has_link(&pkg_a, "is-negative"), "selected package devDependencies must be pruned");
+    assert!(has_link(&pkg_b, "is-positive"));
+    assert!(
+        has_link(&pkg_b, "is-negative"),
+        "unselected sibling package devDependencies must remain linked",
+    );
+    assert!(
+        has_link(&workspace, FILTERED),
+        "unselected workspace root devDependencies must remain linked",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn prune_supports_dedicated_workspace_lockfiles() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("package.json"), r#"{"name":"workspace-root","private":true}"#)
+        .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let pkg_a = workspace.join("packages/pkg-a");
+    let pkg_b = workspace.join("packages/pkg-b");
+    fs::create_dir_all(&pkg_a).expect("create pkg-a");
+    fs::create_dir_all(&pkg_b).expect("create pkg-b");
+
+    for (name, dir) in [("pkg-a", &pkg_a), ("pkg-b", &pkg_b)] {
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": name,
+                "version": "1.0.0",
+                "dependencies": { "is-positive": "1.0.0" },
+                "devDependencies": { "is-negative": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write member package.json");
+    }
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert!(has_link(&pkg_a, "is-negative"));
+    assert!(has_link(&pkg_b, "is-negative"));
+
+    // Filtered prune with sharedWorkspaceLockfile: false prunes only pkg-a.
+    pacquet_in(&workspace)
+        .with_args(["--filter", "pkg-a", "prune", "--prod"])
+        .assert()
+        .success();
+
+    assert!(has_link(&pkg_a, "is-positive"));
+    assert!(!has_link(&pkg_a, "is-negative"));
+    assert!(has_link(&pkg_b, "is-positive"));
+    assert!(has_link(&pkg_b, "is-negative"));
+
+    // Unfiltered prune at the workspace root prunes all workspace projects.
+    pacquet_in(&workspace)
+        .with_args(["prune", "--prod"])
+        .assert()
+        .success();
+
+    assert!(has_link(&pkg_b, "is-positive"));
+    assert!(!has_link(&pkg_b, "is-negative"));
+
+    drop((root, mock_instance));
+}

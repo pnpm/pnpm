@@ -254,7 +254,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     hoist: &PlannedHoist,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
-    prune_importer_tree::<Reporter>(inputs, hoist.plan.as_ref())?;
+    prune_importer_tree::<Reporter>(inputs, hoist)?;
 
     let scheduled_builds = inputs.scheduled_builds();
     let phase_start = std::time::Instant::now();
@@ -301,22 +301,36 @@ fn relink_importer_tree<Reporter: self::Reporter>(
 
 fn prune_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
-    hoist_plan: Option<&HoistPlan>,
+    hoist: &PlannedHoist,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
     let current_lockfile = inputs.graph.current_lockfile.unwrap_or(inputs.graph.lockfile);
+    let wanted_hoisted = hoist.plan.as_ref().map(|plan| &plan.result.hoisted_dependencies);
     let removed_count = crate::PruneStaleModules {
         config,
         workspace_root: inputs.projects.symlink_root,
         wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
         prior_hoisted_dependencies: inputs.prior.hoisted_dependencies,
-        wanted_hoisted_dependencies: hoist_plan.map(|plan| &plan.result.hoisted_dependencies),
+        wanted_hoisted_dependencies: wanted_hoisted,
         included_groups: inputs.projects.dependency_groups,
-        prune_orphans: inputs.prior.prune_orphans,
+        prune_orphans: inputs.prior.prune.orphans,
     }
     .run::<Reporter>()
     .map_err(LinkPhaseError::PruneStaleModules)?;
+    if inputs.prior.prune.direct_dependencies {
+        crate::prune_extraneous_deps::PruneExtraneousDirectDeps {
+            config,
+            workspace_root: inputs.projects.symlink_root,
+            wanted_lockfile: inputs.graph.lockfile,
+            wanted_hoisted_dependencies: wanted_hoisted,
+            public_hoist_targets: hoist.public_targets.as_ref(),
+            manifests: inputs.projects.manifests,
+            included_groups: inputs.projects.dependency_groups,
+        }
+        .run::<Reporter>()
+        .map_err(LinkPhaseError::PruneStaleModules)?;
+    }
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Removed {

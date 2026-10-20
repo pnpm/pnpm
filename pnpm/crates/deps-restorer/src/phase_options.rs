@@ -52,9 +52,15 @@ pub struct LinkPackageData<'a> {
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PruneTreeOptions {
+    pub orphans: bool,
+    pub direct_dependencies: bool,
+}
+
 #[derive(Clone, Copy)]
 pub struct PriorLinkState<'a> {
-    pub prune_orphans: bool,
+    pub prune: PruneTreeOptions,
     pub hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`; lets the hoisted linker leave packages that are

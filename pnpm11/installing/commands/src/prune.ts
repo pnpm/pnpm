@@ -6,15 +6,20 @@ import { renderHelp } from 'render-help'
 
 import * as install from './install.js'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes (): Record<string, unknown> {
+export function rcOptionsTypes (): Record<string, unknown> {
   return pick([
     'dev',
     'optional',
     'production',
     'ignore-scripts',
   ], allTypes)
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...rcOptionsTypes(),
+    recursive: Boolean,
+  }
 }
 
 export const commandNames = ['prune']
@@ -53,6 +58,7 @@ export async function handler (
   await install.handler({
     ...opts,
     modulesCacheMaxAge: 0,
+    optimisticRepeatInstall: false,
     pruneDirectDependencies: true,
     pruneStore: true,
   })

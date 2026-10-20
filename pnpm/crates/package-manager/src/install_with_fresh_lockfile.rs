@@ -236,7 +236,7 @@ pub(crate) struct FreshPriorInstall<'a> {
     /// See [`pnpm_deps_restorer::PriorLinkState::previously_skipped`].
     pub(crate) previously_skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
     /// See [`crate::PruneStaleModules::prune_orphans`].
-    pub(crate) prune_orphans: bool,
+    pub(crate) prune: pnpm_deps_restorer::PruneTreeOptions,
     /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
     pub(crate) relink_every_slot_bin: bool,
 }

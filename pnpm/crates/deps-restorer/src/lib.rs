@@ -85,7 +85,7 @@ pub use package_map::*;
 pub use phase_options::{
     BuildPhaseCache, BuildPhaseDirectories, BuildPhaseGraph, BuildPhasePolicy, HoistedLinkGraph,
     HoistedProjects, LinkLockfiles, LinkPackageData, LinkProjects, PriorHoistedState,
-    PriorLinkState,
+    PriorLinkState, PruneTreeOptions,
 };
 pub use pnp::*;
 pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, PathNode, graph_sequencer};
@@ -102,6 +102,7 @@ mod custom_fetcher;
 mod gvs_slot_lock;
 mod installed_hoisted_state;
 mod link_pool;
+mod prune_extraneous_deps;
 mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";

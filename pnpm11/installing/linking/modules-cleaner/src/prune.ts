@@ -229,7 +229,7 @@ function findOrphanDepPaths (
   opts: PruneOptions
 ): DepPath[] {
   const selectedImporterIds = importers.map((importer) => importer.id).sort()
-  const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
+  const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers).sort())
     ? getPkgsDepPaths(opts.currentLockfile.packages ?? {}, opts.skipped)
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.currentLockfile, opts)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(wantedLockfile.packages ?? {}, opts.skipped)
@@ -383,7 +383,11 @@ function getPkgsDepPathsOwnedOnlyByImporters (
 ): Record<string, string> {
   const filterOpts = {
     failOnMissingDependencies: false,
-    include: opts.include,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
   }
