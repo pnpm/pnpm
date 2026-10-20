@@ -2,7 +2,7 @@ import { promises as fs, type Stats } from 'node:fs'
 import path from 'node:path'
 
 import { isError } from '@pnpm/error'
-import { findCommonPathAncestor, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { getTrustedHoistRoot, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { HoistedWorkspaceProject } from '@pnpm/installing.linking.hoist'
 import type { HoistedDependencies, ProjectId } from '@pnpm/types'
 
@@ -35,7 +35,7 @@ export async function workspaceHoistPointsToProject (projectId: ProjectId, alias
   if (!projectDir.startsWith(path.resolve(opts.lockfileDir) + path.sep)) return false
   return (await Promise.all(Object.entries(aliases).map(async ([alias, kind]) => {
     const modulesDir = kind === 'public' ? opts.publicHoistedModulesDir : opts.privateHoistedModulesDir
-    const trustedRoot = findCommonPathAncestor(opts.publicHoistedModulesDir, modulesDir) ?? path.parse(path.resolve(modulesDir)).root
+    const trustedRoot = getTrustedHoistRoot(opts.publicHoistedModulesDir, modulesDir)
     const destination = await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
     try {
       const target = await fs.readlink(destination)

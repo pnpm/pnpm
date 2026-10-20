@@ -471,3 +471,64 @@ fn should_remove_aliased_hoisted_dependencies() {
 
     drop((root, mock_instance));
 }
+
+/// Hoisting succeeds when `node_modules` is a symlink to an external directory.
+#[test]
+fn hoist_succeeds_when_node_modules_is_symlink() {
+    let CommandTempCwd {
+        pacquet,
+        pnpm,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let shared_nm = root.path().join("shared-nm");
+    fs::create_dir_all(&shared_nm).expect("create shared-nm");
+    pnpm_fs::symlink_dir(&shared_nm, &workspace.join("node_modules"))
+        .expect("symlink node_modules");
+
+    write_manifest(
+        &workspace,
+        serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    generate_lockfile(pnpm);
+
+    pacquet
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules")).unwrap(),
+        "node_modules should remain a symlink",
+    );
+    let private_hoist =
+        workspace.join("node_modules/.pnpm/node_modules/@pnpm.e2e/hello-world-js-bin");
+    assert!(
+        is_symlink_or_junction(&private_hoist).unwrap(),
+        "transitive should be hoisted through symlinked node_modules",
+    );
+    assert!(
+        private_hoist.join("package.json").is_file(),
+        "hoisted link should resolve inside the symlink target",
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules")).unwrap(),
+        "node_modules should remain a symlink after reinstall",
+    );
+    assert!(
+        is_symlink_or_junction(&private_hoist).unwrap(),
+        "transitive should remain hoisted after reinstall",
+    );
+
+    drop((root, mock_instance));
+}
