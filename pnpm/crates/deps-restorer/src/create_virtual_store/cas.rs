@@ -117,6 +117,12 @@ impl CachedBuildInputs<'_> {
             .filter(|(_, requires_build)| **requires_build)
             .map(|(key, _)| key.clone())
             .collect::<Vec<_>>();
+        if !roots
+            .iter()
+            .any(|key| self.fetched.side_effects_maps_by_snapshot.contains_key(key))
+        {
+            return HashMap::new();
+        }
         let graph = crate::build_deps_subgraph(snapshots, packages, roots);
         let mut deps_state_cache = pnpm_graph_hasher::DepsStateCache::new();
         pnpm_graph_hasher::warm_deps_state_cache(
