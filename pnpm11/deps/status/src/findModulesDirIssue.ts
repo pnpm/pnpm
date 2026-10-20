@@ -55,6 +55,7 @@ export async function findModulesDirIssue (ctx: ModulesDirCheckContext): Promise
   const selectedProjectDirs = workspaceState.filteredInstall
     ? selectProjectDirs(allProjects, {
       ...opts,
+      autoInstallPeers: opts.autoInstallPeers !== false && workspaceState.settings.autoInstallPeers !== false,
       include: {
         dependencies: workspaceState.settings.production !== false,
         devDependencies: workspaceState.settings.dev !== false,
@@ -263,26 +264,27 @@ function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNul
 
 export function selectProjectDirs (
   allProjects: Project[],
-  opts: Pick<CheckDepsStatusOptions, 'catalogs' | 'dir' | 'include' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
+  opts: Pick<CheckDepsStatusOptions, 'autoInstallPeers' | 'catalogs' | 'dir' | 'include' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
 ): Set<string> {
   if (opts.selectedProjectsGraph != null) {
     return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
   }
   if (opts.dir == null) return new Set()
-  if (opts.sharedWorkspaceLockfile === false && opts.injectWorkspacePackages) {
-    return new Set([path.resolve(opts.dir)])
-  }
   return walkCommandWorkspaceDependencies(allProjects, path.resolve(opts.dir), {
+    autoInstallPeers: opts.autoInstallPeers !== false,
     catalogs: opts.catalogs,
     include: opts.include,
     linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+    onlyLinkDeps: Boolean(opts.sharedWorkspaceLockfile === false && opts.injectWorkspacePackages),
   })
 }
 
 interface WorkspaceWalkContext {
+  autoInstallPeers: boolean
   include?: IncludedDependencies
   index: ProjectIndex
   linkWorkspacePackages: boolean
+  onlyLinkDeps: boolean
   catalogs?: Catalogs
 }
 
@@ -327,6 +329,10 @@ function indexProjects (allProjects: Project[]): ProjectIndex {
 
 const WORKSPACE_WALK_FIELDS = [...DEPENDENCIES_FIELDS, 'peerDependencies'] as const
 
+function isFieldIncluded (field: (typeof WORKSPACE_WALK_FIELDS)[number], ctx: WorkspaceWalkContext): boolean {
+  return field === 'peerDependencies' ? ctx.autoInstallPeers : ctx.include?.[field] !== false
+}
+
 function directWorkspaceDependencyDirs (
   dir: string,
   manifest: Project['manifest'],
@@ -334,7 +340,7 @@ function directWorkspaceDependencyDirs (
 ): string[] {
   const targets: string[] = []
   for (const field of WORKSPACE_WALK_FIELDS) {
-    if (field !== 'peerDependencies' && ctx.include?.[field] === false) continue
+    if (!isFieldIncluded(field, ctx)) continue
     for (const [alias, rawPref] of Object.entries(manifest[field] ?? {})) {
       const pref = dereferenceCatalog(alias, rawPref, ctx.catalogs)
       if (pref != null) {
@@ -347,11 +353,14 @@ function directWorkspaceDependencyDirs (
 
 function specWorkspaceTargetDirs (
   { dir, alias, pref }: { dir: string, alias: string, pref: string },
-  { index, linkWorkspacePackages }: WorkspaceWalkContext
+  { index, linkWorkspacePackages, onlyLinkDeps }: WorkspaceWalkContext
 ): string[] {
-  const localPath = stripLocalDirPrefix(pref)
-  if (localPath != null) {
-    return resolveKnownProjectDir(dir, localPath, index)
+  if (pref.startsWith('link:')) {
+    return resolveKnownProjectDir(dir, pref.slice('link:'.length), index)
+  }
+  if (onlyLinkDeps) return []
+  if (pref.startsWith('file:')) {
+    return resolveKnownProjectDir(dir, pref.slice('file:'.length), index)
   }
   const isWorkspaceSpec = pref.startsWith('workspace:')
   if (!isWorkspaceSpec && !linkWorkspacePackages) return []
@@ -363,12 +372,6 @@ function specWorkspaceTargetDirs (
   return (index.byName.get(name) ?? [])
     .filter((project) => rangeMatches(range, project.manifest.version, isWorkspaceSpec))
     .map((project) => path.resolve(project.rootDir))
-}
-
-function stripLocalDirPrefix (pref: string): string | undefined {
-  if (pref.startsWith('link:')) return pref.slice('link:'.length)
-  if (pref.startsWith('file:')) return pref.slice('file:'.length)
-  return undefined
 }
 
 function resolveKnownProjectDir (dir: string, relPath: string, index: WorkspaceWalkContext['index']): string[] {

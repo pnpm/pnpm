@@ -116,6 +116,6 @@ export function splitNameAndRange (alias: string, spec: string): { name: string,
 export function rangeMatches (range: string, version: string | undefined, isWorkspaceProtocol: boolean): boolean {
   if (range === '' || range === '*' || range === '^' || range === '~') return true
   if (semver.validRange(range) == null) return isWorkspaceProtocol
-  if (version == null) return true
+  if (version == null) return isWorkspaceProtocol
   return semver.satisfies(version, range, { includePrerelease: true })
 }

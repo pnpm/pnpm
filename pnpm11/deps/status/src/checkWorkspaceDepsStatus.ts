@@ -3,11 +3,7 @@ import path from 'node:path'
 
 import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
-import {
-  getLockfileImporterId,
-  type LockfileObject,
-  readCurrentLockfile,
-} from '@pnpm/lockfile.fs'
+import { getLockfileImporterId, type LockfileObject, readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectId } from '@pnpm/types'
 import { sharedInputPaths, updateWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
@@ -23,16 +19,9 @@ import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import { type ValidationProof, validationProof } from './validationProof.js'
 import {
-  allowUnawaitedFailure,
-  assertCurrentLockfileMatches,
-  findOutdatedLockfileChangedProject,
-  getWantedLockfileDirs,
-  hasUnmergedBranchLockfiles,
-  missingWantedLockfileStandIn,
-  readWantedLockfileIn,
-  statLockfileSync,
-  throwLockfileNotFound,
-  type WantedLockfilesScan,
+  allowUnawaitedFailure, assertCurrentLockfileMatches, currentLockfileDir,
+  findOutdatedLockfileChangedProject, getWantedLockfileDirs, hasUnmergedBranchLockfiles,
+  missingWantedLockfileStandIn, readWantedLockfileIn, statLockfileSync, throwLockfileNotFound, type WantedLockfilesScan,
 } from './wantedLockfiles.js'
 
 export interface WorkspaceDepsStatusContext {
@@ -314,9 +303,13 @@ function heldProjects (ctx: WorkspaceDepsStatusContext, allManifestStats: Projec
 function createInstallCoverage (
   ctx: WorkspaceDepsStatusContext
 ): (rootDir: string) => boolean {
-  const { allProjects, opts } = ctx
+  const { allProjects, opts, workspaceState } = ctx
   if (opts.selectedProjectsGraph == null && opts.dir == null) return () => true
-  const selected = selectProjectDirs(allProjects, { ...opts, include: workspaceInclude(ctx) })
+  const selected = selectProjectDirs(allProjects, {
+    ...opts,
+    autoInstallPeers: opts.autoInstallPeers !== false && workspaceState.settings.autoInstallPeers !== false,
+    include: workspaceInclude(ctx),
+  })
   return (rootDir) => selected.has(path.resolve(rootDir))
 }
 
@@ -344,15 +337,8 @@ async function statProjects (opts: CheckDepsStatusOptions, allProjects: Project[
   return Promise.all(allProjects.map(async project => {
     const modulesDirStatsPromise = statModulesDir(project)
     const manifestStats = await statManifestFile(project.rootDir)
-    if (!manifestStats) {
-      // this error should not happen
-      throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
-    }
-    return {
-      project,
-      manifestStats,
-      modulesDirStats: await modulesDirStatsPromise,
-    }
+    if (!manifestStats) throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
+    return { project, manifestStats, modulesDirStats: await modulesDirStatsPromise }
   }))
 }
 
@@ -379,7 +365,7 @@ async function checkUnchangedWorkspace (
     ? coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     : lockfilesScan.missingDirs.length > 0
   const wantedLockfileToRestore = anyMissing && opts.sharedWorkspaceLockfile !== false && !opts.useGitBranchLockfile
-    ? await missingWantedLockfileStandIn(workspaceLockfileDir(ctx), wantedLockfileName)
+    ? await missingWantedLockfileStandIn(workspaceLockfileDir(ctx), wantedLockfileName, opts.modulesDir)
     : undefined
   // A missing wanted lockfile only skips the full check when the current
   // lockfile can stand in for it. Otherwise fall through so the checks
@@ -398,16 +384,12 @@ async function readWorkspaceLockfiles (ctx: WorkspaceDepsStatusContext): Promise
   const lockfileDir = workspaceLockfileDir(ctx)
   return [
     (await readWantedLockfileIn(lockfileDir, opts)) ??
-      await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false }),
+      await readCurrentLockfile(currentLockfileDir(lockfileDir, opts.modulesDir), { ignoreIncompatible: false }),
   ]
 }
 
-function workspaceInclude ({ workspaceState }: WorkspaceDepsStatusContext) {
-  return {
-    dependencies: workspaceState.settings.production !== false,
-    devDependencies: workspaceState.settings.dev !== false,
-    optionalDependencies: workspaceState.settings.optional !== false,
-  }
+function workspaceInclude ({ workspaceState: { settings } }: WorkspaceDepsStatusContext) {
+  return { dependencies: settings.production !== false, devDependencies: settings.dev !== false, optionalDependencies: settings.optional !== false }
 }
 
 interface CreateWantedLockfileReaderOptions {
@@ -458,12 +440,18 @@ async function readCurrentLockfileAsWanted (ctx: WorkspaceDepsStatusContext): Pr
   const { opts } = ctx
   const lockfileDir = workspaceLockfileDir(ctx)
   if (opts.useGitBranchLockfile) return throwLockfileNotFound(lockfileDir)
-  const currentLockfile = await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(currentLockfileDir(lockfileDir, opts.modulesDir), { ignoreIncompatible: false })
   if (currentLockfile == null) return throwLockfileNotFound(lockfileDir)
   return {
     wantedLockfileToRestore: { lockfile: currentLockfile, lockfileDir },
     readWantedLockfileAndDir: async () => ({ wantedLockfile: currentLockfile, wantedLockfileDir: lockfileDir }),
   }
+}
+
+function resolveProjectModulesDir (ctx: WorkspaceDepsStatusContext, projectDir: string): string | undefined {
+  const modulesDirOf = createProjectModulesDirResolver(ctx.opts)
+  const project = ctx.allProjects.find(({ rootDir }) => path.resolve(rootDir) === path.resolve(projectDir))
+  return modulesDirOf(project?.manifest.name)
 }
 
 function createPerProjectWantedLockfileReader (
@@ -481,7 +469,7 @@ function createPerProjectWantedLockfileReader (
     const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
     if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
     if (lockfileModified ?? modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
-      await assertCurrentLockfileMatches(wantedLockfileDir, wantedLockfilePromise, { filteredInstall: workspaceState.filteredInstall, importersToCheck: ['.' as ProjectId], include, modulesDir: opts.modulesDir })
+      await assertCurrentLockfileMatches(wantedLockfileDir, wantedLockfilePromise, { filteredInstall: workspaceState.filteredInstall, importersToCheck: ['.' as ProjectId], include, modulesDir: resolveProjectModulesDir(ctx, wantedLockfileDir) })
     }
     return { wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir), wantedLockfileDir }
   }

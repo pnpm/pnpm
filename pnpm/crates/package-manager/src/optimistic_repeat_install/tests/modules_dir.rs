@@ -386,6 +386,17 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         .as_deref(),
         Some("pkg-e"),
     );
+    let mut no_auto_peers_state = state.clone();
+    no_auto_peers_state.settings.auto_install_peers = Some(false);
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &no_auto_peers_state,
+            &selected,
+            true,
+        ),
+        None,
+    );
     fs::create_dir_all(pkg_e_dir.join("node_modules")).unwrap();
 
     fs::remove_dir_all(pkg_f_dir.join("node_modules")).unwrap();

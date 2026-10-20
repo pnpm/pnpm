@@ -160,7 +160,8 @@ fn reached_workspace_project_dirs(
         (state.settings.production != Some(false)).then_some(DependencyGroup::Prod),
         (state.settings.dev != Some(false)).then_some(DependencyGroup::Dev),
         (state.settings.optional != Some(false)).then_some(DependencyGroup::Optional),
-        Some(DependencyGroup::Peer),
+        (check.config.auto_install_peers && state.settings.auto_install_peers != Some(false))
+            .then_some(DependencyGroup::Peer),
     ];
     let mut reached = HashSet::new();
     let mut stack: Vec<PathBuf> = roots
@@ -189,7 +190,7 @@ fn workspace_version_matches_range(version: Option<&str>, range: &str, is_worksp
         return is_workspace;
     }
     let Some(version) = version else {
-        return true;
+        return is_workspace;
     };
     let parsed_range = IncludePrereleaseRange::parse(range);
     version == range

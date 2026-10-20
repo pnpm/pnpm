@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import {
   getGitBranchLockfileNamesSync,
@@ -17,7 +18,7 @@ import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { safeStatSync } from './safeStat.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 
-export type WantedLockfileReadOptions = Pick<CheckDepsStatusOptions, 'modulesDir' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>
+export type WantedLockfileReadOptions = Pick<CheckDepsStatusOptions, 'modulesDir' | 'packageConfigs' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>
 
 export interface UnprovenProject {
   project: Project
@@ -38,7 +39,7 @@ export interface LockfileChangedCheckResult {
   wantedLockfilesByDir?: Map<string, LockfileObject | null>
 }
 
-function currentLockfileDir (lockfileDir: string, modulesDir?: string): string {
+export function currentLockfileDir (lockfileDir: string, modulesDir?: string): string {
   return path.join(path.resolve(lockfileDir, modulesDir ?? 'node_modules'), '.pnpm')
 }
 
@@ -67,11 +68,12 @@ export async function findOutdatedLockfileChangedProject (input: LockfileChanged
 }
 
 async function findOutdatedPerProjectLockfile ({ include, projects, readOpts }: LockfileChangedCheckInput): Promise<LockfileChangedCheckResult> {
+  const modulesDirOf = createProjectModulesDirResolver(readOpts)
   const wantedLockfilesByDir = new Map<string, LockfileObject | null>()
   const checks = await Promise.all(projects.map(async ({ project, unrecorded }) => {
     const [wanted, current] = await Promise.all([
       readWantedLockfileIn(project.rootDir, readOpts),
-      readCurrentLockfile(currentLockfileDir(project.rootDir, readOpts.modulesDir), { ignoreIncompatible: false }),
+      readCurrentLockfile(currentLockfileDir(project.rootDir, modulesDirOf(project.manifest.name)), { ignoreIncompatible: false }),
     ])
     wantedLockfilesByDir.set(project.rootDir, wanted)
     const outdated = wanted != null && !importerClosuresMatch(wanted, current, ['.' as ProjectId], include)
@@ -134,9 +136,13 @@ export function throwLockfileNotFound (wantedLockfileDir: string): never {
  * `pnpm-lock.yaml` from it. `undefined` when the wanted lockfile is present
  * (nothing to restore) or when there is no current lockfile to restore from.
  */
-export async function missingWantedLockfileStandIn (lockfileDir: string, wantedLockfileName: string): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
+export async function missingWantedLockfileStandIn (
+  lockfileDir: string,
+  wantedLockfileName: string,
+  modulesDir?: string
+): Promise<CheckDepsStatusResult['wantedLockfileToRestore']> {
   if (safeStatSync(path.join(lockfileDir, wantedLockfileName)) != null) return undefined
-  const currentLockfile = await readCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(currentLockfileDir(lockfileDir, modulesDir), { ignoreIncompatible: false })
   if (currentLockfile == null) return undefined
   return { lockfile: currentLockfile, lockfileDir }
 }

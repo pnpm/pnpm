@@ -45,7 +45,7 @@ export function mergeIntoCurrentLockfile (
 }
 
 function computeMergedCurrentLockfile (
-  { currentLockfile, filterOpts, wantedLockfile }: HeadlessContext,
+  { currentLockfile, wantedLockfile }: HeadlessContext,
   { filteredLockfile, importerIds }: HeadlessDepGraph
 ): LockfileObject {
   if (
@@ -55,28 +55,49 @@ function computeMergedCurrentLockfile (
   ) {
     return filteredLockfile
   }
-  const packages = {
-    ...currentLockfile.packages,
-    ...filteredLockfile.packages,
-  }
-  const importers = {
-    ...filteredLockfile.importers,
-    ...currentLockfile.importers,
-    ...pick(importerIds, filteredLockfile.importers),
-  }
-  return filterLockfileByImporters(
-    {
-      ...wantedLockfile,
-      importers,
-      packages,
+  const retainedPackages = retainedUnselectedPackages(currentLockfile, filteredLockfile, importerIds)
+  return {
+    ...filteredLockfile,
+    importers: {
+      ...filteredLockfile.importers,
+      ...currentLockfile.importers,
+      ...pick(importerIds, filteredLockfile.importers),
     },
-    Object.keys(importers) as ProjectId[],
-    {
-      ...filterOpts,
-      failOnMissingDependencies: false,
-      skipped: new Set(),
-    }
-  )
+    packages: {
+      ...retainedPackages,
+      ...filteredLockfile.packages,
+    },
+  }
+}
+
+const ALL_INCLUDED_DEPENDENCIES = {
+  dependencies: true,
+  devDependencies: true,
+  optionalDependencies: true,
+} as const
+
+function retainedUnselectedPackages (
+  currentLockfile: LockfileObject,
+  filteredLockfile: LockfileObject,
+  importerIds: ProjectId[]
+): LockfileObject['packages'] {
+  const prevSelected = filterLockfileByImporters(currentLockfile, importerIds, {
+    include: ALL_INCLUDED_DEPENDENCIES,
+    failOnMissingDependencies: false,
+    skipped: new Set(),
+  })
+  const nextPackages = filteredLockfile.packages ?? {}
+  const droppedAnyPackage = Object.keys(prevSelected.packages ?? {}).some((depPath) => !(depPath in nextPackages))
+  if (!droppedAnyPackage) {
+    return currentLockfile.packages
+  }
+  const selectedSet = new Set(importerIds)
+  const unselectedIds = (Object.keys(currentLockfile.importers) as ProjectId[]).filter((id) => !selectedSet.has(id))
+  return filterLockfileByImporters(currentLockfile, unselectedIds, {
+    include: ALL_INCLUDED_DEPENDENCIES,
+    failOnMissingDependencies: false,
+    skipped: new Set(),
+  }).packages
 }
 
 async function writeModulesManifestOfInstall (ctx: HeadlessContext, depGraph: HeadlessDepGraph, outcome: InstallOutcome): Promise<void> {
