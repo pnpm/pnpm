@@ -18,6 +18,7 @@ import type { DepPath, ProjectId, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { resolveLinkTarget } from 'resolve-link-target'
 import { symlinkDir } from 'symlink-dir'
+import { writeJsonFileSync } from 'write-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { testDefaults } from '../utils/index.js'
@@ -1038,6 +1039,26 @@ test('hoistWorkspacePackages should hoist unselected workspace projects on a fil
   expect(fs.existsSync('node_modules/.pnpm/node_modules/pkg-a')).toBeTruthy()
   expect(fs.existsSync('node_modules/.pnpm/node_modules/pkg-b')).toBeTruthy()
   expect(fs.existsSync('node_modules/.pnpm/node_modules/pkg-c')).toBeTruthy()
+
+  const renamedManifest = { name: 'pkg-c-renamed', version: '1.0.0' }
+  writeJsonFileSync('c/package.json', renamedManifest)
+  allProjects[2].manifest = renamedManifest
+  await mutateModules([
+    {
+      allowNew: true,
+      dependencySelectors: ['@pnpm.e2e/foo@100.0.0'],
+      mutation: 'installSome',
+      rootDir: path.resolve('a') as ProjectRootDir,
+    },
+  ], testDefaults({
+    allProjects,
+    hoistPattern: '*',
+    hoistWorkspacePackages: true,
+    useLockfile: false,
+  }))
+
+  expect(fs.existsSync('node_modules/.pnpm/node_modules/pkg-c-renamed')).toBeTruthy()
+  expect(fs.existsSync('node_modules/.pnpm/node_modules/pkg-c')).toBeFalsy()
 })
 
 test('hoistWorkspacePackages should hoist workspace projects when nothing is installed from a registry', async () => {
