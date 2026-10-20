@@ -190,6 +190,7 @@ pub fn check_peer_dependencies_of_importers(
     // pnpm's lockfile walker, which threads one `walked` set through every
     // importer's step.
     let mut visited_packages = HashSet::new();
+    let mut linked_packages = LinkedPackages::new(lockfile_dir);
 
     for importer_id in importer_ids {
         let mut issues = PeerIssues {
@@ -199,7 +200,8 @@ pub fn check_peer_dependencies_of_importers(
             intersections: BTreeMap::new(),
         };
 
-        let initial_keys = collect_initial_keys(&context, importer_id, &mut issues)?;
+        let initial_keys =
+            collect_initial_keys(&context, &mut linked_packages, importer_id, &mut issues)?;
 
         walk_snapshot(
             initial_keys,
@@ -233,6 +235,7 @@ struct PeerWalkContext<'a> {
 /// dependencies belong to its own report, not to its consumer's.
 fn collect_initial_keys(
     context: &PeerWalkContext<'_>,
+    linked_packages: &mut LinkedPackages,
     importer_id: &str,
     issues: &mut PeerIssues,
 ) -> Result<Vec<PkgNameVerPeer>, CatalogResolutionError> {
@@ -254,6 +257,7 @@ fn collect_initial_keys(
             // whose projects depend on each other (pnpm/pnpm#14906).
             check_link(CheckLink {
                 context,
+                linked_packages,
                 importer,
                 importer_dir: &importer_dir,
                 alias: &alias.to_string(),
@@ -270,14 +274,14 @@ fn collect_initial_keys(
 fn check_link(inputs: CheckLink<'_>) -> Result<(), CatalogResolutionError> {
     let CheckLink {
         context,
+        linked_packages,
         importer,
         importer_dir,
         alias,
         link_target,
         issues,
     } = inputs;
-    let Some(linked) = LinkedDependency::resolve(importer_dir, context.lockfile_dir, link_target)
-    else {
+    let Some(linked) = linked_packages.resolve(importer_dir, link_target) else {
         return Ok(());
     };
     let Some(manifest) = &linked.manifest else { return Ok(()) };
@@ -301,6 +305,7 @@ fn check_link(inputs: CheckLink<'_>) -> Result<(), CatalogResolutionError> {
 
 struct CheckLink<'a> {
     context: &'a PeerWalkContext<'a>,
+    linked_packages: &'a mut LinkedPackages,
     importer: &'a ProjectSnapshot,
     importer_dir: &'a Path,
     alias: &'a str,
@@ -316,24 +321,6 @@ struct LinkedDependency {
     version: String,
 }
 
-impl LinkedDependency {
-    /// One canonicalization and one manifest read per linked dependency: the
-    /// version, the peer check, and the linked importer's own snapshot all
-    /// need the same answers, and this walk runs on the install path.
-    fn resolve(importer_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<Self> {
-        let CanonicalPathWithin {
-            path: dir,
-            base: canonical_lockfile_dir,
-        } = canonical_path_within(&importer_dir.join(link_target), lockfile_dir)?;
-        let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
-        let version = manifest
-            .as_ref()
-            .and_then(package_manifest_version)
-            .unwrap_or_else(|| "0.0.0".to_string());
-        let importer_id = pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &dir);
-        Some(LinkedDependency { dir, importer_id, manifest, version })
-    }
-}
 mod snapshot;
 use snapshot::{extract_peer_version, satisfies, walk_snapshot};
 
@@ -350,7 +337,4 @@ mod filter;
 use filter::merge_missing_peers;
 
 mod linked;
-use linked::{
-    CanonicalPathWithin, LinkedPackagePeers, canonical_path_within, check_linked_package_peers,
-    package_manifest_version,
-};
+use linked::{LinkedPackagePeers, LinkedPackages, check_linked_package_peers};

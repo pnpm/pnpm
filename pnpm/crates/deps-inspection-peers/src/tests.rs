@@ -1,7 +1,8 @@
 use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
+    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues,
     filter::parse_allowed_versions, filter_peer_issues, intersect_multiple_ranges,
-    merge_missing_peers, ranges::normalize_version_str, render::format_range, satisfies,
+    linked::canonical_path_within, merge_missing_peers, ranges::normalize_version_str,
+    render::format_range, satisfies,
 };
 use pnpm_config::PeerDependencyRules;
 use std::collections::BTreeMap;
@@ -759,20 +760,58 @@ fn test_path_is_within() {
 
 #[cfg(unix)]
 #[test]
-fn canonical_containment_keeps_the_root_used_for_importer_ids() {
+fn linked_packages_share_targets_reached_through_a_symlinked_root() {
     let temp = tempfile::tempdir().unwrap();
     let real_root = temp.path().join("real");
-    let project = real_root.join("packages/lib");
-    std::fs::create_dir_all(&project).unwrap();
+    for dir in ["packages/lib", "packages/app", "packages/web"] {
+        std::fs::create_dir_all(real_root.join(dir)).unwrap();
+    }
     let linked_root = temp.path().join("linked");
     std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
 
-    let canonical = canonical_path_within(&linked_root.join("packages/lib"), &linked_root).unwrap();
+    let mut linked_packages = super::LinkedPackages::new(&linked_root);
+    for importer in ["packages/app", "packages/web"] {
+        assert!(
+            linked_packages
+                .resolve(&linked_root.join(importer), "../lib")
+                .is_some(),
+        );
+    }
 
-    assert_eq!(
-        pnpm_workspace::importer_id_from_root_dir(&canonical.base, &canonical.path),
-        "packages/lib",
-    );
+    assert_eq!(linked_packages.by_target.len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
+    let temp = tempfile::tempdir().unwrap();
+    let real_root = temp.path().join("real");
+    for dir in ["packages/lib", "packages/app", "apps/app", "apps/lib"] {
+        std::fs::create_dir_all(real_root.join(dir)).unwrap();
+    }
+    std::os::unix::fs::symlink("../apps/app", real_root.join("packages/alias")).unwrap();
+    let linked_root = temp.path().join("linked");
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+    let absolute = real_root.join("packages/lib");
+
+    for lockfile_dir in [linked_root, dunce::canonicalize(&real_root).unwrap()] {
+        let mut linked_packages = super::LinkedPackages::new(&lockfile_dir);
+        let mut importer_id = |importer: &str, link_target: &str| {
+            linked_packages
+                .resolve(&lockfile_dir.join(importer), link_target)
+                .map(|linked| linked.importer_id.clone())
+        };
+
+        // Importer IDs come from the canonical root, and `..` leaves an
+        // importer reached through a symlink from where that importer really
+        // is. An absolute target does not depend on the importer's directory.
+        assert_eq!(importer_id("packages/app", "../lib").as_deref(), Some("packages/lib"));
+        assert_eq!(importer_id("packages/alias", "../lib").as_deref(), Some("apps/lib"));
+        assert_eq!(
+            importer_id("missing", absolute.to_str().unwrap()).as_deref(),
+            Some("packages/lib"),
+        );
+    }
 }
 
 #[test]

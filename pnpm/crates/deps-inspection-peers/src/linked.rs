@@ -1,24 +1,18 @@
 use super::{
     BadPeerIssue, CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, Catalogs,
-    Lockfile, LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg, Path, PathBuf,
-    PeerIssues, PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency,
+    LinkedDependency, Lockfile, LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg,
+    Path, PathBuf, PeerIssues, PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency,
     extract_peer_version, get_peer_version_range, resolve_from_catalog, satisfies,
 };
+use std::{collections::HashMap, path::Component};
 
-pub(super) struct CanonicalPathWithin {
-    pub(super) path: PathBuf,
-    pub(super) base: PathBuf,
-}
-
-pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<CanonicalPathWithin> {
+pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf> {
     let (Ok(canonical_path), Ok(canonical_base)) =
         (dunce::canonicalize(path), dunce::canonicalize(base))
     else {
         return None;
     };
-    canonical_path
-        .starts_with(&canonical_base)
-        .then_some(CanonicalPathWithin { path: canonical_path, base: canonical_base })
+    canonical_path.starts_with(&canonical_base).then_some(canonical_path)
 }
 
 /// `base_dir` is the directory the `link:` target is relative to — the
@@ -29,7 +23,7 @@ pub(super) fn resolve_link_version(
     lockfile_dir: &Path,
     link_target: &str,
 ) -> Option<String> {
-    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?.path;
+    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?;
     let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
     package_manifest_version(&manifest)
 }
@@ -293,5 +287,80 @@ impl PeerProviders<'_> {
             .get(".")
             .and_then(|root_importer| project_dependency(root_importer, name))
             .map(|spec| (spec, self.lockfile_dir))
+    }
+}
+
+/// The linked dependencies one walk has read. Most importers of a workspace
+/// link the same packages, so each target is canonicalized and its manifest
+/// read once per walk rather than once per importer that links it.
+pub(super) struct LinkedPackages {
+    canonical_lockfile_dir: Option<PathBuf>,
+    key_base_by_importer_dir: HashMap<PathBuf, Option<PathBuf>>,
+    pub(super) by_target: HashMap<PathBuf, Option<LinkedDependency>>,
+}
+
+impl LinkedPackages {
+    pub(super) fn new(lockfile_dir: &Path) -> Self {
+        LinkedPackages {
+            canonical_lockfile_dir: dunce::canonicalize(lockfile_dir).ok(),
+            key_base_by_importer_dir: HashMap::new(),
+            by_target: HashMap::new(),
+        }
+    }
+
+    /// The version, the peer check, and the linked importer's own snapshot
+    /// all need the same answers. Targets escaping the lockfile directory
+    /// are rejected.
+    pub(super) fn resolve(
+        &mut self,
+        importer_dir: &Path,
+        link_target: &str,
+    ) -> Option<&LinkedDependency> {
+        let target = self.target_key(importer_dir, Path::new(link_target));
+        let canonical_lockfile_dir = self.canonical_lockfile_dir.as_deref()?;
+        self.by_target
+            .entry(target)
+            .or_insert_with_key(|target| {
+                let dir = dunce::canonicalize(target).ok()?;
+                if !dir.starts_with(canonical_lockfile_dir) {
+                    return None;
+                }
+                let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
+                let version = manifest
+                    .as_ref()
+                    .and_then(package_manifest_version)
+                    .unwrap_or_else(|| "0.0.0".to_string());
+                let importer_id =
+                    pnpm_workspace::importer_id_from_root_dir(canonical_lockfile_dir, &dir);
+                Some(LinkedDependency { dir, importer_id, manifest, version })
+            })
+            .as_ref()
+    }
+
+    /// `..` is popped off the importer directory, so every importer
+    /// reaching one package shares its entry:
+    /// - Unix resolves `..` physically, so it is popped off the canonical
+    ///   importer directory.
+    /// - Windows resolves `..` lexically on the spelled path, so it is popped
+    ///   only when that path is already canonical.
+    ///
+    /// Any other importer keeps the path it spells.
+    fn target_key(&mut self, importer_dir: &Path, link_target: &Path) -> PathBuf {
+        let base = self.key_base_by_importer_dir
+            .entry(importer_dir.to_path_buf())
+            .or_insert_with_key(|dir| {
+                let canonical = dunce::canonicalize(dir).ok()?;
+                (cfg!(unix) || canonical == *dir).then_some(canonical)
+            });
+        let Some(base) = base else {
+            return importer_dir.join(link_target);
+        };
+        let mut target = base.clone();
+        let mut components = link_target.components().peekable();
+        while components.next_if_eq(&Component::ParentDir).is_some() {
+            target.pop();
+        }
+        target.extend(components);
+        target
     }
 }
