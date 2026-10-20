@@ -50,12 +50,10 @@ impl CanonicalPaths {
             return None;
         }
         let (canonical, is_dir) = self.resolve(path)?;
-        // `Path` ignores a trailing slash, which only a directory takes.
-        let trailing_slash = path
-            .as_os_str()
-            .as_bytes()
-            .ends_with(b"/");
-        (is_dir || !trailing_slash).then_some(canonical)
+        // `Path` ignores a trailing `/` or `/.`, which only a directory takes.
+        let bytes = path.as_os_str().as_bytes();
+        let names_a_directory = bytes.ends_with(b"/") || bytes.ends_with(b"/.");
+        (is_dir || !names_a_directory).then_some(canonical)
     }
 
     /// The canonical form of the absolute `path` and whether it is a

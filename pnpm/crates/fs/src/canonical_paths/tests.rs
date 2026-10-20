@@ -35,6 +35,7 @@ fn matches_std_canonicalize() {
         "ws/packages/missing/..",
         "ws/packages/lib/package.json/..",
         "ws/packages/lib/package.json/",
+        "ws/packages/lib/package.json/.",
     ];
     let paths = CanonicalPaths::default();
     for case in cases {
@@ -57,4 +58,34 @@ fn matches_std_canonicalize() {
             "{path}",
         );
     }
+}
+
+/// A path the cache has resolved is answered without reading the
+/// filesystem again.
+#[cfg(unix)]
+#[test]
+fn answers_a_resolved_path_from_the_cache() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = fs::canonicalize(temp.path()).unwrap();
+    fs::create_dir_all(root.join("ws/packages/app")).unwrap();
+    fs::create_dir_all(root.join("ws/packages/lib")).unwrap();
+    fs::write(root.join("ws/packages/lib/package.json"), "{}").unwrap();
+    let manifest = root.join("ws/packages/app/../lib/package.json");
+    let canonical = root.join("ws/packages/lib/package.json");
+
+    let paths = CanonicalPaths::default();
+    assert_eq!(paths.canonicalize(&manifest).unwrap(), canonical);
+
+    fs::remove_dir_all(root.join("ws/packages/lib")).unwrap();
+    assert_eq!(
+        fs::canonicalize(&manifest).map_err(|error| error.kind()),
+        Err(std::io::ErrorKind::NotFound),
+    );
+    assert_eq!(paths.canonicalize(&manifest).unwrap(), canonical);
+    assert_eq!(
+        paths
+            .canonicalize(&root.join("ws/packages/lib"))
+            .unwrap(),
+        root.join("ws/packages/lib"),
+    );
 }
