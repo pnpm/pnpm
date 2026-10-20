@@ -127,6 +127,17 @@ fn numeric_brace_ranges_share_the_expansion_byte_limit() {
 }
 
 #[test]
+fn comma_brace_groups_keep_the_expansion_byte_limit() {
+    let prefix = "p".repeat(1 << 17);
+    let pattern = format!("{prefix}{{a,b,c,d,e,f,g,h,i}}.js");
+    let expanded_name = format!("{prefix}a.js");
+    let rule = IgnoreRule::parse(&pattern);
+    eprintln!("pattern length: {}", pattern.len());
+    assert!(IgnoreRule::parse(&expanded_name).matches(&expanded_name, false));
+    assert!(!rule.matches(&expanded_name, false));
+}
+
+#[test]
 fn malformed_numeric_ranges_stay_literal() {
     for pattern in
         ["part{1..3..0}.js", "part{1..three}.js", "part{1..2..3..4}.js", "part{+1..3}.js"]
