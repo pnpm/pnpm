@@ -4,7 +4,7 @@ use super::{
     Config, DependencyGroup, ImporterDepVersion, Lockfile, OptimisticRepeatInstallCheck,
     PackageManifest, Path, PathBuf, ProjectSnapshot, WorkspaceState,
     current_lockfile::{
-        CurrentLockfile, OUTDATED_DEPS, selection_has_dependencies,
+        CurrentLockfile, OUTDATED_DEPS, current_records_importer, selection_has_dependencies,
         selection_matches_wanted_lockfile,
     },
     freshness::{ProjectStatus, Stale},
@@ -81,6 +81,7 @@ pub(crate) fn held_projects_match_lockfile(
                     Ok(())
                 };
             };
+            require_recorded_in_current(&unproven_projects(check, held), current)?;
             current
         }
     };
@@ -96,28 +97,15 @@ fn require_installed(
     held: &[&ManifestStat<'_>],
     current: &CurrentLockfile<'_>,
 ) -> Result<(), Stale> {
-    let unproven = held
-        .iter()
-        .filter(|stat| stat.status.needs_install_proof())
-        .map(|stat| {
-            (pnpm_workspace::importer_id_from_root_dir(check.workspace_root, stat.root_dir), stat)
-        })
-        .collect::<Vec<_>>();
+    let unproven = unproven_projects(check, held);
     if unproven.is_empty() {
         return Ok(());
     }
     let current = current
         .get()
         .ok_or(Stale::Content("the current lockfile cannot be loaded"))?;
-    if let Some(current) = current
-        && let Some((_, stat)) = unproven
-            .iter()
-            .find(|(importer_id, stat)| {
-                super::manifest_has_runtime_deps(stat.manifest)
-                    && !current.importers.contains_key(importer_id)
-            })
-    {
-        return Err(Stale::ProjectNotInstalled(super::project_id(stat.root_dir, stat.manifest)));
+    if let Some(current) = current {
+        require_recorded_in_current(&unproven, current)?;
     }
     let importer_ids = unproven
         .into_iter()
@@ -133,6 +121,34 @@ fn require_installed(
         None if selection_has_dependencies(wanted, &importer_ids) => Err(Stale::NothingInstalled),
         None => Ok(()),
     }
+}
+
+fn unproven_projects<'a>(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    held: &[&'a ManifestStat<'a>],
+) -> Vec<(String, &'a ManifestStat<'a>)> {
+    held.iter()
+        .filter(|stat| stat.status.needs_install_proof())
+        .map(|stat| {
+            (pnpm_workspace::importer_id_from_root_dir(check.workspace_root, stat.root_dir), *stat)
+        })
+        .collect()
+}
+
+fn require_recorded_in_current(
+    unproven: &[(String, &ManifestStat<'_>)],
+    current: &Lockfile,
+) -> Result<(), Stale> {
+    if let Some((_, stat)) = unproven
+        .iter()
+        .find(|(importer_id, stat)| {
+            super::manifest_has_runtime_deps(stat.manifest)
+                && !current_records_importer(current, importer_id)
+        })
+    {
+        return Err(Stale::ProjectNotInstalled(super::project_id(stat.root_dir, stat.manifest)));
+    }
+    Ok(())
 }
 
 /// The full content check of the modified projects against the wanted

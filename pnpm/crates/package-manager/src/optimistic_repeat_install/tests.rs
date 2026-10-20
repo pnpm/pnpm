@@ -783,7 +783,9 @@ fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
 }
 
 /// A modules directory does not prove that the filtered install materialized
-/// a selected project. It must also be an importer of the current lockfile.
+/// a selected project. The current lockfile must also record the project and
+/// its direct dependencies, including when `pnpm-lock.yaml` is missing and
+/// the current lockfile stands in for it.
 #[test]
 fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
     let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
@@ -792,20 +794,20 @@ fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
         [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
     let selected = [project_dir.as_path()];
     fs::create_dir_all(project_dir.join("node_modules")).unwrap();
-    fs::write(
-        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
-        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
-    )
-    .unwrap();
+    let current_without_importer = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
+    let current_without_snapshot = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n";
 
-    assert!(
-        matches!(
-            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
-            RunDepsStatus::Outdated { issue, .. }
-                if issue == "Workspace package a has dependencies but was not installed"
-        ),
-        "a selected project the current lockfile does not list is outdated",
-    );
+    for current in [current_without_importer, current_without_snapshot] {
+        fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current).unwrap();
+        assert!(
+            matches!(
+                workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+                RunDepsStatus::Outdated { issue, .. }
+                    if issue == "Workspace package a has dependencies but was not installed"
+            ),
+            "a selected project the current lockfile does not record as installed is outdated",
+        );
+    }
 
     let root_only = [dir.path()];
     assert_eq!(
@@ -813,6 +815,19 @@ fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
         RunDepsStatus::UpToDate,
         "a selected project without dependencies needs no importer",
     );
+
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    for current in [current_without_importer, current_without_snapshot] {
+        fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current).unwrap();
+        assert!(
+            matches!(
+                workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+                RunDepsStatus::Outdated { issue, .. }
+                    if issue == "Workspace package a has dependencies but was not installed"
+            ),
+            "deleting pnpm-lock.yaml does not make an uninstalled project current",
+        );
+    }
 }
 
 const FILTERED_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'
