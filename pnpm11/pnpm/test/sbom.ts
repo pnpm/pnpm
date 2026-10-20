@@ -76,6 +76,11 @@ test('pnpm sbom reads dedicated workspace lockfiles', async () => {
   fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n')
   await execPnpm(['install'])
 
+  const appLockfilePath = path.join('packages/a', 'pnpm-lock.yaml')
+  const appLockfile = readYamlFileSync<{ snapshots: Record<string, unknown> }>(appLockfilePath)
+  appLockfile.snapshots['unused@1.0.0'] = {}
+  writeYamlFileSync(appLockfilePath, appLockfile)
+
   const filtered = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
   expect(filtered.status).toBe(0)
   const filteredPackages = JSON.parse(filtered.stdout.toString()).packages.map((pkg: { name: string }) => pkg.name)
@@ -99,14 +104,13 @@ test('pnpm sbom reads dedicated workspace lockfiles', async () => {
   const appSbom = documents.find((document) => document.name === 'pkg-a')
   expect(appSbom.packages.map((pkg: { name: string }) => pkg.name)).toContain('is-number')
 
-  const appLockfilePath = path.join('packages/a', 'pnpm-lock.yaml')
-  const appLockfile = fs.readFileSync(appLockfilePath)
+  const savedAppLockfile = fs.readFileSync(appLockfilePath)
   fs.rmSync(appLockfilePath)
   const missing = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
   expect(missing.status).toBe(1)
   expect(missing.stderr.toString()).toContain('ERR_PNPM_SBOM_MISSING_IMPORTERS')
 
-  fs.writeFileSync(appLockfilePath, appLockfile)
+  fs.writeFileSync(appLockfilePath, savedAppLockfile)
   fs.rmSync(path.join('packages/b', 'pnpm-lock.yaml'))
   const missingDependency = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
   expect(missingDependency.status).toBe(1)

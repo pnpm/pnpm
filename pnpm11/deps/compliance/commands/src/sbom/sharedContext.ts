@@ -114,7 +114,7 @@ function recordDirectoryRoots (
   { projectDir, directoryRootsByDepPath }: { projectDir: string, directoryRootsByDepPath: Map<string, string> }
 ): void {
   for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {})) {
-    if (snapshot.resolution.type !== 'directory') continue
+    if (snapshot.resolution?.type !== 'directory') continue
     const existingRoot = directoryRootsByDepPath.get(depPath)
     const existingResolution = merged?.packages?.[depPath as keyof NonNullable<LockfileObject['packages']>]?.resolution
     if (existingRoot && existingResolution && 'directory' in existingResolution && typeof existingResolution.directory === 'string' &&
