@@ -53,15 +53,18 @@ export function safeJoinWorkspaceModulesDir (modulesDir: string, alias: string):
   return link
 }
 
-export function findCommonPathAncestor (left: string, right: string): string | undefined {
-  let ancestor = path.resolve(left)
-  const resolvedRight = path.resolve(right)
-  while (resolvedRight !== ancestor && !resolvedRight.startsWith(ancestor + path.sep)) {
-    const parent = path.dirname(ancestor)
-    if (parent === ancestor) return undefined
-    ancestor = parent
-  }
-  return ancestor
+/**
+ * The hoist root that owns every directory between it and a destination in
+ * `modulesDir`. The root itself may be a symlink the user planted, such as a
+ * shared tree linked into a CI checkout, but the directories below it must be
+ * real: a symlink there would carry the links into a store package.
+ */
+export function getTrustedHoistRoot (publicHoistedModulesDir: string, modulesDir: string): string {
+  const resolvedPublicDir = path.resolve(publicHoistedModulesDir)
+  const resolvedModulesDir = path.resolve(modulesDir)
+  return resolvedModulesDir === resolvedPublicDir || resolvedModulesDir.startsWith(resolvedPublicDir + path.sep)
+    ? resolvedPublicDir
+    : resolvedModulesDir
 }
 
 export async function prepareWorkspaceModulesDir (modulesDir: string, alias: string, trustedRoot = modulesDir): Promise<string> {

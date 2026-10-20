@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { getTrustedHoistRoot, prepareWorkspaceModulesDir, safeJoinWorkspaceModulesDir, symlinkDependency, symlinkDependencySync, symlinkDirectRootDependency, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import { tempDir } from '@pnpm/prepare'
 
 const escapeAliases = [
@@ -164,4 +164,31 @@ test('prepareWorkspaceModulesDir refuses a symlinked ancestor below the trusted 
     code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
   })
   expect(fs.existsSync(path.join(outside, 'node_modules/project'))).toBe(false)
+})
+
+test('prepareWorkspaceModulesDir refuses a dangling symlinked modules root', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const missing = path.join(tmp, 'missing')
+  await fs.promises.symlink(missing, modulesDir, process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(prepareWorkspaceModulesDir(modulesDir, 'project')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
+  expect(fs.existsSync(missing)).toBe(false)
+})
+
+test('getTrustedHoistRoot is the public hoist directory for a modules directory inside it', () => {
+  const tmp = tempDir(false)
+  const publicDir = path.join(tmp, 'node_modules')
+  expect(getTrustedHoistRoot(publicDir, publicDir)).toBe(publicDir)
+  expect(getTrustedHoistRoot(publicDir, path.join(publicDir, '.pnpm/node_modules'))).toBe(publicDir)
+})
+
+test('getTrustedHoistRoot is the modules directory itself outside the public hoist directory', () => {
+  const tmp = tempDir(false)
+  const publicDir = path.join(tmp, 'project/node_modules')
+  const externalStoreModulesDir = path.join(tmp, 'store/node_modules')
+  expect(getTrustedHoistRoot(publicDir, externalStoreModulesDir)).toBe(externalStoreModulesDir)
+  expect(getTrustedHoistRoot(publicDir, path.join(tmp, 'project/node_modules_2'))).toBe(path.join(tmp, 'project/node_modules_2'))
 })
