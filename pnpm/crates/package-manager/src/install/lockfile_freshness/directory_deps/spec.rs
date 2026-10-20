@@ -59,15 +59,16 @@ fn is_locked_to_other_source(spec: &str, lockfile_dep: &pnpm_lockfile::SnapshotD
         pnpm_resolving_git_resolver::git_spec_committish_and_path(spec)
     {
         let (locked_source, locked_path) = match locked_id.rsplit_once("path:") {
-            Some((source, path)) => (source, Some(path)),
+            Some((source, path)) => (source.trim_end_matches(['#', '&']), Some(path)),
             None => (locked_id, None),
         };
+        let locked_commit = locked_source
+            .rsplit(['#', '/'])
+            .next()
+            .unwrap_or_default();
         return committish.is_some_and(|commit| {
             is_full_commit(&commit)
-                && (path.as_deref() != locked_path
-                    || !locked_source
-                        .split(['#', '&', '/'])
-                        .any(|segment| segment.eq_ignore_ascii_case(&commit)))
+                && (path.as_deref() != locked_path || !locked_commit.eq_ignore_ascii_case(&commit))
         });
     }
     pnpm_resolving_tarball_resolver::remote_tarball_id(spec)

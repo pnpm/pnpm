@@ -208,7 +208,7 @@ async function childIsUpToDate (
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
-  if (isLockedToOtherSource(currentSpec, locked.depPath)) return false
+  if (isLockedToOtherSource(currentSpec, locked)) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
 }
@@ -222,7 +222,7 @@ function isLocalSpec (spec: string): boolean {
  * asks for a source other than the one the package is locked to. The lockfile
  * keys such a package by the URL or commit it resolved.
  */
-function isLockedToOtherSource (spec: string, depPath: string): boolean {
+function isLockedToOtherSource (spec: string, { depPath, name }: { depPath: string, name: string }): boolean {
   const lockedId = removeSuffix(depPath)
   const git = parseGitSpecCommittishAndPath(spec)
   if (git !== undefined) {
@@ -230,7 +230,8 @@ function isLockedToOtherSource (spec: string, depPath: string): boolean {
       !isLockedToGitCommit(lockedId, { commit: git.gitCommittish, path: git.path })
   }
   if (spec.startsWith('http:') || spec.startsWith('https:')) {
-    return !URL.canParse(spec) || !lockedId.endsWith(`@${new URL(spec).toString()}`)
+    // A URL may end in a parenthesized segment, which removeSuffix takes for a peer suffix.
+    return !URL.canParse(spec) || ![depPath, lockedId].includes(`${name}@${new URL(spec).toString()}`)
   }
   return false
 }
@@ -238,9 +239,10 @@ function isLockedToOtherSource (spec: string, depPath: string): boolean {
 /** Whether a locked git or hosted-archive id names the commit and subdirectory. */
 function isLockedToGitCommit (lockedId: string, { commit, path }: { commit: string, path?: string }): boolean {
   const pathIndex = lockedId.lastIndexOf('path:')
-  const lockedSource = pathIndex === -1 ? lockedId : lockedId.slice(0, pathIndex)
+  const lockedSource = pathIndex === -1 ? lockedId : lockedId.slice(0, pathIndex).replace(/[#&]$/, '')
   const lockedPath = pathIndex === -1 ? undefined : lockedId.slice(pathIndex + 'path:'.length)
-  return path === lockedPath && lockedSource.toLowerCase().split(/[#&/]/).includes(commit.toLowerCase())
+  const lockedCommit = lockedSource.split(/[#/]/).at(-1)
+  return path === lockedPath && lockedCommit?.toLowerCase() === commit.toLowerCase()
 }
 
 /** The dependency path, name, version and registry of the package a dependency is locked to. */

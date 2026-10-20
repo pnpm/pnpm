@@ -562,6 +562,11 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
             format!("{codeload}#path:/sub"),
         ),
         (
+            format!("github:kevva/{COMMIT}#{}", "1".repeat(40)),
+            format!("github:kevva/{COMMIT}#{COMMIT}"),
+            format!("https://codeload.github.com/kevva/{COMMIT}/tar.gz/{}", "1".repeat(40)),
+        ),
+        (
             format!("github:kevva/is-positive#{COMMIT}&path:/sub"),
             format!("github:kevva/is-positive#{COMMIT}&path:/other"),
             format!("{codeload}#path:/sub"),

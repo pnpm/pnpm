@@ -1290,8 +1290,11 @@ describe('local file dependency', () => {
     ['a git commit', `github:kevva/is-positive#${commit}`, `github:kevva/is-positive#${otherCommit}`, codeload],
     ['an https git commit', `https://github.com/kevva/is-positive.git#${commit}`, `https://github.com/kevva/is-positive.git#${otherCommit}`, codeload],
     ['a git commit with a path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${otherCommit}&path:/sub`, `${codeload}#path:/sub`],
+    ['a tarball that another URL ends with', 'https://good.test/a.tgz', 'https://good.test/a.tgz', 'https://evil.test/x@https://good.test/a.tgz', false],
+    ['a commit that names the repository', `github:kevva/${commit}#${otherCommit}`, `github:kevva/${commit}#${commit}`, `https://codeload.github.com/kevva/${commit}/tar.gz/${otherCommit}`],
+    ['a tarball whose URL ends in parentheses', 'https://example.com/pkg(a).tgz', 'https://example.com/pkg(b).tgz', 'https://example.com/pkg(a).tgz'],
     ['a git path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${commit}&path:/other`, `${codeload}#path:/sub`],
-  ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec, lockedRef) => {
+  ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec, lockedRef, keepsLockedSpec = true) => {
     const lockfilePackages = {
       ...options.wantedLockfile.packages,
       'local@file:./local-dir': {
@@ -1314,7 +1317,7 @@ describe('local file dependency', () => {
         snapshot: options.wantedLockfile.importers['bar' as ProjectId],
       })).upToDate
     }
-    expect(await check(lockedSpec, true)).toBe(true)
+    expect(await check(lockedSpec, true)).toBe(keepsLockedSpec)
     expect(await check(lockedSpec, false)).toBe(false)
     expect(await check(otherSpec, true)).toBe(false)
   })
