@@ -1,5 +1,6 @@
 ---
 "@pnpm/lockfile.verification": patch
+"@pnpm/resolving.git-resolver": patch
 "pnpm": patch
 "pacquet": patch
 ---
