@@ -52,7 +52,7 @@ pub(in super::super) fn tar_resource_integrity(
     hash_within(resource, MAX_DECODED_TAR_BYTES).map(|(integrity, _)| integrity)
 }
 
-pub(super) fn tar_integrity_within(
+pub(in super::super) fn tar_integrity_within(
     tgz: impl Read,
     limit: u64,
 ) -> Option<(Integrity, Option<bool>)> {

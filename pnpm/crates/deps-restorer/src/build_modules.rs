@@ -311,6 +311,15 @@ fn take_mutated_snapshot_keys(
     )
 }
 
+fn empty_build_output(bin_state: &crate::build_options::BuildBinState) -> BuildModulesOutput {
+    let mutated_snapshot_keys = take_mutated_snapshot_keys(bin_state);
+    BuildModulesOutput {
+        mutated_slots: !mutated_snapshot_keys.is_empty(),
+        mutated_snapshot_keys,
+        ..BuildModulesOutput::default()
+    }
+}
+
 impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
@@ -328,7 +337,7 @@ impl BuildModules<'_> {
 
         let requires_build_map = self.requires_build_map(snapshots);
         if !self.has_work(&requires_build_map) {
-            return Ok(BuildModulesOutput::default());
+            return Ok(empty_build_output(bin_state));
         }
         let dep_states = self.dep_states(snapshots, &requires_build_map);
         let build_graph = build_graph(

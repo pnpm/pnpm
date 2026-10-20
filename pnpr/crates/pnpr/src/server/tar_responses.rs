@@ -13,7 +13,8 @@
 //! fetched `.tgz` files are already verified, so they are not hashed again.
 
 pub(super) use decode::{
-    MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of, tar_resource_integrity,
+    MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of, tar_integrity_within,
+    tar_resource_integrity,
 };
 
 use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};

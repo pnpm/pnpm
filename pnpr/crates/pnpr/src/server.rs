@@ -49,7 +49,7 @@ use tar_registry::{
 mod tar_responses;
 use tar_responses::{
     CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
-    tar_resource_integrity, tar_response,
+    tar_integrity_within, tar_resource_integrity, tar_response,
 };
 
 mod version_tarballs;
@@ -86,8 +86,8 @@ use revision_tarballs::{
 
 mod upstream_tarballs;
 use upstream_tarballs::{
-    TarballOrigin, UpstreamTarball, cached_upstream_tarball, serve_bound_upstream_tarball,
-    serve_tarball_via_upstream, tarball_cache_name,
+    BackgroundTarScans, TarballOrigin, UpstreamTarball, cached_upstream_tarball,
+    serve_bound_upstream_tarball, serve_tarball_via_upstream, tarball_cache_name,
 };
 
 mod upstream_integrity;

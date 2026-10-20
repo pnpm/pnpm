@@ -342,6 +342,7 @@ impl VersionRequest<'_> {
             name,
             filename: &filename,
             integrity: &integrity,
+            unpacked_size: tgz.dist.unpacked_size,
         };
         let (response, origin) =
             serve_bound_upstream_tarball(self.state, upstream, tarball, self.version).await;

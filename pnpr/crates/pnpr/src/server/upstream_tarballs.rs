@@ -83,7 +83,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
         return response;
     }
     let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
-    let TarballDist { version, integrity } = match dist {
+    let TarballDist { version, integrity, unpacked_size } = match dist {
         Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
@@ -101,7 +101,7 @@ pub(super) async fn serve_authorized_upstream_tarball(
     fetch_upstream_tarball(
         state,
         upstream,
-        UpstreamTarball { namespace, name, filename, integrity: &integrity },
+        UpstreamTarball { namespace, name, filename, integrity: &integrity, unpacked_size },
     )
     .await
 }
@@ -216,6 +216,7 @@ pub(super) struct UpstreamTarball<'a> {
     pub(super) name: &'a CanonicalPackageName,
     pub(super) filename: &'a str,
     pub(super) integrity: &'a Integrity,
+    pub(super) unpacked_size: Option<u64>,
 }
 
 /// Fetch the tarball from the upstream and stream it to the client, teeing it
@@ -230,6 +231,7 @@ pub(super) async fn fetch_upstream_tarball(
         name,
         filename,
         integrity,
+        unpacked_size: _,
     } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
@@ -252,11 +254,68 @@ pub(super) async fn fetch_upstream_tarball(
     stream_and_record_upstream_tarball(state, response, write, tarball)
 }
 
-/// Concurrent background `.tgz` scans after an upstream tarball is promoted to
-/// cache. Separate from `state.inner.proxy.tar_decodes` so background metadata
-/// derivation never delays foreground decoded-tar responses.
-static BACKGROUND_TAR_SCANS: std::sync::LazyLock<tokio::sync::Semaphore> =
-    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(8));
+/// Concurrent and queued background `.tgz` scans after an upstream tarball is
+/// promoted to cache. Separate from `state.inner.proxy.tar_decodes` so
+/// background metadata derivation never delays foreground decoded-tar responses.
+pub(super) struct BackgroundTarScans {
+    permits: tokio::sync::Semaphore,
+    in_flight: std::sync::Mutex<std::collections::HashSet<(String, String)>>,
+}
+
+const MAX_CONCURRENT_BACKGROUND_SCANS: usize = 8;
+const MAX_IN_FLIGHT_BACKGROUND_SCANS: usize = 64;
+
+/// Decoded-byte budget for a background `.tgz` scan when the upstream version
+/// omits `dist.unpackedSize`.
+const MAX_BACKGROUND_UNDECLARED_TAR_BYTES: u64 = 256 * 1024 * 1024;
+
+struct InFlightScanGuard {
+    scans: std::sync::Arc<BackgroundTarScans>,
+    key: Option<(String, String)>,
+}
+
+impl Drop for InFlightScanGuard {
+    fn drop(&mut self) {
+        if let Some(key) = self.key.take() {
+            self.scans.in_flight
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .remove(&key);
+        }
+    }
+}
+
+impl BackgroundTarScans {
+    pub(super) fn new() -> std::sync::Arc<Self> {
+        std::sync::Arc::new(Self {
+            permits: tokio::sync::Semaphore::new(MAX_CONCURRENT_BACKGROUND_SCANS),
+            in_flight: std::sync::Mutex::new(std::collections::HashSet::new()),
+        })
+    }
+
+    fn try_claim(
+        self: &std::sync::Arc<Self>,
+        name: &CanonicalPackageName,
+        tgz_key: &str,
+    ) -> Option<InFlightScanGuard> {
+        let key = (name.as_str().to_string(), tgz_key.to_string());
+        {
+            let mut in_flight =
+                self.in_flight.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if in_flight.len() >= MAX_IN_FLIGHT_BACKGROUND_SCANS || !in_flight.insert(key.clone()) {
+                return None;
+            }
+        }
+        Some(InFlightScanGuard { scans: std::sync::Arc::clone(self), key: Some(key) })
+    }
+}
+
+fn background_tar_decode_limit(unpacked_size: Option<u64>) -> u64 {
+    match unpacked_size {
+        Some(size) => super::tar_decode_limit(Some(size)),
+        None => MAX_BACKGROUND_UNDECLARED_TAR_BYTES,
+    }
+}
 
 fn stream_and_record_upstream_tarball(
     state: &AppState,
@@ -269,15 +328,27 @@ fn stream_and_record_upstream_tarball(
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
     let storage = state.inner.storage.clone();
+    let background_scans = std::sync::Arc::clone(&state.inner.proxy.background_tar_scans);
     let pkg_name = tarball.name.clone();
     let tgz_key = tarball.integrity.to_string();
+    let decode_limit = background_tar_decode_limit(tarball.unpacked_size);
     let streamed = streaming::stream_verified_to_cache_and_then(
         response,
         write,
         tarball.integrity,
         MAX_TARBALL_BYTES,
         move |cached_path| {
-            tokio::spawn(record_cached_tgz_tar_integrity(storage, pkg_name, tgz_key, cached_path));
+            let Some(in_flight_guard) = background_scans.try_claim(&pkg_name, &tgz_key) else {
+                return;
+            };
+            tokio::spawn(record_cached_tgz_tar_integrity(
+                storage,
+                pkg_name,
+                tgz_key,
+                cached_path,
+                decode_limit,
+                in_flight_guard,
+            ));
         },
     );
     match streamed {
@@ -291,7 +362,13 @@ async fn record_cached_tgz_tar_integrity(
     name: CanonicalPackageName,
     tgz_key: String,
     cached_path: std::path::PathBuf,
+    decode_limit: u64,
+    in_flight_guard: InFlightScanGuard,
 ) {
+    let permit = in_flight_guard.scans.permits
+        .acquire()
+        .await
+        .expect("the background scan semaphore is never closed");
     if storage
         .read_tar_integrities(&name)
         .await
@@ -299,13 +376,9 @@ async fn record_cached_tgz_tar_integrity(
     {
         return;
     }
-    let permit = BACKGROUND_TAR_SCANS
-        .acquire()
-        .await
-        .expect("the background scan semaphore is never closed");
     let derived = tokio::task::spawn_blocking(move || {
         let file = std::fs::File::open(cached_path).ok()?;
-        super::tar_integrity_of(std::io::BufReader::new(file))
+        super::tar_integrity_within(std::io::BufReader::new(file), decode_limit)
     })
     .await
     .ok()

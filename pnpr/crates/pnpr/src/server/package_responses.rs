@@ -13,6 +13,7 @@ use super::{
 pub(super) struct TarballDist {
     pub(super) version: String,
     pub(super) integrity: Integrity,
+    pub(super) unpacked_size: Option<u64>,
 }
 
 /// The `versions[v].dist` subset the tarball serve path reads. Every tarball
@@ -76,7 +77,7 @@ pub(super) fn expected_tarball_dist(
         ));
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
-    Ok(Some(TarballDist { version: version.clone(), integrity }))
+    Ok(Some(TarballDist { version: version.clone(), integrity, unpacked_size: dist.unpacked_size }))
 }
 
 pub(super) fn tarball_stream_error(
