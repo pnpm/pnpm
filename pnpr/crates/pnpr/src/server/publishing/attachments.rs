@@ -5,7 +5,7 @@ use super::{
     create_hex_hash, extract_attachments, hosted_storage, integrity_addressed_tarball_path,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
-        record_publisher,
+        record_publisher, serialize_staged_document,
     },
     resolve_write_target, stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
@@ -180,7 +180,7 @@ pub(in super::super) async fn stage_publish(
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
-    let document = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso)?;
+    let merged = prepare_staged_document(&name, hosted.as_ref(), &incoming, &prepared, now_iso);
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -190,8 +190,9 @@ pub(in super::super) async fn stage_publish(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    let decodes = &state.inner.proxy.tar_decodes;
-    let written = write_attachment_slots(&storage, &name, prepared, decodes).await?;
+    let written =
+        write_attachment_slots(&storage, &name, prepared, &state.inner.proxy.tar_decodes).await?;
+    let document = serialize_staged_document(merged, &written.tars);
     let revision_refs = written.tars
         .iter()
         .filter_map(|tar| staged_hosted_original_ref(&name, tar))
@@ -219,6 +220,7 @@ pub(super) struct PublishedTar {
     pub(super) version: String,
     pub(super) filename: String,
     pub(super) integrity: Integrity,
+    pub(super) inspection: pnpm_tarball::TarInspection,
 }
 
 /// Write every attachment into its reserved blob slot. A failure removes
@@ -286,6 +288,7 @@ pub(super) async fn write_attachment_slot(
                     version: prepared.version,
                     filename: prepared.canonical,
                     integrity,
+                    inspection,
                 }),
             ))
         }

@@ -10,7 +10,7 @@ use pnpr_storage::{
     publish::{extract_predicate_type, merge_manifest},
 };
 
-use super::attachments::{AttachmentKind, PreparedAttachment};
+use super::attachments::{AttachmentKind, PreparedAttachment, PublishedTar};
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
     if let Identity::User { username, .. } = identity {
@@ -129,10 +129,31 @@ pub(super) fn prepare_staged_document(
     incoming: &Value,
     prepared: &[PreparedAttachment],
     now_iso: &str,
-) -> Result<Vec<u8>, RegistryError> {
+) -> Value {
     let mut merged = merge_manifest(hosted, incoming, hosted, now_iso);
     attach_sigstore_attestations(&mut merged, name, prepared);
-    serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)
+    merged
+}
+
+pub(super) fn serialize_staged_document(mut merged: Value, tars: &[PublishedTar]) -> Vec<u8> {
+    if let Some(versions) = merged.get_mut("versions").and_then(Value::as_object_mut) {
+        for tar in tars {
+            let Some(dist) = versions
+                .get_mut(&tar.version)
+                .and_then(|manifest| manifest.get_mut("dist"))
+                .and_then(Value::as_object_mut)
+            else {
+                continue;
+            };
+            if let Some(file_count) = tar.inspection.file_count {
+                dist.insert("fileCount".to_string(), Value::from(file_count));
+            }
+            if let Some(unpacked_size) = tar.inspection.unpacked_size {
+                dist.insert("unpackedSize".to_string(), Value::from(unpacked_size));
+            }
+        }
+    }
+    serde_json::to_vec_pretty(&merged).expect("merged packument serializes")
 }
 
 fn attach_sigstore_attestations(
