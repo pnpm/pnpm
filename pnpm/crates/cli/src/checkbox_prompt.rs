@@ -51,7 +51,7 @@ impl Default for CheckboxTheme {
 }
 
 /// How the row under the cursor stands out, besides the `❯` in front of it.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ActiveRowStyle {
     /// Repaints the row cyan, over any colors of its own.
     Cyan,
@@ -134,6 +134,12 @@ impl<Value> CheckboxPrompt<Value> {
     pub(crate) fn theme(mut self, theme: CheckboxTheme) -> Self {
         self.theme = theme;
         self
+    }
+
+    /// The style only shows with color, which tests run without.
+    #[cfg(test)]
+    pub(crate) fn active_row(&self) -> ActiveRowStyle {
+        self.theme.active_row
     }
 
     /// Run the prompt on the terminal behind stdout, where pnpm draws it,
