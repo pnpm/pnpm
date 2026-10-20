@@ -151,7 +151,7 @@ impl WorkspaceSettings {
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, force_ignores_platform,
             node_version,
-            runtime_on_fail, node_download_mirrors, scripts_prepend_node_path, script_shell,
+            runtime_on_fail, node_download_mirrors, scripts_prepend_node_path, script_shell, editor,
             node_options, unsafe_perm, supported_architectures, ignored_optional_dependencies,
             overrides, package_extensions, package_configs, minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,

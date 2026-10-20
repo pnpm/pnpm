@@ -130,6 +130,7 @@ async fn run_capsule(
         match mode {
             Mode::Rebuild => {
                 install.run_rebuild::<SilentReporter>(pnpm_deps_restorer::RebuildOptions {
+                    selected_snapshots: None,
                     selected_names: None,
                     pending_projects: Vec::new(),
                     check_lockfile_patches_only: false,

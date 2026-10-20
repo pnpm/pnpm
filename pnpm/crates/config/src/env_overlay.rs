@@ -145,6 +145,7 @@ impl WorkspaceSettings {
         enum_field!(settings, reader, loglevel, "LOGLEVEL", LogLevel);
         enum_field!(settings, reader, reporter, "REPORTER", ReporterType);
         json_field!(settings, reader, embed_readme, "EMBED_README");
+        tri_string_field!(settings, reader, editor, "EDITOR");
         json_field!(settings, reader, ignore_pnpmfile, "IGNORE_PNPMFILE");
         json_field!(settings, reader, ignore_workspace_root_check, "IGNORE_WORKSPACE_ROOT_CHECK");
         json_field!(settings, reader, optional, "OPTIONAL");

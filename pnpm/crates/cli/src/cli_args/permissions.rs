@@ -130,7 +130,8 @@ impl ApproveArgs {
         }
         let rebuild_state = State::init(manifest_path.to_path_buf(), approved_config, true)
             .wrap_err("initialize the rebuild state")?;
-        let selection = RebuildSelection { names: Some(build_packages), projects: Vec::new() };
+        let selection =
+            RebuildSelection { snapshots: None, names: Some(build_packages), projects: Vec::new() };
         Box::pin(run_rebuild::<Reporter>(&rebuild_state, selection, None)).await
     }
 
