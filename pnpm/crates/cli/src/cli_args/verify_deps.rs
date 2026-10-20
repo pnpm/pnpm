@@ -402,7 +402,7 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
 /// They stay out of the prompt, which could otherwise print a credential
 /// such as `--config.//registry.example/:_authToken=...`.
 fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
-    config.raw_cli_config
+    config.cli.npmrc_tokens
         .iter()
         .map(|(key, value)| format!("--config.{key}={value}"))
 }

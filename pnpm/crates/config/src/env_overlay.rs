@@ -5,7 +5,7 @@
 //! for every key in the schema and applies it to the config *after*
 //! `pnpm-workspace.yaml`.
 //! The command line's `--config.<key>=<value>` values read through the same
-//! field list; see [`crate::Config::cli_setting_values`].
+//! field list; see [`crate::CliLayer::setting_values`].
 //!
 //! Pacquet does NOT read `npm_config_*` / `NPM_CONFIG_*` env vars (with
 //! the exception of `NPM_CONFIG_WORKSPACE_DIR`, a fallback of the

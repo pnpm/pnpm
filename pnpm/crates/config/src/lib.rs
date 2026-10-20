@@ -30,6 +30,7 @@ pub use crate::{
 };
 pub use boot_config::BootConfig;
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
+pub use cli_layer::CliLayer;
 pub use loading::ConfigLoadFailure;
 pub use network_policy::NetworkPolicy;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
@@ -67,6 +68,7 @@ mod api;
 mod boot_config;
 mod cas;
 mod ci_detection;
+mod cli_layer;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;

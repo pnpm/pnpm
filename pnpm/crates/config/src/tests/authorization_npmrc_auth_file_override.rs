@@ -247,10 +247,13 @@ pub fn cli_config_auth_outranks_url_scoped_env_and_project_npmrc() {
     set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
 
     let config = Config {
-        raw_cli_config: vec![(
-            "//env2e.example.com/:_authToken".to_string(),
-            "cli-token".to_string(),
-        )],
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![(
+                "//env2e.example.com/:_authToken".to_string(),
+                "cli-token".to_string(),
+            )],
+            ..crate::CliLayer::default()
+        },
         ..Config::default()
     }
     .current::<FakeEnv>(project.path())
@@ -277,10 +280,13 @@ pub fn unscoped_cli_config_auth_token_pins_to_the_cli_registry() {
     let project = tempdir().expect("project tempdir");
 
     let config = Config {
-        raw_cli_config: vec![
-            ("registry".to_string(), "https://cli.example.com/".to_string()),
-            ("_authToken".to_string(), "cli-token".to_string()),
-        ],
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![
+                ("registry".to_string(), "https://cli.example.com/".to_string()),
+                ("_authToken".to_string(), "cli-token".to_string()),
+            ],
+            ..crate::CliLayer::default()
+        },
         ..Config::default()
     }
     .current::<HostNoHome>(project.path())
@@ -305,11 +311,14 @@ pub fn unscoped_cli_config_auth_token_pins_to_the_registry_flag() {
     let project = tempdir().expect("project tempdir");
 
     let config = Config {
-        raw_cli_config: vec![
-            ("registry".to_string(), "https://cli.example.com/".to_string()),
-            ("_authToken".to_string(), "cli-token".to_string()),
-        ],
-        cli_registry: Some("https://flag.example.com/".to_string()),
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![
+                ("registry".to_string(), "https://cli.example.com/".to_string()),
+                ("_authToken".to_string(), "cli-token".to_string()),
+            ],
+            registry: Some("https://flag.example.com/".to_string()),
+            ..crate::CliLayer::default()
+        },
         ..Config::default()
     }
     .current::<HostNoHome>(project.path())
@@ -328,7 +337,10 @@ pub fn cli_config_tls_setting_outranks_project_npmrc() {
     write_file(&project.path().join(".npmrc"), "strict-ssl=true\n");
 
     let config = Config {
-        raw_cli_config: vec![("strict-ssl".to_string(), "false".to_string())],
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![("strict-ssl".to_string(), "false".to_string())],
+            ..crate::CliLayer::default()
+        },
         ..Config::default()
     }
     .current::<HostNoHome>(project.path())

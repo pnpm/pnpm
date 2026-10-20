@@ -78,7 +78,6 @@ pub(super) fn apply_hook_delta(
         .and_then(Value::as_str)
         .map(str::to_owned);
     let execution_changes = hook_execution_changes(&delta)?;
-    let cli_registries = cli_registries(config);
     apply_registry_routing_changes(config, &delta)?;
 
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta.clone())
@@ -86,7 +85,7 @@ pub(super) fn apply_hook_delta(
         .wrap_err("deserialize the updateConfig hook result")?;
     record_explicit_setting_changes(config, &delta, &delta_settings);
     delta_settings.apply_to(config, base_dir);
-    restore_cli_registries(config, cli_registries);
+    config.apply_cli_registries();
     apply_hook_execution_changes(config, execution_changes, script_shell_deleted);
     restore_defaults_of_nulled_settings(config, &delta, base_dir);
     apply_state_dir_change(config, &delta);
@@ -233,31 +232,4 @@ fn apply_hook_store_dir(
         );
     }
     Ok(())
-}
-
-fn cli_registries(config: &Config) -> Vec<(String, String)> {
-    config.cli_settings
-        .iter()
-        .filter_map(|key| {
-            if key == "registry" {
-                return Some(("default".to_string(), config.registry.clone()));
-            }
-            let scope = key
-                .strip_suffix(":registry")
-                .filter(|scope| scope.starts_with('@'))?;
-            let url = config.registries_by_scope.get(scope)?;
-            Some((scope.to_string(), url.clone()))
-        })
-        .collect()
-}
-
-fn restore_cli_registries(config: &mut Config, registries: Vec<(String, String)>) {
-    for (scope, url) in registries {
-        if scope == "default" {
-            crate::config_overrides::apply_registry_override(config, &url);
-        } else {
-            config.registries_by_scope.insert(scope.clone(), url.clone());
-            config.package_manager_bootstrap.registries.insert(scope, url);
-        }
-    }
 }

@@ -114,11 +114,8 @@ fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
 
 /// The command line's `--config.<key>=<value>` tokens: trusted, and above
 /// every other source.
-fn cli_auth_source(
-    raw_cli_config: &[(String, String)],
-    registry: Option<&str>,
-) -> Option<NpmrcAuth> {
-    (!raw_cli_config.is_empty()).then(|| NpmrcAuth::from_cli_config(raw_cli_config, registry))
+fn cli_auth_source(cli: &crate::CliLayer) -> Option<NpmrcAuth> {
+    (!cli.npmrc_tokens.is_empty()).then(|| NpmrcAuth::from_cli_config(cli))
 }
 
 /// Structured `_auth` registry auth from its two trusted sources:
@@ -217,7 +214,7 @@ impl Config {
         let mut auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
         let mut user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
         let mut env_scoped_source = env_scoped_auth_source::<Sys>();
-        let mut cli_source = cli_auth_source(&self.raw_cli_config, self.cli_registry.as_deref());
+        let mut cli_source = cli_auth_source(&self.cli);
         let env_json_source = self.keep_warnings_on_error(
             env_json_auth_source::<Sys>(global_settings),
             [

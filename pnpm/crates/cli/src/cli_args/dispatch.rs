@@ -370,7 +370,6 @@ impl CliArgs {
         apply_location_overrides(
             &mut cfg,
             anchor,
-            None,
             self.paths.store_dir.as_deref(),
             self.paths.state_dir.as_deref(),
         )?;

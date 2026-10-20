@@ -187,7 +187,10 @@ fn command_line_settings_win_over_boot_config() {
     let tmp = tempdir().expect("workspace tempdir");
     write(tmp.path(), &[("pnpm-workspace.yaml", "bootConfig:\n  minimumReleaseAge: 0\n")]);
     let config = Config {
-        cli_setting_values: [("minimumReleaseAge".to_string(), "10080".to_string())].into(),
+        cli: crate::CliLayer {
+            setting_values: [("minimumReleaseAge".to_string(), "10080".to_string())].into(),
+            ..crate::CliLayer::default()
+        },
         ..Config::default()
     }
     .current::<HostNoHome>(tmp.path())

@@ -1,14 +1,12 @@
-pub(crate) use apply::{
-    apply_registry_override, apply_state_dir_override, apply_store_dir_override,
-};
+pub(crate) use apply::{apply_state_dir_override, apply_store_dir_override};
 pub(crate) use tokens::{bare_boolean_setting_claims, bare_setting_flag_width, parse_bool};
 
 use pnpm_network::normalize_registry_url;
 
 use pnpm_config::{
-    ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
-    LinkWorkspacePackages, NodeLinkerSetting, PackageImportMethod, PmOnFail, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
+    CliLayer, ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir,
+    LinkProbe, LinkWorkspacePackages, NodeLinkerSetting, PackageImportMethod, PmOnFail,
+    RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
     naming_cases::to_kebab_case, resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
@@ -129,11 +127,11 @@ pub struct ConfigOverrides {
     pub(super) settings: BTreeSet<String>,
 
     /// The `--config.<key>=<value>` tokens as given, in argv order, for
-    /// [`Config::raw_cli_config`].
-    pub(super) raw_cli_config: Vec<(String, String)>,
+    /// [`CliLayer::npmrc_tokens`].
+    pub(super) npmrc_tokens: Vec<(String, String)>,
 
     /// The `--config.<key>=<value>` tokens no table above claims, by
-    /// kebab-case setting name, for [`Config::cli_setting_values`].
+    /// kebab-case setting name, for [`CliLayer::setting_values`].
     unported: BTreeMap<String, String>,
 }
 
@@ -185,7 +183,7 @@ impl ConfigOverrides {
             .to_str()
             .is_some_and(|arg| arg.starts_with("--config."))
         {
-            self.raw_cli_config.push((key.to_owned(), value.to_owned()));
+            self.npmrc_tokens.push((key.to_owned(), value.to_owned()));
         }
     }
 
@@ -197,13 +195,22 @@ impl ConfigOverrides {
         &self.unported
     }
 
-    pub(crate) fn initial_setting_values(&self) -> BTreeMap<String, String> {
-        let mut values = self.unported_settings().clone();
+    /// The [`CliLayer`] [`Config::current`] reads, with `registry_flag`, the
+    /// `--registry` flag, outranking a `--config.registry` token.
+    pub(crate) fn cli_layer(&self, registry_flag: Option<&str>) -> CliLayer {
+        let mut setting_values = self.unported_settings().clone();
         // Linker selection must reach directory derivation before command overrides run.
         if let Some(linker) = &self.node_linker {
-            values.insert("node-linker".to_string(), setting_value(linker).to_string());
+            setting_values.insert("node-linker".to_string(), setting_value(linker).to_string());
         }
-        values
+        CliLayer {
+            npmrc_tokens: self.npmrc_tokens.clone(),
+            registry: registry_flag
+                .map(|registry| normalize_registry_url(registry).into_owned())
+                .or_else(|| self.registry.clone()),
+            scoped_registries: self.registries.clone(),
+            setting_values,
+        }
     }
 
     /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`](tokens::BARE_SETTING_FLAGS)

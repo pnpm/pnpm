@@ -100,22 +100,23 @@ impl NpmrcAuth {
 
     /// Read the command line's `--config.<key>=<value>` tokens as the top
     /// `.npmrc` layer. Values are used as given: the shell has expanded them.
-    /// Unscoped credentials pin to `registry` when given, else to the tokens'
-    /// own `registry`.
-    pub fn from_cli_config(entries: &[(String, String)], registry: Option<&str>) -> Self {
+    /// Unscoped credentials pin to [`CliLayer::registry`](crate::CliLayer::registry) when set, else to
+    /// the tokens' own `registry`.
+    pub fn from_cli_config(cli: &crate::CliLayer) -> Self {
         let mut auth = NpmrcAuth::default();
-        for (key, value) in entries {
+        for (key, value) in &cli.npmrc_tokens {
             if crate::config_types::is_ini_config_key(key) {
                 auth.raw_ini_config.insert(key.clone(), value.clone());
             }
             // The empty base leaves a relative `cafile` to the current directory.
             auth.apply_ini_entry(key, value.clone(), Path::new(""));
         }
-        if let Some(registry) = registry {
-            auth.routes.default = Some(registry.to_owned());
+        if let Some(registry) = &cli.registry {
+            auth.routes.default = Some(registry.clone());
         }
         auth.rescope_unscoped("<command line>");
-        // The CLI applies the command line's registry routes after the load.
+        // `Config::apply_cli_registries` applies the routes over the
+        // workspace yaml, which the `.npmrc` routes rank below.
         auth.routes = NpmrcRoutes::default();
         auth
     }

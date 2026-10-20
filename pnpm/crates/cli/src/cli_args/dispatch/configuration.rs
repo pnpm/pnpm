@@ -4,10 +4,7 @@ use super::{
     now_millis, prepare_config, prints_json_errors,
     warn_shared_workspace_lockfile_outside_workspace,
 };
-use crate::{
-    cli_args::reporter::CliReporter,
-    config_overrides::{ConfigOverrides, apply_registry_override},
-};
+use crate::{cli_args::reporter::CliReporter, config_overrides::ConfigOverrides};
 use pnpm_hooks::PnpmfileHooks;
 use std::sync::Arc;
 
@@ -218,9 +215,7 @@ pub(in crate::cli_args) fn seed_config(
     Config {
         npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
         ignore_workspace,
-        cli_setting_values: config_overrides.initial_setting_values(),
-        raw_cli_config: config_overrides.raw_cli_config.clone(),
-        cli_registry: registry.map(str::to_owned),
+        cli: config_overrides.cli_layer(registry),
         ..Config::default()
     }
 }
@@ -246,13 +241,9 @@ pub(super) fn apply_color_override(
 pub(super) fn apply_location_overrides(
     cfg: &mut Config,
     anchor: &Path,
-    registry: Option<&str>,
     store_dir: Option<&Path>,
     state_dir: Option<&Path>,
 ) -> miette::Result<()> {
-    if let Some(registry) = registry {
-        apply_registry_override(cfg, registry);
-    }
     if let Some(store_dir) = store_dir {
         apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
         cfg.cli_settings.insert("storeDir".to_string());
