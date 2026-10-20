@@ -1,4 +1,6 @@
-use super::filter_selector_args;
+use super::{filter_selector_args, install_config_args};
+use pnpm_config::Config;
+use std::path::PathBuf;
 
 fn selectors(selectors: &[&str]) -> Vec<String> {
     selectors
@@ -22,5 +24,16 @@ fn filter_selector_args_keep_exclusions_and_dependency_selectors() {
     assert_eq!(
         filter_selector_args(&selectors(&["foo...", "...bar", "baz^...", "!qux"]), &[]),
         ["--filter=foo...", "--filter=...bar...", "--filter=baz^...", "--filter=!qux"],
+    );
+}
+
+#[test]
+fn install_config_args_resolves_relative_npmrc_auth_file_against_current_dir() {
+    let config =
+        Config { npmrc_auth_file: Some(PathBuf::from("custom-user.npmrc")), ..Default::default() };
+    let expected = std::env::current_dir().expect("read current dir").join("custom-user.npmrc");
+    assert_eq!(
+        install_config_args(&config).collect::<Vec<_>>(),
+        [format!("--npmrc-auth-file={}", expected.display())],
     );
 }

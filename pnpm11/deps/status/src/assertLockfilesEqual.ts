@@ -58,9 +58,12 @@ export function importerClosuresMatch (
   include: IncludedDependencies
 ): boolean {
   if (currentLockfile == null) {
-    return initialImporterIds.every((id) => equals(wantedLockfile.importers[id]?.specifiers ?? {}, {}))
+    return initialImporterIds.every((id) => {
+      const importer = Object.hasOwn(wantedLockfile.importers, id) ? wantedLockfile.importers[id] : undefined
+      return equals(importer?.specifiers ?? {}, {})
+    })
   }
-  if (initialImporterIds.some((id) => currentLockfile.importers[id] == null)) {
+  if (initialImporterIds.some((id) => !Object.hasOwn(currentLockfile.importers, id) || currentLockfile.importers[id] == null)) {
     return false
   }
   const allGroups: IncludedDependencies = {
@@ -87,12 +90,12 @@ function collectImporterClosure (
   lockfile: LockfileObject,
   initialImporterIds: ProjectId[],
   include: IncludedDependencies
-): { importers: Record<ProjectId, ProjectSnapshot>, packages: PackageSnapshots } {
+): { importers: Array<[string, ProjectSnapshot]>, packages: PackageSnapshots } {
   const state: ClosureState = {
     lockfile,
     include,
-    importers: {} as Record<ProjectId, ProjectSnapshot>,
-    packages: {} as PackageSnapshots,
+    importers: Object.create(null) as Record<ProjectId, ProjectSnapshot>,
+    packages: Object.create(null) as PackageSnapshots,
     importerQueue: [...initialImporterIds],
     depQueue: [],
   }
@@ -100,13 +103,18 @@ function collectImporterClosure (
     drainImporterQueue(state)
     drainDepQueue(state)
   }
-  return { importers: state.importers, packages: state.packages }
+  return {
+    importers: Object.entries(state.importers).sort(([a], [b]) => a.localeCompare(b)),
+    packages: { ...state.packages },
+  }
 }
 
 function drainImporterQueue (state: ClosureState): void {
   while (state.importerQueue.length > 0) {
     const importerId = state.importerQueue.pop()!
-    const importer = state.lockfile.importers[importerId]
+    const importer = Object.hasOwn(state.lockfile.importers, importerId)
+      ? state.lockfile.importers[importerId]
+      : undefined
     if (state.importers[importerId] != null || importer == null) continue
     const filtered = filterImporterByGroups(importer, state.include)
     state.importers[importerId] = filtered
@@ -117,9 +125,10 @@ function drainImporterQueue (state: ClosureState): void {
 }
 
 function drainDepQueue (state: ClosureState): void {
+  const packages = state.lockfile.packages ?? {}
   while (state.depQueue.length > 0) {
     const depPath = state.depQueue.pop()!
-    const pkg = state.lockfile.packages?.[depPath]
+    const pkg = Object.hasOwn(packages, depPath) ? packages[depPath] : undefined
     if (state.packages[depPath] != null || pkg == null) continue
     state.packages[depPath] = pkg
     enqueueRefs(state, undefined, pkg.dependencies)
@@ -130,16 +139,17 @@ function drainDepQueue (state: ClosureState): void {
 }
 
 function enqueueRefs (state: ClosureState, sourceImporterId: ProjectId | undefined, refs: Record<string, string> | undefined): void {
+  const packages = state.lockfile.packages ?? {}
   for (const [pkgName, ref] of Object.entries(refs ?? {})) {
     if (ref.startsWith('link:')) {
       const targetId = resolveLinkedImporterId(sourceImporterId, ref.slice(5))
-      if (state.lockfile.importers[targetId] != null && state.importers[targetId] == null) {
+      if (Object.hasOwn(state.lockfile.importers, targetId) && state.lockfile.importers[targetId] != null && state.importers[targetId] == null) {
         state.importerQueue.push(targetId)
       }
       continue
     }
     const depPath = dp.refToRelative(ref, pkgName)
-    if (depPath != null && state.packages[depPath] == null && state.lockfile.packages?.[depPath] != null) {
+    if (depPath != null && state.packages[depPath] == null && Object.hasOwn(packages, depPath) && packages[depPath] != null) {
       state.depQueue.push(depPath)
     }
   }

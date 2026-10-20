@@ -67,13 +67,20 @@ fn runs_dev_preinstall(config: &Config, manifest: &PackageManifest, workspace_ro
 /// Whether the manifest declares at least one peer that is not marked
 /// optional. The caller decides whether `autoInstallPeers` fetches them.
 fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
+    let Some(peers) = manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
     let meta = manifest
         .value()
         .get("peerDependenciesMeta")
         .and_then(serde_json::Value::as_object);
-    manifest
-        .dependencies([pnpm_package_manifest::DependencyGroup::Peer])
-        .any(|(name, _)| !peer_dependency_is_optional(meta, name))
+    peers
+        .keys()
+        .any(|name| !peer_dependency_is_optional(meta, name))
 }
 
 fn peer_dependency_is_optional(

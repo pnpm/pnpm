@@ -13,7 +13,7 @@ use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::Path,
 };
 use tokens::{

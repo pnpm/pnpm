@@ -982,7 +982,7 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
     // Outside CI, v12 records `autoDedupe: true` in `pnpm-state.yaml`; v11 must
     // accept that state on its fast path and preserve `autoDedupe: true` when it
     // rewrites the state file so a subsequent v12 gate still converges.
-    assert!(!scenario.install(&[]) || scenario.install(&[]));
+    assert!(scenario.install(&[]));
     if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
         let v11_repeat = scenario.command_at_with(
             Some(&bundle),
@@ -1043,6 +1043,7 @@ fn verify_deps_install_forwards_lockfile_dir_and_converges() {
         let lockfile_dir = scenario.workspace().with_file_name("shared-lockfile-dir");
         let _ = fs::remove_dir_all(&lockfile_dir);
         fs::create_dir_all(&lockfile_dir).expect("create lockfile dir");
+        let lockfile_dir = lockfile_dir.canonicalize().unwrap_or(lockfile_dir);
 
         let lockfile_dir_arg = format!("--lockfile-dir={}", lockfile_dir.display());
         let first_run = scenario.command_at(

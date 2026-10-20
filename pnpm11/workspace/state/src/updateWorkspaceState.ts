@@ -78,11 +78,7 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
 }
 
 function carriesPreviousState (opts: UpdateWorkspaceStateOptions): boolean {
-  return (
-    opts.ignoredWorkspaceStateSettings != null ||
-    opts.validation?.vouchedProjects != null ||
-    opts.validation?.onlyIfTrusted === true
-  )
+  return opts.ignoredWorkspaceStateSettings != null || opts.validation != null
 }
 
 function readPreviousWorkspaceState (workspaceDir: string): WorkspaceState | undefined {

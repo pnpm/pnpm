@@ -419,6 +419,7 @@ fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
         });
     let npmrc_auth_file = config.npmrc_auth_file
         .as_deref()
+        .map(resolve_against_current_dir)
         .map(|path| format!("--npmrc-auth-file={}", path.display()));
     let ignore_workspace =
         config.workspace_search_skipped.then(|| "--ignore-workspace".to_string());
@@ -432,6 +433,14 @@ fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
     raw.chain(npmrc_auth_file)
         .chain(ignore_workspace)
         .chain(workspace_packages)
+}
+
+fn resolve_against_current_dir(path: &Path) -> std::path::PathBuf {
+    if path.is_relative() {
+        std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+    } else {
+        path.to_path_buf()
+    }
 }
 
 #[cfg(test)]

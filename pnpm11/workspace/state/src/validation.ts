@@ -254,7 +254,7 @@ export function recordValidation (state: WorkspaceState, opts: RecordValidationO
   }
   const carried = previous != null && sharedInputsMatch(previous, state, opts.sharedInputs, files) ? previous.validation : undefined
   const validation: Validation = { recordedAtNs, files, lockfile, manifests: {} }
-  const recorded = recordProjects(validation, opts, carried, projectLockfiles)
+  const recorded = recordProjects({ validation, opts, carried, projectLockfiles })
   state.lastValidatedTimestamp = Math.trunc(recordedAtNs / 1_000_000)
   state.filteredInstall = recorded !== opts.allProjects.length
   state.validation = validation
@@ -302,14 +302,22 @@ function recordedProjectLockfiles (
   for (const project of opts.allProjects) {
     if (opts.vouchedProjects != null && !opts.vouchedProjects.has(project.rootDir)) continue
     const lockfile = lockfileDigest(previous, project.rootDir, opts.wantedLockfileName)
-    if (lockfile.digest.kind === 'present') {
+    const wantedPath = path.join(project.rootDir, opts.wantedLockfileName)
+    if (lockfile.digest.kind === 'present' && lockfile.path === wantedPath) {
       files[lockfile.path] = lockfile.digest.signature
       projectLockfiles.set(project.rootDir, lockfile.digest.signature.digest)
-    } else if (lockfile.digest.kind === 'absent') {
+    } else if (lockfile.digest.kind !== 'unreadable') {
       projectLockfiles.set(project.rootDir, undefined)
     }
   }
   return projectLockfiles
+}
+
+interface ProjectRecordContext {
+  validation: Validation
+  opts: RecordValidationOptions
+  carried: Validation | undefined
+  projectLockfiles: Map<string, string | undefined> | undefined
 }
 
 /**
@@ -317,34 +325,28 @@ function recordedProjectLockfiles (
  * its lockfile, and each other one `carried` still proves. Returns how many it
  * recorded.
  */
-function recordProjects (
-  validation: Validation,
-  opts: RecordValidationOptions,
-  carried: Validation | undefined,
-  projectLockfiles: Map<string, string | undefined> | undefined
-): number {
+function recordProjects (ctx: ProjectRecordContext): number {
+  const { opts, validation } = ctx
   let recorded = 0
   for (const project of opts.allProjects) {
     const importerId = importerIdOf(opts.lockfileDir, project.rootDir)
-    const record = recordProjectEntry(project, importerId, validation, opts, carried, projectLockfiles)
+    const record = recordProjectEntry(ctx, project, importerId)
     if (record == null) continue
-    insertProject(validation, importerId, record.manifest, record.lockfile)
+    insertProject(validation, importerId, record)
     recorded++
   }
   return recorded
 }
 
 function recordProjectEntry (
+  ctx: ProjectRecordContext,
   project: RecordValidationOptions['allProjects'][number],
-  importerId: string,
-  validation: Validation,
-  opts: RecordValidationOptions,
-  carried: Validation | undefined,
-  projectLockfiles: Map<string, string | undefined> | undefined
+  importerId: string
 ): { manifest: string, lockfile: string | undefined } | undefined {
+  const { opts, projectLockfiles, validation } = ctx
   const vouched = opts.vouchedProjects == null || opts.vouchedProjects.has(project.rootDir)
   if (!vouched) {
-    return carriedProjectEntry(project.rootDir, importerId, validation, opts.wantedLockfileName, carried, projectLockfiles)
+    return carriedProjectEntry(ctx, project.rootDir, importerId)
   }
   if (projectLockfiles != null && !projectLockfiles.has(project.rootDir)) return undefined
   return {
@@ -354,24 +356,25 @@ function recordProjectEntry (
 }
 
 function carriedProjectEntry (
+  { carried, opts, projectLockfiles, validation }: ProjectRecordContext,
   projectRootDir: string,
-  importerId: string,
-  validation: Validation,
-  wantedLockfileName: string,
-  carried: Validation | undefined,
-  projectLockfiles: Map<string, string | undefined> | undefined
+  importerId: string
 ): { manifest: string, lockfile: string | undefined } | undefined {
   if (carried == null) return undefined
   const record = projectValidation(carried, importerId)
   if (record != null && projectLockfiles != null && validation.files != null) {
-    const wantedPath = path.join(projectRootDir, wantedLockfileName)
+    const wantedPath = path.join(projectRootDir, opts.wantedLockfileName)
     const carriedSig = trustedSignature(carried, wantedPath)
     if (carriedSig != null) validation.files[wantedPath] = carriedSig
   }
   return record
 }
 
-function insertProject (validation: Validation, importerId: string, manifest: string, lockfile: string | undefined): void {
+function insertProject (
+  validation: Validation,
+  importerId: string,
+  { manifest, lockfile }: { manifest: string, lockfile: string | undefined }
+): void {
   validation.manifests[importerId] = manifest
   if (lockfile !== validation.lockfile) {
     validation.lockfiles ??= {}

@@ -150,6 +150,20 @@ test('updateWorkspaceState() preserves autoDedupe and ignoredWorkspaceStateSetti
   expect(state.settings.dev).toBe(false)
   expect(state.settings.optional).toBe(true)
   expect(state.settings.production).toBe(true)
+
+  await updateWorkspaceState({
+    allProjects,
+    settings: {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: false,
+      preferWorkspacePackages: false,
+    },
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: false,
+    validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [] },
+  })
+  expect(loadWorkspaceState(workspaceDir)!.settings.autoDedupe).toBe(true)
 })
 
 test('updateWorkspaceState() records per-project lockfiles when sharedWorkspaceLockfile is false', async () => {

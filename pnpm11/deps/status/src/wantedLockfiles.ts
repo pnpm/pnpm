@@ -32,28 +32,37 @@ export interface LockfileChangedCheckInput {
   readOpts: WantedLockfileReadOptions
 }
 
+export interface LockfileChangedCheckResult {
+  issue?: string
+  wantedLockfile?: LockfileObject | null
+}
+
 function currentLockfileDir (lockfileDir: string, modulesDir?: string): string {
   return path.join(path.resolve(lockfileDir, modulesDir ?? 'node_modules'), '.pnpm')
 }
 
-export async function findOutdatedLockfileChangedProject (input: LockfileChangedCheckInput): Promise<string | undefined> {
-  if (input.projects.length === 0) return undefined
+export async function findOutdatedLockfileChangedProject (input: LockfileChangedCheckInput): Promise<LockfileChangedCheckResult> {
+  if (input.projects.length === 0) return {}
   if (input.sharedWorkspaceLockfile === false) {
-    return findOutdatedPerProjectLockfile(input)
+    return { issue: await findOutdatedPerProjectLockfile(input) }
   }
   const { include, lockfileDir, projects, readOpts } = input
   const [wanted, current] = await Promise.all([
     readWantedLockfileIn(lockfileDir, readOpts),
     readCurrentLockfile(currentLockfileDir(lockfileDir, readOpts.modulesDir), { ignoreIncompatible: false }),
   ])
-  if (wanted == null) return undefined
+  if (wanted == null) return { wantedLockfile: null }
+  const allImporterIds = projects.map(({ project }) => getLockfileImporterId(lockfileDir, project.rootDir))
+  if (importerClosuresMatch(wanted, current, allImporterIds, include)) {
+    return { wantedLockfile: wanted }
+  }
   for (const { project, unrecorded } of projects) {
     const importerId = getLockfileImporterId(lockfileDir, project.rootDir)
     if (!importerClosuresMatch(wanted, current, [importerId], include)) {
-      return unprovenProjectIssue(project, unrecorded)
+      return { issue: unprovenProjectIssue(project, unrecorded), wantedLockfile: wanted }
     }
   }
-  return undefined
+  return { wantedLockfile: wanted }
 }
 
 async function findOutdatedPerProjectLockfile ({ include, projects, readOpts }: LockfileChangedCheckInput): Promise<string | undefined> {

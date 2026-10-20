@@ -67,7 +67,11 @@ export async function recursiveInstallThenUpdateWorkspaceState (
       pnpmfiles: opts.pnpmfile,
       filteredInstall,
       configDependencies: opts.configDependencies,
-      validation: await stateValidation({ ...opts, dir: opts.workspaceDir }, filteredInstall),
+      validation: await stateValidation({
+        ...opts,
+        dir: opts.workspaceDir,
+        includeWorkspaceRoot: opts.sharedWorkspaceLockfile !== false && !opts.excludeWorkspaceRootProject && allProjects.some((project) => project.rootDir === opts.workspaceDir),
+      }, filteredInstall),
     })
   }
   return recursiveResult.dryRunResult
@@ -79,7 +83,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
  */
 interface StateValidationInputs {
   dir: string
-  excludeWorkspaceRootProject?: boolean
+  includeWorkspaceRoot?: boolean
   lockfileDir?: string
   workspaceDir?: string
   sharedWorkspaceLockfile?: boolean
@@ -97,12 +101,7 @@ async function stateValidation (
   const lockfileDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
   const selectedDirs = Object.keys(opts.selectedProjectsGraph ?? {})
   const vouchedDirs = selectedDirs.length > 0 ? [...selectedDirs] : [opts.dir]
-  if (
-    opts.sharedWorkspaceLockfile !== false &&
-    !opts.excludeWorkspaceRootProject &&
-    opts.workspaceDir != null &&
-    !vouchedDirs.includes(opts.workspaceDir)
-  ) {
+  if (opts.includeWorkspaceRoot && opts.workspaceDir != null && !vouchedDirs.includes(opts.workspaceDir)) {
     vouchedDirs.push(opts.workspaceDir)
   }
   return {

@@ -375,14 +375,14 @@ fn lockfile_inputs_block_fast_path(
 }
 
 pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
-    manifest
-        .dependencies([
-            pnpm_package_manifest::DependencyGroup::Prod,
-            pnpm_package_manifest::DependencyGroup::Dev,
-            pnpm_package_manifest::DependencyGroup::Optional,
-        ])
-        .next()
-        .is_some()
+    let value = manifest.value();
+    [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
+        .into_iter()
+        .flatten()
+        .any(|deps| {
+            deps.as_object()
+                .is_some_and(|map| !map.is_empty())
+        })
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
