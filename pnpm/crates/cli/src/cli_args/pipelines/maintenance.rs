@@ -218,7 +218,7 @@ async fn run_dedicated_prune<Reporter: self::Reporter + 'static>(
         sync_injected_deps: false,
         pipelined: false,
     }
-    .run(move |state| {
+    .run::<Reporter, _, _>(move |state| {
         let args = args.clone();
         let config_root = config_root.clone();
         Box::pin(async move {
