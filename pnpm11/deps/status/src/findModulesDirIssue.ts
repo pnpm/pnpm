@@ -53,7 +53,14 @@ export async function findModulesDirIssue (ctx: ModulesDirCheckContext): Promise
   // select a project the filtered install never materialized and run it
   // without its dependencies (https://github.com/pnpm/pnpm/issues/11865).
   const selectedProjectDirs = workspaceState.filteredInstall
-    ? selectProjectDirs(allProjects, opts)
+    ? selectProjectDirs(allProjects, {
+      ...opts,
+      include: {
+        dependencies: workspaceState.settings.production !== false,
+        devDependencies: workspaceState.settings.dev !== false,
+        optionalDependencies: workspaceState.settings.optional !== false,
+      },
+    })
     : undefined
   if (selectedProjectDirs?.size === 0) return undefined
   const projectWithoutModulesDir = await findProjectWithoutModulesDir(ctx, selectedProjectDirs)
@@ -206,7 +213,7 @@ interface CurrentLockfileLocation {
 function createCurrentLockfileLocator (
   opts: Pick<CheckDepsStatusOptions, 'lockfileDir' | 'modulesDir' | 'packageConfigs' | 'sharedWorkspaceLockfile'> & { workspaceDir: string }
 ): (project: Project) => CurrentLockfileLocation {
-  if (opts.sharedWorkspaceLockfile) {
+  if (opts.sharedWorkspaceLockfile !== false) {
     const lockfileDir = opts.lockfileDir ?? opts.workspaceDir
     const virtualStoreDir = path.join(path.resolve(lockfileDir, opts.modulesDir ?? 'node_modules'), '.pnpm')
     return (project) => ({ virtualStoreDir, importerId: getLockfileImporterId(lockfileDir, project.rootDir) })
@@ -256,7 +263,7 @@ function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNul
 
 export function selectProjectDirs (
   allProjects: Project[],
-  opts: Pick<CheckDepsStatusOptions, 'catalogs' | 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
+  opts: Pick<CheckDepsStatusOptions, 'catalogs' | 'dir' | 'include' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
 ): Set<string> {
   if (opts.selectedProjectsGraph != null) {
     return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
@@ -267,11 +274,13 @@ export function selectProjectDirs (
   }
   return walkCommandWorkspaceDependencies(allProjects, path.resolve(opts.dir), {
     catalogs: opts.catalogs,
+    include: opts.include,
     linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
   })
 }
 
 interface WorkspaceWalkContext {
+  include?: IncludedDependencies
   index: ProjectIndex
   linkWorkspacePackages: boolean
   catalogs?: Catalogs
@@ -325,6 +334,7 @@ function directWorkspaceDependencyDirs (
 ): string[] {
   const targets: string[] = []
   for (const field of WORKSPACE_WALK_FIELDS) {
+    if (field !== 'peerDependencies' && ctx.include?.[field] === false) continue
     for (const [alias, rawPref] of Object.entries(manifest[field] ?? {})) {
       const pref = dereferenceCatalog(alias, rawPref, ctx.catalogs)
       if (pref != null) {

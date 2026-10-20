@@ -90,8 +90,8 @@ async function checkModifiedSinceLastValidation (
   allManifestStats: ProjectStats[],
   patchesRevalidated: boolean
 ): Promise<CheckDepsStatusResult> {
-  const { allProjects, lockfilesScan, opts, workspaceState } = ctx
-  const installCovers = createInstallCoverage(allProjects, opts)
+  const { lockfilesScan, workspaceState } = ctx
+  const installCovers = createInstallCoverage(ctx)
   const coveredManifestStats = allManifestStats.filter(({ project }) => installCovers(project.rootDir))
   const modifiedProjects = coveredManifestStats.filter(
     ({ manifestStats }) =>
@@ -129,10 +129,11 @@ async function recordUnchangedLegacyStateIfNeeded (ctx: WorkspaceDepsStatusConte
  * a lockfile, and the install the gate spawns keeps that filter, so those are
  * not held.
  */
-function coveredProjectsMissingLockfile ({ allProjects, lockfilesScan, opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[]): ProjectStats[] {
+function coveredProjectsMissingLockfile (ctx: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[]): ProjectStats[] {
+  const { lockfilesScan, opts } = ctx
   if (opts.sharedWorkspaceLockfile !== false) return []
   const missingDirs = new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
-  const installCovers = createInstallCoverage(allProjects, opts)
+  const installCovers = createInstallCoverage(ctx)
   return allManifestStats.filter(({ project }) => missingDirs.has(path.resolve(project.rootDir)) && installCovers(project.rootDir))
 }
 
@@ -288,8 +289,9 @@ function provenProjects (allManifestStats: ProjectStats[], proof: ValidationProo
 }
 
 /** The projects the gate holds that are not proven installed. */
-function heldProjects ({ allProjects, lockfilesScan, opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
-  const installCovers = createInstallCoverage(allProjects, opts)
+function heldProjects (ctx: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
+  const { lockfilesScan, opts } = ctx
+  const installCovers = createInstallCoverage(ctx)
   const missingDirs = opts.sharedWorkspaceLockfile === false
     ? new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
     : undefined
@@ -310,11 +312,11 @@ function heldProjects ({ allProjects, lockfilesScan, opts }: WorkspaceDepsStatus
  * dependencies, and without either the install covers the whole workspace.
  */
 function createInstallCoverage (
-  allProjects: Project[],
-  opts: Pick<CheckDepsStatusOptions, 'catalogs' | 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
+  ctx: WorkspaceDepsStatusContext
 ): (rootDir: string) => boolean {
+  const { allProjects, opts } = ctx
   if (opts.selectedProjectsGraph == null && opts.dir == null) return () => true
-  const selected = selectProjectDirs(allProjects, opts)
+  const selected = selectProjectDirs(allProjects, { ...opts, include: workspaceInclude(ctx) })
   return (rootDir) => selected.has(path.resolve(rootDir))
 }
 
@@ -376,7 +378,7 @@ async function checkUnchangedWorkspace (
   const anyMissing = opts.sharedWorkspaceLockfile === false
     ? coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     : lockfilesScan.missingDirs.length > 0
-  const wantedLockfileToRestore = anyMissing && opts.sharedWorkspaceLockfile && !opts.useGitBranchLockfile
+  const wantedLockfileToRestore = anyMissing && opts.sharedWorkspaceLockfile !== false && !opts.useGitBranchLockfile
     ? await missingWantedLockfileStandIn(workspaceLockfileDir(ctx), wantedLockfileName)
     : undefined
   // A missing wanted lockfile only skips the full check when the current
@@ -390,7 +392,7 @@ async function checkUnchangedWorkspace (
 
 async function readWorkspaceLockfiles (ctx: WorkspaceDepsStatusContext): Promise<Array<LockfileObject | null>> {
   const { opts } = ctx
-  if (!opts.sharedWorkspaceLockfile) {
+  if (opts.sharedWorkspaceLockfile === false) {
     return Promise.all(getWantedLockfileDirs(opts).map((lockfileDir) => readWantedLockfileIn(lockfileDir, opts)))
   }
   const lockfileDir = workspaceLockfileDir(ctx)
@@ -423,7 +425,7 @@ interface CreateWantedLockfileReaderOptions {
 async function createWantedLockfileReader (
   { ctx, projectsToCheck, lockfileModified, preloadedWantedLockfile, preloadedWantedLockfilesByDir }: CreateWantedLockfileReaderOptions
 ): Promise<WantedLockfileReader> {
-  if (!ctx.opts.sharedWorkspaceLockfile) {
+  if (ctx.opts.sharedWorkspaceLockfile === false) {
     return { readWantedLockfileAndDir: createPerProjectWantedLockfileReader(ctx, lockfileModified, preloadedWantedLockfilesByDir) }
   }
   const lockfileDir = workspaceLockfileDir(ctx)
