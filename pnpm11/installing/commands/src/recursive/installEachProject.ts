@@ -122,7 +122,11 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
   if (!hasPassedProject(state.result) && cmdFullName === 'update' && opts.depth === 0) {
     throw createNoPackageInDependenciesError()
   }
-  return { passed: true, updatedCatalogs: state.updatedCatalogs }
+  return {
+    passed: true,
+    installedProjectDirs: (Object.keys(state.result) as ProjectRootDir[]).filter((rootDir) => state.result[rootDir].status === 'passed'),
+    updatedCatalogs: state.updatedCatalogs,
+  }
 }
 
 function hasPassedProject (result: RecursiveSummary): boolean {

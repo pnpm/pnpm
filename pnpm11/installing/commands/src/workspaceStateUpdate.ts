@@ -9,7 +9,6 @@ import { type ProjectsList, sharedInputPaths, type StateValidationOptions, updat
 
 import type { InstallDepsOptions } from './installDeps.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
-import { installCoversUnselectedWorkspaceRoot } from './recursive/installWithSharedLockfile.js'
 
 /**
  * A single-project install has no workspace projects, so it records the
@@ -39,7 +38,8 @@ export async function updateSingleProjectWorkspaceState (
   { opts, allProjects, manifest, updatedCatalogs }: SingleProjectWorkspaceStateUpdate
 ): Promise<void> {
   if (!shouldSaveWorkspaceState(opts)) return
-  const filteredInstall = allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length
+  const installedProjectDirs = [opts.dir]
+  const filteredInstall = isFilteredInstall(allProjects, installedProjectDirs)
   await updateWorkspaceState({
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
     settings: withUpdatedCatalogs(opts, updatedCatalogs),
@@ -47,7 +47,7 @@ export async function updateSingleProjectWorkspaceState (
     pnpmfiles: opts.pnpmfile,
     filteredInstall,
     configDependencies: opts.configDependencies,
-    validation: await stateValidation(opts, filteredInstall && allProjects.length > 0),
+    validation: await stateValidation({ ...opts, installedProjectDirs }, filteredInstall),
   })
 }
 
@@ -59,8 +59,8 @@ export async function recursiveInstallThenUpdateWorkspaceState (
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
-  if (recursiveResult.passed && shouldSaveWorkspaceState(opts)) {
-    const filteredInstall = allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length
+  if (recursiveResult.installedProjectDirs.length > 0 && shouldSaveWorkspaceState(opts)) {
+    const filteredInstall = isFilteredInstall(allProjects, recursiveResult.installedProjectDirs)
     await updateWorkspaceState({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
@@ -71,20 +71,22 @@ export async function recursiveInstallThenUpdateWorkspaceState (
       validation: await stateValidation({
         ...opts,
         dir: opts.workspaceDir,
-        includeWorkspaceRoot: opts.sharedWorkspaceLockfile !== false && installCoversUnselectedWorkspaceRoot(opts) && allProjects.some((project) => project.rootDir === opts.workspaceDir),
+        installedProjectDirs: recursiveResult.installedProjectDirs,
       }, filteredInstall),
     })
   }
   return recursiveResult.dryRunResult
 }
 
-/**
- * What the state records about which projects this install proved installed.
- * A filtered install proves only the projects it selected.
- */
+function isFilteredInstall (allProjects: Project[], installedProjectDirs: string[]): boolean {
+  const installedDirs = new Set(installedProjectDirs)
+  return allProjects.some((project) => !installedDirs.has(project.rootDir))
+}
+
+/** The projects and shared inputs this install proved up to date. */
 interface StateValidationInputs {
   dir: string
-  includeWorkspaceRoot?: boolean
+  installedProjectDirs: string[]
   lockfileDir?: string
   workspaceDir?: string
   sharedWorkspaceLockfile?: boolean
@@ -92,7 +94,6 @@ interface StateValidationInputs {
   mergeGitBranchLockfiles?: boolean
   patchedDependencies?: Record<string, string>
   pnpmfile: string[]
-  selectedProjectsGraph?: Record<string, unknown>
 }
 
 async function stateValidation (
@@ -100,11 +101,6 @@ async function stateValidation (
   filteredInstall: boolean
 ): Promise<StateValidationOptions | undefined> {
   const lockfileDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
-  const selectedDirs = Object.keys(opts.selectedProjectsGraph ?? {})
-  const vouchedDirs = selectedDirs.length > 0 ? [...selectedDirs] : [opts.dir]
-  if (opts.includeWorkspaceRoot && opts.workspaceDir != null && !vouchedDirs.includes(opts.workspaceDir)) {
-    vouchedDirs.push(opts.workspaceDir)
-  }
   return {
     lockfileDir,
     wantedLockfileName: await getWantedLockfileName({
@@ -113,7 +109,7 @@ async function stateValidation (
       cwd: lockfileDir,
     }),
     sharedInputs: sharedInputPaths(lockfileDir, opts.patchedDependencies, opts.pnpmfile),
-    vouchedProjects: filteredInstall ? vouchedDirs : undefined,
+    vouchedProjects: filteredInstall ? opts.installedProjectDirs : undefined,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
   }
 }

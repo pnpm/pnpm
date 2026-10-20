@@ -114,6 +114,7 @@ export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
 
 export interface RecursiveResult {
   passed: boolean | string
+  installedProjectDirs: ProjectRootDir[]
   /**
    * Catalog entries written to `pnpm-workspace.yaml` during this install.
    * The caller folds these into the catalogs recorded in the workspace state
