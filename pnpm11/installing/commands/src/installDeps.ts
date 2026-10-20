@@ -37,6 +37,7 @@ export { createVulnerabilityUpdateMatching } from './vulnerabilityPreferences.js
 
 export type InstallDepsOptions = Pick<Config,
 | 'autoInstallPeers'
+| 'autoInstallPeersFromHighestMatch'
 | 'bail'
 | 'bin'
 | 'catalogs'
@@ -53,6 +54,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'virtualStoreOnly'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'externalDependencies'
 | 'forceIgnoresPlatform'
 | 'global'
 | 'globalPnpmfile'

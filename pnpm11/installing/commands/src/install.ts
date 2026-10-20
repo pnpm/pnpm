@@ -112,6 +112,7 @@ export { help } from './installHelp.js'
 
 export type InstallCommandOptions = Pick<Config,
 | 'autoInstallPeers'
+| 'autoInstallPeersFromHighestMatch'
 | 'bail'
 | 'bin'
 | 'catalogs'
@@ -127,6 +128,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'externalDependencies'
 | 'forceIgnoresPlatform'
 | 'frozenLockfile'
 | 'global'

@@ -140,7 +140,7 @@ export function hoist (
   lockfile: LockfileObject,
   opts?: {
     hoistingLimits?: HoistingLimits
-    externalDependencies?: Set<string>
+    externalDependencies?: Iterable<string>
     autoInstallPeers?: boolean
   }
 ): HoisterResult {
@@ -167,7 +167,7 @@ export function hoist (
 function buildRootHoisterTree (
   lockfile: LockfileObject,
   ctx: TreeContext,
-  externalDependencies?: Set<string>
+  externalDependencies?: Iterable<string>
 ): HoisterTree {
   const rootImporter = lockfile.importers['.' as ProjectId]
   const externalDepsMap: Record<string, string> = {}
@@ -210,10 +210,13 @@ function buildImporterHoisterTree (
 
 function filterExternalDependencies (
   result: HoisterResult,
-  externalDependencies: Set<string>
+  externalDependencies: Iterable<string>
 ): void {
+  const externalDepSet = externalDependencies instanceof Set
+    ? externalDependencies
+    : new Set(externalDependencies)
   for (const hoistedDep of result.dependencies.values()) {
-    if (externalDependencies.has(hoistedDep.name)) {
+    if (externalDepSet.has(hoistedDep.name)) {
       result.dependencies.delete(hoistedDep)
     }
   }

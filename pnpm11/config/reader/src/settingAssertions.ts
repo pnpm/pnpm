@@ -17,6 +17,11 @@ export function assertStringArray (value: unknown, settingName: string): asserts
   }
 }
 
+export function assertOptionalStringArray (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertStringArray(value, settingName)
+}
+
 export function assertOptionalBoolean (value: unknown, settingName: string): void {
   if (value == null) return
   assertBoolean(value, settingName)
@@ -34,11 +39,21 @@ export function assertString (value: unknown, settingName: string): asserts valu
   }
 }
 
+export function assertOptionalString (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertString(value, settingName)
+}
+
 export function assertStringRecord (value: unknown, settingName: string): void {
   assertObjectSetting(value, settingName)
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
     assertString(item, `${settingName}.${key}`)
   }
+}
+
+export function assertOptionalStringRecord (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertStringRecord(value, settingName)
 }
 
 // Not an `asserts` guard on purpose: it only rejects malformed shapes at

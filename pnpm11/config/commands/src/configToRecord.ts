@@ -73,7 +73,7 @@ function copyExplicitUntypedSettings ({ config, explicitlySetKeys, result }: Cop
   for (const [key, value] of Object.entries(config)) {
     if (value === undefined || NON_SETTING_CONFIG_KEYS.has(key)) continue
     if (!(key in result) && explicitlySetKeys.has(key)) {
-      result[key] = value
+      result[key] = value instanceof Set ? [...value] : value
     }
   }
 }

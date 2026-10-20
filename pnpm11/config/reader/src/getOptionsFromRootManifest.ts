@@ -24,9 +24,11 @@ import {
   assertBoolean,
   assertObjectSetting,
   assertOptionalBoolean,
+  assertOptionalString,
+  assertOptionalStringArray,
+  assertOptionalStringRecord,
   assertString,
   assertStringArray,
-  assertStringRecord,
   renderReceivedType,
 } from './settingAssertions.js'
 
@@ -34,6 +36,8 @@ export type OptionsFromRootManifest = {
   scriptShell?: string
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
+  autoInstallPeersFromHighestMatch?: boolean
+  externalDependencies?: Set<string>
   overrides?: Record<string, string>
   packageExtensions?: Record<string, PackageExtension>
   ignoredOptionalDependencies?: string[]
@@ -70,9 +74,10 @@ export function getOptionsFromPnpmSettings (
 ): OptionsFromRootManifest {
   const opts = toGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
   assertValidSideEffectsCacheSettings(pnpmSettings, opts.trustedSource ?? false)
-  const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
+  const { externalDependencies: rawExternalDependencies, ...replacedSettings } = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
+  const settings: OptionsFromRootManifest = replacedSettings
   if (manifestDir != null && settings.scriptShell != null) {
     settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
   }
@@ -81,19 +86,18 @@ export function getOptionsFromPnpmSettings (
     assertValidPackageExtensions(settings.packageExtensions)
   }
   resolvePatchedDependencies(settings, manifestDir)
-  if (pnpmSettings.nodeDownloadMirrors != null) {
-    assertStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
-  }
+  assertOptionalStringRecord(pnpmSettings.nodeDownloadMirrors, 'nodeDownloadMirrors')
   if (settings.allowBuilds != null) {
     assertValidAllowBuilds(settings.allowBuilds)
   }
   assertOptionalBoolean(settings.allowUnusedPatches, 'allowUnusedPatches')
-  if (settings.ignoredOptionalDependencies != null) {
-    assertStringArray(settings.ignoredOptionalDependencies, 'ignoredOptionalDependencies')
+  assertOptionalBoolean(settings.autoInstallPeersFromHighestMatch, 'autoInstallPeersFromHighestMatch')
+  if (rawExternalDependencies != null) {
+    assertStringArray(rawExternalDependencies, 'externalDependencies')
+    settings.externalDependencies = new Set(rawExternalDependencies)
   }
-  if (settings.requiredScripts != null) {
-    assertStringArray(settings.requiredScripts, 'requiredScripts')
-  }
+  assertOptionalStringArray(settings.ignoredOptionalDependencies, 'ignoredOptionalDependencies')
+  assertOptionalStringArray(settings.requiredScripts, 'requiredScripts')
   normalizeProxySettings(settings)
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
@@ -250,23 +254,14 @@ function assertValidSharedSideEffectsCache (
   if (!trustedSource) {
     assertOnlyWorkspaceRemoteSideEffectsFields(settings, path)
   }
-  if (settings.org != null) {
-    assertString(settings.org, `${path}.org`)
-  }
-  if (settings.organization != null) {
-    assertString(settings.organization, `${path}.organization`)
-  }
-  if (settings.packages != null) {
-    assertStringArray(settings.packages, `${path}.packages`)
-  }
+  assertOptionalString(settings.org, `${path}.org`)
+  assertOptionalString(settings.organization, `${path}.organization`)
+  assertOptionalStringArray(settings.packages, `${path}.packages`)
   assertOptionalBoolean(settings.publish, `${path}.publish`)
   for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
-    if (settings[field] == null) continue
-    assertString(settings[field], `${path}.${field}`)
+    assertOptionalString(settings[field], `${path}.${field}`)
   }
-  if (settings.buildEnv != null) {
-    assertStringRecord(settings.buildEnv, `${path}.buildEnv`)
-  }
+  assertOptionalStringRecord(settings.buildEnv, `${path}.buildEnv`)
 }
 
 function assertOnlyWorkspaceRemoteSideEffectsFields (
@@ -485,9 +480,7 @@ function assertValidPackageExtensions (packageExtensions: unknown): asserts pack
 function assertValidPackageExtension (extensionPath: string, extension: unknown): void {
   assertObjectSetting(extension, extensionPath)
   for (const field of PACKAGE_EXTENSION_DEPENDENCY_FIELDS) {
-    const deps = (extension as Record<string, unknown>)[field]
-    if (deps == null) continue
-    assertStringRecord(deps, `${extensionPath}.${field}`)
+    assertOptionalStringRecord((extension as Record<string, unknown>)[field], `${extensionPath}.${field}`)
   }
   const peerDependenciesMeta = (extension as Record<string, unknown>).peerDependenciesMeta
   if (peerDependenciesMeta == null) return
