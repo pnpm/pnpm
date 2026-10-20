@@ -144,6 +144,7 @@ fn options<'a>(
     frozen: bool,
 ) -> ConfigDepsInstallOptions<'a> {
     ConfigDepsInstallOptions {
+        mode: crate::ConfigDepsInstallMode::Reconcile,
         verification: ConfigDependencyVerification {
             registries: &harness.registries,
             resolution_verifiers: pnpm_package_manager::build_resolution_verifiers(
@@ -182,8 +183,7 @@ fn options<'a>(
             strict_pkg_content_check: true,
             package_import_method: pnpm_config::PackageImportMethod::default(),
         },
-        store_index: None,
-        store_index_writer: None,
+        store_index: crate::ConfigDependencyStoreIndex::default(),
         root_dir,
 
         frozen_lockfile: frozen,

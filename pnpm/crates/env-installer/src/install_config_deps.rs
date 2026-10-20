@@ -265,8 +265,8 @@ async fn materialize<Reporter: self::Reporter>(
         },
         store: pnpm_tarball::ArchiveStoreContext {
             dir: opts.store.dir,
-            index: opts.store_index.clone(),
-            index_writer: opts.store_index_writer.clone(),
+            index: opts.store_index.reader.clone(),
+            index_writer: opts.store_index.writer.clone(),
             verify_integrity: opts.store.verify_integrity,
             strict_pkg_content_check: opts.store.strict_pkg_content_check,
             verified_files_cache: SharedVerifiedFilesCache::default(),
@@ -341,7 +341,7 @@ fn prune_link(path: &Path) {
 
 /// List the immediate child names of `dir`, returning an empty list
 /// when the directory is absent.
-fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
+pub(crate) fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
     let mut names = Vec::new();
     for name in dir_entry_names(dir)? {
         // Skip dot-dirs (`.bin`, `.pnpm`, etc.).

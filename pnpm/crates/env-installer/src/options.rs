@@ -6,6 +6,16 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 /// names one.
 const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
+/// Whether config preparation owns removal of undeclared lockfile roots.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ConfigDepsInstallMode {
+    /// Prepare declared config dependencies for hooks, preserving locked roots
+    /// that diagnostic commands may still need to inspect.
+    Bootstrap,
+    /// Synchronize config dependencies with the declarations during installation.
+    Reconcile,
+}
+
 /// Handles and settings the config-dependency resolve/install pass
 /// needs. Assembled by the caller (the config-finalization seam) from
 /// the resolved [`pnpm_config::Config`] plus a network client, then
@@ -18,13 +28,19 @@ pub struct ConfigDepsInstallOptions<'a> {
     pub fetching: pnpm_tarball::ArchiveFetchOptions<'a>,
     pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
     pub store: crate::ConfigDependencyStore,
-    pub store_index: Option<SharedReadonlyStoreIndex>,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub store_index: ConfigDependencyStoreIndex,
     /// `lockfileDir` — where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
     /// `--frozen-lockfile`: refuse to mutate the env lockfile.
     pub frozen_lockfile: bool,
+    pub mode: ConfigDepsInstallMode,
+}
+
+#[derive(Default)]
+pub struct ConfigDependencyStoreIndex {
+    pub reader: Option<SharedReadonlyStoreIndex>,
+    pub writer: Option<Arc<StoreIndexWriter>>,
 }
 
 pub struct ConfigDependencyVerification<'a> {

@@ -1,17 +1,14 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
-import {
-  createEnvLockfile,
-  type EnvLockfile,
-  readEnvLockfile,
-} from '@pnpm/lockfile.fs'
+import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import type { ConfigDependencies } from '@pnpm/types'
 
 import { type ConfigDepResolverOpts, type ConfigDepResolvers, createConfigDepResolvers } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
-import { pruneEnvLockfile } from './pruneEnvLockfile.js'
+import { pruneEnvLockfile, retainConfigDependencies } from './pruneEnvLockfile.js'
+import { type ConfigDepsInstallMode, readConfigDependencyLockfile } from './readConfigDependencyLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
 import { createConfigDepsVerifier } from './verifyConfigDepResolutions.js'
 import { assertValidMigratedConfigDep } from './verifyEnvLockfile.js'
@@ -19,6 +16,10 @@ import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = ConfigDepResolverOpts & InstallConfigDepsOpts & {
   rootDir: string
+  /** Loaded state, mutated by reconciliation. */
+  envLockfile?: EnvLockfile
+  /** Bootstrap preserves locked roots for diagnostic commands. Defaults to reconciliation. */
+  mode?: ConfigDepsInstallMode
 }
 
 /**
@@ -35,10 +36,12 @@ export async function resolveAndInstallConfigDeps (
 ): Promise<void> {
   opts = { ...opts, now: opts.now ?? Date.now() }
   const verify = createConfigDepsVerifier(configDeps, opts)
-  const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
+  const envLockfile = opts.envLockfile ?? await readConfigDependencyLockfile(configDeps, opts.rootDir, opts.mode)
+  if (!envLockfile) return
   const { depsToResolve, lockfileChanged } = collectConfigDepsToResolve(configDeps, {
     envLockfile,
     registriesByScope: opts.registriesByScope,
+    pruneRemovedConfigDependencies: opts.mode !== 'bootstrap',
   })
 
   if (opts.frozenLockfile && (lockfileChanged || depsToResolve.length > 0)) {
@@ -46,6 +49,7 @@ export async function resolveAndInstallConfigDeps (
   }
 
   if (depsToResolve.length === 0) {
+    if (lockfileChanged) pruneEnvLockfile(envLockfile)
     await verify(envLockfile)
     if (lockfileChanged) {
       await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
@@ -74,6 +78,7 @@ interface ConfigDepToResolve {
 interface ConfigDepPlanContext {
   envLockfile: EnvLockfile
   registriesByScope: ResolveAndInstallConfigDepsOpts['registriesByScope']
+  pruneRemovedConfigDependencies: boolean
 }
 
 /**
@@ -88,7 +93,7 @@ function collectConfigDepsToResolve (
   ctx: ConfigDepPlanContext
 ): { depsToResolve: ConfigDepToResolve[], lockfileChanged: boolean } {
   const depsToResolve: ConfigDepToResolve[] = []
-  let lockfileChanged = false
+  let lockfileChanged = ctx.pruneRemovedConfigDependencies && retainConfigDependencies(ctx.envLockfile, (name) => Object.hasOwn(configDeps, name))
   for (const [name, value] of Object.entries(configDeps)) {
     const plan = planConfigDep(ctx, name, value)
     if (plan === MIGRATED_INTO_LOCKFILE) {

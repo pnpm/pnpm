@@ -91,14 +91,7 @@ impl InstallArgs {
             return Err(reason);
         }
         let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-        if !pnpm_hooks::finder::find_pnpmfiles(
-            &config_root,
-            pnpm_package_manager::pnpmfile_selection(config),
-        )
-        .is_empty()
-        {
-            return Err("a pnpmfile is in use");
-        }
+        check_config_fast_path(config, &config_root)?;
         let root_manifest = read_root_manifest_json(&config_root);
         if converts_yarn_workspaces(config, dir, root_manifest.as_ref()) {
             return Err("the manifest's workspaces field is converted");
@@ -175,4 +168,29 @@ impl InstallArgs {
             .into_iter()
             .find_map(|(blocked, reason)| blocked.then_some(reason))
     }
+}
+
+fn check_config_fast_path(
+    config: &pnpm_config::Config,
+    config_root: &std::path::Path,
+) -> Result<(), &'static str> {
+    if pnpm_env_installer::read_config_dependency_lockfile(
+        config.config_dependencies.as_ref(),
+        config_root,
+        pnpm_env_installer::ConfigDepsInstallMode::Reconcile,
+    )
+    .map_err(|_| "config dependency state cannot be read")?
+    .is_some()
+    {
+        return Err("config dependencies need reconciling");
+    }
+    if !pnpm_hooks::finder::find_pnpmfiles(
+        config_root,
+        pnpm_package_manager::pnpmfile_selection(config),
+    )
+    .is_empty()
+    {
+        return Err("a pnpmfile is in use");
+    }
+    Ok(())
 }

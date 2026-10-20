@@ -429,3 +429,67 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
         "its .pnpm-config link removed",
     );
 }
+
+#[tokio::test]
+async fn removal_preserves_a_shared_package_manager_graph() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+    let mut opts = options(&harness, root.path(), false);
+    let mut config_deps = BTreeMap::from([
+        ("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0")),
+        ("@pnpm.e2e/bar".to_string(), clean_spec("100.0.0")),
+    ]);
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
+        .await
+        .unwrap();
+    let mut env = EnvLockfile::read(root.path()).unwrap().unwrap();
+    let pin = env.importers["."].config_dependencies["@pnpm.e2e/foo"].clone();
+    env.root_importer_mut().package_manager_dependencies =
+        Some(BTreeMap::from([("@pnpm.e2e/foo".to_string(), pin)]));
+    env.write(root.path()).unwrap();
+    config_deps.remove("@pnpm.e2e/foo");
+    opts.mode = crate::ConfigDepsInstallMode::Bootstrap;
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
+        .await
+        .unwrap();
+    assert_eq!(EnvLockfile::read(root.path()).unwrap().unwrap(), env);
+    opts.mode = crate::ConfigDepsInstallMode::Reconcile;
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
+        .await
+        .unwrap();
+    let partial = EnvLockfile::read(root.path()).unwrap().unwrap();
+    assert_eq!(partial.importers["."].config_dependencies.len(), 1);
+    assert!(
+        !root
+            .path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/foo")
+            .exists(),
+    );
+    assert!(
+        root.path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/bar/package.json")
+            .exists(),
+    );
+    config_deps.clear();
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
+        .await
+        .unwrap();
+    let reconciled = EnvLockfile::read(root.path()).unwrap().unwrap();
+    assert!(reconciled.importers["."].config_dependencies.is_empty());
+    assert_eq!(
+        reconciled.importers["."].package_manager_dependencies,
+        env.importers["."].package_manager_dependencies,
+    );
+    assert_eq!(reconciled.packages.len(), 1);
+    assert_eq!(reconciled.snapshots.len(), 1);
+    let retained: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    assert!(reconciled.packages.contains_key(&retained));
+    assert!(reconciled.snapshots.contains_key(&retained));
+    assert!(
+        !root
+            .path()
+            .join("node_modules/.pnpm-config/@pnpm.e2e/bar")
+            .exists(),
+    );
+}

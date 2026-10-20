@@ -37,9 +37,15 @@ pub async fn add_config_dependencies<Reporter: self::Reporter>(
         );
     }
 
-    let saved =
-        resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, &updates)
-            .await?;
+    let saved = resolve_and_install::<Reporter>(
+        config,
+        &config_dependencies,
+        root_dir,
+        false,
+        &updates,
+        pnpm_env_installer::ConfigDepsInstallMode::Reconcile,
+    )
+    .await?;
     // An integrity-pinned specifier is recorded as written.
     let specifiers = added
         .iter()
@@ -69,9 +75,15 @@ pub async fn update_config_dependencies<Reporter: self::Reporter>(
     if updates.prev_specifiers.is_empty() {
         return Ok(());
     }
-    let saved =
-        resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false, updates)
-            .await?;
+    let saved = resolve_and_install::<Reporter>(
+        config,
+        &config_dependencies,
+        root_dir,
+        false,
+        updates,
+        pnpm_env_installer::ConfigDepsInstallMode::Reconcile,
+    )
+    .await?;
     // `root_dir` follows `lockfile-dir`; the declarations live beside the
     // workspace manifest.
     record_config_dependencies(

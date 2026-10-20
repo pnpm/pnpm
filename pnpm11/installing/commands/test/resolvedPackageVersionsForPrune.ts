@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
-import type { DepPath } from '@pnpm/types'
+import type { ConfigDependencies, DepPath } from '@pnpm/types'
 
 const actualLockfileFs = await import('@pnpm/lockfile.fs')
 
@@ -119,6 +119,22 @@ test('ignores a malformed env document when exclusion pruning is disabled', asyn
       workspaceDir,
       trustPolicyExcludePrune: true,
     }, newLockfile)).rejects.toThrow()
+  })
+})
+
+test.each([null, undefined])('ignores nullish config dependency declarations (%s)', async (declaration) => {
+  await withWorkspaceDir(async (workspaceDir) => {
+    const env = actualLockfileFs.createEnvLockfile()
+    env.importers['.'].configDependencies = { 'unused-plugin': { specifier: '1.0.0', version: '1.0.0' } }
+    env.packages = { 'unused-plugin@1.0.0': { resolution: { integrity: 'AAA' } } }
+    env.snapshots = { 'unused-plugin@1.0.0': {} }
+    await actualLockfileFs.writeEnvLockfile(workspaceDir, env)
+
+    expect(await resolvedPackageVersionsForPrune({
+      workspaceDir,
+      minimumReleaseAgeExcludePrune: true,
+      configDependencies: { 'unused-plugin': declaration } as unknown as ConfigDependencies,
+    }, newLockfile)).toEqual(new Map([['foo', new Set(['1.0.0'])]]))
   })
 })
 
