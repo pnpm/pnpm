@@ -565,7 +565,7 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
             format!("gitlab:kevva/is-positive#{COMMIT}"),
             format!("gitlab:kevva/is-positive#{}", "1".repeat(40)),
             format!(
-                "https://gitlab.com/kevva/is-positive/-/archive/{COMMIT}/is-positive-{COMMIT}.tar.gz"
+                "https://gitlab.com/kevva/is-positive/-/archive/{COMMIT}/is-positive-{COMMIT}.tar.gz",
             ),
         ),
         (
