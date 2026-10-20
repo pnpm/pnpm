@@ -13,12 +13,12 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
-    /// Asked instead of [`Self::full_metadata`] when the caller can answer
-    /// per registry — a registry that declares `supportsTimeField` needs no
-    /// full metadata for a time-based resolution even when the others do. The
-    /// mirror path and cache key below are already keyed by registry, so two
-    /// registries may disagree within one install.
-    pub needs_full_metadata_for: Option<&'a (dyn Fn(&str) -> bool + Send + Sync)>,
+    /// Asked instead of `opts.request.optional || ctx.full_metadata` when the
+    /// caller can answer per `(registry, optional)` — a registry that declares
+    /// `supportsTimeField` or `serverType: pnpr` needs no full metadata when
+    /// the others do. The mirror path and cache key below are already keyed by
+    /// registry, so two registries may disagree within one install.
+    pub needs_full_metadata_for: Option<&'a pnpm_config::NeedsFullMetadataFn>,
     /// When full metadata is forced, use pnpm's filtered full-metadata
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
@@ -28,18 +28,6 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// pick over a newer one the fetcher could only reject.
     pub store_view: Option<&'a crate::OfflineStoreView>,
     pub metadata: MetadataRequestContext<'a, Cache>,
-    pub registry_options_by_url:
-        Option<&'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
-}
-
-impl<Cache: PackageMetaCache> PickPackageContext<'_, Cache> {
-    #[must_use]
-    pub fn is_pnpr_registry(&self, registry: &str) -> bool {
-        self.registry_options_by_url.is_some_and(|options| {
-            pnpm_lockfile::registry_server_type(options, registry)
-                == Some(pnpm_lockfile::RegistryServerType::Pnpr)
-        })
-    }
 }
 
 pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {

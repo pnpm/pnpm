@@ -715,4 +715,30 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     assert_eq!(after_dist["fileCount"], serde_json::json!(2));
     assert_eq!(after_dist["unpackedSize"], serde_json::json!(43));
     assert_eq!(after_dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
+
+    // Simulate a legacy hosted packument on disk that was published before
+    // `fileCount`/`unpackedSize` were persisted in `package.json`, while
+    // `.tar-integrities` has the verified values: round-tripping `GET /:pkg`
+    // into `PUT /:pkg/-rev/:rev` must still succeed.
+    let legacy_path = pnpr_storage::layout::local_document_path(tmp.path(), "acme", "@acme/native");
+    let mut legacy_doc: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&legacy_path).unwrap()).unwrap();
+    let legacy_dist = legacy_doc["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+    legacy_dist.remove("fileCount");
+    legacy_dist.remove("unpackedSize");
+    std::fs::write(&legacy_path, serde_json::to_vec_pretty(&legacy_doc).unwrap()).unwrap();
+
+    let served_legacy = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
+    let rewrite_legacy = app
+        .clone()
+        .oneshot(
+            Request::put("/npm/~acme/@acme%2Fnative/-rev/3-0")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(served_legacy.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rewrite_legacy.status(), StatusCode::CREATED);
 }

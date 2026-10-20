@@ -299,20 +299,27 @@ impl VersionRequest<'_> {
         source: &RegistrySource,
         trust: TgzTrust,
     ) -> TarSource {
-        let tar_integrity_known = match &tgz.integrity_key {
+        let (tar_integrity_known, derived_unpacked_size) = match &tgz.integrity_key {
             Some(key) => self.state.inner.storage
                 .read_tar_integrities(&name)
                 .await
-                .is_ok_and(|table| table.get(key).is_some_and(|derived| derived.scanned)),
-            None => false,
+                .ok()
+                .and_then(|table| {
+                    table
+                        .get(key)
+                        .map(|derived| (derived.scanned, derived.unpacked_size))
+                })
+                .unwrap_or((false, None)),
+            None => (false, None),
         };
+        let unpacked_size = derived_unpacked_size.or(tgz.dist.unpacked_size);
         TarSource {
             name: Some(name),
             tgz_integrity: tgz.integrity_key.clone(),
             keeps_content: keeps_content(self.state, source),
             trust,
             tar_integrity_known,
-            decode_limit: tar_decode_limit(tgz.dist.unpacked_size),
+            decode_limit: tar_decode_limit(unpacked_size),
         }
     }
 

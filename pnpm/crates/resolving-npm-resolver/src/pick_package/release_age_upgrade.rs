@@ -149,14 +149,18 @@ pub(super) fn release_age_upgrade_needed<Cache: PackageMetaCache>(
     cache_key: &str,
     meta: &Arc<Package>,
 ) -> bool {
-    if ctx.cache_policy.network.forbids_registry() || full_metadata {
+    if ctx.cache_policy.network.forbids_registry()
+        || full_metadata
+        || meta.time.is_some()
+        || ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, meta)
+    {
         return false;
     }
+    if opts.policy.trust_policy == Some(super::TrustPolicy::NoDowngrade) {
+        return true;
+    }
     let Some(cutoff) = opts.policy.published_by else { return false };
-    if meta.time.is_some()
-        || ctx.metadata.fetch_locker.release_age_upgrade_was_checked(cache_key, meta)
-        || !opts.policy.release_age_applies_to(&spec.name)
-    {
+    if !opts.policy.release_age_applies_to(&spec.name) {
         return false;
     }
     // Inclusive `<=` at the boundary: matches the per-version `<=` filter in

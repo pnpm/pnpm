@@ -105,10 +105,11 @@ async fn read_hosted_packument(
 
 fn prepare_packument_rewrite(
     hosted_bytes: &[u8],
+    tar_integrities: &std::collections::BTreeMap<String, pnpr_storage::DerivedTar>,
     name: &CanonicalPackageName,
     packument: &mut Value,
 ) -> Result<(Value, Vec<String>), Response> {
-    let hosted: Value = serde_json::from_slice(hosted_bytes)
+    let mut hosted: Value = serde_json::from_slice(hosted_bytes)
         .map_err(|err| RegistryError::Json(err).into_response())?;
     if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
         && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
@@ -120,6 +121,7 @@ fn prepare_packument_rewrite(
         }
         .into_response());
     }
+    super::tar_registry::overlay_verified_tar_stats(&mut hosted, tar_integrities);
     if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
         return Err(err.into_response());
     }
@@ -164,8 +166,10 @@ async fn rewrite_packument(
         Ok(packument) => packument,
         Err(response) => return response,
     };
+    let tar_integrities = storage.read_tar_integrities(name).await.unwrap_or_default();
     let (hosted, removed) =
-        match prepare_packument_rewrite(&hosted_packument.bytes, name, packument) {
+        match prepare_packument_rewrite(&hosted_packument.bytes, &tar_integrities, name, packument)
+        {
             Ok(pair) => pair,
             Err(response) => return response,
         };

@@ -45,7 +45,6 @@ async fn cache_key_separates_abbreviated_from_full() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -90,24 +89,16 @@ async fn optional_dependency_on_pnpr_registry_does_not_fetch_full_metadata() {
     let auth_headers = AuthHeaders::default();
     let meta_cache = InMemoryPackageMetaCache::default();
     let fetch_locker = shared_packument_fetch_locker();
-    let mut registry_options_by_url = std::collections::BTreeMap::new();
-    registry_options_by_url.insert(
-        registry.clone(),
-        pnpm_lockfile::RegistryOptions {
-            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
-            supports_time_field: None,
-        },
-    );
+    let needs_full_metadata_for = |_: &str, _optional: bool| false;
     let ctx = PickPackageContext {
         full_metadata: false,
-        needs_full_metadata_for: None,
+        needs_full_metadata_for: Some(&needs_full_metadata_for),
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
             network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: Some(&registry_options_by_url),
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -122,8 +113,21 @@ async fn optional_dependency_on_pnpr_registry_does_not_fetch_full_metadata() {
 
     let mut opts = default_opts(&registry);
     opts.request.optional = true;
-    let _ = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("pick");
-
+    let result =
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("optional pick");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    assert!(
+        meta_cache
+            .get(&format!("{registry}\x00acme"))
+            .is_some(),
+        "abbreviated cache key populated",
+    );
+    assert!(
+        meta_cache
+            .get(&format!("{registry}\x00acme:full"))
+            .is_none(),
+        "full cache key not populated",
+    );
     abbrev_mock.assert_async().await;
 }
 
@@ -154,7 +158,6 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -175,7 +178,6 @@ async fn cache_key_separates_filtered_full_from_unfiltered_full() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -241,7 +243,6 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -325,7 +326,6 @@ async fn cache_fast_paths_record_route_through_hook() {
                 ignore_missing_time_field: false,
             },
             store_view: None,
-            registry_options_by_url: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -364,7 +364,6 @@ async fn cache_fast_paths_record_route_through_hook() {
                 ignore_missing_time_field: false,
             },
             store_view: None,
-            registry_options_by_url: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -403,7 +402,6 @@ async fn cache_fast_paths_record_route_through_hook() {
                 ignore_missing_time_field: false,
             },
             store_view: None,
-            registry_options_by_url: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -495,7 +493,6 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -559,7 +556,6 @@ async fn public_scope_falls_back_to_mirror_on_401() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

@@ -71,6 +71,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
     CreateNpmResolutionVerifierOptions {
         registries: registries_with_default(registry_url),
         registries_by_prefix: HashMap::new(),
+        registry_options_by_url: None,
         now: None,
         release_age: crate::VerificationReleaseAgeOptions {
             minimum_minutes: None,
@@ -82,7 +83,6 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
             exclude: None,
             exclude_patterns: Vec::new(),
             ignore_after: None,
-            registry_options_by_url: None,
         },
         metadata: crate::VerificationMetadataClient {
             ignore_missing_time_field: false,

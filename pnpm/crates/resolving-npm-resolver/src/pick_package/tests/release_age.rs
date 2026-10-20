@@ -23,7 +23,6 @@ async fn invalid_package_name_errors_synchronously() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -80,7 +79,6 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -156,7 +154,6 @@ async fn published_by_upgrades_metadata_with_partial_time_map() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -215,7 +212,6 @@ async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -270,7 +266,6 @@ async fn published_by_exclude_skips_upgrade_for_abbreviated_meta_without_time() 
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -336,7 +331,6 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -369,7 +363,6 @@ async fn published_by_upgrade_marker_is_scoped_to_install() {
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &next_install_fetch_locker,
@@ -426,7 +419,6 @@ async fn published_by_upgrade_answering_repeated_304_does_not_fail_the_pick() {
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -496,7 +488,6 @@ async fn published_by_upgrade_answering_200_is_remembered_across_picks() {
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -578,7 +569,6 @@ async fn published_by_upgrade_marker_is_scoped_to_document() {
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -672,7 +662,6 @@ async fn published_by_excluded_package_bypasses_mtime_shortcut_and_revalidates()
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -748,7 +737,6 @@ async fn published_by_upgrade_of_a_lowest_version_mirror_pick_is_remembered_acro
             ignore_missing_time_field: true,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

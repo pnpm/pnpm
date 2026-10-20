@@ -484,14 +484,21 @@ registries:
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
+    assert!(config.registry_supports_time_field("https://pnpr.example.com/"));
+    assert!(config.registry_supports_time_field("https://pnpr.example.com"));
+    assert!(!config.registry_supports_time_field("https://registry.npmjs.org/"));
+
     assert!(!config.requires_full_metadata_for_registry("https://pnpr.example.com/"));
     assert!(!config.requires_full_metadata_for_registry("https://pnpr.example.com"));
     assert!(config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
 
     let policy_fn = config.requires_full_metadata_for_registry_fn();
-    assert!(!policy_fn("https://pnpr.example.com/"));
-    assert!(!policy_fn("https://pnpr.example.com"));
-    assert!(policy_fn("https://registry.npmjs.org/"));
+    assert!(!policy_fn("https://pnpr.example.com/", false));
+    assert!(!policy_fn("https://pnpr.example.com", false));
+    assert!(!policy_fn("https://pnpr.example.com/", true));
+    assert!(!policy_fn("https://pnpr.example.com", true));
+    assert!(policy_fn("https://registry.npmjs.org/", false));
+    assert!(policy_fn("https://registry.npmjs.org/", true));
 }
 
 /// Nothing is filtered when no registry can need full metadata.

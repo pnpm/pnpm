@@ -41,11 +41,11 @@ impl NpmResolutionVerifier {
             )
         };
         let value = cell.get_or_init(|| async {
+            let supports_time_field = self.supports_time_field(registry);
             // A shared packument that turns out to hold a damaged mirror
             // fragment falls through to the fetch below, which repairs it.
             if let Some(shared) = self.read_shared_meta(registry, name) {
-                let projection =
-                    project_abbreviated_meta(&shared, self.metadata.registry_supports_time_field);
+                let projection = project_abbreviated_meta(&shared, supports_time_field);
                 if !shared.versions.corrupt_mirror_fragment_found() {
                     return Ok(projection);
                 }
@@ -69,7 +69,7 @@ impl NpmResolutionVerifier {
             // from a version genuinely absent from the metadata, otherwise
             // it reports a 403 as a tampering-style mismatch.
             fetch_full_metadata_projected(&name.to_string(), &opts, |meta| {
-                project_abbreviated_meta(meta, self.metadata.registry_supports_time_field)
+                project_abbreviated_meta(meta, supports_time_field)
             })
             .await
             .map_err(|error| render_fetch_metadata_error(&error))
@@ -201,6 +201,17 @@ impl NpmResolutionVerifier {
             if let Some(projection) = self.shared_trust_projection(registry, &key) {
                 return Ok(Arc::new(projection));
             }
+            if self.routing.is_pnpr_registry(registry) {
+                let projection = self.metadata.fetch_abbreviated_meta_projected(
+                    registry,
+                    name,
+                    project_trust_meta,
+                )
+                .await?;
+                if projection.time.is_some() {
+                    return Ok(Arc::new(projection));
+                }
+            }
             self.metadata
                 .fetch_full_meta_projected(registry, name, project_trust_meta)
                 .await
@@ -210,17 +221,20 @@ impl NpmResolutionVerifier {
         .clone()
     }
 
+    pub(super) fn supports_time_field(&self, registry: &str) -> bool {
+        self.routing.supports_time_field(registry, self.metadata.registry_supports_time_field)
+    }
+
     fn shared_trust_projection(&self, registry: &str, key: &str) -> Option<TrustHistoryProjection> {
         let cache = self.metadata.meta_cache.as_ref()?;
         let cached = cache
             .get(&format!("{key}:full"))
             .or_else(|| cache.get(&format!("{key}:full:filtered")))
             .or_else(|| {
-                let options = self.trust.registry_options_by_url.as_ref()?;
-                (pnpm_lockfile::registry_server_type(options, registry)
-                    == Some(pnpm_lockfile::RegistryServerType::Pnpr))
-                .then(|| cache.get(key))?
-                .filter(|entry| entry.meta.time.is_some())
+                self.routing
+                    .is_pnpr_registry(registry)
+                    .then(|| cache.get(key))?
+                    .filter(|entry| entry.meta.time.is_some())
             })?;
         let projection = project_trust_meta(cached.meta.as_ref());
         (!cached.meta.versions.corrupt_mirror_fragment_found()).then_some(projection)
@@ -233,7 +247,7 @@ impl super::VerificationMetadataClient {
         registry: &str,
         name: &PkgName,
     ) -> Result<Package, String> {
-        fetch_full_metadata_cached(&name.to_string(), &self.full_meta_options(registry))
+        fetch_full_metadata_cached(&name.to_string(), &self.meta_options(registry, true))
             .await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
@@ -244,18 +258,31 @@ impl super::VerificationMetadataClient {
         name: &PkgName,
         project: impl Fn(&Package) -> Projection,
     ) -> Result<Projection, String> {
-        let opts = self.full_meta_options(registry);
+        let opts = self.meta_options(registry, true);
         fetch_full_metadata_projected(&name.to_string(), &opts, project).await
             .map_err(|error| render_fetch_metadata_error(&error))
     }
 
-    fn full_meta_options<'a>(&'a self, registry: &'a str) -> FetchFullMetadataCachedOptions<'a> {
+    pub(super) async fn fetch_abbreviated_meta_projected<Projection>(
+        &self,
+        registry: &str,
+        name: &PkgName,
+        project: impl Fn(&Package) -> Projection,
+    ) -> Result<Projection, String> {
+        let opts = self.meta_options(registry, false);
+        fetch_full_metadata_projected(&name.to_string(), &opts, project).await
+            .map_err(|error| render_fetch_metadata_error(&error))
+    }
+
+    fn meta_options<'a>(
+        &'a self,
+        registry: &'a str,
+        full_metadata: bool,
+    ) -> FetchFullMetadataCachedOptions<'a> {
         FetchFullMetadataCachedOptions {
             registry,
             cache_dir: self.cache_dir.as_deref(),
-            // The verifier reads `time` and trust evidence per-version,
-            // both of which the abbreviated form drops. Always full.
-            full_metadata: true,
+            full_metadata,
             filter_metadata: false,
             offline: self.offline,
             priority: pnpm_network::BACKGROUND,

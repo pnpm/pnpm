@@ -48,7 +48,6 @@ fn offline_ctx<'a>(
                 retry_opts: RetryOpts::default(),
             },
         },
-        registry_options_by_url: None,
     }
 }
 

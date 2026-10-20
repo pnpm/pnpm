@@ -201,7 +201,6 @@ async fn install_ignoring_missing_time(
                 ignore_missing_time_field: true,
             },
             store_view: None,
-            registry_options_by_url: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -277,7 +276,6 @@ async fn upgrade_then_revalidate(
                 ignore_missing_time_field: false,
             },
             store_view: None,
-            registry_options_by_url: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,

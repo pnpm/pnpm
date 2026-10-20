@@ -34,7 +34,6 @@ async fn cold_pick_fetches_and_picks_max_in_range() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -87,7 +86,6 @@ async fn normal_range_reuses_dominant_lockfile_version_from_disk() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -145,7 +143,6 @@ async fn stable_range_does_not_promote_meta_for_a_later_unproven_range() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -205,7 +202,6 @@ async fn blocked_dominant_version_falls_through_to_registry_pick() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -262,7 +258,6 @@ async fn pick_lowest_version_picks_min() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -313,7 +308,6 @@ async fn uncacheable_packument_is_reused_in_memory_but_refetched_from_the_mirror
                 ignore_missing_time_field: false,
             },
             store_view: None,
-            registry_options_by_url: None,
             metadata: crate::MetadataRequestContext {
                 meta_cache: &meta_cache,
                 fetch_locker: &fetch_locker,
@@ -390,7 +384,6 @@ async fn online_pick_lowest_version_refetches_an_uncacheable_mirror() {
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -642,7 +635,6 @@ pub(super) fn public_ctx<'a>(
             ignore_missing_time_field: false,
         },
         store_view: None,
-        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache,
             fetch_locker,
