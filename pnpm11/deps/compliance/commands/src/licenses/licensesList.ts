@@ -87,7 +87,7 @@ export async function licensesList (opts: LicensesCommandOptions): Promise<Licen
   const licensePackages = mergeLicensePackages(licensePackagesByLockfile.flat())
 
   if (licensePackages.size === 0)
-    return { output: 'No licenses in packages found', exitCode: 0 }
+    return { output: opts.json ? '{}' : 'No licenses in packages found', exitCode: 0 }
 
   return renderLicences(sortByNameAndVersion(Array.from(licensePackages.values())), opts)
 }
@@ -114,7 +114,11 @@ async function readSelectedLockfiles (opts: LicensesCommandOptions): Promise<Arr
           `No ${WANTED_LOCKFILE} found in "${lockfileDir}": Cannot check a project without a lockfile`
         )
       }
-      return { lockfileDir, lockfile, includedImporterIds }
+      return {
+        lockfileDir,
+        lockfile,
+        includedImporterIds: includedImporterIds.filter((importerId) => lockfile.importers[importerId] != null),
+      }
     })
   )
 }

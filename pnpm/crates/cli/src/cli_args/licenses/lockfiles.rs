@@ -30,8 +30,6 @@ pub(super) struct LicensedPackages {
 }
 
 impl LicensedPackages {
-    /// Walk the lockfiles of the listed projects. `None` when none of
-    /// them has a lockfile.
     pub(super) fn collect(
         config: &Config,
         dir: &Path,
@@ -52,9 +50,7 @@ impl LicensedPackages {
         };
         let mut packages = Self { package_dirs: Vec::new(), dependencies: Vec::new() };
         for licensed in licensed_lockfiles(config, dir, recursive)? {
-            let Some((package_dirs, dependencies)) = walk.packages(&licensed)? else {
-                continue;
-            };
+            let (package_dirs, dependencies) = walk.packages(&licensed)?;
             let lockfile_index = packages.package_dirs.len();
             packages.package_dirs.push(package_dirs);
             packages.dependencies.extend(
@@ -87,15 +83,20 @@ struct LockfileWalk<'a> {
 
 impl LockfileWalk<'_> {
     /// Where the packages of one lockfile are installed and the packages
-    /// its listed importers depend on. `None` when the lockfile is missing.
+    /// its listed importers depend on.
     fn packages(
         &self,
         licensed: &LicensedLockfile,
-    ) -> miette::Result<Option<(PackageDirs, Vec<LicensedDependency>)>> {
+    ) -> miette::Result<(PackageDirs, Vec<LicensedDependency>)> {
         let Some(lockfile) =
             Lockfile::load_wanted_from_dir(&licensed.lockfile_dir).into_diagnostic()?
         else {
-            return Ok(None);
+            let lockfile_dir = licensed.lockfile_dir.display();
+            return Err(miette::miette!(
+                code = "ERR_PNPM_LICENSES_NO_LOCKFILE",
+                r#"No pnpm-lock.yaml found in "{}": Cannot check a project without a lockfile"#,
+                lockfile_dir,
+            ));
         };
         let (layout_config, manifest_dir) = match &licensed.project_config {
             Some(project_config) => (project_config, licensed.lockfile_dir.as_path()),
@@ -112,7 +113,7 @@ impl LockfileWalk<'_> {
             &self.installability,
             self.config.peer_edge_options(),
         );
-        Ok(Some((package_dirs, sorted_licensed_dependencies(&lockfile, belongs_to))))
+        Ok((package_dirs, sorted_licensed_dependencies(&lockfile, belongs_to)))
     }
 }
 

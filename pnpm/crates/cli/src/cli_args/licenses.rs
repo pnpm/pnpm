@@ -159,6 +159,7 @@ impl LicensesArgs {
         }
 
         if results_by_license.is_empty() {
+            pnpm_diagnostics::println!("No licenses in packages found");
             return Ok(());
         }
 
