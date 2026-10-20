@@ -1286,8 +1286,8 @@ fn re_resolving_one_parent_keeps_dependency_that_is_also_optional_peer() {
 
     let updated = read_lockfile_value();
     let snapshot = &updated["snapshots"][child];
-    assert!(
-        snapshot["dependencies"].get("@pnpm.e2e/bravo-dep").is_some(),
+    assert_eq!(
+        snapshot["dependencies"]["@pnpm.e2e/bravo-dep"], "1.0.0",
         "re-resolving retains the dependency on peerless snapshot; got snapshot: {snapshot}",
     );
     assert_eq!(
