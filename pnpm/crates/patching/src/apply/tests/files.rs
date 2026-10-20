@@ -658,3 +658,193 @@ deleted file mode 100644
             .exists(),
     );
 }
+
+const NESTED_RENAME_PATCH: &str = text_block_fnl! {
+    "diff --git a/lib/a.js b/lib/b.js"
+    "similarity index 100%"
+    "rename from lib/a.js"
+    "rename to lib/b.js"
+};
+
+#[test]
+fn applies_a_rename_of_a_nested_file() {
+    let patched = tempdir().unwrap();
+    fs::create_dir(patched.path().join("lib")).unwrap();
+    fs::write(patched.path().join("lib/a.js"), "module.exports = 1\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert!(!patched.path().join("lib/a.js").exists(), "lib/a.js must be moved away");
+    let renamed = fs::read_to_string(patched.path().join("lib/b.js")).unwrap();
+    assert_eq!(renamed, "module.exports = 1\n");
+}
+
+#[test]
+fn applies_a_rename_that_also_changes_the_file() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("index.js"), "one\ntwo\nthree\nfour\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/index.js b/dist/main.js"
+            "similarity index 75%"
+            "rename from index.js"
+            "rename to dist/main.js"
+            "--- a/index.js"
+            "+++ b/dist/main.js"
+            "@@ -1,4 +1,4 @@"
+            " one"
+            " two"
+            "-three"
+            "+3"
+            " four"
+        },
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert!(!patched.path().join("index.js").exists(), "index.js must be moved away");
+    let renamed = fs::read_to_string(patched.path().join("dist/main.js")).unwrap();
+    assert_eq!(renamed, "one\ntwo\n3\nfour\n");
+}
+
+#[test]
+fn rename_on_an_already_renamed_file_is_noop() {
+    let patched = tempdir().unwrap();
+    fs::create_dir(patched.path().join("lib")).unwrap();
+    fs::write(patched.path().join("lib/b.js"), "module.exports = 1\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("re-apply must succeed");
+
+    let renamed = fs::read_to_string(patched.path().join("lib/b.js")).unwrap();
+    assert_eq!(renamed, "module.exports = 1\n");
+}
+
+#[test]
+fn rename_onto_an_existing_file_errors() {
+    let patched = tempdir().unwrap();
+    fs::create_dir(patched.path().join("lib")).unwrap();
+    fs::write(patched.path().join("lib/a.js"), "a\n").unwrap();
+    fs::write(patched.path().join("lib/b.js"), "b\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must refuse to overwrite");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("already exists"), "got: {message}");
+    assert_eq!(fs::read_to_string(patched.path().join("lib/a.js")).unwrap(), "a\n");
+    assert_eq!(fs::read_to_string(patched.path().join("lib/b.js")).unwrap(), "b\n");
+}
+
+#[test]
+fn parent_dir_segment_in_rename_errors() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("index.js"), "a\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    for (from, to) in [("index.js", "../escape.js"), ("../escape.js", "index.js")] {
+        let patch = write_patch(
+            patch_dir.path(),
+            &format!(
+                "diff --git a/{from} b/{to}\nsimilarity index 100%\nrename from {from}\nrename to {to}\n",
+            ),
+        );
+        let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must reject ..");
+        let PatchApplyError::PatchFailed { message, .. } = err else {
+            panic!("expected PatchFailed, got: {err:?}");
+        };
+        assert!(message.contains("escapes target dir"), "got: {message}");
+    }
+}
+
+#[test]
+fn previews_a_rename_as_removing_its_source_and_writing_its_target() {
+    let patched = tempdir().unwrap();
+    fs::create_dir(patched.path().join("lib")).unwrap();
+    fs::write(patched.path().join("lib/a.js"), "module.exports = 1\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    assert_eq!(preview.written_paths, ["lib/b.js"]);
+    assert_eq!(preview.removed_paths, ["lib/a.js"]);
+}
+
+#[test]
+fn rename_without_hunks_keeps_the_bytes_of_a_non_utf8_file() {
+    let patched = tempdir().unwrap();
+    fs::create_dir(patched.path().join("lib")).unwrap();
+    let bytes = [0xff, 0xfe, 0x00, 0x80];
+    fs::write(patched.path().join("lib/a.js"), bytes).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(fs::read(patched.path().join("lib/b.js")).unwrap(), bytes);
+}
+
+#[cfg(unix)]
+#[test]
+fn rename_without_hunks_moves_a_symlink_without_reading_through_it() {
+    let patched = tempdir().unwrap();
+    let outside = tempdir().unwrap();
+    let secret = outside.path().join("secret.txt");
+    fs::write(&secret, "secret\n").unwrap();
+    fs::create_dir(patched.path().join("lib")).unwrap();
+    std::os::unix::fs::symlink(&secret, patched.path().join("lib/a.js")).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let moved = patched.path().join("lib/b.js");
+    assert!(fs::symlink_metadata(&moved).unwrap().is_symlink(), "lib/b.js must stay a symlink");
+    assert_eq!(fs::read_link(&moved).unwrap(), secret);
+}
+
+#[test]
+fn previews_a_rename_onto_a_removed_manifest_as_the_new_manifest() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let replacement = "{\"scripts\":{\"install\":\"node x\"}}\n";
+    fs::write(patched.path().join("next.json"), replacement).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let deletion: String = MANIFEST
+        .lines()
+        .flat_map(|line| ["-", line, "\n"])
+        .collect();
+    let patch = write_patch(
+        patch_dir.path(),
+        &format!(
+            "diff --git a/package.json b/package.json\ndeleted file mode 100644\n--- a/package.json\n+++ /dev/null\n@@ -1,{} +0,0 @@\n{deletion}diff --git a/next.json b/package.json\nsimilarity index 100%\nrename from next.json\nrename to package.json\n",
+            MANIFEST.lines().count(),
+        ),
+    );
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    assert_eq!(preview.manifest.as_deref(), Some(replacement));
+    assert_eq!(fs::read_to_string(patched.path().join("package.json")).unwrap(), replacement);
+}
+
+#[test]
+fn rename_with_neither_source_nor_target_errors() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must not succeed");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("neither exists"), "got: {message}");
+}
