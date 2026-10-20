@@ -48,6 +48,19 @@ pub(super) fn seed_store(root: &Path) {
     store_index.set_many(entries).expect("insert cargo benchmark store index entries");
 }
 
+pub(super) fn verify_materialized_crates(root: &Path) {
+    let crates_io_dir = root.join(".pnpm/crates/crates-io");
+    for index in 0..CRATE_COUNT {
+        let name = crate_name(index);
+        let link = crates_io_dir.join(format!("{name}-{CRATE_VERSION}"));
+        assert!(
+            link.join(".cargo-checksum.json").is_file(),
+            "expected prewarm to materialize crate slot at {}",
+            link.display(),
+        );
+    }
+}
+
 fn seed_crate(store_dir: &StoreDir, index: usize) -> (String, PackageFilesIndex) {
     let name = crate_name(index);
     let checksum = crate_checksum(index);
@@ -59,16 +72,14 @@ fn seed_crate(store_dir: &StoreDir, index: usize) -> (String, PackageFilesIndex)
         &format!("crate:{name}@{CRATE_VERSION}"),
     );
     let mut files = HashMap::with_capacity(MODULE_COUNT + 2);
-    files.insert(
-        "Cargo.toml".to_string(),
-        write_cas_blob(
-            store_dir,
-            format!(
-                "[package]\nname = \"{name}\"\nversion = \"{CRATE_VERSION}\"\nedition = \"2021\"\n",
-            )
-            .as_bytes(),
-        ),
+    let mut cargo_toml = format!(
+        "[package]\nname = \"{name}\"\nversion = \"{CRATE_VERSION}\"\nedition = \"2021\"\n",
     );
+    if index + 1 < CRATE_COUNT {
+        writeln!(cargo_toml, "\n[dependencies]\n{} = \"{CRATE_VERSION}\"", crate_name(index + 1))
+            .expect("format crate Cargo.toml dependency");
+    }
+    files.insert("Cargo.toml".to_string(), write_cas_blob(store_dir, cargo_toml.as_bytes()));
     files.insert(
         "src/lib.rs".to_string(),
         write_cas_blob(store_dir, format!("pub const CRATE_INDEX: usize = {index};\n").as_bytes()),
@@ -117,6 +128,11 @@ fn cargo_lock_contents() -> String {
             crate_checksum(index),
         )
         .expect("format Cargo.lock package entry");
+        if index + 1 < CRATE_COUNT {
+            writeln!(lockfile, "dependencies = [\n \"{}\",\n]", crate_name(index + 1)).expect(
+                "format Cargo.lock package dependencies",
+            );
+        }
     }
     lockfile
 }

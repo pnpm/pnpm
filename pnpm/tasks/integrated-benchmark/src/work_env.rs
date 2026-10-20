@@ -443,6 +443,9 @@ impl WorkEnv {
             Command::new("bash")
                 .arg(self.prewarm_script_path(id))
                 .pipe_mut(executor(PREWARM_SCRIPT));
+            if scenario.uses_cargo_workspace_fixture() {
+                cargo_workspace::verify_materialized_crates(&self.bench_dir(id));
+            }
         }
     }
 

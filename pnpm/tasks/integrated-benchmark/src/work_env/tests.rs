@@ -712,7 +712,8 @@ fn cargo_repeat_install_seeds_workspace_and_store_before_frozen_runs() {
     assert!(dir.join("src/lib.rs").is_file());
     let cargo_lock = fs::read_to_string(dir.join("Cargo.lock")).unwrap();
     assert!(cargo_lock.contains("benchmark-crate-0000"));
-    assert!(cargo_lock.contains("benchmark-crate-0799"));
+    assert!(cargo_lock.contains("dependencies = [\n \"benchmark-crate-0001\",\n]"));
+    assert!(cargo_lock.contains("dependencies = [\n \"benchmark-crate-0799\",\n]"));
     let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).unwrap();
     assert!(workspace.contains("cargo:\n  enabled: true"), "workspace = {workspace}");
     assert!(
