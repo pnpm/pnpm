@@ -13,7 +13,7 @@ use std::{
 };
 
 struct WorkspaceProjectIndex<'a> {
-    workspace_root: PathBuf,
+    workspace_dir: PathBuf,
     by_dir: HashMap<PathBuf, &'a PackageManifest>,
     by_name: HashMap<String, Vec<(PathBuf, Option<String>)>>,
     link_workspace_packages: bool,
@@ -36,8 +36,20 @@ impl<'a> WorkspaceProjectIndex<'a> {
                     .push((norm, version));
             }
         }
+        // Where `pnpm-workspace.yaml` sits, so a local-path catalog entry is
+        // re-anchored from the workspace directory even when `lockfile_dir`
+        // moves `check.workspace_root` elsewhere.
+        let workspace_dir = check.config.workspace_dir
+            .as_deref()
+            .or_else(|| {
+                check.config.lockfile_dir
+                    .is_some()
+                    .then(|| check.project_manifests.first().map(|(dir, _)| dir.as_path()))
+                    .flatten()
+            })
+            .unwrap_or(check.workspace_root);
         Self {
-            workspace_root: lexical_normalize(check.workspace_root),
+            workspace_dir: lexical_normalize(workspace_dir),
             by_dir,
             by_name,
             link_workspace_packages: check.config.link_workspace_packages.enabled_at_depth(0),
@@ -59,10 +71,7 @@ impl<'a> WorkspaceProjectIndex<'a> {
         let CatalogResolutionResult::Found(found) = resolve_from_catalog(
             self.catalogs,
             &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
-            CatalogAnchor::Reanchor {
-                workspace_dir: &self.workspace_root,
-                consumer_dir: Some(dir),
-            },
+            CatalogAnchor::Reanchor { workspace_dir: &self.workspace_dir, consumer_dir: Some(dir) },
         ) else {
             return None;
         };
