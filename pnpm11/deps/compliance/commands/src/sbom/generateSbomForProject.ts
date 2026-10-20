@@ -90,6 +90,7 @@ export async function generateSbomForProject (
     supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
+    directoryRootsByDepPath: ctx.directoryRootsByDepPath,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     workspacePackages,
     resolvedWorkspaceDeps,

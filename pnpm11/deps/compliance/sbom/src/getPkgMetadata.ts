@@ -22,6 +22,7 @@ export interface GetPkgMetadataOptions {
   storeDir: string
   storeIndex: StoreIndex
   lockfileDir: string
+  directoryRootsByDepPath?: Map<string, string>
   virtualStoreDirMaxLength: number
 }
 
@@ -45,7 +46,10 @@ async function getPkgMetadataUnclamped (
 
   let files: Map<string, string>
   try {
-    const result = await readPackageFileMap(resolution, id, opts)
+    const result = await readPackageFileMap(resolution, id, {
+      ...opts,
+      lockfileDir: opts.directoryRootsByDepPath?.get(depPath) ?? opts.lockfileDir,
+    })
     if (!result) return {}
     files = result
   } catch {

@@ -3,6 +3,8 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
+import { readYamlFileSync } from 'read-yaml-file'
+import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
 
@@ -109,4 +111,30 @@ test('pnpm sbom reads dedicated workspace lockfiles', async () => {
   const missingDependency = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
   expect(missingDependency.status).toBe(1)
   expect(missingDependency.stderr.toString()).toContain('packages/b')
+})
+
+test('pnpm sbom reads local package metadata relative to its dedicated lockfile', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', version: '1.0.0', private: true } },
+    { location: 'packages/a', package: { name: 'pkg-a', version: '1.0.0', dependencies: { 'local-lib': 'file:../../vendor/lib' } } },
+    { location: 'packages/group/b', package: { name: 'pkg-b', version: '1.0.0', dependencies: { 'local-lib': 'file:../../vendor/lib' } } },
+    { location: 'packages/vendor/lib', package: { name: 'local-lib', version: '2.0.0', license: 'Apache-2.0' } },
+    { location: 'vendor/lib', package: { name: 'local-lib', version: '2.0.0', license: 'MIT' } },
+  ])
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages:\n  - packages/a\n  - packages/group/b\nsharedWorkspaceLockfile: false\n')
+  await execPnpm(['install'])
+
+  const lockfilePath = path.join('packages/a', 'pnpm-lock.yaml')
+  const lockfile = readYamlFileSync<{ packages: Record<string, { version?: string }> }>(lockfilePath)
+  lockfile.packages['local-lib@file:../../vendor/lib'].version = '2.0.0'
+  writeYamlFileSync(lockfilePath, lockfile)
+
+  const result = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
+  expect(result.status).toBe(0)
+  const localPackage = JSON.parse(result.stdout.toString()).packages.find((pkg: { name: string }) => pkg.name === 'local-lib')
+  expect(localPackage.licenseDeclared).toBe('MIT')
+
+  const conflicting = execPnpmSync(['-r', 'sbom', '--sbom-format', 'spdx'])
+  expect(conflicting.status).toBe(1)
+  expect(conflicting.stderr.toString()).toContain('ERR_PNPM_SBOM_CONFLICTING_LOCKFILE_ENTRIES')
 })
