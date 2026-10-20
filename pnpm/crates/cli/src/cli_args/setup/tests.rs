@@ -123,7 +123,7 @@ fn registry_write_failure_prints_powershell_instructions() {
     )
     .expect("registry write failure leaves the install in place");
     assert!(output.contains("Access is denied."), "{output}");
-    assert!(output.contains("$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'"), "{output}");
+    assert!(output.contains(r"$env:PNPM_HOME = 'C:\Users\developer\pnpm'"), "{output}");
 }
 
 #[test]
