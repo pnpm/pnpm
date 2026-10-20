@@ -201,16 +201,16 @@ impl NpmResolutionVerifier {
             if let Some(projection) = self.shared_trust_projection(registry, &key) {
                 return Ok(Arc::new(projection));
             }
-            if self.routing.is_pnpr_registry(registry) {
-                let projection = self.metadata.fetch_abbreviated_meta_projected(
+            if self.routing.is_pnpr_registry(registry)
+                && let Ok(projection) = self.metadata.fetch_abbreviated_meta_projected(
                     registry,
                     name,
                     project_trust_meta,
                 )
-                .await?;
-                if projection.time.is_some() {
-                    return Ok(Arc::new(projection));
-                }
+                .await
+                && projection.time.is_some()
+            {
+                return Ok(Arc::new(projection));
             }
             self.metadata
                 .fetch_full_meta_projected(registry, name, project_trust_meta)

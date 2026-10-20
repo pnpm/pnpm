@@ -288,3 +288,31 @@ async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_
     abbrev_mock.assert_async().await;
     full_mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn pnpr_registry_offline_falls_back_to_full_mirror_when_abbreviated_mirror_is_missing() {
+    let registry = "http://nonexistent.example.invalid/";
+    let cache_dir = TempDir::new().expect("tempdir");
+    let packument: Package =
+        serde_json::from_value(stable_trust_packument("acme")).expect("package parses");
+    persist_meta_to_mirror(cache_dir.path(), crate::mirror::FULL_META_DIR, registry, &packument)
+        .expect("persist full mirror");
+
+    let mut opts = default_opts(registry);
+    opts.metadata.cache_dir = Some(cache_dir.path().to_path_buf());
+    opts.metadata.offline = true;
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry.to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+}
