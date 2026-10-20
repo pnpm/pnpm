@@ -105,6 +105,7 @@ fn registry_read_failure_prints_powershell_instructions() {
         Path::new(r"C:\Users\developer\pnpm"),
     )
     .expect("registry access is not required to finish installation");
+    eprintln!("{output}");
     assert_eq!(
         output,
         "win32 registry environment values could not be retrieved\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
