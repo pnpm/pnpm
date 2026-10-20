@@ -156,18 +156,28 @@ pub(super) fn selection_has_dependencies(
 /// Whether `current` records `importer_id` as installed: it lists the
 /// importer and a snapshot for each of its direct dependencies that is not a
 /// link. A filtered install in pnpm 11 keeps every importer in the current
-/// lockfile while omitting the packages of the projects it did not select.
-pub(super) fn current_records_importer(current: &Lockfile, importer_id: &str) -> bool {
+/// lockfile while omitting the dependencies and packages of the projects it
+/// did not select.
+pub(super) fn current_records_importer(
+    current: &Lockfile,
+    importer_id: &str,
+    status: super::freshness::ProjectStatus,
+) -> bool {
     let Some(importer) = current.importers.get(importer_id) else {
         return false;
     };
+    let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    if status == super::freshness::ProjectStatus::Unrecorded
+        && importer
+            .dependencies_by_groups(groups)
+            .next()
+            .is_none()
+    {
+        return false;
+    }
     let snapshots = current.snapshots.as_ref();
     importer
-        .dependencies_by_groups([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-        ])
+        .dependencies_by_groups(groups)
         .filter_map(|(alias, spec)| spec.version.resolved_key(alias))
         .all(|key| snapshots.is_some_and(|snapshots| snapshots.contains_key(&key)))
 }

@@ -143,7 +143,7 @@ fn require_recorded_in_current(
         .iter()
         .find(|(importer_id, stat)| {
             super::manifest_has_runtime_deps(stat.manifest)
-                && !current_records_importer(current, importer_id)
+                && !current_records_importer(current, importer_id, stat.status)
         })
     {
         return Err(Stale::ProjectNotInstalled(super::project_id(stat.root_dir, stat.manifest)));

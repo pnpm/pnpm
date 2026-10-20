@@ -223,6 +223,9 @@ pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
     if !config.optimistic_repeat_install {
         return Some("optimistic_repeat_install disabled");
     }
+    if config.prune_direct_dependencies {
+        return Some("prune_direct_dependencies enabled");
+    }
     // The merge has to run, and it rewrites the wanted lockfile and
     // deletes the per-branch ones — neither of which any fast path does.
     if config.merge_git_branch_lockfiles {

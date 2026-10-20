@@ -266,11 +266,12 @@ export function isProjectRecordedInCurrentLockfile (
 }
 
 function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNullable<LockfileObject['packages']>): boolean {
-  return DEPENDENCIES_FIELDS.every((field) =>
-    Object.entries(importer[field] ?? {}).every(([alias, ref]) => {
-      const depPath = refToRelative(ref, alias)
-      return depPath == null || packages[depPath] != null
-    }))
+  return !isEmpty(importer.specifiers) &&
+    DEPENDENCIES_FIELDS.every((field) =>
+      Object.entries(importer[field] ?? {}).every(([alias, ref]) => {
+        const depPath = refToRelative(ref, alias)
+        return depPath == null || packages[depPath] != null
+      }))
 }
 
 export function selectProjectDirs (

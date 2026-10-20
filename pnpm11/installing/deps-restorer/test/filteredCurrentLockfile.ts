@@ -54,3 +54,42 @@ test('retains installed packages when a selected importer is new to the current 
     '@pnpm.e2e/foo@100.0.0',
   ])
 })
+
+test('does not record dependencies for unselected importers in the current lockfile', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', private: true, dependencies: { '@pnpm.e2e/foo': '100.0.0' } } },
+    { name: 'a', dependencies: { '@pnpm.e2e/foo': '100.0.0' } },
+  ])
+  const wantedLockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '100.0.0' },
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+      },
+      ['a' as ProjectId]: {
+        specifiers: { '@pnpm.e2e/foo': '100.0.0' },
+        dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+      },
+    },
+    packages: {
+      ['@pnpm.e2e/foo@100.0.0' as DepPath]: {
+        resolution: { integrity: getIntegrity('@pnpm.e2e/foo', '100.0.0') },
+      },
+    },
+  }
+  const opts = await testDefaults({
+    projects: [path.resolve('.'), path.resolve('a')],
+    selectedProjectDirs: [path.resolve('a')],
+    wantedLockfile,
+  })
+  await headlessInstall(opts)
+  const current = await readCurrentLockfile('node_modules/.pnpm', { ignoreIncompatible: false })
+  expect(current?.importers).toEqual({
+    '.': { specifiers: {} },
+    a: {
+      specifiers: { '@pnpm.e2e/foo': '100.0.0' },
+      dependencies: { '@pnpm.e2e/foo': '100.0.0' },
+    },
+  })
+})

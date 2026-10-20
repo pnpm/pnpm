@@ -259,6 +259,10 @@ pub struct Config {
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
 
+    /// Whether to prune direct dependencies that were removed from `package.json`,
+    /// and leave unselected workspace projects untouched during a filtered install.
+    pub prune_direct_dependencies: bool,
+
     /// The location where all packages are saved on disk. Share a
     /// writable store only between mutually trusted users, jobs, and
     /// processes.

@@ -1009,7 +1009,8 @@ test('filtered exec with --workspace-root installs the workspace root', async ()
 })
 
 // A filtered install that prunes direct dependencies leaves the workspace
-// root alone, so the state must not record the root as installed.
+// root alone, so the state must not record the root as installed, and a later
+// command that selects the root must not treat its dependencies as up to date.
 test('a filtered install that prunes direct dependencies does not vouch for the workspace root', async () => {
   preparePackages([
     {
@@ -1041,6 +1042,28 @@ test('a filtered install that prunes direct dependencies does not vouch for the 
     filteredInstall: true,
     validation: expect.objectContaining({
       manifests: { foo: expect.any(String) },
+    }),
+  }))
+
+  const errorResult = execPnpmSync(['--filter=foo', '--workspace-root', '--config.verify-deps-before-run=error', 'exec', 'node', '-e', '0'])
+  expect(errorResult.status).not.toBe(0)
+  expect(errorResult.stdout.toString()).toContain('Workspace package root has dependencies but was not installed')
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: true,
+    validation: expect.objectContaining({
+      manifests: { foo: expect.any(String) },
+    }),
+  }))
+
+  execPnpmSync(['--filter=foo', '--workspace-root', '--config.verify-deps-before-run=install', 'exec', 'node', '-e', '0'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: false,
+    validation: expect.objectContaining({
+      manifests: {
+        '.': expect.any(String),
+        foo: expect.any(String),
+      },
     }),
   }))
 })

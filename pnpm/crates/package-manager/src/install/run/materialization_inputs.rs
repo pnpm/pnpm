@@ -127,13 +127,18 @@ impl Lockfiles<'_> {
 }
 
 impl super::RunExecution<'_> {
+    const fn prune_direct_dependencies(&self) -> bool {
+        self.options.manifests.prune_direct_dependencies
+            || self.install.context.config.prune_direct_dependencies
+    }
+
     pub(super) const fn prune_tree_options<'r>(
         &self,
         scope: &'r InstallScope<'_>,
     ) -> pnpm_deps_restorer::PruneTreeOptions<'r> {
         pnpm_deps_restorer::PruneTreeOptions {
             orphans: !scope.importers.filtered_install,
-            direct_dependencies: self.options.manifests.prune_direct_dependencies,
+            direct_dependencies: self.prune_direct_dependencies(),
             importer_ids: scope.importers.requested_importer_ids.as_ref(),
         }
     }
@@ -149,7 +154,7 @@ impl super::RunExecution<'_> {
             metadata: modules.previous_modules_metadata,
             is_inconsistent: modules.is_inconsistent,
             tree_moved: modules.tree_moved,
-            prune_direct_dependencies: self.options.manifests.prune_direct_dependencies,
+            prune_direct_dependencies: self.prune_direct_dependencies(),
         }
     }
 }
