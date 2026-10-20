@@ -1,6 +1,6 @@
 use super::{
     Config, ConfigOverrides, NodePackageMapMode, OsString, PackageImportMethod, Path, PmOnFail,
-    RuntimeOnFail, TrustPolicy, argv, assert_eq,
+    RuntimeOnFail, TrustPolicy, argv, assert_eq, config_with_cli_registries,
 };
 
 #[test]
@@ -291,8 +291,10 @@ fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
-    let mut config = Config { strict_peer_dependencies: true, ..Config::default() };
-    overrides.apply(&mut config, Path::new("/workspace"));
+    let config = config_with_cli_registries(
+        &overrides,
+        Config { strict_peer_dependencies: true, ..Config::default() },
+    );
     assert!(!config.strict_peer_dependencies);
     assert_eq!(config.registry, "https://example.test/");
 }
@@ -311,8 +313,8 @@ fn a_boolean_settings_value_is_claimed_even_when_a_command_declares_the_name() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
-    let mut config = Config { lockfile: false, ..Config::default() };
-    overrides.apply(&mut config, Path::new("/workspace"));
+    let config =
+        config_with_cli_registries(&overrides, Config { lockfile: false, ..Config::default() });
     assert!(config.lockfile);
     assert_eq!(config.registry, "https://example.test/");
 }

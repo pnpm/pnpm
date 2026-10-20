@@ -270,9 +270,6 @@ impl super::CliNetworkArgs {
             config.cli_settings.insert("noProxy".to_string());
             config.cli_settings.insert("noproxy".to_string());
         }
-        if let Some(registry) = self.registry.as_deref() {
-            crate::config_overrides::apply_registry_override(config, registry);
-        }
     }
 }
 

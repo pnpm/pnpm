@@ -5,10 +5,13 @@ use std::collections::BTreeMap;
 
 fn config_with_cli_settings(settings: &[(&str, &str)]) -> Config {
     Config {
-        cli_setting_values: settings
-            .iter()
-            .map(|&(key, value)| (key.to_string(), value.to_string()))
-            .collect::<BTreeMap<_, _>>(),
+        cli: crate::CliLayer {
+            setting_values: settings
+                .iter()
+                .map(|&(key, value)| (key.to_string(), value.to_string()))
+                .collect::<BTreeMap<_, _>>(),
+            ..crate::CliLayer::default()
+        },
         ..Config::default()
     }
 }
@@ -129,4 +132,34 @@ fn cli_node_package_map_mode_wins_over_the_deprecated_yaml_setting() {
 
     assert_eq!(config.node_package_map_mode, crate::NodePackageMapMode::WriteOnly);
     assert_eq!(config.explicit_settings.get("nodeExperimentalPackageMap"), Some(&false.into()));
+}
+
+#[test]
+fn cli_registries_win_over_the_workspace_yaml() {
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  https://yaml.example/:\n    scopes: ['@', '@private']\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let config = Config {
+        cli: crate::CliLayer {
+            registry: Some("https://cli.example/".to_string()),
+            scoped_registries: [("@private".to_string(), "https://private.example/".to_string())]
+                .into(),
+            ..crate::CliLayer::default()
+        },
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("loads");
+
+    assert_eq!(config.registry, "https://cli.example/");
+    assert_eq!(config.package_manager_bootstrap.registry, "https://cli.example/");
+    assert_eq!(
+        config.registries_by_scope.get("@private").map(String::as_str),
+        Some("https://private.example/"),
+    );
+    assert!(config.cli_settings.contains("registry"));
 }
