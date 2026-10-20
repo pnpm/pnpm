@@ -99,6 +99,51 @@ fn sh_without_env_prints_the_lines_to_add_by_hand() {
 }
 
 #[test]
+fn registry_read_failure_prints_powershell_instructions() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::RegRead),
+        Path::new(r"C:\Users\developer\pnpm"),
+    )
+    .expect("registry access is not required to finish installation");
+    assert_eq!(
+        output,
+        "win32 registry environment values could not be retrieved\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+    );
+}
+
+#[test]
+fn registry_write_failure_prints_powershell_instructions() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::FailedSetEnv {
+            env_name: "Path".to_string(),
+            value: r"%PNPM_HOME%\bin;C:\Windows".to_string(),
+            stderr: "Access is denied.".to_string(),
+        }),
+        Path::new(r"C:\Users\developer\pnpm"),
+    )
+    .expect("registry write failure leaves the install in place");
+    assert!(output.contains("Access is denied."), "{output}");
+    assert!(output.contains("$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'"), "{output}");
+}
+
+#[test]
+fn powershell_instructions_quote_pnpm_home_as_a_literal() {
+    for quote in ['\'', '\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}'] {
+        let output = render_env_path_outcome(
+            Err(PathExtenderError::RegRead),
+            Path::new(&format!(r"C:\Users\o{quote}neil\$(Write-Error injected)")),
+        )
+        .unwrap();
+        assert!(
+            output.contains(&format!(
+                "\n$env:PNPM_HOME = 'C:\\Users\\o{quote}{quote}neil\\$(Write-Error injected)'\n"
+            )),
+            "{output}",
+        );
+    }
+}
+
+#[test]
 fn other_env_path_errors_fail_the_setup() {
     let error = render_env_path_outcome(
         Err(PathExtenderError::UnsupportedShell { shell: "tcsh".to_string() }),

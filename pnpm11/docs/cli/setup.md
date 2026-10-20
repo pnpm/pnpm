@@ -15,6 +15,11 @@ If `pnpm setup` cannot tell which shell configuration file to update, for exampl
 in a container where `SHELL` is not set, it still installs pnpm. It then prints the
 `PNPM_HOME` and `PATH` lines to add to your shell configuration yourself.
 
+On Windows, if the registry environment values cannot be read or written,
+`pnpm setup` still installs pnpm. It prints commands to set `PNPM_HOME` and
+`PATH` in the current PowerShell session. Add these commands to your PowerShell
+profile to use pnpm in future sessions without registry access.
+
 Since v11.18.0, when running on GitHub Actions, `pnpm setup` also appends `PNPM_HOME` and the global bin directory to the GitHub Actions environment files (`GITHUB_ENV` and `GITHUB_PATH`), so later steps in the same job can run `pnpm add --global` and other global commands.
 
 :::tip

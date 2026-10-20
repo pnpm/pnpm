@@ -343,6 +343,25 @@ test('setup fails on an unsupported shell', async () => {
   await expect(setup.handler({ pnpmHomeDir: '/root/.pnpm' })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_SHELL' })
 })
 
+test.each(['REG_READ', 'FAILED_SET_ENV'])('setup prints PowerShell instructions on %s', async (code) => {
+  jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError(code, 'Registry access denied.'))
+  const output = await setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' })
+  expect(output).toBe(`Registry access denied.
+
+pnpm is installed, but its environment could not be saved in the registry.
+To start using pnpm in this PowerShell session, run:
+$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'
+$env:Path = "$env:PNPM_HOME\\bin;$env:Path"
+
+Add these lines to your PowerShell profile to use pnpm in future sessions.`)
+})
+
+test.each(["'", '\u2018', '\u2019', '\u201a', '\u201b'])('setup escapes %s in PowerShell instructions', async (quote) => {
+  jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError('REG_READ', 'Registry access denied.'))
+  const output = await setup.handler({ pnpmHomeDir: `C:\\Users\\o${quote}neil\\$(Write-Error injected)` })
+  expect(output).toContain(`\n$env:PNPM_HOME = 'C:\\Users\\o${quote}${quote}neil\\$(Write-Error injected)'\n`)
+})
+
 test('global install of the standalone executable skips its build scripts', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',
