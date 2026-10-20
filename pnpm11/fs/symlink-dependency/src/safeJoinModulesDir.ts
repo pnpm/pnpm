@@ -69,7 +69,7 @@ export async function prepareWorkspaceModulesDir (modulesDir: string, alias: str
   const { resolvedRoot } = workspaceParentComponents(trustedRoot, path.dirname(destination), modulesDir, alias)
   const existingRoot = await findExistingAncestor(resolvedRoot)
   const componentsFromExistingRoot = path.relative(existingRoot, path.dirname(destination)).split(path.sep).filter(Boolean)
-  await validateWorkspaceParent({ alias, components: [], current: existingRoot, modulesDir })
+  await validateHoistRoot({ alias, current: existingRoot, modulesDir })
   await prepareWorkspaceParent({ alias, components: componentsFromExistingRoot, current: existingRoot, modulesDir })
   return destination
 }
@@ -79,6 +79,7 @@ export async function validateWorkspaceModulesDir (modulesDir: string, alias: st
   const { resolvedRoot } = workspaceParentComponents(trustedRoot, path.dirname(destination), modulesDir, alias)
   const existingRoot = await findExistingAncestor(resolvedRoot)
   const components = path.relative(existingRoot, path.dirname(destination)).split(path.sep).filter(Boolean)
+  await validateHoistRoot({ alias, current: existingRoot, modulesDir })
   await validateWorkspaceParent({ alias, components, current: existingRoot, modulesDir })
   return destination
 }
@@ -94,7 +95,7 @@ function workspaceParentComponents (trustedRoot: string, parent: string, modules
 
 async function findExistingAncestor (target: string): Promise<string> {
   try {
-    await fs.promises.lstat(target)
+    await fs.promises.stat(target)
     return target
   } catch (error: unknown) {
     if (!isError(error) || !('code' in error) || error.code !== 'ENOENT') throw error
@@ -104,25 +105,43 @@ async function findExistingAncestor (target: string): Promise<string> {
   return findExistingAncestor(parent)
 }
 
+async function validateHoistRoot (opts: {
+  alias: string
+  current: string
+  modulesDir: string
+}): Promise<void> {
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.stat(opts.current)
+  } catch (error: unknown) {
+    if (isError(error) && 'code' in error && error.code === 'ENOENT') return
+    throw error
+  }
+  if (!stat.isDirectory()) {
+    throw invalidDependencyNameError(opts.modulesDir, opts.alias, opts.current)
+  }
+}
+
 async function validateWorkspaceParent (opts: {
   alias: string
   components: string[]
   current: string
   modulesDir: string
 }): Promise<void> {
+  const [component, ...remainingComponents] = opts.components
+  if (component == null) return
+  const current = path.join(opts.current, component)
   let stat: fs.Stats
   try {
-    stat = await fs.promises.lstat(opts.current)
+    stat = await fs.promises.lstat(current)
   } catch (error: unknown) {
     if (isError(error) && 'code' in error && error.code === 'ENOENT') return
     throw error
   }
   if (stat.isSymbolicLink() || !stat.isDirectory()) {
-    throw invalidDependencyNameError(opts.modulesDir, opts.alias, opts.current)
+    throw invalidDependencyNameError(opts.modulesDir, opts.alias, current)
   }
-  const [component, ...remainingComponents] = opts.components
-  if (component == null) return
-  await validateWorkspaceParent({ ...opts, components: remainingComponents, current: path.join(opts.current, component) })
+  await validateWorkspaceParent({ ...opts, components: remainingComponents, current })
 }
 
 async function prepareWorkspaceParent (opts: {

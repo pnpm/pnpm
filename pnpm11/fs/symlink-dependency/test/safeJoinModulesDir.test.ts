@@ -82,17 +82,27 @@ test('prepareWorkspaceModulesDir refuses a symlinked destination parent', async 
   expect(fs.existsSync(path.join(outside, 'inner'))).toBe(false)
 })
 
-test('prepareWorkspaceModulesDir refuses a symlinked modules root', async () => {
+test('prepareWorkspaceModulesDir accepts a symlinked modules root pointing to a real directory', async () => {
   const tmp = tempDir(false)
   const modulesDir = path.join(tmp, 'node_modules')
   const outside = path.join(tmp, 'outside')
   fs.mkdirSync(outside)
   await fs.promises.symlink(outside, modulesDir, process.platform === 'win32' ? 'junction' : 'dir')
 
+  await expect(prepareWorkspaceModulesDir(modulesDir, 'project')).resolves.toBe(path.join(modulesDir, 'project'))
+  expect(fs.statSync(modulesDir).isDirectory()).toBe(true)
+})
+
+test('prepareWorkspaceModulesDir refuses a symlinked modules root pointing to a file', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const outsideFile = path.join(tmp, 'file.txt')
+  fs.writeFileSync(outsideFile, 'hello')
+  await fs.promises.symlink(outsideFile, modulesDir, 'file')
+
   await expect(prepareWorkspaceModulesDir(modulesDir, 'project')).rejects.toMatchObject({
     code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
   })
-  expect(fs.existsSync(path.join(outside, 'project'))).toBe(false)
 })
 
 test('prepareWorkspaceModulesDir creates a fresh multi-component modules root', async () => {
@@ -116,6 +126,29 @@ test('validateWorkspaceModulesDir refuses a symlinked existing parent without cr
   })
   await expect(validateWorkspaceModulesDir(modulesDir, 'missing/inner')).resolves.toBe(path.join(modulesDir, 'missing/inner'))
   expect(fs.existsSync(path.join(modulesDir, 'missing'))).toBe(false)
+})
+
+test('validateWorkspaceModulesDir accepts a symlinked modules root pointing to a real directory', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const outside = path.join(tmp, 'outside')
+  fs.mkdirSync(outside)
+  await fs.promises.symlink(outside, modulesDir, process.platform === 'win32' ? 'junction' : 'dir')
+
+  await expect(validateWorkspaceModulesDir(modulesDir, 'project')).resolves.toBe(path.join(modulesDir, 'project'))
+  expect(fs.statSync(modulesDir).isDirectory()).toBe(true)
+})
+
+test('validateWorkspaceModulesDir refuses a symlinked modules root pointing to a file', async () => {
+  const tmp = tempDir(false)
+  const modulesDir = path.join(tmp, 'node_modules')
+  const outsideFile = path.join(tmp, 'file.txt')
+  fs.writeFileSync(outsideFile, 'hello')
+  await fs.promises.symlink(outsideFile, modulesDir, 'file')
+
+  await expect(validateWorkspaceModulesDir(modulesDir, 'project')).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCY_NAME',
+  })
 })
 
 test('prepareWorkspaceModulesDir refuses a symlinked ancestor below the trusted root', async () => {
