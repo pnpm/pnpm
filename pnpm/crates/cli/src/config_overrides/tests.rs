@@ -149,7 +149,7 @@ fn registry_flag_outranks_a_config_registry_token() {
             .as_deref(),
         Some("https://flag.example/"),
     );
-    assert_eq!(overrides.cli_layer(None).registry.as_deref(), Some("https://config.example/"),);
+    assert_eq!(overrides.cli_layer(None).registry.as_deref(), Some("https://config.example/"));
 }
 
 #[test]
