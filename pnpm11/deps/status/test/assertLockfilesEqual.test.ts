@@ -146,4 +146,24 @@ describe('after a filtered install', () => {
       optionalDependencies: true,
     })).toBe(false)
   })
+
+  test('importerClosuresMatch follows link: targets with Windows backslash separators', () => {
+    const current = wantedLockfile()
+    current.importers['packages/a' as ProjectId].dependencies = { b: 'link:..\\b' }
+    current.importers['packages/b' as ProjectId] = {
+      specifiers: { foo: '1.0.0' },
+      dependencies: { foo: '1.0.0' },
+    }
+    const wanted = wantedLockfile()
+    wanted.importers['packages/a' as ProjectId].dependencies = { b: 'link:..\\b' }
+    wanted.importers['packages/b' as ProjectId] = {
+      specifiers: { bar: '1.0.0' },
+      dependencies: { bar: '1.0.0' },
+    }
+    expect(importerClosuresMatch(wanted, current, ['packages/a' as ProjectId], {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    })).toBe(false)
+  })
 })

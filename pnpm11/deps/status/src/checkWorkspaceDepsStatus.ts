@@ -200,7 +200,10 @@ async function recordVouchedWorkspaceState (
     allProjects,
     workspaceDir: workspaceLockfileDir(ctx),
     pnpmfiles: workspaceState.pnpmfiles,
-    settings: opts,
+    settings: {
+      ...opts,
+      autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
+    },
     ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,
     configDependencies: workspaceState.configDependencies,

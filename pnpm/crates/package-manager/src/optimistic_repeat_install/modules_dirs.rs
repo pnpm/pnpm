@@ -37,7 +37,7 @@ pub(super) fn first_selected_project_missing_modules_dir(
     expand_workspace_deps: bool,
 ) -> Option<String> {
     let selected = if expand_workspace_deps {
-        reached_workspace_project_dirs(check, selected_project_dirs)
+        reached_workspace_project_dirs(check, state, selected_project_dirs)
     } else {
         selected_project_dirs
             .iter()
@@ -103,29 +103,20 @@ impl<'a> WorkspaceProjectIndex<'a> {
             return Vec::new();
         };
         let spec = spec.as_ref();
-        if let Some(rel) = spec.strip_prefix("link:") {
-            let target = lexical_normalize(&dir.join(rel));
-            return self.by_dir
-                .contains_key(&target)
-                .then_some(target)
-                .into_iter()
-                .collect();
+        if let Some(rel) = spec
+            .strip_prefix("link:")
+            .or_else(|| spec.strip_prefix("file:"))
+        {
+            return self.resolve_dir_target(dir, rel);
         }
         let is_workspace = spec.starts_with("workspace:");
         if !is_workspace && !self.link_workspace_packages {
             return Vec::new();
         }
         if let Some(ws_spec) = spec.strip_prefix("workspace:")
-            && (matches!(ws_spec, "." | "..")
-                || ws_spec.starts_with("./")
-                || ws_spec.starts_with("../"))
+            && is_relative_workspace_path(ws_spec)
         {
-            let target = lexical_normalize(&dir.join(ws_spec));
-            return self.by_dir
-                .contains_key(&target)
-                .then_some(target)
-                .into_iter()
-                .collect();
+            return self.resolve_dir_target(dir, ws_spec);
         }
         let (target_name, range) = crate::install::spec_target_and_range(spec);
         let name = target_name.unwrap_or(alias);
@@ -139,13 +130,38 @@ impl<'a> WorkspaceProjectIndex<'a> {
             .map(|(dir, _)| dir.clone())
             .collect()
     }
+
+    fn resolve_dir_target(&self, dir: &Path, rel: &str) -> Vec<PathBuf> {
+        let normalized_rel = rel.replace('\\', "/");
+        let target = lexical_normalize(&dir.join(normalized_rel));
+        self.by_dir
+            .contains_key(&target)
+            .then_some(target)
+            .into_iter()
+            .collect()
+    }
+}
+
+fn is_relative_workspace_path(ws_spec: &str) -> bool {
+    matches!(ws_spec, "." | "..")
+        || ws_spec.starts_with("./")
+        || ws_spec.starts_with("../")
+        || ws_spec.starts_with(r".\")
+        || ws_spec.starts_with(r"..\")
 }
 
 fn reached_workspace_project_dirs(
     check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
     roots: &[&Path],
 ) -> HashSet<PathBuf> {
     let index = WorkspaceProjectIndex::from_check(check);
+    let groups = [
+        (state.settings.production != Some(false)).then_some(DependencyGroup::Prod),
+        (state.settings.dev != Some(false)).then_some(DependencyGroup::Dev),
+        (state.settings.optional != Some(false)).then_some(DependencyGroup::Optional),
+        Some(DependencyGroup::Peer),
+    ];
     let mut reached = HashSet::new();
     let mut stack: Vec<PathBuf> = roots
         .iter()
@@ -158,12 +174,7 @@ fn reached_workspace_project_dirs(
         else {
             continue;
         };
-        for (alias, spec) in manifest.dependencies([
-            DependencyGroup::Prod,
-            DependencyGroup::Dev,
-            DependencyGroup::Optional,
-            DependencyGroup::Peer,
-        ]) {
+        for (alias, spec) in manifest.dependencies(groups.into_iter().flatten()) {
             stack.extend(index.dep_targets(&dir, alias, spec));
         }
     }

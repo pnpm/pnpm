@@ -36,4 +36,11 @@ fn install_config_args_resolves_relative_npmrc_auth_file_against_current_dir() {
         install_config_args(&config).collect::<Vec<_>>(),
         [format!("--npmrc-auth-file={}", expected.display())],
     );
+
+    let abs_path = std::env::current_dir().expect("read current dir").join("abs-user.npmrc");
+    let abs_config = Config { npmrc_auth_file: Some(abs_path.clone()), ..Default::default() };
+    assert_eq!(
+        install_config_args(&abs_config).collect::<Vec<_>>(),
+        [format!("--npmrc-auth-file={}", abs_path.display())],
+    );
 }

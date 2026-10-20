@@ -158,9 +158,11 @@ function enqueueRefs (state: ClosureState, sourceImporterId: ProjectId | undefin
 }
 
 function resolveLinkedImporterId (sourceImporterId: ProjectId | undefined, linkedPath: string): ProjectId {
-  return (sourceImporterId == null || sourceImporterId === '.'
-    ? path.posix.normalize(linkedPath)
-    : path.posix.join(sourceImporterId, linkedPath)) as ProjectId
+  const normalizedLink = linkedPath.replace(/\\/g, '/')
+  const normalizedSource = sourceImporterId?.replace(/\\/g, '/')
+  return (normalizedSource == null || normalizedSource === '.'
+    ? path.posix.normalize(normalizedLink)
+    : path.posix.join(normalizedSource, normalizedLink)) as ProjectId
 }
 
 function filterImporterByGroups (importer: ProjectSnapshot, include: IncludedDependencies): ProjectSnapshot {

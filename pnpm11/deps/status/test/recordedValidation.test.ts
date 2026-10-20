@@ -391,6 +391,18 @@ describe('checkDepsStatus with recorded validations', () => {
     expect(await check(workspace, undefined, {
       dir: workspace.projectDir('a'),
     })).toMatchObject({ upToDate: false })
+
+    // Backslash-separated workspace: and file: paths also reach their workspace dependency.
+    delete workspace.manifestOf('a').peerDependencies
+    workspace.manifestOf('a').dependencies = { b: 'workspace:..\\b' }
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+    })).toMatchObject({ upToDate: false })
+
+    workspace.manifestOf('a').dependencies = { b: 'file:..\\b' }
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+    })).toMatchObject({ upToDate: false })
   })
 
   it('proves and refreshes per-project lockfiles when sharedWorkspaceLockfile is false', async () => {

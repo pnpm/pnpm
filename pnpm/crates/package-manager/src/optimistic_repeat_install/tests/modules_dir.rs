@@ -276,7 +276,7 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     };
     let (app_dir, app_manifest) = write_pkg(
         "app",
-        r#"{"name":"app","version":"1.0.0","dependencies":{"alias-b":"npm:pkg-b@^1.0.0","rel-c":"workspace:../pkg-c","pkg-d":"catalog:"},"peerDependencies":{"pkg-e":"workspace:*"}}"#,
+        r#"{"name":"app","version":"1.0.0","dependencies":{"alias-b":"npm:pkg-b@^1.0.0","rel-c":"workspace:..\\pkg-c","pkg-d":"catalog:","file-f":"file:../pkg-f"},"peerDependencies":{"pkg-e":"workspace:*"}}"#,
         true,
     );
     let (pkg_b_dir, pkg_b_manifest) = write_pkg(
@@ -304,6 +304,11 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         r#"{"name":"pkg-e","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
         true,
     );
+    let (pkg_f_dir, pkg_f_manifest) = write_pkg(
+        "pkg-f",
+        r#"{"name":"pkg-f","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
 
     let project_manifests = [
         (dir.path().to_path_buf(), &root_manifest),
@@ -313,6 +318,7 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         (pkg_d_v1_dir, &pkg_d_v1_manifest),
         (pkg_d_v2_dir.clone(), &pkg_d_v2_manifest),
         (pkg_e_dir.clone(), &pkg_e_manifest),
+        (pkg_f_dir.clone(), &pkg_f_manifest),
     ];
     let catalogs = BTreeMap::from([(
         "default".to_string(),
@@ -379,5 +385,15 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         )
         .as_deref(),
         Some("pkg-e"),
+    );
+    fs::create_dir_all(pkg_e_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_f_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        )
+        .as_deref(),
+        Some("pkg-f"),
     );
 }

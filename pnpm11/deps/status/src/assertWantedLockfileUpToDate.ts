@@ -99,7 +99,7 @@ export async function assertWorkspaceProjectsUpToDate (
   }>
 ): Promise<void> {
   const { lockfileDir, opts } = ctx
-  const getProjectId = opts.sharedWorkspaceLockfile
+  const getProjectId = opts.sharedWorkspaceLockfile !== false
     ? (project: Pick<Project, 'rootDir'>) => getLockfileImporterId(lockfileDir, project.rootDir)
     : () => '.' as ProjectId
   const assertContextOf = createProjectAssertContextResolver(ctx)
@@ -135,7 +135,7 @@ function createProjectAssertContextResolver (
     getWorkspacePackages,
     rootDir: lockfileDir,
   }
-  if (opts.sharedWorkspaceLockfile) {
+  if (opts.sharedWorkspaceLockfile !== false) {
     const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs)
     const sharedCtx: AssertWantedLockfileUpToDateContext = {
       ...baseCtx,

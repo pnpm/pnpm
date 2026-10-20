@@ -134,7 +134,10 @@ async function recordRootProject (
     allProjects: [{ rootDir: rootProjectManifestDir as ProjectRootDir, manifest: rootProjectManifest }],
     workspaceDir: rootProjectManifestDir,
     pnpmfiles: workspaceState.pnpmfiles,
-    settings: opts,
+    settings: {
+      ...opts,
+      autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
+    },
     ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,
     configDependencies: workspaceState.configDependencies,

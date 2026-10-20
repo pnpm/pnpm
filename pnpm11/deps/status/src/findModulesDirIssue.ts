@@ -339,21 +339,31 @@ function specWorkspaceTargetDirs (
   { dir, alias, pref }: { dir: string, alias: string, pref: string },
   { index, linkWorkspacePackages }: WorkspaceWalkContext
 ): string[] {
-  if (pref.startsWith('link:')) {
-    const target = path.resolve(dir, pref.slice('link:'.length))
-    return index.byDir.has(target) ? [target] : []
+  const localPath = stripLocalDirPrefix(pref)
+  if (localPath != null) {
+    return resolveKnownProjectDir(dir, localPath, index)
   }
   const isWorkspaceSpec = pref.startsWith('workspace:')
   if (!isWorkspaceSpec && !linkWorkspacePackages) return []
   const rawSpec = isWorkspaceSpec ? pref.slice('workspace:'.length) : pref
-  if (isWorkspaceSpec && /^\.{1,2}(?:\/|$)/.test(rawSpec)) {
-    const target = path.resolve(dir, rawSpec)
-    return index.byDir.has(target) ? [target] : []
+  if (isWorkspaceSpec && /^\.{1,2}(?:[\\/]|$)/.test(rawSpec)) {
+    return resolveKnownProjectDir(dir, rawSpec, index)
   }
   const { name, range } = splitNameAndRange(alias, rawSpec)
   return (index.byName.get(name) ?? [])
     .filter((project) => rangeMatches(range, project.manifest.version, isWorkspaceSpec))
     .map((project) => path.resolve(project.rootDir))
+}
+
+function stripLocalDirPrefix (pref: string): string | undefined {
+  if (pref.startsWith('link:')) return pref.slice('link:'.length)
+  if (pref.startsWith('file:')) return pref.slice('file:'.length)
+  return undefined
+}
+
+function resolveKnownProjectDir (dir: string, relPath: string, index: WorkspaceWalkContext['index']): string[] {
+  const target = path.resolve(dir, relPath.replace(/\\/g, '/'))
+  return index.byDir.has(target) ? [target] : []
 }
 
 /**
