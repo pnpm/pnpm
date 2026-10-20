@@ -15,7 +15,6 @@ pnpm-matcher = { workspace = true }
 pnpm-catalogs-resolver = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
 pnpm-config = { workspace = true }
-pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }

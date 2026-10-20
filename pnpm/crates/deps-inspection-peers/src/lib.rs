@@ -59,10 +59,10 @@ pub struct PeerIssues {
 
 pub type IssuesByProjects = BTreeMap<String, PeerIssues>;
 
-/// Workspace project manifests the caller already holds, keyed by
-/// lexically normalized project directory. A `link:` target found here is
-/// not read from disk.
-pub type ProjectManifests<'a> = HashMap<PathBuf, &'a PackageManifest>;
+/// Workspace project manifests the caller already holds, keyed by importer
+/// ID. A `link:` target that resolves to one of these importers is not read
+/// from disk.
+pub type ProjectManifests<'a> = HashMap<String, &'a PackageManifest>;
 
 /// The issues an install or `pnpm dedupe` acts on: everything left
 /// after `peerDependencyRules`, when any of it is worth acting on. A

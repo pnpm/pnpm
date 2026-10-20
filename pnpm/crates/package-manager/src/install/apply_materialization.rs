@@ -258,7 +258,7 @@ fn peer_report_workspace<'a>(
     crate::peer_dependency_issues::PeerReportWorkspace {
         lockfile_dir: &inputs.projects.workspace_root,
         catalogs: inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs),
-        project_manifests: inputs.projects.importers.manifests,
+        project_manifests: inputs.projects.importers.declared_manifests,
     }
 }
 
@@ -307,7 +307,7 @@ fn finish_apply<Reporter: self::Reporter>(
             catalogs: peer_catalogs,
             workspace_root: &inputs.projects.workspace_root,
             workspace_manifest_dir: &inputs.completion.workspace_manifest_dir,
-            project_manifests: inputs.projects.importers.manifests,
+            project_manifests: inputs.projects.importers.declared_manifests,
         },
 
         prefix: inputs.completion.prefix,

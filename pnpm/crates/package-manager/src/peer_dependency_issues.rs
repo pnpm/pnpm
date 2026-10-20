@@ -11,7 +11,6 @@
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::{ProjectManifests, peer_issues_for_lockfile};
-use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PeerDependencyIssuesLog};
@@ -89,8 +88,9 @@ pub(crate) struct PeerReportWorkspace<'a> {
     /// ranges in externally linked packages then remain peer issues instead
     /// of becoming catalog-configuration errors.
     pub(crate) catalogs: Option<&'a Catalogs>,
-    /// The manifests the install read, so a `link:` to one of these
-    /// projects is checked without reading its `package.json` again.
+    /// The manifests the install read, before `packageExtensions` and
+    /// `readPackage`. A `link:` to one of these projects is checked without
+    /// reading its `package.json` again.
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
@@ -100,7 +100,12 @@ impl<'a> PeerReportWorkspace<'a> {
         self.project_manifests
             .iter()
             .filter(|(_, manifest)| manifest.path().ends_with("package.json"))
-            .map(|(project_dir, manifest)| (lexical_normalize(project_dir), *manifest))
+            .map(|(project_dir, manifest)| {
+                (
+                    pnpm_workspace::importer_id_from_root_dir(self.lockfile_dir, project_dir),
+                    *manifest,
+                )
+            })
             .collect()
     }
 }

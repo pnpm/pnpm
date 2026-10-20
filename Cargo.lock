@@ -4912,7 +4912,6 @@ dependencies = [
  "pnpm-catalogs-resolver",
  "pnpm-catalogs-types",
  "pnpm-config",
- "pnpm-fs",
  "pnpm-lockfile",
  "pnpm-matcher",
  "pnpm-package-manifest",

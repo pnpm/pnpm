@@ -142,6 +142,8 @@ pub(crate) struct SelectedImporters<'a> {
     pub(crate) requested_ids: Option<&'a HashSet<String>>,
     pub(crate) real_ids: &'a HashSet<String>,
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// [`Self::manifests`] before `packageExtensions` and `readPackage`.
+    pub(crate) declared_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(crate) ignore_manifest_check: bool,
 }
 

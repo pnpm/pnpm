@@ -5,7 +5,6 @@ use super::{
     WantedDependency, extract_peer_version, get_peer_version_range, resolve_from_catalog,
     satisfies,
 };
-use pnpm_fs::lexical_normalize;
 use std::{borrow::Cow, collections::HashMap, path::Component};
 
 pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf> {
@@ -228,13 +227,17 @@ impl PeerProviders<'_> {
             })
     }
 
-    /// A linked directory's version, read from [`ProjectManifests`] when the
-    /// target is one of them.
+    /// [`resolve_link_version`], with the manifest taken from
+    /// [`ProjectManifests`] when the target is one of them.
     fn link_version(&self, base_dir: &Path, link_target: &str) -> Option<String> {
-        match self.project_manifests.get(&lexical_normalize(&base_dir.join(link_target))) {
-            Some(manifest) => package_manifest_version(manifest),
-            None => resolve_link_version(base_dir, self.lockfile_dir, link_target),
-        }
+        let canonical_lockfile_dir = dunce::canonicalize(self.lockfile_dir).ok()?;
+        let target_dir = dunce::canonicalize(base_dir.join(link_target))
+            .ok()
+            .filter(|target_dir| target_dir.starts_with(&canonical_lockfile_dir))?;
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &target_dir);
+        let manifest = linked_manifest(self.project_manifests, &importer_id, &target_dir)?;
+        package_manifest_version(&manifest)
     }
 }
 
@@ -301,7 +304,6 @@ impl PeerProviders<'_> {
 /// link the same packages, so each target is canonicalized and its manifest
 /// read once per walk rather than once per importer that links it.
 pub(super) struct LinkedPackages<'m> {
-    lockfile_dir: PathBuf,
     project_manifests: &'m ProjectManifests<'m>,
     canonical_lockfile_dir: Option<PathBuf>,
     key_base_by_importer_dir: HashMap<PathBuf, Option<PathBuf>>,
@@ -311,7 +313,6 @@ pub(super) struct LinkedPackages<'m> {
 impl<'m> LinkedPackages<'m> {
     pub(super) fn new(lockfile_dir: &Path, project_manifests: &'m ProjectManifests<'m>) -> Self {
         LinkedPackages {
-            lockfile_dir: lockfile_dir.to_path_buf(),
             project_manifests,
             canonical_lockfile_dir: dunce::canonicalize(lockfile_dir).ok(),
             key_base_by_importer_dir: HashMap::new(),
@@ -320,32 +321,16 @@ impl<'m> LinkedPackages<'m> {
     }
 
     /// The version, the peer check, and the linked importer's own snapshot
-    /// all need the same answers. A target in
-    /// [`ProjectManifests`] is answered from memory; any other target
-    /// escaping the lockfile directory is rejected.
+    /// all need the same answers. Targets escaping the lockfile directory
+    /// are rejected.
     pub(super) fn resolve(
         &mut self,
         importer_dir: &Path,
         link_target: &str,
     ) -> Option<&LinkedDependency<'m>> {
-        let project_dir = lexical_normalize(&importer_dir.join(link_target));
-        if let Some(&manifest) = self.project_manifests.get(&project_dir) {
-            let lockfile_dir = &self.lockfile_dir;
-            return self.by_target
-                .entry(project_dir)
-                .or_insert_with_key(|dir| {
-                    Some(LinkedDependency {
-                        dir: dir.clone(),
-                        importer_id: pnpm_workspace::importer_id_from_root_dir(lockfile_dir, dir),
-                        manifest: Some(Cow::Borrowed(manifest)),
-                        version: package_manifest_version(manifest)
-                            .unwrap_or_else(|| "0.0.0".to_string()),
-                    })
-                })
-                .as_ref();
-        }
         let target = self.target_key(importer_dir, Path::new(link_target));
         let canonical_lockfile_dir = self.canonical_lockfile_dir.as_deref()?;
+        let project_manifests = self.project_manifests;
         self.by_target
             .entry(target)
             .or_insert_with_key(|target| {
@@ -353,19 +338,14 @@ impl<'m> LinkedPackages<'m> {
                 if !dir.starts_with(canonical_lockfile_dir) {
                     return None;
                 }
-                let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
-                let version = manifest
-                    .as_ref()
-                    .and_then(package_manifest_version)
-                    .unwrap_or_else(|| "0.0.0".to_string());
                 let importer_id =
                     pnpm_workspace::importer_id_from_root_dir(canonical_lockfile_dir, &dir);
-                Some(LinkedDependency {
-                    dir,
-                    importer_id,
-                    manifest: manifest.map(Cow::Owned),
-                    version,
-                })
+                let manifest = linked_manifest(project_manifests, &importer_id, &dir);
+                let version = manifest
+                    .as_deref()
+                    .and_then(package_manifest_version)
+                    .unwrap_or_else(|| "0.0.0".to_string());
+                Some(LinkedDependency { dir, importer_id, manifest, version })
             })
             .as_ref()
     }
@@ -395,6 +375,19 @@ impl<'m> LinkedPackages<'m> {
         }
         target.extend(components);
         target
+    }
+}
+
+/// The manifest of the linked directory `dir`, taken from
+/// [`ProjectManifests`] when `importer_id` names a loaded project.
+fn linked_manifest<'m>(
+    project_manifests: &ProjectManifests<'m>,
+    importer_id: &str,
+    dir: &Path,
+) -> Option<Cow<'m, PackageManifest>> {
+    match project_manifests.get(importer_id) {
+        Some(&manifest) => Some(Cow::Borrowed(manifest)),
+        None => PackageManifest::from_path(dir.join("package.json")).ok().map(Cow::Owned),
     }
 }
 

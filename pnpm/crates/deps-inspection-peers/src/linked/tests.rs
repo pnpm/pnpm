@@ -2,14 +2,24 @@ use crate::{ProjectManifests, peer_issues_for_lockfile};
 use pnpm_config::PeerDependencyRules;
 use pnpm_package_manifest::PackageManifest;
 
-/// No project directory exists on disk, so the report can only come from
-/// the manifests the caller passed.
+/// No project directory holds a `package.json`, so the report can only come
+/// from the manifests the caller passed.
 #[test]
 fn linked_projects_are_checked_from_the_given_manifests() {
     let temp = tempfile::tempdir().unwrap();
+    for dir in ["packages/app", "packages/lib", "packages/provider"] {
+        std::fs::create_dir_all(temp.path().join(dir)).unwrap();
+    }
     let manifest = |dir: &str, value: serde_json::Value| {
-        let project_dir = temp.path().join(dir);
-        (project_dir.clone(), PackageManifest::from_value(project_dir.join("package.json"), value))
+        (
+            dir.to_string(),
+            PackageManifest::from_value(
+                temp.path()
+                    .join(dir)
+                    .join("package.json"),
+                value,
+            ),
+        )
     };
     let lib = manifest(
         "packages/lib",
@@ -25,7 +35,7 @@ fn linked_projects_are_checked_from_the_given_manifests() {
     );
     let project_manifests: ProjectManifests<'_> = [(&lib.0, &lib.1), (&provider.0, &provider.1)]
         .into_iter()
-        .map(|(dir, manifest)| (dir.clone(), manifest))
+        .map(|(importer_id, manifest)| (importer_id.clone(), manifest))
         .collect();
     let lockfile = serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
