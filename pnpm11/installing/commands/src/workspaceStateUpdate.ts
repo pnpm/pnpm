@@ -59,7 +59,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
-  if (shouldSaveWorkspaceState(opts)) {
+  if (recursiveResult.passed && shouldSaveWorkspaceState(opts)) {
     const filteredInstall = allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length
     await updateWorkspaceState({
       allProjects,
