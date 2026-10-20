@@ -1290,6 +1290,7 @@ describe('local file dependency', () => {
     ['a git commit', `github:kevva/is-positive#${commit}`, `github:kevva/is-positive#${otherCommit}`, codeload],
     ['an https git commit', `https://github.com/kevva/is-positive.git#${commit}`, `https://github.com/kevva/is-positive.git#${otherCommit}`, codeload],
     ['a git commit with a path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${otherCommit}&path:/sub`, `${codeload}#path:/sub`],
+    ['a git path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${commit}&path:/other`, `${codeload}#path:/sub`],
   ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec, lockedRef) => {
     const lockfilePackages = {
       ...options.wantedLockfile.packages,

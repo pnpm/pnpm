@@ -561,6 +561,11 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
             format!("github:kevva/is-positive#{}&path:/sub", "1".repeat(40)),
             format!("{codeload}#path:/sub"),
         ),
+        (
+            format!("github:kevva/is-positive#{COMMIT}&path:/sub"),
+            format!("github:kevva/is-positive#{COMMIT}&path:/other"),
+            format!("{codeload}#path:/sub"),
+        ),
     ];
     for (locked_spec, other_spec, locked_ref) in cases {
         let check = |spec: &str, frozen_lockfile| {

@@ -14,7 +14,7 @@ import {
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
-import { gitSpecCommittish } from '@pnpm/resolving.git-resolver'
+import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -224,15 +224,23 @@ function isLocalSpec (spec: string): boolean {
  */
 function isLockedToOtherSource (spec: string, depPath: string): boolean {
   const lockedId = removeSuffix(depPath)
-  const committish = gitSpecCommittish(spec)
-  if (committish !== undefined) {
-    return committish != null && /^[0-9a-f]{40}$/i.test(committish) &&
-      !lockedId.toLowerCase().split(/[#&/]/).includes(committish.toLowerCase())
+  const git = parseGitSpecCommittishAndPath(spec)
+  if (git !== undefined) {
+    return git.gitCommittish != null && /^[0-9a-f]{40}$/i.test(git.gitCommittish) &&
+      !isLockedToGitCommit(lockedId, { commit: git.gitCommittish, path: git.path })
   }
   if (spec.startsWith('http:') || spec.startsWith('https:')) {
     return !URL.canParse(spec) || !lockedId.endsWith(`@${new URL(spec).toString()}`)
   }
   return false
+}
+
+/** Whether a locked git or hosted-archive id names the commit and subdirectory. */
+function isLockedToGitCommit (lockedId: string, { commit, path }: { commit: string, path?: string }): boolean {
+  const pathIndex = lockedId.lastIndexOf('path:')
+  const lockedSource = pathIndex === -1 ? lockedId : lockedId.slice(0, pathIndex)
+  const lockedPath = pathIndex === -1 ? undefined : lockedId.slice(pathIndex + 'path:'.length)
+  return path === lockedPath && lockedSource.toLowerCase().split(/[#&/]/).includes(commit.toLowerCase())
 }
 
 /** The dependency path, name, version and registry of the package a dependency is locked to. */

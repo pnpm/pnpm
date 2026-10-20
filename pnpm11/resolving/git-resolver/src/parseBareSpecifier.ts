@@ -58,19 +58,19 @@ export function parseBareSpecifier (bareSpecifier: string, opts: DispatcherOptio
 }
 
 /**
- * The committish a git spec asks for, read without any network request.
- * `undefined` when the spec is not a git spec, `null` when it asks for no
- * committish or only a semver range.
+ * The committish and subdirectory a git spec asks for, read without any
+ * network request. `undefined` when the spec is not a git spec. The
+ * committish is `null` when the spec asks for none or only a semver range.
  */
-export function gitSpecCommittish (bareSpecifier: string): string | null | undefined {
+export function parseGitSpecCommittishAndPath (bareSpecifier: string): Pick<GitParsedParams, 'gitCommittish' | 'path'> | undefined {
   const hosted = HostedGit.fromUrl(bareSpecifier)
-  if (hosted != null) return parseGitParams(hosted.committish ?? null).gitCommittish
+  if (hosted != null) return parseGitParams(hosted.committish ?? null)
   const colonsPos = bareSpecifier.indexOf(':')
   if (colonsPos === -1 || !isSupportedGitProtocol(bareSpecifier.slice(0, colonsPos), bareSpecifier)) return undefined
   const url = correctUrl(bareSpecifier)
-  if (!URL.canParse(url)) return null
+  if (!URL.canParse(url)) return { gitCommittish: null }
   const { hash } = new URL(url)
-  return parseGitParams(hash.length > 1 ? decodeURIComponent(hash.slice(1)) : null).gitCommittish
+  return parseGitParams(hash.length > 1 ? decodeURIComponent(hash.slice(1)) : null)
 }
 
 function isSupportedGitProtocol (protocol: string, bareSpecifier: string): boolean {
