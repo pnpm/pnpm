@@ -375,14 +375,14 @@ fn lockfile_inputs_block_fast_path(
 }
 
 pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
-    let value = manifest.value();
-    [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
-        .into_iter()
-        .flatten()
-        .any(|deps| {
-            deps.as_object()
-                .is_some_and(|map| !map.is_empty())
-        })
+    manifest
+        .dependencies([
+            pnpm_package_manifest::DependencyGroup::Prod,
+            pnpm_package_manifest::DependencyGroup::Dev,
+            pnpm_package_manifest::DependencyGroup::Optional,
+        ])
+        .next()
+        .is_some()
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
@@ -410,8 +410,11 @@ fn first_held_project_missing_modules_dir(
     scope: Scope<'_>,
 ) -> Option<String> {
     match scope {
-        Scope::Selected(selected) | Scope::Command(selected) if state.filtered_install => {
-            first_selected_project_missing_modules_dir(check, state, selected)
+        Scope::Selected(selected) if state.filtered_install => {
+            first_selected_project_missing_modules_dir(check, state, selected, false)
+        }
+        Scope::Command(selected) if state.filtered_install => {
+            first_selected_project_missing_modules_dir(check, state, selected, true)
         }
         _ => first_project_missing_modules_dir(check, state),
     }

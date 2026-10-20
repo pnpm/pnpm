@@ -26,11 +26,12 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, ProjectsToVerifyOptions, Partial<Pick<Config, 'ignoreScripts' | 'workspacePackagePatterns'>> {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, ProjectsToVerifyOptions, Partial<Pick<Config, 'cacheDir' | 'globalDir' | 'ignoreScripts' | 'stateDir' | 'storeDir' | 'workspacePackagePatterns'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
   verifyDepsBeforeRun?: VerifyDepsBeforeRun
+  cliOptions?: Record<string, unknown>
   rawCliConfig?: Record<string, unknown>
 }
 
@@ -317,16 +318,140 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
 }
 
 /**
- * The command line's `--config.*` options, which the install inherits. They
- * stay out of the prompt, which could otherwise print a credential such as
- * `--config.//registry.example/:_authToken=...`. `dir` is left out: the install
- * starts in the resolved directory, where a relative value would resolve again.
+ * Install-relevant CLI options that `run`, `exec`, and `restart` accept and
+ * forward when `verifyDepsBeforeRun` spawns `pnpm install`.
  */
-export function createCliConfigArgs (opts: Pick<RunDepsStatusCheckOptions, 'rawCliConfig'>): string[] {
-  if (!opts.rawCliConfig) return []
-  return Object.entries(opts.rawCliConfig).flatMap(([key, value]) => {
-    if (key === 'dir' || value === undefined || value === null) return []
-    const values = Array.isArray(value) ? value : [value]
-    return values.map((item) => `--config.${key}=${item}`)
-  })
+export const INSTALL_CLI_OPTION_NAMES = [
+  'cache-dir',
+  'child-concurrency',
+  'cpu',
+  'dangerously-allow-all-builds',
+  'dev',
+  'engine-strict',
+  'fetch-retries',
+  'fetch-retry-factor',
+  'fetch-retry-maxtimeout',
+  'fetch-retry-mintimeout',
+  'fetch-timeout',
+  'frozen-lockfile',
+  'frozen-store',
+  'global-dir',
+  'global-pnpmfile',
+  'hoist',
+  'hoist-pattern',
+  'hoisting-limits',
+  'https-proxy',
+  'ignore-pnpmfile',
+  'ignore-scripts',
+  'ignore-workspace',
+  'libc',
+  'link-workspace-packages',
+  'lockfile',
+  'lockfile-dir',
+  'lockfile-only',
+  'merge-git-branch-lockfiles',
+  'merge-git-branch-lockfiles-branch-pattern',
+  'modules-dir',
+  'network-concurrency',
+  'node-experimental-package-map',
+  'node-linker',
+  'node-package-map-type',
+  'noproxy',
+  'offline',
+  'only',
+  'optimistic-repeat-install',
+  'optional',
+  'os',
+  'package-import-method',
+  'pnpmfile',
+  'pnpr-server',
+  'prefer-frozen-lockfile',
+  'prefer-offline',
+  'production',
+  'proxy',
+  'public-hoist-pattern',
+  'registry',
+  'save-workspace-protocol',
+  'scripts-prepend-node-path',
+  'shamefully-hoist',
+  'shared-workspace-lockfile',
+  'side-effects-cache',
+  'side-effects-cache-readonly',
+  'state-dir',
+  'store-dir',
+  'strict-peer-dependencies',
+  'trust-lockfile',
+  'trust-policy',
+  'trust-policy-exclude',
+  'trust-policy-ignore-after',
+  'unsafe-perm',
+  'verify-store-integrity',
+  'virtual-store-dir',
+  'virtual-store-only',
+  'workspace-packages',
+] as const
+
+const FORWARDED_CLI_OPTION_SET = new Set<string>(INSTALL_CLI_OPTION_NAMES)
+
+export type CliConfigArgsOptions = Pick<
+  RunDepsStatusCheckOptions,
+  'cacheDir' | 'cliOptions' | 'globalDir' | 'lockfileDir' | 'rawCliConfig' | 'stateDir' | 'storeDir'
+>
+
+/**
+ * The command line's install-relevant flags and `--config.*` options, which
+ * the install inherits. They stay out of the prompt, which could otherwise
+ * print a credential such as `--config.//registry.example/:_authToken=...`.
+ * `dir` is left out: the install starts in the resolved directory, where a
+ * relative value would resolve again.
+ */
+export function createCliConfigArgs (opts: CliConfigArgsOptions): string[] {
+  return Object.entries(combinedCliConfig(opts)).flatMap(([key, rawValue]) =>
+    formatCliConfigEntry(key, resolvedPathOverride(key, opts) ?? rawValue))
+}
+
+function combinedCliConfig (opts: CliConfigArgsOptions): Record<string, unknown> {
+  const combined: Record<string, unknown> = {}
+  if (opts.cliOptions != null) {
+    for (const [key, value] of Object.entries(opts.cliOptions)) {
+      if (isForwardedCliOption(key)) combined[key] = value
+    }
+  }
+  if (opts.rawCliConfig != null) {
+    Object.assign(combined, opts.rawCliConfig)
+  }
+  return combined
+}
+
+function isForwardedCliOption (key: string): boolean {
+  return FORWARDED_CLI_OPTION_SET.has(key) || key.startsWith('//') || /^@[a-z0-9][\w.-]*:registry$/.test(key)
+}
+
+function formatCliConfigEntry (key: string, value: unknown): string[] {
+  if (key === 'dir' || value === undefined || value === null) return []
+  if (key === 'ignore-workspace') {
+    return [value ? '--ignore-workspace' : '--no-ignore-workspace']
+  }
+  const values = Array.isArray(value) ? value : [value]
+  if (key === 'workspace-packages') {
+    return values.map((item) => `--workspace-packages=${item}`)
+  }
+  return values.map((item) => `--config.${key}=${item}`)
+}
+
+function resolvedPathOverride (key: string, opts: CliConfigArgsOptions): string | undefined {
+  switch (key) {
+    case 'lockfile-dir':
+      return opts.lockfileDir
+    case 'store-dir':
+      return opts.storeDir
+    case 'state-dir':
+      return opts.stateDir
+    case 'cache-dir':
+      return opts.cacheDir
+    case 'global-dir':
+      return opts.globalDir
+    default:
+      return undefined
+  }
 }

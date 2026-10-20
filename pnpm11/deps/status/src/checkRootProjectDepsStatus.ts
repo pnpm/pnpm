@@ -135,6 +135,7 @@ async function recordRootProject (
     workspaceDir: rootProjectManifestDir,
     pnpmfiles: workspaceState.pnpmfiles,
     settings: opts,
+    ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,
     configDependencies: workspaceState.configDependencies,
     validation: {

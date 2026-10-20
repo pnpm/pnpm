@@ -13,7 +13,7 @@ use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     path::Path,
 };
 use tokens::{
@@ -178,13 +178,8 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
-    fn record_raw_config(&mut self, arg: &OsStr, key: &str, value: &str) {
-        if arg
-            .to_str()
-            .is_some_and(|arg| arg.starts_with("--config."))
-        {
-            self.npmrc_tokens.push((key.to_owned(), value.to_owned()));
-        }
+    fn record_raw_config(&mut self, key: &str, value: &str) {
+        self.npmrc_tokens.push((key.to_owned(), value.to_owned()));
     }
 
     pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
@@ -270,22 +265,28 @@ impl ConfigOverrides {
         };
         match classify(&arg, claimed_by_command) {
             ConfigToken::WellFormed { key, value } if matches!(key, "state-dir" | "store-dir") => {
-                self.record_raw_config(&arg, key, value);
+                self.record_raw_config(key, value);
                 remaining.push(OsString::from(format!("--{key}={value}")));
             }
             ConfigToken::WellFormed { key, value } => {
-                self.record_raw_config(&arg, key, value);
+                self.record_raw_config(key, value);
                 self.set(key, value);
             }
             ConfigToken::BooleanFollows(key) => {
-                self.set(key, following(key).as_deref().unwrap_or("true"));
+                let value = following(key);
+                let value = value.as_deref().unwrap_or("true");
+                self.record_raw_config(key, value);
+                self.set(key, value);
             }
             // A flag whose value is missing — because it ends argv, or
             // because the token after it is one the setting does not
             // take — goes back in place for clap to report; see
             // [`classify`].
             ConfigToken::ValueFollows(key) => match following(key) {
-                Some(value) => self.set(key, &value),
+                Some(value) => {
+                    self.record_raw_config(key, &value);
+                    self.set(key, &value);
+                }
                 None => remaining.push(arg),
             },
             ConfigToken::Malformed => {}

@@ -396,6 +396,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             .then(|| map_trust_policy(config.trust_policy)),
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
+        workspace_package_patterns: config.workspace_package_patterns.clone(),
         ..agent_skills_settings(config)
     }
 }

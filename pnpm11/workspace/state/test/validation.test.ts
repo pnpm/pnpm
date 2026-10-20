@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { ProjectRootDir } from '@pnpm/types'
 
-import { fileDigestOf, loadWorkspaceState, manifestDigest, projectValidation, sharedInputPaths, updateWorkspaceState, type Validation } from '../src/index.js'
+import { fileDigestOf, loadWorkspaceState, manifestDigest, type ProjectsList, projectValidation, sharedInputPaths, updateWorkspaceState, type Validation } from '../src/index.js'
 
 test('manifestDigest() ignores key order', () => {
   expect(manifestDigest({ name: 'a', dependencies: { x: '1', y: '2' } }))
@@ -103,4 +103,93 @@ test('updateWorkspaceState() warns instead of failing when the previous state ca
     filteredInstall: true,
     validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [], vouchedProjects: [rootDir] },
   })).resolves.toBeUndefined()
+})
+
+test('updateWorkspaceState() preserves autoDedupe and ignoredWorkspaceStateSettings across refreshes and filtered installs', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  fs.writeFileSync('pnpm-lock.yaml', "lockfileVersion: '9.0'\n")
+  const rootDir = path.join(workspaceDir, 'a') as ProjectRootDir
+  const allProjects = [{ rootDir, manifest: { name: 'a' } }]
+  await updateWorkspaceState({
+    allProjects,
+    settings: {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: false,
+      preferWorkspacePackages: false,
+      autoDedupe: true,
+      dev: false,
+      optional: true,
+      production: true,
+    },
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: false,
+    validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [] },
+  })
+
+  await updateWorkspaceState({
+    allProjects,
+    settings: {
+      excludeLinksFromLockfile: false,
+      linkWorkspacePackages: false,
+      preferWorkspacePackages: false,
+      dev: true,
+      optional: false,
+      production: false,
+    },
+    workspaceDir,
+    pnpmfiles: [],
+    filteredInstall: false,
+    ignoredWorkspaceStateSettings: ['dev', 'optional', 'production'],
+    validation: { lockfileDir: workspaceDir, wantedLockfileName: 'pnpm-lock.yaml', sharedInputs: [], vouchedProjects: [rootDir] },
+  })
+
+  const state = loadWorkspaceState(workspaceDir)!
+  expect(state.settings.autoDedupe).toBe(true)
+  expect(state.settings.dev).toBe(false)
+  expect(state.settings.optional).toBe(true)
+  expect(state.settings.production).toBe(true)
+})
+
+test('updateWorkspaceState() records per-project lockfiles when sharedWorkspaceLockfile is false', async () => {
+  prepareEmpty()
+  const workspaceDir = process.cwd()
+  const dirA = path.join(workspaceDir, 'packages/a') as ProjectRootDir
+  const dirB = path.join(workspaceDir, 'packages/b') as ProjectRootDir
+  fs.mkdirSync(dirA, { recursive: true })
+  fs.mkdirSync(dirB, { recursive: true })
+  fs.writeFileSync(path.join(dirA, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0\n")
+  fs.writeFileSync(path.join(dirB, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      bar:\n        specifier: 1.0.0\n        version: 1.0.0\n")
+  const allProjects: ProjectsList = [
+    { rootDir: dirA, manifest: { name: 'a', dependencies: { foo: '1.0.0' } } },
+    { rootDir: dirB, manifest: { name: 'b', dependencies: { bar: '1.0.0' } } },
+  ]
+  const write = async (vouchedProjects?: string[]) => {
+    await updateWorkspaceState({
+      allProjects,
+      settings: { excludeLinksFromLockfile: false, linkWorkspacePackages: false, preferWorkspacePackages: false },
+      workspaceDir,
+      pnpmfiles: [],
+      filteredInstall: vouchedProjects != null,
+      validation: {
+        lockfileDir: workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+        vouchedProjects,
+        sharedWorkspaceLockfile: false,
+      },
+    })
+    return loadWorkspaceState(workspaceDir)!
+  }
+  const full = await write()
+  expect(full.filteredInstall).toBe(false)
+  expect(Object.keys(full.validation!.manifests)).toStrictEqual(['packages/a', 'packages/b'])
+  expect(full.validation!.lockfiles?.['packages/a']).toBeDefined()
+  expect(full.validation!.lockfiles?.['packages/b']).toBeDefined()
+  expect(full.validation!.lockfiles?.['packages/a']).not.toBe(full.validation!.lockfiles?.['packages/b'])
+
+  const filtered = await write([dirA])
+  expect(filtered.filteredInstall).toBe(false)
+  expect(projectValidation(filtered.validation!, 'packages/b')?.lockfile).toBe(full.validation!.lockfiles?.['packages/b'])
 })

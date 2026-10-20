@@ -398,13 +398,40 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
     }
 }
 
-/// The command line's `--config.*` tokens, which the install inherits.
+/// The command line's setting overrides, which the install inherits.
 /// They stay out of the prompt, which could otherwise print a credential
 /// such as `--config.//registry.example/:_authToken=...`.
 fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
-    config.cli.npmrc_tokens
+    let raw = config.cli.npmrc_tokens
         .iter()
-        .map(|(key, value)| format!("--config.{key}={value}"))
+        .map(|(key, value)| {
+            let resolved = match pnpm_config::naming_cases::to_kebab_case(key).as_str() {
+                "lockfile-dir" => config.lockfile_dir.as_deref().map(Path::display),
+                "store-dir" if !value.is_empty() => Some(config.store_dir.root().display()),
+                "state-dir" if !value.is_empty() => Some(config.state_dir.display()),
+                "global-dir" => config.global_dir.as_deref().map(Path::display),
+                _ => None,
+            };
+            match resolved {
+                Some(path) => format!("--config.{key}={path}"),
+                None => format!("--config.{key}={value}"),
+            }
+        });
+    let npmrc_auth_file = config.npmrc_auth_file
+        .as_deref()
+        .map(|path| format!("--npmrc-auth-file={}", path.display()));
+    let ignore_workspace =
+        config.workspace_search_skipped.then(|| "--ignore-workspace".to_string());
+    let workspace_packages = config.cli_settings
+        .contains("workspacePackagePatterns")
+        .then_some(config.workspace_package_patterns.as_deref())
+        .flatten()
+        .into_iter()
+        .flatten()
+        .map(|pattern| format!("--workspace-packages={pattern}"));
+    raw.chain(npmrc_auth_file)
+        .chain(ignore_workspace)
+        .chain(workspace_packages)
 }
 
 #[cfg(test)]

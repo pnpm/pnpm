@@ -1,18 +1,20 @@
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
+import { createProjectConfigRecord } from '@pnpm/config.reader'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
-import { checkPatchedDepPaths, type LockfileObject } from '@pnpm/lockfile.fs'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
+import { checkPatchedDepPaths, getLockfileImporterId, type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
-import { linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { getWorkspacePackagesByDirectory, linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, ProjectId, ProjectManifest, ReadPackageHook } from '@pnpm/types'
-import { clone } from 'ramda'
+import type { DependencyManifest, Project, ProjectId, ProjectManifest, ReadPackageHook } from '@pnpm/types'
+import { clone, once } from 'ramda'
 
 import type { CheckDepsStatusOptions } from './types.js'
 
@@ -82,6 +84,76 @@ export async function assertWantedLockfileUpToDate (
   }
 
   await assertLinkedPackagesUpToDate(ctx, { ...opts, projectManifest }, readPackageHook)
+}
+
+export async function assertWorkspaceProjectsUpToDate (
+  ctx: {
+    allProjects: Project[]
+    lockfileDir: string
+    opts: CheckDepsStatusOptions
+  },
+  projectsToCheck: Project[],
+  readWantedLockfileAndDir: (projectDir: string) => Promise<{
+    wantedLockfile: LockfileObject
+    wantedLockfileDir: string
+  }>
+): Promise<void> {
+  const { lockfileDir, opts } = ctx
+  const getProjectId = opts.sharedWorkspaceLockfile
+    ? (project: Pick<Project, 'rootDir'>) => getLockfileImporterId(lockfileDir, project.rootDir)
+    : () => '.' as ProjectId
+  const assertContextOf = createProjectAssertContextResolver(ctx)
+
+  await Promise.all(projectsToCheck.map(async (project) => {
+    const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
+    await assertWantedLockfileUpToDate(assertContextOf(project), {
+      projectDir: project.rootDir,
+      projectId: getProjectId(project),
+      projectManifest: project.manifest,
+      wantedLockfile,
+      wantedLockfileDir,
+    })
+  }))
+}
+
+function createProjectAssertContextResolver (
+  { allProjects, lockfileDir, opts }: {
+    allProjects: Project[]
+    lockfileDir: string
+    opts: CheckDepsStatusOptions
+  }
+): (project: Project) => AssertWantedLockfileUpToDateContext {
+  const getWorkspacePackages = once(arrayOfWorkspacePackagesToMap.bind(null, allProjects))
+  const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
+  const baseCtx: AssertWantedLockfileUpToDateContext = {
+    autoInstallPeers: opts.autoInstallPeers,
+    injectWorkspacePackages: opts.injectWorkspacePackages,
+    config: opts,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
+    linkWorkspacePackages: opts.linkWorkspacePackages,
+    getManifestsByDir,
+    getWorkspacePackages,
+    rootDir: lockfileDir,
+  }
+  if (opts.sharedWorkspaceLockfile) {
+    const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs)
+    const sharedCtx: AssertWantedLockfileUpToDateContext = {
+      ...baseCtx,
+      hookedManifests: new Map(),
+      parsedOverrides,
+      readPackageHook: createDepsStatusReadPackageHook(opts, lockfileDir, parsedOverrides) ?? null,
+    }
+    return () => sharedCtx
+  }
+  const projectConfigs = createProjectConfigRecord(opts)
+  return (project) => {
+    const projectOverrides = project.manifest.name == null ? undefined : projectConfigs?.[project.manifest.name]?.overrides
+    return {
+      ...baseCtx,
+      config: projectOverrides == null ? opts : { ...opts, overrides: projectOverrides },
+      hookedManifests: new Map(),
+    }
+  }
 }
 
 async function assertLockfileSettingsUpToDate (

@@ -78,10 +78,7 @@ pub fn check_deps_status_before_run(
         gate: Gate::Run,
         missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
         newer_patch: NewerPatch::CompareHash,
-        // The TypeScript run/exec handler does not forward `dedupePeers`
-        // into `checkDepsStatus`, so its pre-run lockfile check uses the
-        // false default even when the workspace setting is true.
-        dedupe_peers: false,
+        dedupe_peers: config.dedupe_peers,
         recorded_groups: RecordedGroups::Kept,
     };
     match check_freshness(check, state, moved, &policy, scope) {

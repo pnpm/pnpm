@@ -115,4 +115,11 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'workspacePackagePatterns',
 ] as const satisfies ReadonlyArray<keyof Config>
 
-export type WorkspaceStateSettings = Pick<Config, typeof WORKSPACE_STATE_SETTING_KEYS[number]>
+export type WorkspaceStateSettings = Pick<Config, typeof WORKSPACE_STATE_SETTING_KEYS[number]> & {
+  /**
+   * Recorded by pnpm v12; v11 carries it forward when rewriting the
+   * workspace state so a v11 write does not make the next v12 command see
+   * a setting change.
+   */
+  autoDedupe?: boolean
+}

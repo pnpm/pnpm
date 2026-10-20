@@ -23,19 +23,110 @@ pub(super) fn first_project_missing_modules_dir(
     first_missing_modules_dir(check, state, &|_| true)
 }
 /// [`first_project_missing_modules_dir`] restricted to the projects the gate
-/// selected.
+/// selected, plus their transitive workspace dependencies when
+/// `expand_workspace_deps` is set.
 pub(super) fn first_selected_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     selected_project_dirs: &[&Path],
+    expand_workspace_deps: bool,
 ) -> Option<String> {
-    let selected: HashSet<PathBuf> = selected_project_dirs
-        .iter()
-        .map(|dir| lexical_normalize(dir))
-        .collect();
+    let selected = if expand_workspace_deps {
+        reached_workspace_project_dirs(check, selected_project_dirs)
+    } else {
+        selected_project_dirs
+            .iter()
+            .map(|dir| lexical_normalize(dir))
+            .collect()
+    };
     first_missing_modules_dir(check, state, &|root_dir| {
         selected.contains(&lexical_normalize(root_dir))
     })
+}
+
+struct WorkspaceProjectIndex<'a> {
+    by_dir: std::collections::HashMap<PathBuf, &'a PackageManifest>,
+    by_name: std::collections::HashMap<String, Vec<PathBuf>>,
+    link_workspace_packages: bool,
+}
+
+impl<'a> WorkspaceProjectIndex<'a> {
+    fn from_check(check: &OptimisticRepeatInstallCheck<'a>) -> Self {
+        let mut by_dir = std::collections::HashMap::new();
+        let mut by_name: std::collections::HashMap<String, Vec<PathBuf>> =
+            std::collections::HashMap::new();
+        for (dir, manifest) in check.project_manifests {
+            let norm = lexical_normalize(dir);
+            by_dir.insert(norm.clone(), *manifest);
+            if let Some(name) = manifest_string_field(manifest, "name") {
+                by_name
+                    .entry(name)
+                    .or_default()
+                    .push(norm);
+            }
+        }
+        Self {
+            by_dir,
+            by_name,
+            link_workspace_packages: check.config.link_workspace_packages.enabled_at_depth(0),
+        }
+    }
+
+    fn dep_targets(&self, dir: &Path, alias: &str, spec: &str) -> Vec<PathBuf> {
+        if let Some(rel) = spec.strip_prefix("link:") {
+            let target = lexical_normalize(&dir.join(rel));
+            return self.by_dir
+                .contains_key(&target)
+                .then_some(target)
+                .into_iter()
+                .collect();
+        }
+        let target_name = if let Some(ws_spec) = spec.strip_prefix("workspace:") {
+            Some(workspace_dep_target_name(alias, ws_spec))
+        } else {
+            self.link_workspace_packages.then_some(alias)
+        };
+        target_name
+            .and_then(|name| self.by_name.get(name))
+            .cloned()
+            .unwrap_or_default()
+    }
+}
+
+fn reached_workspace_project_dirs(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    roots: &[&Path],
+) -> HashSet<PathBuf> {
+    let index = WorkspaceProjectIndex::from_check(check);
+    let mut reached = HashSet::new();
+    let mut stack: Vec<PathBuf> = roots
+        .iter()
+        .map(|dir| lexical_normalize(dir))
+        .collect();
+    while let Some(dir) = stack.pop() {
+        let Some(&manifest) = index.by_dir
+            .get(&dir)
+            .filter(|_| reached.insert(dir.clone()))
+        else {
+            continue;
+        };
+        for (alias, spec) in manifest.dependencies([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+        ]) {
+            stack.extend(index.dep_targets(&dir, alias, spec));
+        }
+    }
+    reached
+}
+
+fn workspace_dep_target_name<'a>(alias: &'a str, ws_spec: &'a str) -> &'a str {
+    let search_from = usize::from(ws_spec.starts_with('@'));
+    match ws_spec[search_from..].find('@') {
+        Some(offset) if offset > 0 => &ws_spec[..search_from + offset],
+        _ => alias,
+    }
 }
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.

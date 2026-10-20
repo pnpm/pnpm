@@ -2,8 +2,10 @@ import path from 'node:path'
 
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
+import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
 import { type LockfileObject, writeCurrentLockfile, writeLockfiles } from '@pnpm/lockfile.fs'
-import type { HoistedDependencies, IgnoredBuilds } from '@pnpm/types'
+import type { HoistedDependencies, IgnoredBuilds, ProjectId } from '@pnpm/types'
+import { pick } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
 import { getInjectedDeps } from './extendProjectsWithTargetDirs.js'
@@ -26,7 +28,40 @@ export async function writeModulesDirState (ctx: HeadlessContext, depGraph: Head
     await linkBinsOfImporters(ctx, depGraph)
   }
   await writeModulesManifestOfInstall(ctx, depGraph, outcome)
-  await writeLockfilesOfInstall(ctx, depGraph.filteredLockfile)
+  await writeLockfilesOfInstall(ctx, mergeIntoCurrentLockfile(ctx, depGraph))
+}
+
+function mergeIntoCurrentLockfile (
+  { currentLockfile, filterOpts, wantedLockfile }: HeadlessContext,
+  { filteredLockfile, importerIds }: HeadlessDepGraph
+): LockfileObject {
+  if (
+    currentLockfile == null ||
+    Object.keys(wantedLockfile.importers).every((id) => importerIds.includes(id as ProjectId))
+  ) {
+    return filteredLockfile
+  }
+  const packages = {
+    ...currentLockfile.packages,
+    ...filteredLockfile.packages,
+  }
+  const importers = {
+    ...currentLockfile.importers,
+    ...pick(importerIds, wantedLockfile.importers),
+  }
+  return filterLockfileByImporters(
+    {
+      ...wantedLockfile,
+      importers,
+      packages,
+    },
+    Object.keys(importers) as ProjectId[],
+    {
+      ...filterOpts,
+      failOnMissingDependencies: false,
+      skipped: new Set(),
+    }
+  )
 }
 
 async function writeModulesManifestOfInstall (ctx: HeadlessContext, depGraph: HeadlessDepGraph, outcome: InstallOutcome): Promise<void> {

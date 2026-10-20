@@ -7,7 +7,9 @@ export type ProjectsToVerifyOptions = Partial<Pick<Config,
 | 'dir'
 | 'filter'
 | 'filterProd'
+| 'injectWorkspacePackages'
 | 'legacyDirFiltering'
+| 'sharedWorkspaceLockfile'
 | 'testPattern'
 | 'workspaceDir'
 >> & Pick<ConfigContext,
@@ -33,6 +35,9 @@ export type ProjectsToVerifyOptions = Partial<Pick<Config,
 export async function selectProjectsToVerify (opts: ProjectsToVerifyOptions): Promise<ProjectsGraph | undefined> {
   const { allProjectsGraph, selectedProjectsGraph } = opts
   if (selectedProjectsGraph == null || allProjectsGraph == null) return selectedProjectsGraph
+  // An injected workspace dependency is a copy inside the project that
+  // depends on it, which that project's own install covers.
+  if (opts.sharedWorkspaceLockfile === false && opts.injectWorkspacePackages) return selectedProjectsGraph
   const prodOnlySelectedProjectDirs = new Set(opts.prodOnlySelectedProjectDirs)
   const selectedDirs = Object.keys(selectedProjectsGraph) as ProjectRootDir[]
   const prodAllProjectsGraph = opts.prodAllProjectsGraph

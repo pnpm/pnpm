@@ -5,7 +5,7 @@ import path from 'node:path'
 import { isError } from '@pnpm/error'
 import { equals } from 'ramda'
 
-import type { FileSignature, ProjectsList, Validation, WorkspaceState } from './types.js'
+import { type FileSignature, type ProjectsList, type Validation, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from './types.js'
 
 /** How many hex digits of a SHA-256 digest a record keeps. */
 const DIGEST_LENGTH = 32
@@ -234,6 +234,7 @@ export interface RecordValidationOptions {
    */
   vouchedProjects?: Set<string>
   previous?: WorkspaceState
+  sharedWorkspaceLockfile?: boolean
 }
 
 /**
@@ -244,7 +245,7 @@ export interface RecordValidationOptions {
  */
 export function recordValidation (state: WorkspaceState, opts: RecordValidationOptions): void {
   const previous = opts.vouchedProjects == null ? undefined : opts.previous
-  const { lockfile, files } = recordedFiles(opts, previous?.validation)
+  const { lockfile, projectLockfiles, files } = recordedFiles(opts, previous?.validation)
   const recordedAtNs = filesystemNowNs(path.join(opts.workspaceDir, 'node_modules'))
   if (recordedAtNs == null) {
     delete state.validation
@@ -253,7 +254,8 @@ export function recordValidation (state: WorkspaceState, opts: RecordValidationO
   }
   const carried = previous != null && sharedInputsMatch(previous, state, opts.sharedInputs, files) ? previous.validation : undefined
   const validation: Validation = { recordedAtNs, files, lockfile, manifests: {} }
-  const recorded = recordProjects(validation, opts, carried)
+  const recorded = recordProjects(validation, opts, carried, projectLockfiles)
+  state.lastValidatedTimestamp = Math.trunc(recordedAtNs / 1_000_000)
   state.filteredInstall = recorded !== opts.allProjects.length
   state.validation = validation
 }
@@ -265,14 +267,49 @@ export function recordValidation (state: WorkspaceState, opts: RecordValidationO
 function recordedFiles (
   opts: RecordValidationOptions,
   previous: Validation | undefined
-): { lockfile: string | undefined, files: Record<string, FileSignature> } {
-  const lockfile = lockfileDigest(previous, opts.lockfileDir, opts.wantedLockfileName)
+): {
+  lockfile: string | undefined
+  projectLockfiles: Map<string, string | undefined> | undefined
+  files: Record<string, FileSignature>
+} {
   const files: Record<string, FileSignature> = {}
-  const inputs = [[lockfile.path, lockfile.digest] as const, ...opts.sharedInputs.map((input) => [input, fileDigestOf(previous, input)] as const)]
-  for (const [filePath, digest] of inputs) {
-    if (digest.kind === 'present') files[filePath] = digest.signature
+  for (const input of opts.sharedInputs) {
+    const digest = fileDigestOf(previous, input)
+    if (digest.kind === 'present') files[input] = digest.signature
   }
-  return { lockfile: lockfile.digest.kind === 'present' ? lockfile.digest.signature.digest : undefined, files }
+  if (opts.sharedWorkspaceLockfile === false) {
+    return {
+      lockfile: undefined,
+      projectLockfiles: recordedProjectLockfiles(opts, previous, files),
+      files,
+    }
+  }
+  const lockfile = lockfileDigest(previous, opts.lockfileDir, opts.wantedLockfileName)
+  if (lockfile.digest.kind === 'present') files[lockfile.path] = lockfile.digest.signature
+  return {
+    lockfile: lockfile.digest.kind === 'present' ? lockfile.digest.signature.digest : undefined,
+    projectLockfiles: undefined,
+    files,
+  }
+}
+
+function recordedProjectLockfiles (
+  opts: RecordValidationOptions,
+  previous: Validation | undefined,
+  files: Record<string, FileSignature>
+): Map<string, string | undefined> {
+  const projectLockfiles = new Map<string, string | undefined>()
+  for (const project of opts.allProjects) {
+    if (opts.vouchedProjects != null && !opts.vouchedProjects.has(project.rootDir)) continue
+    const lockfile = lockfileDigest(previous, project.rootDir, opts.wantedLockfileName)
+    if (lockfile.digest.kind === 'present') {
+      files[lockfile.path] = lockfile.digest.signature
+      projectLockfiles.set(project.rootDir, lockfile.digest.signature.digest)
+    } else if (lockfile.digest.kind === 'absent') {
+      projectLockfiles.set(project.rootDir, undefined)
+    }
+  }
+  return projectLockfiles
 }
 
 /**
@@ -280,18 +317,58 @@ function recordedFiles (
  * its lockfile, and each other one `carried` still proves. Returns how many it
  * recorded.
  */
-function recordProjects (validation: Validation, opts: RecordValidationOptions, carried: Validation | undefined): number {
+function recordProjects (
+  validation: Validation,
+  opts: RecordValidationOptions,
+  carried: Validation | undefined,
+  projectLockfiles: Map<string, string | undefined> | undefined
+): number {
   let recorded = 0
   for (const project of opts.allProjects) {
     const importerId = importerIdOf(opts.lockfileDir, project.rootDir)
-    const record = opts.vouchedProjects == null || opts.vouchedProjects.has(project.rootDir)
-      ? { manifest: manifestDigest(project.manifest), lockfile: validation.lockfile }
-      : carried == null ? undefined : projectValidation(carried, importerId)
+    const record = recordProjectEntry(project, importerId, validation, opts, carried, projectLockfiles)
     if (record == null) continue
     insertProject(validation, importerId, record.manifest, record.lockfile)
     recorded++
   }
   return recorded
+}
+
+function recordProjectEntry (
+  project: RecordValidationOptions['allProjects'][number],
+  importerId: string,
+  validation: Validation,
+  opts: RecordValidationOptions,
+  carried: Validation | undefined,
+  projectLockfiles: Map<string, string | undefined> | undefined
+): { manifest: string, lockfile: string | undefined } | undefined {
+  const vouched = opts.vouchedProjects == null || opts.vouchedProjects.has(project.rootDir)
+  if (!vouched) {
+    return carriedProjectEntry(project.rootDir, importerId, validation, opts.wantedLockfileName, carried, projectLockfiles)
+  }
+  if (projectLockfiles != null && !projectLockfiles.has(project.rootDir)) return undefined
+  return {
+    manifest: manifestDigest(project.manifest),
+    lockfile: projectLockfiles != null ? projectLockfiles.get(project.rootDir) : validation.lockfile,
+  }
+}
+
+function carriedProjectEntry (
+  projectRootDir: string,
+  importerId: string,
+  validation: Validation,
+  wantedLockfileName: string,
+  carried: Validation | undefined,
+  projectLockfiles: Map<string, string | undefined> | undefined
+): { manifest: string, lockfile: string | undefined } | undefined {
+  if (carried == null) return undefined
+  const record = projectValidation(carried, importerId)
+  if (record != null && projectLockfiles != null && validation.files != null) {
+    const wantedPath = path.join(projectRootDir, wantedLockfileName)
+    const carriedSig = trustedSignature(carried, wantedPath)
+    if (carriedSig != null) validation.files[wantedPath] = carriedSig
+  }
+  return record
 }
 
 function insertProject (validation: Validation, importerId: string, manifest: string, lockfile: string | undefined): void {
@@ -300,6 +377,31 @@ function insertProject (validation: Validation, importerId: string, manifest: st
     validation.lockfiles ??= {}
     validation.lockfiles[importerId] = lockfile ?? null
   }
+}
+
+/**
+ * Settings whose unset form means the same as a concrete value.
+ *
+ * The workspace state only records settings that were configured, so a
+ * setting left at its default has no key in the state file. The resolved
+ * config, on the other hand, may carry the value the default resolves to:
+ * `@pnpm/config.reader` writes `enableGlobalVirtualStore: false` when `ci`
+ * is set, and reading `allowBuilds` yields `{}`. Normalizing unset values
+ * ensures an unrecorded setting matches its resolved default.
+ */
+const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, unknown>> = {
+  allowBuilds: {},
+  enableGlobalVirtualStore: false,
+}
+
+export function normalizeUnsetSetting (settingName: keyof WorkspaceStateSettings, value: unknown): unknown {
+  return value ?? SETTING_UNSET_EQUIVALENTS[settingName]
+}
+
+function settingsMatch (left: WorkspaceStateSettings, right: WorkspaceStateSettings): boolean {
+  return WORKSPACE_STATE_SETTING_KEYS.every((key) =>
+    equals(normalizeUnsetSetting(key, left[key]), normalizeUnsetSetting(key, right[key]))
+  )
 }
 
 /**
@@ -314,7 +416,7 @@ function sharedInputsMatch (
   files: Record<string, FileSignature>
 ): boolean {
   if (previous.validation == null) return false
-  return equals(previous.settings, state.settings) &&
+  return settingsMatch(previous.settings, state.settings) &&
     equals(previous.pnpmfiles, state.pnpmfiles) &&
     equals(previous.configDependencies ?? {}, state.configDependencies ?? {}) &&
     sharedInputs.every((input) => previous.validation!.files?.[input]?.digest === files[input]?.digest)

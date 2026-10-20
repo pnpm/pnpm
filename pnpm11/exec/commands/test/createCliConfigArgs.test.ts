@@ -55,4 +55,39 @@ describe('createCliConfigArgs', () => {
       '--config.lockfile-dir=/path/to/lockfile',
     ])
   })
+
+  test('forwards install-relevant cliOptions and uses resolved path overrides', () => {
+    expect(createCliConfigArgs({
+      cliOptions: {
+        'lockfile-dir': '../rel-lockfile',
+        'store-dir': '../rel-store',
+        'modules-dir': 'custom_modules',
+        offline: true,
+        'frozen-lockfile': false,
+        'ignore-workspace': true,
+        'workspace-packages': ['pkg-a', 'pkg-b'],
+        '@my-scope:registry': 'https://scope.registry.example/',
+        '//scope.registry.example/:_authToken': 'secret',
+        'verify-deps-before-run': 'install',
+        filter: ['pkg-a'],
+      },
+      lockfileDir: '/abs/lockfile',
+      storeDir: '/abs/store',
+      rawCliConfig: {
+        'prefer-offline': true,
+      },
+    })).toStrictEqual([
+      '--config.lockfile-dir=/abs/lockfile',
+      '--config.store-dir=/abs/store',
+      '--config.modules-dir=custom_modules',
+      '--config.offline=true',
+      '--config.frozen-lockfile=false',
+      '--ignore-workspace',
+      '--workspace-packages=pkg-a',
+      '--workspace-packages=pkg-b',
+      '--config.@my-scope:registry=https://scope.registry.example/',
+      '--config.//scope.registry.example/:_authToken=secret',
+      '--config.prefer-offline=true',
+    ])
+  })
 })

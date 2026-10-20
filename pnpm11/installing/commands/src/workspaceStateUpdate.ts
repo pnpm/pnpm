@@ -42,7 +42,7 @@ export async function updateSingleProjectWorkspaceState (
   await updateWorkspaceState({
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
     settings: withUpdatedCatalogs(opts, updatedCatalogs),
-    workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+    workspaceDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     pnpmfiles: opts.pnpmfile,
     filteredInstall,
     configDependencies: opts.configDependencies,
@@ -63,7 +63,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
     await updateWorkspaceState({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
-      workspaceDir: opts.workspaceDir,
+      workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
       pnpmfiles: opts.pnpmfile,
       filteredInstall,
       configDependencies: opts.configDependencies,
@@ -75,12 +75,11 @@ export async function recursiveInstallThenUpdateWorkspaceState (
 
 /**
  * What the state records about which projects this install proved installed.
- * A filtered install proves only the projects it selected. With a lockfile per
- * project nothing is recorded, and the next check falls back to the
- * modification times.
+ * A filtered install proves only the projects it selected.
  */
 interface StateValidationInputs {
   dir: string
+  excludeWorkspaceRootProject?: boolean
   lockfileDir?: string
   workspaceDir?: string
   sharedWorkspaceLockfile?: boolean
@@ -95,8 +94,17 @@ async function stateValidation (
   opts: StateValidationInputs,
   filteredInstall: boolean
 ): Promise<StateValidationOptions | undefined> {
-  if (opts.workspaceDir != null && opts.sharedWorkspaceLockfile === false) return undefined
   const lockfileDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
+  const selectedDirs = Object.keys(opts.selectedProjectsGraph ?? {})
+  const vouchedDirs = selectedDirs.length > 0 ? [...selectedDirs] : [opts.dir]
+  if (
+    opts.sharedWorkspaceLockfile !== false &&
+    !opts.excludeWorkspaceRootProject &&
+    opts.workspaceDir != null &&
+    !vouchedDirs.includes(opts.workspaceDir)
+  ) {
+    vouchedDirs.push(opts.workspaceDir)
+  }
   return {
     lockfileDir,
     wantedLockfileName: await getWantedLockfileName({
@@ -105,7 +113,8 @@ async function stateValidation (
       cwd: lockfileDir,
     }),
     sharedInputs: sharedInputPaths(lockfileDir, opts.patchedDependencies, opts.pnpmfile),
-    vouchedProjects: filteredInstall ? Object.keys(opts.selectedProjectsGraph ?? {}) : undefined,
+    vouchedProjects: filteredInstall ? vouchedDirs : undefined,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
   }
 }
 

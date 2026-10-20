@@ -1225,8 +1225,10 @@ describe('checkDepsStatus - lockfile modification', () => {
           lastValidatedTimestamp,
           pnpmfiles: [],
           settings: {
+            autoInstallPeers: true,
             excludeLinksFromLockfile: false,
             linkWorkspacePackages: true,
+            peersSuffixMaxLength: 1000,
             preferWorkspacePackages: true,
           },
           projects: {
@@ -1247,7 +1249,11 @@ describe('checkDepsStatus - lockfile modification', () => {
         jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(beforeValidation)
         jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async (lockfileDir: string) =>
           lockfileDir === projectDirs.installed
-            ? { lockfileVersion: '9.0', importers: { ['.' as ProjectId]: { specifiers: {} } } }
+            ? {
+              lockfileVersion: '9.0',
+              settings: { autoInstallPeers: true, excludeLinksFromLockfile: false, peersSuffixMaxLength: 1000 },
+              importers: { ['.' as ProjectId]: { specifiers: {} } },
+            }
             : null)
 
         const selectedNode = { dependencies: [], package: projects[selectedProject] }
@@ -2822,8 +2828,10 @@ describe('checkDepsStatus - filtered install', () => {
         lastValidatedTimestamp,
         pnpmfiles: [],
         settings: {
+          autoInstallPeers: true,
           excludeLinksFromLockfile: false,
           linkWorkspacePackages: true,
+          peersSuffixMaxLength: 1000,
           preferWorkspacePackages: true,
         },
         projects: {
@@ -2852,6 +2860,11 @@ describe('checkDepsStatus - filtered install', () => {
       // packages of the project the install selected.
       const currentLockfile: LockfileObject = {
         lockfileVersion: '9.0',
+        settings: {
+          autoInstallPeers: true,
+          excludeLinksFromLockfile: false,
+          peersSuffixMaxLength: 1000,
+        },
         importers: {
           ['.' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
           ['pkg-a' as ProjectId]: { specifiers: { bar: '1.0.0' }, [siblingDependencyField]: { bar: '1.0.0' } },
@@ -2861,6 +2874,13 @@ describe('checkDepsStatus - filtered install', () => {
         },
       }
       mockCurrentLockfileIn(path.join(path.resolve(workspaceDir, modulesDir), '.pnpm'), currentLockfile)
+      jest.mocked(lockfileFs.readWantedLockfile).mockResolvedValue({
+        ...currentLockfile,
+        packages: {
+          ...currentLockfile.packages,
+          ['bar@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-bbb' } },
+        },
+      })
       jest.mocked(statManifestFileUtils.statManifestFile).mockResolvedValue(beforeValidation)
 
       const rootProject = { rootDir, rootDirRealPath, manifest: rootManifest, writeProjectManifest: async () => {} }

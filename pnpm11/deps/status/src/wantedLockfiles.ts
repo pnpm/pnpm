@@ -4,18 +4,76 @@ import path from 'node:path'
 import { isError, PnpmError } from '@pnpm/error'
 import {
   getGitBranchLockfileNamesSync,
+  getLockfileImporterId,
   type LockfileObject,
   readCurrentLockfile,
   readWantedLockfile,
   wantedLockfileHasMergeConflictsSync,
 } from '@pnpm/lockfile.fs'
+import type { IncludedDependencies, Project, ProjectId } from '@pnpm/types'
 
-import { assertLockfilesEqual } from './assertLockfilesEqual.js'
+import { assertLockfilesEqual, type AssertLockfilesEqualOptions, importerClosuresMatch } from './assertLockfilesEqual.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { safeStatSync } from './safeStat.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 
-export type WantedLockfileReadOptions = Pick<CheckDepsStatusOptions, 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>
+export type WantedLockfileReadOptions = Pick<CheckDepsStatusOptions, 'modulesDir' | 'useGitBranchLockfile' | 'mergeGitBranchLockfiles'>
+
+export interface UnprovenProject {
+  project: Project
+  unrecorded: boolean
+}
+
+export interface LockfileChangedCheckInput {
+  lockfileDir: string
+  projects: UnprovenProject[]
+  include: IncludedDependencies
+  sharedWorkspaceLockfile?: boolean
+  readOpts: WantedLockfileReadOptions
+}
+
+function currentLockfileDir (lockfileDir: string, modulesDir?: string): string {
+  return path.join(path.resolve(lockfileDir, modulesDir ?? 'node_modules'), '.pnpm')
+}
+
+export async function findOutdatedLockfileChangedProject (input: LockfileChangedCheckInput): Promise<string | undefined> {
+  if (input.projects.length === 0) return undefined
+  if (input.sharedWorkspaceLockfile === false) {
+    return findOutdatedPerProjectLockfile(input)
+  }
+  const { include, lockfileDir, projects, readOpts } = input
+  const [wanted, current] = await Promise.all([
+    readWantedLockfileIn(lockfileDir, readOpts),
+    readCurrentLockfile(currentLockfileDir(lockfileDir, readOpts.modulesDir), { ignoreIncompatible: false }),
+  ])
+  if (wanted == null) return undefined
+  for (const { project, unrecorded } of projects) {
+    const importerId = getLockfileImporterId(lockfileDir, project.rootDir)
+    if (!importerClosuresMatch(wanted, current, [importerId], include)) {
+      return unprovenProjectIssue(project, unrecorded)
+    }
+  }
+  return undefined
+}
+
+async function findOutdatedPerProjectLockfile ({ include, projects, readOpts }: LockfileChangedCheckInput): Promise<string | undefined> {
+  const checks = await Promise.all(projects.map(async ({ project, unrecorded }) => {
+    const [wanted, current] = await Promise.all([
+      readWantedLockfileIn(project.rootDir, readOpts),
+      readCurrentLockfile(currentLockfileDir(project.rootDir, readOpts.modulesDir), { ignoreIncompatible: false }),
+    ])
+    const outdated = wanted != null && !importerClosuresMatch(wanted, current, ['.' as ProjectId], include)
+    return outdated ? unprovenProjectIssue(project, unrecorded) : undefined
+  }))
+  return checks.find((issue) => issue != null)
+}
+
+function unprovenProjectIssue (project: Project, unrecorded: boolean): string {
+  const name = project.manifest.name ?? project.rootDir
+  return unrecorded
+    ? `Workspace package ${name} has dependencies but was not installed`
+    : `The installed dependencies of ${name} are not up to date with the lockfile`
+}
 
 export function readWantedLockfileIn (lockfileDir: string, opts: WantedLockfileReadOptions): Promise<LockfileObject | null> {
   return readWantedLockfile(lockfileDir, {
@@ -42,13 +100,13 @@ export function allowUnawaitedFailure<Result> (promise: Promise<Result>): Promis
 export async function assertCurrentLockfileMatches (
   wantedLockfileDir: string,
   wantedLockfilePromise: Promise<LockfileObject | null>,
-  filteredInstall: boolean | undefined
+  opts: Omit<AssertLockfilesEqualOptions, 'wantedLockfileDir'> & { modulesDir?: string }
 ): Promise<void> {
-  const currentLockfile = await readCurrentLockfile(path.join(wantedLockfileDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(currentLockfileDir(wantedLockfileDir, opts.modulesDir), { ignoreIncompatible: false })
   const wantedLockfile = (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir)
   assertLockfilesEqual(currentLockfile, wantedLockfile, {
     wantedLockfileDir,
-    filteredInstall,
+    ...opts,
   })
 }
 

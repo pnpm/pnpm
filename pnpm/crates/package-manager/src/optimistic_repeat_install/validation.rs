@@ -428,9 +428,24 @@ fn shared_inputs_match(
             .map(|signature| signature.digest.clone())
     };
     // Only a resolving install records `autoDedupe`, and it shapes no tree.
-    let settings = |state: &WorkspaceState| pnpm_workspace_state::WorkspaceStateSettings {
-        auto_dedupe: None,
-        ..state.settings.clone()
+    // Empty maps and `enableGlobalVirtualStore: false` match their omitted defaults.
+    let settings = |state: &WorkspaceState| {
+        let mut settings = state.settings.clone();
+        settings.auto_dedupe = None;
+        if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
+            settings.allow_builds = None;
+        }
+        if settings.enable_global_virtual_store == Some(false) {
+            settings.enable_global_virtual_store = None;
+        }
+        if settings.package_extensions
+            .as_ref()
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(serde_json::Map::is_empty)
+        {
+            settings.package_extensions = None;
+        }
+        settings
     };
     settings(previous) == settings(state)
         && previous.pnpmfiles == state.pnpmfiles

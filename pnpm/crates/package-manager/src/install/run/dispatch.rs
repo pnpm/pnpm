@@ -14,7 +14,6 @@ use super::{
     settled::{Settled, SettledProjects},
     up_to_date_scripts::finish_prepared,
 };
-use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
 
 /// Which path the install takes, and the modules state it starts from.
@@ -344,16 +343,7 @@ async fn frozen_path<Reporter: self::Reporter>(
 fn no_project_has_dependencies(manifests: &[(String, &PackageManifest)]) -> bool {
     manifests
         .iter()
-        .all(|(_, manifest)| {
-            manifest
-                .dependencies([
-                    DependencyGroup::Prod,
-                    DependencyGroup::Dev,
-                    DependencyGroup::Optional,
-                ])
-                .next()
-                .is_none()
-        })
+        .all(|(_, manifest)| !crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest))
 }
 fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
     skipped: &[UnresolvedOptionalDependency],

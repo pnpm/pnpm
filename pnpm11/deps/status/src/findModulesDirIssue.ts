@@ -51,7 +51,7 @@ export async function findModulesDirIssue (ctx: ModulesDirCheckContext): Promise
   // select a project the filtered install never materialized and run it
   // without its dependencies (https://github.com/pnpm/pnpm/issues/11865).
   const selectedProjectDirs = workspaceState.filteredInstall
-    ? selectProjectDirs(opts)
+    ? selectProjectDirs(allProjects, opts)
     : undefined
   if (selectedProjectDirs?.size === 0) return undefined
   const projectWithoutModulesDir = await findProjectWithoutModulesDir(ctx, selectedProjectDirs)
@@ -60,7 +60,7 @@ export async function findModulesDirIssue (ctx: ModulesDirCheckContext): Promise
     ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, { rootProjectManifestDir: opts.rootProjectManifestDir, selectedProjectDirs })
     : undefined
   if (missingRecordedModulesDir != null) return missingModulesDirIssue(missingRecordedModulesDir)
-  if (selectedProjectDirs == null) return undefined
+  if (selectedProjectDirs == null || workspaceState.validation != null) return undefined
   const notInstalled = await findProjectMissingFromCurrentLockfile(
     allProjects.filter(project => selectedProjectDirs.has(path.resolve(project.rootDir)) && declaresDependencies(project)),
     createCurrentLockfileLocator({ ...opts, workspaceDir: ctx.workspaceDir })
@@ -206,7 +206,8 @@ function createCurrentLockfileLocator (
  * installed. After a filtered install, a modules directory does not prove
  * that the install materialized a project. The current lockfile keeps every
  * importer, so a project counts as installed only when the current lockfile
- * records a package for each of its direct dependencies that is not a link.
+ * records a package for each of its direct dependencies that is not a link,
+ * and matches the wanted lockfile's closure when one is present.
  */
 async function findProjectMissingFromCurrentLockfile (
   projects: Project[],
@@ -236,11 +237,98 @@ function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNul
     }))
 }
 
-function selectProjectDirs (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): Set<string> {
+export function selectProjectDirs (
+  allProjects: Project[],
+  opts: Pick<CheckDepsStatusOptions, 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
+): Set<string> {
   if (opts.selectedProjectsGraph != null) {
     return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
   }
-  return new Set(opts.dir == null ? [] : [path.resolve(opts.dir)])
+  if (opts.dir == null) return new Set()
+  if (opts.sharedWorkspaceLockfile === false && opts.injectWorkspacePackages) {
+    return new Set([path.resolve(opts.dir)])
+  }
+  return walkCommandWorkspaceDependencies(allProjects, path.resolve(opts.dir), Boolean(opts.linkWorkspacePackages))
+}
+
+function walkCommandWorkspaceDependencies (
+  allProjects: Project[],
+  startDir: string,
+  linkWorkspacePackages: boolean
+): Set<string> {
+  const index = indexProjects(allProjects)
+  const reached = new Set<string>()
+  const stack = [startDir]
+  while (stack.length > 0) {
+    const dir = stack.pop()!
+    if (reached.has(dir)) continue
+    reached.add(dir)
+    const project = index.byDir.get(dir)
+    if (project == null) continue
+    stack.push(...directWorkspaceDependencyDirs(dir, project.manifest, index, linkWorkspacePackages))
+  }
+  return reached
+}
+
+interface ProjectIndex {
+  byDir: Map<string, Project>
+  byName: Map<string, string[]>
+}
+
+function indexProjects (allProjects: Project[]): ProjectIndex {
+  const byDir = new Map<string, Project>()
+  const byName = new Map<string, string[]>()
+  for (const project of allProjects) {
+    const dir = path.resolve(project.rootDir)
+    byDir.set(dir, project)
+    const name = project.manifest.name
+    if (name == null) continue
+    const dirs = byName.get(name) ?? []
+    dirs.push(dir)
+    byName.set(name, dirs)
+  }
+  return { byDir, byName }
+}
+
+function directWorkspaceDependencyDirs (
+  dir: string,
+  manifest: Project['manifest'],
+  index: ProjectIndex,
+  linkWorkspacePackages: boolean
+): string[] {
+  const targets: string[] = []
+  for (const field of DEPENDENCIES_FIELDS) {
+    for (const [alias, pref] of Object.entries(manifest[field] ?? {})) {
+      targets.push(...specWorkspaceTargetDirs(dir, alias, pref, index, linkWorkspacePackages))
+    }
+  }
+  return targets
+}
+
+function specWorkspaceTargetDirs (
+  dir: string,
+  alias: string,
+  pref: string,
+  index: ProjectIndex,
+  linkWorkspacePackages: boolean
+): string[] {
+  if (pref.startsWith('link:')) {
+    const target = path.resolve(dir, pref.slice('link:'.length))
+    return index.byDir.has(target) ? [target] : []
+  }
+  if (pref.startsWith('workspace:')) {
+    const targetName = workspaceDepTargetName(alias, pref.slice('workspace:'.length))
+    return index.byName.get(targetName) ?? []
+  }
+  if (linkWorkspacePackages) {
+    return index.byName.get(alias) ?? []
+  }
+  return []
+}
+
+function workspaceDepTargetName (alias: string, wsSpec: string): string {
+  const atIndex = wsSpec.indexOf('@', wsSpec.startsWith('@') ? 1 : 0)
+  return atIndex > 0 ? wsSpec.slice(0, atIndex) : alias
 }
 
 /**
