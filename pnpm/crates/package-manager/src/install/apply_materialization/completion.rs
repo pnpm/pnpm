@@ -1,10 +1,10 @@
 use super::super::{
-    BTreeSet, Catalogs, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent,
-    LogLevel, NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter,
-    SummaryLog, drain_settled_projects, project_lifecycle_graph, project_script_stages,
+    BTreeSet, Config, GlobalLog, HashSet, Host, InstallError, Lockfile, LogEvent, LogLevel,
+    NodeLinker, PackageManifest, Path, PathBuf, ProjectScriptsInputs, Reporter, SummaryLog,
+    drain_settled_projects, project_lifecycle_graph, project_script_stages,
     projects_running_own_scripts, run_projects_lifecycle_scripts,
 };
-use crate::peer_dependency_issues::report_peer_dependency_issues;
+use crate::peer_dependency_issues::{PeerReportWorkspace, report_peer_dependency_issues};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 
@@ -13,8 +13,7 @@ pub(super) struct ResolveOnlyCompletionInputs<'a> {
     pub(crate) peers: crate::install::state_options::PeerIssueLockfiles<'a>,
     pub(super) prefix: &'a str,
     pub(super) config: &'static Config,
-    pub(super) catalogs: Option<&'a Catalogs>,
-    pub(super) workspace_root: &'a Path,
+    pub(super) peer_workspace: PeerReportWorkspace<'a>,
     pub(super) installed_importer_ids: &'a HashSet<String>,
 }
 pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
@@ -44,9 +43,8 @@ pub(super) fn complete_resolve_only<Reporter: self::Reporter>(
             inputs.peers.fresh,
             inputs.peers.importer_ids,
             inputs.installed_importer_ids,
-            inputs.workspace_root,
+            inputs.peer_workspace,
             inputs.config,
-            inputs.catalogs,
         )?;
     }
     Reporter::emit(&LogEvent::Summary(SummaryLog {
@@ -145,9 +143,12 @@ pub(super) fn report_install_completion<Reporter: self::Reporter>(
         inputs.resolved_lockfile,
         inputs.peer_issue_importer_ids,
         inputs.installed_importer_ids,
-        inputs.workspace.workspace_root,
+        PeerReportWorkspace {
+            lockfile_dir: inputs.workspace.workspace_root,
+            catalogs: inputs.workspace.catalogs,
+            project_manifests: inputs.workspace.project_manifests,
+        },
         inputs.workspace.config,
-        inputs.workspace.catalogs,
     )?;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must

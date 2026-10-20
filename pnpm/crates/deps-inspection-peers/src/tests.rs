@@ -36,6 +36,7 @@ fn tarball_peer_versions_use_metadata_through_aliases_and_peer_suffixes() {
                 &PeerDependencyRules::default(),
                 None,
                 true,
+                &super::ProjectManifests::new(),
             )
             .expect("inspect peers");
             if version == "1.0.0" {
@@ -95,6 +96,7 @@ fn remote_tarball_peer_versions_of_linked_packages_use_metadata() {
             &PeerDependencyRules::default(),
             None,
             true,
+            &super::ProjectManifests::new(),
         )
         .expect("inspect peers");
         if version == "1.0.0" {
@@ -769,7 +771,8 @@ fn linked_packages_share_targets_reached_through_a_symlinked_root() {
     let linked_root = temp.path().join("linked");
     std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
 
-    let mut linked_packages = super::LinkedPackages::new(&linked_root);
+    let no_manifests = super::ProjectManifests::new();
+    let mut linked_packages = super::LinkedPackages::new(&linked_root, &no_manifests);
     for importer in ["packages/app", "packages/web"] {
         assert!(
             linked_packages
@@ -795,7 +798,8 @@ fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
     let absolute = real_root.join("packages/lib");
 
     for lockfile_dir in [linked_root, dunce::canonicalize(&real_root).unwrap()] {
-        let mut linked_packages = super::LinkedPackages::new(&lockfile_dir);
+        let no_manifests = super::ProjectManifests::new();
+        let mut linked_packages = super::LinkedPackages::new(&lockfile_dir, &no_manifests);
         let mut importer_id = |importer: &str, link_target: &str| {
             linked_packages
                 .resolve(&lockfile_dir.join(importer), link_target)

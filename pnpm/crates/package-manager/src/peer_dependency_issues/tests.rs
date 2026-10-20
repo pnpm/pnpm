@@ -5,7 +5,7 @@ use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_reporter::{LogEvent, Reporter};
 
-use super::report_peer_dependency_issues;
+use super::{PeerReportWorkspace, report_peer_dependency_issues};
 use crate::InstallError;
 
 #[test]
@@ -47,14 +47,18 @@ snapshots:
     let mut config = Config::new();
     config.strict_peer_dependencies = true;
     let catalogs = Catalogs::new();
+    let workspace = PeerReportWorkspace {
+        lockfile_dir: lockfile_dir.path(),
+        catalogs: Some(&catalogs),
+        project_manifests: &[],
+    };
 
     report_peer_dependency_issues::<RecordingReporter>(
         Some(&lockfile),
         &HashSet::new(),
         &HashSet::from([".".to_string()]),
-        lockfile_dir.path(),
+        workspace,
         &config,
-        Some(&catalogs),
     )
     .expect("a clean resolver candidate set must skip the lockfile walk");
     assert_eq!(EVENTS.lock().unwrap().len(), 0);
@@ -63,9 +67,8 @@ snapshots:
         Some(&lockfile),
         &HashSet::from([".".to_string()]),
         &HashSet::from([".".to_string()]),
-        lockfile_dir.path(),
+        workspace,
         &config,
-        Some(&catalogs),
     )
     .expect_err("a resolver candidate with a missing peer must fail in strict mode");
     assert!(matches!(error, InstallError::PeerDependencyIssues { rendered: None }));

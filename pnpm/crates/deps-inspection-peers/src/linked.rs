@@ -1,10 +1,11 @@
 use super::{
     BadPeerIssue, CatalogAnchor, CatalogResolutionError, CatalogResolutionResult, Catalogs,
     LinkedDependency, Lockfile, LockfileResolution, MissingPeerIssue, PackageManifest, ParentPkg,
-    Path, PathBuf, PeerIssues, PkgName, ProjectSnapshot, ResolvedDependencySpec, WantedDependency,
-    extract_peer_version, get_peer_version_range, resolve_from_catalog, satisfies,
+    Path, PathBuf, PeerIssues, PkgName, ProjectManifests, ProjectSnapshot, ResolvedDependencySpec,
+    WantedDependency, extract_peer_version, get_peer_version_range, resolve_from_catalog,
+    satisfies,
 };
-use std::{collections::HashMap, path::Component};
+use std::{borrow::Cow, collections::HashMap, path::Component};
 
 pub(super) fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf> {
     let (Ok(canonical_path), Ok(canonical_base)) =
@@ -71,6 +72,7 @@ pub(super) struct PeerProviders<'a> {
     pub(super) linked_importer_dir: &'a Path,
     pub(super) lockfile_dir: &'a Path,
     pub(super) resolve_peers_from_workspace_root: bool,
+    pub(super) project_manifests: &'a ProjectManifests<'a>,
 }
 
 pub(super) fn check_linked_package_peers(
@@ -134,13 +136,7 @@ fn check_one_linked_peer(check: LinkedPeerCheck<'_>) {
         return;
     };
 
-    let found_version = resolved_peer_version(
-        check.providers.lockfile,
-        check.providers.lockfile_dir,
-        dependency_dir,
-        &peer_pkg_name,
-        spec,
-    );
+    let found_version = check.providers.resolved_peer_version(dependency_dir, &peer_pkg_name, spec);
     let Some(found_version) = found_version else { return };
     record_bad_peer(
         issues,
@@ -207,28 +203,42 @@ fn peer_is_optional(manifest: &PackageManifest, peer_name: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// The version a project dependency spec resolves to, whether it names a
-/// registry version, a tarball, a linked directory or a file dependency.
-fn resolved_peer_version(
-    lockfile: &Lockfile,
-    lockfile_dir: &Path,
-    dependency_dir: &Path,
-    peer_pkg_name: &PkgName,
-    spec: &ResolvedDependencySpec,
-) -> Option<String> {
-    if let Some(link_target) = spec.version.as_link_target() {
-        return Some(
-            resolve_link_version(dependency_dir, lockfile_dir, link_target)
-                .unwrap_or_else(|| format!("link:{link_target}")),
-        );
+impl PeerProviders<'_> {
+    /// The version a project dependency spec resolves to, whether it names a
+    /// registry version, a tarball, a linked directory or a file dependency.
+    fn resolved_peer_version(
+        &self,
+        dependency_dir: &Path,
+        peer_pkg_name: &PkgName,
+        spec: &ResolvedDependencySpec,
+    ) -> Option<String> {
+        if let Some(link_target) = spec.version.as_link_target() {
+            return Some(
+                self.link_version(dependency_dir, link_target)
+                    .unwrap_or_else(|| format!("link:{link_target}")),
+            );
+        }
+        resolve_locked_version(self.lockfile, self.lockfile_dir, peer_pkg_name, spec)
+            .or_else(|| spec.version.ver_peer().map(extract_peer_version))
+            .or_else(|| {
+                spec.version
+                    .as_file_target()
+                    .map(|file_target| format!("file:{file_target}"))
+            })
     }
-    resolve_locked_version(lockfile, lockfile_dir, peer_pkg_name, spec)
-        .or_else(|| spec.version.ver_peer().map(extract_peer_version))
-        .or_else(|| {
-            spec.version
-                .as_file_target()
-                .map(|file_target| format!("file:{file_target}"))
-        })
+
+    /// [`resolve_link_version`], with the manifest taken from
+    /// [`ProjectManifests`] when the target is one of them.
+    fn link_version(&self, base_dir: &Path, link_target: &str) -> Option<String> {
+        let canonical_lockfile_dir = dunce::canonicalize(self.lockfile_dir).ok()?;
+        let target_dir = dunce::canonicalize(base_dir.join(link_target))
+            .ok()
+            .filter(|target_dir| target_dir.starts_with(&canonical_lockfile_dir))?;
+        let importer_id =
+            pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &target_dir);
+        let manifest = linked_manifest(self.project_manifests, &importer_id, &target_dir)?;
+        package_manifest_version(&manifest)
+    }
 }
 
 fn project_dependency<'a>(
@@ -293,15 +303,17 @@ impl PeerProviders<'_> {
 /// The linked dependencies one walk has read. Most importers of a workspace
 /// link the same packages, so each target is canonicalized and its manifest
 /// read once per walk rather than once per importer that links it.
-pub(super) struct LinkedPackages {
+pub(super) struct LinkedPackages<'m> {
+    project_manifests: &'m ProjectManifests<'m>,
     canonical_lockfile_dir: Option<PathBuf>,
     key_base_by_importer_dir: HashMap<PathBuf, Option<PathBuf>>,
-    pub(super) by_target: HashMap<PathBuf, Option<LinkedDependency>>,
+    pub(super) by_target: HashMap<PathBuf, Option<LinkedDependency<'m>>>,
 }
 
-impl LinkedPackages {
-    pub(super) fn new(lockfile_dir: &Path) -> Self {
+impl<'m> LinkedPackages<'m> {
+    pub(super) fn new(lockfile_dir: &Path, project_manifests: &'m ProjectManifests<'m>) -> Self {
         LinkedPackages {
+            project_manifests,
             canonical_lockfile_dir: dunce::canonicalize(lockfile_dir).ok(),
             key_base_by_importer_dir: HashMap::new(),
             by_target: HashMap::new(),
@@ -315,9 +327,10 @@ impl LinkedPackages {
         &mut self,
         importer_dir: &Path,
         link_target: &str,
-    ) -> Option<&LinkedDependency> {
+    ) -> Option<&LinkedDependency<'m>> {
         let target = self.target_key(importer_dir, Path::new(link_target));
         let canonical_lockfile_dir = self.canonical_lockfile_dir.as_deref()?;
+        let project_manifests = self.project_manifests;
         self.by_target
             .entry(target)
             .or_insert_with_key(|target| {
@@ -325,13 +338,13 @@ impl LinkedPackages {
                 if !dir.starts_with(canonical_lockfile_dir) {
                     return None;
                 }
-                let manifest = PackageManifest::from_path(dir.join("package.json")).ok();
-                let version = manifest
-                    .as_ref()
-                    .and_then(package_manifest_version)
-                    .unwrap_or_else(|| "0.0.0".to_string());
                 let importer_id =
                     pnpm_workspace::importer_id_from_root_dir(canonical_lockfile_dir, &dir);
+                let manifest = linked_manifest(project_manifests, &importer_id, &dir);
+                let version = manifest
+                    .as_deref()
+                    .and_then(package_manifest_version)
+                    .unwrap_or_else(|| "0.0.0".to_string());
                 Some(LinkedDependency { dir, importer_id, manifest, version })
             })
             .as_ref()
@@ -364,3 +377,19 @@ impl LinkedPackages {
         target
     }
 }
+
+/// The manifest of the linked directory `dir`, taken from
+/// [`ProjectManifests`] when `importer_id` names a loaded project.
+fn linked_manifest<'m>(
+    project_manifests: &ProjectManifests<'m>,
+    importer_id: &str,
+    dir: &Path,
+) -> Option<Cow<'m, PackageManifest>> {
+    match project_manifests.get(importer_id) {
+        Some(&manifest) => Some(Cow::Borrowed(manifest)),
+        None => PackageManifest::from_path(dir.join("package.json")).ok().map(Cow::Owned),
+    }
+}
+
+#[cfg(test)]
+mod tests;
