@@ -126,8 +126,8 @@ pub struct ConfigOverrides {
     /// value parsed, for [`Config::cli_settings`].
     pub(super) settings: BTreeSet<String>,
 
-    /// The `--config.<key>=<value>` tokens as given, in argv order, for
-    /// [`CliLayer::npmrc_tokens`].
+    /// Every `--config.<key>=<value>` token and install flag as given, in
+    /// argv order, for [`CliLayer::npmrc_tokens`].
     pub(super) npmrc_tokens: Vec<(String, String)>,
 
     /// The `--config.<key>=<value>` tokens no table above claims, by

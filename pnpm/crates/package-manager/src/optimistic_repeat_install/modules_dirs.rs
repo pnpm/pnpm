@@ -13,7 +13,8 @@ use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
 use rayon::prelude::*;
 use std::{
-    collections::HashSet,
+    borrow::Cow,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -50,17 +51,16 @@ pub(super) fn first_selected_project_missing_modules_dir(
 }
 
 struct WorkspaceProjectIndex<'a> {
-    by_dir: std::collections::HashMap<PathBuf, &'a PackageManifest>,
-    by_name: std::collections::HashMap<String, Vec<(PathBuf, Option<String>)>>,
+    by_dir: HashMap<PathBuf, &'a PackageManifest>,
+    by_name: HashMap<String, Vec<(PathBuf, Option<String>)>>,
     link_workspace_packages: bool,
     catalogs: &'a Catalogs,
 }
 
 impl<'a> WorkspaceProjectIndex<'a> {
     fn from_check(check: &OptimisticRepeatInstallCheck<'a>) -> Self {
-        let mut by_dir = std::collections::HashMap::new();
-        let mut by_name: std::collections::HashMap<String, Vec<(PathBuf, Option<String>)>> =
-            std::collections::HashMap::new();
+        let mut by_dir = HashMap::new();
+        let mut by_name: HashMap<String, Vec<(PathBuf, Option<String>)>> = HashMap::new();
         for (dir, manifest) in check.project_manifests {
             let norm = lexical_normalize(dir);
             by_dir.insert(norm.clone(), *manifest);
@@ -80,13 +80,9 @@ impl<'a> WorkspaceProjectIndex<'a> {
         }
     }
 
-    fn dereference_catalog<'b>(
-        &self,
-        alias: &str,
-        spec: &'b str,
-    ) -> Option<std::borrow::Cow<'b, str>> {
+    fn dereference_catalog<'b>(&self, alias: &str, spec: &'b str) -> Option<Cow<'b, str>> {
         if !spec.starts_with("catalog:") {
-            return Some(std::borrow::Cow::Borrowed(spec));
+            return Some(Cow::Borrowed(spec));
         }
         let CatalogResolutionResult::Found(found) = resolve_from_catalog(
             self.catalogs,
@@ -95,7 +91,7 @@ impl<'a> WorkspaceProjectIndex<'a> {
         ) else {
             return None;
         };
-        Some(std::borrow::Cow::Owned(found.resolution.specifier))
+        Some(Cow::Owned(found.resolution.specifier))
     }
 
     fn dep_targets(&self, dir: &Path, alias: &str, spec: &str) -> Vec<PathBuf> {
@@ -420,7 +416,7 @@ fn dedupe_links_nothing(
     let (Some(root), Some(sibling)) = (importer(root_dir), importer(sibling_dir)) else {
         return false;
     };
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     sibling
         .dependencies_by_groups(groups.iter().copied())
         .all(|(alias, _)| {

@@ -202,10 +202,22 @@ function createInstallSomeMutation (
 }
 
 function shouldInstallWorkspaceRoot ({ opts, manifestsByPath }: RecursiveContext): boolean {
-  return (!opts.pruneDirectDependencies || (!opts.filter?.length && !opts.filterProd?.length)) &&
-    !opts.excludeWorkspaceRootProject &&
+  return installCoversUnselectedWorkspaceRoot(opts) &&
     !opts.selectedProjectsGraph[opts.workspaceDir as ProjectRootDir] &&
     manifestsByPath[opts.workspaceDir as ProjectRootDir] != null
+}
+
+/**
+ * Whether an install under a shared lockfile also installs the workspace
+ * root when the selection leaves it out. A filtered install that prunes
+ * direct dependencies leaves the root alone, as `excludeWorkspaceRootProject`
+ * does.
+ */
+export function installCoversUnselectedWorkspaceRoot (
+  opts: Pick<RecursiveOptions, 'excludeWorkspaceRootProject' | 'filter' | 'filterProd' | 'pruneDirectDependencies'>
+): boolean {
+  return (!opts.pruneDirectDependencies || (!opts.filter?.length && !opts.filterProd?.length)) &&
+    !opts.excludeWorkspaceRootProject
 }
 
 /**

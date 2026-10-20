@@ -64,6 +64,7 @@ describe('createCliConfigArgs', () => {
         'lockfile-dir': '../rel-lockfile',
         'store-dir': '../rel-store',
         'modules-dir': 'custom_modules',
+        'npmrc-auth-file': '../user.npmrc',
         offline: true,
         'frozen-lockfile': false,
         'ignore-workspace': true,
@@ -77,6 +78,7 @@ describe('createCliConfigArgs', () => {
         filter: ['pkg-a'],
       },
       lockfileDir: '../rel-lockfile',
+      npmrcAuthFile: '../user.npmrc',
       storeDir: '/abs/store',
       rawCliConfig: {
         'prefer-offline': true,
@@ -85,6 +87,7 @@ describe('createCliConfigArgs', () => {
       `--config.lockfile-dir=${path.resolve('../rel-lockfile')}`,
       `--config.store-dir=${path.resolve('/abs/store')}`,
       '--config.modules-dir=custom_modules',
+      `--config.npmrc-auth-file=${path.resolve('../user.npmrc')}`,
       '--config.offline=true',
       '--config.frozen-lockfile=false',
       '--ignore-workspace',

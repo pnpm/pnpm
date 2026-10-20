@@ -231,8 +231,7 @@ function createCurrentLockfileLocator (
  * installed. After a filtered install, a modules directory does not prove
  * that the install materialized a project. The current lockfile keeps every
  * importer, so a project counts as installed only when the current lockfile
- * records a package for each of its direct dependencies that is not a link,
- * and matches the wanted lockfile's closure when one is present.
+ * records a package for each of its direct dependencies that is not a link.
  */
 async function findProjectMissingFromCurrentLockfile (
   projects: Project[],

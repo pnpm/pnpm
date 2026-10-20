@@ -261,10 +261,10 @@ async function checkLockfileChangedProjects (
 ): ReturnType<typeof findOutdatedLockfileChangedProject> {
   return findOutdatedLockfileChangedProject({
     lockfileDir: workspaceLockfileDir(ctx),
-    projects: held.map(({ project }) => ({
-      project,
-      unrecorded: proof.proofOf(project.rootDir, project.manifest) === 'unrecorded',
-    })),
+    projects: held.flatMap(({ project }) => {
+      const projectProof = proof.proofOf(project.rootDir, project.manifest)
+      return projectProof === 'manifestChanged' ? [] : [{ project, unrecorded: projectProof === 'unrecorded' }]
+    }),
     include: workspaceInclude(ctx),
     sharedWorkspaceLockfile: ctx.opts.sharedWorkspaceLockfile,
     readOpts: ctx.opts,

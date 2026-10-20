@@ -98,8 +98,9 @@ impl NpmrcAuth {
         )
     }
 
-    /// Read the command line's `--config.<key>=<value>` tokens as the top
-    /// `.npmrc` layer. Values are used as given: the shell has expanded them.
+    /// Read the command line's settings
+    /// ([`CliLayer::npmrc_tokens`](crate::CliLayer::npmrc_tokens)) as the
+    /// top `.npmrc` layer. Values are used as given: the shell has expanded them.
     /// Unscoped credentials pin to [`CliLayer::registry`](crate::CliLayer::registry) when set, else to
     /// the tokens' own `registry`.
     pub fn from_cli_config(cli: &crate::CliLayer) -> Self {

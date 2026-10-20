@@ -9,6 +9,7 @@ import { type ProjectsList, sharedInputPaths, type StateValidationOptions, updat
 
 import type { InstallDepsOptions } from './installDeps.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
+import { installCoversUnselectedWorkspaceRoot } from './recursive/installWithSharedLockfile.js'
 
 /**
  * A single-project install has no workspace projects, so it records the
@@ -70,7 +71,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
       validation: await stateValidation({
         ...opts,
         dir: opts.workspaceDir,
-        includeWorkspaceRoot: opts.sharedWorkspaceLockfile !== false && !opts.excludeWorkspaceRootProject && allProjects.some((project) => project.rootDir === opts.workspaceDir),
+        includeWorkspaceRoot: opts.sharedWorkspaceLockfile !== false && installCoversUnselectedWorkspaceRoot(opts) && allProjects.some((project) => project.rootDir === opts.workspaceDir),
       }, filteredInstall),
     })
   }

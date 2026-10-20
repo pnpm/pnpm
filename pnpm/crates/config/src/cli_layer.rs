@@ -7,7 +7,9 @@ use std::collections::BTreeMap;
 /// layer of each source kind it carries.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct CliLayer {
-    /// Every `--config.<key>=<value>` token, as given and in argv order.
+    /// Every setting the command line set, as given and in argv order:
+    /// each `--config.<key>=<value>` token and each install flag such as
+    /// `--offline` or `--store-dir`, keyed by its kebab-case setting name.
     /// [`Config::current`] reads it as the top `.npmrc` layer, and it is
     /// forwarded to a child pnpm the command spawns.
     pub npmrc_tokens: Vec<(String, String)>,

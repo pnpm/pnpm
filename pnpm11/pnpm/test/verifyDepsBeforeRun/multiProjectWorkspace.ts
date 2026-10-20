@@ -985,6 +985,43 @@ test('filtered exec with --workspace-root installs the workspace root', async ()
   expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
 })
 
+// A filtered install that prunes direct dependencies leaves the workspace
+// root alone, so the state must not record the root as installed.
+test('a filtered install that prunes direct dependencies does not vouch for the workspace root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/foo': '=100.0.0',
+        },
+      },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['--filter=foo', '--config.prune-direct-dependencies=true', 'install'])
+
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('foo/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: true,
+    validation: expect.objectContaining({
+      manifests: { foo: expect.any(String) },
+    }),
+  }))
+})
+
 // A filtered install leaves the projects it did not select without a modules
 // directory, so the next filtered command has to install the project it selects
 // instead of treating the recorded state as up to date

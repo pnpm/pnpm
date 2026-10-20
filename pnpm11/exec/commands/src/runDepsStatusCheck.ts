@@ -26,7 +26,7 @@ const INSTALL_LOCK_WAIT_MS = 5 * 60_000
 // Comfortably above how long an install can legitimately take.
 const INSTALL_LOCK_ABANDONED_MS = 30 * 60_000
 
-export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, ProjectsToVerifyOptions, Partial<Pick<Config, 'cacheDir' | 'globalDir' | 'ignoreScripts' | 'stateDir' | 'storeDir' | 'workspacePackagePatterns'>> {
+export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions, ProjectsToVerifyOptions, Partial<Pick<Config, 'cacheDir' | 'globalDir' | 'ignoreScripts' | 'npmrcAuthFile' | 'stateDir' | 'storeDir' | 'workspacePackagePatterns'>> {
   dir: string
   loglevel?: Config['loglevel']
   reporter?: Config['reporter']
@@ -358,6 +358,7 @@ export const INSTALL_CLI_OPTION_NAMES = [
   'node-linker',
   'node-package-map-type',
   'noproxy',
+  'npmrc-auth-file',
   'offline',
   'only',
   'optimistic-repeat-install',
@@ -398,7 +399,7 @@ const FORWARDED_CLI_OPTION_SET = new Set<string>(INSTALL_CLI_OPTION_NAMES)
 
 export type CliConfigArgsOptions = Pick<
   RunDepsStatusCheckOptions,
-  'cacheDir' | 'cliOptions' | 'globalDir' | 'lockfileDir' | 'rawCliConfig' | 'stateDir' | 'storeDir'
+  'cacheDir' | 'cliOptions' | 'globalDir' | 'lockfileDir' | 'npmrcAuthFile' | 'rawCliConfig' | 'stateDir' | 'storeDir'
 >
 
 /**
@@ -459,6 +460,8 @@ function rawPathOverride (key: string, opts: CliConfigArgsOptions): string | und
       return opts.cacheDir
     case 'global-dir':
       return opts.globalDir
+    case 'npmrc-auth-file':
+      return opts.npmrcAuthFile
     default:
       return undefined
   }
