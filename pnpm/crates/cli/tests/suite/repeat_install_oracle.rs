@@ -47,7 +47,7 @@ thread_local! {
 fn run_across_drivers(layout: Layout, scenario: fn(Layout)) {
     CURRENT_DRIVER.with(|driver| *driver.borrow_mut() = Driver::V12);
     scenario(layout);
-    if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+    if let Some(bundle) = read_v11_bundle_path() {
         CURRENT_DRIVER.with(|driver| *driver.borrow_mut() = Driver::V11(bundle.clone()));
         scenario(layout);
         if layout.shared_lockfile {
@@ -938,9 +938,6 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
     let scenario = Scenario::new(layout);
     scenario.fixture.append_workspace_yaml("autoDedupe: true\n");
 
-    // In CI, `pnpm install` skips peer deduplication even when `autoDedupe` is
-    // enabled, and both the repeat-install gate and the `verifyDepsBeforeRun`
-    // gate must agree with what that install recorded.
     let run_in_ci = |v11_bundle: Option<&OsStr>, args: &[&str]| {
         let command = if let Some(bundle) = v11_bundle {
             let mut cmd = Command::new("node");
@@ -953,6 +950,7 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
             .without_ambient_pnpm_config()
             .current_dir(scenario.workspace())
             .env("CI", "true")
+            .env("PNPM_CONFIG_CI", "true")
             .env("PNPM_CONFIG_REGISTRY", scenario.fixture.registry.mock_instance.url())
             .env("XDG_CONFIG_HOME", scenario.fixture.workspace.with_file_name("xdg-config"))
             .arg("--reporter=ndjson")
@@ -978,7 +976,7 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
     let ci_exec =
         run_in_ci(None, &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""]);
     assert_success(&ci_exec);
-    if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+    if let Some(bundle) = read_v11_bundle_path() {
         let v11_ci_repeat = run_in_ci(Some(&bundle), &["install", "--no-frozen-lockfile"]);
         assert_success(&v11_ci_repeat);
         let v11_ci_records = ndjson_records(&v11_ci_repeat);
@@ -1002,7 +1000,7 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
     // accept that state on its fast path and preserve `autoDedupe: true` when it
     // rewrites the state file so a subsequent v12 gate still converges.
     assert!(scenario.install(&[]));
-    if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+    if let Some(bundle) = read_v11_bundle_path() {
         let v11_repeat = scenario.command_at_with(
             Some(&bundle),
             scenario.workspace(),

@@ -1,4 +1,4 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, write_project_manifest};
+use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path, write_project_manifest};
 use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
@@ -153,7 +153,7 @@ impl Harness {
         let v12 = Self::new(Cli::V12, projects, moves, divergences);
         let v12_fresh = v12.check_rows();
         let mut violations = v12.violations.into_inner();
-        if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+        if let Some(bundle) = read_v11_bundle_path() {
             let v11 = Self::new(Cli::V11(bundle), v12.projects, v12.moves, v12.divergences);
             let v11_fresh = v11.check_rows();
             for (row, v11_lockfile) in &v11_fresh {
