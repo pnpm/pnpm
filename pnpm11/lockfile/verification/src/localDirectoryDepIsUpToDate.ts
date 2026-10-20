@@ -226,7 +226,7 @@ function isLockedToOtherSource (spec: string, { depPath, name }: { depPath: stri
   const lockedId = removeSuffix(depPath)
   const git = parseGitSpecCommittishAndPath(spec)
   if (git !== undefined) {
-    return git.gitCommittish != null && /^[0-9a-f]{40}$/i.test(git.gitCommittish) &&
+    return git.gitCommittish != null && isFullCommit(git.gitCommittish) &&
       !isLockedToGitCommit(lockedId, { commit: git.gitCommittish, path: git.path })
   }
   if (spec.startsWith('http:') || spec.startsWith('https:')) {
@@ -241,8 +241,13 @@ function isLockedToGitCommit (lockedId: string, { commit, path }: { commit: stri
   const pathIndex = lockedId.lastIndexOf('path:')
   const lockedSource = pathIndex === -1 ? lockedId : lockedId.slice(0, pathIndex).replace(/[#&]$/, '')
   const lockedPath = pathIndex === -1 ? undefined : lockedId.slice(pathIndex + 'path:'.length)
-  const lockedCommit = lockedSource.split(/[#/]/).at(-1)
+  // Hosted archive ids end in the commit or in `<sha>.tar.gz` or `<project>-<sha>.tar.gz` after it.
+  const lockedCommit = lockedSource.split(/[#/]/).map((segment) => segment.replace(/\.tar\.gz$/, '')).filter(isFullCommit).at(-1)
   return path === lockedPath && lockedCommit?.toLowerCase() === commit.toLowerCase()
+}
+
+function isFullCommit (committish: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(committish)
 }
 
 /** The dependency path, name, version and registry of the package a dependency is locked to. */

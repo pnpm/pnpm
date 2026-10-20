@@ -62,9 +62,12 @@ fn is_locked_to_other_source(spec: &str, lockfile_dep: &pnpm_lockfile::SnapshotD
             Some((source, path)) => (source.trim_end_matches(['#', '&']), Some(path)),
             None => (locked_id, None),
         };
+        // Hosted archive ids end in the commit or in `<sha>.tar.gz` or
+        // `<project>-<sha>.tar.gz` after it.
         let locked_commit = locked_source
             .rsplit(['#', '/'])
-            .next()
+            .map(|segment| segment.strip_suffix(".tar.gz").unwrap_or(segment))
+            .find(|segment| is_full_commit(segment))
             .unwrap_or_default();
         return committish.is_some_and(|commit| {
             is_full_commit(&commit)

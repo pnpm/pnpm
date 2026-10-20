@@ -562,6 +562,18 @@ fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
             format!("{codeload}#path:/sub"),
         ),
         (
+            format!("gitlab:kevva/is-positive#{COMMIT}"),
+            format!("gitlab:kevva/is-positive#{}", "1".repeat(40)),
+            format!(
+                "https://gitlab.com/kevva/is-positive/-/archive/{COMMIT}/is-positive-{COMMIT}.tar.gz"
+            ),
+        ),
+        (
+            format!("bitbucket:kevva/is-positive#{COMMIT}"),
+            format!("bitbucket:kevva/is-positive#{}", "1".repeat(40)),
+            format!("https://bitbucket.org/kevva/is-positive/get/{COMMIT}.tar.gz"),
+        ),
+        (
             format!("github:kevva/{COMMIT}#{}", "1".repeat(40)),
             format!("github:kevva/{COMMIT}#{COMMIT}"),
             format!("https://codeload.github.com/kevva/{COMMIT}/tar.gz/{}", "1".repeat(40)),

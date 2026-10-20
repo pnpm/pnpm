@@ -1293,6 +1293,8 @@ describe('local file dependency', () => {
     ['a tarball that another URL ends with', 'https://good.test/a.tgz', 'https://good.test/a.tgz', 'https://evil.test/x@https://good.test/a.tgz', false],
     ['a commit that names the repository', `github:kevva/${commit}#${otherCommit}`, `github:kevva/${commit}#${commit}`, `https://codeload.github.com/kevva/${commit}/tar.gz/${otherCommit}`],
     ['a tarball whose URL ends in parentheses', 'https://example.com/pkg(a).tgz', 'https://example.com/pkg(b).tgz', 'https://example.com/pkg(a).tgz'],
+    ['a gitlab commit', `gitlab:kevva/is-positive#${commit}`, `gitlab:kevva/is-positive#${otherCommit}`, `https://gitlab.com/kevva/is-positive/-/archive/${commit}/is-positive-${commit}.tar.gz`],
+    ['a bitbucket commit', `bitbucket:kevva/is-positive#${commit}`, `bitbucket:kevva/is-positive#${otherCommit}`, `https://bitbucket.org/kevva/is-positive/get/${commit}.tar.gz`],
     ['a git path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${commit}&path:/other`, `${codeload}#path:/sub`],
   ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec, lockedRef, keepsLockedSpec = true) => {
     const lockfilePackages = {
