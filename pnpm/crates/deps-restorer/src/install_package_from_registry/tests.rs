@@ -37,6 +37,7 @@ fn create_config(
         network_concurrency_by_registry: std::collections::BTreeMap::new(),
         bail: true,
         ci: false,
+        source_date_epoch: None,
         progress: true,
         update_notifier: true,
         color: Default::default(),

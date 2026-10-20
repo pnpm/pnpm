@@ -308,11 +308,20 @@ pub(crate) struct RecordValidation<'a> {
 /// The files are stat'd before the filesystem clock is probed, so a file
 /// rewritten after its stat either has a stat that no longer matches or falls
 /// inside the window [`FileDigests`] distrusts.
+///
+/// Nothing is recorded under `SOURCE_DATE_EPOCH`, whose output must not vary
+/// with file stats or the clock. The next check then falls back to
+/// `lastValidatedTimestamp`.
 pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValidation<'_>) {
     let previous = match inputs.vouched {
         Vouched::All => None,
         Vouched::Projects { previous, .. } => *previous,
     };
+    if inputs.config.source_date_epoch.is_some() {
+        state.validation = None;
+        state.filtered_install = matches!(inputs.vouched, Vouched::Projects { .. });
+        return;
+    }
     let (lockfile, files) = recorded_files(state, inputs, previous);
     let Some(recorded_at_ns) = super::filesystem_now_ns_in_modules(
         &inputs.config.workspace_state_modules_dir(inputs.workspace_root),

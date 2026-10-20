@@ -112,7 +112,11 @@ pub(super) fn prepare_committed_build_state(
         now,
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    let pruned_at = pruned_at(inputs.prior.layout, did_prune, now);
+    let pruned_at = pruned_at(
+        inputs.prior.layout,
+        did_prune,
+        inputs.tree.config.source_date_epoch.map_or(now, |epoch| epoch.min(now)),
+    );
     // The build phase settles a dependency only when it actually
     // rebuilt it, so a `pnpm rebuild --pending` that the policy still
     // blocks (`allowBuilds: None`/`false`) leaves the debt in place.

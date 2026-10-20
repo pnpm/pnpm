@@ -109,6 +109,32 @@ fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
     assert_eq!(build(Some(manifest_ms - 1)).last_validated_timestamp, manifest_ms);
 }
 
+#[test]
+fn source_date_epoch_lowers_the_timestamp_but_never_raises_it() {
+    let dir = tempdir().unwrap();
+    let manifest = write_manifest(dir.path(), "root", "1.0.0");
+    let mut config = config_for(dir.path());
+    let mut build = |source_date_epoch_ms: u64| {
+        config.source_date_epoch =
+            Some(SystemTime::UNIX_EPOCH + Duration::from_millis(source_date_epoch_ms));
+        build_workspace_state::<FrozenClock>(
+            dir.path(),
+            &config,
+            pnpm_config::NodeLinker::default(),
+            IncludedDependencies::default(),
+            None,
+            &BTreeMap::default(),
+            &[(dir.path().to_path_buf(), &manifest)],
+            Some(1_600_000_001_000),
+        )
+        .last_validated_timestamp
+    };
+
+    assert_eq!(build(1_500_000_000_000), 1_500_000_000_000);
+    let validated = pnpm_testing_utils::fs::mtime_ms(manifest.path()).max(1_600_000_001_000);
+    assert_eq!(build(u64::try_from(validated).unwrap() + 1), validated);
+}
+
 /// Every project in the list lands in `state.projects` keyed by its
 /// `root_dir`. Regression catch for the bug where a workspace fresh
 /// install (no `pnpm-lock.yaml` on disk) recorded only the root

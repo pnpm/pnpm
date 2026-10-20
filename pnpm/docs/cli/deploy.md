@@ -99,6 +99,12 @@ Since v12.7.0:
   or an absolute `virtualStoreDir`, it stays at `node_modules/.pnpm`.
 * The `prepare` script of the deployed project is not run.
 
+## Reproducible output
+
+Since v12.15.0, when the [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/docs/source-date-epoch/) environment variable is set, `pnpm deploy` and `pnpm install` record its time in `node_modules/.modules.yaml` and `node_modules/.pnpm-workspace-state-v1.json` instead of the current time. Deploying the same project with the same lockfile to the same path then produces identical files, so a Docker layer built from the deploy directory stays cached.
+
+The next `pnpm install` or `pnpm run` in that directory checks the installed dependencies against the lockfile instead of trusting file modification times.
+
 ## Files included in the deployed project
 
 By default, all the files of the project are copied during deployment but this can be modified in _one_ of the following ways which are resolved in order:

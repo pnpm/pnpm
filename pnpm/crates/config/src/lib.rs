@@ -23,6 +23,7 @@ pub use crate::{
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
+    source_date_epoch::source_date_epoch,
     store_path::StoreRelocation,
     windows_path_env::{
         UnexpandedWindowsEnvVar, ensure_windows_dir_envs, ensure_windows_home_dir_env,
@@ -75,6 +76,7 @@ mod global_bin_check;
 mod node_linker;
 mod npmrc_auth;
 mod override_version_references;
+mod source_date_epoch;
 mod store_path;
 mod windows_path_env;
 mod workspace_yaml;
@@ -108,6 +110,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 /// Which path-valued settings the user pinned somewhere in the cascade, as
