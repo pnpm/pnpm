@@ -17,7 +17,9 @@ import {
   install,
   type InstallOptions,
   mutateModules,
+  verifyPatchesOfLockfiles,
 } from '@pnpm/installing.deps-installer'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import type {
   DepPath,
@@ -57,6 +59,8 @@ interface ActionResult {
   updatedCatalogs?: Catalogs
   updatedManifest: ProjectManifest
   ignoredBuilds: IgnoredBuilds | undefined
+  newLockfile?: LockfileObject
+  wantedLockfile?: LockfileObject
   resolutionPolicyViolations?: PolicyViolation[]
 }
 
@@ -75,6 +79,7 @@ interface ProjectInstallsState {
    */
   allResolutionPolicyViolations: PolicyViolation[]
   installedModulesDirs: Map<ProjectRootDir, string>
+  projectLockfiles: Map<ProjectRootDir, LockfileObject>
   firstError?: Error
 }
 
@@ -93,6 +98,7 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
     allIgnoredBuilds: new Set<DepPath>(),
     allResolutionPolicyViolations: [],
     installedModulesDirs: new Map<ProjectRootDir, string>(),
+    projectLockfiles: new Map<ProjectRootDir, LockfileObject>(),
     buildsAfterInstall: !opts.lockfileOnly && !opts.ignoreScripts &&
       (cmdFullName === 'add' || cmdFullName === 'install' || cmdFullName === 'update'),
   }
@@ -104,6 +110,7 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
     onNodeSkipped: () => {},
   })
   if (state.firstError != null) throw state.firstError
+  await verifyProjectPatches(ctx, state)
   await handleIgnoredBuilds(opts, state.allIgnoredBuilds.size ? state.allIgnoredBuilds : undefined)
   if (opts.save !== false) {
     await updateWorkspaceManifestAfterInstalls(ctx, state)
@@ -120,6 +127,17 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
 
 function hasPassedProject (result: RecursiveSummary): boolean {
   return Object.values(result).filter(({ status }) => status === 'passed').length > 0
+}
+
+async function verifyProjectPatches (ctx: RecursiveContext, state: ProjectInstallsState): Promise<void> {
+  const { allProjects, installOpts, opts } = ctx
+  if (opts.dryRun || installOpts.useLockfile === false || opts.lockfile === false) return
+  if (!allProjects.every(({ rootDir }) => state.result[rootDir]?.status === 'passed')) return
+  await verifyPatchesOfLockfiles(Array.from(state.projectLockfiles.values()), {
+    patchedDependencies: installOpts.patchedDependencies,
+    lockfileDir: opts.workspaceDir,
+    allowUnusedPatches: installOpts.allowUnusedPatches,
+  })
 }
 
 async function runProjectInstall (
@@ -229,6 +247,8 @@ function createProjectAction (
         updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
         updatedManifest: mutationResult.updatedProjects[0].manifest,
         ignoredBuilds: mutationResult.ignoredBuilds,
+        newLockfile: mutationResult.newLockfile,
+        wantedLockfile: mutationResult.wantedLockfile,
         resolutionPolicyViolations: mutationResult.resolutionPolicyViolations,
       }
     }
@@ -264,6 +284,10 @@ async function recordProjectInstall (
   }
   for (const violation of actionResult.resolutionPolicyViolations ?? []) {
     state.allResolutionPolicyViolations.push(violation)
+  }
+  const projectLockfile = actionResult.newLockfile ?? actionResult.wantedLockfile
+  if (projectLockfile != null) {
+    state.projectLockfiles.set(rootDir, projectLockfile)
   }
   state.installedModulesDirs.set(rootDir, path.resolve(rootDir, localConfig.modulesDir ?? opts.modulesDir ?? 'node_modules'))
 }

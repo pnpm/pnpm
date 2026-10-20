@@ -153,10 +153,9 @@ impl PatchArgs {
         } = self;
         let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
         validate_custom_edit_dir(dir, edit_dir.as_deref())?;
-        let current_lockfile =
-            Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
-                .map_err(PatchError::LoadLockfile)?
-                .ok_or(PatchError::PatchNoLockfile)?;
+        let current_lockfile = load_current_lockfile_for_patch(state.config, &package_name)
+            .map_err(PatchError::LoadLockfile)?
+            .ok_or(PatchError::PatchNoLockfile)?;
 
         let candidate_set = patch_candidates_from_lockfile(&package_name, &current_lockfile)
             .map_err(PatchError::PatchTarget)?;
@@ -198,6 +197,68 @@ fn validate_custom_edit_dir(dir: &Path, edit_dir: Option<&Path>) -> Result<(), P
         reject_non_empty_custom_edit_dir(&edit_dir)?;
     }
     Ok(())
+}
+
+pub(super) fn load_current_lockfile_for_patch(
+    config: &pnpm_config::Config,
+    raw_dependency: &str,
+) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
+    let active = Lockfile::load_current_from_install_state_dir(&config.install_state_dir)?;
+    if config.shares_one_lockfile()
+        || active
+            .as_ref()
+            .is_some_and(|lockfile| {
+                patch_candidates_from_lockfile(raw_dependency, lockfile).is_ok()
+            })
+    {
+        return Ok(active);
+    }
+    merge_workspace_current_lockfiles(config, active)
+}
+
+fn merge_workspace_current_lockfiles(
+    config: &pnpm_config::Config,
+    mut merged: Option<Lockfile>,
+) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(merged);
+    };
+    let Ok((projects, _)) = super::recursive::discover_workspace_projects(workspace_dir, config)
+    else {
+        return Ok(merged);
+    };
+    for project in &projects {
+        if let Some(project_lockfile) = load_project_current_lockfile(config, project)? {
+            merge_lockfile_packages_and_snapshots(&mut merged, project_lockfile);
+        }
+    }
+    Ok(merged)
+}
+
+fn load_project_current_lockfile(
+    config: &pnpm_config::Config,
+    project: &pnpm_workspace::Project,
+) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
+    let mut project_config = config.clone();
+    let project_name = project.manifest
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str);
+    project_config.anchor_dedicated_project(&project.root_dir, project_name);
+    Lockfile::load_current_from_install_state_dir(&project_config.install_state_dir)
+}
+
+fn merge_lockfile_packages_and_snapshots(merged: &mut Option<Lockfile>, other: Lockfile) {
+    let Some(acc) = merged else {
+        *merged = Some(other);
+        return;
+    };
+    if let Some(packages) = other.packages {
+        acc.packages.get_or_insert_with(Default::default).extend(packages);
+    }
+    if let Some(snapshots) = other.snapshots {
+        acc.snapshots.get_or_insert_with(Default::default).extend(snapshots);
+    }
 }
 
 fn select_patch_target(set: &PatchCandidateSet) -> Result<PatchTarget, PatchError> {

@@ -28,9 +28,9 @@ use super::{
     pipeline::{PipelineArgs, PipelineInvocation, WatchInvocation, run_pipeline, run_watch},
     pipelines::{
         AddPipeline, DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline,
-        RemovePipeline, UpdatePipeline, anchor_active_project, apply_install_cli_config,
-        derive_config_root, installed_project_config, keeps_project_lockfiles,
-        warn_about_config_root,
+        RemovePipeline, UpdatePipeline, apply_install_cli_config, derive_config_root,
+        installed_project_config, keeps_project_lockfiles,
+        run_dedicated_lockfile_workspace_install, warn_about_config_root,
     },
     prune::PruneArgs,
     rebuild::RebuildArgs,

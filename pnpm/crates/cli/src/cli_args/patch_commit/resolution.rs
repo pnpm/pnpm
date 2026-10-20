@@ -13,23 +13,46 @@ pub(super) struct ResolvedPatchDir {
 pub(super) fn resolve_patch_dir(
     dir: &Path,
     modules_dir: &Path,
+    extra_modules_dirs: &[PathBuf],
     user_param: &Path,
 ) -> Result<ResolvedPatchDir, PatchCommitError> {
     if let Some(resolved) = resolve_direct_path(dir, modules_dir, user_param)? {
         return Ok(resolved);
     }
 
-    let all_states = read_all_edit_dir_states(modules_dir).map_err(PatchCommitError::StateFile)?;
-    if !all_states.is_empty() {
-        let query_str = user_param.to_string_lossy();
-        let query = PatchQuery::new(&query_str);
-        let buckets = collect_matches(all_states, modules_dir, &query);
-        if let Some(resolved) = pick_candidate(&query_str, buckets)? {
-            return Ok(resolved);
-        }
+    if let Some(resolved) =
+        find_in_modules_dirs(std::slice::from_ref(&modules_dir.to_path_buf()), user_param)?
+    {
+        return Ok(resolved);
+    }
+
+    if !extra_modules_dirs.is_empty()
+        && let Some(resolved) = find_in_modules_dirs(extra_modules_dirs, user_param)?
+    {
+        return Ok(resolved);
     }
 
     fallback_direct_path(modules_dir, resolve_path(dir, user_param))
+}
+
+fn find_in_modules_dirs(
+    modules_dirs: &[PathBuf],
+    user_param: &Path,
+) -> Result<Option<ResolvedPatchDir>, PatchCommitError> {
+    let query_str = user_param.to_string_lossy();
+    let query = PatchQuery::new(&query_str);
+    let mut combined = MatchBuckets::default();
+    for modules_dir in modules_dirs {
+        let all_states =
+            read_all_edit_dir_states(modules_dir).map_err(PatchCommitError::StateFile)?;
+        if all_states.is_empty() {
+            continue;
+        }
+        let buckets = collect_matches(all_states, modules_dir, &query);
+        combined.exact.extend(buckets.exact);
+        combined.name.extend(buckets.name);
+    }
+    pick_candidate(&query_str, combined)
 }
 
 fn resolve_direct_path(
@@ -40,7 +63,7 @@ fn resolve_direct_path(
     let direct_path = resolve_path(dir, user_param);
     if direct_path.is_dir()
         && let Some(state_value) =
-            read_edit_dir_state(modules_dir, &direct_path).map_err(PatchCommitError::StateFile)?
+            read_edit_dir_state_with_parent_fallback(modules_dir, &direct_path)?
     {
         let _ = patched_identity(&direct_path)?;
         return Ok(Some(ResolvedPatchDir { patch_dir: direct_path, state_value }));
@@ -52,12 +75,32 @@ fn fallback_direct_path(
     modules_dir: &Path,
     direct_path: PathBuf,
 ) -> Result<ResolvedPatchDir, PatchCommitError> {
-    let state_value = read_edit_dir_state(modules_dir, &direct_path)
-        .map_err(PatchCommitError::StateFile)?
+    let state_value = read_edit_dir_state_with_parent_fallback(modules_dir, &direct_path)?
         .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: direct_path.clone() })?;
     let _ = patched_identity(&direct_path)?;
 
     Ok(ResolvedPatchDir { patch_dir: direct_path, state_value })
+}
+
+fn read_edit_dir_state_with_parent_fallback(
+    modules_dir: &Path,
+    direct_path: &Path,
+) -> Result<Option<EditDirState>, PatchCommitError> {
+    if let Some(state_value) =
+        read_edit_dir_state(modules_dir, direct_path).map_err(PatchCommitError::StateFile)?
+    {
+        return Ok(Some(state_value));
+    }
+    let Some(patches_dir) = direct_path.parent() else {
+        return Ok(None);
+    };
+    if patches_dir.file_name() != Some(std::ffi::OsStr::new(".pnpm_patches")) {
+        return Ok(None);
+    }
+    let Some(inferred_modules_dir) = patches_dir.parent() else {
+        return Ok(None);
+    };
+    read_edit_dir_state(inferred_modules_dir, direct_path).map_err(PatchCommitError::StateFile)
 }
 
 enum MatchKind {
@@ -145,6 +188,7 @@ impl<'a> PatchQuery<'a> {
     }
 }
 
+#[derive(Default)]
 struct MatchBuckets {
     exact: Vec<(PathBuf, EditDirState)>,
     name: Vec<(PathBuf, EditDirState)>,

@@ -119,6 +119,7 @@ export type ResolveDependenciesOpts = ResolveDependenciesOptions & {
   saveWorkspaceProtocol: 'rolling' | boolean
   lockfileIncludeTarballUrl?: boolean
   allowUnusedPatches?: boolean
+  verifyPatches?: boolean
   enableGlobalVirtualStore?: boolean
   allProjectIds: string[]
   /**
@@ -367,6 +368,7 @@ function createNewLockfile (
 
   if (
     opts.patchedDependencies &&
+    opts.verifyPatches !== false &&
     Object.keys(opts.wantedLockfile.importers).length === importersCount
   ) {
     verifyPatches({

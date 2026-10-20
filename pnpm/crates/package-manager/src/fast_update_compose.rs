@@ -58,8 +58,10 @@ pub(crate) fn try_compose_fast_updates(
     })?;
 
     let mut candidate = lockfile.clone();
+    let allow_unused_patches = config.allow_unused_patches
+        || (!config.shares_one_lockfile() && config.workspace_dir.is_some());
     apply_graph_drift(&mut candidate, &importers, &ignored, ignored_optional_dependencies)?;
-    apply_patch_drift(&mut candidate, &patched, config.allow_unused_patches)?;
+    apply_patch_drift(&mut candidate, &patched, allow_unused_patches)?;
     if matches!(settings_drift, Drift::Absorb(()))
         && !crate::fast_update_settings::apply_settings_update(
             &mut candidate,
@@ -72,7 +74,7 @@ pub(crate) fn try_compose_fast_updates(
     if !crate::fast_update_patched_dependencies::every_configured_patch_is_applied(
         &candidate,
         patch_hashes,
-        config.allow_unused_patches,
+        allow_unused_patches,
     ) {
         return None;
     }

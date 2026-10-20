@@ -70,6 +70,7 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     dir: opts.dir,
     lockfileDir,
     modulesDir: path.join(lockfileDir, opts.modulesDir ?? 'node_modules'),
+    extraModulesDirs: getExtraModulesDirs(opts),
   })
   const patchedPkgManifest = await readPackageJsonFromDir(editDir)
   const patchedPkg = await getPatchedPkgToDiff(patchedPkgManifest, {
@@ -77,21 +78,19 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     lockfileDir,
     modulesDir: opts.modulesDir,
     virtualStoreDir: opts.virtualStoreDir,
+    workspaceDir: opts.workspaceDir,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    allProjects: opts.allProjects,
   })
   const patchContent = await diffEditDir(editDir, patchedPkg, opts)
   if (!patchContent.length) {
     return `No changes were found to the following directory: ${editDir}`
   }
   const patchKey = applyToAll ? patchedPkgManifest.name : `${patchedPkgManifest.name}@${patchedPkgManifest.version}`
-  const patchedDependencies = await savePatch({ lockfileDir, patchKey, patchContent }, opts)
+  const patchesRootDir = opts.workspaceDir ?? opts.rootProjectManifestDir ?? lockfileDir
+  const patchedDependencies = await savePatch({ patchesRootDir, patchKey, patchContent }, opts)
 
-  await updateLockfileSnapshots({
-    lockfileDir,
-    patchedPkgManifest,
-    applyToAll,
-    useGitBranchLockfile: opts.useGitBranchLockfile,
-    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
-  })
+  await updateWorkspaceLockfileSnapshots(lockfileDir, patchedPkgManifest, applyToAll, opts)
 
   await install.handler({
     ...opts,
@@ -99,6 +98,29 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
     frozenLockfile: false,
   })
   return undefined
+}
+
+function getExtraModulesDirs (opts: PatchCommitCommandOptions): string[] | undefined {
+  if (opts.sharedWorkspaceLockfile !== false || !opts.allProjects?.length) return undefined
+  return opts.allProjects.map((project) => path.join(project.rootDir, project.modulesDir ?? opts.modulesDir ?? 'node_modules'))
+}
+
+async function updateWorkspaceLockfileSnapshots (
+  lockfileDir: string,
+  patchedPkgManifest: PackageManifest,
+  applyToAll: boolean,
+  opts: PatchCommitCommandOptions
+): Promise<void> {
+  const lockfileDirs = opts.sharedWorkspaceLockfile === false && opts.allProjects?.length
+    ? Array.from(new Set([lockfileDir, ...opts.allProjects.map((project) => project.rootDir)]))
+    : [lockfileDir]
+  await Promise.all(lockfileDirs.map(async (targetLockfileDir) => updateLockfileSnapshots({
+    lockfileDir: targetLockfileDir,
+    patchedPkgManifest,
+    applyToAll,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })))
 }
 
 /**
@@ -118,6 +140,9 @@ async function getPatchedPkgToDiff (
     lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir,
     virtualStoreDir: opts.virtualStoreDir,
+    workspaceDir: opts.workspaceDir,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    allProjects: opts.allProjects,
   })
   return parseWantedDependency(gitTarballUrl ? `${patchedPkgManifest.name}@${gitTarballUrl}` : nameAndVersion)
 }
@@ -137,16 +162,23 @@ async function diffEditDir (editDir: string, patchedPkg: ParseWantedDependencyRe
 
 /** Writes the patch file and records it in `patchedDependencies`, returning the updated map. */
 async function savePatch (
-  patch: { lockfileDir: string, patchKey: string, patchContent: string },
+  patch: { patchesRootDir: string, patchKey: string, patchContent: string },
   opts: PatchCommitCommandOptions
 ): Promise<Record<string, string>> {
-  const patchedDependencies = {
-    ...opts.patchedDependencies,
-    [patch.patchKey]: await writePatchFile({ ...patch, patchesDir: opts.patchesDir }),
+  const relativePatchFile = await writePatchFile({
+    lockfileDir: patch.patchesRootDir,
+    patchKey: patch.patchKey,
+    patchContent: patch.patchContent,
+    patchesDir: opts.patchesDir,
+  })
+  const patchedDependencies: Record<string, string> = {}
+  for (const [key, patchPath] of Object.entries(opts.patchedDependencies ?? {})) {
+    patchedDependencies[key] = path.resolve(patch.patchesRootDir, patchPath)
   }
+  patchedDependencies[patch.patchKey] = path.resolve(patch.patchesRootDir, relativePatchFile)
   await updatePatchedDependencies(patchedDependencies, {
     ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    workspaceDir: patch.patchesRootDir,
   })
   return patchedDependencies
 }
