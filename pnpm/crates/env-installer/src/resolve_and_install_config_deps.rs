@@ -11,7 +11,8 @@
 
 use crate::{
     ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    prune_env_lockfile, resolve_optional_subdeps::resolve_optional_subdeps,
+    prune_env_lockfile, read_config_dependency_lockfile,
+    resolve_optional_subdeps::resolve_optional_subdeps,
     verify_config_dep_resolutions::verify_config_dep_resolutions,
     verify_env_lockfile::write_verified_env_lockfile,
 };
@@ -47,9 +48,11 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
-    let env_lockfile = EnvLockfile::read(opts.root_dir)
-        .map_err(ConfigDepError::ReadLockfile)?
-        .unwrap_or_else(EnvLockfile::create);
+    let Some(env_lockfile) =
+        read_config_dependency_lockfile(Some(config_deps), opts.root_dir, opts.mode)?
+    else {
+        return Ok(());
+    };
     let updates = ConfigDepUpdates::default();
     resolve_and_install_config_deps_updating::<Reporter>(
         env_lockfile,

@@ -1059,6 +1059,11 @@ fn removal_of_last_config_dependency_is_reconciled() {
         let lockfile_path = workspace.join("pnpm-lock.yaml");
         let before = fs::read_to_string(&lockfile_path).unwrap();
         fs::write(&yaml_path, format!("{original}{declaration}")).unwrap();
+        pacquet_at(&workspace)
+            .with_args(["list", "--json"])
+            .assert()
+            .success();
+        assert_eq!(fs::read_to_string(&lockfile_path).unwrap(), before);
         let frozen = pacquet_at(&workspace)
             .with_args(["install", "--frozen-lockfile"])
             .assert()
@@ -1088,16 +1093,19 @@ fn removal_of_last_config_dependency_is_reconciled() {
 
 #[test]
 fn cleans_stale_config_dependency_links_without_an_env_lockfile() {
-    for args in [vec!["install", "--offline"], vec!["exec", "node", "-e", ""]] {
-        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-        fs::write(workspace.join("package.json"), "{}").unwrap();
-        let stale = workspace.join("node_modules/.pnpm-config/@example/removed");
-        fs::create_dir_all(&stale).unwrap();
-        pacquet
-            .with_args(args)
-            .assert()
-            .success();
-        assert!(!stale.exists());
-        drop(root);
-    }
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").unwrap();
+    let stale = workspace.join("node_modules/.pnpm-config/@example/removed");
+    fs::create_dir_all(&stale).unwrap();
+    pacquet_at(&workspace)
+        .with_args(["exec", "node", "-e", ""])
+        .assert()
+        .success();
+    assert!(stale.exists());
+    pacquet
+        .with_args(["install", "--offline"])
+        .assert()
+        .success();
+    assert!(!stale.exists());
+    drop(root);
 }

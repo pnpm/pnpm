@@ -123,6 +123,10 @@ export interface CommandDefinition {
 
 const helpByCommandName: Record<string, () => string> = {}
 
+export const configDependencyReconciliationCommands = new Set(
+  [add, ci, dedupe, deploy, install, installTest, prune, remove, update].flatMap(({ commandNames }) => commandNames)
+)
+
 const commands: CommandDefinition[] = [
   access,
   add,

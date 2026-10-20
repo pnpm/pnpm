@@ -1,6 +1,6 @@
 export { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 export { pruneEnvLockfile, retainConfigDependencies } from './pruneEnvLockfile.js'
-export { readConfigDependencyLockfile } from './readConfigDependencyLockfile.js'
+export { type ConfigDepsInstallMode, readConfigDependencyLockfile } from './readConfigDependencyLockfile.js'
 export { resolveAndInstallConfigDeps, type ResolveAndInstallConfigDepsOpts } from './resolveAndInstallConfigDeps.js'
 export { resolveConfigDeps, type ResolveConfigDepsOpts } from './resolveConfigDeps.js'
 export type { PackageTrustPolicy } from './resolveManifestDependencies.js'

@@ -3,8 +3,8 @@
 
 use super::{ConfigDepUpdates, config_dep, has_config_dep, migrate_into_lockfile, pkg_key};
 use crate::{
-    ConfigDepError, options::ConfigDepsInstallOptions, parse_integrity::parse_integrity,
-    verify_env_lockfile::assert_valid_migrated_config_dep,
+    ConfigDepError, ConfigDepsInstallMode, options::ConfigDepsInstallOptions,
+    parse_integrity::parse_integrity, verify_env_lockfile::assert_valid_migrated_config_dep,
 };
 use pnpm_lockfile::{EnvLockfile, retain_config_dependencies};
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
@@ -25,8 +25,8 @@ pub(super) fn plan_config_deps(
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(Vec<ToResolve>, bool), ConfigDepError> {
     let mut to_resolve = Vec::new();
-    let mut lockfile_changed =
-        retain_config_dependencies(env_lockfile, |name| config_deps.contains_key(name));
+    let mut lockfile_changed = opts.mode == ConfigDepsInstallMode::Reconcile
+        && retain_config_dependencies(env_lockfile, |name| config_deps.contains_key(name));
     for (name, value) in config_deps {
         let update = updates.prev_specifiers.contains_key(name);
         match plan_config_dep(env_lockfile, opts, name, value, update)? {

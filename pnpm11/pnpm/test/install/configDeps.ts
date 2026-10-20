@@ -86,6 +86,8 @@ test.each([{}, undefined])('reconciles removal of the last config dependency (%p
   expect(fs.existsSync(installed)).toBe(true)
   const before = fs.readFileSync('pnpm-lock.yaml', 'utf8')
   writeYamlFileSync('pnpm-workspace.yaml', configDependencies ? { configDependencies } : {})
+  await execPnpm(['list', '--json'])
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(before)
 
   const frozen = execPnpmSync(['install', '--frozen-lockfile'])
   expect(frozen.status).toBe(1)

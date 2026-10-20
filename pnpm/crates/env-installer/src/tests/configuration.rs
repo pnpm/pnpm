@@ -435,7 +435,7 @@ async fn removal_preserves_a_shared_package_manager_graph() {
     let harness = harness();
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
-    let opts = options(&harness, root.path(), false);
+    let mut opts = options(&harness, root.path(), false);
     let mut config_deps = BTreeMap::from([
         ("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0")),
         ("@pnpm.e2e/bar".to_string(), clean_spec("100.0.0")),
@@ -449,6 +449,12 @@ async fn removal_preserves_a_shared_package_manager_graph() {
         Some(BTreeMap::from([("@pnpm.e2e/foo".to_string(), pin)]));
     env.write(root.path()).unwrap();
     config_deps.remove("@pnpm.e2e/foo");
+    opts.mode = crate::ConfigDepsInstallMode::Bootstrap;
+    resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
+        .await
+        .unwrap();
+    assert_eq!(EnvLockfile::read(root.path()).unwrap().unwrap(), env);
+    opts.mode = crate::ConfigDepsInstallMode::Reconcile;
     resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
         .await
         .unwrap();

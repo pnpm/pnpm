@@ -177,6 +177,7 @@ fn check_config_fast_path(
     if pnpm_env_installer::read_config_dependency_lockfile(
         config.config_dependencies.as_ref(),
         config_root,
+        pnpm_env_installer::ConfigDepsInstallMode::Reconcile,
     )
     .map_err(|_| "config dependency state cannot be read")?
     .is_some()

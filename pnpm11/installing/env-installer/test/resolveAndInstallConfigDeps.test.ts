@@ -574,6 +574,13 @@ test('removal reconciles config roots while preserving a shared package-manager 
   }
   await writeEnvLockfile(process.cwd(), env)
 
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/bar': '100.0.0' }, {
+    ...opts,
+    offline: true,
+    mode: 'bootstrap',
+  })
+  expect(await readEnvLockfile(process.cwd())).toEqual(env)
+
   await resolveAndInstallConfigDeps({ '@pnpm.e2e/bar': '100.0.0' }, { ...opts, offline: true })
   const afterPartialRemoval = (await readEnvLockfile(process.cwd()))!
   expect(Object.keys(afterPartialRemoval.importers['.'].configDependencies)).toEqual(['@pnpm.e2e/bar'])

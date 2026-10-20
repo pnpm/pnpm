@@ -1,4 +1,4 @@
-use crate::{ConfigDepError, install_config_deps::read_dir_names};
+use crate::{ConfigDepError, ConfigDepsInstallMode, install_config_deps::read_dir_names};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_workspace_state::ConfigDependency;
 use std::{collections::BTreeMap, path::Path};
@@ -7,9 +7,14 @@ use std::{collections::BTreeMap, path::Path};
 pub fn read_config_dependency_lockfile(
     config_dependencies: Option<&BTreeMap<String, ConfigDependency>>,
     root_dir: &Path,
+    mode: ConfigDepsInstallMode,
 ) -> Result<Option<EnvLockfile>, ConfigDepError> {
+    let has_declarations = config_dependencies.is_some_and(|dependencies| !dependencies.is_empty());
+    if mode == ConfigDepsInstallMode::Bootstrap && !has_declarations {
+        return Ok(None);
+    }
     let env = EnvLockfile::read(root_dir).map_err(ConfigDepError::ReadLockfile)?;
-    if config_dependencies.is_some_and(|dependencies| !dependencies.is_empty())
+    if has_declarations
         || env
             .as_ref()
             .is_some_and(|env| {

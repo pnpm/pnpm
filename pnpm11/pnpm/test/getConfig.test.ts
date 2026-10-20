@@ -216,11 +216,11 @@ test('hoist: false removes hoistPattern', async () => {
 })
 
 describe('installConfigDepsAndLoadHooks', () => {
-  test('does not open the store when no config dependencies need reconciling', async () => {
+  test.each([false, true])('does not open the store without config dependencies (reconcile=%s)', async (reconcileConfigDependencies) => {
     prepare()
     const { config, context } = buildBaseConfig()
     delete config.configDependencies
-    await installConfigDepsAndLoadHooks(config, context)
+    await installConfigDepsAndLoadHooks(config, context, { reconcileConfigDependencies })
     expect(createStoreController).not.toHaveBeenCalled()
     expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
   })

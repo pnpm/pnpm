@@ -7,7 +7,7 @@ import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/c
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
-import { readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
+import { type ConfigDepsInstallMode, readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -76,6 +76,7 @@ export async function installConfigDepsAndLoadHooks (
   context: ConfigContext,
   opts?: {
     tolerateConfigDependenciesErrors?: boolean
+    reconcileConfigDependencies?: boolean
     // Set by `self-update`: don't auto-load the repo-controlled default
     // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting —
     // including the release-age policy the config reader just resolved for
@@ -88,6 +89,7 @@ export async function installConfigDepsAndLoadHooks (
 ): Promise<{ config: Config, context: ConfigContext }> {
   const configDependenciesVerified = await installConfigDeps(config, context, {
     configDependencies: config.configDependencies ?? {},
+    mode: opts?.reconcileConfigDependencies ? 'reconcile' : 'bootstrap',
     tolerateErrors: opts?.tolerateConfigDependenciesErrors,
   })
   if (config.ignorePnpmfile) {
@@ -102,10 +104,10 @@ export async function installConfigDepsAndLoadHooks (
 async function installConfigDeps (
   config: Config,
   context: ConfigContext,
-  opts: { configDependencies: ConfigDependencies, tolerateErrors?: boolean }
+  opts: { configDependencies: ConfigDependencies, mode: ConfigDepsInstallMode, tolerateErrors?: boolean }
 ): Promise<boolean> {
   const rootDir = config.lockfileDir ?? context.rootProjectManifestDir
-  const envLockfile = await readConfigDependencyLockfile(opts.configDependencies, rootDir)
+  const envLockfile = await readConfigDependencyLockfile(opts.configDependencies, rootDir, opts.mode)
   if (!envLockfile) return false
   const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
   try {
@@ -116,6 +118,7 @@ async function installConfigDeps (
       storeDir: store.dir,
       rootDir,
       envLockfile,
+      mode: opts.mode,
       frozenLockfile: config.frozenLockfile,
     })
     return true
