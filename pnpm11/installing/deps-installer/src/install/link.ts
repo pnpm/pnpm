@@ -336,15 +336,15 @@ function findPriorWorkspaceProjectIds (
   { allImportersIncluded, projectIds }: LinkContext,
   opts: LinkPackagesOptions
 ): Set<ProjectId> {
-  const rehoistedProjectIds = new Set<string>(projectIds)
+  const hoistedProjectIds = new Set<string>(projectIds)
   if (opts.hoistWorkspacePackages) {
-    for (const { id } of Object.values(opts.allProjects)) rehoistedProjectIds.add(id)
+    for (const { id } of Object.values(opts.allProjects)) hoistedProjectIds.add(id)
   }
   return new Set(
     Object.keys(opts.hoistedDependencies)
       .filter((key) => (
         opts.currentLockfile.packages?.[key as DepPath] == null &&
-        (allImportersIncluded || rehoistedProjectIds.has(key))
+        (allImportersIncluded || hoistedProjectIds.has(key))
       )) as ProjectId[]
   )
 }
