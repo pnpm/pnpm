@@ -199,12 +199,7 @@ fn is_pruned(name: &str, depth: usize) -> bool {
     (depth == 0
         && matches!(
             name,
-            "node_modules"
-                | ".pnpm"
-                | "package-lock.json"
-                | "yarn.lock"
-                | "pnpm-lock.yaml"
-                | "bun.lockb",
+            "node_modules" | "package-lock.json" | "yarn.lock" | "pnpm-lock.yaml" | "bun.lockb",
         ))
         || ALWAYS_EXCLUDED_DIR_SEGMENTS.contains(&name)
 }

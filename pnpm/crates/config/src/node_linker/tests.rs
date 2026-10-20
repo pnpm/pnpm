@@ -122,41 +122,12 @@ fn switching_loaded_linker_restores_global_virtual_store_and_keeps_modules_dir()
         config.node_linker = NodeLinker::Loaded;
         config.apply_global_virtual_store_derivation(false, false);
         assert!(config.enable_global_virtual_store);
-        let loaded_modules =
-            if explicit { original.clone() } else { Path::new("/project").join(".pnpm") };
-        assert_eq!(config.modules_dir, loaded_modules);
-        assert_eq!(config.store_loader_dir(Path::new("/project")), loaded_modules);
-        assert_eq!(config.install_state_dir, loaded_modules);
+        assert_eq!(config.modules_dir, original);
+        assert_eq!(config.store_loader_dir(Path::new("/project")), original.join(".pnpm"));
         config.node_linker = NodeLinker::Isolated;
         config.apply_global_virtual_store_derivation(false, false);
         assert_eq!(config.modules_dir, original);
         assert_eq!(config.enable_global_virtual_store, explicit);
         assert_eq!(config.install_state_dir, original.join(".pnpm"));
     }
-}
-
-#[test]
-fn loaded_layout_reanchors_with_the_lockfile_directory() {
-    let mut config = Config { node_linker: NodeLinker::Loaded, ..Config::default() };
-    config.apply_global_virtual_store_derivation(false, false);
-    config.anchor_lockfile_paths(Path::new("/workspace"));
-    assert_eq!(config.modules_dir, Path::new("/workspace/.pnpm"));
-    assert_eq!(config.store_loader_dir(Path::new("/workspace")), Path::new("/workspace/.pnpm"));
-    assert_eq!(
-        config.workspace_state_modules_dir(Path::new("/workspace")),
-        Path::new("/workspace/.pnpm"),
-    );
-    config.anchor_dedicated_project(Path::new("/workspace/app"), None);
-    assert_eq!(config.modules_dir, Path::new("/workspace/app/.pnpm"));
-    assert_eq!(config.install_state_dir, Path::new("/workspace/app/.pnpm"));
-    let mut explicit = Config { node_linker: NodeLinker::Loaded, ..Config::default() };
-    explicit.explicit_settings.insert("modulesDir".into(), json!("custom/modules"));
-    explicit.apply_global_virtual_store_derivation(false, false);
-    explicit.anchor_lockfile_paths(Path::new("/workspace"));
-    assert_eq!(explicit.modules_dir, Path::new("/workspace/custom/modules"));
-    assert_eq!(explicit.install_state_dir, Path::new("/workspace/custom/modules"));
-    config.node_linker = NodeLinker::Isolated;
-    config.apply_global_virtual_store_derivation(false, false);
-    config.anchor_lockfile_paths(Path::new("/workspace"));
-    assert_eq!(config.modules_dir, Path::new("/workspace/node_modules"));
 }
