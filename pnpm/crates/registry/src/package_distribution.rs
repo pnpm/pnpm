@@ -68,11 +68,13 @@ pub struct PackageDistribution {
     pub attestations: Option<AttestationsDist>,
 }
 
+/// Tarball-derived facts published under `dist.pnpr`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PnprDistribution {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bins: Option<Vec<PnprBin>>,
+    /// Whether the archive contains build triggers, when known.
     #[serde(
         default,
         deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",

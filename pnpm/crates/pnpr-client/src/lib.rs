@@ -350,6 +350,8 @@ pub struct ResolvedPackage {
     /// pipeline-work estimate.
     pub file_count: Option<usize>,
     pub bins: Option<serde_json::Value>,
+    /// Tarball-derived install-script metadata, when known.
+    pub requires_build: Option<bool>,
     /// Registry artifact revision, when the server resolved an immutable
     /// integrity-addressed artifact.
     pub revision: Option<TarballRevision>,
