@@ -5226,6 +5226,7 @@ dependencies = [
 name = "pnpm-fs"
 version = "0.0.1"
 dependencies = [
+ "dashmap",
  "derive_more",
  "dunce",
  "getrandom 0.4.3",

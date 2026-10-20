@@ -123,6 +123,7 @@ fn spec_dirs<'a>(check: &'a ImporterSatisfactionCheck<'a>) -> SpecDirs<'a> {
         workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
         lockfile_dir: check.lockfile_dir,
         manifests_by_dir: check.workspace.manifests_by_dir,
+        canonical_paths: check.workspace.canonical_paths,
     }
 }
 
