@@ -35,7 +35,7 @@ impl LicensedPackages {
         dir: &Path,
         recursive: bool,
         include: Include,
-    ) -> miette::Result<Option<Self>> {
+    ) -> miette::Result<Self> {
         let walk = LockfileWalk {
             config,
             dir,
@@ -59,9 +59,6 @@ impl LicensedPackages {
                     .map(|dependency| (lockfile_index, dependency)),
             );
         }
-        if packages.package_dirs.is_empty() {
-            return Ok(None);
-        }
         // Dedicated lockfiles each contribute an ordered run; the report
         // needs one order across all of them.
         if packages.package_dirs.len() > 1 {
@@ -69,7 +66,7 @@ impl LicensedPackages {
                 compare_licensed_dependencies(left, right)
             });
         }
-        Ok(Some(packages))
+        Ok(packages)
     }
 }
 
@@ -137,6 +134,9 @@ fn licensed_lockfiles(
     recursive: bool,
 ) -> miette::Result<Vec<LicensedLockfile>> {
     let projects = listed_projects(config, dir, recursive)?;
+    if projects.is_empty() {
+        return Ok(Vec::new());
+    }
     if config.shares_one_lockfile() || config.workspace_dir.is_none() {
         let lockfile_dir = config.lockfile_dir_for(dir).to_path_buf();
         let importer_ids = projects

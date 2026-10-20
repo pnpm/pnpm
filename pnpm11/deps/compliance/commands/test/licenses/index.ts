@@ -178,6 +178,16 @@ test('pnpm licenses: a workspace package missing from the lockfile has no record
   expect(recursiveResult.exitCode).toBe(0)
   const packages = Object.values(JSON.parse(recursiveResult.output) as Record<string, Array<{ name: string }>>).flat()
   expect(packages.map(({ name }) => name)).toEqual(['is-positive'])
+
+  const devResult = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    dev: true,
+    production: false,
+  }, ['list'])
+  expect(devResult.exitCode).toBe(0)
+  expect(devResult.output).toBe('No licenses in packages found')
 })
 
 test('pnpm licenses: paths point at the packages placed by the hoisted linker', async () => {
