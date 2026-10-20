@@ -512,5 +512,19 @@ fn hoist_succeeds_when_node_modules_is_symlink() {
         "transitive should be hoisted through symlinked node_modules",
     );
 
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&workspace.join("node_modules")).unwrap(),
+        "node_modules should remain a symlink after reinstall",
+    );
+    assert!(
+        is_symlink_or_junction(&private_hoist).unwrap(),
+        "transitive should remain hoisted after reinstall",
+    );
+
     drop((root, mock_instance));
 }

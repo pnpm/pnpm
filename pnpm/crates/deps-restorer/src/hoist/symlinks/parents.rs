@@ -8,21 +8,32 @@ pub(super) fn create_parents(
     dirs: &HoistedModulesDirs<'_>,
     scope_dirs: &HashSet<PathBuf>,
 ) -> Result<(), crate::SymlinkPackageError> {
-    if let Some(trusted_root) = dirs.public
-        .ancestors()
-        .find(|ancestor| !ancestor.as_os_str().is_empty() && dirs.private.starts_with(ancestor))
-    {
-        create_hoist_root(trusted_root, dirs.public)?;
-        create_hoist_root(trusted_root, dirs.private)?;
+    if dirs.private.starts_with(dirs.public) {
+        create_hoist_root_from_ancestor(dirs.public)?;
+        create_hoist_scope_dirs(dirs.public, dirs.private)?;
+    } else if dirs.public.starts_with(dirs.private) {
+        create_hoist_root_from_ancestor(dirs.private)?;
+        create_hoist_scope_dirs(dirs.private, dirs.public)?;
     } else {
-        create_hoist_root(filesystem_root(dirs.public)?, dirs.public)?;
-        create_hoist_root(filesystem_root(dirs.private)?, dirs.private)?;
+        create_hoist_root_from_ancestor(dirs.public)?;
+        create_hoist_root_from_ancestor(dirs.private)?;
     }
     for parent in scope_dirs {
         let root = if parent.starts_with(dirs.private) { dirs.private } else { dirs.public };
         create_hoist_scope_dirs(root, parent)?;
     }
     Ok(())
+}
+
+fn create_hoist_root_from_ancestor(
+    root: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    let trusted_root = root
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .map(Ok)
+        .unwrap_or_else(|| filesystem_root(root))?;
+    create_hoist_root(trusted_root, root)
 }
 
 fn filesystem_root(path: &std::path::Path) -> Result<&std::path::Path, crate::SymlinkPackageError> {

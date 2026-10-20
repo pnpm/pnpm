@@ -778,7 +778,7 @@ fn symlink_rejects_symlinked_hoist_root_pointing_to_file() {
 }
 
 #[test]
-fn symlink_accepts_symlinked_private_hoist_ancestor() {
+fn symlink_refuses_symlinked_private_hoist_ancestor() {
     use crate::VirtualStoreLayout;
     use tempfile::tempdir;
 
@@ -798,7 +798,7 @@ fn symlink_accepts_symlinked_private_hoist_ancestor() {
         pnpm_config::default_virtual_store_dir_max_length() as usize,
     );
     let workspace_aliases = vec![("project".to_string(), HoistKind::Private, project_dir)];
-    super::symlink_hoisted_dependencies(
+    let error = super::symlink_hoisted_dependencies(
         &HashMap::new(),
         &workspace_aliases,
         &HashMap::new(),
@@ -807,9 +807,13 @@ fn symlink_accepts_symlinked_private_hoist_ancestor() {
         &public_hoisted,
         &HashSet::new(),
     )
-    .unwrap();
+    .unwrap_err();
 
-    assert!(outside.join("node_modules/project").is_symlink());
+    assert!(
+        matches!(error, crate::SymlinkPackageError::CreateParentDir { .. }),
+        "symlinked ancestor below the public hoist root must be refused",
+    );
+    assert!(!outside.join("node_modules/project").exists());
 }
 
 #[test]
