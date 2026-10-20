@@ -48,32 +48,31 @@ impl Sequence {
     ) -> Option<(Vec<String>, usize)> {
         let affixes = prefix.len() + suffix.len() + 1;
         let mut bytes: usize = 0;
+        let mut patterns = Vec::new();
         for value in self.values(max_arms) {
-            bytes = bytes.checked_add(affixes + self.format(value).len())?;
+            let (sign, digits) = self.unpadded(value);
+            // Padded by hand: `{:0width$}` panics on widths above `u16::MAX`.
+            let zeros = self.width.saturating_sub(sign.len() + digits.len());
+            bytes = bytes.checked_add(affixes + sign.len() + zeros + digits.len())?;
             if bytes > byte_limit {
                 return None;
             }
+            patterns.push(format!("{prefix}{sign}{}{digits}{suffix}", "0".repeat(zeros)));
         }
-        let patterns = self
-            .values(max_arms)
-            .map(|value| format!("{prefix}{}{suffix}", self.format(value)))
-            .collect();
         Some((patterns, bytes))
     }
 
+    /// The sign and digits of a number, or the character of a letter sequence.
     /// Letter sequences cross the ASCII punctuation between `Z` and `a`; the
     /// backslash among it expands to nothing, as in `brace-expansion`.
-    fn format(&self, value: i128) -> String {
+    fn unpadded(&self, value: i128) -> (&'static str, String) {
         if !self.letters {
-            // Padded by hand: `{:0width$}` panics on widths above `u16::MAX`.
             let sign = if value < 0 { "-" } else { "" };
-            let digits = value.unsigned_abs().to_string();
-            let zeros = self.width.saturating_sub(sign.len() + digits.len());
-            return format!("{sign}{}{digits}", "0".repeat(zeros));
+            return (sign, value.unsigned_abs().to_string());
         }
         match u8::try_from(value) {
-            Ok(b'\\') | Err(_) => String::new(),
-            Ok(byte) => char::from(byte).to_string(),
+            Ok(b'\\') | Err(_) => ("", String::new()),
+            Ok(byte) => ("", char::from(byte).to_string()),
         }
     }
 
