@@ -108,6 +108,7 @@ async function installConfigDeps (
 ): Promise<boolean> {
   const rootDir = config.lockfileDir ?? context.rootProjectManifestDir
   const envLockfile = await readConfigDependencyLockfile(opts.configDependencies, rootDir, opts.mode)
+    .catch((err: unknown) => handleConfigDependencyError(err, opts.tolerateErrors))
   if (!envLockfile) return false
   const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
   try {
@@ -123,18 +124,20 @@ async function installConfigDeps (
     })
     return true
   } catch (err: unknown) {
-    if (!opts.tolerateErrors || isConfigDependencyVerificationError(err)) {
-      throw err
-    }
-    const errorMessage = isError(err) ? err.message : String(err)
-    logger.debug({
-      message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
-      err,
-    })
-    return false
+    return handleConfigDependencyError(err, opts.tolerateErrors)
   } finally {
     await store.ctrl.close()
   }
+}
+
+function handleConfigDependencyError (err: unknown, tolerateErrors: boolean | undefined): false {
+  if (!tolerateErrors || isConfigDependencyVerificationError(err)) throw err
+  const errorMessage = isError(err) ? err.message : String(err)
+  logger.debug({
+    message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+    err,
+  })
+  return false
 }
 
 /**

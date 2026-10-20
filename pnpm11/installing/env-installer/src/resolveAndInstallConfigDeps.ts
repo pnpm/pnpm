@@ -16,7 +16,7 @@ import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = ConfigDepResolverOpts & InstallConfigDepsOpts & {
   rootDir: string
-  /** Previously loaded state, mutated by reconciliation. */
+  /** Loaded state, mutated by reconciliation. */
   envLockfile?: EnvLockfile
   /** Bootstrap preserves locked roots for diagnostic commands. Defaults to reconciliation. */
   mode?: ConfigDepsInstallMode
@@ -49,6 +49,7 @@ export async function resolveAndInstallConfigDeps (
   }
 
   if (depsToResolve.length === 0) {
+    if (lockfileChanged) pruneEnvLockfile(envLockfile)
     await verify(envLockfile)
     if (lockfileChanged) {
       await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)

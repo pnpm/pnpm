@@ -216,6 +216,24 @@ test('hoist: false removes hoistPattern', async () => {
 })
 
 describe('installConfigDepsAndLoadHooks', () => {
+  test.each([false, true])('handles malformed lockfiles before opening the store (tolerate=%s)', async (tolerateConfigDependenciesErrors) => {
+    prepare()
+    fs.writeFileSync('pnpm-lock.yaml', '---\nlockfileVersion: [invalid\n---\n')
+    const { config, context } = buildBaseConfig()
+    const result = installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors })
+    if (tolerateConfigDependenciesErrors) {
+      await expect(result).resolves.toBeDefined()
+      expect(loggerMock.debug).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Failed to install configDependencies'),
+      }))
+    } else {
+      await expect(result).rejects.toThrow()
+      expect(loggerMock.debug).not.toHaveBeenCalled()
+    }
+    expect(createStoreController).not.toHaveBeenCalled()
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+  })
+
   test.each([false, true])('does not open the store without config dependencies (reconcile=%s)', async (reconcileConfigDependencies) => {
     prepare()
     const { config, context } = buildBaseConfig()

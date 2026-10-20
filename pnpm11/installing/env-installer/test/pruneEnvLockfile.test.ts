@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { retainConfigDependencies } from '@pnpm/installing.env-installer'
+import { pruneEnvLockfile, retainConfigDependencies } from '@pnpm/installing.env-installer'
 import { createEnvLockfile } from '@pnpm/lockfile.fs'
 
 test('keeps distinct config and package-manager pins of the same package', () => {
@@ -20,10 +20,14 @@ test('keeps distinct config and package-manager pins of the same package', () =>
   }
 
   expect(retainConfigDependencies(env, () => true)).toBe(false)
+  expect(env.packages['unused@1.0.0']).toBeDefined()
+  expect(env.snapshots['unused@1.0.0']).toBeDefined()
+  pruneEnvLockfile(env)
   expect(Object.keys(env.packages).sort()).toEqual(['foo@1.0.0', 'foo@2.0.0', 'shared@1.0.0'])
   expect(Object.keys(env.snapshots).sort()).toEqual(['foo@1.0.0', 'foo@2.0.0', 'shared@1.0.0'])
 
   expect(retainConfigDependencies(env, () => false)).toBe(true)
+  pruneEnvLockfile(env)
   expect(Object.keys(env.packages).sort()).toEqual(['foo@2.0.0', 'shared@1.0.0'])
   expect(Object.keys(env.snapshots).sort()).toEqual(['foo@2.0.0', 'shared@1.0.0'])
 })

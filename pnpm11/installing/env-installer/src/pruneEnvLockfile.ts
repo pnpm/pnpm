@@ -35,7 +35,7 @@ export function pruneEnvLockfile (envLockfile: EnvLockfile): void {
 }
 
 /**
- * Retains declared config roots and their graph, preserving package-manager dependencies.
+ * Retains declared config roots, preserving package-manager dependencies.
  * Returns whether a config root was removed.
  */
 export function retainConfigDependencies (envLockfile: EnvLockfile, isDeclared: (name: string) => boolean): boolean {
@@ -46,6 +46,5 @@ export function retainConfigDependencies (envLockfile: EnvLockfile, isDeclared: 
     delete dependencies[name]
     removed = true
   }
-  pruneEnvLockfile(envLockfile)
   return removed
 }

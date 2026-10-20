@@ -15,7 +15,8 @@ use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{
-    EnvLockfile, LoadLockfileError, Lockfile, PackageKey, retain_config_dependencies,
+    EnvLockfile, LoadLockfileError, Lockfile, PackageKey, prune_env_lockfile,
+    retain_config_dependencies,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
@@ -276,6 +277,7 @@ fn prune_unresolved_entries(
                 .as_ref()
                 .is_some_and(|dependencies| dependencies.contains_key(name))
         });
+        prune_env_lockfile(&mut env);
         record_resolved_package_versions(env.snapshots.keys(), &mut resolved);
     }
     update_workspace_manifest(
