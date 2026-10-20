@@ -51,7 +51,6 @@ pnpr-shared-artifacts = { workspace = true }
 pnpr-upstream = { workspace = true }
 pnpm-cargo-resolver = { workspace = true }
 pnpm-catalogs-types = { workspace = true }
-pnpm-cmd-shim = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-config-dir = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
@@ -101,7 +100,6 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 sqlx = { workspace = true, optional = true }
 ssri = { workspace = true }
-tar = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
@@ -116,6 +114,7 @@ zstd = { workspace = true }
 chrono = { workspace = true }
 mockito = { workspace = true }
 walkdir = { workspace = true }
+tar = { workspace = true }
 pipe-trait = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pnpr-fixtures = { workspace = true }

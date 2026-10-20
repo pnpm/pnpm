@@ -142,7 +142,7 @@ fn cors_origins(config: &Config) -> pnpr_error::Result<Vec<HeaderValue>> {
             HeaderValue::from_str(origin)
                 .map_err(|_| pnpr_error::RegistryError::InvalidConfig {
                     reason: format!(
-                        "CORS allowed origin {origin:?} is not a valid HTTP header value"
+                        "CORS allowed origin {origin:?} is not a valid HTTP header value",
                     ),
                 })
         })

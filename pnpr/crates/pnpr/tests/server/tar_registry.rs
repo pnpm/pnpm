@@ -72,8 +72,9 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
 
     let packument = body_json(get(&app, "/npm/~zstd/@acme%2Fwidget", None).await.into_body()).await;
     let dist = &packument["versions"]["1.0.0"]["dist"];
-    dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
+    assert_eq!(dist["fileCount"], serde_json::json!(1));
+    assert_eq!(dist["unpackedSize"], serde_json::json!(41));
     assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
     for omitted in ["tarball", "shasum", "signatures"] {
         assert!(dist.get(omitted).is_none(), "a tar registry omits dist.{omitted}");
@@ -97,6 +98,8 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(body_bytes(tgz_response.into_body()).await.as_slice(), tgz.as_slice());
     let packument = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tgz));
+    assert_eq!(packument["versions"]["1.0.0"]["dist"]["fileCount"], serde_json::json!(1));
+    assert_eq!(packument["versions"]["1.0.0"]["dist"]["unpackedSize"], serde_json::json!(41));
     assert_eq!(
         packument["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
         serde_json::json!(false),

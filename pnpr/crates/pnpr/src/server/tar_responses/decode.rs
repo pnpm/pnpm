@@ -33,9 +33,11 @@ pub(in super::super) fn tar_decode_limit(unpacked_size: Option<u64>) -> u64 {
     })
 }
 
-/// Compute the integrity of the tar a stored `.tgz` decodes to. `None` when
-/// the `.tgz` is not a sequence of gzip members.
-pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<(Integrity, Option<bool>)> {
+/// Compute the integrity and tar metadata of the tar a stored `.tgz`
+/// decodes to. `None` when the `.tgz` is not a sequence of gzip members.
+pub(in super::super) fn tar_integrity_of(
+    tgz: impl Read,
+) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
 }
 
@@ -52,10 +54,10 @@ pub(in super::super) fn tar_resource_integrity(
     hash_within(resource, MAX_DECODED_TAR_BYTES).map(|(integrity, _)| integrity)
 }
 
-pub(super) fn tar_integrity_within(
+pub(in super::super) fn tar_integrity_within(
     tgz: impl Read,
     limit: u64,
-) -> Option<(Integrity, Option<bool>)> {
+) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     hash_within(flate2::read::MultiGzDecoder::new(tgz), limit)
 }
 
@@ -67,37 +69,37 @@ struct HashingTarReader<Reader> {
 }
 
 impl<Reader: Read> Read for HashingTarReader<Reader> {
-    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
-            match self.decoder.read(buffer) {
+            match self.decoder.read(buf) {
                 Ok(0) => return Ok(0),
                 Ok(len) => {
                     self.decoded += len as u64;
-                    self.hasher.input(&buffer[..len]);
+                    self.hasher.input(&buf[..len]);
                     return Ok(len);
                 }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => {
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) => {
                     self.failed = true;
-                    return Err(error);
+                    return Err(err);
                 }
             }
         }
     }
 }
 
-fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, Option<bool>)> {
+fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     let mut reader = HashingTarReader {
         decoder: tar.take(limit.saturating_add(1)),
         decoded: 0,
         hasher: IntegrityOpts::new().algorithm(Algorithm::Sha512),
         failed: false,
     };
-    let requires_build = pnpm_tarball::tar_requires_build(&mut reader);
+    let inspection = pnpm_tarball::inspect_tar(&mut reader);
     if reader.failed || !drain_tar(&mut reader) || reader.decoded > limit {
         return None;
     }
-    Some((reader.hasher.result(), requires_build))
+    Some((reader.hasher.result(), inspection))
 }
 
 fn drain_tar(reader: &mut impl Read) -> bool {
@@ -106,7 +108,6 @@ fn drain_tar(reader: &mut impl Read) -> bool {
         match reader.read(&mut buf) {
             Ok(0) => return true,
             Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(_) => return false,
         }
     }
@@ -117,10 +118,9 @@ pub(super) struct DerivedFrom {
     /// The `.tgz` integrity the compressed bytes still have to match. A
     /// mismatch fails the response and evicts the stale copy.
     pub(super) check: Option<Integrity>,
-    /// Whether to hash the tar for `on_complete`: the version has an
-    /// integrity to key it by, and its tar's is not recorded yet.
+    /// Whether to hash and inspect the tar for `on_complete`: the version has
+    /// an integrity to key it by, and its derived tar metadata is not recorded yet.
     pub(super) hash: bool,
-    pub(super) record_stats: bool,
     pub(super) copy: Option<TarCopy>,
     pub(super) stale: StaleTgz,
     /// See [`tar_decode_limit`].
@@ -130,13 +130,13 @@ pub(super) struct DerivedFrom {
 /// Decode a gzip body as it streams, copying the decoded bytes into
 /// `derived.copy`. Once every member decoded and the compressed bytes matched
 /// `derived.check`, submit the copy and, if `derived.hash`, call
-/// `on_complete` with the integrity of the decoded bytes. A body that fails to decode ends the
-/// response with an error.
+/// `on_complete` with the integrity and tar metadata of the decoded
+/// bytes. A body that fails to decode ends the response with an error.
 pub(super) fn gunzip_body(
     body: Body,
     derived: DerivedFrom,
     decodes: Arc<Semaphore>,
-    on_complete: impl FnOnce(Option<Integrity>, Option<pnpr_storage::DistStats>) + Send + 'static,
+    on_complete: impl FnOnce(Integrity, pnpm_tarball::TarInspection) + Send + 'static,
 ) -> Body {
     const CHANNEL_CHUNKS: usize = 16;
     let (compressed_tx, compressed_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
@@ -168,30 +168,19 @@ fn derive_from_decode(
     compressed_rx: mpsc::Receiver<io::Result<Bytes>>,
     tar_tx: &mpsc::Sender<io::Result<Bytes>>,
     derived: DerivedFrom,
-    on_complete: impl FnOnce(Option<Integrity>, Option<pnpr_storage::DistStats>),
+    on_complete: impl FnOnce(Integrity, pnpm_tarball::TarInspection),
 ) {
-    let DerivedFrom {
-        check,
-        hash,
-        record_stats,
-        mut copy,
-        stale,
-        limit,
-    } = derived;
+    let DerivedFrom { check, hash, mut copy, stale, limit } = derived;
     let mut compressed = CheckedReader {
         inner: ChannelReader::new(compressed_rx),
         checker: check.map(IntegrityChecker::new),
     };
     let decoder = flate2::read::MultiGzDecoder::new(&mut compressed).take(limit.saturating_add(1));
     let mut hasher = hash.then(|| IntegrityOpts::new().algorithm(Algorithm::Sha512));
-    let (decoded, stats) = if record_stats {
-        scan_tar(decoder, tar_tx, &mut copy, hasher.as_mut(), limit)
-    } else {
-        (decode_into(decoder, tar_tx, &mut copy, hasher.as_mut(), limit), None)
-    };
-    if !decoded {
+    let Some(inspection) = decode_into(decoder, tar_tx, &mut copy, hasher.as_mut(), hash, limit)
+    else {
         return;
-    }
+    };
     if compressed.checker.is_some_and(|checker| checker.result().is_err()) {
         let _ = tar_tx.blocking_send(Err(stale.evict()));
         return;
@@ -199,203 +188,8 @@ fn derive_from_decode(
     if let Some(copy) = copy {
         copy.submit();
     }
-    if hash || record_stats {
-        on_complete(hasher.map(ssri::IntegrityOpts::result), stats);
-    }
-}
-
-fn scan_tar(
-    decoder: impl Read,
-    out: &mpsc::Sender<io::Result<Bytes>>,
-    copy: &mut Option<TarCopy>,
-    hasher: Option<&mut IntegrityOpts>,
-    limit: u64,
-) -> (bool, Option<pnpr_storage::DistStats>) {
-    let mut reader = DerivedReader { decoder, out, copy, hasher, decoded: 0, limit, failed: false };
-    let mut archive = tar::Archive::new(&mut reader);
-    let stats = archive
-        .entries()
-        .ok()
-        .and_then(|entries| {
-            let mut file_count = 0u64;
-            let mut unpacked_size = 0u64;
-            let mut package_manifest = None;
-            let mut bin_dir = None;
-            let mut direct_bins = std::collections::HashSet::new();
-            let mut bin_files = Vec::new();
-            let mut bin_heads = std::collections::HashMap::new();
-            let mut bin_scan_complete = true;
-            for entry in entries {
-                let mut entry = entry.ok()?;
-                if entry.header().entry_type().is_file() {
-                    file_count = file_count.checked_add(1)?;
-                    let size = entry.header().size().ok()?;
-                    unpacked_size = unpacked_size.checked_add(size)?;
-                    let archive_path = entry.path().ok()?.into_owned();
-                    if archive_path == std::path::Path::new("package/package.json") {
-                        if size <= 8 * 1024 * 1024 {
-                            let mut bytes = Vec::with_capacity(size as usize);
-                            entry.read_to_end(&mut bytes).ok()?;
-                            let manifest: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-                            let package_root = std::path::Path::new("/package");
-                            let direct = pnpm_cmd_shim::get_bins_from_package_manifest_with_walk(
-                                &manifest,
-                                package_root,
-                                |_| Ok(Vec::<std::path::PathBuf>::new()),
-                            );
-                            direct_bins.extend(direct.into_iter().map(|command| command.path));
-                            bin_dir = manifest
-                                .get("bin")
-                                .as_ref()
-                                .is_none_or(|bin| bin.as_str() == Some(""))
-                                .then(|| {
-                                    manifest
-                                        .get("directories")?
-                                        .get("bin")?
-                                        .as_str()
-                                        .map(|path| package_root.join(path))
-                                })
-                                .flatten()
-                                .filter(|dir| pnpm_fs::is_subdir(package_root, dir));
-                            package_manifest = Some(manifest);
-                        } else {
-                            bin_scan_complete = false;
-                            io::copy(&mut entry, &mut io::sink()).ok()?;
-                        }
-                        continue;
-                    }
-                    if package_manifest.is_none() {
-                        bin_scan_complete = false;
-                    }
-                    let package_path = archive_path
-                        .strip_prefix("package")
-                        .ok()
-                        .map(|path| std::path::Path::new("/package").join(path));
-                    if let (Some(manifest), Some(path)) = (&package_manifest, package_path)
-                        && (direct_bins.contains(&path)
-                            || bin_dir
-                                .as_ref()
-                                .is_some_and(|dir| path.starts_with(dir)))
-                    {
-                        if bin_files.len() < 4096 {
-                            let mut prefix = Vec::with_capacity(512);
-                            entry
-                                .by_ref()
-                                .take(512)
-                                .read_to_end(&mut prefix)
-                                .ok()?;
-                            if bin_dir
-                                .as_ref()
-                                .is_some_and(|dir| path.starts_with(dir))
-                            {
-                                bin_files.push(path.clone());
-                            }
-                            bin_heads.insert(path, prefix);
-                        } else {
-                            bin_scan_complete = false;
-                        }
-                        let _ = manifest;
-                    }
-                }
-            }
-            let bins = package_manifest
-            .filter(|manifest| {
-                manifest.get("bin").is_some_and(|bin| bin.as_str() != Some(""))
-                    || manifest
-                        .get("directories")
-                        .and_then(|directories| directories.get("bin"))
-                        .and_then(serde_json::Value::as_str)
-                        .is_some()
-            })
-            .filter(|_| bin_scan_complete)
-            .and_then(|manifest| {
-                let commands = pnpm_cmd_shim::get_bins_from_package_manifest_with_walk(
-                    &manifest,
-                    std::path::Path::new("/package"),
-                    |_| Ok(bin_files),
-                );
-                let mut bins = Vec::with_capacity(commands.len());
-                for command in commands {
-                    let relative_path = command.path.strip_prefix("/package").ok()?;
-                    let path = relative_path.to_str()?.replace('\\', "/");
-                    let prefix = bin_heads.get(&command.path)?;
-                    let shebang = pnpm_cmd_shim::parse_shebang_from_bytes(prefix).map(|runtime| {
-                        serde_json::json!({ "prog": runtime.prog, "args": runtime.args })
-                    });
-                    bins.push(serde_json::json!({
-                        "name": command.name,
-                        "path": path,
-                        "shebang": shebang,
-                    }));
-                }
-                Some(serde_json::Value::Array(bins))
-            });
-            Some(pnpr_storage::DistStats { file_count, unpacked_size, bins })
-        });
-    let reader = archive.into_inner();
-    let mut buffer = vec![0u8; 64 * 1024].into_boxed_slice();
-    let mut succeeded = true;
-    loop {
-        match reader.read(&mut buffer) {
-            Ok(0) => break,
-            Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-            Err(_) => {
-                succeeded = false;
-                break;
-            }
-        }
-    }
-    (succeeded && !reader.failed && reader.decoded <= limit, stats)
-}
-
-struct DerivedReader<'a, Reader> {
-    decoder: Reader,
-    out: &'a mpsc::Sender<io::Result<Bytes>>,
-    copy: &'a mut Option<TarCopy>,
-    hasher: Option<&'a mut IntegrityOpts>,
-    decoded: u64,
-    limit: u64,
-    failed: bool,
-}
-
-impl<Reader: Read> Read for DerivedReader<'_, Reader> {
-    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        if self.failed {
-            return Err(io::Error::other("tar decode already failed"));
-        }
-        let len = match self.decoder.read(buffer) {
-            Ok(len) => len,
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => return Err(error),
-            Err(error) => {
-                self.failed = true;
-                let _ =
-                    self.out.blocking_send(Err(io::Error::new(error.kind(), error.to_string())));
-                return Err(error);
-            }
-        };
-        if len == 0 {
-            if self.decoded > self.limit {
-                self.failed = true;
-                let _ = self.out.blocking_send(Err(io::Error::other(format!(
-                    "the tar exceeds the {}-byte decode limit",
-                    self.limit,
-                ))));
-                return Err(io::Error::other("tar decode limit exceeded"));
-            }
-            return Ok(0);
-        }
-        self.decoded = self.decoded.saturating_add(len as u64);
-        if let Some(hasher) = self.hasher.as_deref_mut() {
-            hasher.input(&buffer[..len]);
-        }
-        *self.copy = self.copy
-            .take()
-            .and_then(|copy| copy.write(&buffer[..len]));
-        self.out
-            .blocking_send(Ok(Bytes::copy_from_slice(&buffer[..len])))
-            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "tar response closed"))?;
-        Ok(len)
+    if let Some(hasher) = hasher {
+        on_complete(hasher.result(), inspection);
     }
 }
 
@@ -411,46 +205,106 @@ async fn forward_body(body: Body, chunks: mpsc::Sender<io::Result<Bytes>>) {
 }
 
 /// Send what `decoder` reads to `out`, into `copy`, and into `hasher`.
-/// `false` when the decode failed or the response was dropped.
+/// `None` when the decode failed or the response was dropped.
 fn decode_into(
-    mut decoder: impl Read,
+    decoder: impl Read,
     out: &mpsc::Sender<io::Result<Bytes>>,
     copy: &mut Option<TarCopy>,
-    mut hasher: Option<&mut IntegrityOpts>,
+    hasher: Option<&mut IntegrityOpts>,
+    scan_tar: bool,
     limit: u64,
-) -> bool {
-    let mut decoded = 0u64;
-    loop {
-        let mut buf = vec![0u8; 64 * 1024];
-        let len = match decoder.read(&mut buf) {
-            Ok(0) if decoded > limit => {
-                let _ = out.blocking_send(Err(io::Error::other(format!(
-                    "the tar exceeds the {limit}-byte decode limit",
-                ))));
-                return false;
+) -> Option<pnpm_tarball::TarInspection> {
+    let mut stream = DecodeStream {
+        decoder,
+        out,
+        copy,
+        hasher,
+        limit,
+        decoded: 0,
+        current: Bytes::new(),
+        failed: false,
+    };
+    let inspection = if scan_tar {
+        pnpm_tarball::inspect_tar(&mut stream)
+    } else {
+        pnpm_tarball::TarInspection::default()
+    };
+    while !stream.failed && stream.pump_chunk().is_some() {}
+    (!stream.failed).then_some(inspection)
+}
+
+struct DecodeStream<'a, Reader> {
+    decoder: Reader,
+    out: &'a mpsc::Sender<io::Result<Bytes>>,
+    copy: &'a mut Option<TarCopy>,
+    hasher: Option<&'a mut IntegrityOpts>,
+    limit: u64,
+    decoded: u64,
+    current: Bytes,
+    failed: bool,
+}
+
+impl<Reader: Read> DecodeStream<'_, Reader> {
+    fn pump_chunk(&mut self) -> Option<Bytes> {
+        loop {
+            let mut buf = vec![0u8; 64 * 1024];
+            let len = match self.decoder.read(&mut buf) {
+                Ok(0) if self.decoded > self.limit => {
+                    let _ = self.out.blocking_send(Err(io::Error::other(format!(
+                        "the tar exceeds the {}-byte decode limit",
+                        self.limit,
+                    ))));
+                    self.failed = true;
+                    return None;
+                }
+                Ok(0) => return None,
+                Ok(len) => len,
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => {
+                    let _ = self.out.blocking_send(Err(err));
+                    self.failed = true;
+                    return None;
+                }
+            };
+            self.decoded += len as u64;
+            buf.truncate(len);
+            if let Some(hasher) = self.hasher.as_deref_mut() {
+                hasher.input(&buf);
             }
-            Ok(0) => return true,
-            Ok(len) => len,
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
-            Err(err) => {
-                let _ = out.blocking_send(Err(err));
-                return false;
+            *self.copy = self.copy
+                .take()
+                .and_then(|copy| copy.write(&buf));
+            let chunk = Bytes::from(buf);
+            if self.out
+                .blocking_send(Ok(chunk.clone()))
+                .is_err()
+            {
+                self.failed = true;
+                return None;
             }
-        };
-        decoded += len as u64;
-        buf.truncate(len);
-        if let Some(hasher) = hasher.as_deref_mut() {
-            hasher.input(&buf);
+            return Some(chunk);
         }
-        *copy = copy
-            .take()
-            .and_then(|copy| copy.write(&buf));
-        if out
-            .blocking_send(Ok(Bytes::from(buf)))
-            .is_err()
-        {
-            return false;
+    }
+}
+
+impl<Reader: Read> Read for DecodeStream<'_, Reader> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() || self.failed {
+            return Ok(0);
         }
+        if self.current.is_empty() {
+            let Some(chunk) = self.pump_chunk() else {
+                return if self.failed {
+                    Err(io::Error::other("tar decode stream failed"))
+                } else {
+                    Ok(0)
+                };
+            };
+            self.current = chunk;
+        }
+        let len = self.current.len().min(buf.len());
+        buf[..len].copy_from_slice(&self.current.split_to(len));
+        Ok(len)
     }
 }
 

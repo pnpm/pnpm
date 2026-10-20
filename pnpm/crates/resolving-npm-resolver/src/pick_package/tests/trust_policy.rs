@@ -116,6 +116,7 @@ async fn pnpr_registry_does_not_fetch_full_metadata_under_trust_policy() {
     };
 
     let mut opts = default_opts(&registry);
+    opts.request.optional = true;
     opts.policy.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
 
     pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");

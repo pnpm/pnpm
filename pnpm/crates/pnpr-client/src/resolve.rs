@@ -87,7 +87,6 @@ fn forward_package_frame(frame: Frame, on_package: &mut impl FnMut(ResolvedPacka
         tarball,
         unpacked_size,
         file_count,
-        bins,
         revision,
         requires_build,
     } = frame
@@ -100,7 +99,6 @@ fn forward_package_frame(frame: Frame, on_package: &mut impl FnMut(ResolvedPacka
             tarball,
             unpacked_size,
             file_count,
-            bins,
             revision,
             requires_build,
         });
@@ -368,8 +366,6 @@ pub(super) enum Frame {
         unpacked_size: Option<usize>,
         #[serde(rename = "fileCount", default)]
         file_count: Option<usize>,
-        #[serde(default)]
-        bins: Option<serde_json::Value>,
         #[serde(default)]
         revision: Option<TarballRevision>,
         #[serde(rename = "requiresBuild", default)]

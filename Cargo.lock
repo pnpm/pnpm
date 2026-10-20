@@ -6695,7 +6695,6 @@ dependencies = [
  "pipe-trait",
  "pnpm-cargo-resolver",
  "pnpm-catalogs-types",
- "pnpm-cmd-shim",
  "pnpm-config",
  "pnpm-config-dir",
  "pnpm-crypto-hash",

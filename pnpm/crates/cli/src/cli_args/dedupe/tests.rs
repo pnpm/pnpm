@@ -275,7 +275,6 @@ fn resolved_dep_hint() -> pnpm_package_manager::ResolvedPackageHint<'static> {
         tarball_url: "https://registry.example/dep/-/dep-2.0.0.tgz",
         unpacked_size: None,
         file_count: None,
-        bins: None,
         revision: None,
         requires_build: None,
         from_registry: true,

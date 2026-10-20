@@ -486,10 +486,10 @@ fn coarsens_time_entries_by_age() {
     let time = &out["time"];
 
     assert_eq!(time["modified"], "2024-03-02");
-    assert_eq!(time["1.0.0"], "2023-12-25T23:59:59.000Z");
-    assert_eq!(time["2.0.0"], "2024-01-10T00:00:00.000Z");
-    assert_eq!(time["1.1.0"], "2024-03-19T08:30:45.123Z");
-    assert_eq!(time["1.2.0"], "2024-03-18T06:15:00.000Z");
+    assert_eq!(time["1.0.0"], "2023-12-26");
+    assert_eq!(time["2.0.0"], "2024-01-10");
+    assert_eq!(time["1.1.0"], "2024-03-19T08:31Z");
+    assert_eq!(time["1.2.0"], "2024-03-18T06:15Z");
     assert_eq!(time["unpublished"]["versions"][0], "0.9.0");
     assert_eq!(time["0.0.1"], "not a date");
     // Synthesized top-level `modified` mirrors the coarsened entry.
@@ -553,4 +553,29 @@ fn preserves_minimal_npm_user_in_abbreviated_packument() {
 
     let v2 = &out["versions"]["2.0.0"];
     assert!(v2.get("_npmUser").is_none());
+}
+
+#[test]
+fn preserves_exact_timestamps_for_same_day_releases_so_trust_order_survives() {
+    let doc = json!({
+        "name": "foo",
+        "time": {
+            "modified": "2024-03-01T18:00:00.000Z",
+            "1.0.0": "2024-01-10T08:00:00.000Z",
+            "1.0.1": "2024-01-10T18:00:00.000Z",
+            "2.0.0": "2024-02-15T12:00:00.000Z"
+        },
+        "versions": {
+            "1.0.0": { "version": "1.0.0", "dist": { "tarball": "x/foo-1.0.0.tgz" } },
+            "1.0.1": { "version": "1.0.1", "dist": { "tarball": "x/foo-1.0.1.tgz" } },
+            "2.0.0": { "version": "2.0.0", "dist": { "tarball": "x/foo-2.0.0.tgz" } }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let time = &out["time"];
+    assert_eq!(time["1.0.0"], "2024-01-10T08:00:00.000Z");
+    assert_eq!(time["1.0.1"], "2024-01-10T18:00:00.000Z");
+    assert_eq!(time["2.0.0"], "2024-02-16");
+    assert_eq!(time["modified"], "2024-03-02");
 }

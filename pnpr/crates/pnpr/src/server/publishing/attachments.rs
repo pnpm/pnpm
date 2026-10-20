@@ -268,17 +268,16 @@ pub(super) async fn write_attachment_slot(
     .await;
     match result {
         Ok(Ok(None)) => Ok((slot, None)),
-        Ok(Ok(Some((tgz_integrity, integrity, requires_build)))) => {
+        Ok(Ok(Some((tgz_integrity, integrity, inspection)))) => {
             // A tar registry's first tar response records a binding publish
             // failed to.
-            if let Err(err) = storage.record_tar_integrity(
-                name,
-                &tgz_integrity,
-                &integrity.to_string(),
-                requires_build,
-            )
-            .await
-            {
+            let derived = pnpr_storage::DerivedTar::new(
+                integrity.to_string(),
+                inspection.requires_build,
+                inspection.file_count,
+                inspection.unpacked_size,
+            );
+            if let Err(err) = storage.record_tar_integrity(name, &tgz_integrity, derived).await {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }
             Ok((
@@ -306,8 +305,10 @@ async fn write_under_permit(
     dist: Value,
     tmp_path: std::path::PathBuf,
     decodes: &Arc<Semaphore>,
-) -> Result<Result<Option<(String, Integrity, Option<bool>)>, RegistryError>, tokio::task::JoinError>
-{
+) -> Result<
+    Result<Option<(String, Integrity, pnpm_tarball::TarInspection)>, RegistryError>,
+    tokio::task::JoinError,
+> {
     let permit = match kind {
         AttachmentKind::Tarball => Some(
             Arc::clone(decodes)
@@ -324,7 +325,7 @@ async fn write_under_permit(
 }
 
 /// Write the attachment to `tmp_path`, and for a `.tgz` return its integrity
-/// key, the integrity of the tar it decodes to, and its build-trigger verdict.
+/// key, the integrity of the tar it decodes to, and its tar metadata.
 /// `_decode` is held until the tar is hashed.
 fn write_and_derive_tar(
     attachment: &PendingAttachment,
@@ -332,7 +333,7 @@ fn write_and_derive_tar(
     dist: &Value,
     tmp_path: &std::path::Path,
     _decode: Option<OwnedSemaphorePermit>,
-) -> Result<Option<(String, Integrity, Option<bool>)>, RegistryError> {
+) -> Result<Option<(String, Integrity, pnpm_tarball::TarInspection)>, RegistryError> {
     decode_and_write_attachment(attachment, kind, dist, tmp_path)?;
     if kind != AttachmentKind::Tarball {
         return Ok(None);
@@ -340,7 +341,7 @@ fn write_and_derive_tar(
     let Some(tgz_integrity) = dist.as_object().and_then(tgz_integrity_key) else { return Ok(None) };
     let tgz = std::fs::File::open(tmp_path)?;
     Ok(tar_integrity_of(std::io::BufReader::new(tgz))
-        .map(|(tar, requires_build)| (tgz_integrity, tar, requires_build)))
+        .map(|(tar, inspection)| (tgz_integrity, tar, inspection)))
 }
 
 fn decode_and_write_attachment(

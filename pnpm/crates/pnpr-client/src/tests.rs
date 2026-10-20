@@ -436,7 +436,7 @@ fn structural_violations_keep_their_code_and_hint() {
 
 #[test]
 fn a_package_frame_parses_its_fetch_hint() {
-    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3}"#;
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3,"requiresBuild":false}"#;
     let Frame::Package {
         id,
         name,
@@ -446,7 +446,7 @@ fn a_package_frame_parses_its_fetch_hint() {
         unpacked_size,
         file_count,
         revision,
-        ..
+        requires_build,
     } = parse_frame(line).expect("frame parses")
     else {
         panic!("expected a package frame");
@@ -459,6 +459,7 @@ fn a_package_frame_parses_its_fetch_hint() {
     assert_eq!(unpacked_size, Some(123456));
     assert_eq!(file_count, Some(42));
     assert_eq!(revision, Some(TarballRevision::try_from(3).unwrap()));
+    assert_eq!(requires_build, Some(false));
 }
 
 #[test]

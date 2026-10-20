@@ -9,8 +9,8 @@ pub use bounded_reader::BoundedReader;
 pub use download::*;
 pub use error::*;
 pub use extract::{
-    ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits, read_buffered_tar_entry,
-    tar_requires_build,
+    ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarInspection, TarLimits, inspect_tar,
+    read_buffered_tar_entry, tar_requires_build,
 };
 pub(crate) use extract::{
     STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,

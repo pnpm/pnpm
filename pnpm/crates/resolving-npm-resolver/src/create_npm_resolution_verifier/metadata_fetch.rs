@@ -214,6 +214,9 @@ impl NpmResolutionVerifier {
                         .get(&format!("{key}:full"))
                         .or_else(|| cache.get(&format!("{key}:full:filtered")))
                         .or_else(|| {
+                            // Under `trustPolicy: no-downgrade`, only `serverType: pnpr`
+                            // registries stay on abbreviated metadata (`key`), which
+                            // includes `time` and `_npmUser` trust flags.
                             let entry = cache.get(&key)?;
                             entry.meta.time.is_some().then_some(entry)
                         })

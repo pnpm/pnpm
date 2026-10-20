@@ -65,20 +65,12 @@ async fn decode_and_derive(
         cached: None,
         runtime: tokio::runtime::Handle::current(),
     };
-    let derived = super::DerivedFrom {
-        check: expected.parse().ok(),
-        hash: true,
-        record_stats: false,
-        copy: None,
-        stale,
-        limit,
-    };
+    let derived =
+        super::DerivedFrom { check: expected.parse().ok(), hash: true, copy: None, stale, limit };
     let decodes = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
     let body =
         super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, move |integrity, _| {
-            if let Some(integrity) = integrity {
-                let _ = sender.send(integrity);
-            }
+            let _ = sender.send(integrity);
         });
     let tar = axum::body::to_bytes(body, usize::MAX).await.ok().map(|bytes| bytes.to_vec());
     (
@@ -114,10 +106,10 @@ async fn only_bytes_that_match_the_digest_complete_a_tar_response() {
 }
 
 #[tokio::test]
-async fn decoded_tar_records_regular_file_statistics() {
-    let tar =
+async fn decoded_tar_records_regular_file_statistics_and_forwards_decode_errors() {
+    let tar_bytes =
         tar(&[("package/package.json", b"{}"), ("package/bin/tool", b"#!/usr/bin/env node\n")]);
-    let tgz = gzip(&tar);
+    let tgz = gzip(&tar_bytes);
     let (sender, receiver) = tokio::sync::oneshot::channel();
     let temp = tempfile::TempDir::new().unwrap();
     let storage = pnpr_storage::Storage::new(
@@ -127,50 +119,38 @@ async fn decoded_tar_records_regular_file_statistics() {
     )
     .unwrap();
     let stale = super::StaleTgz {
-        storage,
+        storage: storage.clone(),
         name: None,
         cached: None,
         runtime: tokio::runtime::Handle::current(),
     };
     let derived = super::DerivedFrom {
         check: None,
-        hash: false,
-        record_stats: true,
+        hash: true,
         copy: None,
         stale,
         limit: super::tar_decode_limit(None),
     };
     let body = super::gunzip_body(
-        axum::body::Body::from(tgz),
+        axum::body::Body::from(tgz.clone()),
         derived,
         std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
-        move |_, stats| {
-            let _ = sender.send(stats);
+        move |_, inspection| {
+            let _ = sender.send(inspection);
         },
     );
     let served = axum::body::to_bytes(body, usize::MAX).await.unwrap();
-    assert_eq!(served.as_ref(), tar.as_slice());
+    assert_eq!(served.as_ref(), tar_bytes.as_slice());
     assert_eq!(
         receiver.await.unwrap(),
-        Some(pnpr_storage::DistStats {
-            file_count: 2,
-            unpacked_size: b"{}".len() as u64 + b"#!/usr/bin/env node\n".len() as u64,
-            bins: None,
-        }),
+        pnpm_tarball::TarInspection {
+            requires_build: Some(false),
+            file_count: Some(2),
+            unpacked_size: Some(b"{}".len() as u64 + b"#!/usr/bin/env node\n".len() as u64),
+        },
     );
-}
 
-#[tokio::test]
-async fn a_corrupt_tgz_with_statistics_ends_the_response_with_an_error() {
-    let mut tgz = gzip(&tar(&[("package/package.json", b"{}")])).into_iter().collect::<Vec<_>>();
-    tgz.truncate(tgz.len() - 4);
-    let temp = tempfile::TempDir::new().unwrap();
-    let storage = pnpr_storage::Storage::new(
-        &pnpr_config::HostedStoreConfig::Fs,
-        temp.path().join("storage"),
-        temp.path().join("cache"),
-    )
-    .unwrap();
+    let truncated_tgz = tgz[..tgz.len() / 2].to_vec();
     let stale = super::StaleTgz {
         storage,
         name: None,
@@ -179,19 +159,21 @@ async fn a_corrupt_tgz_with_statistics_ends_the_response_with_an_error() {
     };
     let derived = super::DerivedFrom {
         check: None,
-        hash: false,
-        record_stats: true,
+        hash: true,
         copy: None,
         stale,
         limit: super::tar_decode_limit(None),
     };
     let body = super::gunzip_body(
-        axum::body::Body::from(tgz),
+        axum::body::Body::from(truncated_tgz),
         derived,
         std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
-        |_, _| {},
+        |_, _| panic!("truncated gzip stream must not complete"),
     );
-    assert!(axum::body::to_bytes(body, usize::MAX).await.is_err());
+    assert!(
+        axum::body::to_bytes(body, usize::MAX).await.is_err(),
+        "truncated gzip stream must surface a body error instead of clean EOF",
+    );
 }
 
 #[tokio::test]
@@ -236,7 +218,6 @@ async fn a_tar_response_decodes_only_with_a_permit() {
     let derived = super::DerivedFrom {
         check: None,
         hash: false,
-        record_stats: false,
         copy: None,
         stale,
         limit: super::tar_decode_limit(None),

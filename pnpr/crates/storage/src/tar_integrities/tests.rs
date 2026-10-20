@@ -12,7 +12,7 @@ fn a_read_that_started_before_a_record_keeps_the_recorded_table() {
     let read_started = Instant::now();
     let recorded = Arc::new(BTreeMap::from([(
         "tgz".to_string(),
-        DerivedTar { tar_integrity: "tar".to_string(), requires_build: Some(false), scanned: true },
+        DerivedTar::new("tar", Some(false), Some(2), Some(42)),
     )]));
     cache.put(&name, Arc::clone(&recorded), read_started + Duration::from_millis(1));
     cache.put(&name, Arc::default(), read_started);
@@ -24,7 +24,12 @@ fn deserializes_legacy_string_and_record_entries() {
     let decoded: BTreeMap<String, DerivedTar> = serde_json::from_str(
         r#"{
             "sha512-legacy": "sha512-tar-a",
-            "sha512-new": { "tarIntegrity": "sha512-tar-b", "requiresBuild": true },
+            "sha512-new": {
+                "tarIntegrity": "sha512-tar-b",
+                "requiresBuild": true,
+                "fileCount": 3,
+                "unpackedSize": 17
+            },
             "sha512-scanned-unknown": { "tarIntegrity": "sha512-tar-c" }
         }"#,
     )
@@ -34,6 +39,8 @@ fn deserializes_legacy_string_and_record_entries() {
         Some(&DerivedTar {
             tar_integrity: "sha512-tar-a".to_string(),
             requires_build: None,
+            file_count: None,
+            unpacked_size: None,
             scanned: false,
         }),
     );
@@ -42,6 +49,8 @@ fn deserializes_legacy_string_and_record_entries() {
         Some(&DerivedTar {
             tar_integrity: "sha512-tar-b".to_string(),
             requires_build: Some(true),
+            file_count: Some(3),
+            unpacked_size: Some(17),
             scanned: true,
         }),
     );
@@ -50,6 +59,8 @@ fn deserializes_legacy_string_and_record_entries() {
         Some(&DerivedTar {
             tar_integrity: "sha512-tar-c".to_string(),
             requires_build: None,
+            file_count: None,
+            unpacked_size: None,
             scanned: true,
         }),
     );

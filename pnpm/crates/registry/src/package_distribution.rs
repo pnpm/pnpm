@@ -7,7 +7,7 @@ use ssri::Integrity;
     dylint_lib = "perfectionist",
     expect(
         perfectionist::too_many_struct_fields,
-        reason = "The fields mirror the dist object exposed by npm registries."
+        reason = "The fields mirror npm registry dist metadata."
     )
 )]
 pub struct PackageDistribution {
@@ -43,12 +43,6 @@ pub struct PackageDistribution {
     /// Decoded as leniently as [`Self::file_count`].
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
     pub unpacked_size: Option<usize>,
-    #[serde(
-        default,
-        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub pnpr: Option<PnprDistribution>,
 
     /// Sigstore-based supply-chain evidence the npm registry attaches
     /// to a published version. When `provenance` is present the
@@ -66,36 +60,28 @@ pub struct PackageDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub attestations: Option<AttestationsDist>,
+
+    /// Tarball-verified facts `pnpr` computes from the archive's own
+    /// bytes and attaches under `dist.pnpr`.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pnpr: Option<PnprDistribution>,
 }
 
-/// Tarball-derived facts published under `dist.pnpr`.
+/// Tarball-verified facts `pnpr` attaches to `dist.pnpr`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PnprDistribution {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bins: Option<Vec<PnprBin>>,
-    /// Whether the archive contains build triggers, when known.
+    /// The build-trigger verdict of `pnpm_tarball::tar_requires_build`.
     #[serde(
         default,
         deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",
         skip_serializing_if = "Option::is_none"
     )]
     pub requires_build: Option<bool>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PnprBin {
-    pub name: String,
-    pub path: String,
-    pub shebang: Option<PnprShebang>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PnprShebang {
-    pub prog: Option<String>,
-    pub args: String,
 }
 
 /// Container for the attestation evidence a version exposes on its

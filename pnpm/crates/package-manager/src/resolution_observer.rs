@@ -38,7 +38,6 @@ pub struct ResolvedPackageHint<'a> {
     /// registry published one. The per-file term of the download
     /// priority's pipeline-work estimate.
     pub file_count: Option<usize>,
-    pub bins: Option<&'a serde_json::Value>,
     /// Registry artifact revision. Its presence selects the immutable
     /// one-request, no-redirect download policy on the client.
     pub revision: Option<u64>,
@@ -150,14 +149,6 @@ impl ObservingResolver {
             tarball_url,
             unpacked_size: manifest_unpacked_size(result.package.manifest.as_deref()),
             file_count: manifest_file_count(result.package.manifest.as_deref()),
-            bins: result.package.manifest
-                .as_ref()
-                .and_then(|manifest| {
-                    manifest
-                        .get("dist")?
-                        .get("pnpr")?
-                        .get("bins")
-                }),
             revision,
             requires_build: manifest_requires_build(result.package.manifest.as_deref()),
             from_registry: is_registry_resolution(&result.resolved_via),

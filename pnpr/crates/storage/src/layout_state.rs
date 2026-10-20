@@ -37,8 +37,6 @@ impl Storage {
             cached: self.cached.clone(),
             tar_integrities: Arc::clone(&self.tar_integrities),
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
-            dist_stats: Arc::clone(&self.dist_stats),
-            dist_stats_cache: Arc::clone(&self.dist_stats_cache),
         }
     }
 

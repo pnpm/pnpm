@@ -26,7 +26,6 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             unpacked_size: None,
             pnpr: None,
             attestations: None,
-            pnpr: None,
         },
         dependencies: None,
         dev_dependencies: None,
