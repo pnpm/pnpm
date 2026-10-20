@@ -43,7 +43,11 @@ pub struct PackageDistribution {
     /// Decoded as leniently as [`Self::file_count`].
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
     pub unpacked_size: Option<usize>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub pnpr: Option<PnprDistribution>,
 
     /// Sigstore-based supply-chain evidence the npm registry attaches
@@ -69,6 +73,12 @@ pub struct PackageDistribution {
 pub struct PnprDistribution {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bins: Option<Vec<PnprBin>>,
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub requires_build: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

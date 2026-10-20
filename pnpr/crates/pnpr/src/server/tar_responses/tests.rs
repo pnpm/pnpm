@@ -161,6 +161,40 @@ async fn decoded_tar_records_regular_file_statistics() {
 }
 
 #[tokio::test]
+async fn a_corrupt_tgz_with_statistics_ends_the_response_with_an_error() {
+    let mut tgz = gzip(&tar(&[("package/package.json", b"{}")])).into_iter().collect::<Vec<_>>();
+    tgz.truncate(tgz.len() - 4);
+    let temp = tempfile::TempDir::new().unwrap();
+    let storage = pnpr_storage::Storage::new(
+        &pnpr_config::HostedStoreConfig::Fs,
+        temp.path().join("storage"),
+        temp.path().join("cache"),
+    )
+    .unwrap();
+    let stale = super::StaleTgz {
+        storage,
+        name: None,
+        cached: None,
+        runtime: tokio::runtime::Handle::current(),
+    };
+    let derived = super::DerivedFrom {
+        check: None,
+        hash: false,
+        record_stats: true,
+        copy: None,
+        stale,
+        limit: super::tar_decode_limit(None),
+    };
+    let body = super::gunzip_body(
+        axum::body::Body::from(tgz),
+        derived,
+        std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
+        |_, _| {},
+    );
+    assert!(axum::body::to_bytes(body, usize::MAX).await.is_err());
+}
+
+#[tokio::test]
 async fn a_tar_response_stops_at_its_decode_limit() {
     let tar = vec![0u8; 4096];
     let tgz = gzip(&tar);

@@ -486,10 +486,10 @@ fn coarsens_time_entries_by_age() {
     let time = &out["time"];
 
     assert_eq!(time["modified"], "2024-03-02");
-    assert_eq!(time["1.0.0"], "2023-12-26");
-    assert_eq!(time["2.0.0"], "2024-01-10");
-    assert_eq!(time["1.1.0"], "2024-03-19T08:31Z");
-    assert_eq!(time["1.2.0"], "2024-03-18T06:15Z");
+    assert_eq!(time["1.0.0"], "2023-12-25T23:59:59.000Z");
+    assert_eq!(time["2.0.0"], "2024-01-10T00:00:00.000Z");
+    assert_eq!(time["1.1.0"], "2024-03-19T08:30:45.123Z");
+    assert_eq!(time["1.2.0"], "2024-03-18T06:15:00.000Z");
     assert_eq!(time["unpublished"]["versions"][0], "0.9.0");
     assert_eq!(time["0.0.1"], "not a date");
     // Synthesized top-level `modified` mirrors the coarsened entry.

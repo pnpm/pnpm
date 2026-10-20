@@ -69,16 +69,16 @@ pub(super) async fn tar_response(
     source: TarSource,
 ) -> Response {
     let storage = &state.inner.storage;
-    let stats_known = match (&source.name, source.tgz_integrity.as_deref()) {
-        (Some(name), Some(key)) => storage
-            .read_dist_stats(name)
-            .await
-            .is_ok_and(|table| table.contains_key(key)),
-        _ => false,
-    };
     match preferred_coding(headers) {
         TarCoding::Zstd => {
             let mut copy = None;
+            let stats_known = match (&source.name, source.tgz_integrity.as_deref()) {
+                (Some(name), Some(key)) if source.keeps_content => storage
+                    .read_dist_stats(name)
+                    .await
+                    .is_ok_and(|table| table.contains_key(key)),
+                _ => false,
+            };
             if let (Some(name), Some(key)) = (&source.name, source.tgz_integrity.as_deref())
                 && source.keeps_content
             {
@@ -90,7 +90,16 @@ pub(super) async fn tar_response(
             decoded_response(state, tgz, source, copy, stats_known)
         }
         TarCoding::Gzip => gzip_response(storage.clone(), tgz, source),
-        TarCoding::Identity => decoded_response(state, tgz, source, None, stats_known),
+        TarCoding::Identity => {
+            let stats_known = match (&source.name, source.tgz_integrity.as_deref()) {
+                (Some(name), Some(key)) => storage
+                    .read_dist_stats(name)
+                    .await
+                    .is_ok_and(|table| table.contains_key(key)),
+                _ => false,
+            };
+            decoded_response(state, tgz, source, None, stats_known)
+        }
     }
 }
 
@@ -175,7 +184,8 @@ fn decoded_response(
         runtime.spawn(async move {
             if let Some(tar_integrity) = tar_integrity
                 && let Err(err) =
-                    storage.record_tar_integrity(&name, &key, &tar_integrity.to_string()).await
+                    storage.record_tar_integrity(&name, &key, &tar_integrity.to_string(), None)
+                        .await
             {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }

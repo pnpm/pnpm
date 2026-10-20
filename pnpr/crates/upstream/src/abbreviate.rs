@@ -37,8 +37,13 @@ pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
         return Value::Object(out);
     };
     copy_fields(&mut out, obj, ABBREVIATED_TOP_FIELDS);
-    if let Some(time) = obj.get("time").and_then(Value::as_object) {
-        let time = crate::time::coarsen_time_map(time, now);
+    if let Some(source_time) = obj.get("time").and_then(Value::as_object) {
+        let mut time = crate::time::coarsen_time_map(source_time, now);
+        for (version, published_at) in source_time {
+            if version != "modified" && published_at.is_string() {
+                time.insert(version.clone(), published_at.clone());
+            }
+        }
         if let Some(modified) = time.get("modified") {
             out.insert("modified".to_string(), modified.clone());
         }

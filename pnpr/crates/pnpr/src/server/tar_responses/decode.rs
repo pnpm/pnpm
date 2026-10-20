@@ -35,7 +35,7 @@ pub(in super::super) fn tar_decode_limit(unpacked_size: Option<u64>) -> u64 {
 
 /// Compute the integrity of the tar a stored `.tgz` decodes to. `None` when
 /// the `.tgz` is not a sequence of gzip members.
-pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<Integrity> {
+pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<(Integrity, Option<bool>)> {
     tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
 }
 
@@ -47,29 +47,67 @@ pub(in super::super) fn tar_resource_integrity(
     gzip: bool,
 ) -> Option<Integrity> {
     if gzip {
-        return tar_integrity_of(resource);
+        return tar_integrity_of(resource).map(|(integrity, _)| integrity);
     }
-    hash_within(resource, MAX_DECODED_TAR_BYTES)
+    hash_within(resource, MAX_DECODED_TAR_BYTES).map(|(integrity, _)| integrity)
 }
 
-pub(super) fn tar_integrity_within(tgz: impl Read, limit: u64) -> Option<Integrity> {
+pub(super) fn tar_integrity_within(
+    tgz: impl Read,
+    limit: u64,
+) -> Option<(Integrity, Option<bool>)> {
     hash_within(flate2::read::MultiGzDecoder::new(tgz), limit)
 }
 
-fn hash_within(tar: impl Read, limit: u64) -> Option<Integrity> {
-    let mut decoder = tar.take(limit.saturating_add(1));
-    let mut decoded = 0u64;
-    let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+struct HashingTarReader<Reader> {
+    decoder: io::Take<Reader>,
+    decoded: u64,
+    hasher: IntegrityOpts,
+    failed: bool,
+}
+
+impl<Reader: Read> Read for HashingTarReader<Reader> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        loop {
+            match self.decoder.read(buffer) {
+                Ok(0) => return Ok(0),
+                Ok(len) => {
+                    self.decoded += len as u64;
+                    self.hasher.input(&buffer[..len]);
+                    return Ok(len);
+                }
+                Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                Err(error) => {
+                    self.failed = true;
+                    return Err(error);
+                }
+            }
+        }
+    }
+}
+
+fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, Option<bool>)> {
+    let mut reader = HashingTarReader {
+        decoder: tar.take(limit.saturating_add(1)),
+        decoded: 0,
+        hasher: IntegrityOpts::new().algorithm(Algorithm::Sha512),
+        failed: false,
+    };
+    let requires_build = pnpm_tarball::tar_requires_build(&mut reader);
+    if reader.failed || !drain_tar(&mut reader) || reader.decoded > limit {
+        return None;
+    }
+    Some((reader.hasher.result(), requires_build))
+}
+
+fn drain_tar(reader: &mut impl Read) -> bool {
     let mut buf = vec![0u8; 64 * 1024];
     loop {
-        match decoder.read(&mut buf) {
-            Ok(0) => return (decoded <= limit).then(|| hasher.result()),
-            Ok(len) => {
-                decoded += len as u64;
-                hasher.input(&buf[..len]);
-            }
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
-            Err(_) => return None,
+        match reader.read(&mut buf) {
+            Ok(0) => return true,
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => return false,
         }
     }
 }
@@ -173,7 +211,7 @@ fn scan_tar(
     hasher: Option<&mut IntegrityOpts>,
     limit: u64,
 ) -> (bool, Option<pnpr_storage::DistStats>) {
-    let mut reader = DerivedReader { decoder, out, copy, hasher, decoded: 0, limit };
+    let mut reader = DerivedReader { decoder, out, copy, hasher, decoded: 0, limit, failed: false };
     let mut archive = tar::Archive::new(&mut reader);
     let stats = archive
         .entries()
@@ -308,7 +346,7 @@ fn scan_tar(
             }
         }
     }
-    (succeeded && reader.decoded <= limit, stats)
+    (succeeded && !reader.failed && reader.decoded <= limit, stats)
 }
 
 struct DerivedReader<'a, Reader> {
@@ -318,13 +356,27 @@ struct DerivedReader<'a, Reader> {
     hasher: Option<&'a mut IntegrityOpts>,
     decoded: u64,
     limit: u64,
+    failed: bool,
 }
 
 impl<Reader: Read> Read for DerivedReader<'_, Reader> {
     fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-        let len = self.decoder.read(buffer)?;
+        if self.failed {
+            return Err(io::Error::other("tar decode already failed"));
+        }
+        let len = match self.decoder.read(buffer) {
+            Ok(len) => len,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => return Err(error),
+            Err(error) => {
+                self.failed = true;
+                let _ =
+                    self.out.blocking_send(Err(io::Error::new(error.kind(), error.to_string())));
+                return Err(error);
+            }
+        };
         if len == 0 {
             if self.decoded > self.limit {
+                self.failed = true;
                 let _ = self.out.blocking_send(Err(io::Error::other(format!(
                     "the tar exceeds the {}-byte decode limit",
                     self.limit,
