@@ -3,7 +3,7 @@ import path from 'node:path'
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
-import { type LockfileObject, writeCurrentLockfile, writeLockfiles } from '@pnpm/lockfile.fs'
+import { isEmptyLockfile, type LockfileObject, writeCurrentLockfile, writeLockfiles } from '@pnpm/lockfile.fs'
 import type { HoistedDependencies, IgnoredBuilds, ProjectId } from '@pnpm/types'
 import { pick } from 'ramda'
 
@@ -37,6 +37,7 @@ function mergeIntoCurrentLockfile (
 ): LockfileObject {
   if (
     currentLockfile == null ||
+    isEmptyLockfile(currentLockfile) ||
     Object.keys(wantedLockfile.importers).every((id) => importerIds.includes(id as ProjectId))
   ) {
     return filteredLockfile
@@ -46,8 +47,9 @@ function mergeIntoCurrentLockfile (
     ...filteredLockfile.packages,
   }
   const importers = {
+    ...filteredLockfile.importers,
     ...currentLockfile.importers,
-    ...pick(importerIds, wantedLockfile.importers),
+    ...pick(importerIds, filteredLockfile.importers),
   }
   return filterLockfileByImporters(
     {

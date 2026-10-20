@@ -282,9 +282,13 @@ function provenProjects (allManifestStats: ProjectStats[], proof: ValidationProo
 }
 
 /** The projects the gate holds that are not proven installed. */
-function heldProjects ({ allProjects, opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
+function heldProjects ({ allProjects, lockfilesScan, opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
   const installCovers = createInstallCoverage(allProjects, opts)
+  const missingDirs = opts.sharedWorkspaceLockfile === false
+    ? new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
+    : undefined
   return allManifestStats.filter(({ project }) => {
+    if (missingDirs?.has(path.resolve(project.rootDir)) && !installCovers(project.rootDir)) return false
     const projectProof = proof.proofOf(project.rootDir, project.manifest)
     if (projectProof === 'proven') return false
     return (opts.selectedProjectsGraph == null && projectProof !== 'unrecorded') || installCovers(project.rootDir)
