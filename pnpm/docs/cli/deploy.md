@@ -101,7 +101,7 @@ Since v12.7.0:
 
 ## Reproducible output
 
-Since v12.15.0, when the [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/docs/source-date-epoch/) environment variable is set, `pnpm deploy` and `pnpm install` record its time in `node_modules/.modules.yaml` and `node_modules/.pnpm-workspace-state-v1.json` instead of the current time. Deploying the same project with the same lockfile to the same path then produces identical files, so a Docker layer built from the deploy directory stays cached.
+Since v12.15.0, when the [`SOURCE_DATE_EPOCH`](https://reproducible-builds.org/docs/source-date-epoch/) environment variable is set, `pnpm deploy` and `pnpm install` use it as an upper bound for the timestamps in `node_modules/.modules.yaml` and `node_modules/.pnpm-workspace-state-v1.json`. With an equivalently prepared deploy target and an epoch no later than the timestamps that would otherwise be recorded, deploying the same project with the same lockfile produces identical files, so a Docker layer built from the deploy directory stays cached.
 
 The next `pnpm install` or `pnpm run` in that directory checks the installed dependencies against the lockfile instead of trusting file modification times.
 

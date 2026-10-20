@@ -165,6 +165,8 @@ pub(super) fn modules_cache_prune_due(
     config: &Config,
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
 ) -> bool {
+    let now = SystemTime::now();
+    let effective_now = config.source_date_epoch.map_or(now, |epoch| epoch.min(now));
     modules_manifest.is_some_and(|modules| {
         crate::prune_virtual_store::should_prune_virtual_store(
             crate::prune_virtual_store::same_dir(
@@ -173,7 +175,7 @@ pub(super) fn modules_cache_prune_due(
             ),
             Some(modules.pruned_at.as_str()),
             config.modules_cache_max_age,
-            SystemTime::now(),
+            effective_now,
         )
     })
 }

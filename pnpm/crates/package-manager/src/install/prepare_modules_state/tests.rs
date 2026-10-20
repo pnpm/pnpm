@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, fs, path::Path, time::SystemTime};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::Path,
+    time::{Duration, SystemTime},
+};
 
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::Lockfile;
@@ -8,11 +13,12 @@ use pnpm_workspace_state::{ProjectEntry, WorkspaceState, load_workspace_state};
 use tempfile::tempdir;
 
 use crate::install::{
+    apply_materialization::commit::pruned_at,
     moved_tree_is_reusable,
     prepare_modules_state::{
         purge::{is_safe_modules_purge_target, purge_modules_dir_entries},
         recorded_workspace,
-        up_to_date::{FrozenTreeUpToDate, frozen_tree_up_to_date},
+        up_to_date::{FrozenTreeUpToDate, frozen_tree_up_to_date, modules_cache_prune_due},
     },
     state_options::{ModulesTreeContext, RecordedWorkspace, RepeatInstallPolicy},
 };
@@ -451,4 +457,32 @@ fn missing_or_corrupt_state_requires_relinking_only_for_an_existing_tree() {
             recorded_workspace(state.as_ref(), false, &config, NodeLinker::Isolated, &projects);
         assert!(!fresh.moved, "a first filtered install must still write its initial state");
     }
+}
+
+#[test]
+fn source_date_epoch_stamps_and_evaluates_pruned_at_against_capped_clock() {
+    let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_776_718_252);
+    let epoch = SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+    let future_epoch = now + Duration::from_hours(1);
+    let mut config = Config::new();
+    let mut prior = recorded_modules(&config, NodeLinker::Isolated);
+    prior.pruned_at = httpdate::fmt_http_date(now - Duration::from_mins(1));
+
+    assert_eq!(
+        pruned_at(Some(&prior), false, now, Some(epoch)),
+        httpdate::fmt_http_date(epoch),
+        "SOURCE_DATE_EPOCH overrides prior prunedAt even when no sweep ran",
+    );
+    assert_eq!(
+        pruned_at(Some(&prior), false, now, Some(future_epoch)),
+        httpdate::fmt_http_date(now),
+        "a future SOURCE_DATE_EPOCH is capped to now",
+    );
+
+    prior.pruned_at = httpdate::fmt_http_date(epoch);
+    config.source_date_epoch = Some(epoch);
+    assert!(
+        !modules_cache_prune_due(&config, Some(&prior)),
+        "a tree stamped with SOURCE_DATE_EPOCH does not immediately expire under that epoch",
+    );
 }

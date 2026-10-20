@@ -38,4 +38,5 @@ fn unset_or_malformed_values_are_ignored() {
     assert_eq!(read_with(Some("-1")), None);
     assert_eq!(read_with(Some("1700000000.5")), None);
     assert_eq!(read_with(Some("yesterday")), None);
+    assert_eq!(read_with(Some(&(i64::MAX as u64 / 1_000 + 1).to_string())), None);
 }

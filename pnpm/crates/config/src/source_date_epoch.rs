@@ -19,6 +19,9 @@ pub(crate) fn read_source_date_epoch<Sys: EnvVar>() -> Option<SystemTime> {
         .trim()
         .parse::<u64>()
         .ok()?;
+    if seconds > i64::MAX as u64 / 1_000 {
+        return None;
+    }
     SystemTime::UNIX_EPOCH.checked_add(Duration::from_secs(seconds))
 }
 
