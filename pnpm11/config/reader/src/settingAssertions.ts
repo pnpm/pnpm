@@ -11,15 +11,15 @@ export function renderReceivedType (value: unknown): string {
 // here. An invalid `audit.level` is especially worth catching: it would leave
 // `pnpm audit` comparing severities against `undefined`, silently reporting no
 // advisories.
+export function assertOptionalStringArray (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertStringArray(value, settingName)
+}
+
 export function assertStringArray (value: unknown, settingName: string): asserts value is string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
   }
-}
-
-export function assertOptionalStringArray (value: unknown, settingName: string): void {
-  if (value == null) return
-  assertStringArray(value, settingName)
 }
 
 export function assertOptionalBoolean (value: unknown, settingName: string): void {
@@ -33,15 +33,14 @@ export function assertBoolean (value: unknown, settingName: string): asserts val
   }
 }
 
-export function assertString (value: unknown, settingName: string): asserts value is string {
-  if (typeof value !== 'string') {
-    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a string, but got ${renderReceivedType(value)}`)
-  }
-}
-
 export function assertOptionalString (value: unknown, settingName: string): void {
   if (value == null) return
   assertString(value, settingName)
+}
+
+export function assertOptionalStringRecord (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertStringRecord(value, settingName)
 }
 
 export function assertStringRecord (value: unknown, settingName: string): void {
@@ -51,9 +50,10 @@ export function assertStringRecord (value: unknown, settingName: string): void {
   }
 }
 
-export function assertOptionalStringRecord (value: unknown, settingName: string): void {
-  if (value == null) return
-  assertStringRecord(value, settingName)
+export function assertString (value: unknown, settingName: string): asserts value is string {
+  if (typeof value !== 'string') {
+    throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be a string, but got ${renderReceivedType(value)}`)
+  }
 }
 
 // Not an `asserts` guard on purpose: it only rejects malformed shapes at

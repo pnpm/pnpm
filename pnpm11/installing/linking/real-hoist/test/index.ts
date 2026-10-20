@@ -16,6 +16,9 @@ test('hoist', async () => {
 test.each([
   ['Set', (name: string) => new Set([name])],
   ['Array', (name: string) => [name]],
+  ['Generator', function * (name: string) {
+    yield name
+  }],
 ])('hoist strips externalDependencies passed as a %s from the root dependencies', async (_kind, toExternalDependencies) => {
   const lockfile = await readWantedLockfile(testFixtures.find('fixture'), { ignoreIncompatible: true })
   const withoutExternals = hoist(lockfile!)

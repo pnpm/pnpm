@@ -150,7 +150,8 @@ export function hoist (
     lockfile,
     nodes: new Map<string, HoisterTree>(),
   }
-  const rootNode = buildRootHoisterTree(lockfile, ctx, opts?.externalDependencies)
+  const externalDependencies = toExternalDependencySet(opts?.externalDependencies)
+  const rootNode = buildRootHoisterTree(lockfile, ctx, externalDependencies)
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') continue
     rootNode.dependencies.add(buildImporterHoisterTree(importerId, importer, ctx))
@@ -158,16 +159,25 @@ export function hoist (
 
   const hoistingLimits = getHoistingLimits(lockfile, opts?.hoistingLimits)
   const hoisterResult = _hoist(rootNode, { ...opts, hoistingLimits })
-  if (opts?.externalDependencies) {
-    filterExternalDependencies(hoisterResult, opts.externalDependencies)
+  if (externalDependencies) {
+    filterExternalDependencies(hoisterResult, externalDependencies)
   }
   return hoisterResult
+}
+
+function toExternalDependencySet (
+  externalDependencies: Iterable<string> | undefined
+): Set<string> | undefined {
+  if (externalDependencies == null) return undefined
+  return externalDependencies instanceof Set
+    ? externalDependencies
+    : new Set(externalDependencies)
 }
 
 function buildRootHoisterTree (
   lockfile: LockfileObject,
   ctx: TreeContext,
-  externalDependencies?: Iterable<string>
+  externalDependencies?: Set<string>
 ): HoisterTree {
   const rootImporter = lockfile.importers['.' as ProjectId]
   const externalDepsMap: Record<string, string> = {}
@@ -210,13 +220,10 @@ function buildImporterHoisterTree (
 
 function filterExternalDependencies (
   result: HoisterResult,
-  externalDependencies: Iterable<string>
+  externalDependencies: Set<string>
 ): void {
-  const externalDepSet = externalDependencies instanceof Set
-    ? externalDependencies
-    : new Set(externalDependencies)
   for (const hoistedDep of result.dependencies.values()) {
-    if (externalDepSet.has(hoistedDep.name)) {
+    if (externalDependencies.has(hoistedDep.name)) {
       result.dependencies.delete(hoistedDep)
     }
   }
