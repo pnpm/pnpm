@@ -1,7 +1,7 @@
 use super::{
     Action, AppState, CanonicalPackageName, ConcreteKind, DistView, Ecosystem, HeaderMap, Identity,
     RegistryError, Resolved, Response, Value, addressed_registry, authorize, caller_scoped,
-    describe_tar, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
+    describe_tar, dist_stats_of, dist_view, ensure_osv_allowed, extract_upstream_version_manifest,
     extract_version_manifest, is_osv_vulnerable_packument_version, is_tar_registry, not_found,
     packument_bytes_response, packument_response, read_source_packument, registry_endpoint,
     resolve_version_or_tag, serve_packument_via_upstream, serve_tarball_via_upstream,
@@ -67,7 +67,17 @@ pub(super) async fn serve_registry_version_manifest(
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
+    let dist_stats = match dist_stats_of(state, registry, &resolved_source, &name).await {
+        Ok(table) => table,
+        Err(err) => return err.into_response(),
+    };
+    let view = dist_view(
+        state,
+        registry,
+        &resolved_source,
+        tar_integrities.as_deref(),
+        dist_stats.as_deref(),
+    );
     let manifest = match view.revision_registry {
         Some(source_registry) => extract_upstream_version_manifest(
             &packument,
@@ -81,6 +91,9 @@ pub(super) async fn serve_registry_version_manifest(
     let Some(mut manifest) = manifest else {
         return not_found();
     };
+    if let Some(table) = view.dist_stats {
+        super::describe_version_dist_stats(&mut manifest, table);
+    }
     if let Some(table) = view.tar_integrities {
         describe_tar(&mut manifest, table, view.tar_registry);
     }
@@ -275,7 +288,17 @@ pub(super) async fn serve_registry_packument(
         Ok(table) => table,
         Err(err) => return err.into_response(),
     };
-    let view = dist_view(state, registry, &resolved_source, tar_integrities.as_deref());
+    let dist_stats = match dist_stats_of(state, registry, &resolved_source, &name).await {
+        Ok(table) => table,
+        Err(err) => return err.into_response(),
+    };
+    let view = dist_view(
+        state,
+        registry,
+        &resolved_source,
+        tar_integrities.as_deref(),
+        dist_stats.as_deref(),
+    );
     match &resolved_source {
         RegistrySource::Upstream(source) => {
             // The upstream registry's per-package rules gate every served

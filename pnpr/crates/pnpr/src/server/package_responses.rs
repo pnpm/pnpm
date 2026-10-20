@@ -1,8 +1,8 @@
 use super::{
     ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
-    declared_tarball_integrity, describe_tars, filter_osv_vulnerable_versions, header,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming, tarball_basename,
+    declared_tarball_integrity, describe_dist_stats, describe_tars, filter_osv_vulnerable_versions,
+    header, rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming, tarball_basename,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -156,6 +156,9 @@ pub(super) fn packument_response(
             rewrite_upstream_tarball_urls(&mut doc, name, source_registry, tarball_base);
         }
         None => rewrite_tarball_urls(&mut doc, name, tarball_base),
+    }
+    if let Some(table) = view.dist_stats {
+        describe_dist_stats(&mut doc, table);
     }
     if let Some(table) = view.tar_integrities {
         describe_tars(&mut doc, table, view.tar_registry);

@@ -472,6 +472,28 @@ registries:
     assert!(config.requires_full_metadata_for_registry("https://time.example.com/"));
 }
 
+#[test]
+fn pnpr_registry_waives_full_metadata_for_trust_policy_and_time_based() {
+    let yaml = r"
+resolutionMode: time-based
+trustPolicy: no-downgrade
+registries:
+  https://pnpr.example.com/: {serverType: pnpr}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://pnpr.example.com/"));
+    assert!(!config.requires_full_metadata_for_registry("https://pnpr.example.com"));
+    assert!(config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+
+    let policy_fn = config.requires_full_metadata_for_registry_fn();
+    assert!(!policy_fn("https://pnpr.example.com/"));
+    assert!(!policy_fn("https://pnpr.example.com"));
+    assert!(policy_fn("https://registry.npmjs.org/"));
+}
+
 /// Nothing is filtered when no registry can need full metadata.
 #[test]
 fn no_filtered_mirror_without_a_reason_for_full_metadata() {

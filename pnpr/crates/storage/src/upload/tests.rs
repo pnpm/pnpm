@@ -407,6 +407,8 @@ fn replicas() -> (Storage, Storage, TempDir, TempDir) {
         Storage {
             tar_integrities: hosted.namespaced(crate::tar_integrities::NAMESPACE),
             tar_integrity_cache: std::sync::Arc::default(),
+            dist_stats: hosted.namespaced(crate::dist_stats::NAMESPACE),
+            dist_stats_cache: std::sync::Arc::default(),
             hosted: crate::namespace(&hosted, ""),
             root: hosted,
             cached: crate::Store::new(temp.path().join("cache")),

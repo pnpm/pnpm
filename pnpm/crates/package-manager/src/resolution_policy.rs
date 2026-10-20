@@ -247,5 +247,6 @@ pub(crate) fn pick_package_context<'a>(
                 retry_opts: config.retry_opts(),
             },
         },
+        registry_options_by_url: Some(&config.registry_options_by_url),
     }
 }

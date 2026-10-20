@@ -43,6 +43,8 @@ pub struct PackageDistribution {
     /// Decoded as leniently as [`Self::file_count`].
     #[serde(default, deserialize_with = "crate::wire_tolerance::deserialize_advisory_count")]
     pub unpacked_size: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pnpr: Option<PnprDistribution>,
 
     /// Sigstore-based supply-chain evidence the npm registry attaches
     /// to a published version. When `provenance` is present the
@@ -82,6 +84,28 @@ pub struct PnprDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub requires_build: Option<bool>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprDistribution {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bins: Option<Vec<PnprBin>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprBin {
+    pub name: String,
+    pub path: String,
+    pub shebang: Option<PnprShebang>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprShebang {
+    pub prog: Option<String>,
+    pub args: String,
 }
 
 /// Container for the attestation evidence a version exposes on its

@@ -313,14 +313,15 @@ mod tests;
 /// registry, as [`Config::requires_full_metadata_for_registry_fn`] answers it.
 pub type NeedsFullMetadataFor = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 
-/// Whether a resolution has to read full packument metadata: trust evidence
-/// (`_npmUser`) is never in the abbreviated form, and a time-based resolution
-/// needs `time`, which a registry may or may not carry there.
 fn full_metadata_policy(
     trust_policy: TrustPolicy,
     time_based: bool,
     supports_time_field: bool,
+    server_type: Option<pnpm_lockfile::RegistryServerType>,
 ) -> bool {
+    if server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr) {
+        return false;
+    }
     trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
 }
 

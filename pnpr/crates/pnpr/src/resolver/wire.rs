@@ -83,13 +83,13 @@ pub(super) fn package_frame(
     if let Some(count) = hint.file_count {
         frame["fileCount"] = serde_json::Value::from(count);
     }
+    if let Some(bins) = hint.bins {
+        frame["bins"] = bins.clone();
+    }
     if tarball_url == hint.tarball_url
         && let Some(revision) = hint.revision
     {
         frame["revision"] = serde_json::Value::from(revision);
-    }
-    if let Some(requires_build) = hint.requires_build {
-        frame["requiresBuild"] = serde_json::Value::from(requires_build);
     }
     frame
 }
@@ -153,30 +153,32 @@ fn frozen_package_frame(
     }
     // The frame carries the integrity the client prefetches against;
     // an entry that pins none has no frame to announce.
-    let Ok((upstream_tarball_url, Some(integrity))) =
+    let Ok((tarball_url, Some(integrity))) =
         tarball_url_and_integrity(&inputs.snapshot.resolution, inputs.package_key, inputs.config)
     else {
         return None;
     };
     let name = inputs.package_key.name.to_string();
     let version = inputs.package_key.suffix.version().to_string();
+    let upstream_tarball_url = tarball_url;
     let tarball_url = inputs.router.route_url(&name, &version, &upstream_tarball_url);
     if !seen_urls.insert(tarball_url.clone()) {
         return None;
     }
     let id = format!("{name}@{version}");
+    let integrity = integrity.to_string();
     let revision =
         pnpr_served_revision(&inputs.snapshot.resolution, &tarball_url, &upstream_tarball_url);
-    let stats = frozen_dist_stats(inputs.dist_stats, &name, &version);
+    let (unpacked_size, file_count) = frozen_dist_stats(inputs.dist_stats, &name, &version);
     let frame = package_frame(
         inputs.router,
         &ResolvedPackageHint {
-            integrity: &integrity.to_string(),
+            integrity: &integrity,
             tarball_url: &tarball_url,
-            unpacked_size: stats.unpacked_size,
-            file_count: stats.file_count,
+            unpacked_size,
+            file_count,
+            bins: None,
             revision,
-            requires_build: stats.requires_build,
             // The URL is already routed (canonical → endpoint above), so
             // re-routing by registry would be redundant; route_url is a
             // no-op on an already-routed URL.
@@ -195,10 +197,10 @@ fn frozen_dist_stats(
     stats: &ObservedDistStats,
     name: &str,
     version: &str,
-) -> pnpm_resolving_npm_resolver::DistStats {
+) -> (Option<usize>, Option<usize>) {
     stats
         .get(&(name.to_string(), version.to_string()))
-        .map_or_else(pnpm_resolving_npm_resolver::DistStats::default, |entry| *entry)
+        .map_or((None, None), |entry| (entry.unpacked_size, entry.file_count))
 }
 
 /// The tarball revision a frame announces. Only a URL still pointing at the

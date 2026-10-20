@@ -13,8 +13,7 @@
 //! fetched `.tgz` files are already verified, so they are not hashed again.
 
 pub(super) use decode::{
-    MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of, tar_integrity_within,
-    tar_resource_integrity,
+    MAX_CONCURRENT_TAR_DECODES, tar_decode_limit, tar_integrity_of, tar_resource_integrity,
 };
 
 use super::{AppState, CanonicalPackageName, HeaderMap, Response, TarCopy, header, open_variant};
@@ -70,21 +69,28 @@ pub(super) async fn tar_response(
     source: TarSource,
 ) -> Response {
     let storage = &state.inner.storage;
+    let stats_known = match (&source.name, source.tgz_integrity.as_deref()) {
+        (Some(name), Some(key)) => storage
+            .read_dist_stats(name)
+            .await
+            .is_ok_and(|table| table.contains_key(key)),
+        _ => false,
+    };
     match preferred_coding(headers) {
         TarCoding::Zstd => {
             let mut copy = None;
             if let (Some(name), Some(key)) = (&source.name, source.tgz_integrity.as_deref())
                 && source.keeps_content
             {
-                if let Some((file, len)) = open_variant(storage, name, key).await {
+                if stats_known && let Some((file, len)) = open_variant(storage, name, key).await {
                     return encoded_response(tgz, streaming::stream_file(file), Some(len), "zstd");
                 }
                 copy = TarCopy::start(&state.inner.proxy.tar_variants, storage, name, key).await;
             }
-            decoded_response(state, tgz, source, copy)
+            decoded_response(state, tgz, source, copy, stats_known)
         }
         TarCoding::Gzip => gzip_response(storage.clone(), tgz, source),
-        TarCoding::Identity => decoded_response(state, tgz, source, None),
+        TarCoding::Identity => decoded_response(state, tgz, source, None, stats_known),
     }
 }
 
@@ -147,6 +153,7 @@ fn decoded_response(
     tgz: Response,
     source: TarSource,
     copy: Option<TarCopy>,
+    stats_known: bool,
 ) -> Response {
     let storage = state.inner.storage.clone();
     let (mut parts, body) = tgz.into_parts();
@@ -156,24 +163,29 @@ fn decoded_response(
     let derived = DerivedFrom {
         check: source.check(),
         hash: tgz_integrity.is_some() && !source.tar_integrity_known,
+        record_stats: tgz_integrity.is_some() && !stats_known,
         copy,
         limit: source.decode_limit,
         stale: source.stale(storage.clone()),
     };
     let runtime = tokio::runtime::Handle::current();
     let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
-    let body =
-        gunzip_body(body, derived, decodes, move |tar_integrity, requires_build| {
-            let (Some(key), Some(name)) = (tgz_integrity, name) else { return };
-            runtime.spawn(async move {
-            if let Err(err) = storage
-                .record_tar_integrity(&name, &key, &tar_integrity.to_string(), requires_build)
-                .await
+    let body = gunzip_body(body, derived, decodes, move |tar_integrity, stats| {
+        let (Some(key), Some(name)) = (tgz_integrity, name) else { return };
+        runtime.spawn(async move {
+            if let Some(tar_integrity) = tar_integrity
+                && let Err(err) =
+                    storage.record_tar_integrity(&name, &key, &tar_integrity.to_string()).await
             {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }
+            if let Some(stats) = stats
+                && let Err(err) = storage.record_dist_stats(&name, &key, stats).await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "recording tar statistics failed");
+            }
         });
-        });
+    });
     Response::from_parts(parts, body)
 }
 

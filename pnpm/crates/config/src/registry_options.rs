@@ -240,56 +240,42 @@ impl Config {
     /// need the full packument requested up front.
     #[must_use]
     pub fn requires_full_metadata_for_resolution(&self) -> bool {
-        self.full_metadata_policy(self.registry_supports_time_field)
+        let server_type =
+            pnpm_lockfile::registry_server_type(&self.registry_options_by_url, &self.registry);
+        self.full_metadata_policy(self.registry_supports_time_field, server_type)
     }
 
-    /// The same policy, asked of one registry: a registry that declares
-    /// `supportsTimeField` answers for itself, so a time-based resolution
-    /// reads abbreviated metadata from the registries that carry `time` and
-    /// full metadata only from the ones that do not.
-    ///
-    /// A registry with no declaration answers exactly what
-    /// [`Self::requires_full_metadata_for_resolution`] does.
     #[must_use]
     pub fn requires_full_metadata_for_registry(&self, registry: &str) -> bool {
-        self.full_metadata_policy(self.registry_supports_time_field(registry))
+        let server_type =
+            pnpm_lockfile::registry_server_type(&self.registry_options_by_url, registry);
+        self.full_metadata_policy(self.registry_supports_time_field(registry), server_type)
     }
 
-    /// Whether a full packument, once fetched, is stored and read in pnpm's
-    /// filtered form rather than verbatim.
-    ///
-    /// Answered for the most demanding registry — one that carries no `time`
-    /// — because [`Self::requires_full_metadata_for_registry`] can ask for a
-    /// full document at a registry
-    /// [`Self::requires_full_metadata_for_resolution`] would have left on
-    /// abbreviated metadata, and both have to agree on which mirror that
-    /// document lands in. It is consulted only when a full document is
-    /// actually fetched, so answering for the demanding case costs the others
-    /// nothing.
     #[must_use]
     pub fn requires_filtered_full_metadata(&self) -> bool {
-        self.full_metadata_policy(false)
+        self.full_metadata_policy(false, None)
     }
 
-    /// Whether `registry`'s abbreviated metadata carries the `time` field,
-    /// from its own declaration if it has one and from the
-    /// `registrySupportsTimeField` setting otherwise.
     #[must_use]
     pub fn registry_supports_time_field(&self, registry: &str) -> bool {
         pnpm_lockfile::registry_supports_time_field(&self.registry_options_by_url, registry)
             .unwrap_or(self.registry_supports_time_field)
     }
 
-    pub(super) fn full_metadata_policy(&self, supports_time_field: bool) -> bool {
+    pub(super) fn full_metadata_policy(
+        &self,
+        supports_time_field: bool,
+        server_type: Option<pnpm_lockfile::RegistryServerType>,
+    ) -> bool {
         full_metadata_policy(
             self.trust_policy,
             self.resolution_mode == ResolutionMode::TimeBased,
             supports_time_field,
+            server_type,
         )
     }
 
-    /// [`Self::requires_full_metadata_for_registry`] as a closure the resolver
-    /// can hold, capturing the four facts it needs rather than the config.
     #[must_use]
     pub fn requires_full_metadata_for_registry_fn(&self) -> NeedsFullMetadataFor {
         let registry_options_by_url = self.registry_options_by_url.clone();
@@ -300,7 +286,9 @@ impl Config {
             let supports_time_field =
                 pnpm_lockfile::registry_supports_time_field(&registry_options_by_url, registry)
                     .unwrap_or(default_supports_time_field);
-            full_metadata_policy(trust_policy, time_based, supports_time_field)
+            let server_type =
+                pnpm_lockfile::registry_server_type(&registry_options_by_url, registry);
+            full_metadata_policy(trust_policy, time_based, supports_time_field, server_type)
         })
     }
 

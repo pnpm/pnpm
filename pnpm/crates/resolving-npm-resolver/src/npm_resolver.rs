@@ -500,6 +500,7 @@ impl<Cache: PackageMetaCache> RegistryMetadataClient<Cache> {
                     retry_opts: self.retry_opts,
                 },
             },
+            registry_options_by_url: Some(&format.registry_options_by_url),
         }
     }
 }

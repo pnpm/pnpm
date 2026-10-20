@@ -28,6 +28,18 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// pick over a newer one the fetcher could only reject.
     pub store_view: Option<&'a crate::OfflineStoreView>,
     pub metadata: MetadataRequestContext<'a, Cache>,
+    pub registry_options_by_url:
+        Option<&'a std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
+}
+
+impl<Cache: PackageMetaCache> PickPackageContext<'_, Cache> {
+    #[must_use]
+    pub fn is_pnpr_registry(&self, registry: &str) -> bool {
+        self.registry_options_by_url.is_some_and(|options| {
+            pnpm_lockfile::registry_server_type(options, registry)
+                == Some(pnpm_lockfile::RegistryServerType::Pnpr)
+        })
+    }
 }
 
 pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {

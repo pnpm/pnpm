@@ -34,6 +34,7 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
             ignore_missing_time_field: false,
         },
         store_view: None,
+        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -55,6 +56,66 @@ async fn normal_range_fetches_when_trust_policy_is_active() {
     );
     let mut opts = default_opts(&registry);
     opts.preferred_version_selectors = Some(&selectors);
+    opts.policy.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
+
+    pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn pnpr_registry_does_not_fetch_full_metadata_under_trust_policy() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let mut registry_options_by_url = std::collections::BTreeMap::new();
+    registry_options_by_url.insert(
+        registry.clone(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            supports_time_field: None,
+        },
+    );
+    let needs_full: Box<dyn Fn(&str) -> bool + Send + Sync> = Box::new(|_| false);
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: Some(&*needs_full),
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            network: pnpm_config::NetworkPolicy::Online,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        registry_options_by_url: Some(&registry_options_by_url),
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let mut opts = default_opts(&registry);
     opts.policy.trust_policy = Some(pnpm_config::TrustPolicy::NoDowngrade);
 
     pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("ok");

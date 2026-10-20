@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use pnpm_package_manifest::is_truthy;
 use serde_json::Value;
 
 /// Top-level packument fields *copied verbatim* into the abbreviated
@@ -19,6 +20,7 @@ pub(super) const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
     "peerDependencies",
     "optionalDependencies",
     "bundleDependencies",
+    "bundledDependencies",
     "cpu",
     "os",
     "libc",
@@ -56,6 +58,7 @@ pub(super) fn abbreviate_versions(versions: &serde_json::Map<String, Value>) -> 
         let mut trimmed = serde_json::Map::new();
         copy_fields(&mut trimmed, version_obj, ABBREVIATED_VERSION_FIELDS);
         trim_dist_fields(&mut trimmed);
+        copy_npm_user(&mut trimmed, version_obj);
         abbreviated.insert(version_id.clone(), Value::Object(trimmed));
     }
     Value::Object(abbreviated)
@@ -86,5 +89,32 @@ pub(super) fn trim_dist_fields(version: &mut serde_json::Map<String, Value>) {
         .is_some_and(|integrity| !integrity.is_empty())
     {
         dist.remove("shasum");
+    }
+}
+
+pub(super) fn copy_npm_user(
+    out: &mut serde_json::Map<String, Value>,
+    source: &serde_json::Map<String, Value>,
+) {
+    let Some(user) = source
+        .get("_npmUser")
+        .or_else(|| source.get("_npm_user"))
+        .and_then(Value::as_object)
+    else {
+        return;
+    };
+    let mut npm_user = serde_json::Map::new();
+    if user
+        .get("trustedPublisher")
+        .or_else(|| user.get("trusted_publisher"))
+        .is_some_and(is_truthy)
+    {
+        npm_user.insert("trustedPublisher".to_string(), Value::Bool(true));
+    }
+    if user.get("approver").is_some_and(is_truthy) {
+        npm_user.insert("approver".to_string(), Value::Bool(true));
+    }
+    if !npm_user.is_empty() {
+        out.insert("_npmUser".to_string(), Value::Object(npm_user));
     }
 }

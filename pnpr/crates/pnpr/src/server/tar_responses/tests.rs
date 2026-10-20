@@ -7,6 +7,19 @@ fn gzip(bytes: &[u8]) -> Vec<u8> {
     encoder.finish().unwrap()
 }
 
+fn tar(files: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, contents) in files {
+        let mut header = tar::Header::new_gnu();
+        header.set_path(path).unwrap();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, *contents).unwrap();
+    }
+    builder.into_inner().unwrap()
+}
+
 #[test]
 fn a_tgz_that_decodes_past_the_limit_has_no_tar() {
     let tgz = gzip(&[0u8; 4096]);
@@ -52,12 +65,20 @@ async fn decode_and_derive(
         cached: None,
         runtime: tokio::runtime::Handle::current(),
     };
-    let derived =
-        super::DerivedFrom { check: expected.parse().ok(), hash: true, copy: None, stale, limit };
+    let derived = super::DerivedFrom {
+        check: expected.parse().ok(),
+        hash: true,
+        record_stats: false,
+        copy: None,
+        stale,
+        limit,
+    };
     let decodes = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
     let body =
         super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, move |integrity, _| {
-            let _ = sender.send(integrity);
+            if let Some(integrity) = integrity {
+                let _ = sender.send(integrity);
+            }
         });
     let tar = axum::body::to_bytes(body, usize::MAX).await.ok().map(|bytes| bytes.to_vec());
     (
@@ -90,6 +111,53 @@ async fn only_bytes_that_match_the_digest_complete_a_tar_response() {
     let (served, derived) = decode_and_derive(tgz, &stale, limit).await;
     assert_eq!(served, None, "stale bytes end the response with an error");
     assert!(derived.is_none(), "stale bytes derive nothing");
+}
+
+#[tokio::test]
+async fn decoded_tar_records_regular_file_statistics() {
+    let tar =
+        tar(&[("package/package.json", b"{}"), ("package/bin/tool", b"#!/usr/bin/env node\n")]);
+    let tgz = gzip(&tar);
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let temp = tempfile::TempDir::new().unwrap();
+    let storage = pnpr_storage::Storage::new(
+        &pnpr_config::HostedStoreConfig::Fs,
+        temp.path().join("storage"),
+        temp.path().join("cache"),
+    )
+    .unwrap();
+    let stale = super::StaleTgz {
+        storage,
+        name: None,
+        cached: None,
+        runtime: tokio::runtime::Handle::current(),
+    };
+    let derived = super::DerivedFrom {
+        check: None,
+        hash: false,
+        record_stats: true,
+        copy: None,
+        stale,
+        limit: super::tar_decode_limit(None),
+    };
+    let body = super::gunzip_body(
+        axum::body::Body::from(tgz),
+        derived,
+        std::sync::Arc::new(tokio::sync::Semaphore::new(1)),
+        move |_, stats| {
+            let _ = sender.send(stats);
+        },
+    );
+    let served = axum::body::to_bytes(body, usize::MAX).await.unwrap();
+    assert_eq!(served.as_ref(), tar.as_slice());
+    assert_eq!(
+        receiver.await.unwrap(),
+        Some(pnpr_storage::DistStats {
+            file_count: 2,
+            unpacked_size: b"{}".len() as u64 + b"#!/usr/bin/env node\n".len() as u64,
+            bins: None,
+        }),
+    );
 }
 
 #[tokio::test]
@@ -134,6 +202,7 @@ async fn a_tar_response_decodes_only_with_a_permit() {
     let derived = super::DerivedFrom {
         check: None,
         hash: false,
+        record_stats: false,
         copy: None,
         stale,
         limit: super::tar_decode_limit(None),

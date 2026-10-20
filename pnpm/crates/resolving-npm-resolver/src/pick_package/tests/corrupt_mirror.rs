@@ -58,6 +58,7 @@ async fn offline_over_a_damaged_mirror_fragment_errors() {
             ignore_missing_time_field: false,
         },
         store_view: None,
+        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -124,6 +125,7 @@ async fn a_damaged_fragment_behind_a_304_is_replaced_by_a_bypassing_refetch() {
             ignore_missing_time_field: false,
         },
         store_view: None,
+        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -207,6 +209,7 @@ async fn a_registry_version_of_the_wrong_shape_is_skipped_without_a_refetch() {
             ignore_missing_time_field: false,
         },
         store_view: None,
+        registry_options_by_url: None,
         metadata: crate::MetadataRequestContext {
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,

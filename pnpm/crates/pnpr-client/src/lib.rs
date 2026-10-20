@@ -352,6 +352,7 @@ pub struct ResolvedPackage {
     /// published one. The per-file term of the download priority's
     /// pipeline-work estimate.
     pub file_count: Option<usize>,
+    pub bins: Option<serde_json::Value>,
     /// Registry artifact revision, when the server resolved an immutable
     /// integrity-addressed artifact.
     pub revision: Option<TarballRevision>,

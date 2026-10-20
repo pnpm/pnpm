@@ -213,6 +213,10 @@ impl NpmResolutionVerifier {
                     cache
                         .get(&format!("{key}:full"))
                         .or_else(|| cache.get(&format!("{key}:full:filtered")))
+                        .or_else(|| {
+                            let entry = cache.get(&key)?;
+                            entry.meta.time.is_some().then_some(entry)
+                        })
                 });
             if let Some(cached) = shared {
                 let projection = project_trust_meta(cached.meta.as_ref());

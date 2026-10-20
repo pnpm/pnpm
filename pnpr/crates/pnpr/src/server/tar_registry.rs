@@ -9,7 +9,6 @@
 use super::{
     AppState, CanonicalPackageName, RegistryError, RegistrySource, Value, revision_source_registry,
 };
-use pnpr_storage::DerivedTar;
 use ssri::{Algorithm, Integrity};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -19,39 +18,55 @@ pub(super) struct DistView<'a> {
     /// The upstream whose integrity-addressed revisions may be linked. Every
     /// other version is described by its canonical resource.
     pub(super) revision_registry: Option<&'a str>,
-    /// Derived tar metadata of each version's `.tgz` (see
-    /// [`pnpr_storage::Storage::read_tar_integrities`]).
-    pub(super) tar_integrities: Option<&'a BTreeMap<String, DerivedTar>>,
-    /// Whether the addressed registry declares `tarballs: tar`.
-    pub(super) tar_registry: bool,
+    /// On a tar registry, the table its canonical resources are described by
+    /// (see [`pnpr_storage::Storage::read_tar_integrities`]). `None` describes
+    /// the published `.tgz`, at a URL on the addressed base.
+    pub(super) tar_integrities: Option<&'a BTreeMap<String, String>>,
+    pub(super) dist_stats: Option<&'a BTreeMap<String, pnpr_storage::DistStats>>,
 }
 
-/// The tar-integrity table of `name` when `source` can serve the package.
+/// The tar-integrity table of `name` when `registry` is a tar registry and
+/// `source` can serve the package.
 pub(super) async fn tar_integrities_of(
     state: &AppState,
+    registry: &str,
     source: &RegistrySource,
     name: &CanonicalPackageName,
-) -> Result<Option<Arc<BTreeMap<String, DerivedTar>>>, RegistryError> {
+) -> Result<Option<Arc<BTreeMap<String, String>>>, RegistryError> {
     let servable = matches!(source, RegistrySource::Upstream(_) | RegistrySource::Hosted(_));
-    if !servable {
+    if !servable || !is_tar_registry(state, registry) {
         return Ok(None);
     }
     state.inner.storage.read_tar_integrities(name).await.map(Some)
 }
 
+pub(super) async fn dist_stats_of(
+    state: &AppState,
+    registry: &str,
+    source: &RegistrySource,
+    name: &CanonicalPackageName,
+) -> Result<Option<Arc<BTreeMap<String, pnpr_storage::DistStats>>>, RegistryError> {
+    let servable = matches!(source, RegistrySource::Upstream(_) | RegistrySource::Hosted(_));
+    if !servable || !is_tar_registry(state, registry) {
+        return Ok(None);
+    }
+    state.inner.storage.read_dist_stats(name).await.map(Some)
+}
+
 /// How a document served through `registry` from `source` describes each
-/// version's tarball, given the derived tar table of the package.
+/// version's tarball, given the tar-integrity table of a tar registry.
 pub(super) fn dist_view<'a>(
     state: &'a AppState,
     registry: &str,
     source: &RegistrySource,
-    tar_integrities: Option<&'a BTreeMap<String, DerivedTar>>,
+    tar_integrities: Option<&'a BTreeMap<String, String>>,
+    dist_stats: Option<&'a BTreeMap<String, pnpr_storage::DistStats>>,
 ) -> DistView<'a> {
     let revision_registry = match source {
         RegistrySource::Upstream(source) => revision_source_registry(state, registry, source),
         RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     };
-    DistView { revision_registry, tar_integrities, tar_registry: is_tar_registry(state, registry) }
+    DistView { revision_registry, tar_integrities, dist_stats }
 }
 
 /// Whether the registry `key` declares `tarballs: tar`.
@@ -59,42 +74,30 @@ pub(super) fn is_tar_registry(state: &AppState, key: &str) -> bool {
     state.inner.config.routing.tar_registries.contains(key)
 }
 
-/// Overlay derived tar metadata onto every version of a packument, and on a
-/// tar registry rewrite each `dist` to describe its tar.
-pub(super) fn describe_tars(
-    doc: &mut Value,
-    table: &BTreeMap<String, DerivedTar>,
-    tar_registry: bool,
-) {
+/// Rewrite every version of a packument to describe its tar.
+pub(super) fn describe_tars(doc: &mut Value, table: &BTreeMap<String, String>) {
     let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
     for version in versions.values_mut() {
-        describe_tar(version, table, tar_registry);
+        describe_tar(version, table);
     }
 }
 
-/// Overlay `dist.pnpr.requiresBuild` when known, and on a tar registry rewrite
-/// `dist` to describe its tar: the tar's integrity when it is known, and none
-/// of the fields that name or sign the `.tgz`. A projected revision already
-/// names its tar by digest, so it is kept as projected.
-pub(super) fn describe_tar(
-    version: &mut Value,
-    table: &BTreeMap<String, DerivedTar>,
-    tar_registry: bool,
-) {
+/// Rewrite one version manifest's `dist` to describe its tar: the tar's
+/// integrity when it is known, and none of the fields that name or sign the
+/// `.tgz`. A projected revision already names its tar by digest, so it is
+/// kept as projected.
+pub(super) fn describe_tar(version: &mut Value, table: &BTreeMap<String, String>) {
     let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
-    let derived = tgz_integrity_key(dist).and_then(|key| table.get(&key));
-    dist.remove("pnpr");
-    if let Some(requires_build) = derived.and_then(|entry| entry.requires_build) {
-        dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));
-    }
-    if !tar_registry || dist.contains_key("revision") {
+    if dist.contains_key("revision") {
         return;
     }
-    let tar_integrity = derived.map(|entry| entry.tar_integrity.clone());
+    let tar_integrity = tgz_integrity_key(dist)
+        .and_then(|key| table.get(&key))
+        .cloned();
     for field in ["tarball", "shasum", "signatures", "npm-signature", "revision", "revisions"] {
         dist.remove(field);
     }
@@ -105,6 +108,38 @@ pub(super) fn describe_tar(
         None => {
             dist.remove("integrity");
         }
+    }
+}
+
+pub(super) fn describe_dist_stats(
+    doc: &mut Value,
+    table: &BTreeMap<String, pnpr_storage::DistStats>,
+) {
+    let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for version in versions.values_mut() {
+        describe_version_dist_stats(version, table);
+    }
+}
+
+pub(super) fn describe_version_dist_stats(
+    version: &mut Value,
+    table: &BTreeMap<String, pnpr_storage::DistStats>,
+) {
+    let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let Some(key) = tgz_integrity_key(dist) else {
+        return;
+    };
+    let Some(stats) = table.get(&key) else {
+        return;
+    };
+    dist.entry("fileCount").or_insert_with(|| Value::from(stats.file_count));
+    dist.entry("unpackedSize").or_insert_with(|| Value::from(stats.unpacked_size));
+    if let Some(bins) = &stats.bins {
+        dist.insert("pnpr".to_string(), serde_json::json!({ "bins": bins }));
     }
 }
 

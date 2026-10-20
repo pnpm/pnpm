@@ -19,6 +19,7 @@ pub use revision_ref_index::HostedRevisionRefWrite;
 pub(crate) use revision_ref_index::{HostedRevisionRefIndex, is_canonical_revision_ref_owner};
 
 pub use blob_write::{BlobSlot, BlobWrite, SealedBlob};
+pub use dist_stats::DistStats;
 
 pub(crate) use local_store::read_dir_if_present;
 
@@ -36,8 +37,7 @@ pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
 
 pub use layout_state::HostedLayout;
 
-pub use tar_integrities::DerivedTar;
-
+mod dist_stats;
 mod tar_integrities;
 
 mod layout_state;
@@ -155,6 +155,8 @@ pub struct Storage {
     /// organization; see [`Storage::read_tar_integrities`].
     tar_integrities: Arc<dyn HostedBackend>,
     tar_integrity_cache: Arc<tar_integrities::TarIntegrityCache>,
+    dist_stats: Arc<dyn HostedBackend>,
+    dist_stats_cache: Arc<dist_stats::DistStatsCache>,
 }
 
 /// A partial blob read, including the full size needed for HTTP range headers.
@@ -226,8 +228,17 @@ impl Storage {
             )),
         };
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
+        let dist_stats = root.namespaced(dist_stats::NAMESPACE);
         let hosted = namespace(&root, "");
-        Ok(Self { root, hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
+        Ok(Self {
+            root,
+            hosted,
+            cached,
+            tar_integrities,
+            tar_integrity_cache: Arc::default(),
+            dist_stats,
+            dist_stats_cache: Arc::default(),
+        })
     }
 
     /// Inventory all regular files, including repositories with no document

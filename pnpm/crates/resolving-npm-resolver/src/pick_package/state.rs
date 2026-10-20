@@ -116,7 +116,8 @@ impl<'a> PickState<'a> {
             ctx.needs_full_metadata_for.map_or(ctx.full_metadata, |needs_full_metadata| {
                 needs_full_metadata(opts.registry)
             });
-        let full_metadata = opts.request.optional || policy_wants_full_metadata;
+        let optional_needs_full = opts.request.optional && !ctx.is_pnpr_registry(opts.registry);
+        let full_metadata = optional_needs_full || policy_wants_full_metadata;
         let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
         let base_meta_dir = if full_metadata {
             if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
