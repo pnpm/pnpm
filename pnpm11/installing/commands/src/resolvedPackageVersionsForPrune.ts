@@ -92,7 +92,9 @@ async function withEnvPackageVersions (
   if (rootDir == null) return resolved
   const envLockfile = await readEnvLockfile(rootDir)
   if (envLockfile != null) {
-    retainConfigDependencies(envLockfile, (name) => Object.hasOwn(opts.configDependencies ?? {}, name))
+    retainConfigDependencies(envLockfile, (name) =>
+      Object.hasOwn(opts.configDependencies ?? {}, name) && opts.configDependencies?.[name] != null
+    )
     pruneEnvLockfile(envLockfile)
     mergeResolvedPackageVersions(resolved, resolvedPackageVersionsFromLockfile({
       ...envLockfile,
