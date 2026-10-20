@@ -314,17 +314,6 @@ test('runs a stored extensionless CommonJS bin as the main module', context => {
   assert.equal(output.stdout.trim(), 'main bin')
 })
 
-test('loads the default manifest from the pnpm directory', context => {
-  const setup = fixture(context)
-  setup.add('example@1', { 'index.js': "console.log('loaded')" })
-  setup.manifest.packages['.'].dependencies.example = 'example@1'
-  const output = setup.run("import 'example'", {
-    manifestPath: '.pnpm/.store-manifest.json',
-    manifestEnv: false,
-  })
-  assert.equal(output.stdout.trim(), 'loaded')
-})
-
 test('unknown virtual package paths produce a loader ENOENT error', context => {
   const setup = fixture(context)
   delete setup.manifest.packages['.']

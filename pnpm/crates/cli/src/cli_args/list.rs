@@ -278,7 +278,11 @@ impl ListArgs {
         params: &[String],
         lockfile_dir: &Path,
     ) -> miette::Result<Vec<ProjectHierarchy>> {
-        let state = LoadedState::for_config(lockfile_dir, config, self.graph.lockfile_only)?;
+        let state = LoadedState::load(
+            lockfile_dir,
+            Some(config.modules_dir.as_path()),
+            self.graph.lockfile_only,
+        )?;
         let env = state.env_for_config(lockfile_dir, config);
 
         let hierarchies = match env

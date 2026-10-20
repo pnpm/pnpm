@@ -32,7 +32,7 @@ Configuration sources replace the whole `nodeLinker` value. A higher-priority sc
 * **pnp** - no `node_modules`. Plug'n'Play is an innovative strategy for Node that is [used by Yarn Berry][pnp]. It is recommended to also set `symlink` setting to `false` when using `pnp` as
 your linker.
 
-* **loaded** - experimental loading directly from the content-addressable store. With the default `modulesDir`, pnpm preloads its Node.js loader for scripts and commands and stores installation state and bin shims in `.pnpm` without creating an application `node_modules` directory. An explicit `modulesDir` is preserved. Selected compatibility packages and their dependency trees use the global virtual store. See [Experimental store loader](../store-loader.md).
+* **loaded** - experimental loading directly from the content-addressable store. pnpm preloads its Node.js loader for scripts and commands. Selected compatibility packages and their dependency trees use the global virtual store. See [Experimental store loader](../store-loader.md).
 
 [pnp]: https://yarnpkg.com/features/pnp
 [--preserve-symlinks]: https://nodejs.org/api/cli.html#cli_preserve_symlinks

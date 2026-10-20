@@ -13,11 +13,11 @@ nodeLinker:
     - vitest
 ```
 
-With the default `modulesDir`, run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `.pnpm/.store-manifest.json`, writes its bundled runtime to `.pnpm/.store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly. A fresh install with the default `modulesDir` creates no application `node_modules` directory. An explicit `modulesDir` is preserved.
+Run `pnpm install`, then use `pnpm run`, `pnpm test`, and `pnpm exec` normally. pnpm generates `node_modules/.pnpm/.store-manifest.json`, writes its bundled runtime to `node_modules/.pnpm/.store-loader.mjs`, and preloads it for scripts and commands. Node child processes inherit the preload through `NODE_OPTIONS`. Generated JavaScript bin shims also register the loader when invoked directly.
 
 `nodeLinker.excluded` contains exact package names. All installed versions and peer contexts of a selected name, plus their complete dependency trees, are materialized as normal GVS packages. Other registry packages stay in the content-addressable store (CAS). A build package with a matching side-effects cache entry stays in CAS. A build cache miss is materialized in GVS and follows the normal build approval policy. Packages containing native `.node` addons, patched packages, runtimes such as `node@runtime:`, and their dependency trees are materialized automatically.
 
-The mode enables the global virtual store. `.pnpm` holds installation state and bin shims, not packages. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
+The mode enables the global virtual store. `node_modules` holds only installation state and bin shims, not packages. GVS packages have their normal dependency links outside the application. Workspace sources remain in their project directories. The project retains its current lockfile and store registration; keep these files while using the installation.
 
 When switching an existing project, remove its old `node_modules` directories before installing. Changing the mode does not remove directories belonging to the previous layout.
 
@@ -32,7 +32,7 @@ The loader is embedded in the pnpm executable and needs no separately installed 
 The loader requires Node.js 24.18.0 or a later 24.x release, or Node.js 26.2.0 or later. On other versions, every Node.js process that preloads it stops with `ERR_PNPM_LOADER_UNSUPPORTED_NODE`. After a CAS install, run Node directly with:
 
 ```sh
-node --import ./.pnpm/.store-loader.mjs app.mjs
+node --import ./node_modules/.pnpm/.store-loader.mjs app.mjs
 ```
 
 For standalone integration, make the loader available separately from the application's dependencies and preload its registration module:
@@ -42,14 +42,14 @@ PNPM_LOADER_MANIFEST=/absolute/path/to/.store-manifest.json \
   node --import /absolute/path/to/esm-loader/register.mjs app.mjs
 ```
 
-On Windows, set `PNPM_LOADER_MANIFEST` using your shell's environment-variable syntax. If the variable is omitted, the loader reads `.pnpm/.store-manifest.json` from the current working directory.
+On Windows, set `PNPM_LOADER_MANIFEST` using your shell's environment-variable syntax. If the variable is omitted, the loader reads `node_modules/.pnpm/.store-manifest.json` from the current working directory.
 
 A custom preload can register an explicit manifest:
 
 ```js
 import { registerStoreLoader } from '@pnpm/esm-loader'
 
-registerStoreLoader(new URL('./.pnpm/.store-manifest.json', import.meta.url))
+registerStoreLoader(new URL('./node_modules/.pnpm/.store-manifest.json', import.meta.url))
 ```
 
 Run it with `node --import ./preload.mjs app.mjs`. The registration returns Node's hook handle, which has a `deregister()` method. Register before importing application dependencies. Workers inherit a `--import` preload through Node's default execution arguments.
