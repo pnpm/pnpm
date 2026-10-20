@@ -1,4 +1,4 @@
-use super::{CheckboxPrompt, CheckboxTheme, Key, KeyOutcome};
+use super::{ActiveRowStyle, CheckboxPrompt, CheckboxTheme, Key, KeyOutcome};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Mode {
@@ -23,7 +23,7 @@ impl<Value> CheckboxPrompt<Value> {
         self.theme = CheckboxTheme {
             checked: String::new(),
             unchecked: String::new(),
-            highlight_active: true,
+            active_row: ActiveRowStyle::Cyan,
         };
         self
     }

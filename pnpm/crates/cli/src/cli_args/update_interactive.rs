@@ -19,7 +19,7 @@ pub(crate) use global::select_global_package_groups;
 
 use crate::{
     checkbox_prompt::{
-        CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
+        ActiveRowStyle, CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
     },
     cli_args::{
         global::has_pnpm_cli_dependency,
@@ -72,6 +72,34 @@ enum PromptStyle {
     GlobalGroups,
 }
 
+impl PromptStyle {
+    /// The prompt for `rows`, whose answer names the checked rows by index.
+    fn checkbox_prompt(self, message: &str, rows: &[PromptRow]) -> CheckboxPrompt<usize> {
+        let items = rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| match row {
+                PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
+                PromptRow::Choice { label, short, .. } => CheckboxItem::Choice(CheckboxChoice {
+                    name: label.clone(),
+                    short: short.clone(),
+                    value: index,
+                }),
+            })
+            .collect();
+        match self {
+            Self::Dependencies => CheckboxPrompt::new(message, items)
+                .required(true)
+                .theme(CheckboxTheme {
+                    checked: "●".to_string(),
+                    unchecked: "○".to_string(),
+                    active_row: ActiveRowStyle::Background,
+                }),
+            Self::GlobalGroups => CheckboxPrompt::new(message, items),
+        }
+    }
+}
+
 /// How `update --interactive` asks which dependencies to update.
 ///
 /// `clap` never sets it. It exists so a test can answer the prompt the
@@ -96,30 +124,7 @@ impl UpdatePrompt {
     ) -> miette::Result<Option<Vec<usize>>> {
         match self {
             Self::Terminal => {
-                let items = rows
-                    .iter()
-                    .enumerate()
-                    .map(|(index, row)| match row {
-                        PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
-                        PromptRow::Choice { label, short, .. } => {
-                            CheckboxItem::Choice(CheckboxChoice {
-                                name: label.clone(),
-                                short: short.clone(),
-                                value: index,
-                            })
-                        }
-                    })
-                    .collect();
-                let prompt = match style {
-                    PromptStyle::Dependencies => CheckboxPrompt::new(message, items)
-                        .required(true)
-                        .theme(CheckboxTheme {
-                            checked: "●".to_string(),
-                            unchecked: "○".to_string(),
-                            highlight_active: false,
-                        }),
-                    PromptStyle::GlobalGroups => CheckboxPrompt::new(message, items),
-                };
+                let prompt = style.checkbox_prompt(message, rows);
                 match prompt
                     .interact()
                     .into_diagnostic()

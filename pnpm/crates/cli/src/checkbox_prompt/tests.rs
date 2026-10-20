@@ -1,4 +1,7 @@
-use super::{CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome};
+use super::{
+    ActiveRowStyle, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome,
+    on_active_background,
+};
 use console::{Key, strip_ansi_codes};
 
 fn separator(text: &str) -> CheckboxItem<&'static str> {
@@ -174,7 +177,7 @@ fn the_theme_picks_the_icons() {
         .theme(CheckboxTheme {
             checked: "●".to_string(),
             unchecked: "○".to_string(),
-            highlight_active: false,
+            active_row: ActiveRowStyle::Background,
         });
 
     press(&mut prompt, &[Key::Char(' ')]);
@@ -182,6 +185,33 @@ fn the_theme_picks_the_icons() {
     let lines = frame_lines(&prompt);
     assert_eq!(lines[3], "❯● foo 1.0.0 ❯ 2.0.0");
     assert_eq!(lines[4], " ○ bar 1.0.0 ❯ 2.0.0");
+}
+
+#[test]
+fn the_active_background_spans_the_widest_choice() {
+    let prompt = grouped_prompt()
+        .theme(CheckboxTheme {
+            checked: "●".to_string(),
+            unchecked: "○".to_string(),
+            active_row: ActiveRowStyle::Background,
+        });
+
+    assert_eq!(prompt.widest_choice_row(), "❯○ foo 1.0.0 ❯ 2.0.0".chars().count());
+    assert_eq!(
+        frame_lines(&prompt)[3],
+        "❯○ foo 1.0.0 ❯ 2.0.0",
+        "without color the row is not padded",
+    );
+}
+
+#[test]
+fn the_active_background_survives_the_rows_own_resets() {
+    let line = "❯○ foo \u{1b}[31m2.0.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m";
+
+    assert_eq!(
+        on_active_background(line, 20),
+        "\u{1b}[100m❯○ foo \u{1b}[31m2.0.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m\u{1b}[100m    \u{1b}[49m",
+    );
 }
 
 /// The page scrolls to keep the cursor on it. When the rows directly
