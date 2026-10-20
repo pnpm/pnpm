@@ -14,6 +14,7 @@ pub(super) struct SpecDirs<'a> {
     /// target's `package.json` on disk: a host that hands its project
     /// manifests over in memory need not have written one.
     pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
+    pub(super) canonical_paths: &'a pnpm_fs::CanonicalPaths,
 }
 
 /// Whether the recorded resolution of a local directory dependency's child

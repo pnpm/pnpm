@@ -171,6 +171,7 @@ pub(super) fn check_projects_content(
             packages: workspace_packages.as_ref(),
             manifests_by_dir: &project_manifests,
             catalogs: check.catalogs,
+            canonical_paths: &pnpm_fs::CanonicalPaths::default(),
         },
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),

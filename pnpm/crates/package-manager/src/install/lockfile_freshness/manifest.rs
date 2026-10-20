@@ -36,6 +36,8 @@ pub(crate) struct WorkspaceProjects<'a> {
     /// directory on disk.
     pub(crate) manifests_by_dir: &'a super::ProjectManifestsByDir<'a>,
     pub(crate) catalogs: &'a pnpm_catalogs_types::Catalogs,
+    /// Shared by every importer of one check, which link the same targets.
+    pub(crate) canonical_paths: &'a pnpm_fs::CanonicalPaths,
 }
 
 /// Which of the project's `optionalDependencies` the comparison leaves out.

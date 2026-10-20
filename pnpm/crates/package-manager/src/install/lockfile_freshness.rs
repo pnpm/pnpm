@@ -376,6 +376,12 @@ fn check_importer_freshness(
             .iter()
             .map(|(dir, manifest)| (dir.clone(), manifest)),
     );
+    let workspace = WorkspaceProjects {
+        packages: inputs.workspace_packages,
+        manifests_by_dir: &project_manifests,
+        catalogs: inputs.catalogs,
+        canonical_paths: &pnpm_fs::CanonicalPaths::default(),
+    };
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the
     // serial fold keeps the first error in importer order.
@@ -387,7 +393,7 @@ fn check_importer_freshness(
                 lockfile,
                 inputs,
                 parsed_overrides,
-                (&ignored_optional_matcher, &project_manifests),
+                (&ignored_optional_matcher, workspace),
                 importer_id,
                 manifest,
             )
@@ -404,10 +410,7 @@ fn check_single_importer(
     lockfile: &Lockfile,
     inputs: &LockfileFreshnessInputs<'_, '_>,
     parsed_overrides: Option<&[pnpm_config_parse_overrides::VersionOverride]>,
-    (ignored_optional_matcher, project_manifests): (
-        &pnpm_matcher::Matcher,
-        &ProjectManifestsByDir<'_>,
-    ),
+    (ignored_optional_matcher, workspace): (&pnpm_matcher::Matcher, WorkspaceProjects<'_>),
     importer_id: &str,
     manifest: &PackageManifest,
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
@@ -423,11 +426,7 @@ fn check_single_importer(
         manifest,
         importer_id,
         config: inputs.config,
-        workspace: WorkspaceProjects {
-            packages: inputs.workspace_packages,
-            manifests_by_dir: project_manifests,
-            catalogs: inputs.catalogs,
-        },
+        workspace,
         optional_exclusions: OptionalDependencyExclusions {
             ignored: ignored_optional_matcher,
             frozen_lockfile: inputs.scope.frozen_lockfile,

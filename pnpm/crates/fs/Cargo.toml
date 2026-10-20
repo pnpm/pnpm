@@ -14,6 +14,7 @@ repository.workspace = true
 test = []
 
 [dependencies]
+dashmap = { workspace = true }
 derive_more = { workspace = true }
 dunce = { workspace = true }
 getrandom = { workspace = true }
