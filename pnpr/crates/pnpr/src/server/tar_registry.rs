@@ -115,10 +115,10 @@ fn apply_derived_tar_metadata(
         return;
     };
     if let Some(file_count) = derived.file_count {
-        dist.entry("fileCount").or_insert_with(|| Value::from(file_count));
+        dist.insert("fileCount".to_string(), Value::from(file_count));
     }
     if let Some(unpacked_size) = derived.unpacked_size {
-        dist.entry("unpackedSize").or_insert_with(|| Value::from(unpacked_size));
+        dist.insert("unpackedSize".to_string(), Value::from(unpacked_size));
     }
     if let Some(requires_build) = derived.requires_build {
         dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));

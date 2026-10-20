@@ -644,6 +644,8 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
                 "dist": {
                     "tarball": "http://example.test/npm/@acme/native/-/native-1.0.0.tgz",
                     "integrity": sha512_integrity(&tgz),
+                    "fileCount": 999,
+                    "unpackedSize": 999_999,
                     "pnpr": { "requiresBuild": false, "spoof": 1 },
                 },
             },
@@ -670,8 +672,8 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     assert_eq!(publish.status(), StatusCode::CREATED);
 
     let packument = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dist"]["pnpr"],
-        serde_json::json!({ "requiresBuild": true }),
-    );
+    let dist = &packument["versions"]["1.0.0"]["dist"];
+    assert_eq!(dist["fileCount"], serde_json::json!(2));
+    assert_eq!(dist["unpackedSize"], serde_json::json!(43));
+    assert_eq!(dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
 }

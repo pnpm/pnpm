@@ -82,6 +82,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
             exclude: None,
             exclude_patterns: Vec::new(),
             ignore_after: None,
+            registry_options_by_url: None,
         },
         metadata: crate::VerificationMetadataClient {
             ignore_missing_time_field: false,

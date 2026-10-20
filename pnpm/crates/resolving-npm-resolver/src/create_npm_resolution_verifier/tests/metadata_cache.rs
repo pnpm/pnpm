@@ -214,3 +214,29 @@ async fn policy_checks_read_the_shared_packument_without_hydrating_it() {
         assert!(!shared.versions.is_hydrated(version), "{version} was hydrated");
     }
 }
+
+#[tokio::test]
+async fn pnpr_registry_reuses_abbreviated_cache_entry_for_trust_check() {
+    let registry = "http://nonexistent.example.invalid/";
+    let mut packument = stable_trust_packument("acme");
+    packument["modified"] = serde_json::json!("2025-02-01T00:00:00.000Z");
+    let shared: Arc<Package> = Arc::new(serde_json::from_value(packument).expect("package parses"));
+    let cache = InMemoryPackageMetaCache::default();
+    cache.set(format!("{registry}\x00acme"), Arc::clone(&shared));
+    let mut opts = default_opts(registry);
+    opts.metadata.meta_cache = Some(Arc::new(cache));
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.trust.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry.to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+}

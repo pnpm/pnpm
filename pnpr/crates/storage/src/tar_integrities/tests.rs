@@ -30,7 +30,10 @@ fn deserializes_legacy_string_and_record_entries() {
                 "fileCount": 3,
                 "unpackedSize": 17
             },
-            "sha512-scanned-unknown": { "tarIntegrity": "sha512-tar-c" }
+            "sha512-pre-stats": {
+                "tarIntegrity": "sha512-tar-c",
+                "requiresBuild": false
+            }
         }"#,
     )
     .unwrap();
@@ -55,13 +58,13 @@ fn deserializes_legacy_string_and_record_entries() {
         }),
     );
     assert_eq!(
-        decoded.get("sha512-scanned-unknown"),
+        decoded.get("sha512-pre-stats"),
         Some(&DerivedTar {
             tar_integrity: "sha512-tar-c".to_string(),
-            requires_build: None,
+            requires_build: Some(false),
             file_count: None,
             unpacked_size: None,
-            scanned: true,
+            scanned: false,
         }),
     );
 }

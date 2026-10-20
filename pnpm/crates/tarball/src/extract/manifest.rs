@@ -240,8 +240,23 @@ pub fn inspect_tar(reader: impl std::io::Read) -> TarInspection {
     inspect_tar_entries(reader).unwrap_or_default()
 }
 
+struct TarStreamReader<Reader> {
+    inner: Reader,
+    unexpected_eof: bool,
+}
+
+impl<Reader: std::io::Read> std::io::Read for TarStreamReader<Reader> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let len = self.inner.read(buf)?;
+        if len == 0 && !buf.is_empty() {
+            self.unexpected_eof = true;
+        }
+        Ok(len)
+    }
+}
+
 fn inspect_tar_entries(reader: impl std::io::Read) -> Option<TarInspection> {
-    let mut archive = tar::Archive::new(reader);
+    let mut archive = tar::Archive::new(TarStreamReader { inner: reader, unexpected_eof: false });
     archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
     let mut triggers = BuildTriggers::default();
     let mut manifest_parse_failed = false;
@@ -260,6 +275,9 @@ fn inspect_tar_entries(reader: impl std::io::Read) -> Option<TarInspection> {
         if cleaned_path == "package.json" {
             manifest_parse_failed = !read_tar_manifest_entry(&mut entry, &mut triggers)?;
         }
+    }
+    if archive.into_inner().unexpected_eof {
+        return None;
     }
     Some(TarInspection {
         requires_build: (!manifest_parse_failed).then(|| triggers.requires_build()),

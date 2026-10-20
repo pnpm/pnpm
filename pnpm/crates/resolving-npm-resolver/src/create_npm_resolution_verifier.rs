@@ -164,6 +164,9 @@ pub struct VerificationTrustOptions {
     /// Maximum age (in minutes) before which the trust check still
     /// applies. `None` means "always check".
     pub ignore_after: Option<u64>,
+    /// Per-registry options (`serverType`, `supportsTimeField`) keyed by URL.
+    pub registry_options_by_url:
+        Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
 }
 
 pub struct VerificationMetadataClient {
@@ -258,6 +261,8 @@ struct TrustCheck {
     exclude: Option<PackageVersionPolicy>,
     ignore_after: Option<u64>,
     sorted_excludes: Vec<String>,
+    registry_options_by_url:
+        Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
 }
 
 impl std::fmt::Debug for NpmResolutionVerifier {
@@ -319,6 +324,7 @@ pub fn create_npm_resolution_verifier(
             exclude: opts.trust.exclude,
             ignore_after: opts.trust.ignore_after,
             sorted_excludes: sorted_trust_excludes,
+            registry_options_by_url: opts.trust.registry_options_by_url,
         },
         metadata: opts.metadata,
         artifacts: opts.artifacts,

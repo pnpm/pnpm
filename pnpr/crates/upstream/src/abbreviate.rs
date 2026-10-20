@@ -96,19 +96,11 @@ pub(super) fn copy_npm_user(
     out: &mut serde_json::Map<String, Value>,
     source: &serde_json::Map<String, Value>,
 ) {
-    let Some(user) = source
-        .get("_npmUser")
-        .or_else(|| source.get("_npm_user"))
-        .and_then(Value::as_object)
-    else {
+    let Some(user) = source.get("_npmUser").and_then(Value::as_object) else {
         return;
     };
     let mut npm_user = serde_json::Map::new();
-    if user
-        .get("trustedPublisher")
-        .or_else(|| user.get("trusted_publisher"))
-        .is_some_and(is_truthy)
-    {
+    if user.get("trustedPublisher").is_some_and(is_truthy) {
         npm_user.insert("trustedPublisher".to_string(), Value::Bool(true));
     }
     if user.get("approver").is_some_and(is_truthy) {

@@ -198,34 +198,8 @@ impl NpmResolutionVerifier {
             )
         };
         cell.get_or_init(|| async {
-            // Fast path: if the resolver already pulled the full packument
-            // during the same install (`{registry}\x00{name}:full` or
-            // `...:full:filtered` key in the shared metaCache, populated
-            // when `pick_package` upgrades for `minimumReleaseAge`),
-            // reuse it. The filtered form is accepted: `clear_meta`
-            // keeps `time`, per-version `_npmUser`, and `dist`, which is
-            // everything `fail_if_trust_downgraded` reads. Abbreviated
-            // entries are rejected — they lack per-version `time` and
-            // trust evidence.
-            let shared = self.metadata.meta_cache
-                .as_ref()
-                .and_then(|cache| {
-                    cache
-                        .get(&format!("{key}:full"))
-                        .or_else(|| cache.get(&format!("{key}:full:filtered")))
-                        .or_else(|| {
-                            // Under `trustPolicy: no-downgrade`, only `serverType: pnpr`
-                            // registries stay on abbreviated metadata (`key`), which
-                            // includes `time` and `_npmUser` trust flags.
-                            let entry = cache.get(&key)?;
-                            entry.meta.time.is_some().then_some(entry)
-                        })
-                });
-            if let Some(cached) = shared {
-                let projection = project_trust_meta(cached.meta.as_ref());
-                if !cached.meta.versions.corrupt_mirror_fragment_found() {
-                    return Ok(Arc::new(projection));
-                }
+            if let Some(projection) = self.shared_trust_projection(registry, &key) {
+                return Ok(Arc::new(projection));
             }
             self.metadata
                 .fetch_full_meta_projected(registry, name, project_trust_meta)
@@ -234,6 +208,23 @@ impl NpmResolutionVerifier {
         })
         .await
         .clone()
+    }
+
+    fn shared_trust_projection(&self, registry: &str, key: &str) -> Option<TrustHistoryProjection> {
+        let cache = self.metadata.meta_cache.as_ref()?;
+        let cached = cache
+            .get(&format!("{key}:full"))
+            .or_else(|| cache.get(&format!("{key}:full:filtered")))
+            .or_else(|| {
+                let options = self.trust.registry_options_by_url.as_ref()?;
+                (pnpm_lockfile::registry_server_type(options, registry)
+                    == Some(pnpm_lockfile::RegistryServerType::Pnpr))
+                .then(|| cache.get(key))?
+                .filter(|entry| entry.meta.time.is_some())
+            })?;
+        (!cached.meta.versions.corrupt_mirror_fragment_found()).then(|| {
+            project_trust_meta(cached.meta.as_ref())
+        })
     }
 }
 

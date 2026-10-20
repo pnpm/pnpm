@@ -76,9 +76,7 @@ pub(super) async fn tar_response(
             if let (Some(name), Some(key)) = (&source.name, source.tgz_integrity.as_deref())
                 && source.keeps_content
             {
-                if source.tar_integrity_known
-                    && let Some((file, len)) = open_variant(storage, name, key).await
-                {
+                if let Some((file, len)) = open_variant(storage, name, key).await {
                     return encoded_response(tgz, streaming::stream_file(file), Some(len), "zstd");
                 }
                 copy = TarCopy::start(&state.inner.proxy.tar_variants, storage, name, key).await;

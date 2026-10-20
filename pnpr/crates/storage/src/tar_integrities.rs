@@ -33,12 +33,13 @@ impl DerivedTar {
         file_count: Option<u64>,
         unpacked_size: Option<u64>,
     ) -> Self {
+        let scanned = file_count.is_some() && unpacked_size.is_some();
         Self {
             tar_integrity: tar_integrity.into(),
             requires_build,
             file_count,
             unpacked_size,
-            scanned: true,
+            scanned,
         }
     }
 }
@@ -77,7 +78,8 @@ impl<'de> Deserialize<'de> for DerivedTar {
                 file_count,
                 unpacked_size,
             } => {
-                Ok(Self { tar_integrity, requires_build, file_count, unpacked_size, scanned: true })
+                let scanned = file_count.is_some() && unpacked_size.is_some();
+                Ok(Self { tar_integrity, requires_build, file_count, unpacked_size, scanned })
             }
         }
     }
@@ -258,6 +260,9 @@ fn insert_tar_entry(
     derived: DerivedTar,
 ) {
     let previous = table.get(tgz_integrity);
+    let file_count = derived.file_count.or_else(|| previous.and_then(|known| known.file_count));
+    let unpacked_size =
+        derived.unpacked_size.or_else(|| previous.and_then(|known| known.unpacked_size));
     table.insert(
         tgz_integrity.to_string(),
         DerivedTar {
@@ -265,11 +270,9 @@ fn insert_tar_entry(
             requires_build: derived.requires_build.or_else(|| {
                 previous.and_then(|known| known.requires_build)
             }),
-            file_count: derived.file_count.or_else(|| previous.and_then(|known| known.file_count)),
-            unpacked_size: derived.unpacked_size.or_else(|| {
-                previous.and_then(|known| known.unpacked_size)
-            }),
-            scanned: true,
+            file_count,
+            unpacked_size,
+            scanned: file_count.is_some() && unpacked_size.is_some(),
         },
     );
 }

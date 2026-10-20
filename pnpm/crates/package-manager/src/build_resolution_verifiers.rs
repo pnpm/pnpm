@@ -106,6 +106,7 @@ pub fn build_resolution_verifiers(
             exclude: trust_exclude,
             exclude_patterns: config.trust_policy_exclude.clone().unwrap_or_default(),
             ignore_after: config.trust_policy_ignore_after,
+            registry_options_by_url: Some(config.registry_options_by_url.clone()),
         },
         metadata: pnpm_resolving_npm_resolver::VerificationMetadataClient {
             registry_supports_time_field: config.registry_supports_time_field,
