@@ -256,7 +256,7 @@ fn walk_dependents_of(
     walk_reverse(&mut ctx, node_id, 0)
 }
 
-fn sort_trees(trees: &mut [DependentsTree]) {
+pub fn sort_trees(trees: &mut [DependentsTree]) {
     trees.sort_by(|a, b| {
         a.name
             .cmp(&b.name)

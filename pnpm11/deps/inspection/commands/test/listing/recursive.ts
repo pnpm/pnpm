@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import { stripVTControlCharacters as stripAnsi } from 'node:util'
 
@@ -527,4 +528,95 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
 
   expect(err.code).toBe('ERR_PNPM_MISSING_PACKAGE_NAME')
   expect(err.message).toMatch('`pnpm why` requires the package name')
+})
+
+test('recursive why with dedicated project lockfiles', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const packageConfigs = {
+    'project-1': {
+      modulesDir: 'custom_modules',
+    },
+  }
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    packageConfigs,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  const output = await why.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    packageConfigs,
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+
+  expect(stripAnsi(output)).toBe(`@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0
+└─┬ @pnpm.e2e/pkg-with-1-dep@100.0.0
+  └── project-1@1.0.0 (dependencies)
+
+Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep`)
+
+  const jsonOutput = await why.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    json: true,
+    long: true,
+    packageConfigs,
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['@pnpm.e2e/pkg-with-1-dep'])
+
+  expect(JSON.parse(jsonOutput)).toMatchObject([
+    {
+      name: '@pnpm.e2e/pkg-with-1-dep',
+      version: '100.0.0',
+      path: fs.realpathSync(path.resolve('project-1/custom_modules/@pnpm.e2e/pkg-with-1-dep')),
+      dependents: [
+        {
+          name: 'project-1',
+          version: '1.0.0',
+          depField: 'dependencies',
+        },
+      ],
+    },
+  ])
+
+  const filteredEmpty = await why.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    packageConfigs,
+    recursive: true,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-2' }]),
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+
+  expect(filteredEmpty).toBe('')
 })

@@ -51,12 +51,14 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
     let (_root, workspace, _anchor) = setup();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\npackageConfigs:\n  app:\n    modulesDir: custom_modules\n",
     )
     .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
     let app = workspace.join("packages/app");
+    let lib = workspace.join("packages/lib");
     fs::create_dir_all(&app).expect("create app project");
+    fs::create_dir_all(&lib).expect("create lib project");
     fs::write(
         app.join("package.json"),
         format!(
@@ -64,15 +66,45 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
         ),
     )
     .expect("write app manifest");
-    pacquet(&app, ["install"]).assert().success();
+    fs::write(
+        lib.join("package.json"),
+        format!(
+            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write lib manifest");
+    pacquet(&workspace, ["install"]).assert().success();
 
-    let output = pacquet(&app, ["-r", "why", PKG]).output().expect("run recursive pacquet why");
+    for args in [&["why", DEP][..], &["-r", "why", DEP][..], &["--filter", "app", "why", DEP][..]] {
+        let output = pacquet(&workspace, args).output().expect("run pacquet why");
+        assert!(output.status.success(), "why {args:?} should succeed: {output:?}");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains(DEP) && stdout.contains(PKG) && stdout.contains("app@1.0.0"),
+            "why {args:?} should query dedicated project lockfiles: {stdout}",
+        );
+    }
 
-    assert!(output.status.success(), "recursive why should succeed: {output:?}");
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json = pacquet(&workspace, ["why", "--json", "--long", PKG])
+        .output()
+        .expect("run pacquet why --json --long");
+    assert!(json.status.success(), "why --json --long should succeed: {json:?}");
+    let parsed: serde_json::Value = serde_json::from_slice(&json.stdout).expect("parse why JSON");
+    let pkg_path = parsed[0]["path"].as_str().expect("package path in JSON");
+    assert_eq!(
+        dunce::canonicalize(pkg_path).expect("canonicalize reported path"),
+        dunce::canonicalize(app.join("custom_modules").join(PKG))
+            .expect("canonicalize custom_modules path"),
+    );
+
+    let filtered_out = pacquet(&workspace, ["--filter", "lib", "why", DEP])
+        .output()
+        .expect("run filtered pacquet why");
+    assert!(filtered_out.status.success(), "filtered why should succeed: {filtered_out:?}");
     assert!(
-        stdout.contains(PKG) && stdout.contains("app@1.0.0"),
-        "recursive why should query the active project lockfile: {stdout}",
+        filtered_out.stdout.is_empty(),
+        "unselected project lockfile should not be included: {}",
+        String::from_utf8_lossy(&filtered_out.stdout),
     );
 }
 
