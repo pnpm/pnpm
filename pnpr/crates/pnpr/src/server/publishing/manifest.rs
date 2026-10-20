@@ -131,8 +131,28 @@ pub(super) fn prepare_staged_document(
     now_iso: &str,
 ) -> Value {
     let mut merged = merge_manifest(hosted, incoming, hosted, now_iso);
+    strip_unverified_tar_stats(&mut merged, prepared);
     attach_sigstore_attestations(&mut merged, name, prepared);
     merged
+}
+
+fn strip_unverified_tar_stats(merged: &mut Value, prepared: &[PreparedAttachment]) {
+    let Some(versions) = merged.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for attachment in prepared
+        .iter()
+        .filter(|att| att.kind == AttachmentKind::Tarball)
+    {
+        if let Some(dist) = versions
+            .get_mut(&attachment.version)
+            .and_then(|manifest| manifest.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+        {
+            dist.remove("fileCount");
+            dist.remove("unpackedSize");
+        }
+    }
 }
 
 pub(super) fn serialize_staged_document(mut merged: Value, tars: &[PublishedTar]) -> Vec<u8> {

@@ -105,11 +105,10 @@ async fn read_hosted_packument(
 
 fn prepare_packument_rewrite(
     hosted_bytes: &[u8],
-    tar_integrities: Option<&std::collections::BTreeMap<String, pnpr_storage::DerivedTar>>,
     name: &CanonicalPackageName,
     packument: &mut Value,
 ) -> Result<(Value, Vec<String>), Response> {
-    let mut hosted: Value = serde_json::from_slice(hosted_bytes)
+    let hosted: Value = serde_json::from_slice(hosted_bytes)
         .map_err(|err| RegistryError::Json(err).into_response())?;
     if let Some(format_version) = hosted.get("formatVersion").and_then(Value::as_u64)
         && format_version > u64::from(pnpr_storage::publish::PACKUMENT_FORMAT_VERSION)
@@ -120,9 +119,6 @@ fn prepare_packument_rewrite(
             supported_version: pnpr_storage::publish::PACKUMENT_FORMAT_VERSION,
         }
         .into_response());
-    }
-    if let Some(table) = tar_integrities {
-        backfill_hosted_tar_stats(&mut hosted, table);
     }
     if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
         return Err(err.into_response());
@@ -136,29 +132,6 @@ fn prepare_packument_rewrite(
     }
     let removed = detect_removed_versions(&hosted, packument);
     Ok((hosted, removed))
-}
-
-fn backfill_hosted_tar_stats(
-    hosted: &mut Value,
-    table: &std::collections::BTreeMap<String, pnpr_storage::DerivedTar>,
-) {
-    let Some(versions) = hosted.get_mut("versions").and_then(Value::as_object_mut) else {
-        return;
-    };
-    for manifest in versions.values_mut() {
-        let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
-            continue;
-        };
-        let Some(derived) = super::tgz_integrity_key(dist).and_then(|key| table.get(&key)) else {
-            continue;
-        };
-        if let Some(file_count) = derived.file_count {
-            dist.insert("fileCount".to_string(), Value::from(file_count));
-        }
-        if let Some(unpacked_size) = derived.unpacked_size {
-            dist.insert("unpackedSize".to_string(), Value::from(unpacked_size));
-        }
-    }
 }
 
 async fn rollback_hosted_packument(
@@ -191,16 +164,11 @@ async fn rewrite_packument(
         Ok(packument) => packument,
         Err(response) => return response,
     };
-    let tar_integrities = storage.read_tar_integrities(name).await.ok();
-    let (hosted, removed) = match prepare_packument_rewrite(
-        &hosted_packument.bytes,
-        tar_integrities.as_deref(),
-        name,
-        packument,
-    ) {
-        Ok(pair) => pair,
-        Err(response) => return response,
-    };
+    let (hosted, removed) =
+        match prepare_packument_rewrite(&hosted_packument.bytes, name, packument) {
+            Ok(pair) => pair,
+            Err(response) => return response,
+        };
     let bytes = match serde_json::to_vec_pretty(&packument) {
         Ok(bytes) => bytes,
         Err(err) => return RegistryError::Json(err).into_response(),

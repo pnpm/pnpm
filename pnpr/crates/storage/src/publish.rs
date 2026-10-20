@@ -446,15 +446,12 @@ fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Va
     Value::Object(merged)
 }
 
-/// Strip any publisher-supplied `dist.pnpr`, `dist.fileCount`, and
-/// `dist.unpackedSize`: these fields are derived from the verified tarball and
-/// never trusted from a publish body.
+/// Strip any publisher-supplied `dist.pnpr`: `pnpr` overlays are derived from
+/// the verified tarball and never trusted from a publish body.
 fn without_dist_pnpr(manifest: &Map<String, Value>) -> Map<String, Value> {
     let mut cleaned = manifest.clone();
     if let Some(dist) = cleaned.get_mut("dist").and_then(Value::as_object_mut) {
         dist.remove("pnpr");
-        dist.remove("fileCount");
-        dist.remove("unpackedSize");
     }
     cleaned
 }
