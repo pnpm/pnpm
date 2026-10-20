@@ -1683,6 +1683,141 @@ fn filtered_exec_installs_a_workspace_dependency_a_filtered_install_left_alone()
     drop((root, mock_instance));
 }
 
+/// Under dedicated lockfiles with `injectWorkspacePackages`, an injected
+/// `workspace:*` dependency is a copy inside the dependent project that its
+/// own install covers, whereas an explicit `link:` dependency remains a
+/// symlink whose target project must still be installed
+/// ([pnpm/tasks#179](https://github.com/pnpm/tasks/issues/179)).
+#[test]
+fn filtered_exec_holds_a_link_dependency_under_dedicated_lockfiles_with_injection() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "sharedWorkspaceLockfile: false\ninjectWorkspacePackages: true\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+        ("baz", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "install"])
+        .assert()
+        .success();
+    assert!(!workspace.join("packages/bar/node_modules").exists());
+
+    // An injected `workspace:*` dependency is covered by `foo`'s own install,
+    // so an uninstalled `bar` does not block a filtered exec on `foo`.
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=error",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("injected-ok")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "an uninstalled injected workspace dependency must not block the filtered exec:\n{stderr}",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "injected-ok");
+
+    // Adding a `link:` dependency to `baz` and installing `foo` alone leaves
+    // `baz` without a modules directory; `link:` remains a symlink even with
+    // injection on, so the gate holds `baz` to the modules-directory check.
+    write_named_manifest_with_dependency_groups(
+        &workspace.join("packages/foo"),
+        "foo",
+        &workspace.join("packages/foo/marker.txt"),
+        json!({ "dependencies": { "bar": "workspace:*", "baz": "link:../baz" } }),
+    );
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "install"])
+        .assert()
+        .success();
+    assert!(!workspace.join("packages/baz/node_modules").exists());
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=error",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "a never-installed link: dependency must fail the verify-deps check:\n{stderr}",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=install",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("linked-ok")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "the filtered exec must install the link: dependency:\n{stderr}",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "linked-ok");
+    assert!(
+        workspace.join("packages/baz/node_modules/@pnpm.e2e/foo").exists(),
+        "the gate must install the link: dependency:\n{stderr}",
+    );
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=error",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 /// A negated selector reaches the install the gate spawns unchanged, so that
 /// install never materializes the project it excludes. The status check must
 /// not hold that project to the modules-directory requirement through the

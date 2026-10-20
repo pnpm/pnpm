@@ -54,6 +54,7 @@ struct WorkspaceProjectIndex<'a> {
     by_dir: HashMap<PathBuf, &'a PackageManifest>,
     by_name: HashMap<String, Vec<(PathBuf, Option<String>)>>,
     link_workspace_packages: bool,
+    only_link_deps: bool,
     catalogs: &'a Catalogs,
 }
 
@@ -76,6 +77,8 @@ impl<'a> WorkspaceProjectIndex<'a> {
             by_dir,
             by_name,
             link_workspace_packages: check.config.link_workspace_packages.enabled_at_depth(0),
+            only_link_deps: !check.config.shares_one_lockfile()
+                && check.config.inject_workspace_packages,
             catalogs: check.catalogs,
         }
     }
@@ -99,10 +102,13 @@ impl<'a> WorkspaceProjectIndex<'a> {
             return Vec::new();
         };
         let spec = spec.as_ref();
-        if let Some(rel) = spec
-            .strip_prefix("link:")
-            .or_else(|| spec.strip_prefix("file:"))
-        {
+        if let Some(rel) = spec.strip_prefix("link:") {
+            return self.resolve_dir_target(dir, rel);
+        }
+        if self.only_link_deps {
+            return Vec::new();
+        }
+        if let Some(rel) = spec.strip_prefix("file:") {
             return self.resolve_dir_target(dir, rel);
         }
         let is_workspace = spec.starts_with("workspace:");

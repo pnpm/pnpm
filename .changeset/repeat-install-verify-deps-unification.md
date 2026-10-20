@@ -3,6 +3,7 @@
 "@pnpm/exec.commands": patch
 "@pnpm/installing.commands": patch
 "@pnpm/installing.deps-restorer": patch
+"@pnpm/workspace.projects-graph": patch
 "@pnpm/workspace.state": patch
 "pnpm": patch
 "pacquet": patch

@@ -113,6 +113,8 @@ function parseDependencySpec (
       }
     } else if (rawSpec.startsWith('npm:')) {
       ({ depName, rawSpec } = parseRegistrySpec(depName, rawSpec))
+    } else if (rawSpec.startsWith('link:')) {
+      rawSpec = `file:${rawSpec.slice('link:'.length)}`
     }
     const spec = npa.resolve(depName, rawSpec, projectRootDir)
     return { depName, rawSpec, spec }

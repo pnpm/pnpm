@@ -199,6 +199,7 @@ test('create package graph for local directory dependencies', () => {
 
         dependencies: {
           foo: 'file:../foo@2',
+          bar1: 'link:../bar',
         },
       },
     },
@@ -243,7 +244,7 @@ test('create package graph for local directory dependencies', () => {
       },
     },
     [BAR2_PATH]: {
-      dependencies: [FOO2_PATH],
+      dependencies: [FOO2_PATH, BAR1_PATH],
       package: {
         rootDir: BAR2_PATH,
         manifest: {
@@ -252,6 +253,7 @@ test('create package graph for local directory dependencies', () => {
 
           dependencies: {
             foo: 'file:../foo@2',
+            bar1: 'link:../bar',
           },
         },
       },

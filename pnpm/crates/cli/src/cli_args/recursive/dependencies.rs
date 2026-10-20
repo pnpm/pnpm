@@ -2,8 +2,13 @@
 //! dependency edges among the `--filter`-selected projects, their topological
 //! order, and the workspace dependencies a selection reaches.
 
+use super::{RecursiveSelection, filter_against, recursive_filter_options};
+use crate::cli_args::verify_deps::with_dependencies;
 use indexmap::IndexMap;
+use pnpm_config::Config;
+use pnpm_fs::lexical_normalize;
 use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace_projects_graph::ProjectGraph;
 use rayon::prelude::*;
 use std::{
@@ -123,8 +128,107 @@ fn sorted_dependencies<Pkg>(
     dependencies
 }
 
+/// The projects a gated recursive command holds to the modules-directory
+/// requirement: `project_dirs` themselves, plus every workspace dependency
+/// they reach that the installs the gate spawns cover.
+///
+/// A workspace dependency that is not installed leaves the selection out of
+/// date too. With one shared lockfile, the install the gate spawns selects the
+/// dependencies of the selected projects, and a negated selector reaches it
+/// unchanged, so a dependency it excludes is not required; `project_dirs`
+/// themselves always are. With a lockfile per project the gate checks and
+/// installs each project on its own, and a workspace dependency the project
+/// injects is part of that project's own install. `prefix` is where the
+/// command's path selectors resolve.
+pub fn projects_to_verify<'dirs>(
+    project_dirs: impl IntoIterator<Item = &'dirs Path>,
+    selection: &RecursiveSelection<'_>,
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<Vec<PathBuf>> {
+    if !config.verify_deps_before_run.is_enabled() {
+        return Ok(Vec::new());
+    }
+    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
+    // An injected workspace dependency is a copy inside the project that
+    // depends on it, which that project's own install covers; explicit `link:`
+    // dependencies remain symlinks and still need their target project installed.
+    let only_linked = !config.shares_one_lockfile() && config.inject_workspace_packages;
+    let mut projects = projects_with_workspace_dependencies_filtered(
+        project_dirs.iter().copied(),
+        selection.full_graph(),
+        selection.prod_all.as_ref(),
+        &selection.prod_only_selected,
+        |parent_dir, pkg, dep_dir| {
+            !only_linked || has_link_dependency_to(parent_dir, &pkg.project.manifest, dep_dir)
+        },
+    );
+    if config.shares_one_lockfile() && has_negated_selector(config) {
+        let mut kept = install_selected_projects(selection, config, prefix)?;
+        kept.extend(project_dirs.iter().map(|dir| dir.to_path_buf()));
+        projects.retain(|project_dir| kept.contains(project_dir));
+    }
+    Ok(projects)
+}
+
+fn has_link_dependency_to(
+    parent_dir: &Path,
+    manifest: &PackageManifest,
+    target_dir: &Path,
+) -> bool {
+    let resolved_target = lexical_normalize(target_dir);
+    manifest
+        .dependencies([
+            DependencyGroup::Prod,
+            DependencyGroup::Dev,
+            DependencyGroup::Optional,
+            DependencyGroup::Peer,
+        ])
+        .any(|(_, spec)| {
+            spec.strip_prefix("link:")
+                .is_some_and(|rel| {
+                    lexical_normalize(&parent_dir.join(rel.replace('\\', "/"))) == resolved_target
+                })
+        })
+}
+
+fn has_negated_selector(config: &Config) -> bool {
+    config.filter
+        .iter()
+        .chain(&config.filter_prod)
+        .any(|selector| selector.starts_with('!'))
+}
+
+/// The projects the install the gate spawns selects, evaluated against the
+/// graphs the command's own selection was drawn from.
+fn install_selected_projects(
+    selection: &RecursiveSelection<'_>,
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<HashSet<PathBuf>> {
+    let walk_opts = recursive_filter_options(config, prefix);
+    let filter = with_dependencies_selectors(&config.filter);
+    let mut installed: HashSet<PathBuf> =
+        filter_against(selection.full_graph(), &filter, None, false, prefix, &walk_opts)?
+            .into_iter()
+            .collect();
+    if let Some(prod_all) = &selection.prod_all {
+        let filter_prod = with_dependencies_selectors(&config.filter_prod);
+        installed.extend(filter_against(prod_all, &filter_prod, None, true, prefix, &walk_opts)?);
+    }
+    Ok(installed)
+}
+
+fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
+    selectors
+        .iter()
+        .map(|selector| with_dependencies(selector))
+        .collect()
+}
+
 /// `project_dirs` together with every workspace project they depend on,
-/// directly or transitively.
+/// directly or transitively, along the edges `(parent_dir, &parent_node.package,
+/// dependency_dir)` that `follow_edge` accepts.
 ///
 /// The install a gated command spawns selects the dependencies of the projects
 /// the command selected, so a project whose workspace dependency has no modules
@@ -135,14 +239,18 @@ fn sorted_dependencies<Pkg>(
 ///
 /// Each graph keeps one visited set across all roots, so a dependency shared
 /// by several selected projects is walked once.
-pub fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
+pub(super) fn projects_with_workspace_dependencies_filtered<'graph, 'dirs, Pkg, Follow>(
     project_dirs: impl IntoIterator<Item = &'dirs Path>,
     all: &'graph ProjectGraph<Pkg>,
     prod_all: Option<&'graph ProjectGraph<Pkg>>,
     prod_only_selected: &HashSet<PathBuf>,
-) -> Vec<PathBuf> {
-    let mut all_walk = DependencyWalk::new(all);
-    let mut prod_walk = prod_all.map(DependencyWalk::new);
+    follow_edge: Follow,
+) -> Vec<PathBuf>
+where
+    Follow: Fn(&Path, &Pkg, &Path) -> bool,
+{
+    let mut all_walk = DependencyWalk::new(all, &follow_edge);
+    let mut prod_walk = prod_all.map(|graph| DependencyWalk::new(graph, &follow_edge));
     let mut outside_graph: Vec<&Path> = Vec::new();
     for project_dir in project_dirs {
         let walk = match &mut prod_walk {
@@ -164,16 +272,25 @@ pub fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
 }
 
 /// A walk along the dependency edges of one graph, from any number of roots.
-struct DependencyWalk<'graph, Pkg> {
+struct DependencyWalk<'graph, 'follow, Pkg, Follow> {
     graph: &'graph ProjectGraph<Pkg>,
+    follow_edge: &'follow Follow,
     seen: rustc_hash::FxHashSet<&'graph Path>,
     /// The projects reached, in the order they were first reached.
     visited: Vec<&'graph Path>,
 }
 
-impl<'graph, Pkg> DependencyWalk<'graph, Pkg> {
-    fn new(graph: &'graph ProjectGraph<Pkg>) -> Self {
-        DependencyWalk { graph, seen: rustc_hash::FxHashSet::default(), visited: Vec::new() }
+impl<'graph, 'follow, Pkg, Follow> DependencyWalk<'graph, 'follow, Pkg, Follow>
+where
+    Follow: Fn(&Path, &Pkg, &Path) -> bool,
+{
+    fn new(graph: &'graph ProjectGraph<Pkg>, follow_edge: &'follow Follow) -> Self {
+        DependencyWalk {
+            graph,
+            follow_edge,
+            seen: rustc_hash::FxHashSet::default(),
+            visited: Vec::new(),
+        }
     }
 
     /// Visit `root` and every project reachable from it that no earlier root
@@ -190,6 +307,7 @@ impl<'graph, Pkg> DependencyWalk<'graph, Pkg> {
         let mut stack: Vec<&'graph Path> = node.dependencies
             .iter()
             .map(PathBuf::as_path)
+            .filter(|dep_dir| (self.follow_edge)(root, &node.package, dep_dir))
             .collect();
         while let Some(project_dir) = stack.pop() {
             if !self.seen.insert(project_dir) {
@@ -197,7 +315,12 @@ impl<'graph, Pkg> DependencyWalk<'graph, Pkg> {
             }
             self.visited.push(project_dir);
             if let Some(node) = self.graph.get(project_dir) {
-                stack.extend(node.dependencies.iter().map(PathBuf::as_path));
+                stack.extend(
+                    node.dependencies
+                        .iter()
+                        .map(PathBuf::as_path)
+                        .filter(|dep_dir| (self.follow_edge)(project_dir, &node.package, dep_dir)),
+                );
             }
         }
         true
