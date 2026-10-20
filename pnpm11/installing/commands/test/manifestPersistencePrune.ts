@@ -18,20 +18,24 @@ jest.unstable_mockModule('@pnpm/cli.utils', () => ({
     ...await actualCliUtils.tryReadProjectManifest(...args),
     writeProjectManifest,
   }),
+  readProjectManifest: async (...args: Parameters<typeof actualCliUtils.readProjectManifest>) => ({
+    ...await actualCliUtils.readProjectManifest(...args),
+    writeProjectManifest,
+  }),
 }))
 jest.unstable_mockModule('../src/resolvedPackageVersionsForPrune.js', () => ({
   ...actualPruning,
   resolvedPackageVersionsForPrune: collectVersions,
 }))
 
-const { add, update } = await import('../src/index.js')
+const { add, remove, update } = await import('../src/index.js')
 
 beforeEach(() => {
   writeProjectManifest.mockReset().mockResolvedValue(undefined)
   collectVersions.mockReset().mockRejectedValue(new Error('env lockfile read failed'))
 })
 
-test.each(['add', 'update', 'recursive'] as const)('%s reads exclusion versions before starting manifest writes', async (command) => {
+test.each(['add', 'update', 'remove', 'recursive'] as const)('%s reads exclusion versions before starting manifest writes', async (command) => {
   if (command === 'recursive') {
     preparePackages([{ name: 'project-1', version: '1.0.0' }, { name: 'project-2', version: '1.0.0' }])
     fs.writeFileSync('pnpm-workspace.yaml', "packages: ['*']\n")
@@ -58,7 +62,9 @@ test.each(['add', 'update', 'recursive'] as const)('%s reads exclusion versions 
     }
     await expect(command === 'add'
       ? add.handler(opts, ['is-positive@1.0.0'])
-      : update.handler(opts, []))
+      : command === 'remove'
+        ? remove.handler(opts, ['is-positive'])
+        : update.handler(opts, []))
       .rejects.toThrow('env lockfile read failed')
   }
 
