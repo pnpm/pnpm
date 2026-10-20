@@ -1,4 +1,7 @@
-use super::{OptimisticRepeatInstallCheck, manifest_has_runtime_deps, manifest_string_field};
+use super::{
+    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
+    manifest_string_field,
+};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
@@ -236,7 +239,9 @@ fn first_project_without_modules_dir(
                 return None;
             }
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
-            let installed = !manifest_has_runtime_deps(manifest)
+            let has_deps = manifest_has_runtime_deps(manifest)
+                || (config.auto_install_peers && manifest_has_required_peers(manifest));
+            let installed = !has_deps
                 || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
                     sibling_modules_dir(config, root_dir, manifest)
                 })

@@ -76,7 +76,7 @@ async function findProjectWithoutModulesDir (
   selectedProjectDirs: Set<string> | undefined
 ): Promise<Project | undefined> {
   const { rootProjectManifestDir } = opts
-  const withoutModulesDir = listProjectsWithoutModulesDir(allManifestStats, selectedProjectDirs)
+  const withoutModulesDir = listProjectsWithoutModulesDir(allManifestStats, selectedProjectDirs, opts.autoInstallPeers)
   // Under dedupeDirectDeps a project whose direct dependencies resolve to
   // the root's targets gets nothing linked, so the linker never creates
   // its modules directory; it is installed all the same.
@@ -100,15 +100,30 @@ async function findProjectWithoutModulesDir (
   ))
 }
 
-function listProjectsWithoutModulesDir (allManifestStats: ProjectStats[], selectedProjectDirs: Set<string> | undefined): Project[] {
+function listProjectsWithoutModulesDir (
+  allManifestStats: ProjectStats[],
+  selectedProjectDirs: Set<string> | undefined,
+  autoInstallPeers?: boolean
+): Project[] {
   return allManifestStats
     .filter(({ modulesDirStats, project }) =>
       (selectedProjectDirs == null || selectedProjectDirs.has(path.resolve(project.rootDir))) &&
-      modulesDirStats?.isDirectory() !== true && !isEmpty({
-        ...project.manifest.dependencies,
-        ...project.manifest.devDependencies,
-      }))
+      modulesDirStats?.isDirectory() !== true && (
+        !isEmpty({
+          ...project.manifest.dependencies,
+          ...project.manifest.devDependencies,
+          ...project.manifest.optionalDependencies,
+        }) ||
+        (autoInstallPeers !== false && hasRequiredPeerDependencies(project))
+      ))
     .map(({ project }) => project)
+}
+
+function hasRequiredPeerDependencies (project: Project): boolean {
+  const peers = project.manifest.peerDependencies
+  if (peers == null) return false
+  const meta = project.manifest.peerDependenciesMeta
+  return Object.keys(peers).some((name) => meta?.[name]?.optional !== true)
 }
 
 interface DedupeLinksNothingOptions {

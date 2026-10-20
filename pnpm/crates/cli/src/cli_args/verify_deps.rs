@@ -437,7 +437,10 @@ fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
 
 fn resolve_against_current_dir(path: &Path) -> std::path::PathBuf {
     if path.is_relative() {
-        std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path),
+            Err(_) => path.to_path_buf(),
+        }
     } else {
         path.to_path_buf()
     }

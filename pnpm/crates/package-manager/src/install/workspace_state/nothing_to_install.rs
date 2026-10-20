@@ -52,7 +52,8 @@ fn project_has_install_work(config: &Config, manifest: &PackageManifest) -> bool
         .parent()
         .expect("manifest path always has a parent dir");
     crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest)
-        || (config.auto_install_peers && manifest_has_required_peers(manifest))
+        || (config.auto_install_peers
+            && crate::optimistic_repeat_install::manifest_has_required_peers(manifest))
         || (!config.ignore_scripts
             && project_requires_lifecycle_scripts(project_dir, manifest, &PROJECT_LIFECYCLE_STAGES))
 }
@@ -62,34 +63,4 @@ fn runs_dev_preinstall(config: &Config, manifest: &PackageManifest, workspace_ro
     !config.ignore_scripts
         && manifest.path().parent() == Some(workspace_root)
         && matches!(manifest.script(DEV_PREINSTALL_STAGE, true), Ok(Some(_)))
-}
-
-/// Whether the manifest declares at least one peer that is not marked
-/// optional. The caller decides whether `autoInstallPeers` fetches them.
-fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
-    let Some(peers) = manifest
-        .value()
-        .get("peerDependencies")
-        .and_then(serde_json::Value::as_object)
-    else {
-        return false;
-    };
-    let meta = manifest
-        .value()
-        .get("peerDependenciesMeta")
-        .and_then(serde_json::Value::as_object);
-    peers
-        .keys()
-        .any(|name| !peer_dependency_is_optional(meta, name))
-}
-
-fn peer_dependency_is_optional(
-    meta: Option<&serde_json::Map<String, serde_json::Value>>,
-    name: &str,
-) -> bool {
-    meta.and_then(|meta| meta.get(name))
-        .and_then(serde_json::Value::as_object)
-        .and_then(|entry| entry.get("optional"))
-        .and_then(serde_json::Value::as_bool)
-        == Some(true)
 }

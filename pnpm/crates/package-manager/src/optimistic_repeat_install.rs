@@ -385,6 +385,36 @@ pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
         })
 }
 
+/// Whether the manifest declares at least one peer that is not marked
+/// optional. The caller decides whether `autoInstallPeers` fetches them.
+pub(crate) fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
+    let Some(peers) = manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let meta = manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object);
+    peers
+        .keys()
+        .any(|name| !peer_dependency_is_optional(meta, name))
+}
+
+fn peer_dependency_is_optional(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+    name: &str,
+) -> bool {
+    meta.and_then(|meta| meta.get(name))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|entry| entry.get("optional"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+}
+
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
     manifest
         .value()
