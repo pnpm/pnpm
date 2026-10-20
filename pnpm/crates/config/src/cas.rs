@@ -11,12 +11,7 @@ impl Config {
         if self.node_linker == NodeLinker::Loaded {
             self.global_virtual_store_before_loaded.get_or_insert(self.enable_global_virtual_store);
             self.enable_global_virtual_store = true;
-            if !self.explicit_settings.contains_key("modulesDir") {
-                self.modules_dir = self.modules_dir
-                    .parent()
-                    .unwrap_or_else(|| Path::new("."))
-                    .join(".pnpm");
-            }
+            self.rename_default_modules_dir(".pnpm");
         } else if let Some(global_store) = self
             .global_virtual_store_before_loaded
             .take()
@@ -25,17 +20,21 @@ impl Config {
                 .get("enableGlobalVirtualStore")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(global_store);
-            if !self.explicit_settings.contains_key("modulesDir") {
-                self.modules_dir = self.modules_dir
-                    .parent()
-                    .unwrap_or_else(|| Path::new("."))
-                    .join("node_modules");
-            }
+            self.rename_default_modules_dir("node_modules");
         }
         if self.node_linker == NodeLinker::Loaded {
             self.install_state_dir.clone_from(&self.modules_dir);
         } else {
             self.follow_modules_dir_with_install_state_dir();
+        }
+    }
+
+    fn rename_default_modules_dir(&mut self, name: &str) {
+        if !self.explicit_settings.contains_key("modulesDir") {
+            self.modules_dir = self.modules_dir
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join(name);
         }
     }
 
