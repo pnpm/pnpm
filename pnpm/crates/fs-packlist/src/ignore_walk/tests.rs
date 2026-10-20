@@ -57,6 +57,20 @@ const CASES: &[(&str, &str, bool, bool)] = &[
     (".*.swp", "/lib/a.swp", false, false),
     ("/build/config.gypi", "/build/config.gypi", false, true),
     ("/build/config.gypi", "/sub/build/config.gypi", false, false),
+    ("part{1..3}.js", "part2.js", false, true),
+    ("part{3..1}.js", "part2.js", false, true),
+    ("part{1..5..2}.js", "part3.js", false, true),
+    ("part{1..5..2}.js", "part2.js", false, false),
+    ("part{1..5..-2}.js", "part3.js", false, true),
+    ("part{01..03}.js", "part02.js", false, true),
+    ("part{-03..01}.js", "part-02.js", false, true),
+    ("part{-03..01}.js", "part000.js", false, true),
+    ("part{1..3..02}.js", "part1.js", false, true),
+    (r"part\{1..3\}.js", "part{1..3}.js", false, true),
+    ("part{1..3,9}.js", "part1..3.js", false, true),
+    ("part{1..3,9}.js", "part2.js", false, false),
+    ("{a,b}/part{1..3}.js", "b/part2.js", false, true),
+    ("part{1..3}{a,b}.js", "part2b.js", false, true),
 ];
 
 #[test]
@@ -89,6 +103,39 @@ fn many_stars_do_not_backtrack_exponentially() {
 fn repeated_brace_groups_expand_to_a_bounded_number_of_alternatives() {
     let rule = IgnoreRule::parse(&"{a,b}".repeat(40));
     assert!(rule.matches(&"a".repeat(40), false));
+}
+
+#[test]
+fn numeric_brace_ranges_share_the_alternative_limit() {
+    let pattern = "part{1..9223372036854775807}.js";
+    let rule = IgnoreRule::parse(pattern);
+    eprintln!("pattern: {pattern}");
+    assert!(rule.matches("part1.js", false));
+    assert!(rule.matches("part1024.js", false));
+    assert!(!rule.matches("part1025.js", false));
+}
+
+#[test]
+fn numeric_brace_ranges_share_the_expansion_byte_limit() {
+    let padding = "0".repeat(1 << 17);
+    let pattern = format!("part{{{padding}1..{padding}9}}.js");
+    let expanded_name = format!("part{padding}1.js");
+    let rule = IgnoreRule::parse(&pattern);
+    eprintln!("pattern length: {}", pattern.len());
+    assert!(IgnoreRule::parse(&expanded_name).matches(&expanded_name, false));
+    assert!(!rule.matches(&expanded_name, false));
+}
+
+#[test]
+fn malformed_numeric_ranges_stay_literal() {
+    for pattern in
+        ["part{1..3..0}.js", "part{1..three}.js", "part{1..2..3..4}.js", "part{+1..3}.js"]
+    {
+        let rule = IgnoreRule::parse(pattern);
+        eprintln!("pattern: {pattern}");
+        assert!(rule.matches(pattern, false));
+        assert!(!rule.matches("part2.js", false));
+    }
 }
 
 #[test]

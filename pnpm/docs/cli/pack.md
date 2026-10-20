@@ -13,6 +13,11 @@ replaces the root `.npmignore` or `.gitignore`; ignore files inside selected
 subdirectories still apply. An explicitly named file or internal symlink is
 included even when its parent directory is excluded.
 
+Numeric brace ranges expand to individual values. For example, `part{1..3}.js`
+matches `part1.js`, `part2.js`, and `part3.js`. Ranges support descending values,
+nonzero steps such as `part{1..5..2}.js`, and zero padding such as
+`part{01..03}.js`. These ranges also work in `.npmignore` and `.gitignore`.
+
 Without `files`, pnpm reads `.npmignore`, falling back to `.gitignore`.
 Negated ignore patterns can re-include default exclusions such as `*.orig` and
 `npm-debug.log`. Root lockfiles and `.npmrc` stay excluded.

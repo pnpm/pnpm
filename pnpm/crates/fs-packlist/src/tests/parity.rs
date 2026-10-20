@@ -26,7 +26,7 @@ fn file_selection_matches_typescript_packlist() {
     let mut actual = Vec::new();
     for (manifest, ignore_kind) in manifests()
         .into_iter()
-        .flat_map(|manifest| (0..3).map(move |kind| (manifest.clone(), kind)))
+        .flat_map(|manifest| (0..5).map(move |kind| (manifest.clone(), kind)))
     {
         let dir = tempdir().unwrap();
         let root = dir.path();
@@ -41,6 +41,21 @@ fn file_selection_matches_typescript_packlist() {
             "b",
             "foo",
             "foofoo",
+            "part-02.js",
+            "part-01.js",
+            "part000.js",
+            "part001.js",
+            "part01.js",
+            "part02.js",
+            "part03.js",
+            "part1.js",
+            "part2.js",
+            "part3.js",
+            "part4.js",
+            "part1a.js",
+            "part2b.js",
+            "part3a.js",
+            "nested/part2.js",
             "README.md",
             "LICENSE",
             "dist/index.js",
@@ -67,9 +82,18 @@ fn file_selection_matches_typescript_packlist() {
         write(root, "package.json", &manifest.to_string());
         fs::create_dir(root.join("sub")).unwrap();
         pnpm_fs::symlink_dir(&root.join("lib"), &root.join("sub/link")).unwrap();
-        write(root, ".gitignore", "dist/\n");
-        write(root, ".npmignore", "dist/\n!npm-debug.log\n!file.orig\n!.DS_Store\n!yarn.lock\n");
-        if ignore_kind != 0 {
+        let range_ignore = "part{03..01..2}.js\n";
+        write(root, ".gitignore", if ignore_kind == 4 { range_ignore } else { "dist/\n" });
+        write(
+            root,
+            ".npmignore",
+            if ignore_kind == 3 {
+                range_ignore
+            } else {
+                "dist/\n!npm-debug.log\n!file.orig\n!.DS_Store\n!yarn.lock\n"
+            },
+        );
+        if !matches!(ignore_kind, 0 | 3) {
             fs::remove_file(root.join(".npmignore")).unwrap();
         }
         if ignore_kind == 2 {
@@ -131,6 +155,14 @@ fn manifests() -> Vec<Value> {
         json!(["**", "!dist", "dist/index.js"]),
         json!(["**", "!sub", "sub/link"]),
         json!(["file.orig", "npm-debug.log", ".DS_Store", "yarn.lock", "lib/yarn.lock"]),
+        json!(["part{1..3}.js"]),
+        json!(["part{3..1}.js"]),
+        json!(["part{1..5..2}.js"]),
+        json!(["part{1..5..-2}.js"]),
+        json!(["part{01..03}.js"]),
+        json!(["part{-03..01}.js"]),
+        json!(["part{1..3}{a,b}.js"]),
+        json!(["*.js", "!part{1..3}.js"]),
     ] {
         manifests.push(json!({ "files": files }));
         manifests.push(json!({ "files": files, "bundleDependencies": ["bundled"] }));
