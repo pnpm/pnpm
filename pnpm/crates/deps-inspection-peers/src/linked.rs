@@ -295,15 +295,15 @@ impl PeerProviders<'_> {
 /// read once per walk rather than once per importer that links it.
 pub(super) struct LinkedPackages {
     canonical_lockfile_dir: Option<PathBuf>,
-    importer_dir_is_canonical: HashMap<PathBuf, bool>,
-    by_target: HashMap<PathBuf, Option<LinkedDependency>>,
+    key_base_by_importer_dir: HashMap<PathBuf, Option<PathBuf>>,
+    pub(super) by_target: HashMap<PathBuf, Option<LinkedDependency>>,
 }
 
 impl LinkedPackages {
     pub(super) fn new(lockfile_dir: &Path) -> Self {
         LinkedPackages {
             canonical_lockfile_dir: dunce::canonicalize(lockfile_dir).ok(),
-            importer_dir_is_canonical: HashMap::new(),
+            key_base_by_importer_dir: HashMap::new(),
             by_target: HashMap::new(),
         }
     }
@@ -337,20 +337,25 @@ impl LinkedPackages {
             .as_ref()
     }
 
-    /// Below a directory that no symlink leads to, `..` is lexical on every
-    /// platform, so popping it off the importer directory names the same
-    /// target and every importer reaching one package shares its entry. An
-    /// importer reached through a symlink keeps the path it spells.
+    /// `..` is popped off the importer directory, so every importer
+    /// reaching one package shares its entry:
+    /// - Unix resolves `..` physically, so it is popped off the canonical
+    ///   importer directory.
+    /// - Windows resolves `..` lexically on the spelled path, so it is popped
+    ///   only when that path is already canonical.
+    ///
+    /// Any other importer keeps the path it spells.
     fn target_key(&mut self, importer_dir: &Path, link_target: &Path) -> PathBuf {
-        let importer_dir_is_canonical = *self.importer_dir_is_canonical
+        let base = self.key_base_by_importer_dir
             .entry(importer_dir.to_path_buf())
             .or_insert_with_key(|dir| {
-                dunce::canonicalize(dir).is_ok_and(|canonical| canonical == *dir)
+                let canonical = dunce::canonicalize(dir).ok()?;
+                (cfg!(unix) || canonical == *dir).then_some(canonical)
             });
-        if !importer_dir_is_canonical {
+        let Some(base) = base else {
             return importer_dir.join(link_target);
-        }
-        let mut target = importer_dir.to_path_buf();
+        };
+        let mut target = base.clone();
         let mut components = link_target.components().peekable();
         while components.next_if_eq(&Component::ParentDir).is_some() {
             target.pop();

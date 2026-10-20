@@ -760,6 +760,29 @@ fn test_path_is_within() {
 
 #[cfg(unix)]
 #[test]
+fn linked_packages_share_targets_reached_through_a_symlinked_root() {
+    let temp = tempfile::tempdir().unwrap();
+    let real_root = temp.path().join("real");
+    for dir in ["packages/lib", "packages/app", "packages/web"] {
+        std::fs::create_dir_all(real_root.join(dir)).unwrap();
+    }
+    let linked_root = temp.path().join("linked");
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+
+    let mut linked_packages = super::LinkedPackages::new(&linked_root);
+    for importer in ["packages/app", "packages/web"] {
+        assert!(
+            linked_packages
+                .resolve(&linked_root.join(importer), "../lib")
+                .is_some(),
+        );
+    }
+
+    assert_eq!(linked_packages.by_target.len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
 fn linked_packages_resolve_targets_through_symlinks_like_the_filesystem() {
     let temp = tempfile::tempdir().unwrap();
     let real_root = temp.path().join("real");
