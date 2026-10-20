@@ -127,6 +127,7 @@ pub(crate) struct CompletionWorkspace<'a> {
     pub(crate) catalogs: Option<&'a Catalogs>,
     pub(crate) workspace_root: &'a Path,
     pub(crate) workspace_manifest_dir: &'a Path,
+    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
 #[derive(Clone, Copy)]

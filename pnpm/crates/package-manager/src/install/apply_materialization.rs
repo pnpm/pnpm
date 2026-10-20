@@ -204,8 +204,6 @@ fn run_apply_scripts<Reporter: self::Reporter>(
 async fn apply<Reporter: self::Reporter + 'static>(
     mut inputs: ApplyMaterializationInputs<'_, '_>,
 ) -> Result<(), InstallError> {
-    let peer_catalogs =
-        inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs);
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
     // can hold more — importers a filtered run left alone, or ones
@@ -228,8 +226,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
 
         prefix: &inputs.completion.prefix,
         config: inputs.completion.config,
-        catalogs: peer_catalogs,
-        workspace_root: &inputs.projects.workspace_root,
+        peer_workspace: peer_report_workspace(&inputs),
         installed_importer_ids,
     })? {
         return Ok(());
@@ -253,6 +250,16 @@ async fn apply<Reporter: self::Reporter + 'static>(
         materialized_dirs.as_ref(),
         (selected_current_lockfile, current_lockfile),
     )
+}
+
+fn peer_report_workspace<'a>(
+    inputs: &'a ApplyMaterializationInputs<'_, '_>,
+) -> crate::peer_dependency_issues::PeerReportWorkspace<'a> {
+    crate::peer_dependency_issues::PeerReportWorkspace {
+        lockfile_dir: &inputs.projects.workspace_root,
+        catalogs: inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs),
+        project_manifests: inputs.projects.importers.manifests,
+    }
 }
 
 /// The projects a filtered install materialized, the only ones it vouches
@@ -300,6 +307,7 @@ fn finish_apply<Reporter: self::Reporter>(
             catalogs: peer_catalogs,
             workspace_root: &inputs.projects.workspace_root,
             workspace_manifest_dir: &inputs.completion.workspace_manifest_dir,
+            project_manifests: inputs.projects.importers.manifests,
         },
 
         prefix: inputs.completion.prefix,
