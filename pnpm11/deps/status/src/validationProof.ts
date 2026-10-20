@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import type { ProjectManifest } from '@pnpm/types'
 import {
+  fileDigestOf,
   fileSignatureTrusted,
   importerIdOf,
   lockfileDigest,
@@ -106,7 +107,7 @@ function perProjectValidationProof (
         check = checkProjectLockfile(validation, rootDir, opts)
         byDir.set(rootDir, check)
       }
-      if (record.lockfile !== check.digest) return 'lockfileChanged'
+      if (check.unreadable || record.lockfile !== check.digest) return 'lockfileChanged'
       if (record.manifest !== manifestDigest(manifest)) return 'manifestChanged'
       return 'proven'
     },
@@ -119,16 +120,16 @@ function checkProjectLockfile (
   { wantedLockfileName, unmergedBranchLockfiles, hasUnmergedBranchLockfiles }: ValidationProofOptions
 ): PerProjectLockfileCheck {
   const wantedPath = path.join(rootDir, wantedLockfileName)
-  const lockfile = lockfileDigest(validation, rootDir, wantedLockfileName)
+  const lockfile = fileDigestOf(validation, wantedPath)
   const hasBranch = hasUnmergedBranchLockfiles?.(rootDir) ?? unmergedBranchLockfiles
-  const digest = lockfile.path === wantedPath && lockfile.digest.kind === 'present' && !hasBranch
-    ? lockfile.digest.signature.digest
+  const digest = lockfile.kind === 'present' && !hasBranch
+    ? lockfile.signature.digest
     : undefined
   const changed = digest !== validation.files?.[wantedPath]?.digest
   return {
     digest,
     changed,
-    unreadable: lockfile.digest.kind === 'unreadable',
+    unreadable: lockfile.kind === 'unreadable',
     rehashed: digest != null && !changed && !fileSignatureTrusted(validation, wantedPath),
   }
 }

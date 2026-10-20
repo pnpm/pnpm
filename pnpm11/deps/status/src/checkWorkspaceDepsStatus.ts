@@ -143,6 +143,7 @@ interface VouchedCheck {
   /** Whether a recorded validation already checked whether the lockfile changed. */
   lockfileAlreadyChecked?: boolean
   wantedLockfile?: LockfileObject | null
+  wantedLockfilesByDir?: Map<string, LockfileObject | null>
 }
 
 function patchesOrHooksStatus (ctx: WorkspaceDepsStatusContext): ReturnType<typeof patchesOrHooksAreModified> {
@@ -171,6 +172,7 @@ async function validateModifiedWorkspace (
     projectsToCheck: projectsToCheck.map(({ project }) => project),
     lockfileModified: vouched.lockfileAlreadyChecked ? false : (workspaceState.filteredInstall ? true : undefined),
     preloadedWantedLockfile: vouched.wantedLockfile,
+    preloadedWantedLockfilesByDir: vouched.wantedLockfilesByDir,
   })
   try {
     await assertWorkspaceProjectsUpToDate(
@@ -255,6 +257,7 @@ async function checkRecordedWorkspace (
     vouchedProjects: [...held.map(({ project }) => project.rootDir), ...provenProjects(allManifestStats, proof)],
     lockfileAlreadyChecked: true,
     wantedLockfile: lockfileCheck.wantedLockfile,
+    wantedLockfilesByDir: lockfileCheck.wantedLockfilesByDir,
   })
 }
 
@@ -265,13 +268,10 @@ async function checkLockfileChangedProjects (
 ): ReturnType<typeof findOutdatedLockfileChangedProject> {
   return findOutdatedLockfileChangedProject({
     lockfileDir: workspaceLockfileDir(ctx),
-    projects: held
-      .flatMap(({ project }) => {
-        const kind = proof.proofOf(project.rootDir, project.manifest)
-        return kind === 'lockfileChanged' || kind === 'unrecorded'
-          ? [{ project, unrecorded: kind === 'unrecorded' }]
-          : []
-      }),
+    projects: held.map(({ project }) => ({
+      project,
+      unrecorded: proof.proofOf(project.rootDir, project.manifest) === 'unrecorded',
+    })),
     include: workspaceInclude(ctx),
     sharedWorkspaceLockfile: ctx.opts.sharedWorkspaceLockfile,
     readOpts: ctx.opts,
@@ -291,10 +291,12 @@ function heldProjects ({ allProjects, lockfilesScan, opts }: WorkspaceDepsStatus
     ? new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
     : undefined
   return allManifestStats.filter(({ project }) => {
-    if (missingDirs?.has(path.resolve(project.rootDir)) && !installCovers(project.rootDir)) return false
+    const covered = installCovers(project.rootDir)
+    if (opts.selectedProjectsGraph != null && !covered) return false
+    if (missingDirs?.has(path.resolve(project.rootDir)) && !covered) return false
     const projectProof = proof.proofOf(project.rootDir, project.manifest)
     if (projectProof === 'proven') return false
-    return (opts.selectedProjectsGraph == null && projectProof !== 'unrecorded') || installCovers(project.rootDir)
+    return projectProof !== 'unrecorded' || covered
   })
 }
 
@@ -412,13 +414,14 @@ interface CreateWantedLockfileReaderOptions {
    */
   lockfileModified?: boolean
   preloadedWantedLockfile?: LockfileObject | null
+  preloadedWantedLockfilesByDir?: Map<string, LockfileObject | null>
 }
 
 async function createWantedLockfileReader (
-  { ctx, projectsToCheck, lockfileModified, preloadedWantedLockfile }: CreateWantedLockfileReaderOptions
+  { ctx, projectsToCheck, lockfileModified, preloadedWantedLockfile, preloadedWantedLockfilesByDir }: CreateWantedLockfileReaderOptions
 ): Promise<WantedLockfileReader> {
   if (!ctx.opts.sharedWorkspaceLockfile) {
-    return { readWantedLockfileAndDir: createPerProjectWantedLockfileReader(ctx, lockfileModified) }
+    return { readWantedLockfileAndDir: createPerProjectWantedLockfileReader(ctx, lockfileModified, preloadedWantedLockfilesByDir) }
   }
   const lockfileDir = workspaceLockfileDir(ctx)
   const wantedLockfileStats = statLockfileSync(path.join(lockfileDir, ctx.wantedLockfileName))
@@ -458,11 +461,18 @@ async function readCurrentLockfileAsWanted (ctx: WorkspaceDepsStatusContext): Pr
   }
 }
 
-function createPerProjectWantedLockfileReader (ctx: WorkspaceDepsStatusContext, lockfileModified?: boolean): ReadWantedLockfileAndDir {
+function createPerProjectWantedLockfileReader (
+  ctx: WorkspaceDepsStatusContext,
+  lockfileModified?: boolean,
+  preloadedByDir?: Map<string, LockfileObject | null>
+): ReadWantedLockfileAndDir {
   const { opts, wantedLockfileName, workspaceState } = ctx
   const include = workspaceInclude(ctx)
   return async wantedLockfileDir => {
-    const wantedLockfilePromise = allowUnawaitedFailure(readWantedLockfileIn(wantedLockfileDir, opts))
+    const preloaded = preloadedByDir?.get(wantedLockfileDir)
+    const wantedLockfilePromise = preloaded !== undefined
+      ? Promise.resolve(preloaded)
+      : allowUnawaitedFailure(readWantedLockfileIn(wantedLockfileDir, opts))
     const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
     if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
     if (lockfileModified ?? modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {

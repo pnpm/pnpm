@@ -346,6 +346,36 @@ describe('checkDepsStatus with recorded validations', () => {
       upToDate: false,
       issue: 'Workspace package a has dependencies but was not installed',
     })
+
+    // An npm: alias that resolves to a workspace package is also followed.
+    workspace.manifestOf('b').dependencies = { aliased: 'npm:a@^1.0.0' }
+    expect(await check(workspace, undefined, { dir: workspace.projectDir('b') })).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package a has dependencies but was not installed',
+    })
+
+    // A bare version range that does not match the workspace package version is not followed.
+    workspace.manifestOf('b').dependencies = { a: '^2.0.0' }
+    await writeWantedLockfile(workspace.workspaceDir, lockfileWith({ a: '2.0.0' }))
+    await writeCurrentLockfile(path.join(workspace.workspaceDir, 'node_modules/.pnpm'), {
+      ...lockfileWith({ a: '2.0.0' }),
+      packages: { ['a@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-a2' } } },
+    })
+    await updateWorkspaceState({
+      allProjects: workspace.allProjects,
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: SETTINGS,
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: true,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+        vouchedProjects: [workspace.projectDir('b')],
+      },
+    })
+    expect(await check(workspace, undefined, { dir: workspace.projectDir('b') })).toMatchObject({ upToDate: true })
   })
 
   it('proves and refreshes per-project lockfiles when sharedWorkspaceLockfile is false', async () => {
@@ -385,6 +415,14 @@ describe('checkDepsStatus with recorded validations', () => {
     await fs.utimes(manifestPath, mtime, mtime)
     expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
     expect(await check(workspace, ['b'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: false })
+
+    // An unreadable lockfile in an unselected project does not block a filtered check.
+    const bLockfilePath = path.join(workspace.projectDir('b'), 'pnpm-lock.yaml')
+    const { mtime: bLockfileMtime } = await fs.stat(bLockfilePath)
+    await fs.rm(bLockfilePath)
+    await fs.mkdir(bLockfilePath)
+    await fs.utimes(bLockfilePath, bLockfileMtime, bLockfileMtime)
+    expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
   })
 })
 

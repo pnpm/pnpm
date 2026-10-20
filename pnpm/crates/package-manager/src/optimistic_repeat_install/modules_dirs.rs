@@ -46,23 +46,24 @@ pub(super) fn first_selected_project_missing_modules_dir(
 
 struct WorkspaceProjectIndex<'a> {
     by_dir: std::collections::HashMap<PathBuf, &'a PackageManifest>,
-    by_name: std::collections::HashMap<String, Vec<PathBuf>>,
+    by_name: std::collections::HashMap<String, Vec<(PathBuf, Option<String>)>>,
     link_workspace_packages: bool,
 }
 
 impl<'a> WorkspaceProjectIndex<'a> {
     fn from_check(check: &OptimisticRepeatInstallCheck<'a>) -> Self {
         let mut by_dir = std::collections::HashMap::new();
-        let mut by_name: std::collections::HashMap<String, Vec<PathBuf>> =
+        let mut by_name: std::collections::HashMap<String, Vec<(PathBuf, Option<String>)>> =
             std::collections::HashMap::new();
         for (dir, manifest) in check.project_manifests {
             let norm = lexical_normalize(dir);
             by_dir.insert(norm.clone(), *manifest);
             if let Some(name) = manifest_string_field(manifest, "name") {
+                let version = manifest_string_field(manifest, "version");
                 by_name
                     .entry(name)
                     .or_default()
-                    .push(norm);
+                    .push((norm, version));
             }
         }
         Self {
@@ -81,15 +82,33 @@ impl<'a> WorkspaceProjectIndex<'a> {
                 .into_iter()
                 .collect();
         }
-        let target_name = if let Some(ws_spec) = spec.strip_prefix("workspace:") {
-            Some(workspace_dep_target_name(alias, ws_spec))
-        } else {
-            self.link_workspace_packages.then_some(alias)
-        };
-        target_name
-            .and_then(|name| self.by_name.get(name))
-            .cloned()
-            .unwrap_or_default()
+        let is_workspace = spec.starts_with("workspace:");
+        if !is_workspace && !self.link_workspace_packages {
+            return Vec::new();
+        }
+        if let Some(ws_spec) = spec.strip_prefix("workspace:")
+            && (matches!(ws_spec, "." | "..")
+                || ws_spec.starts_with("./")
+                || ws_spec.starts_with("../"))
+        {
+            let target = lexical_normalize(&dir.join(ws_spec));
+            return self.by_dir
+                .contains_key(&target)
+                .then_some(target)
+                .into_iter()
+                .collect();
+        }
+        let (target_name, range) = crate::install::spec_target_and_range(spec);
+        let name = target_name.unwrap_or(alias);
+        self.by_name
+            .get(name)
+            .into_iter()
+            .flatten()
+            .filter(|(_, version)| {
+                workspace_version_matches_range(version.as_deref(), range, is_workspace)
+            })
+            .map(|(dir, _)| dir.clone())
+            .collect()
     }
 }
 
@@ -121,12 +140,20 @@ fn reached_workspace_project_dirs(
     reached
 }
 
-fn workspace_dep_target_name<'a>(alias: &'a str, ws_spec: &'a str) -> &'a str {
-    let search_from = usize::from(ws_spec.starts_with('@'));
-    match ws_spec[search_from..].find('@') {
-        Some(offset) if offset > 0 => &ws_spec[..search_from + offset],
-        _ => alias,
+fn workspace_version_matches_range(version: Option<&str>, range: &str, is_workspace: bool) -> bool {
+    if matches!(range, "" | "*" | "^" | "~") {
+        return true;
     }
+    let Ok(parsed_range) = range.parse::<node_semver::Range>() else {
+        return is_workspace;
+    };
+    let Some(version) = version else {
+        return true;
+    };
+    version == range
+        || version
+            .parse::<node_semver::Version>()
+            .is_ok_and(|parsed| parsed_range.satisfies(&parsed))
 }
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.

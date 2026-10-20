@@ -256,3 +256,108 @@ fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
         Decision::Skipped { reason } if reason.contains("missing target"),
     ));
 }
+
+#[test]
+fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versions() {
+    let linker = pnpm_config::NodeLinker::Isolated;
+    let (dir, config, root_manifest) =
+        setup_fresh_install_with_config(linker, "root", "1.0.0", "", |config| {
+            config.link_workspace_packages = pnpm_config::LinkWorkspacePackages::DirectOnly;
+        });
+    let write_pkg = |rel: &str, json: &str, create_modules_dir: bool| {
+        let pkg_dir = dir.path().join(rel);
+        fs::create_dir_all(&pkg_dir).unwrap();
+        if create_modules_dir {
+            fs::create_dir_all(pkg_dir.join("node_modules")).unwrap();
+        }
+        let manifest_path = pkg_dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        (pkg_dir, PackageManifest::from_path(manifest_path).unwrap())
+    };
+    let (app_dir, app_manifest) = write_pkg(
+        "app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"alias-b":"npm:pkg-b@^1.0.0","rel-c":"workspace:../pkg-c","pkg-d":"workspace:^2.0.0"}}"#,
+        true,
+    );
+    let (pkg_b_dir, pkg_b_manifest) = write_pkg(
+        "pkg-b",
+        r#"{"name":"pkg-b","version":"1.2.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_c_dir, pkg_c_manifest) = write_pkg(
+        "pkg-c",
+        r#"{"name":"pkg-c","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_d_v1_dir, pkg_d_v1_manifest) = write_pkg(
+        "pkg-d-v1",
+        r#"{"name":"pkg-d","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        false,
+    );
+    let (pkg_d_v2_dir, pkg_d_v2_manifest) = write_pkg(
+        "pkg-d-v2",
+        r#"{"name":"pkg-d","version":"2.1.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+
+    let project_manifests = [
+        (dir.path().to_path_buf(), &root_manifest),
+        (app_dir.clone(), &app_manifest),
+        (pkg_b_dir.clone(), &pkg_b_manifest),
+        (pkg_c_dir.clone(), &pkg_c_manifest),
+        (pkg_d_v1_dir, &pkg_d_v1_manifest),
+        (pkg_d_v2_dir.clone(), &pkg_d_v2_manifest),
+    ];
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = pnpm_workspace_state::WorkspaceState::default();
+    let selected = [app_dir.as_path()];
+
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        ),
+        None,
+    );
+
+    fs::remove_dir_all(pkg_b_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        )
+        .as_deref(),
+        Some("pkg-b"),
+    );
+    fs::create_dir_all(pkg_b_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_c_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        )
+        .as_deref(),
+        Some("pkg-c"),
+    );
+    fs::create_dir_all(pkg_c_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_d_v2_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        )
+        .as_deref(),
+        Some("pkg-d"),
+    );
+}

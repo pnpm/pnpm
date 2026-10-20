@@ -35,6 +35,7 @@ export interface LockfileChangedCheckInput {
 export interface LockfileChangedCheckResult {
   issue?: string
   wantedLockfile?: LockfileObject | null
+  wantedLockfilesByDir?: Map<string, LockfileObject | null>
 }
 
 function currentLockfileDir (lockfileDir: string, modulesDir?: string): string {
@@ -44,7 +45,7 @@ function currentLockfileDir (lockfileDir: string, modulesDir?: string): string {
 export async function findOutdatedLockfileChangedProject (input: LockfileChangedCheckInput): Promise<LockfileChangedCheckResult> {
   if (input.projects.length === 0) return {}
   if (input.sharedWorkspaceLockfile === false) {
-    return { issue: await findOutdatedPerProjectLockfile(input) }
+    return findOutdatedPerProjectLockfile(input)
   }
   const { include, lockfileDir, projects, readOpts } = input
   const [wanted, current] = await Promise.all([
@@ -65,16 +66,18 @@ export async function findOutdatedLockfileChangedProject (input: LockfileChanged
   return { wantedLockfile: wanted }
 }
 
-async function findOutdatedPerProjectLockfile ({ include, projects, readOpts }: LockfileChangedCheckInput): Promise<string | undefined> {
+async function findOutdatedPerProjectLockfile ({ include, projects, readOpts }: LockfileChangedCheckInput): Promise<LockfileChangedCheckResult> {
+  const wantedLockfilesByDir = new Map<string, LockfileObject | null>()
   const checks = await Promise.all(projects.map(async ({ project, unrecorded }) => {
     const [wanted, current] = await Promise.all([
       readWantedLockfileIn(project.rootDir, readOpts),
       readCurrentLockfile(currentLockfileDir(project.rootDir, readOpts.modulesDir), { ignoreIncompatible: false }),
     ])
+    wantedLockfilesByDir.set(project.rootDir, wanted)
     const outdated = wanted != null && !importerClosuresMatch(wanted, current, ['.' as ProjectId], include)
     return outdated ? unprovenProjectIssue(project, unrecorded) : undefined
   }))
-  return checks.find((issue) => issue != null)
+  return { issue: checks.find((issue) => issue != null), wantedLockfilesByDir }
 }
 
 function unprovenProjectIssue (project: Project, unrecorded: boolean): string {

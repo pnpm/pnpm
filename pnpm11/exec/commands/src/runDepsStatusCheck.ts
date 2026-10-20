@@ -430,7 +430,7 @@ function isForwardedCliOption (key: string): boolean {
 function formatCliConfigEntry (key: string, value: unknown): string[] {
   if (key === 'dir' || value === undefined || value === null) return []
   if (key === 'ignore-workspace') {
-    return [value ? '--ignore-workspace' : '--no-ignore-workspace']
+    return [value === true || value === 'true' ? '--ignore-workspace' : '--no-ignore-workspace']
   }
   const values = Array.isArray(value) ? value : [value]
   if (key === 'workspace-packages') {

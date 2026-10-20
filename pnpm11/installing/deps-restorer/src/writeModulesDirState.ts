@@ -31,7 +31,7 @@ export async function writeModulesDirState (ctx: HeadlessContext, depGraph: Head
   await writeLockfilesOfInstall(ctx, mergeIntoCurrentLockfile(ctx, depGraph))
 }
 
-function mergeIntoCurrentLockfile (
+export function mergeIntoCurrentLockfile (
   { currentLockfile, filterOpts, wantedLockfile }: HeadlessContext,
   { filteredLockfile, importerIds }: HeadlessDepGraph
 ): LockfileObject {

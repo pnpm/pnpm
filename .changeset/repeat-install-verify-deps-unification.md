@@ -8,4 +8,4 @@
 "pacquet": patch
 ---
 
-`verifyDepsBeforeRun: install` now forwards install-relevant CLI flags such as `--lockfile-dir`, `--modules-dir`, `--store-dir`, `--offline`, and `--ignore-scripts` when `pnpm run` or `pnpm exec` spawns `pnpm install`. Repeat installs and `verifyDepsBeforeRun` checks now agree across workspace dependency selections, dedicated lockfiles, and `CI=true` with `autoDedupe` [pnpm/tasks#161](https://github.com/pnpm/tasks/issues/161).
+`verifyDepsBeforeRun` now forwards install-relevant CLI flags such as `--lockfile-dir`, `--modules-dir`, `--store-dir`, `--offline`, and `--ignore-scripts` when `pnpm run` or `pnpm exec` spawns `pnpm install`. Repeat installs and `verifyDepsBeforeRun` checks now agree across workspace dependency selections, dedicated lockfiles, and `CI=true` with `autoDedupe`.

@@ -301,12 +301,12 @@ function recordedProjectLockfiles (
   const projectLockfiles = new Map<string, string | undefined>()
   for (const project of opts.allProjects) {
     if (opts.vouchedProjects != null && !opts.vouchedProjects.has(project.rootDir)) continue
-    const lockfile = lockfileDigest(previous, project.rootDir, opts.wantedLockfileName)
     const wantedPath = path.join(project.rootDir, opts.wantedLockfileName)
-    if (lockfile.digest.kind === 'present' && lockfile.path === wantedPath) {
-      files[lockfile.path] = lockfile.digest.signature
-      projectLockfiles.set(project.rootDir, lockfile.digest.signature.digest)
-    } else if (lockfile.digest.kind !== 'unreadable') {
+    const digest = fileDigestOf(previous, wantedPath)
+    if (digest.kind === 'present') {
+      files[wantedPath] = digest.signature
+      projectLockfiles.set(project.rootDir, digest.signature.digest)
+    } else if (digest.kind !== 'unreadable') {
       projectLockfiles.set(project.rootDir, undefined)
     }
   }

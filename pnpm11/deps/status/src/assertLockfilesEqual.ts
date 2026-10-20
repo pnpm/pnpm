@@ -60,20 +60,22 @@ export function importerClosuresMatch (
   if (currentLockfile == null) {
     return initialImporterIds.every((id) => {
       const importer = Object.hasOwn(wantedLockfile.importers, id) ? wantedLockfile.importers[id] : undefined
-      return equals(importer?.specifiers ?? {}, {})
+      if (importer == null) return true
+      const filtered = filterImporterByGroups(importer, include)
+      return (
+        Object.keys(filtered.specifiers ?? {}).length === 0 &&
+        Object.keys(filtered.dependencies ?? {}).length === 0 &&
+        Object.keys(filtered.devDependencies ?? {}).length === 0 &&
+        Object.keys(filtered.optionalDependencies ?? {}).length === 0
+      )
     })
   }
   if (initialImporterIds.some((id) => !Object.hasOwn(currentLockfile.importers, id) || currentLockfile.importers[id] == null)) {
     return false
   }
-  const allGroups: IncludedDependencies = {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  }
   return equals(
     collectImporterClosure(wantedLockfile, initialImporterIds, include),
-    collectImporterClosure(currentLockfile, initialImporterIds, allGroups)
+    collectImporterClosure(currentLockfile, initialImporterIds, include)
   )
 }
 

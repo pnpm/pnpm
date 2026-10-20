@@ -19,6 +19,7 @@ import {
 import { getHoistedProjectModulesDir, type WorkspaceState } from '@pnpm/workspace.state'
 import { isEmpty } from 'ramda'
 
+import { rangeMatches, splitNameAndRange } from './findInjectedWorkspaceDep.js'
 import { safeStat } from './safeStat.js'
 import type { CheckDepsStatusOptions } from './types.js'
 import { readWantedLockfileIn } from './wantedLockfiles.js'
@@ -272,20 +273,20 @@ function walkCommandWorkspaceDependencies (
 
 interface ProjectIndex {
   byDir: Map<string, Project>
-  byName: Map<string, string[]>
+  byName: Map<string, Project[]>
 }
 
 function indexProjects (allProjects: Project[]): ProjectIndex {
   const byDir = new Map<string, Project>()
-  const byName = new Map<string, string[]>()
+  const byName = new Map<string, Project[]>()
   for (const project of allProjects) {
     const dir = path.resolve(project.rootDir)
     byDir.set(dir, project)
     const name = project.manifest.name
     if (name == null) continue
-    const dirs = byName.get(name) ?? []
-    dirs.push(dir)
-    byName.set(name, dirs)
+    const projects = byName.get(name) ?? []
+    projects.push(project)
+    byName.set(name, projects)
   }
   return { byDir, byName }
 }
@@ -316,19 +317,17 @@ function specWorkspaceTargetDirs (
     const target = path.resolve(dir, pref.slice('link:'.length))
     return index.byDir.has(target) ? [target] : []
   }
-  if (pref.startsWith('workspace:')) {
-    const targetName = workspaceDepTargetName(alias, pref.slice('workspace:'.length))
-    return index.byName.get(targetName) ?? []
+  const isWorkspaceSpec = pref.startsWith('workspace:')
+  if (!isWorkspaceSpec && !linkWorkspacePackages) return []
+  const rawSpec = isWorkspaceSpec ? pref.slice('workspace:'.length) : pref
+  if (isWorkspaceSpec && /^\.{1,2}(?:\/|$)/.test(rawSpec)) {
+    const target = path.resolve(dir, rawSpec)
+    return index.byDir.has(target) ? [target] : []
   }
-  if (linkWorkspacePackages) {
-    return index.byName.get(alias) ?? []
-  }
-  return []
-}
-
-function workspaceDepTargetName (alias: string, wsSpec: string): string {
-  const atIndex = wsSpec.indexOf('@', wsSpec.startsWith('@') ? 1 : 0)
-  return atIndex > 0 ? wsSpec.slice(0, atIndex) : alias
+  const { name, range } = splitNameAndRange(alias, rawSpec)
+  return (index.byName.get(name) ?? [])
+    .filter((project) => rangeMatches(range, project.manifest.version, isWorkspaceSpec))
+    .map((project) => path.resolve(project.rootDir))
 }
 
 /**
