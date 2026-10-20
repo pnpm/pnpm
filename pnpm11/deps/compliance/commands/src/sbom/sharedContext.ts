@@ -1,11 +1,13 @@
 import { realpath } from 'node:fs/promises'
 import path from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 
 import { readProjectManifestOnly } from '@pnpm/cli.utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { isSpdxLicenseExpression, resolveLicenseFromDir } from '@pnpm/deps.compliance.license-resolver'
 import { PnpmError } from '@pnpm/error'
 import { getLockfileImporterId, readWantedLockfile } from '@pnpm/lockfile.fs'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { getStorePath } from '@pnpm/store.path'
 import type { ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -32,9 +34,10 @@ export interface SharedContext {
 type ProjectsGraph = NonNullable<SbomCommandOptions['allProjectsGraph']>
 
 export async function buildSharedContext (opts: SbomCommandOptions): Promise<SharedContext> {
-  const lockfile = await readWantedLockfile(opts.lockfileDir ?? opts.dir, {
-    ignoreIncompatible: true,
-  })
+  const lockfileDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
+  const lockfile = opts.sharedWorkspaceLockfile === false && opts.workspaceDir && !opts.lockfileDir
+    ? await readDedicatedWorkspaceLockfiles(opts, lockfileDir)
+    : await readWantedLockfile(opts.lockfileDir ?? opts.dir, { ignoreIncompatible: true })
 
   if (lockfile == null) {
     throw new PnpmError(
@@ -45,8 +48,6 @@ export async function buildSharedContext (opts: SbomCommandOptions): Promise<Sha
 
   const rootManifestDir = opts.rootProjectManifestDir ?? opts.dir
   const rootManifest = opts.rootProjectManifest ?? await readProjectManifestOnly(rootManifestDir)
-
-  const lockfileDir = opts.lockfileDir ?? opts.dir
 
   const excludePeerNamesByImporter = opts.excludePeers
     ? await mapPeerNamesByImporter(opts, Object.keys(lockfile.importers), lockfileDir)
@@ -65,6 +66,78 @@ export async function buildSharedContext (opts: SbomCommandOptions): Promise<Sha
   const rootLicense = await resolveRootLicense(rootManifest, rootManifestDir)
 
   return { lockfile, rootManifest, rootManifestDir, rootLicense, storeDir, workspaceManifestsByImporterId, excludePeerNamesByImporter }
+}
+
+async function readDedicatedWorkspaceLockfiles (opts: SbomCommandOptions, workspaceDir: string): Promise<LockfileObject | null> {
+  const projectDirs = selectedAndReachableProjectDirs(opts)
+  const limitLockfileReads = pLimit(16)
+  const lockfiles = await Promise.all(projectDirs.map((projectDir) =>
+    limitLockfileReads(() => readWantedLockfile(projectDir, { ignoreIncompatible: true }))))
+  let merged: LockfileObject | null = null
+
+  for (const [index, projectDir] of projectDirs.entries()) {
+    const lockfile = lockfiles[index]
+    if (!lockfile) continue
+    const projectSnapshot = lockfile.importers[getLockfileImporterId(projectDir, projectDir)]
+    if (!projectSnapshot) continue
+    const importerId = getLockfileImporterId(workspaceDir, projectDir)
+    const importers = Object.fromEntries([[importerId, projectSnapshot]]) as LockfileObject['importers']
+    if (!merged) {
+      merged = { ...lockfile, importers }
+      continue
+    }
+    mergeDedicatedEntries(merged.importers, importers, projectDir, 'importer')
+    merged.packages ??= {}
+    mergeDedicatedPackages(merged.packages, lockfile.packages ?? {}, projectDir)
+  }
+  return merged
+}
+
+function selectedAndReachableProjectDirs (opts: SbomCommandOptions): string[] {
+  const selected = opts.selectedProjectsGraph ?? opts.allProjectsGraph
+  if (!selected) return [opts.dir]
+  const graph = opts.allProjectsGraph ?? selected
+  const dependenciesByDir = new Map(Object.entries(graph).map(([dir, entry]) => [dir, entry.dependencies]))
+  const dirs = Object.keys(selected)
+  const seen = new Set(dirs)
+  for (let index = 0; index < dirs.length; index++) {
+    for (const dependencyDir of dependenciesByDir.get(dirs[index]) ?? []) {
+      if (!dependenciesByDir.has(dependencyDir) || seen.has(dependencyDir)) continue
+      seen.add(dependencyDir)
+      dirs.push(dependencyDir)
+    }
+  }
+  return dirs
+}
+
+function mergeDedicatedPackages (
+  target: NonNullable<LockfileObject['packages']>, incoming: NonNullable<LockfileObject['packages']>, projectDir: string
+): void {
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!Object.hasOwn(target, key)) {
+      Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true })
+      continue
+    }
+    const current = target[key as keyof typeof target]
+    if (!isDeepStrictEqual({ ...current, optional: undefined }, { ...value, optional: undefined })) {
+      throw new PnpmError('SBOM_CONFLICTING_LOCKFILE_ENTRIES',
+        `Cannot combine dedicated workspace lockfiles because ${projectDir} contains a different package entry for ${key}`)
+    }
+    if (!current.optional || !value.optional) delete current.optional
+  }
+}
+
+function mergeDedicatedEntries (
+  target: object, incoming: object, projectDir: string, kind: string
+): void {
+  const entries = target as Record<string, unknown>
+  for (const [key, value] of Object.entries(incoming)) {
+    if (Object.hasOwn(entries, key) && !isDeepStrictEqual(entries[key], value)) {
+      throw new PnpmError('SBOM_CONFLICTING_LOCKFILE_ENTRIES',
+        `Cannot combine dedicated workspace lockfiles because ${projectDir} contains a different ${kind} entry for ${key}`)
+    }
+    Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true })
+  }
 }
 
 /**
