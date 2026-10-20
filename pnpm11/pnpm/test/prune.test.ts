@@ -134,6 +134,9 @@ test('prune --filter only prunes the selected workspace project', async () => {
       package: {
         name: 'root',
         version: '1.0.0',
+        devDependencies: {
+          '@pnpm.e2e/hello-world-js-bin': '1.0.0',
+        },
       },
     },
     {
@@ -168,6 +171,11 @@ test('prune --filter only prunes the selected workspace project', async () => {
 
   await execPnpm(['install'])
 
+  fs.mkdirSync('node_modules/extraneous-root', { recursive: true })
+  fs.writeFileSync('node_modules/extraneous-root/package.json', JSON.stringify({
+    name: 'extraneous-root',
+    version: '1.0.0',
+  }))
   fs.mkdirSync('packages/pkg-a/node_modules/extraneous-a', { recursive: true })
   fs.writeFileSync('packages/pkg-a/node_modules/extraneous-a/package.json', JSON.stringify({
     name: 'extraneous-a',
@@ -185,6 +193,8 @@ test('prune --filter only prunes the selected workspace project', async () => {
   projects['pkg-a'].hasNot('is-negative')
   projects['pkg-a'].hasNot('extraneous-a')
 
+  projects['root'].has('@pnpm.e2e/hello-world-js-bin')
+  projects['root'].has('extraneous-root')
   projects['pkg-b'].has('is-positive')
   projects['pkg-b'].has('@pnpm.e2e/foo')
   projects['pkg-b'].has('extraneous-b')
@@ -192,6 +202,8 @@ test('prune --filter only prunes the selected workspace project', async () => {
 
   await execPnpm(['-r', 'prune', '--prod'])
 
+  projects['root'].hasNot('@pnpm.e2e/hello-world-js-bin')
+  projects['root'].hasNot('extraneous-root')
   projects['pkg-b'].has('is-positive')
   projects['pkg-b'].hasNot('@pnpm.e2e/foo')
   projects['pkg-b'].hasNot('extraneous-b')

@@ -102,7 +102,7 @@ async function pruneImporterDirectDeps (
   const { binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir } = importer
   const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
   const currentPkgs = Object.entries(mergeDependencies(currentImporter))
-  const wantedPkgs = mergeDependencies(wantedLockfile.importers[id])
+  const wantedPkgs = mergeDependencies(wantedLockfile.importers[id] ?? ({} as ProjectSnapshot))
 
   const allCurrentPackages = new Set(
     (pruneDirectDependencies === true || removePackages?.length)

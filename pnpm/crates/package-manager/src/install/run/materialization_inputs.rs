@@ -62,7 +62,7 @@ impl Dispatched<'_> {
     pub(super) fn materialization_modules<'r>(
         &'r self,
         (included, rebuild): (IncludedDependencies, Option<&'r RebuildOptions>),
-        prune: pnpm_deps_restorer::PruneTreeOptions,
+        prune: pnpm_deps_restorer::PruneTreeOptions<'r>,
         logged_methods: &'r AtomicU8,
     ) -> crate::install::materialize::MaterializationModules<'r> {
         let prior_modules = self.modules.previous_modules_metadata.as_ref();
@@ -127,13 +127,14 @@ impl Lockfiles<'_> {
 }
 
 impl super::RunExecution<'_> {
-    pub(super) const fn prune_tree_options(
+    pub(super) const fn prune_tree_options<'r>(
         &self,
-        scope: &InstallScope<'_>,
-    ) -> pnpm_deps_restorer::PruneTreeOptions {
+        scope: &'r InstallScope<'_>,
+    ) -> pnpm_deps_restorer::PruneTreeOptions<'r> {
         pnpm_deps_restorer::PruneTreeOptions {
             orphans: !scope.importers.filtered_install,
             direct_dependencies: self.options.manifests.prune_direct_dependencies,
+            importer_ids: scope.importers.requested_importer_ids.as_ref(),
         }
     }
 

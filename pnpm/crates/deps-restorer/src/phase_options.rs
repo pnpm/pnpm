@@ -53,14 +53,15 @@ pub struct LinkPackageData<'a> {
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct PruneTreeOptions {
+pub struct PruneTreeOptions<'a> {
     pub orphans: bool,
     pub direct_dependencies: bool,
+    pub importer_ids: Option<&'a std::collections::HashSet<String>>,
 }
 
 #[derive(Clone, Copy)]
 pub struct PriorLinkState<'a> {
-    pub prune: PruneTreeOptions,
+    pub prune: PruneTreeOptions<'a>,
     pub hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`; lets the hoisted linker leave packages that are

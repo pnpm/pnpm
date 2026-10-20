@@ -215,7 +215,7 @@ pub struct PriorMaterialization<'a> {
     /// See [`crate::PriorHoistedState::unbuilt_builds`].
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
-    pub prune: crate::PruneTreeOptions,
+    pub prune: crate::PruneTreeOptions<'a>,
     /// Relink the bins of every slot the lockfile records, not only of the
     /// slots this install materializes. A tree that moved with its project
     /// needs it, because its other slots may hold bins naming where it was.

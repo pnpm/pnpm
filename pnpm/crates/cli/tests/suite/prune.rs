@@ -338,13 +338,19 @@ fn prune_removes_extraneous_direct_packages_when_lockfile_is_up_to_date() {
     )
     .expect("write extraneous package.json");
 
-    let extraneous_scoped_dir = workspace.join("node_modules/@extraneous/scoped-pkg");
+    let extraneous_scoped_dir = workspace
+        .join("node_modules")
+        .join("@extraneous")
+        .join("scoped-pkg");
     fs::create_dir_all(&extraneous_scoped_dir).expect("create extraneous scoped package dir");
     fs::write(
         extraneous_scoped_dir.join("package.json"),
         r#"{"name":"@extraneous/scoped-pkg","version":"1.0.0"}"#,
     )
     .expect("write extraneous scoped package.json");
+
+    let non_package_dir = workspace.join("node_modules").join("_tmp");
+    fs::create_dir_all(&non_package_dir).expect("create _tmp dir");
 
     pacquet_in(&workspace)
         .with_arg("prune")
@@ -354,9 +360,13 @@ fn prune_removes_extraneous_direct_packages_when_lockfile_is_up_to_date() {
     assert!(has_link(&workspace, "is-positive"));
     assert!(!extraneous_dir.exists(), "extraneous direct package must be removed");
     assert!(
-        !workspace.join("node_modules/@extraneous").exists(),
+        !workspace
+            .join("node_modules")
+            .join("@extraneous")
+            .exists(),
         "emptied extraneous scope dir must be removed",
     );
+    assert!(non_package_dir.exists(), "non-package _tmp dir must not abort prune");
 
     // Also verify pruning extraneous direct packages when the project has zero dependencies.
     fs::write(workspace.join("package.json"), r#"{"name":"empty-project","version":"1.0.0"}"#)
@@ -381,6 +391,21 @@ fn prune_removes_extraneous_direct_packages_when_lockfile_is_up_to_date() {
     assert!(
         !extraneous_dir.exists(),
         "extraneous direct package must be removed even when project has zero dependencies",
+    );
+
+    // An in-workspace `node_modules -> src` symlink must never redirect prune into `src`.
+    let src_subdir = workspace.join("src").join("components");
+    fs::create_dir_all(&src_subdir).expect("create src/components");
+    let modules_dir = workspace.join("node_modules");
+    if modules_dir.exists() {
+        fs::remove_dir_all(&modules_dir).expect("remove node_modules");
+    }
+    pnpm_fs::symlink_dir(&workspace.join("src"), &modules_dir)
+        .expect("symlink node_modules -> src");
+    let _ = pacquet_in(&workspace).with_arg("prune").output();
+    assert!(
+        src_subdir.exists(),
+        "in-workspace node_modules symlink must not delete src/components",
     );
 
     drop((root, mock_instance));
@@ -410,24 +435,38 @@ fn prune_respects_workspace_filter() {
     fs::create_dir_all(&pkg_a).expect("create pkg-a");
     fs::create_dir_all(&pkg_b).expect("create pkg-b");
 
-    for (name, dir) in [("pkg-a", &pkg_a), ("pkg-b", &pkg_b)] {
-        fs::write(
-            dir.join("package.json"),
-            serde_json::json!({
-                "name": name,
-                "version": "1.0.0",
-                "dependencies": { "is-positive": "1.0.0" },
-                "devDependencies": { "is-negative": "1.0.0" },
-            })
-            .to_string(),
-        )
-        .expect("write member package.json");
-    }
+    fs::write(
+        pkg_a.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0", "pkg-b": "workspace:*" },
+            "devDependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a package.json");
+    fs::write(
+        pkg_b.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-b",
+            "version": "1.0.0",
+            "dependencies": { "is-positive": "1.0.0" },
+            "devDependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-b package.json");
 
     pacquet_in(&workspace)
         .with_arg("install")
         .assert()
         .success();
+
+    let extraneous_a = pkg_a.join("node_modules").join("extraneous-a");
+    let extraneous_b = pkg_b.join("node_modules").join("extraneous-b");
+    fs::create_dir_all(&extraneous_a).expect("create extraneous-a");
+    fs::create_dir_all(&extraneous_b).expect("create extraneous-b");
 
     assert!(has_link(&workspace, FILTERED));
     assert!(has_link(&pkg_a, "is-positive"));
@@ -442,11 +481,13 @@ fn prune_respects_workspace_filter() {
 
     assert!(has_link(&pkg_a, "is-positive"));
     assert!(!has_link(&pkg_a, "is-negative"), "selected package devDependencies must be pruned");
+    assert!(!extraneous_a.exists(), "selected package extraneous dep must be pruned");
     assert!(has_link(&pkg_b, "is-positive"));
     assert!(
         has_link(&pkg_b, "is-negative"),
         "unselected sibling package devDependencies must remain linked",
     );
+    assert!(extraneous_b.exists(), "unselected sibling extraneous dep must remain untouched");
     assert!(
         has_link(&workspace, FILTERED),
         "unselected workspace root devDependencies must remain linked",

@@ -327,6 +327,7 @@ fn prune_importer_tree<Reporter: self::Reporter>(
             public_hoist_targets: hoist.public_targets.as_ref(),
             manifests: inputs.projects.manifests,
             included_groups: inputs.projects.dependency_groups,
+            selected_importer_ids: inputs.prior.prune.importer_ids,
         }
         .run::<Reporter>()
         .map_err(LinkPhaseError::PruneStaleModules)?;
