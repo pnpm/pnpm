@@ -97,6 +97,7 @@ export function toUpdatedProjects (
 
 function describeLinkedGraph ({ ctx, depsStateCache, opts, resolution }: LinkContext) {
   return {
+    allProjects: ctx.projects,
     currentLockfile: ctx.currentLockfile,
     dependenciesByProjectId: resolution.dependenciesByProjectId,
     depsStateCache,

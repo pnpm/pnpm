@@ -25,6 +25,7 @@ import type {
   DepPath,
   HoistedDependencies,
   ProjectId,
+  ProjectManifest,
   RegistriesByScope,
   RegistryConfig,
   RemoteSideEffectsCacheSettings,
@@ -38,6 +39,8 @@ import { linkNewPackages, type LinkNewPackagesOptions } from './linkNewPackages.
 
 export interface LinkPackagesOptions {
   allowBuild?: AllowBuild
+  /** Every workspace project, selected or not. Each named one is hoisted when `hoistWorkspacePackages` is set. */
+  allProjects: Record<string, { id: ProjectId, manifest: ProjectManifest, rootDir: string }>
   currentLockfile: LockfileObject
   dedupeDirectDeps: boolean
   dependenciesByProjectId: Record<string, Map<string, DepPath>>
@@ -301,7 +304,7 @@ async function hoistDependencies (
     return {}
   }
   const priorWorkspaceProjectIds = findPriorWorkspaceProjectIds(context, opts)
-  const hoistOpts = getHoistOptions(projects, { context, priorWorkspaceProjectIds }, opts)
+  const hoistOpts = getHoistOptions({ context, priorWorkspaceProjectIds }, opts)
   const retainedHoistedDependencies = Object.fromEntries(
     Object.entries(opts.hoistedDependencies)
       .filter(([key]) => !priorWorkspaceProjectIds.has(key as ProjectId))
@@ -343,7 +346,6 @@ function findPriorWorkspaceProjectIds (
 }
 
 function getHoistOptions (
-  projects: ImporterToUpdate[],
   { context, priorWorkspaceProjectIds }: { context: LinkContext, priorWorkspaceProjectIds: Set<ProjectId> },
   opts: LinkPackagesOptions
 ): HoistWorkspacePackagesOpts<DepPath> {
@@ -362,7 +364,7 @@ function getHoistOptions (
     publicHoistPattern: opts.publicHoistPattern ?? [],
     virtualStoreDir: opts.virtualStoreDir,
     hoistedWorkspacePackages: opts.hoistWorkspacePackages
-      ? collectHoistedWorkspacePackages(projects)
+      ? collectHoistedWorkspacePackages(Object.values(opts.allProjects))
       : undefined,
     beforeWorkspaceLinks: async (nextWorkspaceHoists: HoistedDependencies) => pruneStaleWorkspaceHoists(
       opts.hoistedDependencies,
@@ -374,7 +376,7 @@ function getHoistOptions (
   }
 }
 
-function collectHoistedWorkspacePackages (projects: ImporterToUpdate[]): Record<string, HoistedWorkspaceProject> {
+function collectHoistedWorkspacePackages (projects: Array<LinkPackagesOptions['allProjects'][string]>): Record<string, HoistedWorkspaceProject> {
   return projects.reduce((hoistedWorkspacePackages, project) => {
     if (project.manifest.name && project.id !== '.') {
       hoistedWorkspacePackages[project.id] = {
