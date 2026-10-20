@@ -1,7 +1,8 @@
 import type fs from 'node:fs'
 import path from 'node:path'
 
-import { createProjectModulesDirResolver } from '@pnpm/config.reader'
+import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { createProjectConfigRecord, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
@@ -15,7 +16,11 @@ import type { Project, ProjectId } from '@pnpm/types'
 import { sharedInputPaths, updateWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
 import { equals, filter, once } from 'ramda'
 
-import { assertWantedLockfileUpToDate, type AssertWantedLockfileUpToDateContext } from './assertWantedLockfileUpToDate.js'
+import {
+  assertWantedLockfileUpToDate,
+  type AssertWantedLockfileUpToDateContext,
+  createDepsStatusReadPackageHook,
+} from './assertWantedLockfileUpToDate.js'
 import { declaresDependencies, findModulesDirIssue, type ProjectStats } from './findModulesDirIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { errorMessageOf, outdatedResult } from './outdatedResult.js'
@@ -436,19 +441,34 @@ function createPerProjectWantedLockfileReader ({ opts, wantedLockfileName, works
 }
 
 async function assertProjectsUpToDate (
-  { allProjects, opts, workspaceDir }: WorkspaceDepsStatusContext,
+  ctx: WorkspaceDepsStatusContext,
   projectsToCheck: Project[],
   readWantedLockfileAndDir: ReadWantedLockfileAndDir
 ): Promise<void> {
-  type GetProjectId = (project: Pick<Project, 'rootDir'>) => ProjectId
-  const getProjectId: GetProjectId = opts.sharedWorkspaceLockfile
-    ? project => getLockfileImporterId(workspaceDir, project.rootDir)
+  const { opts, workspaceDir } = ctx
+  const getProjectId = opts.sharedWorkspaceLockfile
+    ? (project: Pick<Project, 'rootDir'>) => getLockfileImporterId(workspaceDir, project.rootDir)
     : () => '.' as ProjectId
+  const assertContextOf = createProjectAssertContextResolver(ctx)
 
+  await Promise.all(projectsToCheck.map(async (project) => {
+    const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
+    await assertWantedLockfileUpToDate(assertContextOf(project), {
+      projectDir: project.rootDir,
+      projectId: getProjectId(project),
+      projectManifest: project.manifest,
+      wantedLockfile,
+      wantedLockfileDir,
+    })
+  }))
+}
+
+function createProjectAssertContextResolver (
+  { allProjects, opts, workspaceDir }: WorkspaceDepsStatusContext
+): (project: Project) => AssertWantedLockfileUpToDateContext {
   const getWorkspacePackages = once(arrayOfWorkspacePackagesToMap.bind(null, allProjects))
   const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
-
-  const assertCtx: AssertWantedLockfileUpToDateContext = {
+  const baseCtx: AssertWantedLockfileUpToDateContext = {
     autoInstallPeers: opts.autoInstallPeers,
     injectWorkspacePackages: opts.injectWorkspacePackages,
     config: opts,
@@ -458,15 +478,23 @@ async function assertProjectsUpToDate (
     getWorkspacePackages,
     rootDir: workspaceDir,
   }
-
-  await Promise.all(projectsToCheck.map(async (project) => {
-    const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
-    await assertWantedLockfileUpToDate(assertCtx, {
-      projectDir: project.rootDir,
-      projectId: getProjectId(project),
-      projectManifest: project.manifest,
-      wantedLockfile,
-      wantedLockfileDir,
-    })
-  }))
+  if (opts.sharedWorkspaceLockfile) {
+    const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs)
+    const sharedCtx: AssertWantedLockfileUpToDateContext = {
+      ...baseCtx,
+      hookedManifests: new Map(),
+      parsedOverrides,
+      readPackageHook: createDepsStatusReadPackageHook(opts, workspaceDir, parsedOverrides) ?? null,
+    }
+    return () => sharedCtx
+  }
+  const projectConfigs = createProjectConfigRecord(opts)
+  return (project) => {
+    const projectOverrides = project.manifest.name == null ? undefined : projectConfigs?.[project.manifest.name]?.overrides
+    return {
+      ...baseCtx,
+      config: projectOverrides == null ? opts : { ...opts, overrides: projectOverrides },
+      hookedManifests: new Map(),
+    }
+  }
 }

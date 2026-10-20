@@ -174,6 +174,9 @@ pub(super) fn check_projects_content(
         },
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),
+        overrider: parsed_overrides
+            .as_deref()
+            .map(|parsed| crate::VersionsOverrider::new(parsed, check.workspace_root)),
     };
     // Collect before returning so errors remain ordered by project.
     let results: Vec<Result<(), &'static str>> = to_check
@@ -192,6 +195,7 @@ struct ProjectContentCheck<'a> {
     workspace: crate::install::WorkspaceProjects<'a>,
     ignored_optional_matcher: &'a pnpm_matcher::Matcher,
     parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
+    overrider: Option<crate::VersionsOverrider>,
 }
 
 fn project_content_check(
@@ -225,12 +229,8 @@ fn project_content_check(
     let Some(importer) = importer else {
         return Err("a modified project has no importer entry in the lockfile");
     };
-    if !linked_packages_are_up_to_date(
-        context.linked_ctx,
-        project.root_dir,
-        project.manifest,
-        importer,
-    ) {
+    let manifest = overridden_manifest(context, project);
+    if !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, &manifest, importer) {
         return Err("a linked package is out of date");
     }
     Ok(())
@@ -248,8 +248,21 @@ fn is_outdated_linked_package(
             pnpm_lockfile::StalenessReason::LocalDependencyOutdated { .. },
         ),
     ) && importer.is_some_and(|imp| {
-        !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, project.manifest, imp)
+        let manifest = overridden_manifest(context, project);
+        !linked_packages_are_up_to_date(context.linked_ctx, project.root_dir, &manifest, imp)
     })
+}
+
+fn overridden_manifest<'a>(
+    context: &ProjectContentCheck<'_>,
+    project: &ManifestStat<'a>,
+) -> std::borrow::Cow<'a, PackageManifest> {
+    let Some(overrider) = &context.overrider else {
+        return std::borrow::Cow::Borrowed(project.manifest);
+    };
+    let mut cloned = project.manifest.clone();
+    overrider.apply(&mut cloned, Some(project.root_dir));
+    std::borrow::Cow::Owned(cloned)
 }
 
 /// Shared lookups for [`linked_packages_are_up_to_date`], built once
