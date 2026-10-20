@@ -1,27 +1,16 @@
 import type fs from 'node:fs'
 import path from 'node:path'
 
-import { parseOverrides } from '@pnpm/config.parse-overrides'
-import { createProjectConfigRecord, createProjectModulesDirResolver } from '@pnpm/config.reader'
+import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
-import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
-import {
-  getLockfileImporterId,
-  type LockfileObject,
-  readCurrentLockfile,
-} from '@pnpm/lockfile.fs'
-import { getWorkspacePackagesByDirectory } from '@pnpm/lockfile.verification'
+import { getLockfileImporterId, type LockfileObject, readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectId } from '@pnpm/types'
 import { sharedInputPaths, updateWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
-import { equals, filter, once } from 'ramda'
+import { equals, filter } from 'ramda'
 
-import {
-  assertWantedLockfileUpToDate,
-  type AssertWantedLockfileUpToDateContext,
-  createDepsStatusReadPackageHook,
-} from './assertWantedLockfileUpToDate.js'
-import { declaresDependencies, findModulesDirIssue, type ProjectStats } from './findModulesDirIssue.js'
+import { assertWorkspaceProjectsUpToDate } from './assertWantedLockfileUpToDate.js'
+import { findModulesDirIssue, type ProjectStats, selectProjectDirs } from './findModulesDirIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { errorMessageOf, outdatedResult } from './outdatedResult.js'
 import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
@@ -30,15 +19,9 @@ import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import { type ValidationProof, validationProof } from './validationProof.js'
 import {
-  allowUnawaitedFailure,
-  assertCurrentLockfileMatches,
-  getWantedLockfileDirs,
-  hasUnmergedBranchLockfiles,
-  missingWantedLockfileStandIn,
-  readWantedLockfileIn,
-  statLockfileSync,
-  throwLockfileNotFound,
-  type WantedLockfilesScan,
+  allowUnawaitedFailure, assertCurrentLockfileMatches, currentLockfileDir,
+  findOutdatedLockfileChangedProject, getWantedLockfileDirs, hasUnmergedBranchLockfiles,
+  missingWantedLockfileStandIn, readWantedLockfileIn, statLockfileSync, throwLockfileNotFound, type WantedLockfilesScan,
 } from './wantedLockfiles.js'
 
 export interface WorkspaceDepsStatusContext {
@@ -74,11 +57,13 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
     return { upToDate: false, issue, workspaceState }
   }
 
-  const proof = opts.sharedWorkspaceLockfile === false
+  const proof = opts.sharedWorkspaceLockfile === false && coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     ? undefined
     : validationProof(workspaceState, workspaceLockfileDir(ctx), {
       wantedLockfileName: ctx.wantedLockfileName,
-      unmergedBranchLockfiles: opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
+      sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+      unmergedBranchLockfiles: opts.sharedWorkspaceLockfile !== false && opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
+      hasUnmergedBranchLockfiles: (dir) => opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(dir, ctx.wantedLockfileName),
     })
   return proof == null
     ? checkModifiedSinceLastValidation(ctx, allManifestStats, patchesRevalidated)
@@ -95,22 +80,35 @@ async function checkModifiedSinceLastValidation (
   patchesRevalidated: boolean
 ): Promise<CheckDepsStatusResult> {
   const { lockfilesScan, workspaceState } = ctx
-  const modifiedProjects = allManifestStats.filter(
+  const installCovers = createInstallCoverage(ctx)
+  const coveredManifestStats = allManifestStats.filter(({ project }) => installCovers(project.rootDir))
+  const modifiedProjects = coveredManifestStats.filter(
     ({ manifestStats }) =>
       modifiedAtOrAfter(manifestStats, workspaceState.lastValidatedTimestamp)
   )
 
-  if ((modifiedProjects.length === 0) && !lockfilesScan.anyModified && !patchesRevalidated) {
-    const unchangedResult = await checkUnchangedWorkspace(ctx)
-    if (unchangedResult != null) return unchangedResult
+  if (!workspaceState.filteredInstall && (modifiedProjects.length === 0) && !lockfilesScan.anyModified && !patchesRevalidated) {
+    const unchangedResult = await checkUnchangedWorkspace(ctx, allManifestStats)
+    if (unchangedResult != null) {
+      await recordUnchangedLegacyStateIfNeeded(ctx, coveredManifestStats)
+      return unchangedResult
+    }
   }
 
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
 
-  const projectsToCheck = lockfilesScan.anyModified
-    ? allManifestStats
-    : [...new Set([...modifiedProjects, ...coveredProjectsMissingLockfile(ctx, allManifestStats)])]
-  return validateModifiedWorkspace(ctx, projectsToCheck)
+  const projectsToCheck = workspaceState.filteredInstall || lockfilesScan.anyModified
+    ? coveredManifestStats
+    : [...new Set([...modifiedProjects, ...coveredProjectsMissingLockfile(ctx, coveredManifestStats)])]
+  return validateModifiedWorkspace(ctx, projectsToCheck, {
+    vouchedProjects: coveredManifestStats.map(({ project }) => project.rootDir),
+  })
+}
+
+async function recordUnchangedLegacyStateIfNeeded (ctx: WorkspaceDepsStatusContext, coveredManifestStats: ProjectStats[]): Promise<void> {
+  if (ctx.workspaceState.validation == null && !ctx.workspaceState.filteredInstall) {
+    await recordVouchedWorkspaceState(ctx, coveredManifestStats.map(({ project }) => project.rootDir))
+  }
 }
 
 /**
@@ -120,17 +118,22 @@ async function checkModifiedSinceLastValidation (
  * a lockfile, and the install the gate spawns keeps that filter, so those are
  * not held.
  */
-function coveredProjectsMissingLockfile ({ lockfilesScan, opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[]): ProjectStats[] {
+function coveredProjectsMissingLockfile (ctx: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[]): ProjectStats[] {
+  const { lockfilesScan, opts } = ctx
   if (opts.sharedWorkspaceLockfile !== false) return []
   const missingDirs = new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
-  const installCovers = createInstallCoverage(opts)
+  const installCovers = createInstallCoverage(ctx)
   return allManifestStats.filter(({ project }) => missingDirs.has(path.resolve(project.rootDir)) && installCovers(project.rootDir))
 }
 
-/** What the content check of a recorded workspace covers. */
-interface RecordedCheck {
+/** What the content check of a workspace covers. */
+interface VouchedCheck {
   /** The projects a passing check proves installed. */
   vouchedProjects: string[]
+  /** Whether a recorded validation already checked whether the lockfile changed. */
+  lockfileAlreadyChecked?: boolean
+  wantedLockfile?: LockfileObject | null
+  wantedLockfilesByDir?: Map<string, LockfileObject | null>
 }
 
 function patchesOrHooksStatus (ctx: WorkspaceDepsStatusContext): ReturnType<typeof patchesOrHooksAreModified> {
@@ -150,36 +153,61 @@ function patchesOrHooksStatus (ctx: WorkspaceDepsStatusContext): ReturnType<type
 async function validateModifiedWorkspace (
   ctx: WorkspaceDepsStatusContext,
   projectsToCheck: ProjectStats[],
-  recorded?: RecordedCheck
+  vouched: VouchedCheck
 ): Promise<CheckDepsStatusResult> {
-  const { allProjects, opts, workspaceDir, workspaceState } = ctx
+  const { workspaceState } = ctx
   // A recorded check has already held every project whose lockfile changed.
-  const { readWantedLockfileAndDir, wantedLockfileToRestore } = await createWantedLockfileReader(ctx, recorded != null ? false : undefined)
+  const { readWantedLockfileAndDir, wantedLockfileToRestore } = await createWantedLockfileReader({
+    ctx,
+    projectsToCheck: projectsToCheck.map(({ project }) => project),
+    lockfileModified: vouched.lockfileAlreadyChecked ? false : (workspaceState.filteredInstall ? true : undefined),
+    preloadedWantedLockfile: vouched.wantedLockfile,
+    preloadedWantedLockfilesByDir: vouched.wantedLockfilesByDir,
+  })
   try {
-    await assertProjectsUpToDate(ctx, projectsToCheck.map(({ project }) => project), readWantedLockfileAndDir)
+    await assertWorkspaceProjectsUpToDate(
+      { allProjects: ctx.allProjects, lockfileDir: workspaceLockfileDir(ctx), opts: ctx.opts },
+      projectsToCheck.map(({ project }) => project),
+      readWantedLockfileAndDir
+    )
   } catch (err) {
     return outdatedResult(errorMessageOf(err), workspaceState)
   }
 
   // update lastValidatedTimestamp to prevent pointless repeat
+  await recordVouchedWorkspaceState(ctx, vouched.vouchedProjects)
+
+  return { upToDate: true, workspaceState, wantedLockfileToRestore }
+}
+
+async function recordVouchedWorkspaceState (
+  ctx: WorkspaceDepsStatusContext,
+  vouchedProjects: string[] | undefined,
+  onlyIfTrusted?: boolean
+): Promise<void> {
+  const { allProjects, opts, workspaceState } = ctx
   await updateWorkspaceState({
     allProjects,
-    workspaceDir,
+    workspaceDir: workspaceLockfileDir(ctx),
     pnpmfiles: workspaceState.pnpmfiles,
-    settings: opts,
+    settings: {
+      ...opts,
+      autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
+    },
+    ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,
     configDependencies: workspaceState.configDependencies,
-    validation: recorded == null
+    validation: vouchedProjects == null
       ? undefined
       : {
         lockfileDir: workspaceLockfileDir(ctx),
         wantedLockfileName: ctx.wantedLockfileName,
         sharedInputs: sharedInputPaths(workspaceLockfileDir(ctx), opts.patchedDependencies, opts.pnpmfile),
-        vouchedProjects: recorded.vouchedProjects,
+        vouchedProjects,
+        onlyIfTrusted,
+        sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
       },
   })
-
-  return { upToDate: true, workspaceState, wantedLockfileToRestore }
 }
 
 function workspaceLockfileDir ({ opts, workspaceDir }: WorkspaceDepsStatusContext): string {
@@ -206,20 +234,40 @@ async function checkRecordedWorkspace (
 ): Promise<CheckDepsStatusResult> {
   const { workspaceState } = ctx
   const held = heldProjects(ctx, allManifestStats, proof)
-  const unprovable = proof.lockfileUnreadable
-    ? 'Cannot check whether dependencies are outdated'
-    : findUnprovableProject(held, proof)
-  if (unprovable) return outdatedResult(unprovable, workspaceState)
+  const lockfileCheck = proof.lockfileUnreadable
+    ? { issue: 'Cannot check whether dependencies are outdated' }
+    : await checkLockfileChangedProjects(ctx, held, proof)
+  if (lockfileCheck.issue) return outdatedResult(lockfileCheck.issue, workspaceState)
   const unchanged = held.length === 0 && !patchesRevalidated
-    ? await checkUnchangedWorkspace(ctx)
+    ? await checkUnchangedWorkspace(ctx, allManifestStats)
     : undefined
   if (unchanged != null) {
-    if (proof.rehashed) await recordTrustedRefresh(ctx, provenProjects(allManifestStats, proof))
+    if (proof.rehashed) await recordVouchedWorkspaceState(ctx, provenProjects(allManifestStats, proof), true)
     return unchanged
   }
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
   return validateModifiedWorkspace(ctx, held, {
     vouchedProjects: [...held.map(({ project }) => project.rootDir), ...provenProjects(allManifestStats, proof)],
+    lockfileAlreadyChecked: true,
+    wantedLockfile: lockfileCheck.wantedLockfile,
+    wantedLockfilesByDir: lockfileCheck.wantedLockfilesByDir,
+  })
+}
+
+async function checkLockfileChangedProjects (
+  ctx: WorkspaceDepsStatusContext,
+  held: ProjectStats[],
+  proof: ValidationProof
+): ReturnType<typeof findOutdatedLockfileChangedProject> {
+  return findOutdatedLockfileChangedProject({
+    lockfileDir: workspaceLockfileDir(ctx),
+    projects: held.flatMap(({ project }) => {
+      const projectProof = proof.proofOf(project.rootDir, project.manifest)
+      return projectProof === 'manifestChanged' ? [] : [{ project, unrecorded: projectProof === 'unrecorded' }]
+    }),
+    include: workspaceInclude(ctx),
+    sharedWorkspaceLockfile: ctx.opts.sharedWorkspaceLockfile,
+    readOpts: ctx.opts,
   })
 }
 
@@ -229,79 +277,40 @@ function provenProjects (allManifestStats: ProjectStats[], proof: ValidationProo
     .map(({ project }) => project.rootDir)
 }
 
-/**
- * Records the lockfile's stat again after its content was read and found
- * unchanged, so the next check need not read it, once the record would be
- * trusted.
- */
-async function recordTrustedRefresh (ctx: WorkspaceDepsStatusContext, vouchedProjects: string[]): Promise<void> {
-  const { allProjects, opts, workspaceDir, workspaceState } = ctx
-  await updateWorkspaceState({
-    allProjects,
-    workspaceDir,
-    pnpmfiles: workspaceState.pnpmfiles,
-    settings: opts,
-    filteredInstall: workspaceState.filteredInstall,
-    configDependencies: workspaceState.configDependencies,
-    validation: {
-      lockfileDir: workspaceLockfileDir(ctx),
-      wantedLockfileName: ctx.wantedLockfileName,
-      sharedInputs: sharedInputPaths(workspaceLockfileDir(ctx), opts.patchedDependencies, opts.pnpmfile),
-      vouchedProjects,
-      onlyIfTrusted: true,
-    },
-  })
-}
-
 /** The projects the gate holds that are not proven installed. */
-function heldProjects ({ opts }: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
-  const installCovers = createInstallCoverage(opts)
+function heldProjects (ctx: WorkspaceDepsStatusContext, allManifestStats: ProjectStats[], proof: ValidationProof): ProjectStats[] {
+  const { lockfilesScan, opts } = ctx
+  const installCovers = createInstallCoverage(ctx)
+  const missingDirs = opts.sharedWorkspaceLockfile === false
+    ? new Set(lockfilesScan.missingDirs.map((dir) => path.resolve(dir)))
+    : undefined
   return allManifestStats.filter(({ project }) => {
+    const covered = installCovers(project.rootDir)
+    if (opts.selectedProjectsGraph != null && !covered) return false
+    if (missingDirs?.has(path.resolve(project.rootDir)) && !covered) return false
     const projectProof = proof.proofOf(project.rootDir, project.manifest)
     if (projectProof === 'proven') return false
-    return (opts.selectedProjectsGraph == null && projectProof !== 'unrecorded') || installCovers(project.rootDir)
+    return projectProof !== 'unrecorded' || covered
   })
 }
 
 /**
  * Whether the install the gate spawns covers the project at `rootDir`: a
  * filtered command's install selects the same projects, a non-recursive
- * command's install runs in the command's directory, and without either the
- * install covers the whole workspace.
+ * command's install covers the command's project and its workspace
+ * dependencies, and without either the install covers the whole workspace.
  */
-function createInstallCoverage (opts: Pick<CheckDepsStatusOptions, 'dir' | 'selectedProjectsGraph'>): (rootDir: string) => boolean {
-  const selected = opts.selectedProjectsGraph == null
-    ? undefined
-    : new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
-  const commandDir = opts.dir == null ? undefined : path.resolve(opts.dir)
-  return (rootDir) => {
-    const resolvedRootDir = path.resolve(rootDir)
-    if (selected != null) return selected.has(resolvedRootDir)
-    return commandDir == null || commandDir === resolvedRootDir
-  }
-}
-
-/**
- * The first held project its recorded validation cannot vouch for: one never
- * installed, or one installed from another lockfile. The current lockfile
- * cannot prove either installed, since a filtered install records the
- * projects it left out in it as if it had installed them.
- */
-function findUnprovableProject (held: ProjectStats[], proof: ValidationProof): string | undefined {
-  for (const { project } of held) {
-    switch (proof.proofOf(project.rootDir, project.manifest)) {
-      case 'unrecorded':
-        if (declaresDependencies(project)) {
-          return `Workspace package ${project.manifest.name ?? project.rootDir} has dependencies but was not installed`
-        }
-        break
-      case 'lockfileChanged':
-        return `The installed dependencies of ${project.manifest.name ?? project.rootDir} are not up to date with the lockfile`
-      default:
-        break
-    }
-  }
-  return undefined
+function createInstallCoverage (
+  ctx: WorkspaceDepsStatusContext
+): (rootDir: string) => boolean {
+  const { allProjects, opts, workspaceState } = ctx
+  if (opts.selectedProjectsGraph == null && opts.dir == null) return () => true
+  const selected = selectProjectDirs(allProjects, {
+    ...opts,
+    autoInstallPeers: opts.autoInstallPeers !== false && workspaceState.settings.autoInstallPeers !== false,
+    include: workspaceInclude(ctx),
+  })
+  return (rootDir) => selected.has(path.resolve(rootDir))
 }
 
 function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState }: WorkspaceDepsStatusContext): string | undefined {
@@ -328,15 +337,8 @@ async function statProjects (opts: CheckDepsStatusOptions, allProjects: Project[
   return Promise.all(allProjects.map(async project => {
     const modulesDirStatsPromise = statModulesDir(project)
     const manifestStats = await statManifestFile(project.rootDir)
-    if (!manifestStats) {
-      // this error should not happen
-      throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
-    }
-    return {
-      project,
-      manifestStats,
-      modulesDirStats: await modulesDirStatsPromise,
-    }
+    if (!manifestStats) throw new Error(`Cannot find one of ${MANIFEST_BASE_NAMES.join(', ')} in ${project.rootDir}`)
+    return { project, manifestStats, modulesDirStats: await modulesDirStatsPromise }
   }))
 }
 
@@ -355,11 +357,15 @@ function createModulesDirStatter (opts: CheckDepsStatusOptions): (project: Proje
  * since the last validation, or `undefined` when the full check must run.
  */
 async function checkUnchangedWorkspace (
-  { lockfilesScan, opts, wantedLockfileName, workspaceDir, workspaceState }: WorkspaceDepsStatusContext
+  ctx: WorkspaceDepsStatusContext,
+  allManifestStats: ProjectStats[]
 ): Promise<CheckDepsStatusResult | undefined> {
-  const anyMissing = lockfilesScan.missingDirs.length > 0
-  const wantedLockfileToRestore = anyMissing && opts.sharedWorkspaceLockfile && !opts.useGitBranchLockfile
-    ? await missingWantedLockfileStandIn(workspaceDir, wantedLockfileName)
+  const { lockfilesScan, opts, wantedLockfileName, workspaceState } = ctx
+  const anyMissing = opts.sharedWorkspaceLockfile === false
+    ? coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
+    : lockfilesScan.missingDirs.length > 0
+  const wantedLockfileToRestore = anyMissing && opts.sharedWorkspaceLockfile !== false && !opts.useGitBranchLockfile
+    ? await missingWantedLockfileStandIn(workspaceLockfileDir(ctx), wantedLockfileName, opts.modulesDir)
     : undefined
   // A missing wanted lockfile only skips the full check when the current
   // lockfile can stand in for it. Otherwise fall through so the checks
@@ -370,35 +376,55 @@ async function checkUnchangedWorkspace (
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
 }
 
-async function readWorkspaceLockfiles ({ opts, workspaceDir }: WorkspaceDepsStatusContext): Promise<Array<LockfileObject | null>> {
-  if (!opts.sharedWorkspaceLockfile) {
+async function readWorkspaceLockfiles (ctx: WorkspaceDepsStatusContext): Promise<Array<LockfileObject | null>> {
+  const { opts } = ctx
+  if (opts.sharedWorkspaceLockfile === false) {
     return Promise.all(getWantedLockfileDirs(opts).map((lockfileDir) => readWantedLockfileIn(lockfileDir, opts)))
   }
+  const lockfileDir = workspaceLockfileDir(ctx)
   return [
-    (await readWantedLockfileIn(workspaceDir, opts)) ??
-      await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false }),
+    (await readWantedLockfileIn(lockfileDir, opts)) ??
+      await readCurrentLockfile(currentLockfileDir(lockfileDir, opts.modulesDir), { ignoreIncompatible: false }),
   ]
 }
 
-/**
- * `lockfileModified` overrides the modification time when the recorded
- * validation already decided whether the lockfile changed.
- */
-async function createWantedLockfileReader (ctx: WorkspaceDepsStatusContext, lockfileModified?: boolean): Promise<WantedLockfileReader> {
-  if (!ctx.opts.sharedWorkspaceLockfile) {
-    return { readWantedLockfileAndDir: createPerProjectWantedLockfileReader(ctx) }
+function workspaceInclude ({ workspaceState: { settings } }: WorkspaceDepsStatusContext) {
+  return { dependencies: settings.production !== false, devDependencies: settings.dev !== false, optionalDependencies: settings.optional !== false }
+}
+
+interface CreateWantedLockfileReaderOptions {
+  ctx: WorkspaceDepsStatusContext
+  projectsToCheck: Project[]
+  /**
+   * Overrides the modification time when the recorded validation already
+   * decided whether the lockfile changed.
+   */
+  lockfileModified?: boolean
+  preloadedWantedLockfile?: LockfileObject | null
+  preloadedWantedLockfilesByDir?: Map<string, LockfileObject | null>
+}
+
+async function createWantedLockfileReader (
+  { ctx, projectsToCheck, lockfileModified, preloadedWantedLockfile, preloadedWantedLockfilesByDir }: CreateWantedLockfileReaderOptions
+): Promise<WantedLockfileReader> {
+  if (ctx.opts.sharedWorkspaceLockfile === false) {
+    return { readWantedLockfileAndDir: createPerProjectWantedLockfileReader(ctx, lockfileModified, preloadedWantedLockfilesByDir) }
   }
-  const wantedLockfileStats = statLockfileSync(path.join(ctx.workspaceDir, ctx.wantedLockfileName))
+  const lockfileDir = workspaceLockfileDir(ctx)
+  const wantedLockfileStats = statLockfileSync(path.join(lockfileDir, ctx.wantedLockfileName))
   if (wantedLockfileStats == null) return readCurrentLockfileAsWanted(ctx)
-  const { opts, workspaceDir, workspaceState } = ctx
-  const wantedLockfilePromise = allowUnawaitedFailure(readWantedLockfileIn(workspaceDir, opts))
+  const { opts, workspaceState } = ctx
+  const wantedLockfilePromise = preloadedWantedLockfile !== undefined
+    ? Promise.resolve(preloadedWantedLockfile)
+    : allowUnawaitedFailure(readWantedLockfileIn(lockfileDir, opts))
   if (lockfileModified ?? modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
-    await assertCurrentLockfileMatches(workspaceDir, wantedLockfilePromise, workspaceState.filteredInstall)
+    const importersToCheck = projectsToCheck.map((project) => getLockfileImporterId(lockfileDir, project.rootDir))
+    await assertCurrentLockfileMatches(lockfileDir, wantedLockfilePromise, { filteredInstall: workspaceState.filteredInstall, importersToCheck, include: workspaceInclude(ctx), modulesDir: opts.modulesDir })
   }
   return {
     readWantedLockfileAndDir: async () => ({
-      wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(workspaceDir),
-      wantedLockfileDir: workspaceDir,
+      wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(lockfileDir),
+      wantedLockfileDir: lockfileDir,
     }),
   }
 }
@@ -410,91 +436,41 @@ async function createWantedLockfileReader (ctx: WorkspaceDepsStatusContext, lock
  * from it without resolving. There is no second lockfile to compare against,
  * so the wanted-vs-current equality assertion doesn't apply on this path.
  */
-async function readCurrentLockfileAsWanted ({ opts, workspaceDir }: WorkspaceDepsStatusContext): Promise<WantedLockfileReader> {
-  if (opts.useGitBranchLockfile) return throwLockfileNotFound(workspaceDir)
-  const currentLockfile = await readCurrentLockfile(path.join(workspaceDir, 'node_modules/.pnpm'), { ignoreIncompatible: false })
-  if (currentLockfile == null) return throwLockfileNotFound(workspaceDir)
+async function readCurrentLockfileAsWanted (ctx: WorkspaceDepsStatusContext): Promise<WantedLockfileReader> {
+  const { opts } = ctx
+  const lockfileDir = workspaceLockfileDir(ctx)
+  if (opts.useGitBranchLockfile) return throwLockfileNotFound(lockfileDir)
+  const currentLockfile = await readCurrentLockfile(currentLockfileDir(lockfileDir, opts.modulesDir), { ignoreIncompatible: false })
+  if (currentLockfile == null) return throwLockfileNotFound(lockfileDir)
   return {
-    wantedLockfileToRestore: { lockfile: currentLockfile, lockfileDir: workspaceDir },
-    readWantedLockfileAndDir: async () => ({
-      wantedLockfile: currentLockfile,
-      wantedLockfileDir: workspaceDir,
-    }),
+    wantedLockfileToRestore: { lockfile: currentLockfile, lockfileDir },
+    readWantedLockfileAndDir: async () => ({ wantedLockfile: currentLockfile, wantedLockfileDir: lockfileDir }),
   }
 }
 
-function createPerProjectWantedLockfileReader ({ opts, wantedLockfileName, workspaceState }: WorkspaceDepsStatusContext): ReadWantedLockfileAndDir {
-  return async wantedLockfileDir => {
-    const wantedLockfilePromise = allowUnawaitedFailure(readWantedLockfileIn(wantedLockfileDir, opts))
-    const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
-
-    if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
-    if (modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
-      await assertCurrentLockfileMatches(wantedLockfileDir, wantedLockfilePromise, workspaceState.filteredInstall)
-    }
-
-    return {
-      wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir),
-      wantedLockfileDir,
-    }
-  }
+function resolveProjectModulesDir (ctx: WorkspaceDepsStatusContext, projectDir: string): string | undefined {
+  const modulesDirOf = createProjectModulesDirResolver(ctx.opts)
+  const project = ctx.allProjects.find(({ rootDir }) => path.resolve(rootDir) === path.resolve(projectDir))
+  return modulesDirOf(project?.manifest.name)
 }
 
-async function assertProjectsUpToDate (
+function createPerProjectWantedLockfileReader (
   ctx: WorkspaceDepsStatusContext,
-  projectsToCheck: Project[],
-  readWantedLockfileAndDir: ReadWantedLockfileAndDir
-): Promise<void> {
-  const { opts, workspaceDir } = ctx
-  const getProjectId = opts.sharedWorkspaceLockfile
-    ? (project: Pick<Project, 'rootDir'>) => getLockfileImporterId(workspaceDir, project.rootDir)
-    : () => '.' as ProjectId
-  const assertContextOf = createProjectAssertContextResolver(ctx)
-
-  await Promise.all(projectsToCheck.map(async (project) => {
-    const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
-    await assertWantedLockfileUpToDate(assertContextOf(project), {
-      projectDir: project.rootDir,
-      projectId: getProjectId(project),
-      projectManifest: project.manifest,
-      wantedLockfile,
-      wantedLockfileDir,
-    })
-  }))
-}
-
-function createProjectAssertContextResolver (
-  { allProjects, opts, workspaceDir }: WorkspaceDepsStatusContext
-): (project: Project) => AssertWantedLockfileUpToDateContext {
-  const getWorkspacePackages = once(arrayOfWorkspacePackagesToMap.bind(null, allProjects))
-  const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
-  const baseCtx: AssertWantedLockfileUpToDateContext = {
-    autoInstallPeers: opts.autoInstallPeers,
-    injectWorkspacePackages: opts.injectWorkspacePackages,
-    config: opts,
-    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
-    linkWorkspacePackages: opts.linkWorkspacePackages,
-    getManifestsByDir,
-    getWorkspacePackages,
-    rootDir: workspaceDir,
-  }
-  if (opts.sharedWorkspaceLockfile) {
-    const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs)
-    const sharedCtx: AssertWantedLockfileUpToDateContext = {
-      ...baseCtx,
-      hookedManifests: new Map(),
-      parsedOverrides,
-      readPackageHook: createDepsStatusReadPackageHook(opts, workspaceDir, parsedOverrides) ?? null,
+  lockfileModified?: boolean,
+  preloadedByDir?: Map<string, LockfileObject | null>
+): ReadWantedLockfileAndDir {
+  const { opts, wantedLockfileName, workspaceState } = ctx
+  const include = workspaceInclude(ctx)
+  return async wantedLockfileDir => {
+    const preloaded = preloadedByDir?.get(wantedLockfileDir)
+    const wantedLockfilePromise = preloaded !== undefined
+      ? Promise.resolve(preloaded)
+      : allowUnawaitedFailure(readWantedLockfileIn(wantedLockfileDir, opts))
+    const wantedLockfileStats = await safeStat(path.join(wantedLockfileDir, wantedLockfileName))
+    if (!wantedLockfileStats) return throwLockfileNotFound(wantedLockfileDir)
+    if (lockfileModified ?? modifiedAtOrAfter(wantedLockfileStats, workspaceState.lastValidatedTimestamp)) {
+      await assertCurrentLockfileMatches(wantedLockfileDir, wantedLockfilePromise, { filteredInstall: workspaceState.filteredInstall, importersToCheck: ['.' as ProjectId], include, modulesDir: resolveProjectModulesDir(ctx, wantedLockfileDir) })
     }
-    return () => sharedCtx
-  }
-  const projectConfigs = createProjectConfigRecord(opts)
-  return (project) => {
-    const projectOverrides = project.manifest.name == null ? undefined : projectConfigs?.[project.manifest.name]?.overrides
-    return {
-      ...baseCtx,
-      config: projectOverrides == null ? opts : { ...opts, overrides: projectOverrides },
-      hookedManifests: new Map(),
-    }
+    return { wantedLockfile: (await wantedLockfilePromise) ?? throwLockfileNotFound(wantedLockfileDir), wantedLockfileDir }
   }
 }

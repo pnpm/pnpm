@@ -100,7 +100,7 @@ fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
 }
 
 #[test]
-fn npmrc_tokens_keep_only_the_dotted_tokens_before_the_separator() {
+fn npmrc_tokens_keep_the_setting_tokens_before_the_separator() {
     let (overrides, _) = ConfigOverrides::extract(argv([
         "pacquet",
         "--config.lockfileDir=..",
@@ -116,6 +116,7 @@ fn npmrc_tokens_keep_only_the_dotted_tokens_before_the_separator() {
         overrides.cli_layer(None).npmrc_tokens,
         [
             ("lockfileDir".to_owned(), "..".to_owned()),
+            ("ignore-scripts".to_owned(), "true".to_owned()),
             ("store-dir".to_owned(), "/store".to_owned()),
         ],
     );

@@ -27,13 +27,13 @@ export async function recursive (
 ): Promise<RecursiveResult> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
-    return { passed: false }
+    return { passed: false, installedProjectDirs: [] }
   }
 
   const selectedProjects = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
 
   if (selectedProjects.length === 0) {
-    return { passed: false }
+    return { passed: false, installedProjectDirs: [] }
   }
   const ctx = await createRecursiveContext({ allProjects, selectedProjects, params, opts, cmdFullName })
   // For a workspace with shared lockfile

@@ -112,8 +112,8 @@ fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
 }
 
-/// The command line's `--config.<key>=<value>` tokens: trusted, and above
-/// every other source.
+/// The command line's settings ([`CliLayer::npmrc_tokens`](crate::CliLayer::npmrc_tokens)):
+/// trusted, and above every other source.
 fn cli_auth_source(cli: &crate::CliLayer) -> Option<NpmrcAuth> {
     (!cli.npmrc_tokens.is_empty()).then(|| NpmrcAuth::from_cli_config(cli))
 }

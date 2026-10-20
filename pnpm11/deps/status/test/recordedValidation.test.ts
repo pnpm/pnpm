@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it } from '@jest/globals'
 import { checkDepsStatus, type CheckDepsStatusOptions } from '@pnpm/deps.status'
-import { type LockfileObject, writeCurrentLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { type LockfileObject, readCurrentLockfile, writeCurrentLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import type { DepPath, Project, ProjectId, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 import { loadWorkspaceState, updateWorkspaceState } from '@pnpm/workspace.state'
 
@@ -83,6 +83,15 @@ const CONFIG_DEPENDENCIES = { 'pnpm-plugin-x': '1.0.0+sha512-x' }
 
 /** Record the state an install leaves, vouching for `vouched` projects only when set. */
 async function recordInstall (workspace: RecordedWorkspace, vouched?: string[]): Promise<void> {
+  if (vouched != null && loadWorkspaceState(workspace.workspaceDir) == null) {
+    const virtualStoreDir = path.join(workspace.workspaceDir, 'node_modules/.pnpm')
+    const current = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
+    if (current?.packages != null) {
+      if (!vouched.includes('a')) delete current.packages['foo@1.0.0' as DepPath]
+      if (!vouched.includes('b')) delete current.packages['bar@1.0.0' as DepPath]
+      await writeCurrentLockfile(virtualStoreDir, current)
+    }
+  }
   await updateWorkspaceState({
     allProjects: workspace.allProjects,
     workspaceDir: workspace.workspaceDir,
@@ -295,6 +304,152 @@ describe('checkDepsStatus with recorded validations', () => {
       pnpmfile: [],
       configDependencies: CONFIG_DEPENDENCIES,
     })).toMatchObject({ upToDate: true })
+  })
+
+  it('preserves ignoredWorkspaceStateSettings and autoDedupe when refreshing the workspace state', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    await updateWorkspaceState({
+      allProjects: workspace.allProjects,
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: { ...SETTINGS, autoDedupe: true, dev: false, optional: true, production: true },
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: false,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+      },
+    })
+    workspace.manifestOf('b').description = 'edited'
+    expect(await check(workspace, undefined, {
+      dev: true,
+      optional: false,
+      production: false,
+      ignoredWorkspaceStateSettings: ['dev', 'optional', 'production'],
+    })).toMatchObject({ upToDate: true })
+    const refreshed = loadWorkspaceState(workspace.workspaceDir)!
+    expect(refreshed.settings.autoDedupe).toBe(true)
+    expect(refreshed.settings.dev).toBe(false)
+    expect(refreshed.settings.optional).toBe(true)
+    expect(refreshed.settings.production).toBe(true)
+  })
+
+  it('holds a non-recursive command in a project to its workspace dependencies', async () => {
+    const lockfile = lockfileWith({ a: 'link:../a' })
+    lockfile.importers['packages/b' as ProjectId].specifiers = { a: 'workspace:*' }
+    const workspace = await installedWorkspace(lockfile)
+    await fs.rm(path.join(workspace.workspaceDir, 'node_modules/.pnpm-workspace-state-v1.json'))
+    workspace.manifestOf('b').dependencies = { a: 'workspace:*' }
+    await recordInstall(workspace, ['b'])
+    expect(await check(workspace, undefined, { dir: workspace.projectDir('b') })).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package a has dependencies but was not installed',
+    })
+
+    // An npm: alias that resolves to a workspace package is also followed.
+    workspace.manifestOf('b').dependencies = { aliased: 'npm:a@^1.0.0' }
+    expect(await check(workspace, undefined, { dir: workspace.projectDir('b') })).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package a has dependencies but was not installed',
+    })
+
+    // A bare version range that does not match the workspace package version is not followed.
+    workspace.manifestOf('b').dependencies = { a: '^2.0.0' }
+    await writeWantedLockfile(workspace.workspaceDir, lockfileWith({ a: '2.0.0' }))
+    await writeCurrentLockfile(path.join(workspace.workspaceDir, 'node_modules/.pnpm'), {
+      ...lockfileWith({ a: '2.0.0' }),
+      packages: { ['a@2.0.0' as DepPath]: { resolution: { integrity: 'sha512-a2' } } },
+    })
+    await updateWorkspaceState({
+      allProjects: workspace.allProjects,
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: SETTINGS,
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: true,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+        vouchedProjects: [workspace.projectDir('b')],
+      },
+    })
+    expect(await check(workspace, undefined, { dir: workspace.projectDir('b') })).toMatchObject({ upToDate: true })
+
+    // A non-recursive command in a project with a catalog or peer workspace dependency holds that dependency too.
+    workspace.manifestOf('a').dependencies = { b: 'catalog:' }
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+      linkWorkspacePackages: true,
+      catalogs: { default: { b: '^1.0.0' } },
+    })).toMatchObject({ upToDate: false })
+
+    delete workspace.manifestOf('a').dependencies
+    workspace.manifestOf('a').peerDependencies = { b: 'workspace:*' }
+    await fs.rm(path.join(workspace.projectDir('b'), 'node_modules'), { recursive: true, force: true })
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+    })).toMatchObject({ upToDate: false })
+
+    // Backslash-separated workspace: and file: paths also reach their workspace dependency.
+    delete workspace.manifestOf('a').peerDependencies
+    workspace.manifestOf('a').dependencies = { b: 'workspace:..\\b' }
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+    })).toMatchObject({ upToDate: false })
+
+    workspace.manifestOf('a').dependencies = { b: 'file:..\\b' }
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+    })).toMatchObject({ upToDate: false })
+  })
+
+  it('proves and refreshes per-project lockfiles when sharedWorkspaceLockfile is false', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    await fs.rm(path.join(workspace.workspaceDir, 'pnpm-lock.yaml'))
+    await fs.rm(path.join(workspace.workspaceDir, 'node_modules/.pnpm'), { recursive: true, force: true })
+    await Promise.all(([['a', 'foo'], ['b', 'bar']] as const).map(async ([name, dep]) => {
+      const dir = workspace.projectDir(name)
+      const projectLockfile: LockfileObject = {
+        lockfileVersion: '9.0',
+        settings: { autoInstallPeers: true, excludeLinksFromLockfile: false },
+        importers: { ['.' as ProjectId]: { specifiers: { [dep]: '1.0.0' }, dependencies: { [dep]: '1.0.0' } } },
+        packages: { [`${dep}@1.0.0` as DepPath]: { resolution: { integrity: `sha512-${dep}` } } },
+      }
+      await writeWantedLockfile(dir, projectLockfile)
+      await writeCurrentLockfile(path.join(dir, 'node_modules/.pnpm'), projectLockfile)
+    }))
+    await updateWorkspaceState({
+      allProjects: workspace.allProjects,
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: SETTINGS,
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: false,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+        sharedWorkspaceLockfile: false,
+      },
+    })
+    expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
+    const manifestPath = path.join(workspace.projectDir('b'), 'package.json')
+    const { mtime } = await fs.stat(manifestPath)
+    workspace.manifestOf('b').dependencies = { bar: '1.0.0', foo: '1.0.0' }
+    await fs.writeFile(manifestPath, JSON.stringify(workspace.manifestOf('b')))
+    await fs.utimes(manifestPath, mtime, mtime)
+    expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
+    expect(await check(workspace, ['b'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: false })
+
+    // An unreadable lockfile in an unselected project does not block a filtered check.
+    const bLockfilePath = path.join(workspace.projectDir('b'), 'pnpm-lock.yaml')
+    const { mtime: bLockfileMtime } = await fs.stat(bLockfilePath)
+    await fs.rm(bLockfilePath)
+    await fs.mkdir(bLockfilePath)
+    await fs.utimes(bLockfilePath, bLockfileMtime, bLockfileMtime)
+    expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
   })
 })
 

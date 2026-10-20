@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import type { ProjectManifest } from '@pnpm/types'
 import {
+  fileDigestOf,
   fileSignatureTrusted,
   importerIdOf,
   lockfileDigest,
@@ -37,6 +38,13 @@ export interface ValidationProof {
   proofOf: (rootDir: string, manifest: ProjectManifest) => ProjectProof
 }
 
+export interface ValidationProofOptions {
+  wantedLockfileName: string
+  unmergedBranchLockfiles: boolean
+  sharedWorkspaceLockfile?: boolean
+  hasUnmergedBranchLockfiles?: (dir: string) => boolean
+}
+
 /**
  * What the validation `workspaceState` records still proves, or `undefined`
  * when it cannot tell, which leaves the check to the modification times: the
@@ -46,21 +54,83 @@ export interface ValidationProof {
 export function validationProof (
   workspaceState: WorkspaceState,
   lockfileDir: string,
-  { wantedLockfileName, unmergedBranchLockfiles }: { wantedLockfileName: string, unmergedBranchLockfiles: boolean }
+  opts: ValidationProofOptions
 ): ValidationProof | undefined {
   const validation = workspaceState.validation
   if (validation == null) return undefined
-  const lockfile = lockfileDigest(validation, lockfileDir, wantedLockfileName)
-  if (lockfile.path !== path.join(lockfileDir, wantedLockfileName)) return undefined
+  if (opts.sharedWorkspaceLockfile === false) {
+    return perProjectValidationProof(validation, lockfileDir, opts)
+  }
+  const lockfile = lockfileDigest(validation, lockfileDir, opts.wantedLockfileName)
+  if (lockfile.path !== path.join(lockfileDir, opts.wantedLockfileName)) return undefined
   // The recorded digest covers the main lockfile only, so a branch lockfile
   // still to be merged changes the wanted lockfile without changing it.
-  const digest = lockfile.digest.kind === 'present' && !unmergedBranchLockfiles ? lockfile.digest.signature.digest : undefined
+  const digest = lockfile.digest.kind === 'present' && !opts.unmergedBranchLockfiles ? lockfile.digest.signature.digest : undefined
   const lockfileChanged = digest !== validation.files?.[lockfile.path]?.digest
   return {
     lockfileChanged,
     lockfileUnreadable: lockfile.digest.kind === 'unreadable',
     rehashed: digest != null && !lockfileChanged && !fileSignatureTrusted(validation, lockfile.path),
     proofOf: (rootDir, manifest) => proofOf(validation, importerIdOf(lockfileDir, rootDir), manifest, digest),
+  }
+}
+
+interface PerProjectLockfileCheck {
+  digest: string | undefined
+  changed: boolean
+  unreadable: boolean
+  rehashed: boolean
+}
+
+function perProjectValidationProof (
+  validation: Validation,
+  lockfileDir: string,
+  opts: ValidationProofOptions
+): ValidationProof {
+  const byDir = new Map<string, PerProjectLockfileCheck>()
+  return {
+    get lockfileChanged () {
+      return [...byDir.values()].some((entry) => entry.changed)
+    },
+    get lockfileUnreadable () {
+      return [...byDir.values()].some((entry) => entry.unreadable)
+    },
+    get rehashed () {
+      return [...byDir.values()].some((entry) => entry.rehashed)
+    },
+    proofOf: (rootDir, manifest) => {
+      const importerId = importerIdOf(lockfileDir, rootDir)
+      const record = projectValidation(validation, importerId)
+      if (record == null) return 'unrecorded'
+      let check = byDir.get(rootDir)
+      if (check == null) {
+        check = checkProjectLockfile(validation, rootDir, opts)
+        byDir.set(rootDir, check)
+      }
+      if (check.unreadable || record.lockfile !== check.digest) return 'lockfileChanged'
+      if (record.manifest !== manifestDigest(manifest)) return 'manifestChanged'
+      return 'proven'
+    },
+  }
+}
+
+function checkProjectLockfile (
+  validation: Validation,
+  rootDir: string,
+  { wantedLockfileName, unmergedBranchLockfiles, hasUnmergedBranchLockfiles }: ValidationProofOptions
+): PerProjectLockfileCheck {
+  const wantedPath = path.join(rootDir, wantedLockfileName)
+  const lockfile = fileDigestOf(validation, wantedPath)
+  const hasBranch = hasUnmergedBranchLockfiles?.(rootDir) ?? unmergedBranchLockfiles
+  const digest = lockfile.kind === 'present' && !hasBranch
+    ? lockfile.signature.digest
+    : undefined
+  const changed = digest !== validation.files?.[wantedPath]?.digest
+  return {
+    digest,
+    changed,
+    unreadable: lockfile.kind === 'unreadable',
+    rehashed: digest != null && !changed && !fileSignatureTrusted(validation, wantedPath),
   }
 }
 

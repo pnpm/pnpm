@@ -113,7 +113,7 @@ async function checkRecordedRootProject (
   }
   logger.debug({ msg: 'Some manifest files or lockfiles were modified since the last validation. Continuing check.' })
   try {
-    if (projectProof !== 'manifestChanged') await assertWantedLockfileInstalled(lockfiles, rootProjectManifestDir)
+    await assertWantedLockfileInstalled(lockfiles, rootProjectManifestDir)
     await assertRootManifestUpToDate(ctx, lockfiles)
   } catch (err) {
     return outdatedResult(errorMessageOf(err), workspaceState)
@@ -134,7 +134,11 @@ async function recordRootProject (
     allProjects: [{ rootDir: rootProjectManifestDir as ProjectRootDir, manifest: rootProjectManifest }],
     workspaceDir: rootProjectManifestDir,
     pnpmfiles: workspaceState.pnpmfiles,
-    settings: opts,
+    settings: {
+      ...opts,
+      autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
+    },
+    ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,
     configDependencies: workspaceState.configDependencies,
     validation: {

@@ -767,6 +767,29 @@ test('filtered install accepts a touched lockfile with unchanged contents', asyn
 })
 
 // https://github.com/pnpm/pnpm/issues/17011
+test('verification-triggered installs retain a relative workspace store from a project directory', async () => {
+  const projects = preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { location: 'packages/app', package: { name: 'app', dependencies: { '@pnpm.e2e/foo': '100.0.0' } } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  await execPnpm(['install', '--store-dir=.store'])
+  projects.app.writePackageJson({
+    name: 'app',
+    dependencies: { '@pnpm.e2e/foo': '100.0.0', '@pnpm.e2e/bar': '100.0.0' },
+  })
+  await execPnpm(['install', '--store-dir=.store', '--lockfile-only'])
+
+  const cwd = path.resolve('packages/app')
+  execPnpmSync(['--store-dir=.store', '--config.verify-deps-before-run=install', 'exec', 'node', '-e', '0'], {
+    cwd,
+    expectSuccess: true,
+  })
+  expect(fs.existsSync(path.join(cwd, 'node_modules/@pnpm.e2e/bar'))).toBe(true)
+  expect(fs.existsSync(path.join(cwd, '.store'))).toBe(false)
+  execPnpmSync(['--store-dir=.store', ...CONFIG, 'exec', 'node', '-e', '0'], { cwd, expectSuccess: true })
+})
+
 test('a filtered command for a project another filtered install left behind after a pull', async () => {
   const manifest = (name: string, dependencies: Record<string, string>): ProjectManifest => ({
     name,
@@ -983,6 +1006,43 @@ test('filtered exec with --workspace-root installs the workspace root', async ()
   expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('foo/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
   expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+})
+
+// A filtered install that prunes direct dependencies leaves the workspace
+// root alone, so the state must not record the root as installed.
+test('a filtered install that prunes direct dependencies does not vouch for the workspace root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/foo': '=100.0.0',
+        },
+      },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['--filter=foo', '--config.prune-direct-dependencies=true', 'install'])
+
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('foo/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: true,
+    validation: expect.objectContaining({
+      manifests: { foo: expect.any(String) },
+    }),
+  }))
 })
 
 // A filtered install leaves the projects it did not select without a modules

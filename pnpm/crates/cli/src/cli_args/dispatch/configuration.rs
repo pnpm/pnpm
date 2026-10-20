@@ -247,10 +247,24 @@ pub(super) fn apply_location_overrides(
     if let Some(store_dir) = store_dir {
         apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
         cfg.cli_settings.insert("storeDir".to_string());
+        if !cfg.cli.npmrc_tokens
+            .iter()
+            .any(|(key, _)| matches!(key.as_str(), "store-dir" | "storeDir"))
+            && let Some(raw) = store_dir.to_str()
+        {
+            cfg.cli.npmrc_tokens.push(("store-dir".to_string(), raw.to_string()));
+        }
     }
     if let Some(state_dir) = state_dir {
         apply_state_dir_override::<Host>(cfg, state_dir, anchor);
         cfg.cli_settings.insert("stateDir".to_string());
+        if !cfg.cli.npmrc_tokens
+            .iter()
+            .any(|(key, _)| matches!(key.as_str(), "state-dir" | "stateDir"))
+            && let Some(raw) = state_dir.to_str()
+        {
+            cfg.cli.npmrc_tokens.push(("state-dir".to_string(), raw.to_string()));
+        }
     }
     Ok(())
 }
