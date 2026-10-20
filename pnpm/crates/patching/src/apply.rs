@@ -315,6 +315,9 @@ impl FileApply<'_> {
                 .map_err(|source| {
                     self.failed(format!("rename {} to {}: {source}", from.display(), to.display()))
                 })?;
+        } else if to.symlink_metadata().is_err() {
+            let (from, to) = (from.display(), to.display());
+            return Err(self.failed(format!("cannot rename {from} to {to}: neither exists")));
         }
         if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
             return Ok(());

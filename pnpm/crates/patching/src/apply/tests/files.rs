@@ -835,3 +835,16 @@ fn previews_a_rename_onto_a_removed_manifest_as_the_new_manifest() {
     assert_eq!(preview.manifest.as_deref(), Some(replacement));
     assert_eq!(fs::read_to_string(patched.path().join("package.json")).unwrap(), replacement);
 }
+
+#[test]
+fn rename_with_neither_source_nor_target_errors() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), NESTED_RENAME_PATCH);
+
+    let err = apply_patch_to_dir(patched.path(), &patch).expect_err("must not succeed");
+    let PatchApplyError::PatchFailed { message, .. } = err else {
+        panic!("expected PatchFailed, got: {err:?}");
+    };
+    assert!(message.contains("neither exists"), "got: {message}");
+}
