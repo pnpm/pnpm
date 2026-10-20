@@ -511,9 +511,9 @@ fn preserves_bundled_dependencies_in_abbreviated_packument() {
     });
 
     let out = abbreviate_packument(&doc, now());
-    let v = &out["versions"]["1.0.0"];
-    assert_eq!(v["bundleDependencies"], json!(["a"]));
-    assert_eq!(v["bundledDependencies"], json!(["b"]));
+    let version = &out["versions"]["1.0.0"];
+    assert_eq!(version["bundleDependencies"], json!(["a"]));
+    assert_eq!(version["bundledDependencies"], json!(["b"]));
 }
 
 #[test]
