@@ -11,7 +11,6 @@ impl Config {
         if self.node_linker == NodeLinker::Loaded {
             self.global_virtual_store_before_loaded.get_or_insert(self.enable_global_virtual_store);
             self.enable_global_virtual_store = true;
-            self.rename_default_modules_dir(".pnpm");
         } else if let Some(global_store) = self
             .global_virtual_store_before_loaded
             .take()
@@ -20,30 +19,15 @@ impl Config {
                 .get("enableGlobalVirtualStore")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(global_store);
-            self.rename_default_modules_dir("node_modules");
         }
-        if self.node_linker == NodeLinker::Loaded {
-            self.install_state_dir.clone_from(&self.modules_dir);
-        } else {
-            self.follow_modules_dir_with_install_state_dir();
-        }
-    }
-
-    fn rename_default_modules_dir(&mut self, name: &str) {
-        if !self.explicit_settings.contains_key("modulesDir") {
-            self.modules_dir = self.modules_dir
-                .parent()
-                .unwrap_or_else(|| Path::new("."))
-                .join(name);
-        }
+        self.follow_modules_dir_with_install_state_dir();
     }
 
     /// The directory of the install rooted at `install_root` that holds
     /// its store manifest and loader.
     #[must_use]
     pub fn store_loader_dir(&self, install_root: &Path) -> PathBuf {
-        let modules_dir = self.project_modules_dir(install_root, None);
-        if self.node_linker == NodeLinker::Loaded { modules_dir } else { modules_dir.join(".pnpm") }
+        self.project_modules_dir(install_root, None).join(".pnpm")
     }
 
     #[must_use]

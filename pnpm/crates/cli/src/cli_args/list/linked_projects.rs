@@ -235,7 +235,11 @@ impl ListArgs {
     ) -> miette::Result<Vec<DependencyNode>> {
         let manifest = crate::cli_args::deps_tree::build::read_project_manifest(project_dir);
         let config = &dedicated_project_config(config, project_dir, manifest.name.as_deref());
-        let state = LoadedState::for_config(project_dir, config, self.graph.lockfile_only)?;
+        let state = LoadedState::load(
+            project_dir,
+            Some(config.modules_dir.as_path()),
+            self.graph.lockfile_only,
+        )?;
         let Some(env) = state.env_for_config(project_dir, config) else {
             return Ok(Vec::new());
         };

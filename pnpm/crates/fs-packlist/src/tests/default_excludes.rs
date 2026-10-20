@@ -222,14 +222,3 @@ fn empty_files_field_ships_only_package_json() {
 
     assert_eq!(packed(root, &manifest), names(&["package.json"]));
 }
-
-#[test]
-fn root_install_state_dir_is_omitted() {
-    let dir = tempdir().unwrap();
-    let root = dir.path();
-    touch(root, "package.json");
-    touch(root, ".pnpm/.store-manifest.json");
-    touch(root, "lib/.pnpm/a.js");
-
-    assert_eq!(packed(root, &manifest()), names(&["lib/.pnpm/a.js", "package.json"]));
-}
