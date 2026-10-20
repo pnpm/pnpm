@@ -2790,6 +2790,40 @@ test('changing overrides re-resolves a dependency that the lockfile records as a
   expect(project.readLockfile().snapshots[childKey]?.dependencies).toStrictEqual({ '@pnpm.e2e/bravo-dep': '1.1.0' })
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/17161
+test('re-resolving keeps an optional peer that is also a regular dependency when locked with a peer suffix', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0'],
+    testDefaults({ lockfileOnly: true })
+  )
+
+  const lockfile = project.readLockfile()
+  const childKey = '@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0'
+  const peersSuffix = '(@pnpm.e2e/bravo-dep@1.0.0)'
+  delete lockfile.snapshots[childKey]
+  lockfile.snapshots[`${childKey}${peersSuffix}`] = {
+    optionalDependencies: { '@pnpm.e2e/bravo-dep': '1.0.0' },
+  }
+  lockfile.snapshots['@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0'].dependencies!['@pnpm.e2e/has-optional-peer-also-in-deps'] = `1.0.0${peersSuffix}`
+  fs.writeFileSync(WANTED_LOCKFILE, JSON.stringify(lockfile))
+
+  await install(manifest, testDefaults({ frozenLockfile: true, lockfileOnly: true }))
+
+  await addDependenciesToPackage(
+    manifest,
+    ['@pnpm.e2e/foo@100.0.0'],
+    testDefaults({ lockfileOnly: true })
+  )
+
+  const updatedLockfile = project.readLockfile()
+  const snapshot = updatedLockfile.snapshots[childKey]
+  expect(snapshot?.dependencies?.['@pnpm.e2e/bravo-dep']).toBe('1.0.0')
+  expect(updatedLockfile.snapshots['@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0'].dependencies!['@pnpm.e2e/has-optional-peer-also-in-deps']).toBe('1.0.0')
+})
+
+
 // Covers https://github.com/pnpm/pnpm/issues/16615
 test('adding an unrelated dependency keeps the peer dependencies a locked package records', async () => {
   const project = prepareEmpty()
