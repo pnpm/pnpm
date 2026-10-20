@@ -12,12 +12,16 @@ impl NumericRange {
         let last = parts.next()?;
         let start = parse_integer(first)?;
         let end = parse_integer(last)?;
-        let step = parse_integer(parts.next().unwrap_or("1"))?.abs();
-        if parts.next().is_some() || step == 0 {
+        let step_text = parts.next().unwrap_or("1");
+        let step = parse_integer(step_text)?.abs().max(1);
+        if parts.next().is_some() {
             return None;
         }
-        let width =
-            if is_padded(first) || is_padded(last) { first.len().max(last.len()) } else { 0 };
+        let width = if [first, last, step_text].into_iter().any(is_padded) {
+            first.len().max(last.len())
+        } else {
+            0
+        };
         Some(Self { start, end, increment: if start <= end { step } else { -step }, width })
     }
 

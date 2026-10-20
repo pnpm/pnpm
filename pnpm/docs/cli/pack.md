@@ -15,8 +15,10 @@ included even when its parent directory is excluded.
 
 Numeric brace ranges expand to individual values. For example, `part{1..3}.js`
 matches `part1.js`, `part2.js`, and `part3.js`. Ranges support descending values,
-nonzero steps such as `part{1..5..2}.js`, and zero padding such as
-`part{01..03}.js`. These ranges also work in `.npmignore` and `.gitignore`.
+steps such as `part{1..5..2}.js`, and zero padding such as `part{01..03}.js`.
+A zero step uses the default increment of 1. Padding in a step such as
+`part{1..10..02}.js` also pads the results to the wider endpoint's width.
+These ranges also work in `.npmignore` and `.gitignore`.
 
 Without `files`, pnpm reads `.npmignore`, falling back to `.gitignore`.
 Negated ignore patterns can re-include default exclusions such as `*.orig` and

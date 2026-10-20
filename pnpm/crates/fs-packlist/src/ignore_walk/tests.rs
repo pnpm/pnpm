@@ -138,10 +138,32 @@ fn comma_brace_groups_keep_the_expansion_byte_limit() {
 }
 
 #[test]
+fn a_zero_range_step_uses_the_default_increment() {
+    for pattern in ["part{1..3..0}.js", "part{3..1..0}.js"] {
+        let rule = IgnoreRule::parse(pattern);
+        eprintln!("pattern: {pattern}");
+        assert!(rule.matches("part2.js", false));
+        assert!(!rule.matches("part4.js", false));
+    }
+}
+
+#[test]
+fn padded_range_steps_use_the_endpoint_width() {
+    for (pattern, matching, unpadded) in [
+        ("part{1..10..02}.js", "part03.js", "part3.js"),
+        ("part{10..1..-02}.js", "part08.js", "part8.js"),
+        ("part{1..10..00}.js", "part02.js", "part2.js"),
+    ] {
+        let rule = IgnoreRule::parse(pattern);
+        eprintln!("pattern: {pattern}");
+        assert!(rule.matches(matching, false));
+        assert!(!rule.matches(unpadded, false));
+    }
+}
+
+#[test]
 fn malformed_numeric_ranges_stay_literal() {
-    for pattern in
-        ["part{1..3..0}.js", "part{1..three}.js", "part{1..2..3..4}.js", "part{+1..3}.js"]
-    {
+    for pattern in ["part{1..three}.js", "part{1..2..3..4}.js", "part{+1..3}.js"] {
         let rule = IgnoreRule::parse(pattern);
         eprintln!("pattern: {pattern}");
         assert!(rule.matches(pattern, false));
