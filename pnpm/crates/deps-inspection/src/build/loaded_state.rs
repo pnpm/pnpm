@@ -18,9 +18,25 @@ pub struct LoadedState {
 }
 
 impl LoadedState {
+    pub fn for_config(
+        lockfile_dir: &Path,
+        config: &pnpm_config::Config,
+        check_wanted_lockfile_only: bool,
+    ) -> miette::Result<LoadedState> {
+        Self::load(
+            lockfile_dir,
+            Some(&config.modules_dir),
+            Some(&config.install_state_dir),
+            check_wanted_lockfile_only,
+        )
+    }
+
+    /// `install_state_dir` holds the current lockfile; `None` means
+    /// `<modules_dir>/.pnpm`.
     pub fn load(
         lockfile_dir: &Path,
         modules_dir_opt: Option<&Path>,
+        install_state_dir: Option<&Path>,
         check_wanted_lockfile_only: bool,
     ) -> miette::Result<LoadedState> {
         let modules_dir_raw = match modules_dir_opt {
@@ -43,10 +59,11 @@ impl LoadedState {
         let modules = read_modules_manifest::<Host>(&modules_dir)
             .into_diagnostic()
             .wrap_err("read the modules manifest")?;
-        let current_lockfile =
-            Lockfile::load_current_from_install_state_dir(&modules_dir.join(".pnpm"))
-                .into_diagnostic()
-                .wrap_err("load the current lockfile")?;
+        let install_state_dir =
+            install_state_dir.map_or_else(|| modules_dir.join(".pnpm"), Path::to_path_buf);
+        let current_lockfile = Lockfile::load_current_from_install_state_dir(&install_state_dir)
+            .into_diagnostic()
+            .wrap_err("load the current lockfile")?;
         let wanted_lockfile = Lockfile::load_wanted_from_dir(lockfile_dir)
             .into_diagnostic()
             .wrap_err("load the wanted lockfile")?;

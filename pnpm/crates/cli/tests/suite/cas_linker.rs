@@ -587,3 +587,40 @@ fn cas_loader_starts_when_a_package_ships_node_modules_files() {
     assert_eq!(String::from_utf8_lossy(&output.get_output().stdout).trim(), "loaded");
     drop((root, mock_instance));
 }
+
+#[test]
+fn loaded_list_reads_the_current_lockfile_from_the_install_state() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"@pnpm.e2e/pkg-with-1-dep":"100.0.0"}}"#,
+    )
+    .unwrap();
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).unwrap();
+    yaml.push_str("nodeLinker:\n  type: loaded\n");
+    fs::write(&yaml_path, yaml).unwrap();
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).unwrap();
+    let output = Command::cargo_bin("pnpm")
+        .unwrap()
+        .with_current_dir(&workspace)
+        .with_args(["list", "--json"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    let list: Value = serde_json::from_slice(&output.stdout).unwrap();
+    dbg!(&list);
+    assert_eq!(list[0]["dependencies"]["@pnpm.e2e/pkg-with-1-dep"]["version"], "100.0.0");
+    drop((root, mock_instance));
+}

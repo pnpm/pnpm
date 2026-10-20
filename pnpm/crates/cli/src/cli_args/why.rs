@@ -133,7 +133,7 @@ impl WhyArgs {
         project_dirs: &[PathBuf],
         finders: &[FinderHandle],
     ) -> miette::Result<Option<Vec<DependentsTree>>> {
-        let loaded = LoadedState::load(lockfile_dir, Some(config.modules_dir.as_path()), false)?;
+        let loaded = LoadedState::for_config(lockfile_dir, config, false)?;
         let Some(env) = loaded.env_for_config(lockfile_dir, config) else {
             return Ok(None);
         };
