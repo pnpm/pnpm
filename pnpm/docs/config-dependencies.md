@@ -13,6 +13,8 @@ Config dependencies must come from an npm registry. pnpm verifies them against t
 
 A config dependency can also supply settings declaratively, without a pnpmfile. See [Settings from config dependencies](./config-includes.md#settings-from-config-dependencies).
 
+Removing a package from `configDependencies` removes its installed link and unused lockfile entries on the next `pnpm install`. This also applies when you remove the entire setting. Run without `--frozen-lockfile` to update the lockfile after changing the declarations.
+
 ## How to Add a Config Dependency
 
 Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [boot document](./lockfile.md)).

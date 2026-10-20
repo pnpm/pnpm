@@ -7,7 +7,10 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 
+const envInstaller = await import('@pnpm/installing.env-installer')
+
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
+  ...envInstaller,
   resolveAndInstallConfigDeps: jest.fn(),
 }))
 
@@ -213,6 +216,15 @@ test('hoist: false removes hoistPattern', async () => {
 })
 
 describe('installConfigDepsAndLoadHooks', () => {
+  test('does not open the store when no config dependencies need reconciling', async () => {
+    prepare()
+    const { config, context } = buildBaseConfig()
+    delete config.configDependencies
+    await installConfigDepsAndLoadHooks(config, context)
+    expect(createStoreController).not.toHaveBeenCalled()
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+  })
+
   test('proceeds normally when configDependencies install succeeds', async () => {
     prepare()
 

@@ -28,6 +28,20 @@ pub fn prune_env_lockfile(env: &mut EnvLockfile) {
     env.snapshots.retain(|key, _| reachable.contains(key));
 }
 
+/// Retain declared config roots and their graph, preserving package-manager dependencies.
+/// Returns whether a config root was removed.
+pub fn retain_config_dependencies(
+    env: &mut EnvLockfile,
+    mut is_declared: impl FnMut(&str) -> bool,
+) -> bool {
+    let importer = env.root_importer_mut();
+    let before = importer.config_dependencies.len();
+    importer.config_dependencies.retain(|name, _| is_declared(name));
+    let removed = importer.config_dependencies.len() != before;
+    prune_env_lockfile(env);
+    removed
+}
+
 /// The package keys the root importer depends on directly. A specifier that
 /// does not parse as a key names nothing in `snapshots:`, so it is dropped.
 fn direct_keys(env: &EnvLockfile) -> Vec<PackageKey> {

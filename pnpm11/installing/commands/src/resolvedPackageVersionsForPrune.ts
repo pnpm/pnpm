@@ -1,4 +1,4 @@
-import { pruneEnvLockfile } from '@pnpm/installing.env-installer'
+import { retainConfigDependencies } from '@pnpm/installing.env-installer'
 import { readEnvLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { CatalogSnapshots, LockfileObject } from '@pnpm/lockfile.types'
 import { resolvedPackageVersionsFromLockfile } from '@pnpm/lockfile.utils'
@@ -92,11 +92,7 @@ async function withEnvPackageVersions (
   if (rootDir == null) return resolved
   const envLockfile = await readEnvLockfile(rootDir)
   if (envLockfile != null) {
-    const configDependencies = envLockfile.importers['.'].configDependencies
-    for (const name of Object.keys(configDependencies)) {
-      if (opts.configDependencies?.[name] == null) delete configDependencies[name]
-    }
-    pruneEnvLockfile(envLockfile)
+    retainConfigDependencies(envLockfile, (name) => Object.hasOwn(opts.configDependencies ?? {}, name))
     mergeResolvedPackageVersions(resolved, resolvedPackageVersionsFromLockfile({
       ...envLockfile,
       importers: {},

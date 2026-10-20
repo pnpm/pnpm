@@ -11,7 +11,7 @@ import type { ConfigDependencies } from '@pnpm/types'
 import { type ConfigDepResolverOpts, type ConfigDepResolvers, createConfigDepResolvers } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { parseIntegrity } from './parseIntegrity.js'
-import { pruneEnvLockfile } from './pruneEnvLockfile.js'
+import { pruneEnvLockfile, retainConfigDependencies } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
 import { createConfigDepsVerifier } from './verifyConfigDepResolutions.js'
 import { assertValidMigratedConfigDep } from './verifyEnvLockfile.js'
@@ -19,6 +19,8 @@ import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
 export type ResolveAndInstallConfigDepsOpts = ConfigDepResolverOpts & InstallConfigDepsOpts & {
   rootDir: string
+  /** Previously loaded state, mutated by reconciliation. */
+  envLockfile?: EnvLockfile
 }
 
 /**
@@ -35,7 +37,7 @@ export async function resolveAndInstallConfigDeps (
 ): Promise<void> {
   opts = { ...opts, now: opts.now ?? Date.now() }
   const verify = createConfigDepsVerifier(configDeps, opts)
-  const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
+  const envLockfile: EnvLockfile = opts.envLockfile ?? (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
   const { depsToResolve, lockfileChanged } = collectConfigDepsToResolve(configDeps, {
     envLockfile,
     registriesByScope: opts.registriesByScope,
@@ -88,7 +90,7 @@ function collectConfigDepsToResolve (
   ctx: ConfigDepPlanContext
 ): { depsToResolve: ConfigDepToResolve[], lockfileChanged: boolean } {
   const depsToResolve: ConfigDepToResolve[] = []
-  let lockfileChanged = false
+  let lockfileChanged = retainConfigDependencies(ctx.envLockfile, (name) => Object.hasOwn(configDeps, name))
   for (const [name, value] of Object.entries(configDeps)) {
     const plan = planConfigDep(ctx, name, value)
     if (plan === MIGRATED_INTO_LOCKFILE) {

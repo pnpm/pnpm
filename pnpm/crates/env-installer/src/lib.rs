@@ -15,6 +15,7 @@ pub use install_config_deps::install_config_deps;
 pub use options::{ConfigDependencyStore, ConfigDependencyVerification, ConfigDepsInstallOptions};
 pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity};
 pub use pnpm_lockfile::prune_env_lockfile;
+pub use read_config_dependency_lockfile::read_config_dependency_lockfile;
 pub use resolve_and_install_config_deps::{
     ConfigDepUpdates, resolve_and_install_config_deps, resolve_and_install_config_deps_updating,
 };
@@ -30,6 +31,7 @@ mod install_config_deps;
 mod manifest_lockfile;
 mod options;
 mod parse_integrity;
+mod read_config_dependency_lockfile;
 mod resolve_and_install_config_deps;
 mod resolve_optional_subdeps;
 mod resolve_package_manager_integrities;

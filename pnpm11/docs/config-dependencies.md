@@ -11,6 +11,8 @@ If your config dependency is named following the `pnpm-plugin-*`, `@*/pnpm-plugi
 
 Config dependencies must come from an npm registry. pnpm verifies them against their registry before installing them, so installing a new or changed config dependency offline requires cached registry metadata. A config dependency pinned with `version+integrity` keeps that integrity as its pin. [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) applies to config dependencies that are not pinned with `version+integrity`. pnpm installs them before any `updateConfig` hook runs, so a [`minimumReleaseAgeExclude`](./settings/dependency-resolution.md#minimumreleaseageexclude) entry added by a hook does not cover them.
 
+Removing a package from `configDependencies` removes its installed link and unused lockfile entries on the next `pnpm install`. This also applies when you remove the entire setting. Run without `--frozen-lockfile` to update the lockfile after changing the declarations.
+
 ## How to Add a Config Dependency
 
 Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [env lockfile document](./lockfile.md)).

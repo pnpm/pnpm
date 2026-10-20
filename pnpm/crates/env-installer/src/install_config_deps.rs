@@ -341,7 +341,7 @@ fn prune_link(path: &Path) {
 
 /// List the immediate child names of `dir`, returning an empty list
 /// when the directory is absent.
-fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
+pub(crate) fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
     let mut names = Vec::new();
     for name in dir_entry_names(dir)? {
         // Skip dot-dirs (`.bin`, `.pnpm`, etc.).

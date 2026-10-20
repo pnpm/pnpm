@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { expect, test } from '@jest/globals'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
@@ -72,4 +74,38 @@ test('pruning excludes preserves config dependencies and removes unused versions
   expect(afterRemoval).toMatchObject({ minimumReleaseAgeExcludePrune: true, trustPolicyExcludePrune: true })
   expect(afterRemoval?.minimumReleaseAgeExclude).toBeUndefined()
   expect(afterRemoval?.trustPolicyExclude).toBeUndefined()
+})
+
+test.each([{}, undefined])('reconciles removal of the last config dependency (%p)', async (configDependencies) => {
+  prepare()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    configDependencies: { '@pnpm.e2e/foo': '100.0.0' },
+  })
+  await execPnpm(['install'])
+  const installed = 'node_modules/.pnpm-config/@pnpm.e2e/foo/package.json'
+  expect(fs.existsSync(installed)).toBe(true)
+  const before = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', configDependencies ? { configDependencies } : {})
+
+  const frozen = execPnpmSync(['install', '--frozen-lockfile'])
+  expect(frozen.status).toBe(1)
+  expect(frozen.stderr.toString()).toContain('Cannot update configDependencies with "frozen-lockfile"')
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(before)
+  expect(fs.existsSync(installed)).toBe(true)
+
+  await execPnpm(['install', '--offline'])
+  const env = await readEnvLockfile(process.cwd())
+  expect(env?.importers['.'].configDependencies).toEqual({})
+  expect(env?.snapshots).toEqual({})
+  expect(env?.packages).toEqual({})
+  expect(fs.existsSync(installed)).toBe(false)
+  await execPnpm(['install', '--frozen-lockfile', '--offline'])
+})
+
+test('cleans stale config dependency links without an env lockfile', async () => {
+  prepare()
+  const stale = 'node_modules/.pnpm-config/@example/removed'
+  fs.mkdirSync(stale, { recursive: true })
+  await execPnpm(['install', '--offline'])
+  expect(fs.existsSync(stale)).toBe(false)
 })

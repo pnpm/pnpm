@@ -563,3 +563,28 @@ test('resolves a version+integrity pin newer than minimumReleaseAge', async () =
   await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': `100.0.0+${getIntegrity('@pnpm.e2e/foo', '100.0.0')}` }, opts)
   expect(loadJsonFileSync<{ version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json').version).toBe('100.0.0')
 })
+
+test('removal reconciles config roots while preserving a shared package-manager graph', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/foo': '100.0.0', '@pnpm.e2e/bar': '100.0.0' }, opts)
+  const env = (await readEnvLockfile(process.cwd()))!
+  env.importers['.'].packageManagerDependencies = {
+    '@pnpm.e2e/foo': env.importers['.'].configDependencies['@pnpm.e2e/foo'],
+  }
+  await writeEnvLockfile(process.cwd(), env)
+
+  await resolveAndInstallConfigDeps({ '@pnpm.e2e/bar': '100.0.0' }, { ...opts, offline: true })
+  const afterPartialRemoval = (await readEnvLockfile(process.cwd()))!
+  expect(Object.keys(afterPartialRemoval.importers['.'].configDependencies)).toEqual(['@pnpm.e2e/bar'])
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/foo')).toBe(false)
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/bar/package.json')).toBe(true)
+
+  await resolveAndInstallConfigDeps({}, { ...opts, offline: true })
+  const afterRemoval = (await readEnvLockfile(process.cwd()))!
+  expect(afterRemoval.importers['.'].configDependencies).toEqual({})
+  expect(afterRemoval.importers['.'].packageManagerDependencies).toEqual(env.importers['.'].packageManagerDependencies)
+  expect(afterRemoval.packages).toEqual({ '@pnpm.e2e/foo@100.0.0': env.packages['@pnpm.e2e/foo@100.0.0'] })
+  expect(afterRemoval.snapshots).toEqual({ '@pnpm.e2e/foo@100.0.0': env.snapshots['@pnpm.e2e/foo@100.0.0'] })
+  expect(fs.existsSync('node_modules/.pnpm-config/@pnpm.e2e/bar')).toBe(false)
+})

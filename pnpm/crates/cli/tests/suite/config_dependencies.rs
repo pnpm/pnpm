@@ -1035,3 +1035,69 @@ fn assert_config_dependency_declared(workspace: &Path, name: &str, specifier: &s
         Some(&ConfigDependency::VersionWithIntegrity(specifier.to_string())),
     );
 }
+
+#[test]
+fn removal_of_last_config_dependency_is_reconciled() {
+    for declaration in ["\nconfigDependencies: {}\n", "\n"] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        fs::write(workspace.join("package.json"), "{}").unwrap();
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let original = fs::read_to_string(&yaml_path).unwrap();
+        fs::write(
+            &yaml_path,
+            format!("{original}\nconfigDependencies:\n  '@pnpm.e2e/foo': 100.0.0\n"),
+        )
+        .unwrap();
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let installed = workspace.join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json");
+        assert!(installed.exists());
+        let lockfile_path = workspace.join("pnpm-lock.yaml");
+        let before = fs::read_to_string(&lockfile_path).unwrap();
+        fs::write(&yaml_path, format!("{original}{declaration}")).unwrap();
+        let frozen = pacquet_at(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .assert()
+            .failure();
+        assert!(
+            String::from_utf8_lossy(&frozen.get_output().stderr)
+                .contains("Cannot update configDependencies"),
+        );
+        assert_eq!(fs::read_to_string(&lockfile_path).unwrap(), before);
+        assert!(installed.exists());
+        pacquet_at(&workspace)
+            .with_args(["install", "--offline"])
+            .assert()
+            .success();
+        let env = EnvLockfile::read(&workspace).unwrap().unwrap();
+        assert!(env.importers["."].config_dependencies.is_empty());
+        assert!(env.packages.is_empty());
+        assert!(env.snapshots.is_empty());
+        assert!(!installed.exists());
+        pacquet_at(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--offline"])
+            .assert()
+            .success();
+        drop((root, mock_instance));
+    }
+}
+
+#[test]
+fn cleans_stale_config_dependency_links_without_an_env_lockfile() {
+    for args in [vec!["install", "--offline"], vec!["exec", "node", "-e", ""]] {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        fs::write(workspace.join("package.json"), "{}").unwrap();
+        let stale = workspace.join("node_modules/.pnpm-config/@example/removed");
+        fs::create_dir_all(&stale).unwrap();
+        pacquet
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(!stale.exists());
+        drop(root);
+    }
+}

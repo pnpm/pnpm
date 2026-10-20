@@ -14,7 +14,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{EnvLockfile, LoadLockfileError, Lockfile, PackageKey, prune_env_lockfile};
+use pnpm_lockfile::{
+    EnvLockfile, LoadLockfileError, Lockfile, PackageKey, retain_config_dependencies,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
@@ -269,13 +271,11 @@ fn prune_unresolved_entries(
         && let Some(mut env) = EnvLockfile::read(config.root_project_manifest_dir(workspace_dir))
             .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
     {
-        env.root_importer_mut().config_dependencies
-            .retain(|name, _| {
-                config.config_dependencies
-                    .as_ref()
-                    .is_some_and(|dependencies| dependencies.contains_key(name))
-            });
-        prune_env_lockfile(&mut env);
+        retain_config_dependencies(&mut env, |name| {
+            config.config_dependencies
+                .as_ref()
+                .is_some_and(|dependencies| dependencies.contains_key(name))
+        });
         record_resolved_package_versions(env.snapshots.keys(), &mut resolved);
     }
     update_workspace_manifest(

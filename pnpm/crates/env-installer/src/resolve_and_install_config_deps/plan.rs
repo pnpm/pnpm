@@ -6,7 +6,7 @@ use crate::{
     ConfigDepError, options::ConfigDepsInstallOptions, parse_integrity::parse_integrity,
     verify_env_lockfile::assert_valid_migrated_config_dep,
 };
-use pnpm_lockfile::EnvLockfile;
+use pnpm_lockfile::{EnvLockfile, retain_config_dependencies};
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use ssri::Integrity;
 use std::collections::BTreeMap;
@@ -25,7 +25,8 @@ pub(super) fn plan_config_deps(
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(Vec<ToResolve>, bool), ConfigDepError> {
     let mut to_resolve = Vec::new();
-    let mut lockfile_changed = drop_removed_config_deps(env_lockfile, config_deps);
+    let mut lockfile_changed =
+        retain_config_dependencies(env_lockfile, |name| config_deps.contains_key(name));
     for (name, value) in config_deps {
         let update = updates.prev_specifiers.contains_key(name);
         match plan_config_dep(env_lockfile, opts, name, value, update)? {
@@ -37,19 +38,6 @@ pub(super) fn plan_config_deps(
         }
     }
     Ok((to_resolve, lockfile_changed))
-}
-
-/// Drop env-lockfile entries for config deps that were removed from
-/// `pnpm-workspace.yaml`, so they stop being installed and get pruned from
-/// `.pnpm-config`. Reports whether anything was dropped.
-fn drop_removed_config_deps(
-    env_lockfile: &mut EnvLockfile,
-    config_deps: &BTreeMap<String, ConfigDependency>,
-) -> bool {
-    let importer = env_lockfile.root_importer_mut();
-    let before = importer.config_dependencies.len();
-    importer.config_dependencies.retain(|name, _| config_deps.contains_key(name));
-    importer.config_dependencies.len() != before
 }
 
 /// What one declared config dependency still needs before it can be

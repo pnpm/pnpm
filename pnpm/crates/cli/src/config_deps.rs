@@ -34,8 +34,8 @@ use pnpm_config::{
 };
 use pnpm_env_installer::{
     ConfigDepUpdates, ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
-    resolve_and_install_config_deps_updating, resolve_package_manager_integrities,
-    running_version_unpublished,
+    read_config_dependency_lockfile, resolve_and_install_config_deps_updating,
+    resolve_package_manager_integrities, running_version_unpublished,
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
@@ -55,7 +55,7 @@ use std::{
 };
 
 /// Resolve + install the project's `configDependencies` (a no-op when
-/// none are declared). `root_dir` is the lockfile directory;
+/// none are declared or installed). `root_dir` is the lockfile directory;
 /// `frozen_lockfile` forwards `--frozen-lockfile` so config deps refuse
 /// to mutate an out-of-date env lockfile.
 pub async fn install_config_deps<Reporter: self::Reporter>(
@@ -63,12 +63,8 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
 ) -> Result<()> {
-    let Some(config_dependencies) = config.config_dependencies.as_ref() else {
-        return Ok(());
-    };
-    if config_dependencies.is_empty() {
-        return Ok(());
-    }
+    let empty = BTreeMap::new();
+    let config_dependencies = config.config_dependencies.as_ref().unwrap_or(&empty);
     let updates = ConfigDepUpdates::default();
     resolve_and_install::<Reporter>(
         config,
@@ -310,22 +306,14 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     frozen_lockfile: bool,
     updates: &ConfigDepUpdates,
 ) -> Result<BTreeMap<String, String>> {
-    let boot_config = config.for_boot();
+    let Some(env_lockfile) = read_config_dependency_lockfile(Some(config_dependencies), root_dir)?
+    else {
+        return Ok(BTreeMap::new());
+    };
+    let mut boot_config = config.for_boot();
+    boot_config.place_skipped_store_dir::<Host>(root_dir);
     let config = &*boot_config;
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Debug,
-        message: "Waiting for the configuration dependency store operation lock".to_string(),
-    }));
-    let _store_lock = if config.frozen_store {
-        config.store_dir.lock_for_frozen_use()
-    } else {
-        config.store_dir.lock_for_use()
-    }
-    .wrap_err("lock the store while installing configuration dependencies")?;
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Debug,
-        message: "Acquired the configuration dependency store operation lock".to_string(),
-    }));
+    let _store_lock = lock_config_dependency_store::<Reporter>(config)?;
 
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -337,6 +325,7 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     let store_index =
         store_index::StoreIndexSession::attach(&mut options, context.store.dir, config).await;
     let result = resolve_and_install_config_deps_updating::<Reporter>(
+        env_lockfile,
         config_dependencies,
         updates,
         &context.resolver,
@@ -348,6 +337,27 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     drop(options);
     store_index.drain().await;
     result
+}
+
+fn lock_config_dependency_store<Reporter: self::Reporter>(
+    config: &Config,
+) -> Result<pnpm_store_dir::StoreOperationLock> {
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Debug,
+        message: "Waiting for the configuration dependency store operation lock".to_string(),
+    }));
+    let store_lock = if config.frozen_store {
+        config.store_dir.lock_for_frozen_use()
+    } else {
+        config.store_dir.lock_for_use()
+    }
+    .wrap_err("lock the store while installing configuration dependencies")?;
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Debug,
+        message: "Acquired the configuration dependency store operation lock".to_string(),
+    }));
+
+    Ok(store_lock)
 }
 
 /// The `minimumReleaseAge` cutoff that the install's resolution verifiers

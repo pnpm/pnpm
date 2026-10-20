@@ -7,7 +7,7 @@ import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/c
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
-import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
+import { readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -86,13 +86,10 @@ export async function installConfigDepsAndLoadHooks (
     forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
-  let configDependenciesVerified = false
-  if (config.configDependencies) {
-    configDependenciesVerified = await installConfigDeps(config, context, {
-      configDependencies: config.configDependencies,
-      tolerateErrors: opts?.tolerateConfigDependenciesErrors,
-    })
-  }
+  const configDependenciesVerified = await installConfigDeps(config, context, {
+    configDependencies: config.configDependencies ?? {},
+    tolerateErrors: opts?.tolerateConfigDependenciesErrors,
+  })
   if (config.ignorePnpmfile) {
     return { config, context }
   }
@@ -107,6 +104,9 @@ async function installConfigDeps (
   context: ConfigContext,
   opts: { configDependencies: ConfigDependencies, tolerateErrors?: boolean }
 ): Promise<boolean> {
+  const rootDir = config.lockfileDir ?? context.rootProjectManifestDir
+  const envLockfile = await readConfigDependencyLockfile(opts.configDependencies, rootDir)
+  if (!envLockfile) return false
   const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
   try {
     await resolveAndInstallConfigDeps(opts.configDependencies, {
@@ -114,7 +114,8 @@ async function installConfigDeps (
       ...context,
       store: store.ctrl,
       storeDir: store.dir,
-      rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
+      rootDir,
+      envLockfile,
       frozenLockfile: config.frozenLockfile,
     })
     return true
