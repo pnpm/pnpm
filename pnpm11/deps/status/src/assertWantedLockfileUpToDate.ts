@@ -25,6 +25,8 @@ export interface AssertWantedLockfileUpToDateContext {
   getManifestsByDir: () => Record<string, DependencyManifest>
   getWorkspacePackages: () => WorkspacePackages | undefined
   hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
+  parsedOverrides?: VersionOverride[]
+  readPackageHook?: ReadPackageHook | null
   rootDir: string
   patchedDependencies?: Record<string, string>
 }
@@ -37,21 +39,32 @@ export interface AssertWantedLockfileUpToDateOptions {
   wantedLockfileDir: string
 }
 
+export function createDepsStatusReadPackageHook (
+  config: CheckDepsStatusOptions,
+  wantedLockfileDir: string,
+  parsedOverrides: VersionOverride[]
+): ReadPackageHook | undefined {
+  return createReadPackageHook({
+    ignoreCompatibilityDb: config.ignoreCompatibilityDb,
+    lockfileDir: wantedLockfileDir,
+    overrides: parsedOverrides,
+    packageExtensions: config.packageExtensions,
+    readPackageHook: config.hooks?.readPackage,
+    ignoredOptionalDependencies: config.ignoredOptionalDependencies,
+  })
+}
+
 export async function assertWantedLockfileUpToDate (
   ctx: AssertWantedLockfileUpToDateContext,
   opts: AssertWantedLockfileUpToDateOptions
 ): Promise<void> {
-  const parsedOverrides = parseOverrides(ctx.config.overrides ?? {}, ctx.config.catalogs)
+  const parsedOverrides = ctx.parsedOverrides ?? parseOverrides(ctx.config.overrides ?? {}, ctx.config.catalogs)
   await assertLockfileSettingsUpToDate(ctx.config, opts, parsedOverrides)
   assertPatchHashesUpToDate(opts)
 
-  const readPackageHook = createReadPackageHook({
-    lockfileDir: opts.wantedLockfileDir,
-    overrides: parsedOverrides,
-    packageExtensions: ctx.config.packageExtensions,
-    readPackageHook: ctx.config.hooks?.readPackage,
-    ignoredOptionalDependencies: ctx.config.ignoredOptionalDependencies,
-  })
+  const readPackageHook = ctx.readPackageHook !== undefined
+    ? (ctx.readPackageHook ?? undefined)
+    : createDepsStatusReadPackageHook(ctx.config, opts.wantedLockfileDir, parsedOverrides)
   const projectManifest = await readPackageHook?.(clone(opts.projectManifest), opts.projectDir) ?? opts.projectManifest
 
   if (!satisfiesPackageManifest(
