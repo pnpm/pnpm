@@ -64,14 +64,18 @@ export async function handler (opts: PatchRemoveCommandOptions, params: string[]
   }
 
   await removeEmptyPatchesDirs(patchesToRemoveTargets)
-  await updatePatchedDependencies(patchedDependencies, {
+  const resolvedPatchedDependencies: Record<string, string> = {}
+  for (const [key, patchPath] of Object.entries(patchedDependencies)) {
+    resolvedPatchedDependencies[key] = path.resolve(patchRemovalContext.lockfileDir, patchPath)
+  }
+  await updatePatchedDependencies(resolvedPatchedDependencies, {
     ...opts,
-    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+    workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir ?? patchRemovalContext.lockfileDir,
   })
 
   await install.handler({
     ...opts,
-    patchedDependencies,
+    patchedDependencies: resolvedPatchedDependencies,
   })
 }
 
@@ -122,7 +126,7 @@ interface PatchRemovalTarget {
 }
 
 async function getPatchRemovalContext (opts: PatchRemoveCommandOptions): Promise<PatchRemovalContext> {
-  const lockfileDir = path.resolve(opts.lockfileDir ?? opts.dir ?? process.cwd())
+  const lockfileDir = path.resolve(opts.workspaceDir ?? opts.lockfileDir ?? opts.rootProjectManifestDir ?? opts.dir ?? process.cwd())
   const realLockfileDir = await fs.realpath(lockfileDir)
   const patchesDirSetting = opts.patchesDir ?? 'patches'
   const patchesDir = path.join(lockfileDir, path.normalize(patchesDirSetting))

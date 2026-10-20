@@ -191,7 +191,7 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
                 sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
                 pipelined: true,
             }
-            .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+            .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
             .await
         }
         InstallFamilyPlan::Shared(selection) => {
@@ -244,7 +244,9 @@ pub(super) fn init_shared_state(
 /// matching the project set a shared-lockfile workspace install covers.
 /// Projects whose workspace dependencies have finished run concurrently
 /// under `workspaceConcurrency`, as a recursive install does.
-pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'static>(
+pub(in crate::cli_args) async fn run_dedicated_lockfile_workspace_install<
+    Reporter: self::Reporter + 'static,
+>(
     args: &super::super::install::InstallArgs,
     cfg: &Config,
     workspace_root: &Path,
@@ -289,7 +291,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
         sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
         pipelined: true,
     }
-    .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+    .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
     .await
 }
 

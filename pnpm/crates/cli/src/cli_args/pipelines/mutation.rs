@@ -74,7 +74,7 @@ impl AddPipeline {
                     sync_injected_deps: !self.args.install.lockfile_only,
                     pipelined: false,
                 }
-                .run(|state| {
+                .run::<Reporter, _, _>(|state| {
                     let args = self.args.clone();
                     let workspace_packages = Arc::clone(&workspace_packages);
                     Box::pin(async move {
@@ -337,7 +337,7 @@ impl UpdatePipeline {
                     sync_injected_deps: !self.args.install.lockfile_only,
                     pipelined: false,
                 }
-                .run(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
+                .run::<Reporter, _, _>(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
                 .await?;
             }
             InstallFamilyPlan::Shared(selection) => {
@@ -399,7 +399,7 @@ impl RemovePipeline {
                     sync_injected_deps: false,
                     pipelined: false,
                 }
-                .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+                .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
                 .await
             }
             InstallFamilyPlan::Shared(selection) => {

@@ -182,7 +182,7 @@ async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
         sync_injected_deps: false,
         pipelined: false,
     }
-    .run(|state| {
+    .run::<Reporter, _, _>(|state| {
         let args = args.clone();
         let lockfile_path = lockfile_path.to_path_buf();
         let existing = existing.clone();

@@ -72,22 +72,59 @@ fn prune_matching_snapshots(
 
 pub(super) fn update_lockfile_snapshots(
     state: &State,
+    workspace_projects: &[pnpm_workspace::Project],
     name: &str,
     version: &str,
     apply_to_all: bool,
     patched_manifest: &PackageManifest,
 ) -> Result<(), super::PatchCommitError> {
-    let Some(mut lockfile) =
-        Lockfile::load_wanted(state.lockfile_dir(), &state.config.wanted_lockfile_selection())
-            .map_err(super::PatchCommitError::LoadLockfile)?
+    let declared = DeclaredDeps::from_manifest(patched_manifest);
+    let selection = state.config.wanted_lockfile_selection();
+    update_single_lockfile_snapshots(
+        state.lockfile_dir(),
+        &state.lockfile_path(),
+        &selection,
+        name,
+        version,
+        apply_to_all,
+        &declared,
+    )?;
+    for project in workspace_projects {
+        if project.root_dir == state.lockfile_dir() {
+            continue;
+        }
+        let lockfile_dir = state.config.lockfile_dir_for(&project.root_dir);
+        let lockfile_path = lockfile_dir.join(state.config.wanted_lockfile_name());
+        update_single_lockfile_snapshots(
+            lockfile_dir,
+            &lockfile_path,
+            &selection,
+            name,
+            version,
+            apply_to_all,
+            &declared,
+        )?;
+    }
+    Ok(())
+}
+
+fn update_single_lockfile_snapshots(
+    lockfile_dir: &std::path::Path,
+    lockfile_path: &std::path::Path,
+    selection: &pnpm_lockfile::WantedLockfileSelection,
+    name: &str,
+    version: &str,
+    apply_to_all: bool,
+    declared: &DeclaredDeps<'_>,
+) -> Result<(), super::PatchCommitError> {
+    let Some(mut lockfile) = Lockfile::load_wanted(lockfile_dir, selection)
+        .map_err(super::PatchCommitError::LoadLockfile)?
     else {
         return Ok(());
     };
-    let declared = DeclaredDeps::from_manifest(patched_manifest);
-    if !prune_matching_snapshots(&mut lockfile, name, version, apply_to_all, &declared) {
+    if !prune_matching_snapshots(&mut lockfile, name, version, apply_to_all, declared) {
         return Ok(());
     }
     pnpm_package_manager::prune_unreachable_packages(&mut lockfile);
-    let lockfile_path = state.lockfile_path();
-    lockfile.save_to_path(&lockfile_path).map_err(super::PatchCommitError::SaveLockfile)
+    lockfile.save_to_path(lockfile_path).map_err(super::PatchCommitError::SaveLockfile)
 }

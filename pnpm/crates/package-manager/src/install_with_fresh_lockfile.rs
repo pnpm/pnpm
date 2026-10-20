@@ -558,6 +558,9 @@ fn check_patch_usage<Reporter: self::Reporter>(
     applied_patches: &rustc_hash::FxHashSet<String>,
     scope: PatchUsageScope<'_>,
 ) -> Result<(), InstallWithFreshLockfileError> {
+    if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
+        return Ok(());
+    }
     let Some(deps) = patched_dependencies else { return Ok(()) };
     let verify = match scope.selected_importer_ids {
         None => true,
