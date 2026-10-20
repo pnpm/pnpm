@@ -11,7 +11,9 @@ fn matches_std_canonicalize_for_non_existent() {
     );
 }
 
-/// Every case resolves twice, so the cached answer is checked too.
+/// Every case resolves twice, so the cached answer is checked too. The
+/// case-variant spelling exists only on a case-insensitive filesystem, where
+/// `std::fs::canonicalize` on macOS answers with the spelling on disk.
 #[cfg(unix)]
 #[test]
 fn matches_std_canonicalize() {
@@ -36,6 +38,7 @@ fn matches_std_canonicalize() {
         "ws/packages/lib/package.json/..",
         "ws/packages/lib/package.json/",
         "ws/packages/lib/package.json/.",
+        "ws/Packages/LIB/package.json",
     ];
     let paths = CanonicalPaths::default();
     for case in cases {

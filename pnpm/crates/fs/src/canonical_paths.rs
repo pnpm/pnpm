@@ -9,27 +9,27 @@ use std::{
 ///
 /// On Unix, a path is resolved from its parent, and every path resolved is
 /// remembered:
-/// - a plain component under a canonical directory costs one `lstat` the
-///   first time that directory entry is seen and nothing after;
+/// - a component under a canonical directory is canonicalized on its own
+///   the first time any path reaches that directory entry and read from the
+///   cache after, so a symlink is followed and each component is spelled as
+///   [`std::fs::canonicalize`] spells it;
 /// - `..` steps to the canonical parent, as the kernel does.
 ///
-/// A symlinked or missing component, a non-directory followed by more
-/// components, or a relative path is answered by [`std::fs::canonicalize`]
-/// on the whole path, so every result and error matches it. On other
-/// platforms every call goes to [`std::fs::canonicalize`].
+/// A component that cannot be read, a non-directory followed by more
+/// components or by a trailing `/` or `/.`, or a relative path is answered
+/// by [`std::fs::canonicalize`] on the whole path, so every result and error
+/// matches it. On other platforms every call goes to
+/// [`std::fs::canonicalize`].
 ///
 /// What a cache has seen is not read again: drop it before the directories
 /// it read can change.
 #[derive(Default)]
 #[cfg_attr(not(unix), expect(dead_code, reason = "only Unix resolves components"))]
 pub struct CanonicalPaths {
-    /// Each path as given, mapped to its canonical form and whether that is
+    /// Each path resolved so far, as given or as a canonical directory joined
+    /// with one component, mapped to its canonical form and whether that is
     /// a directory, or to `None` when [`std::fs::canonicalize`] must answer.
     paths: DashMap<PathBuf, Option<(PathBuf, bool)>>,
-    /// A canonical directory joined with one component, mapped to whether
-    /// that is a directory, or to `None` when it is a symlink or cannot be
-    /// read. Shared by every spelling of a path that reaches it.
-    entries: DashMap<PathBuf, Option<bool>>,
 }
 
 impl CanonicalPaths {
@@ -78,8 +78,7 @@ impl CanonicalPaths {
                 }
                 Component::Normal(name) => {
                     canonical.push(name);
-                    let is_dir = self.plain_entry_is_dir(&canonical)?;
-                    Some((canonical, is_dir))
+                    self.resolve_entry(&canonical)
                 }
                 Component::CurDir | Component::RootDir | Component::Prefix(_) => None,
             });
@@ -87,19 +86,21 @@ impl CanonicalPaths {
         resolved
     }
 
-    /// Whether `entry` is a directory, or `None` when it is a symlink or
-    /// cannot be read.
+    /// The canonical form of `entry`, a canonical directory joined with one
+    /// component, and whether it is a directory.
     #[cfg(unix)]
-    fn plain_entry_is_dir(&self, entry: &Path) -> Option<bool> {
-        if let Some(known) = self.entries.get(entry) {
-            return *known;
+    fn resolve_entry(&self, entry: &Path) -> Option<(PathBuf, bool)> {
+        if let Some(known) = self.paths.get(entry) {
+            return known.clone();
         }
-        let is_dir = std::fs::symlink_metadata(entry)
+        let resolved = std::fs::canonicalize(entry)
             .ok()
-            .filter(|metadata| !metadata.file_type().is_symlink())
-            .map(|metadata| metadata.is_dir());
-        self.entries.insert(entry.to_path_buf(), is_dir);
-        is_dir
+            .and_then(|canonical| {
+                let is_dir = std::fs::metadata(&canonical).ok()?.is_dir();
+                Some((canonical, is_dir))
+            });
+        self.paths.insert(entry.to_path_buf(), resolved.clone());
+        resolved
     }
 }
 
