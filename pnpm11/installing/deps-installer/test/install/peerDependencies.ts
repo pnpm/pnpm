@@ -2819,8 +2819,9 @@ test('re-resolving keeps an optional peer that is also a regular dependency when
   )
 
   const updatedLockfile = project.readLockfile()
-  const snapshot = updatedLockfile.snapshots[childKey] ?? updatedLockfile.snapshots[`${childKey}${peersSuffix}`]
-  expect(snapshot.dependencies?.['@pnpm.e2e/bravo-dep'] ?? snapshot.optionalDependencies?.['@pnpm.e2e/bravo-dep']).toBe('1.0.0')
+  const snapshot = updatedLockfile.snapshots[childKey]
+  expect(snapshot?.dependencies?.['@pnpm.e2e/bravo-dep']).toBe('1.0.0')
+  expect(updatedLockfile.snapshots['@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0'].dependencies!['@pnpm.e2e/has-optional-peer-also-in-deps']).toBe('1.0.0')
 })
 
 

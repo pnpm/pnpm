@@ -1285,13 +1285,16 @@ fn re_resolving_one_parent_keeps_dependency_that_is_also_optional_peer() {
         .success();
 
     let updated = read_lockfile_value();
-    let snapshot = updated["snapshots"]
-        .get(child)
-        .or_else(|| updated["snapshots"].get(format!("{child}{peers_suffix}")))
-        .expect("snapshot exists");
-    let has_dep = snapshot["dependencies"].get("@pnpm.e2e/bravo-dep").is_some()
-        || snapshot["optionalDependencies"].get("@pnpm.e2e/bravo-dep").is_some();
-    assert!(has_dep, "re-resolving keeps the dependency; got snapshot: {snapshot}");
+    let snapshot = &updated["snapshots"][child];
+    assert!(
+        snapshot["dependencies"].get("@pnpm.e2e/bravo-dep").is_some(),
+        "re-resolving retains the dependency on peerless snapshot; got snapshot: {snapshot}"
+    );
+    assert_eq!(
+        updated["snapshots"]["@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0"]["dependencies"]
+            ["@pnpm.e2e/has-optional-peer-also-in-deps"],
+        "1.0.0"
+    );
 
     drop((root, mock_instance));
 }
