@@ -187,20 +187,19 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             );
         }
     };
-    let crate::InstalledPackage {
-        cas_paths,
-        source_is_mutable,
-        source_exists,
-    } = installed;
+    let requires_build = (!crate::snapshot_has_patch(snapshot_key))
+        .then_some(installed.requires_build)
+        .flatten()
+        .unwrap_or_else(|| requires_build_from_cas_paths(&installed.cas_paths));
     Ok((
         None,
         Some(ColdCapture {
             snapshot_key,
             snapshot,
-            requires_build: requires_build_from_cas_paths(&cas_paths),
-            cas_paths,
-            source_is_mutable,
-            source_exists,
+            requires_build,
+            cas_paths: installed.cas_paths,
+            source_is_mutable: installed.source_is_mutable,
+            source_exists: installed.source_exists,
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
@@ -302,6 +301,7 @@ pub(super) fn record_cold_outcome<'a>(
 ) -> Option<ColdCapture<'a>> {
     let (failure, captured) = outcome;
     if let Some(key) = failure {
+        state.requires_build_by_snapshot.remove(&key);
         state.fetch_failed.insert(key);
     }
     let captured = captured?;

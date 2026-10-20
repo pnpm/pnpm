@@ -259,6 +259,7 @@ impl FetchTarballForResolution<'_> {
                     CachedTarball {
                         files: Arc::clone(&extracted.body.files),
                         manifest: extracted.body.root_manifest.clone(),
+                        requires_build: None,
                     },
                 )
                 .await;
@@ -303,6 +304,7 @@ impl FetchTarballForResolution<'_> {
                         CachedTarball {
                             files: Arc::clone(&extracted.body.files),
                             manifest: extracted.body.root_manifest.clone(),
+                            requires_build: None,
                         },
                     );
                 }

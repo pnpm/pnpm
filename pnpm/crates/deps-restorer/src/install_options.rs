@@ -66,6 +66,9 @@ pub struct SnapshotSelection<'a> {
     /// materialization.
     pub include_optional: bool,
     pub supported_architectures: Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// Pre-verified `requiresBuild` flags from resolution metadata (`dist.pnpr.requiresBuild`
+    /// or `pnpr`'s resolve stream).
+    pub known_requires_build: Option<&'a crate::RequiresBuildBySnapshot>,
 }
 
 #[derive(Clone, Copy)]

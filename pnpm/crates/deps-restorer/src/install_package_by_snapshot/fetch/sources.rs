@@ -15,6 +15,14 @@ use pnpm_store_dir::git_hosted_store_index_key;
 use pnpm_tarball::IngestTarballToStore;
 use std::{collections::HashMap, path::PathBuf};
 
+fn is_revision_addressed(resolution: &LockfileResolution) -> bool {
+    match resolution {
+        LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
+        LockfileResolution::Registry(registry) => registry.revision.is_some(),
+        _ => false,
+    }
+}
+
 impl InstallPackageBySnapshot<'_> {
     pub(in super::super) async fn custom_fetch<Reporter: self::Reporter>(
         &self,
@@ -138,19 +146,17 @@ impl InstallPackageBySnapshot<'_> {
         Ok(cas_paths)
     }
 }
+
 impl InstallPackageBySnapshot<'_> {
     /// Fetch a tarball- or registry-shaped resolution into the store and
-    /// return its CAS paths.
+    /// return its CAS paths paired with the archive's `requires_build`
+    /// verdict when known.
     pub(super) async fn tarball_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<(HashMap<String, PathBuf>, Option<bool>), InstallPackageBySnapshotError> {
         let config = self.ctx.config;
-        let revision_addressed = match fetch.resolution {
-            LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
-            LockfileResolution::Registry(registry) => registry.revision.is_some(),
-            _ => false,
-        };
+        let revision_addressed = is_revision_addressed(fetch.resolution);
         let (tarball_url, integrity) =
             tarball_url_and_integrity(fetch.resolution, fetch.package_key, config)?;
         let tarball_url = local_file_tarball_install_url(tarball_url, self.ctx.workspace_root);
@@ -163,28 +169,26 @@ impl InstallPackageBySnapshot<'_> {
                 url: &tarball_url,
                 ..fetch.download.clone().package
             },
-
             ..fetch.download.clone()
         };
-        let raw_cas_paths = download_tarball::<Reporter>(
-            download,
-            self.fetching.tarball_mem_cache
-                .filter(|_| {
-                    matches!(
-                        fetch.resolution,
-                        LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
-                    )
-                })
-                .map(std::convert::AsRef::as_ref),
-            revision_addressed,
-        )
-        .await
-        .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
+        let mem_cache = self.fetching.tarball_mem_cache
+            .filter(|_| {
+                matches!(
+                    fetch.resolution,
+                    LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+                )
+            })
+            .map(std::convert::AsRef::as_ref);
+        let (raw_cas_paths, requires_build) =
+            download_tarball::<Reporter>(download, mem_cache, revision_addressed)
+                .await
+                .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
         match fetch.resolution {
-            LockfileResolution::Tarball(tarball) if tarball.is_git_hosted() => {
-                self.prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths).await
-            }
-            _ => Ok(raw_cas_paths),
+            LockfileResolution::Tarball(tarball) if tarball.is_git_hosted() => self
+                .prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths)
+                .await
+                .map(|cas_paths| (cas_paths, None)),
+            _ => Ok((raw_cas_paths, requires_build)),
         }
     }
 

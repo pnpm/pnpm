@@ -76,12 +76,13 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tarball_router: tarball_router(&registry, Identity::Anonymous),
     };
 
-    let hint = |unpacked_size, file_count, revision| ResolvedPackageHint {
+    let hint = |unpacked_size, file_count, revision, requires_build| ResolvedPackageHint {
         integrity: "sha512-abc",
         tarball_url: "https://r.test/acme/-/acme-1.0.0.tgz",
         unpacked_size,
         file_count,
         revision,
+        requires_build,
         from_registry: false,
         identity: pnpm_package_manager::ResolvedPackageIdentity {
             id: "acme@1.0.0",
@@ -89,20 +90,22 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
             version: "1.0.0",
         },
     };
-    observer.on_resolved(hint(Some(123_456), Some(42), Some(3)));
-    observer.on_resolved(hint(None, None, None));
+    observer.on_resolved(hint(Some(123_456), Some(42), Some(3), Some(false)));
+    observer.on_resolved(hint(None, None, None, None));
 
     let sized: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("sized frame sent")).unwrap();
     assert_eq!(sized["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(sized["fileCount"], serde_json::json!(42));
     assert_eq!(sized["revision"], serde_json::json!(3));
+    assert_eq!(sized["requiresBuild"], serde_json::json!(false));
 
     let unsized_frame: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("unsized frame sent")).unwrap();
     assert!(unsized_frame.get("unpackedSize").is_none());
     assert!(unsized_frame.get("fileCount").is_none());
     assert!(unsized_frame.get("revision").is_none());
+    assert!(unsized_frame.get("requiresBuild").is_none());
     assert_eq!(unsized_frame["tarball"], serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"));
 }
 
@@ -124,6 +127,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
             unpacked_size: None,
             file_count: None,
             revision: Some(3),
+            requires_build: None,
             from_registry: false,
             identity: pnpm_package_manager::ResolvedPackageIdentity {
                 id: "acme@1.0.0",
@@ -161,6 +165,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
             unpacked_size: None,
             file_count: None,
             revision: None,
+            requires_build: None,
             from_registry: true,
             identity: pnpm_package_manager::ResolvedPackageIdentity {
                 id: "acme@1.0.0",
@@ -194,6 +199,7 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
             unpacked_size: None,
             file_count: None,
             revision: None,
+            requires_build: None,
             from_registry: true,
             identity: pnpm_package_manager::ResolvedPackageIdentity {
                 id: "acme@1.0.0",
@@ -232,7 +238,11 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     let stats = observed_dist_stats_sink();
     stats.insert(
         ("acme".to_string(), "1.0.0".to_string()),
-        DistStats { unpacked_size: Some(123_456), file_count: Some(42) },
+        DistStats {
+            unpacked_size: Some(123_456),
+            file_count: Some(42),
+            requires_build: Some(true),
+        },
     );
 
     let registry = public_registry_config("https://registry.example.test/");
@@ -253,6 +263,7 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     );
     assert_eq!(frame["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(frame["fileCount"], serde_json::json!(42));
+    assert_eq!(frame["requiresBuild"], serde_json::json!(true));
 }
 
 #[test]

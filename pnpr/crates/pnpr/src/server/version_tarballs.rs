@@ -303,7 +303,7 @@ impl VersionRequest<'_> {
             Some(key) => self.state.inner.storage
                 .read_tar_integrities(&name)
                 .await
-                .is_ok_and(|table| table.contains_key(key)),
+                .is_ok_and(|table| table.get(key).is_some_and(|derived| derived.scanned)),
             None => false,
         };
         TarSource {
@@ -342,6 +342,7 @@ impl VersionRequest<'_> {
             name,
             filename: &filename,
             integrity: &integrity,
+            unpacked_size: tgz.dist.unpacked_size,
         };
         let (response, origin) =
             serve_bound_upstream_tarball(self.state, upstream, tarball, self.version).await;

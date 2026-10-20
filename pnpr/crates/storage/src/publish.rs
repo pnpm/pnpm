@@ -435,12 +435,25 @@ fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Va
                 // Malformed incoming entry for a hosted version: keep the
                 // hosted manifest rather than overwrite it with junk.
                 (Some(hosted_manifest), None) => Value::Object(hosted_manifest.clone()),
-                _ => manifest.clone(),
+                (None, Some(incoming_manifest)) => {
+                    Value::Object(without_dist_pnpr(incoming_manifest))
+                }
+                (None, None) => manifest.clone(),
             };
             merged.insert(version.clone(), entry);
         }
     }
     Value::Object(merged)
+}
+
+/// Strip any publisher-supplied `dist.pnpr`: `pnpr` overlays are derived from
+/// the verified tarball and never trusted from a publish body.
+fn without_dist_pnpr(manifest: &Map<String, Value>) -> Map<String, Value> {
+    let mut cleaned = manifest.clone();
+    if let Some(dist) = cleaned.get_mut("dist").and_then(Value::as_object_mut) {
+        dist.remove("pnpr");
+    }
+    cleaned
 }
 
 /// The hosted manifest with only its deprecation taken from the incoming one.

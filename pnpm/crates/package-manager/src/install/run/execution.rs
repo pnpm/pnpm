@@ -242,6 +242,7 @@ impl<'a> RunExecution<'a> {
             pnpmfile_hook: loaded.pnpmfile_hook.take(),
             deploy_manifest_hook: self.options.manifests.deploy_hook,
             manifest_spec_bumps: self.options.manifests.spec_bumps,
+            known_requires_build: self.options.manifests.known_requires_build.take(),
             inputs: std::mem::take(&mut self.owned.resolution),
         }
     }

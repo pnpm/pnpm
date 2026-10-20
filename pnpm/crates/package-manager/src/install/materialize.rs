@@ -111,6 +111,7 @@ pub(super) struct MaterializationResolution<'a> {
     pub(super) pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) deploy_manifest_hook: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    pub(super) known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
     pub(super) inputs: crate::install::run::ResolutionInputs,
 }
 

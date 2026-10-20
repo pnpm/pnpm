@@ -44,6 +44,7 @@ pub(super) struct SlotLink<'s> {
     package_key: &'s PackageKey,
     snapshot: &'s SnapshotEntry,
     package_id: &'s str,
+    requires_build: Option<bool>,
     source_is_mutable: bool,
     /// See [`crate::SlotImportSource::source_exists`].
     source_exists: bool,
@@ -72,25 +73,18 @@ pub(super) async fn download_tarball<Reporter: self::Reporter>(
     download: IngestTarballToStore<'_>,
     tarball_mem_cache: Option<&MemCache>,
     revision_addressed: bool,
-) -> Result<HashMap<String, PathBuf>, TarballError> {
+) -> Result<(HashMap<String, PathBuf>, Option<bool>), TarballError> {
     let Some(mem_cache) = tarball_mem_cache else {
-        return if revision_addressed {
-            download.run_revision_addressed_without_mem_cache::<Reporter>().await
-        } else {
-            download.run_without_mem_cache::<Reporter>().await
-        };
+        return download.run_cached_without_mem_cache::<Reporter>(revision_addressed).await;
     };
     // `clone()` is cheap (refs + `Arc`s) and lets us retry through
-    // `run_without_mem_cache` below if the shared download failed.
-    let result = if revision_addressed {
-        download.clone().run_revision_addressed_with_mem_cache::<Reporter>(mem_cache).await
-    } else {
-        download.clone().run_with_mem_cache::<Reporter>(mem_cache).await
-    };
+    // `run_cached_without_mem_cache` below if the shared download failed.
+    let result =
+        download.clone().run_cached_with_mem_cache::<Reporter>(mem_cache, revision_addressed).await;
     match result {
-        Ok(cas_paths) => Ok((*cas_paths).clone()),
+        Ok(cached) => Ok(((*cached.files).clone(), cached.requires_build)),
         Err(TarballError::SiblingFetchFailed { .. }) if !revision_addressed => {
-            download.run_without_mem_cache::<Reporter>().await
+            download.run_cached_without_mem_cache::<Reporter>(false).await
         }
         Err(err) => Err(err),
     }
@@ -172,8 +166,8 @@ impl InstallPackageBySnapshot<'_> {
         // then the file map points at mutable source even though the
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
-        let (cas_paths, source_exists) = match custom.cas_paths {
-            Some(paths) => (paths, true),
+        let (cas_paths, requires_build, source_exists) = match custom.cas_paths {
+            Some(paths) => (paths, None, true),
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,
@@ -189,12 +183,13 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 package_id: &package_id,
+                requires_build,
                 source_is_mutable,
                 source_exists,
             },
             &cas_paths,
         )?;
-        Ok(InstalledPackage { cas_paths, source_is_mutable, source_exists })
+        Ok(InstalledPackage { cas_paths, requires_build, source_is_mutable, source_exists })
     }
 
     fn ingest<'d>(
@@ -248,7 +243,7 @@ impl InstallPackageBySnapshot<'_> {
     async fn fetch_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: SnapshotFetch<'_>,
-    ) -> Result<(HashMap<String, PathBuf>, bool), InstallPackageBySnapshotError> {
+    ) -> Result<(HashMap<String, PathBuf>, Option<bool>, bool), InstallPackageBySnapshotError> {
         let config = self.ctx.config;
         // Named local so both git fetchers can borrow it across their
         // `.await` without depending on temporary-lifetime extension.
@@ -257,7 +252,7 @@ impl InstallPackageBySnapshot<'_> {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => self
                 .fetch_snapshot_tarball::<Reporter>(&fetch, &allow_build)
                 .await
-                .map(|cas_paths| (cas_paths, true)),
+                .map(|(cas_paths, requires_build)| (cas_paths, requires_build, true)),
             LockfileResolution::Directory(dir_resolution) => {
                 // Injected workspace dep (`file:./local-pkg` with
                 // `dependenciesMeta[*].injected = true`). The source
@@ -276,6 +271,7 @@ impl InstallPackageBySnapshot<'_> {
                     dir_resolution,
                     !config.deploy_all_files,
                 )
+                .map(|(cas_paths, exists)| (cas_paths, None, exists))
             }
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
@@ -285,7 +281,7 @@ impl InstallPackageBySnapshot<'_> {
             // `BinaryResolution` extractor.
             LockfileResolution::Binary(binary) => {
                 self.fetch_binary::<Reporter>(binary, fetch.package_key).await
-                    .map(|cas_paths| (cas_paths, true))
+                    .map(|cas_paths| (cas_paths, None, true))
             }
             LockfileResolution::Variations(variations) => self
                 .fetch_binary::<Reporter>(
@@ -297,11 +293,11 @@ impl InstallPackageBySnapshot<'_> {
                     fetch.package_key,
                 )
                 .await
-                .map(|cas_paths| (cas_paths, true)),
+                .map(|cas_paths| (cas_paths, None, true)),
             LockfileResolution::Git(git_resolution) => self
                 .fetch_git::<Reporter>(&fetch, git_resolution, &allow_build)
                 .await
-                .map(|cas_paths| (cas_paths, true)),
+                .map(|cas_paths| (cas_paths, None, true)),
             // A custom-typed resolution cannot be materialized without
             // a custom fetcher that claims it.
             LockfileResolution::Custom(custom) => {
@@ -316,7 +312,7 @@ impl InstallPackageBySnapshot<'_> {
         &self,
         fetch: &SnapshotFetch<'_>,
         allow_build: &(impl Fn(&str) -> Option<bool> + Send + Sync),
-    ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    ) -> Result<(HashMap<String, PathBuf>, Option<bool>), InstallPackageBySnapshotError> {
         self.tarball_cas_paths::<Reporter>(TarballFetch {
             download: fetch.download,
             resolution: fetch.resolution,
@@ -371,8 +367,9 @@ impl InstallPackageBySnapshot<'_> {
                 source_exists: slot.source_exists,
                 force: false,
                 build_marker: None,
-                needs_build: requires_build_from_cas_paths(cas_paths)
-                    || crate::snapshot_has_patch(slot.package_key),
+                needs_build: slot.requires_build.unwrap_or_else(|| {
+                    requires_build_from_cas_paths(cas_paths)
+                }) || crate::snapshot_has_patch(slot.package_key),
             },
             layout: self.ctx.linker.layout,
             cas_paths,

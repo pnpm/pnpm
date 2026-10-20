@@ -212,3 +212,62 @@ pub(super) fn capture_bundled_manifest(
         }
     }
 }
+
+/// Ceiling on PAX / GNU extension headers when scanning a tar stream for
+/// build triggers.
+const TAR_SCAN_MAX_METADATA_BYTES: u64 = 64 * 1024;
+
+/// Ceiling on the `package.json` entry buffered during [`tar_requires_build`].
+const TAR_SCAN_MAX_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
+
+/// Whether the tar stream read from `reader` carries build triggers:
+/// lifecycle scripts (`preinstall`, `install`, `postinstall`) in its
+/// root `package.json`, a `binding.gyp` (unless `gypfile: false` in
+/// `package.json`), or a `.hooks/` entry.
+///
+/// Returns `None` when the tar stream cannot be read or an entry path fails
+/// validation.
+pub fn tar_requires_build(reader: impl std::io::Read) -> Option<bool> {
+    let mut archive = tar::Archive::new(reader);
+    archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
+    let mut triggers = BuildTriggers::default();
+    let mut manifest_parse_failed = false;
+    for entry in archive.entries().ok()? {
+        let mut entry = entry.ok()?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let raw_path = entry.path().ok()?;
+        let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
+        triggers.add_file(&cleaned_path);
+        if cleaned_path == "package.json" {
+            manifest_parse_failed = !read_tar_manifest_entry(&mut entry, &mut triggers)?;
+        }
+    }
+    (!manifest_parse_failed).then(|| triggers.requires_build())
+}
+
+fn read_tar_manifest_entry<Reader: std::io::Read>(
+    entry: &mut tar::Entry<'_, Reader>,
+    triggers: &mut BuildTriggers,
+) -> Option<bool> {
+    use std::io::Read as _;
+
+    let size = entry.size();
+    if size > TAR_SCAN_MAX_MANIFEST_BYTES {
+        return None;
+    }
+    let capacity = usize::try_from(size).ok()?;
+    let mut data = Vec::new();
+    data.try_reserve_exact(capacity).ok()?;
+    entry.read_to_end(&mut data).ok()?;
+    if data.len() as u64 != size {
+        return None;
+    }
+    let Ok(parsed) = parse_manifest_bytes(&data) else {
+        triggers.forget_manifest();
+        return Some(false);
+    };
+    triggers.read_manifest(&parsed);
+    Some(true)
+}

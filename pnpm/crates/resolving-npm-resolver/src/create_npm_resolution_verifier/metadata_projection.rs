@@ -72,8 +72,12 @@ pub(super) fn project_abbreviated_meta(
         let stats = DistStats {
             unpacked_size: fields.dist.unpacked_size,
             file_count: fields.dist.file_count,
+            requires_build: fields.dist.pnpr.as_ref().and_then(|pnpr| pnpr.requires_build),
         };
-        if stats.unpacked_size.is_some() || stats.file_count.is_some() {
+        if stats.unpacked_size.is_some()
+            || stats.file_count.is_some()
+            || stats.requires_build.is_some()
+        {
             version_dist_stats.insert(version.clone(), stats);
         }
         version_artifacts.insert(version.clone(), project_artifact_history(&fields.dist));

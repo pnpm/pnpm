@@ -98,6 +98,7 @@ use crate::{
 pub struct DistStats {
     pub unpacked_size: Option<usize>,
     pub file_count: Option<usize>,
+    pub requires_build: Option<bool>,
 }
 
 /// `(package name, version) → dist` work statistics filled by the

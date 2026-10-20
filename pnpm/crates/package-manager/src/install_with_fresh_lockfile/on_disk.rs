@@ -90,6 +90,7 @@ pub(super) struct OnDiskRuntime<'a> {
     pub(super) engine_name: Option<String>,
     pub(super) deferred_engine_name:
         Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
+    pub(super) known_requires_build: Option<&'a pnpm_deps_restorer::RequiresBuildBySnapshot>,
 }
 
 pub(super) struct OnDiskProjects<'a> {
@@ -138,6 +139,7 @@ impl<'a> OnDiskInputs<'a> {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
                 supported_architectures: self.install.projects.supported_architectures,
+                known_requires_build: self.runtime.known_requires_build,
             },
             ctx: self.ctx,
 
@@ -280,6 +282,8 @@ impl<'a> OnDiskInputs<'a> {
         let engine_name = settle_engine_name(
             self.runtime.deferred_engine_name.take(),
             self.runtime.engine_name.take(),
+            self.ctx.config.ignore_scripts,
+            &materialized.requires_build_by_snapshot,
         )
         .await;
         let extra_env =
@@ -414,9 +418,13 @@ pub(super) fn publish_deps_requiring_build(
 pub(super) async fn settle_engine_name(
     deferred: Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
     engine_name: Option<String>,
+    ignore_scripts: bool,
+    requires_build_by_snapshot: &HashMap<pnpm_lockfile::PackageKey, bool>,
 ) -> Option<String> {
     match deferred {
-        Some(deferred) => deferred.handle.await.ok().flatten(),
+        Some(deferred) => {
+            deferred.resolve_for_build(ignore_scripts, requires_build_by_snapshot).await
+        }
         None => engine_name,
     }
 }

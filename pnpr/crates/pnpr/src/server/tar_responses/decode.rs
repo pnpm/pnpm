@@ -33,9 +33,9 @@ pub(in super::super) fn tar_decode_limit(unpacked_size: Option<u64>) -> u64 {
     })
 }
 
-/// Compute the integrity of the tar a stored `.tgz` decodes to. `None` when
-/// the `.tgz` is not a sequence of gzip members.
-pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<Integrity> {
+/// Compute the integrity and build-trigger verdict of the tar a stored `.tgz`
+/// decodes to. `None` when the `.tgz` is not a sequence of gzip members.
+pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<(Integrity, Option<bool>)> {
     tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
 }
 
@@ -47,29 +47,66 @@ pub(in super::super) fn tar_resource_integrity(
     gzip: bool,
 ) -> Option<Integrity> {
     if gzip {
-        return tar_integrity_of(resource);
+        return tar_integrity_of(resource).map(|(integrity, _)| integrity);
     }
-    hash_within(resource, MAX_DECODED_TAR_BYTES)
+    hash_within(resource, MAX_DECODED_TAR_BYTES).map(|(integrity, _)| integrity)
 }
 
-pub(super) fn tar_integrity_within(tgz: impl Read, limit: u64) -> Option<Integrity> {
+pub(in super::super) fn tar_integrity_within(
+    tgz: impl Read,
+    limit: u64,
+) -> Option<(Integrity, Option<bool>)> {
     hash_within(flate2::read::MultiGzDecoder::new(tgz), limit)
 }
 
-fn hash_within(tar: impl Read, limit: u64) -> Option<Integrity> {
-    let mut decoder = tar.take(limit.saturating_add(1));
-    let mut decoded = 0u64;
-    let mut hasher = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+struct HashingTarReader<Reader> {
+    decoder: io::Take<Reader>,
+    decoded: u64,
+    hasher: IntegrityOpts,
+    failed: bool,
+}
+
+impl<Reader: Read> Read for HashingTarReader<Reader> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            match self.decoder.read(buf) {
+                Ok(0) => return Ok(0),
+                Ok(len) => {
+                    self.decoded += len as u64;
+                    self.hasher.input(&buf[..len]);
+                    return Ok(len);
+                }
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) => {
+                    self.failed = true;
+                    return Err(err);
+                }
+            }
+        }
+    }
+}
+
+fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, Option<bool>)> {
+    let mut reader = HashingTarReader {
+        decoder: tar.take(limit.saturating_add(1)),
+        decoded: 0,
+        hasher: IntegrityOpts::new().algorithm(Algorithm::Sha512),
+        failed: false,
+    };
+    let requires_build = pnpm_tarball::tar_requires_build(&mut reader);
+    if reader.failed || !drain_tar(&mut reader) || reader.decoded > limit {
+        return None;
+    }
+    Some((reader.hasher.result(), requires_build))
+}
+
+fn drain_tar(reader: &mut impl Read) -> bool {
     let mut buf = vec![0u8; 64 * 1024];
     loop {
-        match decoder.read(&mut buf) {
-            Ok(0) => return (decoded <= limit).then(|| hasher.result()),
-            Ok(len) => {
-                decoded += len as u64;
-                hasher.input(&buf[..len]);
-            }
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
-            Err(_) => return None,
+        match reader.read(&mut buf) {
+            Ok(0) => return true,
+            Ok(_) => {}
+            Err(_) => return false,
         }
     }
 }
@@ -91,13 +128,13 @@ pub(super) struct DerivedFrom {
 /// Decode a gzip body as it streams, copying the decoded bytes into
 /// `derived.copy`. Once every member decoded and the compressed bytes matched
 /// `derived.check`, submit the copy and, if `derived.hash`, call
-/// `on_complete` with the integrity of the decoded bytes. A body that fails to decode ends the
-/// response with an error.
+/// `on_complete` with the integrity and build-trigger verdict of the decoded
+/// bytes. A body that fails to decode ends the response with an error.
 pub(super) fn gunzip_body(
     body: Body,
     derived: DerivedFrom,
     decodes: Arc<Semaphore>,
-    on_complete: impl FnOnce(Integrity) + Send + 'static,
+    on_complete: impl FnOnce(Integrity, Option<bool>) + Send + 'static,
 ) -> Body {
     const CHANNEL_CHUNKS: usize = 16;
     let (compressed_tx, compressed_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
@@ -129,7 +166,7 @@ fn derive_from_decode(
     compressed_rx: mpsc::Receiver<io::Result<Bytes>>,
     tar_tx: &mpsc::Sender<io::Result<Bytes>>,
     derived: DerivedFrom,
-    on_complete: impl FnOnce(Integrity),
+    on_complete: impl FnOnce(Integrity, Option<bool>),
 ) {
     let DerivedFrom { check, hash, mut copy, stale, limit } = derived;
     let mut compressed = CheckedReader {
@@ -138,9 +175,11 @@ fn derive_from_decode(
     };
     let decoder = flate2::read::MultiGzDecoder::new(&mut compressed).take(limit.saturating_add(1));
     let mut hasher = hash.then(|| IntegrityOpts::new().algorithm(Algorithm::Sha512));
-    if !decode_into(decoder, tar_tx, &mut copy, hasher.as_mut(), limit) {
+    let Some(requires_build) =
+        decode_into(decoder, tar_tx, &mut copy, hasher.as_mut(), hash, limit)
+    else {
         return;
-    }
+    };
     if compressed.checker.is_some_and(|checker| checker.result().is_err()) {
         let _ = tar_tx.blocking_send(Err(stale.evict()));
         return;
@@ -149,7 +188,7 @@ fn derive_from_decode(
         copy.submit();
     }
     if let Some(hasher) = hasher {
-        on_complete(hasher.result());
+        on_complete(hasher.result(), requires_build);
     }
 }
 
@@ -165,46 +204,103 @@ async fn forward_body(body: Body, chunks: mpsc::Sender<io::Result<Bytes>>) {
 }
 
 /// Send what `decoder` reads to `out`, into `copy`, and into `hasher`.
-/// `false` when the decode failed or the response was dropped.
+/// `None` when the decode failed or the response was dropped.
 fn decode_into(
-    mut decoder: impl Read,
+    decoder: impl Read,
     out: &mpsc::Sender<io::Result<Bytes>>,
     copy: &mut Option<TarCopy>,
-    mut hasher: Option<&mut IntegrityOpts>,
+    hasher: Option<&mut IntegrityOpts>,
+    scan_requires_build: bool,
     limit: u64,
-) -> bool {
-    let mut decoded = 0u64;
-    loop {
-        let mut buf = vec![0u8; 64 * 1024];
-        let len = match decoder.read(&mut buf) {
-            Ok(0) if decoded > limit => {
-                let _ = out.blocking_send(Err(io::Error::other(format!(
-                    "the tar exceeds the {limit}-byte decode limit",
-                ))));
-                return false;
+) -> Option<Option<bool>> {
+    let mut stream = DecodeStream {
+        decoder,
+        out,
+        copy,
+        hasher,
+        limit,
+        decoded: 0,
+        current: Bytes::new(),
+        failed: false,
+    };
+    let requires_build =
+        scan_requires_build.then(|| pnpm_tarball::tar_requires_build(&mut stream)).flatten();
+    while !stream.failed && stream.pump_chunk().is_some() {}
+    (!stream.failed).then_some(requires_build)
+}
+
+struct DecodeStream<'a, Reader> {
+    decoder: Reader,
+    out: &'a mpsc::Sender<io::Result<Bytes>>,
+    copy: &'a mut Option<TarCopy>,
+    hasher: Option<&'a mut IntegrityOpts>,
+    limit: u64,
+    decoded: u64,
+    current: Bytes,
+    failed: bool,
+}
+
+impl<Reader: Read> DecodeStream<'_, Reader> {
+    fn pump_chunk(&mut self) -> Option<Bytes> {
+        loop {
+            let mut buf = vec![0u8; 64 * 1024];
+            let len = match self.decoder.read(&mut buf) {
+                Ok(0) if self.decoded > self.limit => {
+                    let _ = self.out.blocking_send(Err(io::Error::other(format!(
+                        "the tar exceeds the {}-byte decode limit",
+                        self.limit,
+                    ))));
+                    self.failed = true;
+                    return None;
+                }
+                Ok(0) => return None,
+                Ok(len) => len,
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => {
+                    let _ = self.out.blocking_send(Err(err));
+                    self.failed = true;
+                    return None;
+                }
+            };
+            self.decoded += len as u64;
+            buf.truncate(len);
+            if let Some(hasher) = self.hasher.as_deref_mut() {
+                hasher.input(&buf);
             }
-            Ok(0) => return true,
-            Ok(len) => len,
-            Err(err) if err.kind() == io::ErrorKind::Interrupted => continue,
-            Err(err) => {
-                let _ = out.blocking_send(Err(err));
-                return false;
+            *self.copy = self.copy
+                .take()
+                .and_then(|copy| copy.write(&buf));
+            let chunk = Bytes::from(buf);
+            if self.out
+                .blocking_send(Ok(chunk.clone()))
+                .is_err()
+            {
+                self.failed = true;
+                return None;
             }
-        };
-        decoded += len as u64;
-        buf.truncate(len);
-        if let Some(hasher) = hasher.as_deref_mut() {
-            hasher.input(&buf);
+            return Some(chunk);
         }
-        *copy = copy
-            .take()
-            .and_then(|copy| copy.write(&buf));
-        if out
-            .blocking_send(Ok(Bytes::from(buf)))
-            .is_err()
-        {
-            return false;
+    }
+}
+
+impl<Reader: Read> Read for DecodeStream<'_, Reader> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() || self.failed {
+            return Ok(0);
         }
+        if self.current.is_empty() {
+            let Some(chunk) = self.pump_chunk() else {
+                return if self.failed {
+                    Err(io::Error::other("tar decode stream failed"))
+                } else {
+                    Ok(0)
+                };
+            };
+            self.current = chunk;
+        }
+        let len = self.current.len().min(buf.len());
+        buf[..len].copy_from_slice(&self.current.split_to(len));
+        Ok(len)
     }
 }
 

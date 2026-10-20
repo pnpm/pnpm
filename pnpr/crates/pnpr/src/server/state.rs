@@ -52,6 +52,7 @@ pub(super) struct ProxyState {
     /// Permits for tar responses and publishes that decode a `.tgz`. See
     /// [`super::MAX_CONCURRENT_TAR_DECODES`].
     pub(super) tar_decodes: Arc<tokio::sync::Semaphore>,
+    pub(super) background_tar_scans: Arc<super::BackgroundTarScans>,
     pub(super) version_tgzs: super::VersionTgzCache,
 }
 
@@ -129,6 +130,7 @@ impl ProxyState {
             packument_singleflight: Singleflight::new(),
             tar_variants: super::TarVariantQueue::new(),
             tar_decodes: Arc::new(tokio::sync::Semaphore::new(super::MAX_CONCURRENT_TAR_DECODES)),
+            background_tar_scans: super::BackgroundTarScans::new(),
             version_tgzs: super::VersionTgzCache::default(),
         }
     }

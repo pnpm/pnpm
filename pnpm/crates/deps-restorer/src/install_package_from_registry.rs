@@ -304,6 +304,19 @@ pub fn manifest_file_count(manifest: Option<&Value>) -> Option<usize> {
     manifest_dist_field(manifest, "fileCount")
 }
 
+/// Read `dist.pnpr.requiresBuild` off the resolver-fetched manifest.
+/// Only trusted from this field — never from `dist.requiresBuild` or
+/// top-level `hasInstallScript` — because only `dist.pnpr.requiresBuild`
+/// is derived from the tarball's own bytes and stripped on ingest.
+#[must_use]
+pub fn manifest_requires_build(manifest: Option<&Value>) -> Option<bool> {
+    manifest?
+        .get("dist")?
+        .get("pnpr")?
+        .get("requiresBuild")?
+        .as_bool()
+}
+
 fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than

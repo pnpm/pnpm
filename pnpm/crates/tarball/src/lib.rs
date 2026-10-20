@@ -10,6 +10,7 @@ pub use download::*;
 pub use error::*;
 pub use extract::{
     ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits, read_buffered_tar_entry,
+    tar_requires_build,
 };
 pub(crate) use extract::{
     STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
@@ -168,13 +169,15 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
 /// per fetch.
 pub type IgnoreEntryFilter = dyn Fn(&str) -> bool + Send + Sync;
 
-/// A settled mem-cache slot: the extracted CAS map and the bundled
-/// manifest the extraction recorded. The install pass reads the map; a
-/// resolve-time archive read parks on the same slot for the manifest.
+/// A settled mem-cache slot: the extracted CAS map, the bundled
+/// manifest, and the build-trigger verdict the extraction recorded. The
+/// install pass reads the map and verdict; a resolve-time archive read
+/// parks on the same slot for the manifest.
 #[derive(Debug, Clone)]
 pub struct CachedTarball {
     pub files: Arc<HashMap<String, PathBuf>>,
     pub manifest: Option<serde_json::Value>,
+    pub requires_build: Option<bool>,
 }
 
 impl CachedTarball {
@@ -187,7 +190,23 @@ impl CachedTarball {
 
     #[must_use]
     pub fn from_files_arc(files: Arc<HashMap<String, PathBuf>>) -> Arc<Self> {
-        Arc::new(Self { files, manifest: None })
+        Arc::new(Self { files, manifest: None, requires_build: None })
+    }
+
+    /// Whether the extracted archive carries build triggers. Uses the verdict
+    /// recorded during extraction or store-index load when available, falling
+    /// back to the in-memory bundled manifest or the CAS file map.
+    #[must_use]
+    pub fn requires_build(&self) -> bool {
+        self.requires_build.unwrap_or_else(|| {
+            if let Some(manifest) = self.manifest.as_ref() {
+                let mut triggers = pnpm_package_manifest::files_build_triggers(self.files.keys());
+                triggers.read_manifest(manifest);
+                triggers.requires_build()
+            } else {
+                pnpm_package_manifest::requires_build_from_cas_paths(&self.files)
+            }
+        })
     }
 }
 
@@ -270,6 +289,7 @@ impl<'a> IngestTarballToStore<'a> {
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
         self.run_with_mem_cache_inner::<Reporter>(mem_cache, false).await
+            .map(|cached| Arc::clone(&cached.files))
     }
 
     /// Execute a registry revision fetch with the shared in-memory cache.
@@ -279,13 +299,24 @@ impl<'a> IngestTarballToStore<'a> {
         mem_cache: &'a MemCache,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
         self.run_with_mem_cache_inner::<Reporter>(mem_cache, true).await
+            .map(|cached| Arc::clone(&cached.files))
+    }
+
+    /// Execute with the shared in-memory cache and return the full [`CachedTarball`]
+    /// slot, including the extracted archive's `requires_build` verdict.
+    pub async fn run_cached_with_mem_cache<Reporter: self::Reporter>(
+        self,
+        mem_cache: &'a MemCache,
+        revision_addressed: bool,
+    ) -> Result<Arc<CachedTarball>, TarballError> {
+        self.run_with_mem_cache_inner::<Reporter>(mem_cache, revision_addressed).await
     }
 
     async fn run_with_mem_cache_inner<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
         revision_addressed: bool,
-    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Arc<CachedTarball>, TarballError> {
         let mem_cache_key = self.store_projection.mem_cache_key(
             self.package.url,
             self.package.integrity,
@@ -337,7 +368,7 @@ impl<'a> IngestTarballToStore<'a> {
         mem_cache_key: String,
         cas_paths: &Arc<HashMap<String, PathBuf>>,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
-    ) -> Arc<HashMap<String, PathBuf>> {
+    ) -> Arc<CachedTarball> {
         tracing::info!(
             target: "pacquet::download",
             package_url = ?self.package.url,
@@ -345,12 +376,10 @@ impl<'a> IngestTarballToStore<'a> {
             "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
         );
         emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
-        let cas_paths = Arc::clone(cas_paths);
-        let cache_lock = Arc::new(RwLock::new(CacheValue::Available(
-            CachedTarball::from_files_arc(Arc::clone(&cas_paths)),
-        )));
+        let cached = CachedTarball::from_files_arc(Arc::clone(cas_paths));
+        let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cached))));
         mem_cache.insert(mem_cache_key, cache_lock);
-        cas_paths
+        cached
     }
 
     /// Park until the task that claimed this URL settles the cache slot.
@@ -362,19 +391,10 @@ impl<'a> IngestTarballToStore<'a> {
         &self,
         cache_lock: &RwLock<CacheValue>,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
-    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Arc<CachedTarball>, TarballError> {
         let cached = wait_for_cached_tarball(cache_lock, self.package.url).await?;
-        Ok(self.settled_by_owner::<Reporter>(&cached.files, progress_key))
-    }
-
-    /// The first owner already reported its package status.
-    fn settled_by_owner<Reporter: self::Reporter>(
-        &self,
-        cas_paths: &Arc<HashMap<String, PathBuf>>,
-        progress_key: Option<(&SharedReportedProgressKeys, &str)>,
-    ) -> Arc<HashMap<String, PathBuf>> {
         emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
-        Arc::clone(cas_paths)
+        Ok(cached)
     }
 
     /// Run the actual fetch, then settle the cache slot either way. On error
@@ -392,17 +412,21 @@ impl<'a> IngestTarballToStore<'a> {
         cache_lock: &RwLock<CacheValue>,
         notify: &Notify,
         revision_addressed: bool,
-    ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
+    ) -> Result<Arc<CachedTarball>, TarballError> {
         let result = self.load_or_fetch::<Reporter>(revision_addressed).await;
         match result {
             Ok(loaded) => {
                 let cached = publish_cached_tarball(
                     cache_lock,
                     notify,
-                    CachedTarball { files: Arc::new(loaded.files), manifest: loaded.manifest },
+                    CachedTarball {
+                        files: Arc::new(loaded.files),
+                        manifest: loaded.manifest,
+                        requires_build: loaded.requires_build,
+                    },
                 )
                 .await;
-                Ok(Arc::clone(&cached.files))
+                Ok(cached)
             }
             Err(err) => {
                 publish_cache_failure(
@@ -425,11 +449,21 @@ impl<'a> IngestTarballToStore<'a> {
         self.ingestion(revision_addressed).load_or_fetch::<Reporter>().await
     }
 
+    /// Execute without the in-memory cache and return the CAS map paired with
+    /// the archive's `requires_build` verdict when known.
+    pub async fn run_cached_without_mem_cache<Reporter: self::Reporter>(
+        &self,
+        revision_addressed: bool,
+    ) -> Result<(HashMap<String, PathBuf>, Option<bool>), TarballError> {
+        self.load_or_fetch::<Reporter>(revision_addressed).await
+            .map(|cached| (cached.files, cached.requires_build))
+    }
+
     /// Execute the subroutine without an in-memory cache.
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        self.run_without_mem_cache_inner::<Reporter>(false).await
+        self.load_or_fetch::<Reporter>(false).await.map(|cached| cached.files)
     }
 
     /// Execute a registry revision fetch without the in-memory cache.
@@ -437,14 +471,7 @@ impl<'a> IngestTarballToStore<'a> {
     pub async fn run_revision_addressed_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        self.run_without_mem_cache_inner::<Reporter>(true).await
-    }
-
-    async fn run_without_mem_cache_inner<Reporter: self::Reporter>(
-        &self,
-        revision_addressed: bool,
-    ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        self.load_or_fetch::<Reporter>(revision_addressed).await.map(|cached| cached.files)
+        self.load_or_fetch::<Reporter>(true).await.map(|cached| cached.files)
     }
 
     /// Fetch without cache reuse, indexing unpinned archives by computed integrity.

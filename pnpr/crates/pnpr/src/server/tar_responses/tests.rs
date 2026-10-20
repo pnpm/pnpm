@@ -56,7 +56,7 @@ async fn decode_and_derive(
         super::DerivedFrom { check: expected.parse().ok(), hash: true, copy: None, stale, limit };
     let decodes = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
     let body =
-        super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, move |integrity| {
+        super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, move |integrity, _| {
             let _ = sender.send(integrity);
         });
     let tar = axum::body::to_bytes(body, usize::MAX).await.ok().map(|bytes| bytes.to_vec());
@@ -140,7 +140,7 @@ async fn a_tar_response_decodes_only_with_a_permit() {
     };
     let decodes = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
     let held = std::sync::Arc::clone(&decodes).acquire_owned().await.unwrap();
-    let body = super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, |_| {});
+    let body = super::gunzip_body(axum::body::Body::from(tgz), derived, decodes, |_, _| {});
     let read = tokio::spawn(axum::body::to_bytes(body, usize::MAX));
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert!(!read.is_finished(), "no decode runs while every permit is taken");
