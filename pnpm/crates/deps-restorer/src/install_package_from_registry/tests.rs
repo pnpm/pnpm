@@ -283,6 +283,7 @@ fn create_config(
         cli_registry: None,
         raw_auth_config: Default::default(),
         config_dir: None,
+        editor: None,
     }
 }
 
