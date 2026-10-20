@@ -381,6 +381,10 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     skipped: Set<DepPath>
   }
 ): Record<string, string> {
+  const existingImporterIds = importerIds.filter((importerId) => lockfile.importers[importerId] != null)
+  if (existingImporterIds.length === 0) {
+    return {}
+  }
   const filterOpts = {
     failOnMissingDependencies: false,
     include: {
@@ -391,9 +395,9 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
   }
-  const selected = filterLockfileByImporters(lockfile, importerIds, filterOpts)
+  const selected = filterLockfileByImporters(lockfile, existingImporterIds, filterOpts)
   const other = filterLockfileByImporters(lockfile,
-    difference(Object.keys(lockfile.importers) as ProjectId[], importerIds),
+    difference(Object.keys(lockfile.importers) as ProjectId[], existingImporterIds),
     filterOpts)
   const packagesOfSelectedOnly = pickAll(
     difference(Object.keys(selected.packages!), Object.keys(other.packages!)),

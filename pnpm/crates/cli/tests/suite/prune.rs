@@ -330,13 +330,30 @@ fn prune_removes_extraneous_direct_packages_when_lockfile_is_up_to_date() {
         .assert()
         .success();
 
-    let extraneous_dir = workspace.join("node_modules/extraneous-pkg");
+    let extraneous_dir = workspace.join("node_modules").join("extraneous-pkg");
     fs::create_dir_all(&extraneous_dir).expect("create extraneous package dir");
     fs::write(
         extraneous_dir.join("package.json"),
         r#"{"name":"extraneous-pkg","version":"1.0.0"}"#,
     )
     .expect("write extraneous package.json");
+
+    let linked_target = workspace.join("linked-extraneous");
+    fs::create_dir_all(&linked_target).expect("create linked-extraneous target");
+    fs::write(linked_target.join("cli.js"), "#!/usr/bin/env node\n")
+        .expect("write linked-extraneous bin");
+    fs::write(
+        linked_target.join("package.json"),
+        r#"{"name":"linked-extraneous","version":"1.0.0","bin":{"linked-extraneous":"cli.js"}}"#,
+    )
+    .expect("write linked-extraneous package.json");
+    let extraneous_link = workspace.join("node_modules").join("linked-extraneous");
+    pnpm_fs::symlink_dir(&linked_target, &extraneous_link).expect("symlink linked-extraneous");
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create .bin dir");
+    let extraneous_bin =
+        bin_dir.join(if cfg!(windows) { "linked-extraneous.cmd" } else { "linked-extraneous" });
+    fs::write(&extraneous_bin, "shim").expect("write extraneous bin shim");
 
     let extraneous_scoped_dir = workspace
         .join("node_modules")
@@ -359,6 +376,12 @@ fn prune_removes_extraneous_direct_packages_when_lockfile_is_up_to_date() {
 
     assert!(has_link(&workspace, "is-positive"));
     assert!(!extraneous_dir.exists(), "extraneous direct package must be removed");
+    assert!(
+        fs::symlink_metadata(&extraneous_link).is_err(),
+        "extraneous direct package symlink must be removed",
+    );
+    assert!(!extraneous_bin.exists(), "extraneous direct package bin shim must be removed");
+    assert!(linked_target.exists(), "symlink target must not be deleted");
     assert!(
         !workspace
             .join("node_modules")
@@ -556,6 +579,31 @@ fn prune_supports_dedicated_workspace_lockfiles() {
 
     assert!(has_link(&pkg_b, "is-positive"));
     assert!(!has_link(&pkg_b, "is-negative"));
+
+    // Per-project `packageConfigs.modulesDir` pointing outside the workspace must be refused.
+    let external_modules = root.path().join("external-modules");
+    let external_sentinel = external_modules.join(".pnpm").join("sentinel@1.0.0");
+    fs::create_dir_all(&external_sentinel).expect("create external sentinel");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!(
+            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\npackageConfigs:\n  pkg-a:\n    modulesDir: {}\n",
+            serde_json::to_string(&external_modules.to_string_lossy()).expect("json string"),
+        ),
+    )
+    .expect("write pnpm-workspace.yaml with external modulesDir");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("prune")
+        .output()
+        .expect("run recursive prune with external modulesDir");
+    assert!(!output.status.success(), "prune must reject external packageConfigs.modulesDir");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("refusing prune: modules_dir"),
+        "expected containment error in stderr, got: {stderr}",
+    );
+    assert!(external_sentinel.exists(), "external sentinel must remain untouched");
 
     drop((root, mock_instance));
 }

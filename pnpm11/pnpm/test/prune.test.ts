@@ -207,6 +207,18 @@ test('prune --filter only prunes the selected workspace project', async () => {
   projects['pkg-b'].has('is-positive')
   projects['pkg-b'].hasNot('@pnpm.e2e/foo')
   projects['pkg-b'].hasNot('extraneous-b')
+
+  // Filtered prune also works when node_modules/.pnpm/lock.yaml (currentLockfile) is absent.
+  fs.rmSync('node_modules/.pnpm/lock.yaml', { force: true })
+  fs.mkdirSync('packages/pkg-a/node_modules/extraneous-without-current-lockfile', { recursive: true })
+  fs.writeFileSync('packages/pkg-a/node_modules/extraneous-without-current-lockfile/package.json', JSON.stringify({
+    name: 'extraneous-without-current-lockfile',
+    version: '1.0.0',
+  }))
+
+  await execPnpm(['--filter', 'pkg-a', 'prune'])
+
+  projects['pkg-a'].hasNot('extraneous-without-current-lockfile')
 })
 
 test('prune in a workspace with sharedWorkspaceLockfile=false prunes all workspace projects', async () => {

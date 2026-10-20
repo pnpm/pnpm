@@ -139,13 +139,7 @@ impl PrunePipeline {
         // `config_root` is `cfg.workspace_dir` when present, or the
         // canonicalized `--dir` otherwise — a meaningful containment
         // boundary in both cases.
-        if !self.cfg.modules_dir.starts_with(&self.config_root) {
-            let modules_dir = self.cfg.modules_dir.display();
-            let cr = self.config_root.display();
-            return Err(miette::miette!(
-                "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({cr})",
-            ));
-        }
+        ensure_modules_dir_within_config_root(&self.cfg.modules_dir, &self.config_root)?;
         // Apply prune-specific overrides after hooks so that:
         // - `modules_cache_max_age = 0` forces the virtual-store sweep
         //   on the final (post-hook) config paths.
@@ -174,19 +168,8 @@ impl PrunePipeline {
     ) -> miette::Result<()> {
         match plan {
             InstallFamilyPlan::PerProject(projects) => {
-                let cfg: &'static Config = self.cfg;
-                let args = self.args;
-                DedicatedProjectRuns {
-                    config: cfg,
-                    projects: *projects,
-                    require_lockfile: false,
-                    http_client: Some(State::new_http_client(cfg)?),
-                    prune_excludes: false,
-                    sync_injected_deps: false,
-                    pipelined: false,
-                }
-                .run(|state| Box::pin(args.clone().run::<Reporter>(state, None)))
-                .await
+                run_dedicated_prune::<Reporter>(self.args, self.cfg, *projects, self.config_root)
+                    .await
             }
             InstallFamilyPlan::Shared(selection) => {
                 if selection.selected_dirs.is_empty() {
@@ -199,6 +182,10 @@ impl PrunePipeline {
             InstallFamilyPlan::Single => {
                 if !self.cfg.shares_one_lockfile() && self.cfg.workspace_dir.is_some() {
                     anchor_active_project(self.cfg, &self.manifest_path);
+                    ensure_modules_dir_within_config_root(
+                        &self.cfg.modules_dir,
+                        &self.config_root,
+                    )?;
                 }
                 let state = State::init(self.manifest_path, self.cfg, false)
                     .wrap_err("initialize the state")?;
@@ -206,6 +193,54 @@ impl PrunePipeline {
             }
         }
     }
+}
+
+async fn run_dedicated_prune<Reporter: self::Reporter + 'static>(
+    args: PruneArgs,
+    cfg: &'static Config,
+    projects: DedicatedProjects,
+    config_root: PathBuf,
+) -> miette::Result<()> {
+    for project_dir in projects.dependencies.keys() {
+        let mut project_config = cfg.clone();
+        project_config.anchor_dedicated_project(
+            project_dir,
+            projects.names.get(project_dir).map(String::as_str),
+        );
+        ensure_modules_dir_within_config_root(&project_config.modules_dir, &config_root)?;
+    }
+    DedicatedProjectRuns {
+        config: cfg,
+        projects,
+        require_lockfile: false,
+        http_client: Some(State::new_http_client(cfg)?),
+        prune_excludes: false,
+        sync_injected_deps: false,
+        pipelined: false,
+    }
+    .run(move |state| {
+        let args = args.clone();
+        let config_root = config_root.clone();
+        Box::pin(async move {
+            ensure_modules_dir_within_config_root(&state.config.modules_dir, &config_root)?;
+            args.run::<Reporter>(state, None).await
+        })
+    })
+    .await
+}
+
+fn ensure_modules_dir_within_config_root(
+    modules_dir: &Path,
+    config_root: &Path,
+) -> miette::Result<()> {
+    if !modules_dir.starts_with(config_root) {
+        let modules_dir = modules_dir.display();
+        let cr = config_root.display();
+        return Err(miette::miette!(
+            "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({cr})",
+        ));
+    }
+    Ok(())
 }
 
 async fn run_dedicated_dedupe<Reporter: self::Reporter + 'static>(
