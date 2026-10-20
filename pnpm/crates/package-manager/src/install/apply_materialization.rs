@@ -1,12 +1,11 @@
+pub(in crate::install) mod commit;
 pub(in crate::install) mod completion;
 
+use commit::{CommitModulesStateInputs, commit_modules_state};
 use completion::{
     MaterializedProjectScriptsInputs, ReportInstallCompletionInputs, ResolveOnlyCompletionInputs,
     complete_resolve_only, report_install_completion, run_materialized_project_scripts,
 };
-
-mod commit;
-use commit::{CommitModulesStateInputs, commit_modules_state};
 
 mod selection;
 use selection::{

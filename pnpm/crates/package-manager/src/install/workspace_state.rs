@@ -23,7 +23,7 @@ use super::{
 };
 use crate::optimistic_repeat_install::{
     Scope, check_optimistic_repeat_install_with_state, config_blocks_fast_path,
-    refreshed_validation_baseline_ms, validation_baseline_ms,
+    last_validated_timestamp,
 };
 use pnpm_reporter::Reporter;
 use pnpm_workspace_state::{load_workspace_state, update_workspace_state_in_modules};
@@ -442,10 +442,7 @@ pub(super) fn build_projects_map(
 /// complete once the caller has settled its settings.
 ///
 /// Records the projects pacquet just materialized plus the resolved
-/// settings the install used. `lastValidatedTimestamp` is the
-/// [`validation_baseline_ms`] of the lockfile and manifests raised to
-/// `filesystem_now_ms`, per [`refreshed_validation_baseline_ms`]; the
-/// wall clock stands in only when nothing can be stat'd.
+/// settings the install used, and the [`last_validated_timestamp`].
 /// Settings pacquet does not track yet (e.g. `peersSuffixMaxLength`)
 /// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
@@ -465,9 +462,10 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
     let mut state = WorkspaceState {
-        last_validated_timestamp: refreshed_validation_baseline_ms(
-            validation_baseline_ms(workspace_root, config, project_manifests)
-                .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+        last_validated_timestamp: last_validated_timestamp::<Sys>(
+            workspace_root,
+            config,
+            project_manifests,
             filesystem_now_ms,
         ),
         projects: build_projects_map(project_manifests),

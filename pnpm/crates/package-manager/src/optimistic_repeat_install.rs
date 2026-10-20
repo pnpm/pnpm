@@ -39,8 +39,8 @@ pub(crate) use settings::{
 };
 pub(crate) use timestamps::{
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
-    filesystem_now_ns_in_modules, lockfile_modified_since, modified_at_or_after,
-    refreshed_validation_baseline_ms, validation_baseline_ms,
+    filesystem_now_ns_in_modules, last_validated_timestamp, lockfile_modified_since,
+    modified_at_or_after,
 };
 
 mod current_lockfile;

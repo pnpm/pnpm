@@ -1,12 +1,20 @@
 //! The content digests and records [`super::super::validation`] keeps.
 
-use super::super::validation::{
-    FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, record_validation,
+use super::super::{
+    pnpmfiles_drift,
+    validation::{
+        FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, record_validation,
+    },
 };
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
-use std::{collections::HashSet, fs, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    path::Path,
+    time::{Duration, SystemTime},
+};
 use tempfile::tempdir;
 
 fn manifest(json: &str) -> PackageManifest {
@@ -143,4 +151,55 @@ fn a_manifest_digest_matches_the_one_pnpm_v11_computes() {
         r#"{"name":"a","version":"1.0.0","dependencies":{"@scope/x":"^1.0.0","y":"2"},"peerDependenciesMeta":{"y":{"optional":true}},"files":["lib"],"weird":[1,2.5,null,false,"é"]}"#,
     );
     assert_eq!(manifest_digest(&manifest), "0684f5a6122e59859b6c170262a4c110");
+}
+
+#[test]
+fn source_date_epoch_records_deterministic_pnpmfile_digests_without_trusting_mtimes() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let pnpmfile = root.join(".pnpmfile.cjs");
+    fs::write(&pnpmfile, "module.exports = {}\n").unwrap();
+    fs::write(root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n").unwrap();
+    let epoch = SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+    pnpm_testing_utils::fs::set_mtime(&pnpmfile, epoch + Duration::from_hours(1));
+
+    let mut config = Config::new();
+    config.modules_dir = root.join("node_modules");
+    config.install_state_dir = config.modules_dir.join(".pnpm");
+    config.source_date_epoch = Some(epoch);
+    let root_manifest = manifest(r#"{"name":"a"}"#);
+    let project_manifests = [(root.to_path_buf(), &root_manifest)];
+    let mut state = WorkspaceState {
+        last_validated_timestamp: 1_700_000_000_000,
+        pnpmfiles: vec![pnpmfile.to_string_lossy().into_owned()],
+        ..WorkspaceState::default()
+    };
+    record_validation(
+        &mut state,
+        &RecordValidation {
+            workspace_root: root,
+            config: &config,
+            project_manifests: &project_manifests,
+            vouched: &Vouched::All,
+        },
+    );
+
+    let validation = state.validation.as_ref().expect("validation recorded");
+    assert_eq!(validation.recorded_at_ns, 0);
+    for signature in validation.files.values() {
+        assert_eq!(signature.mtime_ns, 0);
+        assert_eq!(signature.ctime_ns, None);
+    }
+    assert_eq!(
+        pnpmfiles_drift(root, &config, &state),
+        None,
+        "an unchanged pnpmfile newer than SOURCE_DATE_EPOCH must not be flagged as modified",
+    );
+
+    fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").unwrap();
+    pnpm_testing_utils::fs::set_mtime(&pnpmfile, epoch - Duration::from_hours(1));
+    assert!(
+        pnpmfiles_drift(root, &config, &state).is_some(),
+        "an edited pnpmfile with mtime restored before SOURCE_DATE_EPOCH must be detected",
+    );
 }
