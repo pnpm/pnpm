@@ -297,6 +297,11 @@ pub enum BenchmarkScenario {
     /// between machines uses.
     #[value(name = "store-only.unlocked-direct-deps.cold-cache.hot-store")]
     StoreOnlyUnlockedDepsColdCacheHotStore,
+    /// Frozen repeat install of a populated Cargo workspace (`cargo.enabled: true`)
+    /// with crates already materialized in `<storeDir>/v11/crates/` and linked into
+    /// `.pnpm/crates/crates-io`.
+    #[value(name = "cargo.repeat-install.hot-cache.hot-store")]
+    CargoRepeatInstallHotCacheHotStore,
 }
 
 /// Per-iteration cleanup applied by hyperfine's `--prepare`.
@@ -337,7 +342,8 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore
-            | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore => {
+            | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::CargoRepeatInstallHotCacheHotStore => {
                 &["install", "--frozen-lockfile"]
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
@@ -359,7 +365,8 @@ impl BenchmarkScenario {
     /// lockfile for a frozen install. `None` uses hyperfine's normal warmup.
     pub fn prewarm_install_args(self) -> Option<&'static [&'static str]> {
         match self {
-            BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore => {
+            BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::CargoRepeatInstallHotCacheHotStore => {
                 Some(&["install", "--offline", "--no-frozen-lockfile"])
             }
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => Some(&["install"]),
@@ -396,7 +403,8 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore
             | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
-            | BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore => true,
+            | BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore
+            | BenchmarkScenario::CargoRepeatInstallHotCacheHotStore => true,
         }
     }
 
@@ -409,6 +417,7 @@ impl BenchmarkScenario {
         self.lockfile_enabled()
             && !self.is_offline_fresh_resolve()
             && !self.uses_injected_workspace_fixture()
+            && !self.uses_cargo_workspace_fixture()
     }
 
     /// The `pnpm-lock.yaml` contents to seed during init, when
@@ -457,9 +466,8 @@ impl BenchmarkScenario {
             // heavier content re-check. The populated `node_modules` (and
             // workspace state) come from the pre-warm pass.
             Self::IsolatedRepeatInstallHotCacheHotStore
-            | Self::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore => {
-                Cleanup::removing(&[])
-            }
+            | Self::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | Self::CargoRepeatInstallHotCacheHotStore => Cleanup::removing(&[]),
             Self::IsolatedRepeatInstallColdCacheHotStore => Cleanup::removing(&["cache-dir"]),
             // The install writes the direct dependencies it resolved back
             // into the lockfile; the next iteration must find them missing
@@ -557,10 +565,15 @@ impl BenchmarkScenario {
         self.uses_peer_heavy_fixture()
             || self.uses_linked_workspace_fixture()
             || self.uses_injected_workspace_fixture()
+            || self.uses_cargo_workspace_fixture()
     }
 
     pub fn uses_injected_workspace_fixture(self) -> bool {
         matches!(self, BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore)
+    }
+
+    pub fn uses_cargo_workspace_fixture(self) -> bool {
+        matches!(self, BenchmarkScenario::CargoRepeatInstallHotCacheHotStore)
     }
 
     /// Whether the install fetches into the store and links nothing

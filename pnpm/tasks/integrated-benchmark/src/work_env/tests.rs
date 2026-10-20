@@ -3,7 +3,7 @@ use pnpr_storage::layout::local_document_path;
 use super::{
     BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
     PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
-    create_install_script, create_package_json, create_pnpm_workspace,
+    create_generated_projects, create_install_script, create_package_json, create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
     may_create_lockfile,
     measurements::PhaseEvent,
@@ -690,6 +690,47 @@ fn injected_repeat_install_creates_its_lockfile_before_the_frozen_runs() {
     assert!(scenario.cleanup().remove.is_empty());
     assert!(scenario.cleanup().restore.is_empty());
     fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn cargo_repeat_install_seeds_workspace_and_store_before_frozen_runs() {
+    let scenario = BenchmarkScenario::CargoRepeatInstallHotCacheHotStore;
+    let temp = tempfile::TempDir::new().expect("create cargo benchmark test dir");
+    let dir = temp.path();
+
+    create_package_json(dir, None, scenario);
+    create_generated_projects(dir, scenario);
+    create_pnpm_workspace(dir, None, "http://localhost:4873/", scenario);
+    create_install_script(dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    super::cargo_workspace::seed_store(dir);
+
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["name"], "cargo-benchmark-root");
+    let cargo_toml = fs::read_to_string(dir.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains("\n[workspace]\n"), "cargo_toml = {cargo_toml}");
+    assert!(dir.join("src/lib.rs").is_file());
+    let cargo_lock = fs::read_to_string(dir.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("benchmark-crate-0000"));
+    assert!(cargo_lock.contains("dependencies = [\n \"benchmark-crate-0001\",\n]"));
+    assert!(cargo_lock.contains("dependencies = [\n \"benchmark-crate-0799\",\n]"));
+    let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(workspace.contains("cargo:\n  enabled: true"), "workspace = {workspace}");
+    assert!(
+        fs::read_to_string(dir.join("prewarm.bash"))
+            .unwrap()
+            .ends_with("exec pnpm install --offline --no-frozen-lockfile\n"),
+    );
+    assert!(
+        fs::read_to_string(dir.join("install.bash")).unwrap().contains("install --frozen-lockfile"),
+    );
+    let store_dir = pnpm_store_dir::StoreDir::new(dir.join("store-dir"));
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir).unwrap();
+    assert_eq!(store_index.keys().unwrap().len(), super::cargo_workspace::CRATE_COUNT);
+    assert!(!scenario.seeds_lockfile());
+    assert!(!scenario.prewarms_node_modules());
+    assert!(scenario.cleanup().remove.is_empty());
+    assert!(scenario.cleanup().restore.is_empty());
 }
 
 /// Answer one request on a loopback port with `status_line` and `body`.

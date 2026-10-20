@@ -225,6 +225,15 @@ just integrated-benchmark --scenario=isolated-linker.injected-workspace-repeat-i
 This generated fixture uses hardlinked local files and needs no registry packages.
 Its untimed install creates the lockfile and populates `node_modules` before measurement.
 
+To measure frozen repeat installs of a Cargo workspace (`cargo.enabled: true`) with crates already materialized in the store:
+
+```sh
+just integrated-benchmark --scenario=cargo.repeat-install.hot-cache.hot-store --registry=npm pacquet@HEAD pacquet@main
+```
+
+This generated fixture seeds its crate files into the local CAFS store and needs no registry requests.
+Its untimed install populates the store crate slots and `.pnpm/crates` before measurement.
+
 ### CI regression checks
 
 Each PR benchmark scenario measures HEAD and main on the same runner. The check
