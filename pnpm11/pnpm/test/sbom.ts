@@ -97,8 +97,16 @@ test('pnpm sbom reads dedicated workspace lockfiles', async () => {
   const appSbom = documents.find((document) => document.name === 'pkg-a')
   expect(appSbom.packages.map((pkg: { name: string }) => pkg.name)).toContain('is-number')
 
-  fs.rmSync(path.join('packages/a', 'pnpm-lock.yaml'))
+  const appLockfilePath = path.join('packages/a', 'pnpm-lock.yaml')
+  const appLockfile = fs.readFileSync(appLockfilePath)
+  fs.rmSync(appLockfilePath)
   const missing = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
   expect(missing.status).toBe(1)
   expect(missing.stderr.toString()).toContain('ERR_PNPM_SBOM_MISSING_IMPORTERS')
+
+  fs.writeFileSync(appLockfilePath, appLockfile)
+  fs.rmSync(path.join('packages/b', 'pnpm-lock.yaml'))
+  const missingDependency = execPnpmSync(['--filter', 'pkg-a', 'sbom', '--sbom-format', 'spdx'])
+  expect(missingDependency.status).toBe(1)
+  expect(missingDependency.stderr.toString()).toContain('packages/b')
 })

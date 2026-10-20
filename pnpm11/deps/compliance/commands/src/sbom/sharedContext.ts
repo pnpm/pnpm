@@ -74,13 +74,16 @@ async function readDedicatedWorkspaceLockfiles (opts: SbomCommandOptions, worksp
   const lockfiles = await Promise.all(projectDirs.map((projectDir) =>
     limitLockfileReads(() => readWantedLockfile(projectDir, { ignoreIncompatible: true }))))
   let merged: LockfileObject | null = null
+  const missingImporterIds: string[] = []
 
   for (const [index, projectDir] of projectDirs.entries()) {
     const lockfile = lockfiles[index]
-    if (!lockfile) continue
-    const projectSnapshot = lockfile.importers[getLockfileImporterId(projectDir, projectDir)]
-    if (!projectSnapshot) continue
     const importerId = getLockfileImporterId(workspaceDir, projectDir)
+    const projectSnapshot = lockfile?.importers[getLockfileImporterId(projectDir, projectDir)]
+    if (!lockfile || !projectSnapshot) {
+      missingImporterIds.push(importerId)
+      continue
+    }
     const importers = Object.fromEntries([[importerId, projectSnapshot]]) as LockfileObject['importers']
     if (!merged) {
       merged = { ...lockfile, importers }
@@ -89,6 +92,13 @@ async function readDedicatedWorkspaceLockfiles (opts: SbomCommandOptions, worksp
     mergeDedicatedEntries(merged.importers, importers, projectDir, 'importer')
     merged.packages ??= {}
     mergeDedicatedPackages(merged.packages, lockfile.packages ?? {}, projectDir)
+  }
+  if (merged && missingImporterIds.length > 0) {
+    throw new PnpmError(
+      'SBOM_MISSING_IMPORTERS',
+      `${WANTED_LOCKFILE} has no entry for the selected or reachable workspace project${missingImporterIds.length === 1 ? '' : 's'}: ${missingImporterIds.join(', ')}.`,
+      { hint: 'Run "pnpm install" to update it.' }
+    )
   }
   return merged
 }
