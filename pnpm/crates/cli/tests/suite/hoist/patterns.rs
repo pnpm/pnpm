@@ -511,6 +511,10 @@ fn hoist_succeeds_when_node_modules_is_symlink() {
         is_symlink_or_junction(&private_hoist).unwrap(),
         "transitive should be hoisted through symlinked node_modules",
     );
+    assert!(
+        private_hoist.join("package.json").is_file(),
+        "hoisted link should resolve inside the symlink target",
+    );
 
     pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile"])

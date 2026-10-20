@@ -778,6 +778,75 @@ fn symlink_rejects_symlinked_hoist_root_pointing_to_file() {
 }
 
 #[test]
+fn symlink_rejects_dangling_symlinked_hoist_root() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let virtual_store_dir = dir.path().join("node_modules/.pnpm");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("node_modules");
+    let project_dir = dir.path().join("packages/project");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    pnpm_fs::symlink_dir(&dir.path().join("missing"), &public_hoisted).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Public, project_dir)];
+    let result = super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    );
+
+    assert!(
+        matches!(result, Err(crate::SymlinkPackageError::CreateParentDir { .. })),
+        "dangling symlinked hoist root must be rejected; got {result:?}",
+    );
+    assert!(!dir.path().join("missing").exists());
+}
+
+#[test]
+fn symlink_accepts_symlinked_external_virtual_store() {
+    use crate::VirtualStoreLayout;
+    use tempfile::tempdir;
+
+    let dir = tempdir().unwrap();
+    let outside = dir.path().join("outside");
+    let virtual_store_dir = dir.path().join("store");
+    let private_hoisted = virtual_store_dir.join("node_modules");
+    let public_hoisted = dir.path().join("project/node_modules");
+    let project_dir = dir.path().join("packages/project");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    std::fs::create_dir_all(&outside).unwrap();
+    pnpm_fs::symlink_dir(&outside, &virtual_store_dir).unwrap();
+
+    let layout = VirtualStoreLayout::legacy(
+        &virtual_store_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let workspace_aliases = vec![("project".to_string(), HoistKind::Private, project_dir)];
+    super::symlink_hoisted_dependencies(
+        &HashMap::new(),
+        &workspace_aliases,
+        &HashMap::new(),
+        &layout,
+        &private_hoisted,
+        &public_hoisted,
+        &HashSet::new(),
+    )
+    .unwrap();
+
+    assert!(outside.join("node_modules/project").exists());
+}
+
+#[test]
 fn symlink_refuses_symlinked_private_hoist_ancestor() {
     use crate::VirtualStoreLayout;
     use tempfile::tempdir;
