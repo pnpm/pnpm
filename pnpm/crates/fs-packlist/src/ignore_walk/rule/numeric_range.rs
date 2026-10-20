@@ -7,6 +7,10 @@ pub(super) struct NumericRange {
 
 impl NumericRange {
     pub(super) fn parse(content: &str) -> Option<Self> {
+        // Reject nesting before splitting to avoid rescanning inner literal groups.
+        if content.contains(['{', '}']) {
+            return None;
+        }
         let mut parts = content.split("..");
         let first = parts.next()?;
         let last = parts.next()?;

@@ -71,6 +71,7 @@ const CASES: &[(&str, &str, bool, bool)] = &[
     ("part{1..3,9}.js", "part2.js", false, false),
     ("{a,b}/part{1..3}.js", "b/part2.js", false, true),
     ("part{1..3}{a,b}.js", "part2b.js", false, true),
+    ("part{1..{2,3}}.js", "part3.js", false, true),
 ];
 
 #[test]
@@ -158,6 +159,16 @@ fn padded_range_steps_use_the_endpoint_width() {
         eprintln!("pattern: {pattern}");
         assert!(rule.matches(matching, false));
         assert!(!rule.matches(unpadded, false));
+    }
+}
+
+#[test]
+fn deeply_nested_literal_braces_parse() {
+    for prefix in ["{", "1{"] {
+        let pattern = format!("{}x{}", prefix.repeat(100_000), "}".repeat(100_000));
+        let rule = IgnoreRule::parse(&pattern);
+        eprintln!("pattern length: {}", pattern.len());
+        assert!(rule.matches(&pattern, false));
     }
 }
 
