@@ -213,7 +213,10 @@ fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> Plann
     // `hoistWorkspacePackages`: named non-root projects become hoist
     // candidates whose links point at the project dirs.
     let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
-        workspace_packages_for_hoist(inputs.ctx.workspace_root, inputs.projects.manifests)
+        workspace_packages_for_hoist(
+            inputs.ctx.workspace_root,
+            inputs.projects.package_map_manifests,
+        )
     });
     let phase_start = std::time::Instant::now();
     let plan = compute_hoist_plan(
