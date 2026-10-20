@@ -22,9 +22,7 @@ pub(super) fn collect_dependencies(
     let mut belongs_to: HashMap<PackageKey, BelongsTo> = HashMap::new();
     let mut stack: Vec<(PackageKey, BelongsTo)> = Vec::new();
     for id in importer_ids {
-        let Some(importer) =
-            lockfile.importers.get(id.as_ref()).or_else(|| lockfile.root_project())
-        else {
+        let Some(importer) = lockfile.importers.get(id.as_ref()) else {
             continue;
         };
         queue_importer_deps(importer, include, &mut stack);

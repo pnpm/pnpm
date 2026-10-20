@@ -78,7 +78,7 @@ fn test_include_logic() {
 }
 
 #[tokio::test]
-async fn test_empty_lockfile() {
+async fn requires_a_lockfile() {
     let dir = TempDir::new().unwrap();
     let config = Config::default();
     let args = LicensesArgs {
@@ -93,9 +93,14 @@ async fn test_empty_lockfile() {
         params: vec!["list".to_string()],
     };
 
-    // An empty directory has no lockfile, so it should just print "{}" and exit ok
     let res = args.run(&config, dir.path(), false).await;
-    assert!(res.is_ok());
+    assert_eq!(
+        res.unwrap_err()
+            .code()
+            .unwrap()
+            .to_string(),
+        "ERR_PNPM_LICENSES_NO_LOCKFILE",
+    );
 }
 
 #[tokio::test]

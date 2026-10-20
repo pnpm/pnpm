@@ -142,14 +142,8 @@ impl LicensesArgs {
         check_licenses_subcommand(self.params.first().map(String::as_str))?;
 
         let include = self.dependency_options.include(config.optional);
-        let Some(LicensedPackages { package_dirs, dependencies }) =
-            LicensedPackages::collect(config, dir, recursive, include)?
-        else {
-            if self.json {
-                pnpm_diagnostics::println!("{{}}");
-            }
-            return Ok(());
-        };
+        let LicensedPackages { package_dirs, dependencies } =
+            LicensedPackages::collect(config, dir, recursive, include)?;
 
         let results_by_license = group_by_license(&package_dirs, dependencies).await;
 
@@ -159,6 +153,7 @@ impl LicensesArgs {
         }
 
         if results_by_license.is_empty() {
+            pnpm_diagnostics::println!("No licenses in packages found");
             return Ok(());
         }
 
