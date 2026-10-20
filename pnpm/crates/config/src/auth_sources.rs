@@ -112,6 +112,15 @@ fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
 }
 
+/// The command line's `--config.<key>=<value>` tokens: trusted, and above
+/// every other source.
+fn cli_auth_source(
+    raw_cli_config: &[(String, String)],
+    registry: Option<&str>,
+) -> Option<NpmrcAuth> {
+    (!raw_cli_config.is_empty()).then(|| NpmrcAuth::from_cli_config(raw_cli_config, registry))
+}
+
 /// Structured `_auth` registry auth from its two trusted sources:
 /// the `pnpm_config__auth` env var and the global `config.yaml`'s
 /// `_auth` key (env wins on conflict). See `from_json_sources`.
@@ -208,15 +217,23 @@ impl Config {
         let mut auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
         let mut user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
         let mut env_scoped_source = env_scoped_auth_source::<Sys>();
+        let mut cli_source = cli_auth_source(&self.raw_cli_config, self.cli_registry.as_deref());
         let env_json_source = self.keep_warnings_on_error(
             env_json_auth_source::<Sys>(global_settings),
-            [&mut user_source, &mut auth_ini_source, &mut project_source, &mut env_scoped_source],
+            [
+                &mut user_source,
+                &mut auth_ini_source,
+                &mut project_source,
+                &mut env_scoped_source,
+                &mut cli_source,
+            ],
         );
         let env_json_source = self.skip_if_unreadable(env_json_source, || None)?;
 
         // Capture the trusted sources (everything but `project_source`) for
         // [`PackageManagerBootstrap`] before the fold below consumes them.
         let trusted_sources = [
+            cli_source.clone(),
             env_json_source.clone(),
             env_scoped_source.clone(),
             auth_ini_source.clone(),
@@ -227,6 +244,7 @@ impl Config {
         // env var wins on the rare occasion both define the same
         // `//host/:_authToken` key.
         let mut npmrc_auth = merge_auth_sources([
+            cli_source,
             env_json_source,
             env_scoped_source,
             project_source,
@@ -242,9 +260,17 @@ impl Config {
         npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);
 
-        // A `tokenHelper` names an executable, so it is honored only from a
-        // trusted, non-repo source. Leaving out the unreadable leaves out the
-        // project `.npmrc` that names one, keeping the trusted sources.
+        self.trust_token_helper(npmrc_auth, trusted_auth)
+    }
+
+    /// A `tokenHelper` names an executable, so it is honored only from a
+    /// trusted, non-repo source. Leaving out the unreadable leaves out the
+    /// project `.npmrc` that names one, keeping the trusted sources.
+    fn trust_token_helper(
+        &self,
+        mut npmrc_auth: NpmrcAuth,
+        trusted_auth: NpmrcAuth,
+    ) -> Result<AuthSources, LoadWorkspaceYamlError> {
         let trusted = crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth);
         if trusted.is_err() && self.settings_read.skips_unreadable() {
             npmrc_auth = trusted_auth.clone();
@@ -262,7 +288,7 @@ impl Config {
     fn keep_warnings_on_error(
         &mut self,
         result: Result<Option<NpmrcAuth>, LoadWorkspaceYamlError>,
-        sources: [&mut Option<NpmrcAuth>; 4],
+        sources: [&mut Option<NpmrcAuth>; 5],
     ) -> Result<Option<NpmrcAuth>, LoadWorkspaceYamlError> {
         if result.is_err() {
             for source in sources.into_iter().flatten() {

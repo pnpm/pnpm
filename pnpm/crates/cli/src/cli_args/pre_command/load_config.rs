@@ -40,6 +40,7 @@ pub(super) fn load_pre_command_config(
         switch.paths.npmrc_auth_file.as_deref(),
         switch.paths.ignore_workspace,
         config_overrides,
+        switch.network.registry.as_deref(),
     );
     config.skip_store_dir_resolution = !load.resolve_store;
     config.settings_read = load.settings_read;
