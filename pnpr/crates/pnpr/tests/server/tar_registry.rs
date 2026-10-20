@@ -74,6 +74,7 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     let dist = &packument["versions"]["1.0.0"]["dist"];
     dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
+    assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
     for omitted in ["tarball", "shasum", "signatures"] {
         assert!(dist.get(omitted).is_none(), "a tar registry omits dist.{omitted}");
     }
@@ -96,6 +97,10 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(body_bytes(tgz_response.into_body()).await.as_slice(), tgz.as_slice());
     let packument = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tgz));
+    assert_eq!(
+        packument["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
+        serde_json::json!(false),
+    );
 }
 
 #[tokio::test]
@@ -538,7 +543,12 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
         body_json(get(&app, "/npm/~zstd/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
     dbg!(&version["dist"]);
     assert_eq!(version["dist"]["integrity"], sha512_integrity(&tar));
+    assert_eq!(version["dist"]["pnpr"]["requiresBuild"], serde_json::json!(false));
     assert!(version["dist"].get("tarball").is_none());
+
+    let tgz_version =
+        body_json(get(&app, "/npm/@acme%2Fwidget/1.0.0", None).await.into_body()).await;
+    assert_eq!(tgz_version["dist"]["pnpr"]["requiresBuild"], serde_json::json!(false));
 
     let abbreviated = app
         .clone()
@@ -554,7 +564,24 @@ async fn every_document_and_route_form_of_a_tar_registry_describes_the_tar() {
     let dist = &abbreviated["versions"]["1.0.0"]["dist"];
     dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
+    assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
     assert!(dist.get("tarball").is_none());
+
+    let tgz_abbreviated = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/@acme%2Fwidget")
+                .header(header::ACCEPT, "application/vnd.npm.install-v1+json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let tgz_abbreviated = body_json(tgz_abbreviated.into_body()).await;
+    assert_eq!(
+        tgz_abbreviated["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
+        serde_json::json!(false),
+    );
 
     let encoded = get(&app, "/npm/~zstd/@acme%2Fwidget@1.0.0", None).await;
     assert_eq!(encoded.status(), StatusCode::OK);
@@ -587,4 +614,61 @@ async fn the_version_route_refuses_a_vulnerable_version() {
         let response = get(&app, path, Some("zstd")).await;
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{path}");
     }
+}
+
+#[tokio::test]
+async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_build() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
+    // Tarball has a binding.gyp (so requiresBuild is true), while the publish
+    // request attempts to spoof `dist.pnpr: {"requiresBuild": false, "spoof": 1}`.
+    let tar = tar_of(&[
+        ("package/package.json", br#"{"name":"@acme/native","version":"1.0.0"}"#),
+        ("package/binding.gyp", b"{}"),
+    ]);
+    let tgz = gzip(&tar);
+    let body = serde_json::json!({
+        "name": "@acme/native",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@acme/native",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://example.test/npm/@acme/native/-/native-1.0.0.tgz",
+                    "integrity": sha512_integrity(&tgz),
+                    "pnpr": { "requiresBuild": false, "spoof": 1 },
+                },
+            },
+        },
+        "_attachments": {
+            "@acme/native-1.0.0.tgz": {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(&tgz),
+                "length": tgz.len(),
+            },
+        },
+    });
+    let publish = app
+        .clone()
+        .oneshot(
+            Request::put("/npm/~acme/@acme/native")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let packument = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
+    assert_eq!(
+        packument["versions"]["1.0.0"]["dist"]["pnpr"],
+        serde_json::json!({ "requiresBuild": true }),
+    );
 }

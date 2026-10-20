@@ -123,6 +123,7 @@ pub(super) struct ColdBatch<'a> {
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     pub(super) link_template: &'a LinkSlotsParallel<'a>,
     pub(super) shared_packages: Option<&'a HashSet<&'a str>>,
+    pub(super) known_requires_build: Option<&'a RequiresBuildBySnapshot>,
 }
 /// Download every cold snapshot and link each one as it lands.
 ///
@@ -192,12 +193,15 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
         source_is_mutable,
         source_exists,
     } = installed;
+    let requires_build =
+        super::lookup_known_requires_build(batch.known_requires_build, snapshot_key)
+            .unwrap_or_else(|| requires_build_from_cas_paths(&cas_paths));
     Ok((
         None,
         Some(ColdCapture {
             snapshot_key,
             snapshot,
-            requires_build: requires_build_from_cas_paths(&cas_paths),
+            requires_build,
             cas_paths,
             source_is_mutable,
             source_exists,

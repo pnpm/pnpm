@@ -317,7 +317,7 @@ pub(super) async fn hosted_original(
     let table = storage.read_tar_integrities(package).await?;
     let current = table
         .get(&tgz_integrity)
-        .and_then(|tar| tar.parse::<Integrity>().ok())
+        .and_then(|tar| tar.tar_integrity.parse::<Integrity>().ok())
         .and_then(|tar| integrity_addressed_tarball_path(&tar))
         .is_some_and(|path| path == format!("-/tarballs/sha512/{digest}"));
     let unpacked_size = dist.get("unpackedSize").and_then(Value::as_u64);

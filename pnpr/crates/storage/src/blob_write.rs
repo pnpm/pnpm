@@ -78,6 +78,12 @@ impl BlobWrite {
         self.seal().await?.promote().await
     }
 
+    /// The cache path [`Self::finalize`] promotes this write to.
+    #[must_use]
+    pub fn final_path(&self) -> &super::Path {
+        &self.final_path
+    }
+
     /// Sync the file to disk and close it, leaving it unpromoted.
     pub async fn seal(mut self) -> std::io::Result<SealedBlob> {
         match self.file.take() {

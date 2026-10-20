@@ -202,6 +202,36 @@ where
         .await
     }
 
+    pub async fn run_with_known_requires_build<Reporter: self::Reporter + 'static>(
+        self,
+        known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            manifests: crate::install::InstallManifestOptions {
+                known_requires_build,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
+    }
+
+    pub async fn run_selected_with_known_requires_build<Reporter: self::Reporter + 'static>(
+        self,
+        selection: WorkspaceInstallSelection<'_>,
+        known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection: Some(selection),
+            manifests: crate::install::InstallManifestOptions {
+                known_requires_build,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
+    }
+
     /// Execute the install a legacy `pacquet deploy` runs in its target
     /// directory: the deployed manifest is the sole root importer, while
     /// workspace discovery stays anchored at the source workspace so

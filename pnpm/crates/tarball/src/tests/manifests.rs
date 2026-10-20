@@ -873,3 +873,25 @@ fn buffered_tar_entry_diagnostics_escape_terminal_controls() {
     assert!(!message.contains('\x1b'));
     assert!(!message.contains('\u{009b}'));
 }
+
+#[test]
+fn tar_requires_build_matches_tarball_extractor_rules() {
+    let plain =
+        tar_with_entries(&[("package/package.json", br#"{"name":"plain","version":"1.0.0"}"#)]);
+    assert_eq!(crate::tar_requires_build(plain.as_slice()), Some(false));
+
+    let script = tar_with_entries(&[(
+        "package/package.json",
+        br#"{"name":"script","version":"1.0.0","scripts":{"postinstall":"node build.js"}}"#,
+    )]);
+    assert_eq!(crate::tar_requires_build(script.as_slice()), Some(true));
+
+    let gyp = tar_with_entries(&[
+        ("package/package.json", br#"{"name":"gyp","version":"1.0.0"}"#),
+        ("package/binding.gyp", b"{}"),
+    ]);
+    assert_eq!(crate::tar_requires_build(gyp.as_slice()), Some(true));
+
+    let broken = tar_with_entries(&[("package/package.json", b"{ broken")]);
+    assert_eq!(crate::tar_requires_build(broken.as_slice()), None);
+}

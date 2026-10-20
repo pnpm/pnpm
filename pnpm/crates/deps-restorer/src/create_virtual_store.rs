@@ -86,9 +86,28 @@ pub type RemoteSideEffectsQuarantineBySnapshot =
 pub type StoreIndexKeysBySnapshot = HashMap<PackageKey, String>;
 
 /// Per-snapshot `requiresBuild` flags recovered from the store index
-/// during the warm-cache prefetch. `BuildModules` consumes this to
-/// avoid re-inspecting every package directory after materialization.
+/// during the warm-cache prefetch or from `pnpr` resolution metadata.
+/// `BuildModules` consumes this to avoid re-inspecting every package
+/// directory after materialization.
 pub type RequiresBuildBySnapshot = HashMap<PackageKey, bool>;
+
+/// Look up the pre-verified `requiresBuild` flag for `snapshot_key` when the
+/// snapshot is unpatched. Checks the exact snapshot key first, then the
+/// peer-stripped package key.
+#[must_use]
+pub fn lookup_known_requires_build(
+    known_requires_build: Option<&RequiresBuildBySnapshot>,
+    snapshot_key: &PackageKey,
+) -> Option<bool> {
+    if crate::snapshot_has_patch(snapshot_key) {
+        return None;
+    }
+    let known = known_requires_build?;
+    known
+        .get(snapshot_key)
+        .or_else(|| known.get(&snapshot_key.without_peer()))
+        .copied()
+}
 
 /// Store handles that a fresh resolution and dependency materialization share.
 pub struct CreateVirtualStoreStoreContext<'a> {

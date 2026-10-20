@@ -212,3 +212,37 @@ pub(super) fn capture_bundled_manifest(
         }
     }
 }
+
+/// Whether the tar stream read from `reader` carries build triggers:
+/// lifecycle scripts (`preinstall`, `install`, `postinstall`) in its
+/// root `package.json`, a `binding.gyp` (unless `gypfile: false` in
+/// `package.json`), or a `.hooks/` entry.
+///
+/// Returns `None` when the tar stream cannot be read or an entry path fails
+/// validation.
+pub fn tar_requires_build(reader: impl std::io::Read) -> Option<bool> {
+    let mut archive = tar::Archive::new(reader);
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
+    let mut triggers = BuildTriggers::default();
+    let mut manifest_parse_failed = false;
+    for entry in archive.entries().ok()? {
+        let mut entry = entry.ok()?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let raw_path = entry.path().ok()?;
+        let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
+        triggers.add_file(&cleaned_path);
+        if cleaned_path == "package.json" {
+            let data = super::read_buffered_tar_entry(&mut entry).ok()?;
+            if let Ok(parsed) = parse_manifest_bytes(&data) {
+                manifest_parse_failed = false;
+                triggers.read_manifest(&parsed);
+            } else {
+                manifest_parse_failed = true;
+                triggers.forget_manifest();
+            }
+        }
+    }
+    (!manifest_parse_failed).then(|| triggers.requires_build())
+}

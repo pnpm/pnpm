@@ -100,7 +100,10 @@ impl<'a> FrozenInputs<'a> {
             Option<&'p crate::DirCloneCache<'p>>,
         ),
         store_index_writer: &'p Arc<StoreIndexWriter>,
-        skipped: &'p SkippedSnapshots,
+        (skipped, known_requires_build): (
+            &'p SkippedSnapshots,
+            Option<&'p crate::RequiresBuildBySnapshot>,
+        ),
         progress_reported: &'p SharedReportedProgressKeys,
         custom_fetcher_session: Option<&'p Arc<crate::CustomFetcherSession>>,
     ) -> CreateVirtualStore<'p>
@@ -123,6 +126,7 @@ impl<'a> FrozenInputs<'a> {
                 skipped,
                 include_optional: install.included().optional_dependencies,
                 supported_architectures: install.platform.supported_architectures,
+                known_requires_build,
             },
             ctx,
 
@@ -247,6 +251,7 @@ pub(super) struct FetchInputs<'p> {
     pub(super) dir_clone_cache: Option<&'p crate::DirCloneCache<'p>>,
     pub(super) store_index_writer: &'p Arc<StoreIndexWriter>,
     pub(super) skipped: &'p SkippedSnapshots,
+    pub(super) known_requires_build: Option<&'p crate::RequiresBuildBySnapshot>,
     pub(super) verification_override: Option<LockfileVerificationOverride<'p>>,
 }
 /// The engine name the build cache keys on, once the host is known:
@@ -439,6 +444,7 @@ pub(super) async fn plan_engine_name(
     config: &pnpm_config::Config,
     host_detection: &crate::materialization_plan::HostDetection,
     importers: &HashMap<String, pnpm_lockfile::ProjectSnapshot>,
+    needs_deferred_probe: bool,
 ) -> EngineNamePlan {
     let host = match host_detection {
         crate::materialization_plan::HostDetection::Pending { .. } => {
@@ -459,6 +465,7 @@ pub(super) async fn plan_engine_name(
         config.enable_global_virtual_store,
         importers,
         host_node.as_ref(),
+        needs_deferred_probe,
     )
     .await;
     EngineNamePlan { name, deferred, pending_slot: None }

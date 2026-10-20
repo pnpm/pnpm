@@ -242,6 +242,8 @@ pub struct FrozenInstallSeed<'a> {
     /// the server's `/-/pnpr/v0/verify-lockfile` while the fetch runs locally. The
     /// same concurrent sequencing and build gate apply.
     pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+    /// Pre-verified `requiresBuild` flags from `pnpr` resolution.
+    pub known_requires_build: Option<crate::RequiresBuildBySnapshot>,
 }
 
 impl<'a> PriorMaterialization<'a> {

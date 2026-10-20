@@ -97,20 +97,13 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         let Ok((package_url, integrity)) = extract_tarball(&package.result.resolution) else {
             return;
         };
-        // The prefetch skips these shapes altogether; see
-        // `PrefetchingResolver::maybe_kickoff_download`.
-        let revision_addressed = matches!(
-            &package.result.resolution,
-            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
-        );
-        if revision_addressed
-            || package_url.starts_with("file:")
-            || is_git_hosted_tarball_url(package_url)
-        {
+        if !can_early_materialize(&package.result.resolution, package_url, &package.pkg_id) {
             return;
         }
-        // A patched package is imported and patched by the normal path.
-        if package.pkg_id.contains("(patch_hash=") {
+        let known_requires_build = crate::install_package_from_registry::manifest_requires_build(
+            package.result.package.manifest.as_deref(),
+        );
+        if known_requires_build == Some(true) {
             return;
         }
         let Ok(key) = package.pkg_id.parse::<PackageKey>() else { return };
@@ -128,6 +121,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
             virtual_node_modules_dir,
             package_dir,
             dependencies: required_dependencies(&package.children),
+            known_requires_build,
         };
         if lock(&self.slots).insert(key, slot_dir).is_some() {
             return;
@@ -168,6 +162,20 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 }
 
+fn can_early_materialize(resolution: &LockfileResolution, package_url: &str, pkg_id: &str) -> bool {
+    // The prefetch skips these shapes altogether; see
+    // `PrefetchingResolver::maybe_kickoff_download`. A patched package is
+    // imported and patched by the normal path.
+    let revision_addressed = matches!(
+        resolution,
+        LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+    );
+    !revision_addressed
+        && !package_url.starts_with("file:")
+        && !is_git_hosted_tarball_url(package_url)
+        && !pkg_id.contains("(patch_hash=")
+}
+
 /// The edges the early slot links. Optional edges are left to the final
 /// pass, which knows which optional dependencies the installability pass
 /// skipped.
@@ -192,6 +200,7 @@ struct SlotJob {
     virtual_node_modules_dir: PathBuf,
     package_dir: PathBuf,
     dependencies: HashMap<PkgName, SnapshotDepRef>,
+    known_requires_build: Option<bool>,
 }
 
 impl SlotJob {
@@ -239,7 +248,7 @@ impl SlotJob {
         // A package with a build ahead of it must not share inodes with the
         // store. The link phase imports it with `clone-or-copy` and marks it
         // for the build, and a completed slot here would make it skip that.
-        if requires_build_from_cas_paths(cas_paths) {
+        if self.known_requires_build.unwrap_or_else(|| requires_build_from_cas_paths(cas_paths)) {
             return Ok(());
         }
         std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;

@@ -3,6 +3,7 @@
 pub(crate) use gzip::{GzipExtraction, extract_gzipped_tarball_with_tar};
 pub(crate) use limits::TarBudget;
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
+pub use manifest::tar_requires_build;
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
 };

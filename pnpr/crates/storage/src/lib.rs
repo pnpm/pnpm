@@ -36,6 +36,8 @@ pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
 
 pub use layout_state::HostedLayout;
 
+pub use tar_integrities::DerivedTar;
+
 mod tar_integrities;
 
 mod layout_state;

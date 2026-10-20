@@ -88,6 +88,7 @@ fn forward_package_frame(frame: Frame, on_package: &mut impl FnMut(ResolvedPacka
         unpacked_size,
         file_count,
         revision,
+        requires_build,
     } = frame
     {
         on_package(ResolvedPackage {
@@ -99,6 +100,7 @@ fn forward_package_frame(frame: Frame, on_package: &mut impl FnMut(ResolvedPacka
             unpacked_size,
             file_count,
             revision,
+            requires_build,
         });
     }
 }
@@ -366,6 +368,8 @@ pub(super) enum Frame {
         file_count: Option<usize>,
         #[serde(default)]
         revision: Option<TarballRevision>,
+        #[serde(rename = "requiresBuild", default)]
+        requires_build: Option<bool>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

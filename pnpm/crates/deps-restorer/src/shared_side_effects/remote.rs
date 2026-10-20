@@ -1,7 +1,7 @@
 use super::{
-    ApplySharedSideEffectsOptions, BaseCasPaths, artifact_platform, decoded_trusted_keys,
-    dependency_package, insert_side_effects_map, non_empty, planning::CandidateGroup,
-    quarantine_remote_side_effects, store_holds,
+    BaseCasPaths, artifact_platform, decoded_trusted_keys, dependency_package,
+    insert_side_effects_map, non_empty, planning::CandidateGroup, quarantine_remote_side_effects,
+    store_holds,
 };
 use crate::{RemoteSideEffectsQuarantineBySnapshot, SideEffectsMapsBySnapshot};
 use pnpm_config::Config;
@@ -20,37 +20,41 @@ use std::{
     sync::Arc,
 };
 
-/// Resolve the groups' artifacts on the configured artifact store,
-/// quarantine the rejected ones and overlay the rest.
-pub(super) async fn fetch_remote_artifacts(
-    options: &mut ApplySharedSideEffectsOptions<'_>,
-    setup: &RemoteCacheSetup,
-    groups: &BTreeMap<String, CandidateGroup>,
+pub(super) struct ApplyResolvedRemoteArtifacts<'a> {
+    pub config: &'a Config,
+    pub setup: &'a RemoteCacheSetup,
+    pub groups: &'a BTreeMap<String, CandidateGroup>,
+    pub base_cas_paths: &'a BaseCasPaths,
+    pub side_effects_maps_by_snapshot: &'a mut SideEffectsMapsBySnapshot,
+    pub store_index_writer: &'a Arc<StoreIndexWriter>,
+}
+
+/// Quarantine the rejected artifacts and overlay the resolved ones.
+pub(super) async fn apply_resolved_remote_artifacts(
+    inputs: ApplyResolvedRemoteArtifacts<'_>,
+    resolved: Option<(BTreeMap<String, pnpm_pnpr_client::VerifiedArtifact>, Vec<RejectedArtifact>)>,
 ) {
-    let config = options.config;
-    let server = setup.store.channel();
-    let Some((resolved, rejected_artifacts)) =
-        resolve_remote_artifacts(setup, groups, options.cached.quarantine_by_snapshot).await
-    else {
+    let server = inputs.setup.store.channel();
+    let Some((resolved, rejected_artifacts)) = resolved else {
         return;
     };
     for rejected in rejected_artifacts {
-        quarantine_remote_side_effects(&rejected, groups, server, options.store_index_writer);
+        quarantine_remote_side_effects(&rejected, inputs.groups, server, inputs.store_index_writer);
     }
 
     for (input_key, artifact) in resolved {
         apply_resolved_artifact(
             &ResolvedArtifactContext {
-                config,
-                store: &setup.store,
+                config: inputs.config,
+                store: &inputs.setup.store,
                 server,
-                groups,
-                base_cas_paths: options.cached.base_cas_paths,
-                store_index_writer: options.store_index_writer,
+                groups: inputs.groups,
+                base_cas_paths: inputs.base_cas_paths,
+                store_index_writer: inputs.store_index_writer,
             },
             &input_key,
             &artifact,
-            options.side_effects_maps_by_snapshot,
+            inputs.side_effects_maps_by_snapshot,
         )
         .await;
     }

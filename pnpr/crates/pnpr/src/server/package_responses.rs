@@ -157,7 +157,7 @@ pub(super) fn packument_response(
         None => rewrite_tarball_urls(&mut doc, name, tarball_base),
     }
     if let Some(table) = view.tar_integrities {
-        describe_tars(&mut doc, table);
+        describe_tars(&mut doc, table, view.tar_registry);
     }
     let abbreviated = wants_abbreviated(headers);
     let (body, content_type) = if abbreviated {

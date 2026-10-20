@@ -159,8 +159,16 @@ pub(super) async fn plan_fresh_materialization<'l, 'a: 'l, Reporter: self::Repor
     allow_build_policy: &'l AllowBuildPolicy,
     scope: PlanScope<'_>,
 ) -> Result<FreshPlan<'l>, InstallWithFreshLockfileError> {
+    let needs_deferred_probe =
+        pnpm_deps_restorer::materialization_plan::needs_deferred_engine_probe(
+            install.drivers.config,
+            install.execution.node_linker,
+            allow_build_policy,
+            lockfiles.initial.snapshots.as_ref(),
+            scope.known_requires_build,
+        );
     let (installability_host, engine_name, deferred_engine_name) =
-        resolve_host_and_engine(install, probe, lockfiles.initial).await;
+        resolve_host_and_engine(install, probe, lockfiles.initial, needs_deferred_probe).await;
     let (layout, dir_clone_cache) = verified_fresh_layout(
         install,
         lockfiles,
@@ -188,6 +196,7 @@ async fn resolve_host_and_engine(
     install: FreshInputs<'_>,
     probe: HostProbeInputs,
     initial: &Lockfile,
+    needs_deferred_probe: bool,
 ) -> (
     Option<pnpm_deps_restorer::InstallabilityHost>,
     Option<String>,
@@ -207,6 +216,7 @@ async fn resolve_host_and_engine(
             install.drivers.config.enable_global_virtual_store,
             &initial.importers,
             host_node.as_ref(),
+            needs_deferred_probe,
         )
         .await;
     (installability_host, engine_name, deferred_engine_name)
@@ -274,9 +284,7 @@ pub(super) fn compute_fresh_skip_set<Reporter: self::Reporter + 'static>(
     installability_host: Option<&pnpm_deps_restorer::InstallabilityHost>,
     scope: PlanScope<'_>,
 ) -> Result<SkippedSnapshots, InstallWithFreshLockfileError> {
-    let closure_importer_ids: std::collections::HashSet<String> = lockfiles
-        .initial
-        .importers
+    let closure_importer_ids: HashSet<String> = lockfiles.initial.importers
         .keys()
         .cloned()
         .collect();
@@ -325,6 +333,7 @@ pub(super) struct HostProbeInputs {
 pub(super) struct PlanScope<'g> {
     pub(super) groups: &'g crate::GroupSelection,
     pub(super) include_transitive_optional_dependencies: bool,
+    pub(super) known_requires_build: Option<&'g pnpm_deps_restorer::RequiresBuildBySnapshot>,
 }
 /// The two borrowed views `run` derives from [`Resolved`](crate::install_with_fresh_lockfile::resolution::Resolved) once the
 /// resolve phase returns.
@@ -396,13 +405,8 @@ pub(super) async fn installability_host(
     let needed = !config.installs_incompatible_packages()
         && lockfile.packages
             .as_ref()
-            .is_some_and(|packages| {
-                lockfile.snapshots
-                    .as_ref()
-                    .is_some_and(|snapshots| {
-                        crate::any_installability_constraint(snapshots, packages)
-                    })
-            });
+            .zip(lockfile.snapshots.as_ref())
+            .is_some_and(|(p, s)| crate::any_installability_constraint(s, p));
     match (early_host_detection, needed) {
         (Some(detection), true) => detection.resolve().await,
         (_, needed) => {

@@ -303,7 +303,9 @@ impl VersionRequest<'_> {
             Some(key) => self.state.inner.storage
                 .read_tar_integrities(&name)
                 .await
-                .is_ok_and(|table| table.contains_key(key)),
+                .is_ok_and(|table| {
+                    table.get(key).is_some_and(|derived| derived.requires_build.is_some())
+                }),
             None => false,
         };
         TarSource {

@@ -118,6 +118,7 @@ async fn cold_batch_links_slots_in_parallel() {
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            known_requires_build: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
@@ -324,6 +325,7 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            known_requires_build: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {

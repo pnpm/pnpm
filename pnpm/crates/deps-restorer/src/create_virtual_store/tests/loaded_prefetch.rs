@@ -128,6 +128,7 @@ async fn loaded_materialization_reuses_the_fetch_pass_prefetch() {
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            known_requires_build: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {

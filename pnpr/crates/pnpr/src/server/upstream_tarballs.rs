@@ -210,6 +210,7 @@ pub(super) fn recheck_osv(
 }
 
 /// The tarball an upstream fetch is about to stream.
+#[derive(Clone, Copy)]
 pub(super) struct UpstreamTarball<'a> {
     pub(super) namespace: &'a str,
     pub(super) name: &'a CanonicalPackageName,
@@ -248,13 +249,79 @@ pub(super) async fn fetch_upstream_tarball(
     if !upstream.caches() {
         return stream_verified_without_caching(response, write, integrity, name, filename).await;
     }
+    stream_and_record_upstream_tarball(state, response, write, tarball)
+}
+
+fn stream_and_record_upstream_tarball(
+    state: &AppState,
+    response: pnpm_network::ThrottledResponse,
+    write: pnpr_storage::BlobWrite,
+    tarball: UpstreamTarball<'_>,
+) -> Response {
     // The entry is promoted only on an SRI match (see
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
-    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
+    let storage = state.inner.storage.clone();
+    let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
+    let pkg_name = tarball.name.clone();
+    let tgz_key = tarball.integrity.to_string();
+    let streamed = streaming::stream_verified_to_cache_and_then(
+        response,
+        write,
+        tarball.integrity,
+        MAX_TARBALL_BYTES,
+        move |cached_path| {
+            tokio::spawn(record_cached_tgz_tar_integrity(
+                storage,
+                decodes,
+                pkg_name,
+                tgz_key,
+                cached_path,
+            ));
+        },
+    );
+    match streamed {
         Ok(body) => tarball_response(body, None),
-        Err(err) => tarball_stream_error(err, name, filename).into_response(),
+        Err(err) => tarball_stream_error(err, tarball.name, tarball.filename).into_response(),
+    }
+}
+
+async fn record_cached_tgz_tar_integrity(
+    storage: pnpr_storage::Storage,
+    decodes: std::sync::Arc<tokio::sync::Semaphore>,
+    name: CanonicalPackageName,
+    tgz_key: String,
+    cached_path: std::path::PathBuf,
+) {
+    if storage
+        .read_tar_integrities(&name)
+        .await
+        .is_ok_and(|table| {
+            table.get(&tgz_key).is_some_and(|derived| derived.requires_build.is_some())
+        })
+    {
+        return;
+    }
+    let permit = decodes.acquire_owned().await.expect("the decode semaphore is never closed");
+    let derived = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let file = std::fs::File::open(cached_path).ok()?;
+        super::tar_integrity_of(std::io::BufReader::new(file))
+    })
+    .await
+    .ok()
+    .flatten();
+    if let Some((tar_integrity, requires_build)) = derived
+        && let Err(err) = storage.record_tar_integrity(
+            &name,
+            &tgz_key,
+            &tar_integrity.to_string(),
+            requires_build,
+        )
+        .await
+    {
+        tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
     }
 }
 

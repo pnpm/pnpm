@@ -62,8 +62,61 @@ async fn a_package_that_requires_a_build_is_left_to_the_link_phase() {
     assert!(!virtual_store_dir.join("built@1.0.0/node_modules/built").exists());
 }
 
+#[tokio::test]
+async fn pnpr_requires_build_hint_skips_scheduling_and_cas_manifest_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let virtual_store_dir = dir.path().join(".pnpm");
+    let config = Config { install_state_dir: virtual_store_dir.clone(), ..Config::default() };
+    let mem_cache = Arc::new(MemCache::default());
+
+    let built = finalized_package_with_requires_build("built", "1.0.0", Some(true));
+    let materializer = EarlyMaterializer::<SilentReporter>::new(&config, Arc::clone(&mem_cache));
+    materializer.schedule(&built);
+    assert_eq!(lock(&materializer.tasks).len(), 0);
+    assert_eq!(lock(&materializer.slots).len(), 0);
+
+    // Even when the on-disk file has a postinstall script, a verified
+    // `dist.pnpr.requiresBuild: false` hint skips re-reading `package.json`.
+    let package_json = dir.path().join("plain.json");
+    std::fs::write(
+        &package_json,
+        r#"{"name":"plain","version":"1.0.0","scripts":{"postinstall":"node x.js"}}"#,
+    )
+    .unwrap();
+    let files = HashMap::from([("package.json".to_string(), package_json)]);
+    let plain = finalized_package_with_requires_build("plain", "1.0.0", Some(false));
+    let LockfileResolution::Tarball(tarball) = &plain.result.resolution else { unreachable!() };
+    mem_cache.insert(
+        package_mem_cache_key(&tarball.tarball, tarball.integrity.as_ref(), false),
+        Arc::new(RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),
+    );
+    materializer.schedule(&plain);
+    let mut tasks = std::mem::take(&mut *lock(&materializer.tasks));
+    while tasks.join_next().await.is_some() {}
+    assert_eq!(materializer.finish(|_| true, &AtomicU8::new(0)).await, 1);
+    assert!(virtual_store_dir.join("plain@1.0.0/node_modules/plain/package.json").is_file());
+}
+
 fn finalized_package(name: &str, version: &str) -> FinalizedPackage {
+    finalized_package_with_requires_build(name, version, None)
+}
+
+fn finalized_package_with_requires_build(
+    name: &str,
+    version: &str,
+    requires_build: Option<bool>,
+) -> FinalizedPackage {
     let pkg_id = format!("{name}@{version}");
+    let manifest = requires_build.map(|requires_build| {
+        Arc::new(serde_json::json!({
+            "name": name,
+            "version": version,
+            "dist": {
+                "tarball": format!("https://registry.example/{name}.tgz"),
+                "pnpr": { "requiresBuild": requires_build },
+            },
+        }))
+    });
     FinalizedPackage {
         pkg_id: pkg_id.as_str().into(),
         result: Arc::new(ResolveResult {
@@ -83,7 +136,7 @@ fn finalized_package(name: &str, version: &str) -> FinalizedPackage {
                 name_ver: Some(pkg_id.parse().unwrap()),
                 latest: None,
                 published_at: None,
-                manifest: None,
+                manifest,
                 non_deprecated_alternative: None,
             },
         }),

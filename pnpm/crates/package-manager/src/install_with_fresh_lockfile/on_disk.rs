@@ -90,6 +90,7 @@ pub(super) struct OnDiskRuntime<'a> {
     pub(super) engine_name: Option<String>,
     pub(super) deferred_engine_name:
         Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
+    pub(super) known_requires_build: Option<&'a pnpm_deps_restorer::RequiresBuildBySnapshot>,
 }
 
 pub(super) struct OnDiskProjects<'a> {
@@ -138,6 +139,7 @@ impl<'a> OnDiskInputs<'a> {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
                 supported_architectures: self.install.projects.supported_architectures,
+                known_requires_build: self.runtime.known_requires_build,
             },
             ctx: self.ctx,
 

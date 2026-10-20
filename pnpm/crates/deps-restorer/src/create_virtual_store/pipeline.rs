@@ -117,8 +117,9 @@ impl<'a> CreateVirtualStore<'a> {
         plan: &'p snapshot_plan::SnapshotPlan<'a>,
     ) -> partition::Rebuilds<'p> {
         partition::Rebuilds {
-            marker_rebuilds: &plan.marker_rebuilds,
+            markers: &plan.marker_rebuilds,
             allow_build_policy: self.ctx.allow_build_policy,
+            known_requires_build: self.selection.known_requires_build,
         }
     }
 
@@ -162,13 +163,12 @@ impl<'a> CreateVirtualStore<'a> {
             &links,
             marker_source.map(tempfile::NamedTempFile::path),
         )?;
-        let fetch_failed = self.download_cold::<Reporter>(
+        let fetch_failed = self.download_and_apply_side_effects::<Reporter>(
             ColdInputs { wanted, store, prefetched, marker_source, links: &links },
             &mut partition,
             &mut indexes,
         )
         .await?;
-        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
 
         // The writer is owned by the caller now. They drop their
         // sender and await the join handle after the build phase
@@ -337,10 +337,56 @@ impl<'a> CreateVirtualStore<'a> {
     /// written and each download's CAS index is the only output, folded
     /// into [`CasIndexes::by_pkg_id`]; the isolated linker's slot import
     /// has already happened by the time the download future returns.
-    async fn download_cold<Reporter: self::Reporter>(
+    async fn download_and_apply_side_effects<Reporter: self::Reporter>(
         &self,
         inputs: ColdInputs<'_, 'a>,
         partition: &mut partition::Partition<'_>,
+        indexes: &mut CasIndexes,
+    ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
+        let side_effects_ctx = partition::PartitionSideEffectsContext {
+            config: self.ctx.config,
+            wanted: inputs.wanted,
+            allow_build_policy: self.ctx.allow_build_policy,
+            store_index_writer: self.fetching.store_index_writer,
+            importers: self.importers,
+        };
+        if !crate::shared_side_effects::cold_shared_packages_have_known_requires_build(
+            &partition.cold,
+            inputs.links.shared_packages.as_ref(),
+            &partition.requires_build_by_snapshot,
+        ) {
+            let fetch_failed = self.download_cold::<Reporter>(
+                inputs,
+                &partition.cold,
+                &mut partition.requires_build_by_snapshot,
+                indexes,
+            )
+            .await?;
+            partition.apply_side_effects(side_effects_ctx, &indexes.shared_base).await;
+            return Ok(fetch_failed);
+        }
+        let prepared = partition.prepare_side_effects(side_effects_ctx, &indexes.shared_base).await;
+        let download_future = self.download_cold::<Reporter>(
+            inputs,
+            &partition.cold,
+            &mut partition.requires_build_by_snapshot,
+            indexes,
+        );
+        let resolve_future = crate::shared_side_effects::resolve_prepared_side_effects(
+            prepared,
+            &partition.remote_side_effects_quarantine_by_snapshot,
+        );
+        let (fetch_failed, resolved) = tokio::join!(download_future, resolve_future);
+        let fetch_failed = fetch_failed?;
+        partition.finish_side_effects(resolved, side_effects_ctx, &indexes.shared_base).await;
+        Ok(fetch_failed)
+    }
+
+    async fn download_cold<Reporter: self::Reporter>(
+        &self,
+        inputs: ColdInputs<'_, 'a>,
+        cold: &[(&'a PackageKey, &'a SnapshotEntry)],
+        requires_build_by_snapshot: &mut super::RequiresBuildBySnapshot,
         indexes: &mut CasIndexes,
     ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
         let runtime_platform_selector =
@@ -349,17 +395,18 @@ impl<'a> CreateVirtualStore<'a> {
         let mut cold_cas_paths = Vec::new();
         run_cold_batch::<Reporter>(
             ColdBatch {
-                cold: &partition.cold,
+                cold,
                 installer: self.cold_installer(&inputs, &runtime_platform_selector),
                 reuse: self.slot_reuse(inputs.wanted.packages),
                 marker_source: inputs.marker_source,
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
                 link_template: &inputs.links.template,
                 shared_packages: inputs.links.shared_packages.as_ref(),
+                known_requires_build: self.selection.known_requires_build,
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
-                requires_build_by_snapshot: &mut partition.requires_build_by_snapshot,
+                requires_build_by_snapshot,
                 shared_base_cas_paths: &mut indexes.shared_base,
             },
             &mut cold_cas_paths,
@@ -400,34 +447,5 @@ impl<'a> CreateVirtualStore<'a> {
             #[cfg(test)]
             link_concurrency_probe: self.link_concurrency_probe,
         }
-    }
-
-    async fn apply_side_effects(
-        &self,
-        wanted: WantedEntries<'a>,
-        partition: &mut partition::Partition<'_>,
-        base_cas_paths: &crate::shared_side_effects::BaseCasPaths,
-    ) {
-        crate::shared_side_effects::apply_shared_side_effects(
-            crate::shared_side_effects::ApplySharedSideEffectsOptions {
-                cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
-                    base_cas_paths,
-                    by_snapshot: &partition.side_effects_by_snapshot,
-                    quarantine_by_snapshot: &partition.remote_side_effects_quarantine_by_snapshot,
-                    store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
-                },
-                config: self.ctx.config,
-                snapshots: wanted.snapshots,
-                packages: wanted.packages,
-                requires_build_by_snapshot: &partition.requires_build_by_snapshot,
-                allow_build_policy: self.ctx.allow_build_policy,
-
-                side_effects_maps_by_snapshot: &mut partition.side_effects_maps_by_snapshot,
-
-                store_index_writer: self.fetching.store_index_writer,
-            },
-            self.importers,
-        )
-        .await;
     }
 }

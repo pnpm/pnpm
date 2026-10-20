@@ -161,16 +161,18 @@ fn decoded_response(
     };
     let runtime = tokio::runtime::Handle::current();
     let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
-    let body = gunzip_body(body, derived, decodes, move |tar_integrity| {
-        let (Some(key), Some(name)) = (tgz_integrity, name) else { return };
-        runtime.spawn(async move {
-            if let Err(err) =
-                storage.record_tar_integrity(&name, &key, &tar_integrity.to_string()).await
+    let body =
+        gunzip_body(body, derived, decodes, move |tar_integrity, requires_build| {
+            let (Some(key), Some(name)) = (tgz_integrity, name) else { return };
+            runtime.spawn(async move {
+            if let Err(err) = storage
+                .record_tar_integrity(&name, &key, &tar_integrity.to_string(), requires_build)
+                .await
             {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }
         });
-    });
+        });
     Response::from_parts(parts, body)
 }
 

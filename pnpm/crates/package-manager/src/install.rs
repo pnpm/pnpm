@@ -556,6 +556,8 @@ struct InstallManifestOptions<'install> {
     hooked_paths: HashSet<PathBuf>,
     /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
     spec_bumps: Option<&'install crate::ManifestSpecBumps>,
+    /// Pre-seeded `requiresBuild` verdicts from a `pnpr` resolve stream.
+    known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
 }
 
 impl Default for InstallRunOptions<'_, '_> {
@@ -573,6 +575,7 @@ impl Default for InstallRunOptions<'_, '_> {
                 specifier_manifests: None,
                 hooked_paths: HashSet::new(),
                 spec_bumps: None,
+                known_requires_build: None,
             },
         }
     }
