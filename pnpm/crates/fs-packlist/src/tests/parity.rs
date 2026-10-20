@@ -82,23 +82,7 @@ fn file_selection_matches_typescript_packlist() {
         write(root, "package.json", &manifest.to_string());
         fs::create_dir(root.join("sub")).unwrap();
         pnpm_fs::symlink_dir(&root.join("lib"), &root.join("sub/link")).unwrap();
-        let range_ignore = "part{03..01..2}.js\n";
-        write(root, ".gitignore", if ignore_kind == 4 { range_ignore } else { "dist/\n" });
-        write(
-            root,
-            ".npmignore",
-            if ignore_kind == 3 {
-                range_ignore
-            } else {
-                "dist/\n!npm-debug.log\n!file.orig\n!.DS_Store\n!yarn.lock\n"
-            },
-        );
-        if !matches!(ignore_kind, 0 | 3) {
-            fs::remove_file(root.join(".npmignore")).unwrap();
-        }
-        if ignore_kind == 2 {
-            fs::remove_file(root.join(".gitignore")).unwrap();
-        }
+        write_root_ignore_files(root, ignore_kind);
         write(root, "dist/.npmignore", "index.js\n");
         write(root, "lib/.gitignore", "*.test.js\n");
         write(
@@ -130,6 +114,26 @@ fn file_selection_matches_typescript_packlist() {
     assert_eq!(expected.len(), inputs.len());
     for ((input, actual), expected) in inputs.iter().zip(actual).zip(expected) {
         assert_eq!(actual, expected, "input: {input}");
+    }
+}
+
+fn write_root_ignore_files(root: &Path, kind: u8) {
+    let range_ignore = "part{03..01..2}.js\n";
+    write(root, ".gitignore", if kind == 4 { range_ignore } else { "dist/\n" });
+    write(
+        root,
+        ".npmignore",
+        if kind == 3 {
+            range_ignore
+        } else {
+            "dist/\n!npm-debug.log\n!file.orig\n!.DS_Store\n!yarn.lock\n"
+        },
+    );
+    if !matches!(kind, 0 | 3) {
+        fs::remove_file(root.join(".npmignore")).unwrap();
+    }
+    if kind == 2 {
+        fs::remove_file(root.join(".gitignore")).unwrap();
     }
 }
 
