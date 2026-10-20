@@ -188,7 +188,7 @@ test('a "config." option takes the type the command declares for it', async () =
   expect(options['fetch-retries']).toBe(3)
   expect(options.offline).toBe(false)
   expect(options.qar).toBe('1')
-  expect(rawCliConfig['hoist-pattern']).toStrictEqual(['*eslint*'])
+  expect(rawCliConfig).toStrictEqual({ 'hoist-pattern': ['*eslint*'], 'test-pattern': ['test/**'], 'fetch-retries': 3, offline: false, qar: '1' })
 })
 
 test('do not incorrectly change "install" command to "add"', async () => {
