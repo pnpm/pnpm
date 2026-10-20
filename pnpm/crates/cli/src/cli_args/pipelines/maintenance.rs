@@ -233,7 +233,15 @@ fn ensure_modules_dir_within_config_root(
     modules_dir: &Path,
     config_root: &Path,
 ) -> miette::Result<()> {
-    if !modules_dir.starts_with(config_root) {
+    let normalized_root = pnpm_fs::lexical_normalize(config_root);
+    let resolved_root = pnpm_fs::realpath_missing(&normalized_root).unwrap_or(normalized_root);
+    let normalized_modules = pnpm_fs::lexical_normalize(modules_dir);
+    let within_root = pnpm_fs::realpath_missing(&normalized_modules)
+        .is_ok_and(|resolved_modules| resolved_modules.starts_with(&resolved_root))
+        && pnpm_fs::realpath_missing(modules_dir)
+            .unwrap_or(normalized_modules)
+            .starts_with(&resolved_root);
+    if !within_root {
         let modules_dir = modules_dir.display();
         let cr = config_root.display();
         return Err(miette::miette!(

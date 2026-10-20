@@ -580,18 +580,15 @@ fn prune_supports_dedicated_workspace_lockfiles() {
     assert!(has_link(&pkg_b, "is-positive"));
     assert!(!has_link(&pkg_b, "is-negative"));
 
-    // Per-project `packageConfigs.modulesDir` pointing outside the workspace must be refused.
+    // Per-project `packageConfigs.modulesDir` traversing outside the workspace via `..` must be refused.
     let external_modules = root.path().join("external-modules");
     let external_sentinel = external_modules.join(".pnpm").join("sentinel@1.0.0");
     fs::create_dir_all(&external_sentinel).expect("create external sentinel");
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        format!(
-            "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\npackageConfigs:\n  pkg-a:\n    modulesDir: {}\n",
-            serde_json::to_string(&external_modules.to_string_lossy()).expect("json string"),
-        ),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\npackageConfigs:\n  pkg-a:\n    modulesDir: ../../../external-modules\n",
     )
-    .expect("write pnpm-workspace.yaml with external modulesDir");
+    .expect("write pnpm-workspace.yaml with relative external modulesDir");
 
     let output = pacquet_in(&workspace)
         .with_arg("prune")
