@@ -18,9 +18,6 @@
 //! its own private namespace. The opt-in shared-artifact `PoC` is a separate
 //! stateful protocol surface.
 
-#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
-#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
-
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
@@ -331,7 +328,7 @@ pub struct Stats {
     dylint_lib = "perfectionist",
     expect(
         perfectionist::too_many_struct_fields,
-        reason = "Mirrors the /-/pnpr/v0/resolve package frame."
+        reason = "The fields mirror pnpr's resolved package frame."
     )
 )]
 pub struct ResolvedPackage {
@@ -356,9 +353,6 @@ pub struct ResolvedPackage {
     /// Registry artifact revision, when the server resolved an immutable
     /// integrity-addressed artifact.
     pub revision: Option<TarballRevision>,
-    /// `dist.pnpr.requiresBuild` from the server-side resolve, when the
-    /// registry derived it from the tarball's own bytes.
-    pub requires_build: Option<bool>,
 }
 
 /// Resolver protocol version this client speaks.
