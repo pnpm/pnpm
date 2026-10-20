@@ -259,7 +259,9 @@ fn insert_tar_entry(
     tgz_integrity: &str,
     derived: DerivedTar,
 ) {
-    let previous = table.get(tgz_integrity);
+    let previous = table
+        .get(tgz_integrity)
+        .filter(|known| known.tar_integrity == derived.tar_integrity);
     let file_count = derived.file_count.or_else(|| previous.and_then(|known| known.file_count));
     let unpacked_size =
         derived.unpacked_size.or_else(|| previous.and_then(|known| known.unpacked_size));

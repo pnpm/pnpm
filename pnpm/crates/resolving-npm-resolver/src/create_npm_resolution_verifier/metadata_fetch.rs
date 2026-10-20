@@ -222,9 +222,8 @@ impl NpmResolutionVerifier {
                 .then(|| cache.get(key))?
                 .filter(|entry| entry.meta.time.is_some())
             })?;
-        (!cached.meta.versions.corrupt_mirror_fragment_found()).then(|| {
-            project_trust_meta(cached.meta.as_ref())
-        })
+        let projection = project_trust_meta(cached.meta.as_ref());
+        (!cached.meta.versions.corrupt_mirror_fragment_found()).then_some(projection)
     }
 }
 
