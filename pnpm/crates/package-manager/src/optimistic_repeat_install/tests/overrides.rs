@@ -229,3 +229,90 @@ fn returns_up_to_date_when_a_package_extension_local_dependency_is_replaced_by_a
     );
     assert_eq!(decision, Decision::UpToDate);
 }
+
+#[test]
+fn returns_up_to_date_when_a_linked_workspace_dependency_is_overridden_and_manifest_is_edited() {
+    let dir = tempfile::tempdir().unwrap();
+    let workspace_root = dir.path();
+    std::fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"pkg-a":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    let sibling_dir = workspace_root.join("pkg-a");
+    std::fs::create_dir_all(&sibling_dir).unwrap();
+    std::fs::write(sibling_dir.join("package.json"), r#"{"name":"pkg-a","version":"1.0.0"}"#)
+        .unwrap();
+    std::fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\noverrides:\n  pkg-a: workspace:*\n\nimporters:\n\n  .:\n    dependencies:\n      pkg-a:\n        specifier: workspace:*\n        version: link:pkg-a\n\n  pkg-a: {}\n",
+    )
+    .unwrap();
+
+    let mut config = pnpm_config::Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    config.install_state_dir = workspace_root.join("node_modules/.pnpm");
+    config.link_workspace_packages = pnpm_config::LinkWorkspacePackages::DirectOnly;
+    config.overrides = Some(IndexMap::from([("pkg-a".to_string(), "workspace:*".to_string())]));
+    std::fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let sibling_manifest =
+        pnpm_package_manifest::PackageManifest::from_path(sibling_dir.join("package.json"))
+            .unwrap();
+    let settings = super::super::settings::current_settings(
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
+    let projects = BTreeMap::from([
+        (
+            workspace_root.to_string_lossy().into_owned(),
+            ProjectEntry {
+                name: Some("root".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            },
+        ),
+        (
+            sibling_dir.to_string_lossy().into_owned(),
+            ProjectEntry {
+                name: Some("pkg-a".into()),
+                version: Some("1.0.0".into()),
+                has_modules_dir: false,
+            },
+        ),
+    ]);
+    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
+
+    std::fs::write(
+        workspace_root.join("package.json"),
+        r#"{"name":"root","version":"1.0.0","description":"edited","dependencies":{"pkg-a":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    let root_manifest_edited =
+        pnpm_package_manifest::PackageManifest::from_path(workspace_root.join("package.json"))
+            .unwrap();
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root).expect("parse pnpm-lock.yaml");
+    let decision = super::super::check_optimistic_repeat_install(
+        &super::super::OptimisticRepeatInstallCheck {
+            workspace_root,
+            config,
+            project_manifests: &[
+                (workspace_root.to_path_buf(), &root_manifest_edited),
+                (sibling_dir, &sibling_manifest),
+            ],
+            is_workspace_install: true,
+            lockfile: pnpm_lockfile::MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+            catalogs: &BTreeMap::default(),
+            layout: crate::RepeatInstallLayout {
+                node_linker: pnpm_config::NodeLinker::Isolated,
+                included: isolated_included(),
+                supported_architectures: None,
+            },
+            manifests: crate::RepeatInstallManifests::ON_DISK,
+        },
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}

@@ -1,6 +1,7 @@
-import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
+import { createReadPackageHook } from '@pnpm/hooks.read-package-hook'
 import { checkPatchedDepPaths, type LockfileObject } from '@pnpm/lockfile.fs'
 import {
   calcPatchHashes,
@@ -10,7 +11,8 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, ProjectId, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, ProjectId, ProjectManifest, ReadPackageHook } from '@pnpm/types'
+import { clone } from 'ramda'
 
 import type { CheckDepsStatusOptions } from './types.js'
 
@@ -22,6 +24,7 @@ export interface AssertWantedLockfileUpToDateContext {
   linkWorkspacePackages: boolean | 'deep'
   getManifestsByDir: () => Record<string, DependencyManifest>
   getWorkspacePackages: () => WorkspacePackages | undefined
+  hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
   rootDir: string
   patchedDependencies?: Record<string, string>
 }
@@ -38,8 +41,18 @@ export async function assertWantedLockfileUpToDate (
   ctx: AssertWantedLockfileUpToDateContext,
   opts: AssertWantedLockfileUpToDateOptions
 ): Promise<void> {
-  await assertLockfileSettingsUpToDate(ctx.config, opts)
+  const parsedOverrides = parseOverrides(ctx.config.overrides ?? {}, ctx.config.catalogs)
+  await assertLockfileSettingsUpToDate(ctx.config, opts, parsedOverrides)
   assertPatchHashesUpToDate(opts)
+
+  const readPackageHook = createReadPackageHook({
+    lockfileDir: opts.wantedLockfileDir,
+    overrides: parsedOverrides,
+    packageExtensions: ctx.config.packageExtensions,
+    readPackageHook: ctx.config.hooks?.readPackage,
+    ignoredOptionalDependencies: ctx.config.ignoredOptionalDependencies,
+  })
+  const projectManifest = await readPackageHook?.(clone(opts.projectManifest), opts.projectDir) ?? opts.projectManifest
 
   if (!satisfiesPackageManifest(
     {
@@ -48,19 +61,20 @@ export async function assertWantedLockfileUpToDate (
       ignoredOptionalDependencies: ctx.config.ignoredOptionalDependencies,
     },
     opts.wantedLockfile.importers[opts.projectId],
-    opts.projectManifest
+    projectManifest
   ).satisfies) {
     throw new PnpmError('RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST', `The lockfile in ${opts.wantedLockfileDir} does not satisfy project of id ${opts.projectId}`, {
       hint: 'Run `pnpm install` to update the lockfile',
     })
   }
 
-  await assertLinkedPackagesUpToDate(ctx, opts)
+  await assertLinkedPackagesUpToDate(ctx, { ...opts, projectManifest }, readPackageHook)
 }
 
 async function assertLockfileSettingsUpToDate (
   config: CheckDepsStatusOptions,
-  { wantedLockfile, wantedLockfileDir }: AssertWantedLockfileUpToDateOptions
+  { wantedLockfile, wantedLockfileDir }: AssertWantedLockfileUpToDateOptions,
+  parsedOverrides: VersionOverride[]
 ): Promise<void> {
   const resolvedPatchedDeps = resolvePatchedDependencies(config.patchedDependencies, wantedLockfileDir)
   const [
@@ -77,7 +91,7 @@ async function assertLockfileSettingsUpToDate (
     injectWorkspacePackages: config.injectWorkspacePackages,
     excludeLinksFromLockfile: config.excludeLinksFromLockfile,
     peersSuffixMaxLength: config.peersSuffixMaxLength,
-    overrides: createOverridesMapFromParsed(parseOverrides(config.overrides ?? {}, config.catalogs)),
+    overrides: createOverridesMapFromParsed(parsedOverrides),
     ignoredOptionalDependencies: config.ignoredOptionalDependencies?.sort(),
     packageExtensionsChecksum: hashObjectNullableWithPrefix(config.packageExtensions),
     patchedDependencies,
@@ -109,7 +123,8 @@ function assertPatchHashesUpToDate ({ wantedLockfile, wantedLockfileDir }: Asser
 
 async function assertLinkedPackagesUpToDate (
   ctx: AssertWantedLockfileUpToDateContext,
-  { projectDir, projectId, projectManifest, wantedLockfile, wantedLockfileDir }: AssertWantedLockfileUpToDateOptions
+  { projectDir, projectId, projectManifest, wantedLockfile, wantedLockfileDir }: AssertWantedLockfileUpToDateOptions,
+  readPackageHook?: ReadPackageHook
 ): Promise<void> {
   if (!await linkedPackagesAreUpToDate({
     linkWorkspacePackages: !!ctx.linkWorkspacePackages,
@@ -118,6 +133,13 @@ async function assertLinkedPackagesUpToDate (
     manifestsByDir: ctx.getManifestsByDir(),
     workspacePackages: ctx.getWorkspacePackages(),
     lockfilePackages: wantedLockfile.packages,
+    injectWorkspacePackages: ctx.injectWorkspacePackages ?? wantedLockfile.settings?.injectWorkspacePackages,
+    resolution: {
+      autoInstallPeers: ctx.autoInstallPeers,
+      catalogs: ctx.config.catalogs,
+      readPackageHook,
+    },
+    hookedManifests: ctx.hookedManifests,
   }, {
     dir: projectDir,
     manifest: projectManifest,

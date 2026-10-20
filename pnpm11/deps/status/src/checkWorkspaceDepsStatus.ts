@@ -1,7 +1,7 @@
 import type fs from 'node:fs'
 import path from 'node:path'
 
-import { createProjectModulesDirResolver } from '@pnpm/config.reader'
+import { createProjectConfigRecord, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
@@ -447,6 +447,7 @@ async function assertProjectsUpToDate (
 
   const getWorkspacePackages = once(arrayOfWorkspacePackagesToMap.bind(null, allProjects))
   const getManifestsByDir = once(() => getWorkspacePackagesByDirectory(getWorkspacePackages()))
+  const projectConfigs = opts.sharedWorkspaceLockfile ? undefined : createProjectConfigRecord(opts)
 
   const assertCtx: AssertWantedLockfileUpToDateContext = {
     autoInstallPeers: opts.autoInstallPeers,
@@ -456,17 +457,22 @@ async function assertProjectsUpToDate (
     linkWorkspacePackages: opts.linkWorkspacePackages,
     getManifestsByDir,
     getWorkspacePackages,
+    hookedManifests: new Map(),
     rootDir: workspaceDir,
   }
 
   await Promise.all(projectsToCheck.map(async (project) => {
     const { wantedLockfile, wantedLockfileDir } = await readWantedLockfileAndDir(project.rootDir)
-    await assertWantedLockfileUpToDate(assertCtx, {
-      projectDir: project.rootDir,
-      projectId: getProjectId(project),
-      projectManifest: project.manifest,
-      wantedLockfile,
-      wantedLockfileDir,
-    })
+    const projectOverrides = project.manifest.name == null ? undefined : projectConfigs?.[project.manifest.name]?.overrides
+    await assertWantedLockfileUpToDate(
+      projectOverrides == null ? assertCtx : { ...assertCtx, config: { ...opts, overrides: projectOverrides } },
+      {
+        projectDir: project.rootDir,
+        projectId: getProjectId(project),
+        projectManifest: project.manifest,
+        wantedLockfile,
+        wantedLockfileDir,
+      }
+    )
   }))
 }

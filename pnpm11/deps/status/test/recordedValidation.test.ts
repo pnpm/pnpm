@@ -239,6 +239,63 @@ describe('checkDepsStatus with recorded validations', () => {
     expect(await check(workspace, undefined, { mergeGitBranchLockfiles: true })).toMatchObject({ upToDate: false })
   })
 
+  // https://github.com/pnpm/pnpm/issues/17127
+  it('applies overrides when checking a modified manifest against the lockfile', async () => {
+    const overrides = { 'bar@^2.0.0': '1.0.0', 'b>a': 'workspace:*' }
+    const lockfile = lockfileWith({ a: 'link:../a', bar: '1.0.0' })
+    lockfile.importers['packages/b' as ProjectId].specifiers = { a: 'workspace:*', bar: '1.0.0' }
+    lockfile.overrides = overrides
+    const workspace = await installedWorkspace(lockfile)
+    workspace.manifestOf('b').dependencies = { a: '^2.0.0', bar: '^2.0.0' }
+    await fs.writeFile(path.join(workspace.projectDir('b'), 'package.json'), JSON.stringify(workspace.manifestOf('b')))
+    await updateWorkspaceState({
+      allProjects: workspace.allProjects,
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: { ...SETTINGS, overrides },
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: false,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+      },
+    })
+
+    workspace.manifestOf('b').description = 'edited'
+    await fs.writeFile(path.join(workspace.projectDir('b'), 'package.json'), JSON.stringify(workspace.manifestOf('b')))
+    expect(await check(workspace, undefined, { overrides })).toMatchObject({ upToDate: true })
+
+    // Also covers the non-workspace root project path when package.json is edited.
+    await fs.rm(path.join(workspace.workspaceDir, 'pnpm-workspace.yaml'))
+    workspace.rootManifest.dependencies = { bar: '^2.0.0' }
+    lockfile.importers['.' as ProjectId] = { specifiers: { bar: '1.0.0' }, dependencies: { bar: '1.0.0' } }
+    await writeWantedLockfile(workspace.workspaceDir, lockfile)
+    await writeCurrentLockfile(path.join(workspace.workspaceDir, 'node_modules/.pnpm'), lockfile)
+    await updateWorkspaceState({
+      allProjects: [workspace.allProjects[0]],
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: { ...SETTINGS, overrides },
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: false,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+      },
+    })
+    workspace.rootManifest.description = 'edited root'
+    await fs.writeFile(path.join(workspace.workspaceDir, 'package.json'), JSON.stringify(workspace.rootManifest))
+    expect(await checkDepsStatus({
+      ...SETTINGS,
+      overrides,
+      rootProjectManifestDir: workspace.workspaceDir,
+      rootProjectManifest: workspace.rootManifest,
+      pnpmfile: [],
+      configDependencies: CONFIG_DEPENDENCIES,
+    })).toMatchObject({ upToDate: true })
+  })
 })
 
 /**
