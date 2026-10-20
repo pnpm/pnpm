@@ -227,6 +227,7 @@ impl ConfigOverrides {
             offline => "offline",
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",
+            prune_direct_dependencies => "pruneDirectDependencies",
         );
         // `--config.node-package-map-mode` reaches the config through
         // `Config::current` before these overrides run, so the deprecated

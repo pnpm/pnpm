@@ -809,6 +809,20 @@ fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
         );
     }
 
+    fs::write(
+        config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n  packages/a: {}\n",
+    )
+    .unwrap();
+    assert!(
+        matches!(
+            workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+            RunDepsStatus::Outdated { issue, .. }
+                if issue == "Workspace package a has dependencies but was not installed"
+        ),
+        "a selected project the current lockfile carries without dependencies is outdated",
+    );
+
     let root_only = [dir.path()];
     assert_eq!(
         workspace_deps_status_for_selected(&dir, config, &project_manifests, &root_only),

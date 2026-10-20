@@ -216,7 +216,7 @@ function scanWantedLockfilesInDir (lockfileDir: string, lastValidatedTimestamp: 
     scan.found = true
     if (!modifiedAtOrAfter(stats, lastValidatedTimestamp)) continue
     scan.anyModified = true
-    if (wantedLockfileHasMergeConflictsSync(lockfileDir, lockfileName)) {
+    if (stats.isFile() && wantedLockfileHasMergeConflictsSync(lockfileDir, lockfileName)) {
       scan.conflicted = true
       return scan
     }

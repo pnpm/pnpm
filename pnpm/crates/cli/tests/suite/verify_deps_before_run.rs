@@ -1518,6 +1518,106 @@ fn filtered_exec_with_workspace_root_installs_the_root() {
     drop((root, mock_instance));
 }
 
+/// A filtered install that prunes direct dependencies leaves the workspace
+/// root alone, so the state must not record the root as installed, and a later
+/// command that selects the root must not treat its dependencies as up to date.
+#[test]
+fn filtered_install_that_prunes_direct_dependencies_does_not_vouch_for_the_workspace_root() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "root",
+        &workspace.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "=100.0.0" } }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - '**'\n  - '!store/**'\n")
+        .expect("write pnpm-workspace.yaml");
+    let foo = workspace.join("foo");
+    fs::create_dir_all(&foo).expect("create workspace project");
+    write_named_manifest_with_dependency_groups(
+        &foo,
+        "foo",
+        &foo.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "=100.0.0" } }),
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["--filter=foo", "--config.prune-direct-dependencies=true", "install"])
+        .assert()
+        .success();
+
+    assert!(!workspace.join("node_modules/@pnpm.e2e/foo").exists());
+    assert!(workspace.join("foo/node_modules/@pnpm.e2e/foo").exists());
+
+    let read_state = || -> serde_json::Value {
+        serde_json::from_str(
+            &fs::read_to_string(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+                .expect("read workspace state"),
+        )
+        .expect("parse workspace state")
+    };
+    let state = read_state();
+    assert_eq!(state["filteredInstall"], json!(true));
+    let manifests = state["validation"]["manifests"]
+        .as_object()
+        .expect("validation.manifests must be an object");
+    assert_eq!(manifests.keys().collect::<Vec<_>>(), vec!["foo"]);
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--filter=foo",
+            "--workspace-root",
+            "--config.verify-deps-before-run=error",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success()
+            && stderr.contains("Workspace package root has dependencies but was not installed"),
+        "expected workspace root not installed error:\n{stderr}",
+    );
+    let manifests = read_state()["validation"]["manifests"]
+        .as_object()
+        .expect("validation.manifests must be an object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(manifests, vec!["foo"]);
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter=foo",
+            "--workspace-root",
+            "--config.verify-deps-before-run=install",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/foo").exists());
+    let state = read_state();
+    assert_eq!(state["filteredInstall"], json!(false));
+    let mut manifests = state["validation"]["manifests"]
+        .as_object()
+        .expect("validation.manifests must be an object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    manifests.sort();
+    assert_eq!(manifests, vec![".", "foo"]);
+
+    drop((root, mock_instance));
+}
+
 /// A filtered install leaves the workspace dependencies of the projects it
 /// selected without a modules directory too, but the install the gate spawns
 /// for a filtered command selects them, so the status check has to hold them

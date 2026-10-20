@@ -106,6 +106,7 @@ pub struct ConfigOverrides {
     package_import_method: Option<PackageImportMethod>,
     pm_on_fail: Option<PmOnFail>,
     progress: Option<bool>,
+    prune_direct_dependencies: Option<bool>,
     public_hoist_pattern: Option<Vec<String>>,
     runtime_on_fail: Option<RuntimeOnFail>,
     save_workspace_protocol: Option<SaveWorkspaceProtocol>,

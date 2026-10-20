@@ -32,6 +32,7 @@ fn create_config(
 ) -> Config {
     Config {
         node_linker_excluded: Vec::new(),
+        prune_direct_dependencies: false,
         tools: std::collections::BTreeMap::new(),
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         network_concurrency_by_registry: std::collections::BTreeMap::new(),

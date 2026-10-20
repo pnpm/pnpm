@@ -48,18 +48,26 @@ function computeMergedCurrentLockfile (
   { currentLockfile, wantedLockfile }: HeadlessContext,
   { filteredLockfile, importerIds }: HeadlessDepGraph
 ): LockfileObject {
-  if (
-    currentLockfile == null ||
-    isEmptyLockfile(currentLockfile) ||
-    Object.keys(wantedLockfile.importers).every((id) => importerIds.includes(id as ProjectId))
-  ) {
+  if (Object.keys(wantedLockfile.importers).every((id) => importerIds.includes(id as ProjectId))) {
     return filteredLockfile
+  }
+  const emptyImporters = Object.fromEntries(
+    Object.keys(filteredLockfile.importers).map((id) => [id, { specifiers: {} }])
+  ) as LockfileObject['importers']
+  if (currentLockfile == null || isEmptyLockfile(currentLockfile)) {
+    return {
+      ...filteredLockfile,
+      importers: {
+        ...emptyImporters,
+        ...pick(importerIds, filteredLockfile.importers),
+      },
+    }
   }
   const retainedPackages = retainedUnselectedPackages(currentLockfile, filteredLockfile, importerIds)
   return {
     ...filteredLockfile,
     importers: {
-      ...filteredLockfile.importers,
+      ...emptyImporters,
       ...currentLockfile.importers,
       ...pick(importerIds, filteredLockfile.importers),
     },
