@@ -32,3 +32,5 @@ mod behavior;
 mod default_excludes;
 
 mod parity;
+
+mod files_ranges;

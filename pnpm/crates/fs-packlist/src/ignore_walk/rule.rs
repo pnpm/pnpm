@@ -1,7 +1,10 @@
 //! One `.npmignore` / `.gitignore` line, matched the way ignore-walk matches
 //! it: minimatch with `matchBase`, `dot`, `nocase`, and `flipNegate`.
 
+mod sequence;
+
 use super::segment::{LiteralCase, SegmentPattern};
+use sequence::Sequence;
 use std::{collections::HashSet, iter};
 
 /// Brace expansion stops after this many alternatives, or once it has
@@ -173,36 +176,59 @@ fn match_globstar(
     partial
 }
 
-/// Expands `{a,b}` alternations, nested ones included, up to
-/// [`MAX_BRACE_ALTERNATIVES`] and [`MAX_BRACE_EXPANSION_BYTES`]. A brace pair
-/// without a top-level comma stays literal.
+/// Expands brace alternatives and sequences up to
+/// [`MAX_BRACE_ALTERNATIVES`] and [`MAX_BRACE_EXPANSION_BYTES`].
 fn expand_braces(pattern: &str) -> Vec<String> {
     let mut pending = vec![pattern.to_string()];
     let mut expanded = Vec::new();
     let mut produced_bytes = 0;
     while let Some(current) = pending.pop() {
-        let Some(alternation) = find_alternation(&current) else {
+        let Some(expansion) = find_expansion(&current) else {
             expanded.push(current);
             if expanded.len() >= MAX_BRACE_ALTERNATIVES {
                 break;
             }
             continue;
         };
-        // Every arm yields at least one expansion, so arms past the remaining
-        // count could only produce dropped alternatives.
-        let arms = alternation.arms(MAX_BRACE_ALTERNATIVES - expanded.len());
-        produced_bytes += alternation.expanded_bytes(&current, &arms);
-        if produced_bytes > MAX_BRACE_EXPANSION_BYTES {
+        let Some((patterns, bytes)) = expansion.expand(
+            &current,
+            MAX_BRACE_ALTERNATIVES - expanded.len(),
+            MAX_BRACE_EXPANSION_BYTES - produced_bytes,
+        ) else {
             break;
-        }
-        pending.extend(
-            alternation
-                .expand(&current, &arms)
-                .into_iter()
-                .rev(),
-        );
+        };
+        produced_bytes += bytes;
+        pending.extend(patterns.into_iter().rev());
     }
     expanded
+}
+
+enum Expansion {
+    Alternation(Alternation),
+    Range { open: usize, close: usize, range: Sequence },
+}
+
+impl Expansion {
+    fn expand(
+        &self,
+        pattern: &str,
+        max_arms: usize,
+        byte_limit: usize,
+    ) -> Option<(Vec<String>, usize)> {
+        match self {
+            Self::Alternation(alternation) => {
+                let arms = alternation.arms(max_arms);
+                let bytes = alternation.expanded_bytes(pattern, &arms);
+                if bytes > byte_limit {
+                    return None;
+                }
+                Some((alternation.expand(pattern, &arms), bytes))
+            }
+            Self::Range { open, close, range } => {
+                range.expand(&pattern[..*open], &pattern[close + 1..], max_arms, byte_limit)
+            }
+        }
+    }
 }
 
 /// Byte offsets of a `{`, its `}`, and the top-level commas between them.
@@ -245,8 +271,8 @@ impl Alternation {
     }
 }
 
-/// The first `{…}` that has a top-level comma.
-fn find_alternation(pattern: &str) -> Option<Alternation> {
+/// The first completed brace group with alternatives or a sequence.
+fn find_expansion(pattern: &str) -> Option<Expansion> {
     let bytes = pattern.as_bytes();
     let mut open_stack: Vec<(usize, Vec<usize>)> = Vec::new();
     let mut index = 0;
@@ -257,9 +283,9 @@ fn find_alternation(pattern: &str) -> Option<Alternation> {
             b',' => record_comma(&mut open_stack, index),
             b'}' => {
                 if let Some((open, commas)) = open_stack.pop()
-                    && !commas.is_empty()
+                    && let Some(expansion) = completed_expansion(pattern, open, index, commas)
                 {
-                    return Some(Alternation { open, close: index, commas });
+                    return Some(expansion);
                 }
             }
             _ => {}
@@ -267,6 +293,18 @@ fn find_alternation(pattern: &str) -> Option<Alternation> {
         index += 1;
     }
     None
+}
+
+fn completed_expansion(
+    pattern: &str,
+    open: usize,
+    close: usize,
+    commas: Vec<usize>,
+) -> Option<Expansion> {
+    if !commas.is_empty() {
+        return Some(Expansion::Alternation(Alternation { open, close, commas }));
+    }
+    Sequence::parse(&pattern[open + 1..close]).map(|range| Expansion::Range { open, close, range })
 }
 
 /// Records a comma for the innermost open brace, up to
