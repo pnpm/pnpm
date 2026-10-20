@@ -89,14 +89,35 @@ export async function localDirectoryDepIsUpToDate (
   pkgSnapshot: PackageSnapshot,
   parentPkgAliases: Record<string, unknown> = {}
 ): Promise<boolean> {
-  return localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, { parentPkgAliases, visited: new Map() })
+  return localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+    parentPkgAliases,
+    visited: new Map(),
+    recordedPeers: recordedPeersOf(ctx.lockfilePackages),
+  })
 }
 
 interface DirectoryWalk {
   /** The aliases of every ancestor, which supply the package's peers. */
   parentPkgAliases: Record<string, unknown>
-  /** The ancestor alias scopes each snapshot was checked in. */
+  /** The peer scopes each snapshot was checked in. */
   visited: Map<PackageSnapshot, Set<string>>
+  /**
+   * Every peer the lockfile records for a package, which bounds the part of
+   * a scope the descendants of a package can take.
+   */
+  recordedPeers: string[]
+}
+
+const recordedPeersByPackages = new WeakMap<object, string[]>()
+
+function recordedPeersOf (lockfilePackages: LocalDirectoryDepContext['lockfilePackages']): string[] {
+  if (lockfilePackages == null) return []
+  let peers = recordedPeersByPackages.get(lockfilePackages)
+  if (peers == null) {
+    peers = Array.from(new Set(Object.values(lockfilePackages).flatMap((pkg) => Object.keys(pkg.peerDependencies ?? {}))))
+    recordedPeersByPackages.set(lockfilePackages, peers)
+  }
+  return peers
 }
 
 async function localDirectoryDepIsUpToDateRec (
@@ -108,9 +129,9 @@ async function localDirectoryDepIsUpToDateRec (
   const localDepDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = await readHookedManifestOnce(ctx, localDepDir)
   if (!manifest) return false
-  // A revisit in the same ancestor scope is a cycle or a shared dependency that
+  // A revisit in the same peer scope is a cycle or a shared dependency that
   // is already being checked.
-  if (!markVisited(walk, pkgSnapshot)) return true
+  if (!markVisited(walk, pkgSnapshot, manifest)) return true
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
@@ -126,18 +147,15 @@ async function localDirectoryDepIsUpToDateRec (
   const childWalk: DirectoryWalk = {
     parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
     visited: walk.visited,
+    recordedPeers: walk.recordedPeers,
   }
   return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, childWalk))
 }
 
-/**
- * Records the snapshot in its ancestor alias scope. `false` when it was already
- * there. The whole scope is the key because a descendant's peers and shadowed
- * dependencies depend on every ancestor alias, not only the peers this
- * manifest declares.
- */
-function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot): boolean {
-  const scope = Object.keys(walk.parentPkgAliases)
+/** Records the snapshot in its peer scope. `false` when it was already there. */
+function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot, manifest: DependencyManifest): boolean {
+  const scope = Array.from(new Set([...Object.keys(manifest.peerDependencies ?? {}), ...walk.recordedPeers]))
+    .filter((peer) => Boolean(walk.parentPkgAliases[peer]))
     .sort()
     .join('\0')
   let scopes = walk.visited.get(pkgSnapshot)

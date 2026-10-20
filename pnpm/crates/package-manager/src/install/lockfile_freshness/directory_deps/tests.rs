@@ -292,7 +292,7 @@ fn check_directory_dep_in_scope(
         },
         catalogs,
     };
-    let mut visited = std::collections::HashSet::new();
+    let mut visited = super::scope::Visited::new(check.lockfile);
     let pkg_key: pnpm_lockfile::PackageKey = "lib@file:lib".parse().expect("parse the package key");
     super::check_single_directory_dep_freshness(
         &check,
@@ -942,5 +942,87 @@ fn a_shared_directory_is_checked_again_where_no_ancestor_supplies_its_peer() {
                 if name == "c"
         ),
         "expected LocalDependencyOutdated for c, got: {error:?}",
+    );
+}
+
+#[test]
+fn a_shared_directory_is_checked_again_where_no_ancestor_supplies_a_descendant_peer() {
+    let manifest = |name: &str, dependencies: serde_json::Value| serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": dependencies });
+    let directories = [
+        ("a", manifest("a", serde_json::json!({ "b": "file:../b", "e": "file:../e" }))),
+        ("b", manifest("b", serde_json::json!({ "c": "file:../c", "p": "2.0.0" }))),
+        ("c", manifest("c", serde_json::json!({ "d": "file:../d" }))),
+        (
+            "d",
+            serde_json::json!({
+                "name": "d",
+                "version": "1.0.0",
+                "dependencies": { "p": "1.0.0" },
+                "peerDependencies": { "p": "*" },
+            }),
+        ),
+        ("e", manifest("e", serde_json::json!({ "f": "file:../f" }))),
+        ("f", manifest("f", serde_json::json!({ "c": "file:../c" }))),
+    ];
+    let error = check_root_with_directories(
+        &directories,
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      a:
+        specifier: file:./a
+        version: file:a
+packages:
+  a@file:a:
+    resolution: { type: directory, directory: a }
+  b@file:b:
+    resolution: { type: directory, directory: b }
+  c@file:c:
+    resolution: { type: directory, directory: c }
+  d@file:d:
+    resolution: { type: directory, directory: d }
+    peerDependencies:
+      p: '*'
+  e@file:e:
+    resolution: { type: directory, directory: e }
+  f@file:f:
+    resolution: { type: directory, directory: f }
+  p@2.0.0:
+    resolution: { integrity: sha512-p }
+snapshots:
+  a@file:a:
+    dependencies:
+      b: file:b
+      e: file:e
+  b@file:b:
+    dependencies:
+      c: file:c
+      p: 2.0.0
+  c@file:c:
+    dependencies:
+      d: file:d(p@2.0.0)
+  d@file:d(p@2.0.0):
+    dependencies:
+      p: 2.0.0
+  e@file:e:
+    dependencies:
+      f: file:f
+  f@file:f:
+    dependencies:
+      c: file:c
+  p@2.0.0: {}
+",
+        false,
+    )
+    .expect_err("through e and f, nothing supplies the peer of d, so it needs p@1.0.0");
+    assert!(
+        matches!(
+            &error,
+            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { name, .. })
+                if name == "d"
+        ),
+        "expected LocalDependencyOutdated for d, got: {error:?}",
     );
 }

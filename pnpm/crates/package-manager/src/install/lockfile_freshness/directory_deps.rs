@@ -20,7 +20,7 @@ use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
     ChildCatalogs, ChildSpec, ResolveDependencyTreeError, local_directory_child_specs,
 };
-use scope::{AliasScope, Visited, importer_aliases, peers_in_scope, snapshot_aliases};
+use scope::{AliasScope, Visited, importer_aliases, snapshot_aliases};
 use spec::{SpecDirs, spec_satisfies_snapshot_dep};
 use std::{collections::HashSet, path::Path};
 
@@ -64,7 +64,7 @@ pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
 ) -> Result<(), FreshnessCheckError> {
-    let mut visited = HashSet::new();
+    let mut visited = Visited::new(check.lockfile);
     for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
         if let Some(dep_map) = importer.get_map_by_group(group) {
             for (dep_name, dep_spec) in dep_map {
@@ -260,7 +260,7 @@ fn check_single_directory_dep_freshness(
     };
     // A revisit in the same peer scope is a cycle or a shared dependency
     // already checked.
-    if !visited.insert((pkg_key.clone(), peers_in_scope(&local_manifest, scope))) {
+    if !visited.first_visit(pkg_key, &local_manifest, scope) {
         return Ok(());
     }
     let peers = PeerShadowing::of(
