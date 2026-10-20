@@ -14,6 +14,8 @@ fn recognizes_structured_and_config_only_keys() {
     assert!(is_known_setting_key("overrides"));
     assert!(is_known_setting_key("catalogPrune"));
     assert!(is_known_setting_key("executionEnv"));
+    assert!(is_known_setting_key("autoInstallPeersFromHighestMatch"));
+    assert!(is_known_setting_key("externalDependencies"));
 }
 
 /// `globalShims` has no entry in the mirrored pnpm lists; it must enter

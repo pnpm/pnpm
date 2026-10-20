@@ -140,7 +140,7 @@ export function hoist (
   lockfile: LockfileObject,
   opts?: {
     hoistingLimits?: HoistingLimits
-    externalDependencies?: Set<string>
+    externalDependencies?: Iterable<string>
     autoInstallPeers?: boolean
   }
 ): HoisterResult {
@@ -150,7 +150,8 @@ export function hoist (
     lockfile,
     nodes: new Map<string, HoisterTree>(),
   }
-  const rootNode = buildRootHoisterTree(lockfile, ctx, opts?.externalDependencies)
+  const externalDependencies = toExternalDependencySet(opts?.externalDependencies)
+  const rootNode = buildRootHoisterTree(lockfile, ctx, externalDependencies)
   for (const [importerId, importer] of Object.entries(lockfile.importers)) {
     if (importerId === '.') continue
     rootNode.dependencies.add(buildImporterHoisterTree(importerId, importer, ctx))
@@ -158,10 +159,19 @@ export function hoist (
 
   const hoistingLimits = getHoistingLimits(lockfile, opts?.hoistingLimits)
   const hoisterResult = _hoist(rootNode, { ...opts, hoistingLimits })
-  if (opts?.externalDependencies) {
-    filterExternalDependencies(hoisterResult, opts.externalDependencies)
+  if (externalDependencies) {
+    filterExternalDependencies(hoisterResult, externalDependencies)
   }
   return hoisterResult
+}
+
+function toExternalDependencySet (
+  externalDependencies: Iterable<string> | undefined
+): Set<string> | undefined {
+  if (externalDependencies == null) return undefined
+  return externalDependencies instanceof Set
+    ? externalDependencies
+    : new Set(externalDependencies)
 }
 
 function buildRootHoisterTree (

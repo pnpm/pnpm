@@ -296,6 +296,8 @@ export interface PnpmSettings {
   peerDependencyRules?: PeerDependencyRules
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
+  autoInstallPeersFromHighestMatch?: boolean
+  externalDependencies?: string[]
   patchedDependencies?: Record<string, string>
   update?: UpdateSettings
   /**

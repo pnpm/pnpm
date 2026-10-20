@@ -13,6 +13,24 @@ test('hoist', async () => {
   expect(hoist(lockfile!)).toBeTruthy()
 })
 
+test.each([
+  ['Set', (name: string) => new Set([name])],
+  ['Array', (name: string) => [name]],
+  ['Generator', function * (name: string) {
+    yield name
+  }],
+])('hoist strips externalDependencies passed as a %s from the root dependencies', async (_kind, toExternalDependencies) => {
+  const lockfile = await readWantedLockfile(testFixtures.find('fixture'), { ignoreIncompatible: true })
+  const withoutExternals = hoist(lockfile!)
+  const [targetDep] = withoutExternals.dependencies
+  expect(targetDep).toBeDefined()
+
+  const withExternals = hoist(lockfile!, {
+    externalDependencies: toExternalDependencies(targetDep.name),
+  })
+  expect([...withExternals.dependencies].some((dep) => dep.name === targetDep.name)).toBe(false)
+})
+
 test('hoist throws an error if the lockfile is broken', () => {
   expect(() => hoist({
     lockfileVersion: '5',
