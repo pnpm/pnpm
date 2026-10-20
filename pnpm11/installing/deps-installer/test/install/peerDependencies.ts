@@ -2792,7 +2792,6 @@ test('changing overrides re-resolves a dependency that the lockfile records as a
 
 // Covers https://github.com/pnpm/pnpm/issues/17161
 test('re-resolving keeps an optional peer that is also a regular dependency when locked with a peer suffix', async () => {
-  await addDistTag({ package: '@pnpm.e2e/bravo-dep', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty()
   const { updatedManifest: manifest } = await addDependenciesToPackage(
     {},
