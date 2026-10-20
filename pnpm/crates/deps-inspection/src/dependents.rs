@@ -57,6 +57,14 @@ pub struct DependentNode {
     /// carry no manifest.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub manifest: Option<serde_json::Map<String, serde_json::Value>>,
+    /// Workspace project identity for importer leaves, kept across
+    /// [`merge_trees`] so unnamed projects do not collapse into one leaf.
+    #[serde(skip)]
+    pub(crate) importer_id: Option<String>,
+    /// Originating matched-package paths from merged per-project trees,
+    /// used by `pnpm why --parseable --long`.
+    #[serde(skip)]
+    pub(crate) root_paths: Vec<String>,
 }
 
 impl Default for DependentNode {
@@ -77,6 +85,8 @@ impl DependentNode {
             dep_field: None,
             dependents: None,
             manifest: None,
+            importer_id: None,
+            root_paths: Vec::new(),
         }
     }
 }
@@ -181,6 +191,7 @@ impl ManifestProjector<'_> {
 }
 
 struct WalkCtx<'a> {
+    lockfile_dir: &'a std::path::Path,
     reverse_map: &'a HashMap<TreeNodeId, Vec<ReverseEdge>>,
     lockfile: &'a Lockfile,
     importer_info: &'a HashMap<String, ImporterInfo>,
@@ -245,6 +256,7 @@ fn walk_dependents_of(
     node_id: &TreeNodeId,
 ) -> Vec<DependentNode> {
     let mut ctx = WalkCtx {
+        lockfile_dir: &opts.env.layout.lockfile_dir,
         reverse_map,
         lockfile: opts.env.current_lockfile,
         importer_info: opts.importer_info,
@@ -316,6 +328,7 @@ fn circular_node(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> Option<DependentNode
             let info = ctx.importer_info.get(importer_id)?;
             let mut node = DependentNode::leaf(info.name.clone(), info.version.clone());
             node.circular = true;
+            node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
             Some(node)
         }
         TreeNodeId::Package(dep_path) => {
@@ -372,7 +385,13 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
     node.dep_field = ctx.lockfile.importers
         .get(importer_id)
         .and_then(|importer| dep_field_for_alias(&edge.alias, importer));
+    node.importer_id = Some(importer_identity(ctx.lockfile_dir, importer_id));
     node
+}
+
+fn importer_identity(lockfile_dir: &std::path::Path, importer_id: &str) -> String {
+    crate::build::safe_importer_dir(lockfile_dir, importer_id)
+        .map_or_else(|| importer_id.to_string(), |dir| dir.to_string_lossy().into_owned())
 }
 
 fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {

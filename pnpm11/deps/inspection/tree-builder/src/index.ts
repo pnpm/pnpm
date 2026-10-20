@@ -2,4 +2,4 @@ export { buildDependenciesTree, type DependenciesTree } from './buildDependencie
 export { buildDependentsTree, compareDependentsTrees, type DependentNode, type DependentsTree, type ImporterInfo } from './buildDependentsTree.js'
 export { createPackagesSearcher } from './createPackagesSearcher.js'
 export { type DependencyNode } from './DependencyNode.js'
-export { mergeDependentsTrees } from './mergeDependentsTrees.js'
+export { getDependentNodeRootPaths, mergeDependentsTrees } from './mergeDependentsTrees.js'

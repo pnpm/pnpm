@@ -1,4 +1,4 @@
-import type { DependentNode, DependentsTree } from '@pnpm/deps.inspection.tree-builder'
+import { type DependentNode, type DependentsTree, getDependentNodeRootPaths } from '@pnpm/deps.inspection.tree-builder'
 import { renderTree as renderArchyTree, type TreeNode } from '@pnpm/text.tree-renderer'
 import chalk from 'chalk'
 
@@ -152,25 +152,50 @@ export function renderDependentsParseable (trees: DependentsTree[], opts: { long
   const lines: string[] = []
   for (const result of trees) {
     const displayedName = result.displayName ?? result.name
-    const rootSegment = opts.long && result.path
-      ? `${result.path}:${plainNameAtVersion(displayedName, result.version)}`
-      : plainNameAtVersion(displayedName, result.version)
-    collectPaths(result.dependents, [rootSegment], lines, 0, opts.depth)
+    const rootNameVer = plainNameAtVersion(displayedName, result.version)
+    collectPaths(result.dependents, [], lines, 0, {
+      long: opts.long,
+      maxDepth: opts.depth,
+      rootNameVer,
+      defaultRootPath: result.path,
+    })
   }
   return lines.join('\n')
 }
 
-function collectPaths (dependents: DependentNode[], currentPath: string[], lines: string[], currentDepth: number, maxDepth?: number): void {
+function collectPaths (
+  dependents: DependentNode[],
+  currentPath: string[],
+  lines: string[],
+  currentDepth: number,
+  opts: { long: boolean, maxDepth?: number, rootNameVer: string, defaultRootPath?: string }
+): void {
   for (const dep of dependents) {
     const newPath = [...currentPath, plainNameAtVersion(dep.displayName ?? dep.name, dep.version)]
-    const atDepthLimit = maxDepth != null && currentDepth + 1 >= maxDepth
+    const atDepthLimit = opts.maxDepth != null && currentDepth + 1 >= opts.maxDepth
     if (dep.dependents && dep.dependents.length > 0 && !atDepthLimit) {
-      collectPaths(dep.dependents, newPath, lines, currentDepth + 1, maxDepth)
+      collectPaths(dep.dependents, newPath, lines, currentDepth + 1, opts)
     } else {
-      // Leaf node (importer or depth-limited) — reverse to show importer first
-      lines.push([...newPath].reverse().join(' > '))
+      for (const rootSegment of resolveParseableRootSegments(dep, opts)) {
+        // Leaf node (importer or depth-limited) — reverse to show importer first
+        lines.push([rootSegment, ...newPath].reverse().join(' > '))
+      }
     }
   }
+}
+
+function resolveParseableRootSegments (
+  dep: DependentNode,
+  opts: { long: boolean, rootNameVer: string, defaultRootPath?: string }
+): string[] {
+  if (!opts.long) return [opts.rootNameVer]
+  const rootPaths = getDependentNodeRootPaths(dep)
+  if (rootPaths && rootPaths.length > 0) {
+    return rootPaths.map((rootPath) => `${rootPath}:${opts.rootNameVer}`)
+  }
+  return opts.defaultRootPath
+    ? [`${opts.defaultRootPath}:${opts.rootNameVer}`]
+    : [opts.rootNameVer]
 }
 
 function truncateDependents (dependents: DependentNode[], currentDepth: number, maxDepth: number): DependentNode[] {

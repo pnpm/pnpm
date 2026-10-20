@@ -105,6 +105,35 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
         "shared dep should be merged into a single tree: {shared_stdout}",
     );
 
+    let parseable_long = pacquet(&workspace, ["why", "--parseable", "--long", HELLO])
+        .output()
+        .expect("run pacquet why --parseable --long");
+    assert!(
+        parseable_long.status.success(),
+        "why --parseable --long should succeed: {parseable_long:?}",
+    );
+    let parseable_lines: Vec<String> = String::from_utf8_lossy(&parseable_long.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
+    assert_eq!(parseable_lines.len(), 2, "expected 2 parseable lines: {parseable_lines:?}");
+    let app_hello =
+        dunce::canonicalize(app.join("custom_modules").join(HELLO)).expect("canonicalize app dep");
+    let lib_hello =
+        dunce::canonicalize(lib.join("node_modules").join(HELLO)).expect("canonicalize lib dep");
+    assert!(
+        parseable_lines[0].starts_with("app@1.0.0 > ")
+            && parseable_lines[0].contains(&app_hello.to_string_lossy().into_owned()),
+        "app line should reference app's custom_modules path: {}",
+        parseable_lines[0],
+    );
+    assert!(
+        parseable_lines[1].starts_with("lib@1.0.0 > ")
+            && parseable_lines[1].contains(&lib_hello.to_string_lossy().into_owned()),
+        "lib line should reference lib's node_modules path: {}",
+        parseable_lines[1],
+    );
+
     let json = pacquet(&workspace, ["why", "--json", "--long", PKG])
         .output()
         .expect("run pacquet why --json --long");
@@ -141,6 +170,39 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
     assert!(
         local_finder_stdout.contains("Found in app"),
         "non-recursive why should use project-local finder: {local_finder_stdout}",
+    );
+}
+
+#[test]
+fn recursive_why_preserves_distinct_unnamed_projects_with_dedicated_lockfiles() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+    for dir in ["packages/app", "packages/lib"] {
+        let project_dir = workspace.join(dir);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            format!(r#"{{ "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#),
+        )
+        .expect("write unnamed project manifest");
+    }
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output =
+        pacquet(&workspace, ["why", HELLO]).output().expect("run why for unnamed projects");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi_codes(&raw);
+    assert_eq!(
+        stdout.matches("the root project (dependencies)").count(),
+        2,
+        "both unnamed projects should remain in merged output: {stdout}",
     );
 }
 
