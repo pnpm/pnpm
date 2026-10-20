@@ -1,7 +1,15 @@
 import assert from 'node:assert'
 
-import { type Config, createProjectConfigRecord } from '@pnpm/config.reader'
-import { renderJson } from '@pnpm/deps.inspection.list'
+import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
+import {
+  type DependentsTree,
+  getDependentsTrees,
+  mergeDependentsTrees,
+  renderDependents,
+  renderJson,
+  whyForPackages,
+  type WhyOptions,
+} from '@pnpm/deps.inspection.list'
 import { isError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import type { IncludedDependencies, Project } from '@pnpm/types'
@@ -38,10 +46,10 @@ export async function listRecursive (
       lockfileDir: opts.lockfileDir,
     })
   }
-  const projectConfigRecord = createProjectConfigRecord(opts)
+  const resolveModulesDir = createProjectModulesDirResolver(opts)
   const projectOpts = ({ rootDir, manifest }: Project) => ({
     ...opts,
-    modulesDir: (manifest.name ? projectConfigRecord?.[manifest.name]?.modulesDir : undefined) ?? opts.modulesDir,
+    modulesDir: resolveModulesDir(manifest.name),
     lockfileDir: rootDir,
   })
   if (determineReportAs(opts) === 'json') {
@@ -60,6 +68,31 @@ export async function listRecursive (
 
   const joiner = typeof depth === 'number' && depth > -1 ? '\n\n' : '\n'
   return outputs.join(joiner)
+}
+
+export async function whyRecursive (
+  pkgs: Project[],
+  params: string[],
+  opts: Omit<WhyOptions, 'lockfileDir'> & Pick<Config, 'lockfileDir' | 'packageConfigs'>
+): Promise<string> {
+  if (opts.lockfileDir) {
+    return whyForPackages(params, pkgs.map((pkg) => pkg.rootDir), {
+      ...opts,
+      lockfileDir: opts.lockfileDir,
+    })
+  }
+  const resolveModulesDir = createProjectModulesDirResolver(opts)
+  const projectTrees = (await Promise.all(pkgs.map((pkg) =>
+    withProjectError(pkg.rootDir, () => getDependentsTrees(params, [pkg.rootDir], {
+      ...opts,
+      lockfileDir: pkg.rootDir,
+      modulesDir: resolveModulesDir(pkg.manifest.name),
+    }))
+  ))).filter((trees): trees is DependentsTree[] => trees != null)
+  if (projectTrees.length === 0) return ''
+
+  const trees = mergeDependentsTrees(projectTrees.flat())
+  return renderDependents(trees, opts)
 }
 
 async function withProjectError<Result> (rootDir: string, action: () => Promise<Result>): Promise<Result> {

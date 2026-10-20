@@ -1,9 +1,9 @@
 //! `pnpm list` / `ls` / `ll` / `la` — list installed packages.
 
+pub(in crate::cli_args) mod recursive;
 pub(crate) mod render;
 
 mod linked_projects;
-mod recursive;
 
 use crate::cli_args::{
     deps_tree::{

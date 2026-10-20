@@ -238,7 +238,7 @@ function searchPackage (
   return false
 }
 
-function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
+export function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
   const nameCmp = lexCompare(left.name, right.name)
   if (nameCmp !== 0) return nameCmp
   const versionCmp = semver.valid(left.version) && semver.valid(right.version)

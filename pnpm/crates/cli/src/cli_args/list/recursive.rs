@@ -97,7 +97,7 @@ impl ListArgs {
 /// `config` re-anchored on one project of a workspace whose projects keep
 /// their own lockfiles, so the listing reads the modules directory that
 /// project installed into rather than the workspace-wide one.
-pub(super) fn dedicated_project_config(
+pub(in crate::cli_args) fn dedicated_project_config(
     config: &Config,
     project_dir: &Path,
     project_name: Option<&str>,
