@@ -23,7 +23,7 @@ use super::{
 };
 use crate::optimistic_repeat_install::{
     Scope, check_optimistic_repeat_install_with_state, config_blocks_fast_path,
-    refreshed_validation_baseline_ms, validation_baseline_ms,
+    last_validated_timestamp,
 };
 use pnpm_reporter::Reporter;
 use pnpm_workspace_state::{load_workspace_state, update_workspace_state_in_modules};
@@ -493,25 +493,6 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
         record_hoisted_modules_dirs(&mut state.projects, project_manifests);
     }
     state
-}
-
-/// The [`refreshed_validation_baseline_ms`] of the validated files, lowered
-/// to `SOURCE_DATE_EPOCH` when it is set. Never raised to it: a later value
-/// would hide manifest edits made before that time.
-fn last_validated_timestamp<Sys: Clock>(
-    workspace_root: &Path,
-    config: &Config,
-    project_manifests: &[(PathBuf, &PackageManifest)],
-    filesystem_now_ms: Option<i64>,
-) -> i64 {
-    let validated = refreshed_validation_baseline_ms(
-        validation_baseline_ms(workspace_root, config, project_manifests)
-            .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
-        filesystem_now_ms,
-    );
-    config.source_date_epoch.map_or(validated, |epoch| {
-        validated.min(pnpm_workspace_state::millis_since_epoch(epoch))
-    })
 }
 
 /// The `autoDedupe` an install records in the workspace state.
