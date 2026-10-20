@@ -292,12 +292,13 @@ fn check_directory_dep_in_scope(
         },
         catalogs,
     };
-    let mut visited = std::collections::HashSet::new();
+    let mut visited = super::scope::Visited::new(check.lockfile);
+    let pkg_key: pnpm_lockfile::PackageKey = "lib@file:lib".parse().expect("parse the package key");
     super::check_single_directory_dep_freshness(
         &check,
-        |name| super::importer_declares(&importer, name),
+        &super::scope::importer_aliases(&importer),
         &dep,
-        (Some(&snapshot), &metadata),
+        (&pkg_key, Some(&snapshot), &metadata),
         &mut visited,
     )
 }
@@ -774,5 +775,307 @@ snapshots:
             ) if name == "@ws/a" && path == "packages/a"
         ),
         "expected LocalDependencyOutdated for @ws/a at packages/a, got: {err:?}",
+    );
+}
+
+/// Checks the root project of `lockfile`, which depends on `a: file:./a`,
+/// with the package manifests written to their directories and no
+/// directory a workspace project.
+fn check_root_with_directories(
+    manifests: &[(&str, serde_json::Value)],
+    lockfile: &str,
+    auto_install_peers: bool,
+) -> Result<(), FreshnessCheckError> {
+    let tmp = tempfile::tempdir().expect("create tempdir");
+    let root = tmp.path();
+    for (dir, manifest) in manifests {
+        std::fs::create_dir_all(root.join(dir)).expect("create package dir");
+        std::fs::write(root.join(dir).join("package.json"), manifest.to_string())
+            .expect("write package manifest");
+    }
+    let manifest = PackageManifest::from_value(
+        root.join("package.json"),
+        serde_json::json!({ "name": "root", "dependencies": { "a": "file:./a" } }),
+    );
+    let lockfile: pnpm_lockfile::Lockfile =
+        serde_saphyr::from_str(lockfile).expect("parse lockfile");
+    let mut config = pnpm_config::Config::new();
+    config.auto_install_peers = auto_install_peers;
+    let ignored = pnpm_matcher::create_matcher(&[]);
+    let manifests_by_dir = HashMap::new();
+    let catalogs = std::collections::BTreeMap::new();
+    let check = crate::install::lockfile_freshness::ImporterSatisfactionCheck {
+        lockfile: &lockfile,
+        lockfile_dir: root,
+        manifest: &manifest,
+        importer_id: ".",
+        config: &config,
+        workspace: crate::install::lockfile_freshness::WorkspaceProjects {
+            packages: None,
+            manifests_by_dir: &manifests_by_dir,
+            catalogs: &catalogs,
+        },
+        optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
+            ignored: &ignored,
+            frozen_lockfile: false,
+        },
+        parsed_overrides: None,
+    };
+    let importer = lockfile.importers.get(".").expect("root importer");
+    super::check_directory_dependencies_freshness(&check, importer)
+}
+
+/// Checks `a -> b -> leaf`, where `b` declares `b_leaf_spec` for `leaf` and
+/// the lockfile records `b` depending on `leaf@file:leaf1`.
+fn check_file_chain(b_leaf_spec: &str) -> Result<(), FreshnessCheckError> {
+    check_root_with_directories(
+        &[
+            (
+                "a",
+                serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "b": "file:../b" } }),
+            ),
+            (
+                "b",
+                serde_json::json!({ "name": "b", "version": "1.0.0", "dependencies": { "leaf": b_leaf_spec } }),
+            ),
+            ("leaf1", serde_json::json!({ "name": "leaf", "version": "1.0.0" })),
+            ("leaf2", serde_json::json!({ "name": "leaf", "version": "2.0.0" })),
+        ],
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      a:
+        specifier: file:./a
+        version: file:a
+packages:
+  a@file:a:
+    resolution: { type: directory, directory: a }
+  b@file:b:
+    resolution: { type: directory, directory: b }
+  leaf@file:leaf1:
+    resolution: { type: directory, directory: leaf1 }
+snapshots:
+  a@file:a:
+    dependencies:
+      b: file:b
+  b@file:b:
+    dependencies:
+      leaf: file:leaf1
+  leaf@file:leaf1: {}
+",
+        true,
+    )
+}
+
+#[test]
+fn an_unchanged_chain_of_file_directory_dependencies_is_fresh() {
+    let result = check_file_chain("file:../leaf1");
+    assert!(result.is_ok(), "an unchanged file: chain must be fresh: {result:?}");
+}
+
+#[test]
+fn a_transitive_file_directory_dependency_with_changed_dependencies_is_outdated() {
+    let error = check_file_chain("file:../leaf2")
+        .expect_err("b now depends on leaf2, which its snapshot does not record");
+    assert!(
+        matches!(
+            &error,
+            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { name, .. })
+                if name == "b"
+        ),
+        "expected LocalDependencyOutdated for b, got: {error:?}",
+    );
+}
+
+/// `c` depends on `p@1.0.0` and declares it as a peer, which `p_owner`
+/// supplies at `2.0.0`, so the lockfile records `c` with the peer's version.
+fn peer_supplying_directories(p_owner: &str) -> Vec<(&'static str, serde_json::Value)> {
+    let mut a_deps = serde_json::json!({ "b": "file:../b", "e": "file:../e" });
+    let mut b_deps = serde_json::json!({ "c": "file:../c" });
+    let owner = if p_owner == "a" { &mut a_deps } else { &mut b_deps };
+    owner["p"] = "2.0.0".into();
+    vec![
+        ("a", serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": a_deps })),
+        ("b", serde_json::json!({ "name": "b", "version": "1.0.0", "dependencies": b_deps })),
+        (
+            "c",
+            serde_json::json!({
+                "name": "c",
+                "version": "1.0.0",
+                "dependencies": { "p": "1.0.0" },
+                "peerDependencies": { "p": "*" },
+            }),
+        ),
+        (
+            "e",
+            serde_json::json!({ "name": "e", "version": "1.0.0", "dependencies": { "f": "file:../f" } }),
+        ),
+        (
+            "f",
+            serde_json::json!({ "name": "f", "version": "1.0.0", "dependencies": { "c": "file:../c" } }),
+        ),
+    ]
+}
+
+/// The lockfile `a -> {b, e}`, `b -> c`, `e -> f -> c`, with `p@2.0.0`
+/// recorded under `p_owner`.
+fn peer_supplying_lockfile(p_owner: &str) -> String {
+    let (a_p, b_p) =
+        if p_owner == "a" { ("\n      p: 2.0.0", "") } else { ("", "\n      p: 2.0.0") };
+    format!(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      a:
+        specifier: file:./a
+        version: file:a
+packages:
+  a@file:a:
+    resolution: {{ type: directory, directory: a }}
+  b@file:b:
+    resolution: {{ type: directory, directory: b }}
+  c@file:c:
+    resolution: {{ type: directory, directory: c }}
+    peerDependencies:
+      p: '*'
+  e@file:e:
+    resolution: {{ type: directory, directory: e }}
+  f@file:f:
+    resolution: {{ type: directory, directory: f }}
+  p@2.0.0:
+    resolution: {{ integrity: sha512-p }}
+snapshots:
+  a@file:a:
+    dependencies:
+      b: file:b
+      e: file:e{a_p}
+  b@file:b:
+    dependencies:
+      c: file:c(p@2.0.0){b_p}
+  c@file:c(p@2.0.0):
+    dependencies:
+      p: 2.0.0
+  e@file:e:
+    dependencies:
+      f: file:f
+  f@file:f:
+    dependencies:
+      c: file:c(p@2.0.0)
+  p@2.0.0: {{}}
+",
+    )
+}
+
+#[test]
+fn a_nested_directory_whose_peer_an_ancestor_supplies_is_fresh() {
+    let result = check_root_with_directories(
+        &peer_supplying_directories("a"),
+        &peer_supplying_lockfile("a"),
+        false,
+    );
+    assert!(result.is_ok(), "a supplies the peer of c two levels down: {result:?}");
+}
+
+#[test]
+fn a_shared_directory_is_checked_again_where_no_ancestor_supplies_its_peer() {
+    let error = check_root_with_directories(
+        &peer_supplying_directories("b"),
+        &peer_supplying_lockfile("b"),
+        false,
+    )
+    .expect_err("through e and f, nothing supplies the peer of c, so it needs p@1.0.0");
+    assert!(
+        matches!(
+            &error,
+            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { name, .. })
+                if name == "c"
+        ),
+        "expected LocalDependencyOutdated for c, got: {error:?}",
+    );
+}
+
+#[test]
+fn a_shared_directory_is_checked_again_where_no_ancestor_supplies_a_descendant_peer() {
+    let manifest = |name: &str, dependencies: serde_json::Value| serde_json::json!({ "name": name, "version": "1.0.0", "dependencies": dependencies });
+    let directories = [
+        ("a", manifest("a", serde_json::json!({ "b": "file:../b", "e": "file:../e" }))),
+        ("b", manifest("b", serde_json::json!({ "c": "file:../c", "p": "2.0.0" }))),
+        ("c", manifest("c", serde_json::json!({ "d": "file:../d" }))),
+        (
+            "d",
+            serde_json::json!({
+                "name": "d",
+                "version": "1.0.0",
+                "dependencies": { "p": "1.0.0" },
+                "peerDependencies": { "p": "*" },
+            }),
+        ),
+        ("e", manifest("e", serde_json::json!({ "f": "file:../f" }))),
+        ("f", manifest("f", serde_json::json!({ "c": "file:../c" }))),
+    ];
+    let error = check_root_with_directories(
+        &directories,
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      a:
+        specifier: file:./a
+        version: file:a
+packages:
+  a@file:a:
+    resolution: { type: directory, directory: a }
+  b@file:b:
+    resolution: { type: directory, directory: b }
+  c@file:c:
+    resolution: { type: directory, directory: c }
+  d@file:d:
+    resolution: { type: directory, directory: d }
+    peerDependencies:
+      p: '*'
+  e@file:e:
+    resolution: { type: directory, directory: e }
+  f@file:f:
+    resolution: { type: directory, directory: f }
+  p@2.0.0:
+    resolution: { integrity: sha512-p }
+snapshots:
+  a@file:a:
+    dependencies:
+      b: file:b
+      e: file:e
+  b@file:b:
+    dependencies:
+      c: file:c
+      p: 2.0.0
+  c@file:c:
+    dependencies:
+      d: file:d(p@2.0.0)
+  d@file:d(p@2.0.0):
+    dependencies:
+      p: 2.0.0
+  e@file:e:
+    dependencies:
+      f: file:f
+  f@file:f:
+    dependencies:
+      c: file:c
+  p@2.0.0: {}
+",
+        false,
+    )
+    .expect_err("through e and f, nothing supplies the peer of d, so it needs p@1.0.0");
+    assert!(
+        matches!(
+            &error,
+            FreshnessCheckError::Stale(StalenessReason::LocalDependencyOutdated { name, .. })
+                if name == "d"
+        ),
+        "expected LocalDependencyOutdated for d, got: {error:?}",
     );
 }

@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { beforeEach, describe, expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { getTarballIntegrity } from '@pnpm/crypto.hash'
-import type { LockfileObject, PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
+import type { LockfileObject, PackageSnapshot, ProjectSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import { allProjectsAreUpToDate, checkLinkedPackagesAreUpToDate, findPackageTarballIntegrityMismatch, resolveLocalTarballPath } from '@pnpm/lockfile.verification'
 import { prepareEmpty } from '@pnpm/prepare'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
@@ -1421,6 +1421,157 @@ describe('local file dependency', () => {
   async function writeLocalDirManifest (fields: Partial<DependencyManifest>): Promise<void> {
     await writeFile('./local-dir/package.json', JSON.stringify({ name: 'local-dir', version: '1.0.0', ...fields }))
   }
+})
+
+describe('transitive local directory dependency', () => {
+  beforeEach(async () => {
+    prepareEmpty()
+    await mkdir('a')
+    await mkdir('b')
+    await mkdir('leaf1')
+    await mkdir('leaf2')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf1' } }))
+    await writeFile('./leaf1/package.json', JSON.stringify({ name: 'leaf', version: '1.0.0' }))
+    await writeFile('./leaf2/package.json', JSON.stringify({ name: 'leaf', version: '2.0.0' }))
+  })
+  const lockfilePackages = {
+    'a@file:./a': {
+      resolution: { directory: './a', type: 'directory' },
+      version: '1.0.0',
+      dependencies: { b: 'file:./b' },
+    },
+    'b@file:./b': {
+      resolution: { directory: './b', type: 'directory' },
+      version: '1.0.0',
+      dependencies: { leaf: 'file:./leaf1' },
+    },
+    'leaf@file:./leaf1': {
+      resolution: { directory: './leaf1', type: 'directory' },
+      version: '1.0.0',
+    },
+  } as LockfileObject['packages']
+  const project = {
+    dir: path.resolve('bar'),
+    manifest: { dependencies: { a: 'file:./a' } },
+    snapshot: {
+      dependencies: { a: 'file:./a' },
+      specifiers: { a: 'file:./a' },
+    } as ProjectSnapshot,
+  }
+  const ctx = () => ({
+    linkWorkspacePackages: true,
+    manifestsByDir: {},
+    lockfilePackages,
+    lockfileDir: process.cwd(),
+  })
+  test('checkLinkedPackagesAreUpToDate(): accepts an unchanged chain of local directory dependencies', async () => {
+    expect((await checkLinkedPackagesAreUpToDate(ctx(), project)).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): reports a transitive local directory dependency whose own dependencies changed (pnpm/pnpm#17128)', async () => {
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { leaf: 'file:../leaf2' } }))
+    expect((await checkLinkedPackagesAreUpToDate(ctx(), project)).upToDate).toBe(false)
+  })
+  test('checkLinkedPackagesAreUpToDate(): reports a local directory child whose lockfile snapshot is missing', async () => {
+    const packagesWithoutB = { ...lockfilePackages } as Record<string, unknown>
+    delete packagesWithoutB['b@file:./b']
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packagesWithoutB as LockfileObject['packages'] }, project)).upToDate).toBe(false)
+  })
+  test('checkLinkedPackagesAreUpToDate(): terminates on a cycle of local directory dependencies', async () => {
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { a: 'file:../a' } }))
+    const cyclicPackages = {
+      ...lockfilePackages,
+      'b@file:./b': {
+        resolution: { directory: './b', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { a: 'file:./a' },
+      },
+    }
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: cyclicPackages }, project)).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): accepts a nested directory whose peer an ancestor supplies', async () => {
+    await mkdir('c')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b', p: '2.0.0' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { c: 'file:../c' } }))
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { p: '1.0.0' }, peerDependencies: { p: '*' } }))
+    const packages = {
+      'a@file:./a': {
+        resolution: { directory: './a', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { b: 'file:./b', p: '2.0.0' },
+      },
+      'b@file:./b': {
+        resolution: { directory: './b', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { c: 'file:./c(p@2.0.0)' },
+      },
+      'c@file:./c(p@2.0.0)': {
+        resolution: { directory: './c', type: 'directory' },
+        version: '1.0.0',
+        dependencies: { p: '2.0.0' },
+        peerDependencies: { p: '*' },
+      },
+      'p@2.0.0': {
+        resolution: { integrity: 'sha512-p' },
+        version: '2.0.0',
+      },
+    } as LockfileObject['packages']
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(true)
+  })
+  test('checkLinkedPackagesAreUpToDate(): checks a shared directory again where no ancestor supplies its peer', async () => {
+    await mkdir('c')
+    await mkdir('e')
+    await mkdir('f')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b', e: 'file:../e' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { c: 'file:../c', p: '2.0.0' } }))
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { p: '1.0.0' }, peerDependencies: { p: '*' } }))
+    await writeFile('./e/package.json', JSON.stringify({ name: 'e', version: '1.0.0', dependencies: { f: 'file:../f' } }))
+    await writeFile('./f/package.json', JSON.stringify({ name: 'f', version: '1.0.0', dependencies: { c: 'file:../c' } }))
+    const directory = (dir: string, dependencies: Record<string, string>) => ({
+      resolution: { directory: dir, type: 'directory' },
+      version: '1.0.0',
+      dependencies,
+    })
+    const packages = {
+      'a@file:./a': directory('./a', { b: 'file:./b', e: 'file:./e' }),
+      'b@file:./b': directory('./b', { c: 'file:./c(p@2.0.0)', p: '2.0.0' }),
+      'c@file:./c(p@2.0.0)': { ...directory('./c', { p: '2.0.0' }), peerDependencies: { p: '*' } },
+      'e@file:./e': directory('./e', { f: 'file:./f' }),
+      'f@file:./f': directory('./f', { c: 'file:./c(p@2.0.0)' }),
+      'p@2.0.0': { resolution: { integrity: 'sha512-p' }, version: '2.0.0' },
+    } as LockfileObject['packages']
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(false)
+  })
+
+  test('checkLinkedPackagesAreUpToDate(): checks a peer-free shared directory again where a descendant peer is not supplied', async () => {
+    await mkdir('c')
+    await mkdir('d')
+    await mkdir('e')
+    await mkdir('g')
+    await writeFile('./a/package.json', JSON.stringify({ name: 'a', version: '1.0.0', dependencies: { b: 'file:../b', e: 'file:../e' } }))
+    await writeFile('./b/package.json', JSON.stringify({ name: 'b', version: '1.0.0', dependencies: { c: 'file:../c', p: '2.0.0' } }))
+    await writeFile('./c/package.json', JSON.stringify({ name: 'c', version: '1.0.0', dependencies: { d: 'file:../d' } }))
+    await writeFile('./d/package.json', JSON.stringify({ name: 'd', version: '1.0.0', dependencies: { p: '1.0.0' }, peerDependencies: { p: '*' } }))
+    await writeFile('./e/package.json', JSON.stringify({ name: 'e', version: '1.0.0', dependencies: { g: 'file:../g' } }))
+    await writeFile('./g/package.json', JSON.stringify({ name: 'g', version: '1.0.0', dependencies: { c: 'file:../c' } }))
+    const directory = (dir: string, dependencies: Record<string, string>) => ({
+      resolution: { directory: dir, type: 'directory' },
+      version: '1.0.0',
+      dependencies,
+    })
+    const packages = {
+      'a@file:./a': directory('./a', { b: 'file:./b', e: 'file:./e' }),
+      'b@file:./b': directory('./b', { c: 'file:./c', p: '2.0.0' }),
+      'c@file:./c': directory('./c', { d: 'file:./d' }),
+      'd@file:./d': { ...directory('./d', { p: '2.0.0' }), peerDependencies: { p: '*' } },
+      'e@file:./e': directory('./e', { g: 'file:./g' }),
+      'g@file:./g': directory('./g', { c: 'file:./c' }),
+      'p@2.0.0': { resolution: { integrity: 'sha512-p' }, version: '2.0.0' },
+    } as LockfileObject['packages']
+    // Through b, p is supplied, so d's own p is shadowed. Through e it is not,
+    // so d keeps p@1.0.0 and the recorded 2.0.0 is stale.
+    expect((await checkLinkedPackagesAreUpToDate({ ...ctx(), lockfilePackages: packages, resolution: { autoInstallPeers: false } }, project)).upToDate).toBe(false)
+  })
 })
 
 describe('local tgz file dependency', () => {
