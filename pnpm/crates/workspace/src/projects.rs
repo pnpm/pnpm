@@ -17,7 +17,7 @@
 pub use membership::{belongs_to_workspace, is_workspace_project_dir, needs_package_patterns};
 
 use crate::{
-    directory_patterns::{negated_directory_pattern, normalize_directory_pattern},
+    directory_patterns::normalize_directory_pattern,
     project_manifest::{
         PROJECT_MANIFEST_BASENAMES, ReadProjectManifestError, read_exact_project_manifest,
     },
@@ -32,10 +32,7 @@ use std::{
     io::ErrorKind,
     path::{Path, PathBuf},
 };
-use wax::{
-    Glob,
-    walk::{Entry, FileIterator, LinkBehavior},
-};
+use wax::Glob;
 
 /// A project discovered under the workspace root.
 ///
@@ -130,11 +127,9 @@ pub fn find_workspace_projects_no_check(
         None => &default_patterns,
     };
 
-    let (include_patterns, user_negation_globs) = split_include_and_negation(patterns)?;
-    let subtree_negations = subtree_negations(patterns)?;
-
+    let include_patterns = split_include_patterns(patterns);
+    let negations = compile_negations(patterns)?;
     let dot_pruning_ignore_template = dot_pruning_ignore_template()?;
-    let user_negations = compile_user_negations(&user_negation_globs)?;
 
     parse_check_walk_patterns(&include_patterns, workspace_root)?;
 
@@ -145,8 +140,8 @@ pub fn find_workspace_projects_no_check(
         include_patterns: &include_patterns,
         workspace_root,
         dot_pruning_ignore_template: &dot_pruning_ignore_template,
-        user_negations: &user_negations,
-        subtree_negations: &subtree_negations,
+        user_negations: &negations.user,
+        subtree_negations: &negations.subtree,
         ignored_directories: &ignored_directories,
     })?;
 
@@ -158,52 +153,6 @@ pub fn find_workspace_projects_no_check(
     }
 
     read_projects(group_manifests_by_root(manifest_paths, workspace_root))
-}
-
-/// The walk ignores of a pattern that names no dot component, with no
-/// managed directory to prune: built once and cloned for every such walk.
-fn dot_pruning_ignore_template() -> Result<wax::Any<'static>, FindWorkspaceProjectsError> {
-    compile_walk_ignores(None, &[])
-        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<built-in ignore>".to_string(),
-            message: err.to_string(),
-        })
-}
-
-/// wax's `not` takes a single pattern; combine the ignores with
-/// `wax::any` so the walk filters them all in one pass. `dot_ignores` is
-/// what [`positional_dot_ignores`] returns for the pattern: `None` prunes
-/// every dot component.
-fn compile_walk_ignores(
-    dot_ignores: Option<&[String]>,
-    managed_ignores: &[String],
-) -> Result<wax::Any<'static>, wax::BuildError> {
-    let dot_ignores: Vec<&str> = match dot_ignores {
-        None => vec![DOT_COMPONENT_IGNORE_PATTERN],
-        Some(dot_ignores) => dot_ignores
-            .iter()
-            .map(String::as_str)
-            .collect(),
-    };
-    let patterns = IGNORE_PATTERNS
-        .iter()
-        .copied()
-        .chain(dot_ignores)
-        .chain(managed_ignores.iter().map(String::as_str))
-        .map(|pattern| Glob::new(pattern).map(Glob::into_owned))
-        .collect::<Result<Vec<_>, _>>()?;
-    wax::any(patterns)
-}
-
-/// User negations are written relative to the workspace root, while a
-/// parent-relative include walks from an ancestor of it, so they are
-/// matched against the path each entry has *from the workspace root*.
-fn compile_user_negations(globs: &[String]) -> Result<wax::Any<'_>, FindWorkspaceProjectsError> {
-    wax::any(globs.iter().map(String::as_str))
-        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: "<negated pattern>".to_string(),
-            message: err.to_string(),
-        })
 }
 
 fn read_projects(
@@ -222,26 +171,15 @@ fn read_projects(
     Ok(projects)
 }
 
-/// Split the configured patterns into the directories to include and the globs
-/// to negate.
-///
-/// `!`-prefixed patterns are negations. wax does not accept `!` inside
-/// `Glob::new()`, so they are split out and fed through `.not()` instead.
-fn split_include_and_negation(
-    patterns: &[String],
-) -> Result<(Vec<WorkspacePattern<'_>>, Vec<String>), FindWorkspaceProjectsError> {
-    let mut include_patterns = Vec::new();
-    let mut user_negation_globs: Vec<String> = Vec::new();
-    for pattern in patterns {
-        if !pattern.starts_with('!') {
-            if let Some(normalized) = normalize_directory_pattern(pattern) {
-                include_patterns.push(WorkspacePattern { source: pattern, normalized });
-            }
-            continue;
-        }
-        collect_negation_globs(pattern, &mut user_negation_globs)?;
-    }
-    Ok((include_patterns, user_negation_globs))
+fn split_include_patterns(patterns: &[String]) -> Vec<WorkspacePattern<'_>> {
+    patterns
+        .iter()
+        .filter(|pattern| !pattern.starts_with('!'))
+        .filter_map(|pattern| {
+            normalize_directory_pattern(pattern)
+                .map(|normalized| WorkspacePattern { source: pattern, normalized })
+        })
+        .collect()
 }
 
 /// Parse-check the generic-walk patterns up front, so a malformed glob fails
@@ -251,42 +189,21 @@ fn parse_check_walk_patterns(
     include_patterns: &[WorkspacePattern<'_>],
     workspace_root: &Path,
 ) -> Result<(), FindWorkspaceProjectsError> {
-    for WorkspacePattern { source, normalized: pattern } in include_patterns {
-        if specialized_pattern(pattern).is_some() {
+    for WorkspacePattern { source, normalized } in include_patterns {
+        if specialized_pattern(normalized).is_some() {
             continue;
         }
-        for normalized in normalize_manifest_patterns(pattern) {
-            let Some((_, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
-                continue;
-            };
-            Glob::new(normalized)
-                .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                    pattern: (*source).to_string(),
-                    message: err.to_string(),
-                })?;
+        let Some((_, normalized)) = split_parent_prefix(workspace_root, normalized) else {
+            continue;
+        };
+        if normalized == "." {
+            continue;
         }
-    }
-    Ok(())
-}
-
-/// Parse-check one `!`-prefixed pattern and add the globs it negates.
-///
-/// `!/...` remains a no-op: relative workspace paths never match that
-/// absolute form.
-fn collect_negation_globs(
-    pattern: &str,
-    user_negation_globs: &mut Vec<String>,
-) -> Result<(), FindWorkspaceProjectsError> {
-    let Some(directory) = negated_directory_pattern(pattern)? else {
-        return Ok(());
-    };
-    for normalized in normalize_manifest_patterns(&directory) {
-        Glob::new(&normalized)
+        Glob::new(normalized)
             .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.to_string(),
+                pattern: (*source).to_string(),
                 message: err.to_string(),
             })?;
-        user_negation_globs.push(normalized);
     }
     Ok(())
 }
@@ -297,7 +214,7 @@ struct MergePatterns<'a> {
     workspace_root: &'a Path,
     dot_pruning_ignore_template: &'a wax::Any<'a>,
     user_negations: &'a wax::Any<'a>,
-    subtree_negations: &'a [String],
+    subtree_negations: &'a wax::Any<'a>,
     ignored_directories: &'a [PathBuf],
 }
 
@@ -405,62 +322,6 @@ fn collect_pattern_manifests(
     Ok(manifest_paths)
 }
 
-fn collect_glob_manifests(
-    pattern: &WorkspacePattern<'_>,
-    merge: &MergePatterns<'_>,
-    manifest_paths: &mut BTreeSet<PathBuf>,
-) -> Result<(), FindWorkspaceProjectsError> {
-    for normalized in normalize_manifest_patterns(&pattern.normalized) {
-        let Some((walk_root, normalized)) = split_parent_prefix(merge.workspace_root, &normalized)
-        else {
-            continue;
-        };
-        if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
-            continue;
-        }
-        let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: pattern.source.to_string(),
-            message: err.to_string(),
-        };
-        let glob = Glob::new(normalized).map_err(invalid_glob)?;
-        let mut directory_ignores = managed_directory_ignores(walk_root, merge.ignored_directories);
-        directory_ignores.extend(rebase_subtree_negations(
-            merge.subtree_negations,
-            merge.workspace_root,
-            walk_root,
-        ));
-        let ignores = manifest_walk_ignores(
-            normalized,
-            merge.dot_pruning_ignore_template,
-            &directory_ignores,
-        )
-        .map_err(invalid_glob)?;
-        collect_walk_manifests(
-            glob.walk_with_behavior(walk_root, LinkBehavior::ReadTarget)
-                .not(ignores)
-                .map_err(invalid_glob)?,
-            walk_root,
-            merge.workspace_root,
-            merge.user_negations,
-            merge.ignored_directories,
-            manifest_paths,
-        )?;
-    }
-    Ok(())
-}
-
-fn manifest_walk_ignores<'a>(
-    normalized: &str,
-    dot_pruning_ignore_template: &wax::Any<'a>,
-    directory_ignores: &[String],
-) -> Result<wax::Any<'a>, wax::BuildError> {
-    let dot_ignores = positional_dot_ignores(normalized);
-    if dot_ignores.is_none() && directory_ignores.is_empty() {
-        return Ok(dot_pruning_ignore_template.clone());
-    }
-    compile_walk_ignores(dot_ignores.as_deref(), directory_ignores)
-}
-
 /// Read `root_dir`'s project from the first readable candidate.
 /// `Ok(None)` when every candidate is gone or names no importer
 /// manifest — the root then simply isn't a project.
@@ -486,17 +347,6 @@ fn read_first_project_manifest(
     Ok(None)
 }
 
-/// Hardcoded ignore patterns. Enumerating a real workspace excludes
-/// only `node_modules` and `bower_components`, not the `**/test/**` /
-/// `**/tests/**` directories that the lower-level package-finding path
-/// excludes.
-const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
-
-/// Prunes every path with a dot-prefixed component, so a wildcard cannot
-/// descend into `.git`, `.cache`, and friends. Applied only to patterns that
-/// do not name a dot component themselves — see [`positional_dot_ignores`].
-const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
-
 /// A configured include pattern. `normalized` drives discovery; `source` is
 /// the text an invalid-glob diagnostic quotes back to the user.
 struct WorkspacePattern<'source> {
@@ -505,18 +355,18 @@ struct WorkspacePattern<'source> {
 }
 
 mod managed;
-use managed::{managed_directory_ignores, resolve_ignored_directories};
+use managed::resolve_ignored_directories;
 
 mod membership;
 mod negations;
-use negations::{rebase_subtree_negations, subtree_negations};
+use negations::compile_negations;
 
 #[cfg(test)]
 mod tests;
 
 mod walk;
 use walk::{
-    SpecializedPattern, collect_literal_manifests_in, collect_manifests_in_children,
-    collect_walk_manifests, is_literal_pattern, normalize_manifest_patterns,
-    positional_dot_ignores, specialized_pattern, split_parent_prefix,
+    SpecializedPattern, collect_glob_manifests, collect_literal_manifests_in,
+    collect_manifests_in_children, dot_pruning_ignore_template, specialized_pattern,
+    split_parent_prefix,
 };
