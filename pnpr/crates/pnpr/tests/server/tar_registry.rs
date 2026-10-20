@@ -676,4 +676,26 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     assert_eq!(dist["fileCount"], serde_json::json!(2));
     assert_eq!(dist["unpackedSize"], serde_json::json!(43));
     assert_eq!(dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
+
+    // Round-tripping the served packument (which carries `dist.pnpr`) through
+    // the partial-unpublish `PUT /:pkg/-rev/:rev` endpoint must strip
+    // `dist.pnpr` rather than rejecting it as an extra immutable `dist` field.
+    let rewrite = app
+        .clone()
+        .oneshot(
+            Request::put("/npm/~acme/@acme%2Fnative/-rev/1-0")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(packument.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rewrite.status(), StatusCode::CREATED);
+
+    let after = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
+    assert_eq!(
+        after["versions"]["1.0.0"]["dist"]["pnpr"],
+        serde_json::json!({ "requiresBuild": true }),
+    );
 }
