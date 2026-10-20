@@ -293,7 +293,9 @@ impl FileApply<'_> {
 
     /// An existing `to` is not overwritten, for the reason [`Self::create`]
     /// gives. A missing `from` means an earlier apply of the same patch
-    /// already moved it.
+    /// already moved it. A rename without hunks or a mode change only moves
+    /// the entry, so its bytes are never decoded and a symlink stays a
+    /// symlink rather than being replaced by what it points at.
     fn rename(
         &self,
         from: &Path,
@@ -313,6 +315,9 @@ impl FileApply<'_> {
                 .map_err(|source| {
                     self.failed(format!("rename {} to {}: {source}", from.display(), to.display()))
                 })?;
+        }
+        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
+            return Ok(());
         }
         self.modify(to, text_patch, new_mode)
     }

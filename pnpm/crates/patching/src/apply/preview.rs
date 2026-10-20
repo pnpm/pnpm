@@ -98,6 +98,10 @@ impl PreviewState<'_> {
     /// Fold one file record into the preview.
     fn record(&mut self, file_patch: &FilePatch<'_, str>) -> Result<(), PatchApplyError> {
         let operation = package_relative_operation(file_patch);
+        let renamed_from = match &operation {
+            FileOperation::Rename { from, .. } => normalized_patch_path(from.as_ref()),
+            _ => None,
+        };
         let raw_path = match &operation {
             FileOperation::Modify { modified, .. } | FileOperation::Create(modified) => {
                 modified.as_ref()
@@ -119,6 +123,16 @@ impl PreviewState<'_> {
         if !is_manifest {
             return Ok(());
         }
+        // A rename onto the manifest only applies once an earlier record
+        // removed it, and the new manifest starts as the renamed file.
+        if let Some(from) = renamed_from {
+            if !self.manifest_removed {
+                return Ok(());
+            }
+            let source = self.patched_dir.join(from);
+            let original = self.read(&source)?;
+            return self.apply_to_manifest(file_patch, original);
+        }
         // A package ships a manifest, so a `Create` naming one only makes
         // sense once an earlier record removed it; `apply_patch_to_dir`
         // reports every other spelling. A `Modify` of a removed manifest is
@@ -126,7 +140,8 @@ impl PreviewState<'_> {
         if matches!(operation, FileOperation::Create(_)) != self.manifest_removed {
             return Ok(());
         }
-        self.apply_to_manifest(file_patch)
+        let original = self.manifest_before()?;
+        self.apply_to_manifest(file_patch, original)
     }
 
     /// A patch that writes a file and then removes it leaves the package
@@ -145,9 +160,9 @@ impl PreviewState<'_> {
     fn apply_to_manifest(
         &mut self,
         file_patch: &FilePatch<'_, str>,
+        original: String,
     ) -> Result<(), PatchApplyError> {
         let target = self.patched_dir.join(MANIFEST_FILE_NAME);
-        let original = self.manifest_before(&target)?;
         self.manifest_removed = false;
         let text_patch = file_patch
             .patch()
@@ -169,13 +184,17 @@ impl PreviewState<'_> {
     /// would answer for the last record alone.
     ///
     /// [`apply_patch_to_dir`]: super::apply_patch_to_dir
-    fn manifest_before(&mut self, target: &Path) -> Result<String, PatchApplyError> {
+    fn manifest_before(&mut self) -> Result<String, PatchApplyError> {
         if let Some(patched_so_far) = self.preview.manifest.take() {
             return Ok(patched_so_far);
         }
         if self.manifest_removed {
             return Ok(String::new());
         }
+        self.read(&self.patched_dir.join(MANIFEST_FILE_NAME))
+    }
+
+    fn read(&self, target: &Path) -> Result<String, PatchApplyError> {
         let bytes = fs::read(target)
             .map_err(|source| self.failed(format!("read {}: {source}", target.display())))?;
         Ok(String::from_utf8_lossy(&bytes).into_owned())
