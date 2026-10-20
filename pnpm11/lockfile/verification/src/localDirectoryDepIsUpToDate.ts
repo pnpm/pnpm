@@ -14,6 +14,7 @@ import {
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -207,6 +208,7 @@ async function childIsUpToDate (
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
+  if (isLockedToOtherSource(currentSpec, locked)) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
 }
@@ -215,15 +217,48 @@ function isLocalSpec (spec: string): boolean {
   return spec.startsWith('link:') || spec.startsWith('file:') || spec.startsWith('workspace:')
 }
 
-/** The name, version and registry of the package a dependency is locked to. */
+/**
+ * Whether a spec that names one exact source, a tarball URL or a git commit,
+ * asks for a source other than the one the package is locked to. The lockfile
+ * keys such a package by the URL or commit it resolved.
+ */
+function isLockedToOtherSource (spec: string, { depPath, name }: { depPath: string, name: string }): boolean {
+  const lockedId = removeSuffix(depPath)
+  const git = parseGitSpecCommittishAndPath(spec)
+  if (git !== undefined) {
+    return git.gitCommittish != null && isFullCommit(git.gitCommittish) &&
+      !isLockedToGitCommit(lockedId, { commit: git.gitCommittish, path: git.path })
+  }
+  if (spec.startsWith('http:') || spec.startsWith('https:')) {
+    // A URL may end in a parenthesized segment, which removeSuffix takes for a peer suffix.
+    return !URL.canParse(spec) || ![depPath, lockedId].includes(`${name}@${new URL(spec).toString()}`)
+  }
+  return false
+}
+
+/** Whether a locked git or hosted-archive id names the commit and subdirectory. */
+function isLockedToGitCommit (lockedId: string, { commit, path }: { commit: string, path?: string }): boolean {
+  const pathIndex = lockedId.lastIndexOf('path:')
+  const lockedSource = pathIndex === -1 ? lockedId : lockedId.slice(0, pathIndex).replace(/[#&]$/, '')
+  const lockedPath = pathIndex === -1 ? undefined : lockedId.slice(pathIndex + 'path:'.length)
+  // Hosted archive ids end in the commit or in `<sha>.tar.gz` or `<project>-<sha>.tar.gz` after it.
+  const lockedCommit = lockedSource.split(/[#/]/).map((segment) => segment.replace(/\.tar\.gz$/, '')).filter(isFullCommit).at(-1)
+  return path === lockedPath && lockedCommit?.toLowerCase() === commit.toLowerCase()
+}
+
+function isFullCommit (committish: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(committish)
+}
+
+/** The dependency path, name, version and registry of the package a dependency is locked to. */
 function lockedPackage (
   ctx: LocalDirectoryDepContext,
   alias: string,
   lockfileDep: string
-): { name: string, version: string, registryName?: string } | undefined {
+): { depPath: string, name: string, version: string, registryName?: string } | undefined {
   const depPath = refToRelative(lockfileDep, alias)
   const locked = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
-  return depPath == null || locked == null ? undefined : nameVerFromPkgSnapshot(depPath, locked)
+  return depPath == null || locked == null ? undefined : { depPath, ...nameVerFromPkgSnapshot(depPath, locked) }
 }
 
 /**

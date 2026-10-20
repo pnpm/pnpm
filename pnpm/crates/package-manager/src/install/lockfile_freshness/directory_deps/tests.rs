@@ -533,26 +533,79 @@ fn a_dependency_that_became_optional_is_outdated_on_a_frozen_install() {
     assert!(result.is_err(), "the lockfile records the child as required: {result:?}");
 }
 
-/// The lockfile does not record the spec a tarball child was resolved from,
-/// so only a frozen install keeps the recorded resolution.
+/// The lockfile does not record the spec a tarball or git child was resolved
+/// from, so only a frozen install keeps the recorded resolution, and only
+/// while the spec names the source it is locked to.
 #[test]
-fn a_tarball_child_is_resolved_again_unless_the_install_is_frozen() {
-    let check = |frozen_lockfile| {
-        check_directory_dep(&DirectoryDepCase {
-            manifest: serde_json::json!({
-                "name": "lib",
-                "dependencies": { "is-positive": "https://example.com/is-positive-3.1.0.tgz" },
-            }),
-            metadata: directory_metadata(),
-            snapshot: serde_json::json!({ "dependencies": { "is-positive": "1.0.0" } }),
-            frozen_lockfile,
-            auto_install_peers: true,
-            include_optional: true,
-            catalogs: Catalogs::new(),
-        })
-    };
-    assert!(check(false).is_err(), "a resolving install resolves the tarball again");
-    assert!(check(true).is_ok(), "a frozen install keeps the recorded resolution");
+fn a_pinned_source_child_is_resolved_again_unless_frozen_on_the_same_source() {
+    const COMMIT: &str = "97edff6f525f192a3f83cea1944765f769ae2678";
+    let codeload = format!("https://codeload.github.com/kevva/is-positive/tar.gz/{COMMIT}");
+    let cases = [
+        (
+            "https://example.com/is-positive-2.0.0.tgz".to_string(),
+            "https://example.com/is-positive-3.0.0.tgz".to_string(),
+            "https://example.com/is-positive-2.0.0.tgz".to_string(),
+        ),
+        (
+            format!("github:kevva/is-positive#{COMMIT}"),
+            format!("github:kevva/is-positive#{}", "1".repeat(40)),
+            codeload.clone(),
+        ),
+        (
+            format!("https://github.com/kevva/is-positive.git#{COMMIT}"),
+            format!("https://github.com/kevva/is-positive.git#{}", "1".repeat(40)),
+            codeload.clone(),
+        ),
+        (
+            format!("github:kevva/is-positive#{COMMIT}&path:/sub"),
+            format!("github:kevva/is-positive#{}&path:/sub", "1".repeat(40)),
+            format!("{codeload}#path:/sub"),
+        ),
+        (
+            format!("gitlab:kevva/is-positive#{COMMIT}"),
+            format!("gitlab:kevva/is-positive#{}", "1".repeat(40)),
+            format!(
+                "https://gitlab.com/kevva/is-positive/-/archive/{COMMIT}/is-positive-{COMMIT}.tar.gz",
+            ),
+        ),
+        (
+            format!("bitbucket:kevva/is-positive#{COMMIT}"),
+            format!("bitbucket:kevva/is-positive#{}", "1".repeat(40)),
+            format!("https://bitbucket.org/kevva/is-positive/get/{COMMIT}.tar.gz"),
+        ),
+        (
+            format!("github:kevva/{COMMIT}#{}", "1".repeat(40)),
+            format!("github:kevva/{COMMIT}#{COMMIT}"),
+            format!("https://codeload.github.com/kevva/{COMMIT}/tar.gz/{}", "1".repeat(40)),
+        ),
+        (
+            format!("github:kevva/is-positive#{COMMIT}&path:/sub"),
+            format!("github:kevva/is-positive#{COMMIT}&path:/other"),
+            format!("{codeload}#path:/sub"),
+        ),
+    ];
+    for (locked_spec, other_spec, locked_ref) in cases {
+        let check = |spec: &str, frozen_lockfile| {
+            check_directory_dep(&DirectoryDepCase {
+                manifest: serde_json::json!({
+                    "name": "lib",
+                    "dependencies": { "is-positive": spec },
+                }),
+                metadata: directory_metadata(),
+                snapshot: serde_json::json!({ "dependencies": { "is-positive": locked_ref } }),
+                frozen_lockfile,
+                auto_install_peers: true,
+                include_optional: true,
+                catalogs: Catalogs::new(),
+            })
+        };
+        assert!(
+            check(&locked_spec, false).is_err(),
+            "a resolving install resolves {locked_spec} again",
+        );
+        assert!(check(&locked_spec, true).is_ok(), "a frozen install keeps {locked_spec}");
+        assert!(check(&other_spec, true).is_err(), "a frozen install rejects {other_spec}");
+    }
 }
 
 /// A directory without a manifest is described by its name, as the resolver

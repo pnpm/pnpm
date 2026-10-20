@@ -1282,21 +1282,46 @@ describe('local file dependency', () => {
     expect(await check(false)).toBe(false)
   })
 
-  test('checkLinkedPackagesAreUpToDate(): accepts a tarball dependency of local file only on a frozen install', async () => {
-    await writeLocalDirManifest({ dependencies: { 'is-positive': 'https://example.com/is-positive-3.1.0.tgz' } })
-    const check = async (frozenLockfile: boolean) => (await checkLinkedPackagesAreUpToDate({
-      linkWorkspacePackages: true,
-      manifestsByDir: {},
-      lockfilePackages: options.wantedLockfile.packages,
-      lockfileDir: process.cwd(),
-      resolution: { frozenLockfile },
-    }, {
-      dir: path.resolve('bar'),
-      manifest: projects[0].manifest,
-      snapshot: options.wantedLockfile.importers['bar' as ProjectId],
-    })).upToDate
-    expect(await check(true)).toBe(true)
-    expect(await check(false)).toBe(false)
+  const commit = '97edff6f525f192a3f83cea1944765f769ae2678'
+  const otherCommit = '1'.repeat(40)
+  const codeload = `https://codeload.github.com/kevva/is-positive/tar.gz/${commit}`
+  test.each([
+    ['a tarball', 'https://example.com/is-positive-2.0.0.tgz', 'https://example.com/is-positive-3.0.0.tgz', 'https://example.com/is-positive-2.0.0.tgz'],
+    ['a git commit', `github:kevva/is-positive#${commit}`, `github:kevva/is-positive#${otherCommit}`, codeload],
+    ['an https git commit', `https://github.com/kevva/is-positive.git#${commit}`, `https://github.com/kevva/is-positive.git#${otherCommit}`, codeload],
+    ['a git commit with a path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${otherCommit}&path:/sub`, `${codeload}#path:/sub`],
+    ['a tarball that another URL ends with', 'https://good.test/a.tgz', 'https://good.test/a.tgz', 'https://evil.test/x@https://good.test/a.tgz', false],
+    ['a commit that names the repository', `github:kevva/${commit}#${otherCommit}`, `github:kevva/${commit}#${commit}`, `https://codeload.github.com/kevva/${commit}/tar.gz/${otherCommit}`],
+    ['a tarball whose URL ends in parentheses', 'https://example.com/pkg(a).tgz', 'https://example.com/pkg(b).tgz', 'https://example.com/pkg(a).tgz'],
+    ['a gitlab commit', `gitlab:kevva/is-positive#${commit}`, `gitlab:kevva/is-positive#${otherCommit}`, `https://gitlab.com/kevva/is-positive/-/archive/${commit}/is-positive-${commit}.tar.gz`],
+    ['a bitbucket commit', `bitbucket:kevva/is-positive#${commit}`, `bitbucket:kevva/is-positive#${otherCommit}`, `https://bitbucket.org/kevva/is-positive/get/${commit}.tar.gz`],
+    ['a git path', `github:kevva/is-positive#${commit}&path:/sub`, `github:kevva/is-positive#${commit}&path:/other`, `${codeload}#path:/sub`],
+  ])('checkLinkedPackagesAreUpToDate(): accepts %s dependency of local file only on a frozen install that keeps its source', async (_, lockedSpec, otherSpec, lockedRef, keepsLockedSpec = true) => {
+    const lockfilePackages = {
+      ...options.wantedLockfile.packages,
+      'local@file:./local-dir': {
+        ...options.wantedLockfile.packages!['local@file:./local-dir' as DepPath],
+        dependencies: { 'is-positive': lockedRef },
+      },
+      [`is-positive@${lockedRef}`]: { resolution: { tarball: lockedRef } },
+    } as LockfileObject['packages']
+    const check = async (spec: string, frozenLockfile: boolean) => {
+      await writeLocalDirManifest({ dependencies: { 'is-positive': spec } })
+      return (await checkLinkedPackagesAreUpToDate({
+        linkWorkspacePackages: true,
+        manifestsByDir: {},
+        lockfilePackages,
+        lockfileDir: process.cwd(),
+        resolution: { frozenLockfile },
+      }, {
+        dir: path.resolve('bar'),
+        manifest: projects[0].manifest,
+        snapshot: options.wantedLockfile.importers['bar' as ProjectId],
+      })).upToDate
+    }
+    expect(await check(lockedSpec, true)).toBe(keepsLockedSpec)
+    expect(await check(lockedSpec, false)).toBe(false)
+    expect(await check(otherSpec, true)).toBe(false)
   })
 
   test('allProjectsAreUpToDate(): accepts a peer of local file that is also its dependency whether or not the lockfile records it', async () => {
