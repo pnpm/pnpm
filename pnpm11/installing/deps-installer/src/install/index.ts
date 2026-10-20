@@ -130,7 +130,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -159,5 +159,5 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations }
 }

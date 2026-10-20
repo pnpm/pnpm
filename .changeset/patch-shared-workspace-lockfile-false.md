@@ -7,4 +7,4 @@
 "pacquet": patch
 ---
 
-Fixed `pnpm patch`, `pnpm patch-commit`, `pnpm patch-remove`, and `pnpm install` in workspaces with `sharedWorkspaceLockfile: false`. Patch files and `patchedDependencies` entries now resolve against the workspace root, and unused-patch checks now evaluate configured patches across all workspace projects.
+Fixed patching in workspaces with `sharedWorkspaceLockfile: false`. `pnpm patch`, `pnpm patch-commit`, and `pnpm patch-remove` now resolve patch files and `patchedDependencies` entries at the workspace root. `pnpm install` now checks configured patches across all workspace projects before reporting unused patches.

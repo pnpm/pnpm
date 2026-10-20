@@ -72,6 +72,7 @@ fn prune_matching_snapshots(
 
 pub(super) fn update_lockfile_snapshots(
     state: &State,
+    workspace_projects: &[pnpm_workspace::Project],
     name: &str,
     version: &str,
     apply_to_all: bool,
@@ -88,27 +89,21 @@ pub(super) fn update_lockfile_snapshots(
         apply_to_all,
         &declared,
     )?;
-    if !state.config.shares_one_lockfile()
-        && let Some(workspace_dir) = state.config.workspace_dir.as_deref()
-        && let Ok((projects, _)) =
-            crate::cli_args::recursive::discover_workspace_projects(workspace_dir, state.config)
-    {
-        for project in &projects {
-            if project.root_dir == state.lockfile_dir() {
-                continue;
-            }
-            let lockfile_dir = state.config.lockfile_dir_for(&project.root_dir);
-            let lockfile_path = lockfile_dir.join(Lockfile::FILE_NAME);
-            update_single_lockfile_snapshots(
-                lockfile_dir,
-                &lockfile_path,
-                &selection,
-                name,
-                version,
-                apply_to_all,
-                &declared,
-            )?;
+    for project in workspace_projects {
+        if project.root_dir == state.lockfile_dir() {
+            continue;
         }
+        let lockfile_dir = state.config.lockfile_dir_for(&project.root_dir);
+        let lockfile_path = lockfile_dir.join(state.config.wanted_lockfile_name());
+        update_single_lockfile_snapshots(
+            lockfile_dir,
+            &lockfile_path,
+            &selection,
+            name,
+            version,
+            apply_to_all,
+            &declared,
+        )?;
     }
     Ok(())
 }

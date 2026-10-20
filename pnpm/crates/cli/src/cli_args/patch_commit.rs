@@ -144,8 +144,9 @@ impl PatchCommitArgs {
         self,
         dir: &Path,
         state: State,
-    ) -> Result<Option<IndexMap<String, String>>, PatchCommitError> {
-        let extra_modules_dirs = workspace_project_modules_dirs(state.config);
+    ) -> miette::Result<Option<IndexMap<String, String>>> {
+        let workspace_projects = super::patch::dedicated_workspace_projects(state.config)?;
+        let extra_modules_dirs = workspace_project_modules_dirs(state.config, &workspace_projects);
         let resolved = resolve_patch_dir(
             dir,
             &state.config.modules_dir,
@@ -155,6 +156,7 @@ impl PatchCommitArgs {
         let (name, version, patched_manifest) = patched_identity(&resolved.patch_dir)?;
         let current_lockfile = super::patch::load_current_lockfile_for_patch(
             state.config,
+            &workspace_projects,
             &format!("{name}@{version}"),
         )
         .map_err(PatchCommitError::LoadLockfile)?
@@ -174,7 +176,14 @@ impl PatchCommitArgs {
         let apply_to_all = resolved.state_value.apply_to_all;
         let patched_dependencies =
             self.record_patch(&state, dir, &name, &version, apply_to_all, &patch_content)?;
-        update_lockfile_snapshots(&state, &name, &version, apply_to_all, &patched_manifest)?;
+        update_lockfile_snapshots(
+            &state,
+            &workspace_projects,
+            &name,
+            &version,
+            apply_to_all,
+            &patched_manifest,
+        )?;
         Ok(Some(patched_dependencies))
     }
 
@@ -238,24 +247,14 @@ fn patched_identity(
     Ok((name, version, patched_manifest))
 }
 
-fn workspace_project_modules_dirs(config: &pnpm_config::Config) -> Vec<PathBuf> {
-    if config.shares_one_lockfile() {
-        return Vec::new();
-    }
-    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
-        return Vec::new();
-    };
-    let Ok((projects, _)) = super::recursive::discover_workspace_projects(workspace_dir, config)
-    else {
-        return Vec::new();
-    };
+fn workspace_project_modules_dirs(
+    config: &pnpm_config::Config,
+    projects: &[pnpm_workspace::Project],
+) -> Vec<PathBuf> {
     projects
         .iter()
         .map(|project| {
-            let project_name = project.manifest
-                .value()
-                .get("name")
-                .and_then(serde_json::Value::as_str);
+            let project_name = super::pipelines::project_manifest_name(project);
             config.project_modules_dir(&project.root_dir, project_name)
         })
         .collect()

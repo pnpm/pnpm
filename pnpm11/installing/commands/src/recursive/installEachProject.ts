@@ -131,7 +131,7 @@ function hasPassedProject (result: RecursiveSummary): boolean {
 
 async function verifyProjectPatches (ctx: RecursiveContext, state: ProjectInstallsState): Promise<void> {
   const { allProjects, installOpts, opts } = ctx
-  if (opts.dryRun || installOpts.useLockfile === false || opts.lockfile === false) return
+  if (installOpts.useLockfile === false || opts.lockfile === false) return
   if (!allProjects.every(({ rootDir }) => state.result[rootDir]?.status === 'passed')) return
   await verifyPatchesOfLockfiles(Array.from(state.projectLockfiles.values()), {
     patchedDependencies: installOpts.patchedDependencies,

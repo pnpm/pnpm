@@ -29,13 +29,8 @@ export async function resolvePatchDir (
   const editDirAtPath = findEditDirAtPath(userParam, opts)
   if (editDirAtPath) return editDirAtPath
 
-  const matchInPrimaryModules = await findEditDirInModulesDirs(userParam, [opts.modulesDir])
-  if (matchInPrimaryModules) return matchInPrimaryModules
-
-  if (opts.extraModulesDirs?.length) {
-    const matchInExtraModules = await findEditDirInModulesDirs(userParam, opts.extraModulesDirs)
-    if (matchInExtraModules) return matchInExtraModules
-  }
+  const matchInModules = await findEditDirInModulesDirs(userParam, [opts.modulesDir, ...(opts.extraModulesDirs ?? [])])
+  if (matchInModules) return matchInModules
 
   throw invalidPatchDirError(userParam)
 }
@@ -86,21 +81,32 @@ async function collectModuleMatches (
 /** The edit directory `userParam` names as a path, relative to `dir` or else to `lockfileDir`. */
 function findEditDirAtPath (userParam: string, opts: ResolvePatchDirOptions): ResolvedPatchDir | undefined {
   const directPath = path.resolve(opts.dir, userParam)
-  const editDirFromDir = readEditDirAt(directPath, opts.modulesDir)
+  const editDirFromDir = readEditDirAt(directPath, opts)
   if (editDirFromDir) return editDirFromDir
 
   const directPathFromLockfileDir = path.resolve(opts.lockfileDir, userParam)
   if (directPathFromLockfileDir === directPath) return undefined
-  return readEditDirAt(directPathFromLockfileDir, opts.modulesDir)
+  return readEditDirAt(directPathFromLockfileDir, opts)
 }
 
-function readEditDirAt (editDir: string, modulesDir: string): ResolvedPatchDir | undefined {
+function readEditDirAt (editDir: string, opts: ResolvePatchDirOptions): ResolvedPatchDir | undefined {
   if (!isDirectory(editDir)) return undefined
-  let stateValue = readEditDirState({ editDir, modulesDir })
-  if (!stateValue && path.basename(path.dirname(editDir)) === '.pnpm_patches') {
-    stateValue = readEditDirState({ editDir, modulesDir: path.dirname(path.dirname(editDir)) })
+  for (const modulesDir of candidateModulesDirsForEditDir(editDir, opts)) {
+    const stateValue = readEditDirState({ editDir, modulesDir })
+    if (stateValue) return { editDir, stateValue }
   }
-  return stateValue ? { editDir, stateValue } : undefined
+  return undefined
+}
+
+function candidateModulesDirsForEditDir (editDir: string, opts: ResolvePatchDirOptions): string[] {
+  const dirs = [opts.modulesDir]
+  if (path.basename(path.dirname(editDir)) === '.pnpm_patches') {
+    dirs.push(path.dirname(path.dirname(editDir)))
+  }
+  if (opts.extraModulesDirs) {
+    dirs.push(...opts.extraModulesDirs)
+  }
+  return dirs
 }
 
 function isDirectory (dirPath: string): boolean {

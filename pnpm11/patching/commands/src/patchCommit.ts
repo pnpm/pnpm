@@ -90,7 +90,12 @@ export async function handler (opts: PatchCommitCommandOptions, params: string[]
   const patchesRootDir = opts.workspaceDir ?? opts.rootProjectManifestDir ?? lockfileDir
   const patchedDependencies = await savePatch({ patchesRootDir, patchKey, patchContent }, opts)
 
-  await updateWorkspaceLockfileSnapshots(lockfileDir, patchedPkgManifest, applyToAll, opts)
+  await updateWorkspaceLockfileSnapshots({
+    lockfileDir,
+    patchedPkgManifest,
+    applyToAll,
+    opts,
+  })
 
   await install.handler({
     ...opts,
@@ -105,12 +110,17 @@ function getExtraModulesDirs (opts: PatchCommitCommandOptions): string[] | undef
   return opts.allProjects.map((project) => path.join(project.rootDir, project.modulesDir ?? opts.modulesDir ?? 'node_modules'))
 }
 
-async function updateWorkspaceLockfileSnapshots (
-  lockfileDir: string,
-  patchedPkgManifest: PackageManifest,
-  applyToAll: boolean,
+async function updateWorkspaceLockfileSnapshots ({
+  lockfileDir,
+  patchedPkgManifest,
+  applyToAll,
+  opts,
+}: {
+  lockfileDir: string
+  patchedPkgManifest: PackageManifest
+  applyToAll: boolean
   opts: PatchCommitCommandOptions
-): Promise<void> {
+}): Promise<void> {
   const lockfileDirs = opts.sharedWorkspaceLockfile === false && opts.allProjects?.length
     ? Array.from(new Set([lockfileDir, ...opts.allProjects.map((project) => project.rootDir)]))
     : [lockfileDir]

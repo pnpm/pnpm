@@ -16,33 +16,32 @@ pub(super) fn resolve_patch_dir(
     extra_modules_dirs: &[PathBuf],
     user_param: &Path,
 ) -> Result<ResolvedPatchDir, PatchCommitError> {
-    if let Some(resolved) = resolve_direct_path(dir, modules_dir, user_param)? {
+    if let Some(resolved) = resolve_direct_path(dir, modules_dir, extra_modules_dirs, user_param)? {
         return Ok(resolved);
     }
 
-    if let Some(resolved) =
-        find_in_modules_dirs(std::slice::from_ref(&modules_dir.to_path_buf()), user_param)?
-    {
+    if let Some(resolved) = find_in_modules_dirs(modules_dir, extra_modules_dirs, user_param)? {
         return Ok(resolved);
     }
 
-    if !extra_modules_dirs.is_empty()
-        && let Some(resolved) = find_in_modules_dirs(extra_modules_dirs, user_param)?
-    {
-        return Ok(resolved);
-    }
-
-    fallback_direct_path(modules_dir, resolve_path(dir, user_param))
+    fallback_direct_path(modules_dir, extra_modules_dirs, resolve_path(dir, user_param))
 }
 
 fn find_in_modules_dirs(
-    modules_dirs: &[PathBuf],
+    primary_modules_dir: &Path,
+    extra_modules_dirs: &[PathBuf],
     user_param: &Path,
 ) -> Result<Option<ResolvedPatchDir>, PatchCommitError> {
     let query_str = user_param.to_string_lossy();
     let query = PatchQuery::new(&query_str);
     let mut combined = MatchBuckets::default();
-    for modules_dir in modules_dirs {
+    let mut seen = std::collections::HashSet::new();
+    for modules_dir in
+        std::iter::once(primary_modules_dir).chain(extra_modules_dirs.iter().map(PathBuf::as_path))
+    {
+        if !seen.insert(modules_dir) {
+            continue;
+        }
         let all_states =
             read_all_edit_dir_states(modules_dir).map_err(PatchCommitError::StateFile)?;
         if all_states.is_empty() {
@@ -58,12 +57,13 @@ fn find_in_modules_dirs(
 fn resolve_direct_path(
     dir: &Path,
     modules_dir: &Path,
+    extra_modules_dirs: &[PathBuf],
     user_param: &Path,
 ) -> Result<Option<ResolvedPatchDir>, PatchCommitError> {
     let direct_path = resolve_path(dir, user_param);
     if direct_path.is_dir()
         && let Some(state_value) =
-            read_edit_dir_state_with_parent_fallback(modules_dir, &direct_path)?
+            read_edit_dir_state_with_fallback(modules_dir, extra_modules_dirs, &direct_path)?
     {
         let _ = patched_identity(&direct_path)?;
         return Ok(Some(ResolvedPatchDir { patch_dir: direct_path, state_value }));
@@ -73,17 +73,20 @@ fn resolve_direct_path(
 
 fn fallback_direct_path(
     modules_dir: &Path,
+    extra_modules_dirs: &[PathBuf],
     direct_path: PathBuf,
 ) -> Result<ResolvedPatchDir, PatchCommitError> {
-    let state_value = read_edit_dir_state_with_parent_fallback(modules_dir, &direct_path)?
-        .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: direct_path.clone() })?;
+    let state_value =
+        read_edit_dir_state_with_fallback(modules_dir, extra_modules_dirs, &direct_path)?
+            .ok_or_else(|| PatchCommitError::InvalidPatchDir { patch_dir: direct_path.clone() })?;
     let _ = patched_identity(&direct_path)?;
 
     Ok(ResolvedPatchDir { patch_dir: direct_path, state_value })
 }
 
-fn read_edit_dir_state_with_parent_fallback(
+fn read_edit_dir_state_with_fallback(
     modules_dir: &Path,
+    extra_modules_dirs: &[PathBuf],
     direct_path: &Path,
 ) -> Result<Option<EditDirState>, PatchCommitError> {
     if let Some(state_value) =
@@ -91,16 +94,22 @@ fn read_edit_dir_state_with_parent_fallback(
     {
         return Ok(Some(state_value));
     }
-    let Some(patches_dir) = direct_path.parent() else {
-        return Ok(None);
-    };
-    if patches_dir.file_name() != Some(std::ffi::OsStr::new(".pnpm_patches")) {
-        return Ok(None);
+    if let Some(patches_dir) = direct_path.parent()
+        && patches_dir.file_name() == Some(std::ffi::OsStr::new(".pnpm_patches"))
+        && let Some(inferred_modules_dir) = patches_dir.parent()
+        && let Some(state_value) = read_edit_dir_state(inferred_modules_dir, direct_path)
+            .map_err(PatchCommitError::StateFile)?
+    {
+        return Ok(Some(state_value));
     }
-    let Some(inferred_modules_dir) = patches_dir.parent() else {
-        return Ok(None);
-    };
-    read_edit_dir_state(inferred_modules_dir, direct_path).map_err(PatchCommitError::StateFile)
+    for extra_modules_dir in extra_modules_dirs {
+        if let Some(state_value) = read_edit_dir_state(extra_modules_dir, direct_path)
+            .map_err(PatchCommitError::StateFile)?
+        {
+            return Ok(Some(state_value));
+        }
+    }
+    Ok(None)
 }
 
 enum MatchKind {

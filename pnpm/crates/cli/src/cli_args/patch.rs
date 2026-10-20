@@ -145,7 +145,7 @@ impl PatchArgs {
         self,
         dir: &Path,
         state: State,
-    ) -> Result<(), PatchError> {
+    ) -> miette::Result<()> {
         let PatchArgs {
             package_name,
             edit_dir,
@@ -153,9 +153,11 @@ impl PatchArgs {
         } = self;
         let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
         validate_custom_edit_dir(dir, edit_dir.as_deref())?;
-        let current_lockfile = load_current_lockfile_for_patch(state.config, &package_name)
-            .map_err(PatchError::LoadLockfile)?
-            .ok_or(PatchError::PatchNoLockfile)?;
+        let workspace_projects = dedicated_workspace_projects(state.config)?;
+        let current_lockfile =
+            load_current_lockfile_for_patch(state.config, &workspace_projects, &package_name)
+                .map_err(PatchError::LoadLockfile)?
+                .ok_or(PatchError::PatchNoLockfile)?;
 
         let candidate_set = patch_candidates_from_lockfile(&package_name, &current_lockfile)
             .map_err(PatchError::PatchTarget)?;
@@ -199,12 +201,26 @@ fn validate_custom_edit_dir(dir: &Path, edit_dir: Option<&Path>) -> Result<(), P
     Ok(())
 }
 
+pub(super) fn dedicated_workspace_projects(
+    config: &pnpm_config::Config,
+) -> miette::Result<Vec<pnpm_workspace::Project>> {
+    if config.shares_one_lockfile() {
+        return Ok(Vec::new());
+    }
+    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
+        return Ok(Vec::new());
+    };
+    let (projects, _) = super::recursive::discover_workspace_projects(workspace_dir, config)?;
+    Ok(projects)
+}
+
 pub(super) fn load_current_lockfile_for_patch(
     config: &pnpm_config::Config,
+    workspace_projects: &[pnpm_workspace::Project],
     raw_dependency: &str,
 ) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
     let active = Lockfile::load_current_from_install_state_dir(&config.install_state_dir)?;
-    if config.shares_one_lockfile()
+    if workspace_projects.is_empty()
         || active
             .as_ref()
             .is_some_and(|lockfile| {
@@ -213,21 +229,15 @@ pub(super) fn load_current_lockfile_for_patch(
     {
         return Ok(active);
     }
-    merge_workspace_current_lockfiles(config, active)
+    merge_workspace_current_lockfiles(config, workspace_projects, active)
 }
 
 fn merge_workspace_current_lockfiles(
     config: &pnpm_config::Config,
+    projects: &[pnpm_workspace::Project],
     mut merged: Option<Lockfile>,
 ) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
-    let Some(workspace_dir) = config.workspace_dir.as_deref() else {
-        return Ok(merged);
-    };
-    let Ok((projects, _)) = super::recursive::discover_workspace_projects(workspace_dir, config)
-    else {
-        return Ok(merged);
-    };
-    for project in &projects {
+    for project in projects {
         if let Some(project_lockfile) = load_project_current_lockfile(config, project)? {
             merge_lockfile_packages_and_snapshots(&mut merged, project_lockfile);
         }
@@ -240,10 +250,7 @@ fn load_project_current_lockfile(
     project: &pnpm_workspace::Project,
 ) -> Result<Option<Lockfile>, pnpm_lockfile::LoadLockfileError> {
     let mut project_config = config.clone();
-    let project_name = project.manifest
-        .value()
-        .get("name")
-        .and_then(serde_json::Value::as_str);
+    let project_name = super::pipelines::project_manifest_name(project);
     project_config.anchor_dedicated_project(&project.root_dir, project_name);
     Lockfile::load_current_from_install_state_dir(&project_config.install_state_dir)
 }

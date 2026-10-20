@@ -28,10 +28,11 @@ pub fn verify_patches_against_project_lockfiles<Reporter: self::Reporter>(
     let Some(groups) = config.resolved_patched_dependencies()? else {
         return Ok(());
     };
+    let selection = config.wanted_lockfile_selection();
     let mut applied = std::collections::HashSet::new();
     for project_dir in project_dirs {
         if let Some(lockfile) =
-            Lockfile::load_wanted_from_dir(config.lockfile_dir_for(project_dir))?
+            Lockfile::load_wanted(config.lockfile_dir_for(project_dir), &selection)?
             && let Some(keys) = pnpm_lockfile::applied_patch_keys(&lockfile, &groups)
         {
             applied.extend(keys.into_iter().map(str::to_owned));
