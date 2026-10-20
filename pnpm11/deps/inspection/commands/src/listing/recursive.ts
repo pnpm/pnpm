@@ -2,9 +2,9 @@ import assert from 'node:assert'
 
 import { type Config, createProjectModulesDirResolver } from '@pnpm/config.reader'
 import {
-  compareDependentsTrees,
   type DependentsTree,
   getDependentsTrees,
+  mergeDependentsTrees,
   renderDependents,
   renderJson,
   whyForPackages,
@@ -91,8 +91,7 @@ export async function whyRecursive (
   ))).filter((trees): trees is DependentsTree[] => trees != null)
   if (projectTrees.length === 0) return ''
 
-  const trees = projectTrees.flat()
-  trees.sort(compareDependentsTrees)
+  const trees = mergeDependentsTrees(projectTrees.flat())
   return renderDependents(trees, opts)
 }
 

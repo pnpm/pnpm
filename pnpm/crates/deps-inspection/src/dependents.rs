@@ -1,7 +1,9 @@
 //! Reverse (dependents) tree for `pnpm why`. Rust counterpart of the
 //! TypeScript tree-builder's `buildDependentsTree`.
 
-pub use selection::{compare_versions, name_ver_from_dep_path, resolve_package_nodes};
+pub use selection::{
+    compare_versions, merge_trees, name_ver_from_dep_path, resolve_package_nodes, sort_trees,
+};
 
 use std::collections::{HashMap, HashSet};
 
@@ -254,20 +256,6 @@ fn walk_dependents_of(
         expanded: HashSet::new(),
     };
     walk_reverse(&mut ctx, node_id, 0)
-}
-
-pub fn sort_trees(trees: &mut [DependentsTree]) {
-    trees.sort_by(|a, b| {
-        a.name
-            .cmp(&b.name)
-            .then_with(|| compare_versions(&a.version, &b.version))
-            .then_with(|| {
-                a.peers_suffix_hash
-                    .as_deref()
-                    .unwrap_or("")
-                    .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
-            })
-    });
 }
 
 fn invert_graph(graph: &DependencyGraph) -> HashMap<TreeNodeId, Vec<ReverseEdge>> {

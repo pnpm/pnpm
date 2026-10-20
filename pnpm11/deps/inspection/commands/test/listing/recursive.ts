@@ -546,6 +546,7 @@ test('recursive why with dedicated project lockfiles', async () => {
       version: '1.0.0',
 
       dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
         'is-negative': '1.0.0',
       },
     },
@@ -580,7 +581,8 @@ test('recursive why with dedicated project lockfiles', async () => {
 
   expect(stripAnsi(output)).toBe(`@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0
 └─┬ @pnpm.e2e/pkg-with-1-dep@100.0.0
-  └── project-1@1.0.0 (dependencies)
+  ├── project-1@1.0.0 (dependencies)
+  └── project-2@1.0.0 (dependencies)
 
 Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep`)
 
@@ -606,6 +608,11 @@ Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep`)
           version: '1.0.0',
           depField: 'dependencies',
         },
+        {
+          name: 'project-2',
+          version: '1.0.0',
+          depField: 'dependencies',
+        },
       ],
     },
   ])
@@ -615,8 +622,8 @@ Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep`)
     dir: process.cwd(),
     packageConfigs,
     recursive: true,
-    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-2' }]),
-  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep'])
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }]),
+  }, ['is-negative'])
 
   expect(filteredEmpty).toBe('')
 })

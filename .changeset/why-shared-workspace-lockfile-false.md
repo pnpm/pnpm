@@ -1,7 +1,7 @@
 ---
 "@pnpm/deps.inspection.commands": patch
-"@pnpm/deps.inspection.list": patch
-"@pnpm/deps.inspection.tree-builder": patch
+"@pnpm/deps.inspection.list": minor
+"@pnpm/deps.inspection.tree-builder": minor
 "pnpm": patch
 "pacquet": patch
 ---

@@ -62,7 +62,7 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
     fs::write(
         app.join("package.json"),
         format!(
-            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0", "{HELLO}": "1.0.0" }} }}"#,
         ),
     )
     .expect("write app manifest");
@@ -73,6 +73,12 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
         ),
     )
     .expect("write lib manifest");
+
+    let before_install =
+        pacquet(&workspace, ["why", DEP]).output().expect("run why before install");
+    assert!(before_install.status.success(), "why without lockfiles should succeed");
+    assert!(before_install.stdout.is_empty(), "no output before install");
+
     pacquet(&workspace, ["install"]).assert().success();
 
     for args in [&["why", DEP][..], &["-r", "why", DEP][..], &["--filter", "app", "why", DEP][..]] {
@@ -84,6 +90,20 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
             "why {args:?} should query dedicated project lockfiles: {stdout}",
         );
     }
+
+    let shared_dep = pacquet(&workspace, ["why", HELLO]).output().expect("run why for shared dep");
+    assert!(shared_dep.status.success(), "why shared dep should succeed: {shared_dep:?}");
+    let shared_raw = String::from_utf8_lossy(&shared_dep.stdout);
+    let shared_stdout = strip_ansi_codes(&shared_raw);
+    assert!(
+        shared_stdout.contains("app@1.0.0") && shared_stdout.contains("lib@1.0.0"),
+        "shared dep should list both dependents: {shared_stdout}",
+    );
+    assert!(
+        shared_stdout.contains(&format!("Found 1 version of {HELLO}"))
+            && !shared_stdout.contains("instances"),
+        "shared dep should be merged into a single tree: {shared_stdout}",
+    );
 
     let json = pacquet(&workspace, ["why", "--json", "--long", PKG])
         .output()
@@ -105,6 +125,22 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
         filtered_out.stdout.is_empty(),
         "unselected project lockfile should not be included: {}",
         String::from_utf8_lossy(&filtered_out.stdout),
+    );
+
+    write_finder_pnpmfile(&app, "'Found in app'");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nrecursiveInstall: false\npackageConfigs:\n  app:\n    modulesDir: custom_modules\n",
+    )
+    .expect("write workspace manifest with recursiveInstall: false");
+    let local_finder = pacquet(&app, ["why", "--find-by=test-finder"])
+        .output()
+        .expect("run non-recursive why with project-local finder");
+    assert!(local_finder.status.success(), "local finder why should succeed: {local_finder:?}");
+    let local_finder_stdout = String::from_utf8_lossy(&local_finder.stdout);
+    assert!(
+        local_finder_stdout.contains("Found in app"),
+        "non-recursive why should use project-local finder: {local_finder_stdout}",
     );
 }
 

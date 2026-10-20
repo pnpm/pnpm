@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { buildDependenciesTree, buildDependentsTree, compareDependentsTrees, createPackagesSearcher, type DependenciesTree, type DependencyNode, type DependentsTree, type ImporterInfo } from '@pnpm/deps.inspection.tree-builder'
+import { buildDependenciesTree, buildDependentsTree, compareDependentsTrees, createPackagesSearcher, type DependenciesTree, type DependencyNode, type DependentsTree, type ImporterInfo, mergeDependentsTrees } from '@pnpm/deps.inspection.tree-builder'
 import { readCurrentLockfile, readWantedLockfile } from '@pnpm/lockfile.fs'
 import type { DependenciesField, Finder, RegistriesByScope } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -14,6 +14,7 @@ import type { PackageDependencyHierarchy } from './types.js'
 export type { DependencyNode, DependentsTree } from '@pnpm/deps.inspection.tree-builder'
 export {
   compareDependentsTrees,
+  mergeDependentsTrees,
   type PackageDependencyHierarchy,
   renderDependentsJson,
   renderDependentsParseable,

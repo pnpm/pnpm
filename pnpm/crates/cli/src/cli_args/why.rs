@@ -7,7 +7,7 @@ use crate::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{
                 BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree,
-                sort_trees,
+                merge_trees,
             },
             dependents_render::{
                 RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
@@ -63,12 +63,7 @@ impl WhyArgs {
                 "`pnpm why` requires the package name or --find-by=<finder-name>"
             ));
         }
-        let finders = resolve_finders(
-            state.config,
-            state.config.root_project_manifest_dir(state.project_dir()),
-            &self.find_by,
-        )
-        .await?;
+        let finders = resolve_finders(state.config, state.lockfile_dir(), &self.find_by).await?;
 
         let trees = if state.config.recursive && !state.config.shares_one_lockfile() {
             let Some(trees) = self.trees_for_dedicated_lockfiles(&state, &finders).await? else {
@@ -128,8 +123,7 @@ impl WhyArgs {
         if !any_lockfile {
             return Ok(None);
         }
-        sort_trees(&mut trees);
-        Ok(Some(trees))
+        Ok(Some(merge_trees(trees)))
     }
 
     async fn trees_for_lockfile(
