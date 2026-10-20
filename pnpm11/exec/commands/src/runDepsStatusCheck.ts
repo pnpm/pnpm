@@ -323,6 +323,7 @@ export function createFilterArgs (opts: Pick<RunDepsStatusCheckOptions, 'filter'
  */
 export const INSTALL_CLI_OPTION_NAMES = [
   'cache-dir',
+  'changed-files-ignore-pattern',
   'child-concurrency',
   'cpu',
   'dangerously-allow-all-builds',
@@ -380,6 +381,7 @@ export const INSTALL_CLI_OPTION_NAMES = [
   'state-dir',
   'store-dir',
   'strict-peer-dependencies',
+  'test-pattern',
   'trust-lockfile',
   'trust-policy',
   'trust-policy-exclude',
@@ -389,6 +391,7 @@ export const INSTALL_CLI_OPTION_NAMES = [
   'virtual-store-dir',
   'virtual-store-only',
   'workspace-packages',
+  'workspace-root',
 ] as const
 
 const FORWARDED_CLI_OPTION_SET = new Set<string>(INSTALL_CLI_OPTION_NAMES)
@@ -440,6 +443,11 @@ function formatCliConfigEntry (key: string, value: unknown): string[] {
 }
 
 function resolvedPathOverride (key: string, opts: CliConfigArgsOptions): string | undefined {
+  const raw = rawPathOverride(key, opts)
+  return raw != null ? path.resolve(raw) : undefined
+}
+
+function rawPathOverride (key: string, opts: CliConfigArgsOptions): string | undefined {
   switch (key) {
     case 'lockfile-dir':
       return opts.lockfileDir

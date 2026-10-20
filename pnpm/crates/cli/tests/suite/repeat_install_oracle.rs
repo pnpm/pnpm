@@ -978,6 +978,25 @@ fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
     let ci_exec =
         run_in_ci(None, &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""]);
     assert_success(&ci_exec);
+    if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+        let v11_ci_repeat = run_in_ci(Some(&bundle), &["install", "--no-frozen-lockfile"]);
+        assert_success(&v11_ci_repeat);
+        let v11_ci_records = ndjson_records(&v11_ci_repeat);
+        assert!(
+            v11_ci_records
+                .iter()
+                .any(|record| record["message"] == "Already up to date")
+                && !v11_ci_records
+                    .iter()
+                    .any(|record| record["name"] == "pnpm:stage"),
+            "v11 repeat install in CI after v12 CI install must take the fast path",
+        );
+        let v11_ci_exec = run_in_ci(
+            Some(&bundle),
+            &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""],
+        );
+        assert_success(&v11_ci_exec);
+    }
 
     // Outside CI, v12 records `autoDedupe: true` in `pnpm-state.yaml`; v11 must
     // accept that state on its fast path and preserve `autoDedupe: true` when it

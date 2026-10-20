@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 
 import { createCliConfigArgs } from '../src/runDepsStatusCheck.js'
@@ -65,24 +67,30 @@ describe('createCliConfigArgs', () => {
         offline: true,
         'frozen-lockfile': false,
         'ignore-workspace': true,
+        'workspace-root': true,
+        'test-pattern': ['test/**'],
+        'changed-files-ignore-pattern': ['**/*.md'],
         'workspace-packages': ['pkg-a', 'pkg-b'],
         '@my-scope:registry': 'https://scope.registry.example/',
         '//scope.registry.example/:_authToken': 'secret',
         'verify-deps-before-run': 'install',
         filter: ['pkg-a'],
       },
-      lockfileDir: '/abs/lockfile',
+      lockfileDir: '../rel-lockfile',
       storeDir: '/abs/store',
       rawCliConfig: {
         'prefer-offline': true,
       },
     })).toStrictEqual([
-      '--config.lockfile-dir=/abs/lockfile',
-      '--config.store-dir=/abs/store',
+      `--config.lockfile-dir=${path.resolve('../rel-lockfile')}`,
+      `--config.store-dir=${path.resolve('/abs/store')}`,
       '--config.modules-dir=custom_modules',
       '--config.offline=true',
       '--config.frozen-lockfile=false',
       '--ignore-workspace',
+      '--config.workspace-root=true',
+      '--config.test-pattern=test/**',
+      '--config.changed-files-ignore-pattern=**/*.md',
       '--workspace-packages=pkg-a',
       '--workspace-packages=pkg-b',
       '--config.@my-scope:registry=https://scope.registry.example/',

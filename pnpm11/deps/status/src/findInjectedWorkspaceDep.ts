@@ -69,7 +69,7 @@ function resolvesToInjectedWorkspacePackage (alias: string, spec: unknown, ctx: 
   return actualSpec != null && resolvesToWorkspacePackage(alias, actualSpec, ctx.getWorkspacePackages(), ctx.linkWorkspacePackages)
 }
 
-function dereferenceCatalog (alias: string, spec: string, catalogs?: Catalogs): string | undefined {
+export function dereferenceCatalog (alias: string, spec: string, catalogs?: Catalogs): string | undefined {
   if (!spec.startsWith('catalog:')) return spec
   const result = resolveFromCatalog(catalogs ?? {}, { alias, bareSpecifier: spec })
   return result.type === 'found' ? result.resolution.specifier : undefined

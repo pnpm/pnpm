@@ -59,6 +59,7 @@ pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-resolving-tarball-resolver = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 pnpm-workspace = { workspace = true }

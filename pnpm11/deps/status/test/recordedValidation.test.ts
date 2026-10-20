@@ -376,6 +376,21 @@ describe('checkDepsStatus with recorded validations', () => {
       },
     })
     expect(await check(workspace, undefined, { dir: workspace.projectDir('b') })).toMatchObject({ upToDate: true })
+
+    // A non-recursive command in a project with a catalog or peer workspace dependency holds that dependency too.
+    workspace.manifestOf('a').dependencies = { b: 'catalog:' }
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+      linkWorkspacePackages: true,
+      catalogs: { default: { b: '^1.0.0' } },
+    })).toMatchObject({ upToDate: false })
+
+    delete workspace.manifestOf('a').dependencies
+    workspace.manifestOf('a').peerDependencies = { b: 'workspace:*' }
+    await fs.rm(path.join(workspace.projectDir('b'), 'node_modules'), { recursive: true, force: true })
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+    })).toMatchObject({ upToDate: false })
   })
 
   it('proves and refreshes per-project lockfiles when sharedWorkspaceLockfile is false', async () => {

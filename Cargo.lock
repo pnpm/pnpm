@@ -5822,6 +5822,7 @@ dependencies = [
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
  "pnpm-resolving-tarball-resolver",
+ "pnpm-semver-include-prerelease",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",

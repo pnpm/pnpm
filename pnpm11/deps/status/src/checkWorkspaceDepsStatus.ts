@@ -308,7 +308,7 @@ function heldProjects ({ allProjects, lockfilesScan, opts }: WorkspaceDepsStatus
  */
 function createInstallCoverage (
   allProjects: Project[],
-  opts: Pick<CheckDepsStatusOptions, 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
+  opts: Pick<CheckDepsStatusOptions, 'catalogs' | 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
 ): (rootDir: string) => boolean {
   if (opts.selectedProjectsGraph == null && opts.dir == null) return () => true
   const selected = selectProjectDirs(allProjects, opts)

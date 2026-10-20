@@ -276,7 +276,7 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     };
     let (app_dir, app_manifest) = write_pkg(
         "app",
-        r#"{"name":"app","version":"1.0.0","dependencies":{"alias-b":"npm:pkg-b@^1.0.0","rel-c":"workspace:../pkg-c","pkg-d":"workspace:^2.0.0"}}"#,
+        r#"{"name":"app","version":"1.0.0","dependencies":{"alias-b":"npm:pkg-b@^1.0.0","rel-c":"workspace:../pkg-c","pkg-d":"catalog:"},"peerDependencies":{"pkg-e":"workspace:*"}}"#,
         true,
     );
     let (pkg_b_dir, pkg_b_manifest) = write_pkg(
@@ -296,7 +296,12 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     );
     let (pkg_d_v2_dir, pkg_d_v2_manifest) = write_pkg(
         "pkg-d-v2",
-        r#"{"name":"pkg-d","version":"2.1.0","dependencies":{"foo":"1.0.0"}}"#,
+        r#"{"name":"pkg-d","version":"2.1.0-beta.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_e_dir, pkg_e_manifest) = write_pkg(
+        "pkg-e",
+        r#"{"name":"pkg-e","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
         true,
     );
 
@@ -307,14 +312,19 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         (pkg_c_dir.clone(), &pkg_c_manifest),
         (pkg_d_v1_dir, &pkg_d_v1_manifest),
         (pkg_d_v2_dir.clone(), &pkg_d_v2_manifest),
+        (pkg_e_dir.clone(), &pkg_e_manifest),
     ];
+    let catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("pkg-d".to_string(), "^2.0.0".to_string())]),
+    )]);
     let check = OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
         config,
         project_manifests: &project_manifests,
         is_workspace_install: true,
         lockfile: MaybeLazyLockfile::Loaded(None),
-        catalogs: &BTreeMap::default(),
+        catalogs: &catalogs,
         layout: crate::RepeatInstallLayout {
             node_linker: linker,
             included: isolated_included(),
@@ -359,5 +369,15 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         )
         .as_deref(),
         Some("pkg-d"),
+    );
+    fs::create_dir_all(pkg_d_v2_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_e_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        )
+        .as_deref(),
+        Some("pkg-e"),
     );
 }

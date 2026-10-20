@@ -1,6 +1,7 @@
 import type fs from 'node:fs'
 import path from 'node:path'
 
+import type { Catalogs } from '@pnpm/catalogs.types'
 import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { refToRelative } from '@pnpm/deps.path'
 import {
@@ -19,7 +20,7 @@ import {
 import { getHoistedProjectModulesDir, type WorkspaceState } from '@pnpm/workspace.state'
 import { isEmpty } from 'ramda'
 
-import { rangeMatches, splitNameAndRange } from './findInjectedWorkspaceDep.js'
+import { dereferenceCatalog, rangeMatches, splitNameAndRange } from './findInjectedWorkspaceDep.js'
 import { safeStat } from './safeStat.js'
 import type { CheckDepsStatusOptions } from './types.js'
 import { readWantedLockfileIn } from './wantedLockfiles.js'
@@ -255,7 +256,7 @@ function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNul
 
 export function selectProjectDirs (
   allProjects: Project[],
-  opts: Pick<CheckDepsStatusOptions, 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
+  opts: Pick<CheckDepsStatusOptions, 'catalogs' | 'dir' | 'injectWorkspacePackages' | 'linkWorkspacePackages' | 'selectedProjectsGraph' | 'sharedWorkspaceLockfile'>
 ): Set<string> {
   if (opts.selectedProjectsGraph != null) {
     return new Set(Object.keys(opts.selectedProjectsGraph).map((dir) => path.resolve(dir)))
@@ -264,24 +265,33 @@ export function selectProjectDirs (
   if (opts.sharedWorkspaceLockfile === false && opts.injectWorkspacePackages) {
     return new Set([path.resolve(opts.dir)])
   }
-  return walkCommandWorkspaceDependencies(allProjects, path.resolve(opts.dir), Boolean(opts.linkWorkspacePackages))
+  return walkCommandWorkspaceDependencies(allProjects, path.resolve(opts.dir), {
+    catalogs: opts.catalogs,
+    linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+  })
+}
+
+interface WorkspaceWalkContext {
+  index: ProjectIndex
+  linkWorkspacePackages: boolean
+  catalogs?: Catalogs
 }
 
 function walkCommandWorkspaceDependencies (
   allProjects: Project[],
   startDir: string,
-  linkWorkspacePackages: boolean
+  opts: Omit<WorkspaceWalkContext, 'index'>
 ): Set<string> {
-  const index = indexProjects(allProjects)
+  const ctx: WorkspaceWalkContext = { ...opts, index: indexProjects(allProjects) }
   const reached = new Set<string>()
   const stack = [startDir]
   while (stack.length > 0) {
     const dir = stack.pop()!
     if (reached.has(dir)) continue
     reached.add(dir)
-    const project = index.byDir.get(dir)
+    const project = ctx.index.byDir.get(dir)
     if (project == null) continue
-    stack.push(...directWorkspaceDependencyDirs(dir, project.manifest, index, linkWorkspacePackages))
+    stack.push(...directWorkspaceDependencyDirs(dir, project.manifest, ctx))
   }
   return reached
 }
@@ -306,27 +316,28 @@ function indexProjects (allProjects: Project[]): ProjectIndex {
   return { byDir, byName }
 }
 
+const WORKSPACE_WALK_FIELDS = [...DEPENDENCIES_FIELDS, 'peerDependencies'] as const
+
 function directWorkspaceDependencyDirs (
   dir: string,
   manifest: Project['manifest'],
-  index: ProjectIndex,
-  linkWorkspacePackages: boolean
+  ctx: WorkspaceWalkContext
 ): string[] {
   const targets: string[] = []
-  for (const field of DEPENDENCIES_FIELDS) {
-    for (const [alias, pref] of Object.entries(manifest[field] ?? {})) {
-      targets.push(...specWorkspaceTargetDirs(dir, alias, pref, index, linkWorkspacePackages))
+  for (const field of WORKSPACE_WALK_FIELDS) {
+    for (const [alias, rawPref] of Object.entries(manifest[field] ?? {})) {
+      const pref = dereferenceCatalog(alias, rawPref, ctx.catalogs)
+      if (pref != null) {
+        targets.push(...specWorkspaceTargetDirs({ dir, alias, pref }, ctx))
+      }
     }
   }
   return targets
 }
 
 function specWorkspaceTargetDirs (
-  dir: string,
-  alias: string,
-  pref: string,
-  index: ProjectIndex,
-  linkWorkspacePackages: boolean
+  { dir, alias, pref }: { dir: string, alias: string, pref: string },
+  { index, linkWorkspacePackages }: WorkspaceWalkContext
 ): string[] {
   if (pref.startsWith('link:')) {
     const target = path.resolve(dir, pref.slice('link:'.length))

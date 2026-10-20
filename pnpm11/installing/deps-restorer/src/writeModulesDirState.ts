@@ -31,7 +31,20 @@ export async function writeModulesDirState (ctx: HeadlessContext, depGraph: Head
   await writeLockfilesOfInstall(ctx, mergeIntoCurrentLockfile(ctx, depGraph))
 }
 
+const mergedCurrentLockfiles = new WeakMap<HeadlessDepGraph, LockfileObject>()
+
 export function mergeIntoCurrentLockfile (
+  ctx: HeadlessContext,
+  depGraph: HeadlessDepGraph
+): LockfileObject {
+  const cached = mergedCurrentLockfiles.get(depGraph)
+  if (cached != null) return cached
+  const merged = computeMergedCurrentLockfile(ctx, depGraph)
+  mergedCurrentLockfiles.set(depGraph, merged)
+  return merged
+}
+
+function computeMergedCurrentLockfile (
   { currentLockfile, filterOpts, wantedLockfile }: HeadlessContext,
   { filteredLockfile, importerIds }: HeadlessDepGraph
 ): LockfileObject {

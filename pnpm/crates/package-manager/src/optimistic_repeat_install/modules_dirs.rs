@@ -1,12 +1,14 @@
 use super::{
-    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
-    manifest_string_field,
+    CatalogAnchor, CatalogResolutionResult, Catalogs, OptimisticRepeatInstallCheck,
+    WantedDependency, manifest_has_required_peers, manifest_has_runtime_deps,
+    manifest_string_field, resolve_from_catalog,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::WorkspaceState;
 use rayon::prelude::*;
@@ -51,6 +53,7 @@ struct WorkspaceProjectIndex<'a> {
     by_dir: std::collections::HashMap<PathBuf, &'a PackageManifest>,
     by_name: std::collections::HashMap<String, Vec<(PathBuf, Option<String>)>>,
     link_workspace_packages: bool,
+    catalogs: &'a Catalogs,
 }
 
 impl<'a> WorkspaceProjectIndex<'a> {
@@ -73,10 +76,33 @@ impl<'a> WorkspaceProjectIndex<'a> {
             by_dir,
             by_name,
             link_workspace_packages: check.config.link_workspace_packages.enabled_at_depth(0),
+            catalogs: check.catalogs,
         }
     }
 
+    fn dereference_catalog<'b>(
+        &self,
+        alias: &str,
+        spec: &'b str,
+    ) -> Option<std::borrow::Cow<'b, str>> {
+        if !spec.starts_with("catalog:") {
+            return Some(std::borrow::Cow::Borrowed(spec));
+        }
+        let CatalogResolutionResult::Found(found) = resolve_from_catalog(
+            self.catalogs,
+            &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+            CatalogAnchor::AsWritten,
+        ) else {
+            return None;
+        };
+        Some(std::borrow::Cow::Owned(found.resolution.specifier))
+    }
+
     fn dep_targets(&self, dir: &Path, alias: &str, spec: &str) -> Vec<PathBuf> {
+        let Some(spec) = self.dereference_catalog(alias, spec) else {
+            return Vec::new();
+        };
+        let spec = spec.as_ref();
         if let Some(rel) = spec.strip_prefix("link:") {
             let target = lexical_normalize(&dir.join(rel));
             return self.by_dir
@@ -136,6 +162,7 @@ fn reached_workspace_project_dirs(
             DependencyGroup::Prod,
             DependencyGroup::Dev,
             DependencyGroup::Optional,
+            DependencyGroup::Peer,
         ]) {
             stack.extend(index.dep_targets(&dir, alias, spec));
         }
@@ -147,12 +174,13 @@ fn workspace_version_matches_range(version: Option<&str>, range: &str, is_worksp
     if matches!(range, "" | "*" | "^" | "~") {
         return true;
     }
-    let Ok(parsed_range) = range.parse::<node_semver::Range>() else {
+    if range.parse::<node_semver::Range>().is_err() {
         return is_workspace;
-    };
+    }
     let Some(version) = version else {
         return true;
     };
+    let parsed_range = IncludePrereleaseRange::parse(range);
     version == range
         || version
             .parse::<node_semver::Version>()
