@@ -81,7 +81,8 @@ function retainedUnselectedPackages (
   filteredLockfile: LockfileObject,
   importerIds: ProjectId[]
 ): LockfileObject['packages'] {
-  const prevSelected = filterLockfileByImporters(currentLockfile, importerIds, {
+  const previouslyRecordedIds = importerIds.filter((id) => Object.hasOwn(currentLockfile.importers, id))
+  const prevSelected = filterLockfileByImporters(currentLockfile, previouslyRecordedIds, {
     include: ALL_INCLUDED_DEPENDENCIES,
     failOnMissingDependencies: false,
     skipped: new Set(),

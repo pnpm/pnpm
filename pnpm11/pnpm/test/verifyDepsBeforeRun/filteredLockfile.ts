@@ -7,6 +7,30 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
 
+test('a filtered frozen install adds a new workspace project to the current lockfile', async () => {
+  preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { location: 'packages/a', package: { name: 'a', dependencies: { '@pnpm.e2e/foo': '100.0.0' } } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  await execPnpm(['install'])
+  fs.mkdirSync('packages/b')
+  fs.writeFileSync('packages/b/package.json', JSON.stringify({
+    name: 'b',
+    dependencies: { '@pnpm.e2e/bar': '100.0.0' },
+  }))
+  await execPnpm(['install', '--lockfile-only'])
+  await execPnpm(['install', '--filter=b', '--frozen-lockfile'])
+
+  const current = await readCurrentLockfile('node_modules/.pnpm', { ignoreIncompatible: false })
+  expect(current?.importers).toHaveProperty(['packages/b', 'dependencies', '@pnpm.e2e/bar'], '100.0.0')
+  expect(Object.keys(current!.packages!).sort()).toStrictEqual([
+    '@pnpm.e2e/bar@100.0.0',
+    '@pnpm.e2e/foo@100.0.0',
+  ])
+  expect(fs.existsSync('packages/b/node_modules/@pnpm.e2e/bar')).toBe(true)
+})
+
 test('filtered installs retain unselected packages and drop obsolete selected packages', async () => {
   const projects = preparePackages([
     { location: '.', package: { name: 'root', private: true } },
