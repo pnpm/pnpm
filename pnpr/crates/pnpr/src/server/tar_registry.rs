@@ -87,6 +87,7 @@ pub(super) fn describe_tar(
         return;
     };
     let derived = tgz_integrity_key(dist).and_then(|key| table.get(&key));
+    dist.remove("pnpr");
     if let Some(requires_build) = derived.and_then(|entry| entry.requires_build) {
         dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));
     }

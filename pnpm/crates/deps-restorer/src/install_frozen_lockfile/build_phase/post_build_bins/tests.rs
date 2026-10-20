@@ -123,13 +123,16 @@ fn final_importer_sources_clear_pending_without_changing_pre_consumer_candidates
 }
 
 fn run_bin(path: &std::path::Path) -> std::process::Output {
-    loop {
+    let mut last_busy = None;
+    for _ in 0..200 {
         match Command::new(path).output() {
             Ok(output) => return output,
             Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
-                std::thread::yield_now();
+                last_busy = Some(error);
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
-            Err(error) => panic!("run refreshed bin: {error:?}"),
+            Err(error) => panic!("run refreshed bin {}: {error:?}", path.display()),
         }
     }
+    panic!("refreshed bin stayed busy {}: {last_busy:?}", path.display());
 }

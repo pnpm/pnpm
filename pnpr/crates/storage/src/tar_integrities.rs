@@ -107,6 +107,30 @@ impl TarIntegrityCache {
 const RECORD_ATTEMPTS: usize = 5;
 
 impl Storage {
+    /// On-disk path of a cached upstream tarball in `namespace`.
+    #[must_use]
+    pub fn upstream_blob_path(
+        &self,
+        namespace: &str,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> std::path::PathBuf {
+        self.cached.namespaced(namespace).blob_path(name, filename)
+    }
+
+    /// Whether this replica's in-memory cache already records a completed build
+    /// scan for `tgz_integrity` under `name`.
+    #[must_use]
+    pub fn has_cached_scanned_tar_integrity(
+        &self,
+        name: &CanonicalPackageName,
+        tgz_integrity: &str,
+    ) -> bool {
+        self.tar_integrity_cache
+            .get(name)
+            .is_some_and(|table| table.get(tgz_integrity).is_some_and(|derived| derived.scanned))
+    }
+
     /// The tar integrities derived so far for `name`'s versions, keyed by the
     /// `dist.integrity` of the `.tgz` each was derived from.
     ///

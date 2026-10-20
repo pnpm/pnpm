@@ -1,3 +1,7 @@
+pub(super) use self::background_scan::BackgroundTarScans;
+use self::background_scan::{
+    PromotedTarballScan, schedule_cached_tarball_scan, schedule_deferred_cached_tarball_scan,
+};
 use super::{
     AppState, CanonicalPackageName, Duration, FetchOutcome, Identity, Integrity, MAX_TARBALL_BYTES,
     RegistryError, Response, TarballDist, Upstream, authorized_upstream, ensure_osv_allowed,
@@ -5,6 +9,8 @@ use super::{
     tarball_stream_error, timed, upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
+
+mod background_scan;
 
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the
@@ -91,19 +97,17 @@ pub(super) async fn serve_authorized_upstream_tarball(
     if let Err(err) = recheck_osv(state, name, &version, parsed_version) {
         return err.into_response();
     }
+    let tarball =
+        UpstreamTarball { namespace, name, filename, integrity: &integrity, unpacked_size };
     if upstream.caches()
         && state.inner.osv_index.is_some()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
     {
+        schedule_cached_tarball_scan(state, tarball);
         return response;
     }
 
-    fetch_upstream_tarball(
-        state,
-        upstream,
-        UpstreamTarball { namespace, name, filename, integrity: &integrity, unpacked_size },
-    )
-    .await
+    fetch_upstream_tarball(state, upstream, tarball).await
 }
 
 /// The cache path segment a tarball request names, and the version its
@@ -154,6 +158,7 @@ pub(super) async fn serve_bound_upstream_tarball(
         && let Some(response) =
             cached_upstream_tarball(state, tarball.namespace, tarball.name, tarball.filename).await
     {
+        schedule_cached_tarball_scan(state, tarball);
         return (response, TarballOrigin::Cache);
     }
     (fetch_upstream_tarball(state, upstream, tarball).await, TarballOrigin::Upstream)
@@ -254,69 +259,6 @@ pub(super) async fn fetch_upstream_tarball(
     stream_and_record_upstream_tarball(state, response, write, tarball)
 }
 
-/// Concurrent and queued background `.tgz` scans after an upstream tarball is
-/// promoted to cache. Separate from `state.inner.proxy.tar_decodes` so
-/// background metadata derivation never delays foreground decoded-tar responses.
-pub(super) struct BackgroundTarScans {
-    permits: tokio::sync::Semaphore,
-    in_flight: std::sync::Mutex<std::collections::HashSet<(String, String)>>,
-}
-
-const MAX_CONCURRENT_BACKGROUND_SCANS: usize = 8;
-const MAX_IN_FLIGHT_BACKGROUND_SCANS: usize = 64;
-
-/// Decoded-byte budget for a background `.tgz` scan when the upstream version
-/// omits `dist.unpackedSize`.
-const MAX_BACKGROUND_UNDECLARED_TAR_BYTES: u64 = 256 * 1024 * 1024;
-
-struct InFlightScanGuard {
-    scans: std::sync::Arc<BackgroundTarScans>,
-    key: Option<(String, String)>,
-}
-
-impl Drop for InFlightScanGuard {
-    fn drop(&mut self) {
-        if let Some(key) = self.key.take() {
-            self.scans.in_flight
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .remove(&key);
-        }
-    }
-}
-
-impl BackgroundTarScans {
-    pub(super) fn new() -> std::sync::Arc<Self> {
-        std::sync::Arc::new(Self {
-            permits: tokio::sync::Semaphore::new(MAX_CONCURRENT_BACKGROUND_SCANS),
-            in_flight: std::sync::Mutex::new(std::collections::HashSet::new()),
-        })
-    }
-
-    fn try_claim(
-        self: &std::sync::Arc<Self>,
-        name: &CanonicalPackageName,
-        tgz_key: &str,
-    ) -> Option<InFlightScanGuard> {
-        let key = (name.as_str().to_string(), tgz_key.to_string());
-        {
-            let mut in_flight =
-                self.in_flight.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            if in_flight.len() >= MAX_IN_FLIGHT_BACKGROUND_SCANS || !in_flight.insert(key.clone()) {
-                return None;
-            }
-        }
-        Some(InFlightScanGuard { scans: std::sync::Arc::clone(self), key: Some(key) })
-    }
-}
-
-fn background_tar_decode_limit(unpacked_size: Option<u64>) -> u64 {
-    match unpacked_size {
-        Some(size) => super::tar_decode_limit(Some(size)),
-        None => MAX_BACKGROUND_UNDECLARED_TAR_BYTES,
-    }
-}
-
 fn stream_and_record_upstream_tarball(
     state: &AppState,
     response: pnpm_network::ThrottledResponse,
@@ -327,73 +269,17 @@ fn stream_and_record_upstream_tarball(
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
-    let storage = state.inner.storage.clone();
-    let background_scans = std::sync::Arc::clone(&state.inner.proxy.background_tar_scans);
-    let pkg_name = tarball.name.clone();
-    let tgz_key = tarball.integrity.to_string();
-    let decode_limit = background_tar_decode_limit(tarball.unpacked_size);
+    let scan = PromotedTarballScan::new(state, tarball);
     let streamed = streaming::stream_verified_to_cache_and_then(
         response,
         write,
         tarball.integrity,
         MAX_TARBALL_BYTES,
-        move |cached_path| {
-            let Some(in_flight_guard) = background_scans.try_claim(&pkg_name, &tgz_key) else {
-                return;
-            };
-            tokio::spawn(record_cached_tgz_tar_integrity(
-                storage,
-                pkg_name,
-                tgz_key,
-                cached_path,
-                decode_limit,
-                in_flight_guard,
-            ));
-        },
+        move |cached_path| scan.spawn(cached_path),
     );
     match streamed {
         Ok(body) => tarball_response(body, None),
         Err(err) => tarball_stream_error(err, tarball.name, tarball.filename).into_response(),
-    }
-}
-
-async fn record_cached_tgz_tar_integrity(
-    storage: pnpr_storage::Storage,
-    name: CanonicalPackageName,
-    tgz_key: String,
-    cached_path: std::path::PathBuf,
-    decode_limit: u64,
-    in_flight_guard: InFlightScanGuard,
-) {
-    let permit = in_flight_guard.scans.permits
-        .acquire()
-        .await
-        .expect("the background scan semaphore is never closed");
-    if storage
-        .read_tar_integrities(&name)
-        .await
-        .is_ok_and(|table| table.get(&tgz_key).is_some_and(|derived| derived.scanned))
-    {
-        return;
-    }
-    let derived = tokio::task::spawn_blocking(move || {
-        let file = std::fs::File::open(cached_path).ok()?;
-        super::tar_integrity_within(std::io::BufReader::new(file), decode_limit)
-    })
-    .await
-    .ok()
-    .flatten();
-    drop(permit);
-    if let Some((tar_integrity, requires_build)) = derived
-        && let Err(err) = storage.record_tar_integrity(
-            &name,
-            &tgz_key,
-            &tar_integrity.to_string(),
-            requires_build,
-        )
-        .await
-    {
-        tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
     }
 }
 
@@ -432,7 +318,10 @@ pub(super) async fn cached_upstream_tarball(
     )
     .await
     {
-        Ok(Some((file, len))) => Some(tarball_response(streaming::stream_file(file), Some(len))),
+        Ok(Some((file, len))) => {
+            schedule_deferred_cached_tarball_scan(state, namespace, name, filename);
+            Some(tarball_response(streaming::stream_file(file), Some(len)))
+        }
         Ok(None) => None,
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), %filename, "upstream tarball cache open failed");
