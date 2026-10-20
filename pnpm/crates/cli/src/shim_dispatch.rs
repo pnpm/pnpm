@@ -481,7 +481,7 @@ fn run_package_manager_from_pin(
     let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
         let config = Config::leak(trusted_package_manager_config(&state_dir)?);
         let _quiet = EventFilter::All.apply();
-        provision::<CliReporter>(config, pm, &spec).await
+        Box::pin(provision::<CliReporter>(config, pm, &spec)).await
     });
     match result {
         Ok(engine) => {
