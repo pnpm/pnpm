@@ -185,7 +185,7 @@ fn prepare_loaded_packages(
     fetched: &mut CreateVirtualStoreOutput,
     context: &crate::InstallContext<'_>,
 ) -> Result<(), CreateVirtualStoreError> {
-    let cached_builds = retain_cached_builds(CachedBuildInputs {
+    let mut cached_builds = retain_cached_builds(CachedBuildInputs {
         selected,
         snapshots,
         packages,
@@ -196,6 +196,7 @@ fn prepare_loaded_packages(
     });
     retain_native_addon_packages(selected, snapshots, fetched);
     retain_build_misses(selected, snapshots, fetched, &cached_builds);
+    cached_builds.retain(|key, _| !selected.contains_key(key));
     fetched.cas_paths_by_snapshot = cached_build_maps(fetched, &cached_builds);
     validate_cas_builds(fetched, selected, &cached_builds, context.config)
 }
