@@ -63,7 +63,7 @@ async fn a_package_that_requires_a_build_is_left_to_the_link_phase() {
 }
 
 #[tokio::test]
-async fn pnpr_requires_build_hint_skips_scheduling_and_cas_manifest_read() {
+async fn pnpr_requires_build_hint_skips_scheduling_and_never_bypasses_tarball_verdict() {
     let dir = tempfile::tempdir().unwrap();
     let virtual_store_dir = dir.path().join(".pnpm");
     let config = Config { install_state_dir: virtual_store_dir.clone(), ..Config::default() };
@@ -75,25 +75,46 @@ async fn pnpr_requires_build_hint_skips_scheduling_and_cas_manifest_read() {
     assert_eq!(lock(&materializer.tasks).len(), 0);
     assert_eq!(lock(&materializer.slots).len(), 0);
 
-    // Even when the on-disk file has a postinstall script, a verified
-    // `dist.pnpr.requiresBuild: false` hint skips re-reading `package.json`.
-    let package_json = dir.path().join("plain.json");
+    // An untrusted `dist.pnpr.requiresBuild: false` hint must not early-materialize
+    // a package whose extracted tarball actually requires a build.
+    let package_json = dir.path().join("forged.json");
     std::fs::write(
         &package_json,
-        r#"{"name":"plain","version":"1.0.0","scripts":{"postinstall":"node x.js"}}"#,
+        r#"{"name":"forged","version":"1.0.0","scripts":{"postinstall":"node x.js"}}"#,
     )
     .unwrap();
     let files = HashMap::from([("package.json".to_string(), package_json)]);
-    let plain = finalized_package_with_requires_build("plain", "1.0.0", Some(false));
-    let LockfileResolution::Tarball(tarball) = &plain.result.resolution else { unreachable!() };
+    let forged = finalized_package_with_requires_build("forged", "1.0.0", Some(false));
+    let LockfileResolution::Tarball(tarball) = &forged.result.resolution else { unreachable!() };
     mem_cache.insert(
         package_mem_cache_key(&tarball.tarball, tarball.integrity.as_ref(), false),
         Arc::new(RwLock::new(CacheValue::Available(CachedTarball::from_files(files)))),
     );
+    materializer.schedule(&forged);
+
+    // When the extracted tarball records `requires_build: Some(false)`,
+    // `import_slot` uses that in-memory verdict without re-reading `package.json`.
+    let plain_json = dir.path().join("plain.json");
+    std::fs::write(&plain_json, r#"{"name":"plain","version":"1.0.0"}"#).unwrap();
+    let plain_files = Arc::new(HashMap::from([("package.json".to_string(), plain_json)]));
+    let plain = finalized_package_with_requires_build("plain", "1.0.0", Some(false));
+    let LockfileResolution::Tarball(plain_tarball) = &plain.result.resolution else {
+        unreachable!()
+    };
+    mem_cache.insert(
+        package_mem_cache_key(&plain_tarball.tarball, plain_tarball.integrity.as_ref(), false),
+        Arc::new(RwLock::new(CacheValue::Available(Arc::new(CachedTarball {
+            files: plain_files,
+            manifest: None,
+            requires_build: Some(false),
+        })))),
+    );
     materializer.schedule(&plain);
+
     let mut tasks = std::mem::take(&mut *lock(&materializer.tasks));
     while tasks.join_next().await.is_some() {}
     assert_eq!(materializer.finish(|_| true, &AtomicU8::new(0)).await, 1);
+    assert!(!virtual_store_dir.join("forged@1.0.0/node_modules/forged").exists());
     assert!(virtual_store_dir.join("plain@1.0.0/node_modules/plain/package.json").is_file());
 }
 

@@ -411,11 +411,15 @@ impl EngineNamePlan {
     /// slot a pending host probe will fill, the deferred probe's shared
     /// handle, or the name already known.
     pub(super) fn source(&self) -> crate::EngineNameSource {
-        match (&self.pending_slot, &self.deferred) {
-            (Some(slot), _) => crate::EngineNameSource::Pending(std::sync::Arc::clone(slot)),
-            (None, Some(deferred)) => crate::EngineNameSource::Pending(deferred.shared()),
-            (None, None) => crate::EngineNameSource::Ready(self.name.clone()),
+        if let Some(slot) = &self.pending_slot {
+            return crate::EngineNameSource::Pending(std::sync::Arc::clone(slot));
         }
+        if let Some(slot) =
+            self.deferred.as_ref().and_then(crate::materialization_plan::DeferredEngineName::shared)
+        {
+            return crate::EngineNameSource::Pending(slot);
+        }
+        crate::EngineNameSource::Ready(self.name.clone())
     }
 }
 /// `engine_name` feeds two sites:

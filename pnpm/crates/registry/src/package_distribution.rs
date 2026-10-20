@@ -62,8 +62,7 @@ pub struct PackageDistribution {
     pub attestations: Option<AttestationsDist>,
 
     /// Tarball-verified facts `pnpr` computes from the archive's own
-    /// bytes (`package/package.json` and `package/binding.gyp`) and
-    /// attaches under `dist.pnpr`.
+    /// bytes and attaches under `dist.pnpr`.
     #[serde(
         default,
         deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
@@ -76,9 +75,7 @@ pub struct PackageDistribution {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PnprDistribution {
-    /// Whether the tarball has lifecycle install scripts
-    /// (`preinstall`, `install`, `postinstall`), `binding.gyp`, or
-    /// `scripts.gypfile !== false`.
+    /// The build-trigger verdict of `pnpm_tarball::tar_requires_build`.
     #[serde(
         default,
         deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",

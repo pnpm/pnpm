@@ -123,7 +123,6 @@ pub(super) struct ColdBatch<'a> {
     pub(super) removed_aliases_by_key: &'a HashMap<PackageKey, Vec<PkgName>>,
     pub(super) link_template: &'a LinkSlotsParallel<'a>,
     pub(super) shared_packages: Option<&'a HashSet<&'a str>>,
-    pub(super) known_requires_build: Option<&'a RequiresBuildBySnapshot>,
 }
 /// Download every cold snapshot and link each one as it lands.
 ///
@@ -188,23 +187,19 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
             );
         }
     };
-    let crate::InstalledPackage {
-        cas_paths,
-        source_is_mutable,
-        source_exists,
-    } = installed;
-    let requires_build =
-        super::lookup_known_requires_build(batch.known_requires_build, snapshot_key)
-            .unwrap_or_else(|| requires_build_from_cas_paths(&cas_paths));
+    let requires_build = (!crate::snapshot_has_patch(snapshot_key))
+        .then_some(installed.requires_build)
+        .flatten()
+        .unwrap_or_else(|| requires_build_from_cas_paths(&installed.cas_paths));
     Ok((
         None,
         Some(ColdCapture {
             snapshot_key,
             snapshot,
             requires_build,
-            cas_paths,
-            source_is_mutable,
-            source_exists,
+            cas_paths: installed.cas_paths,
+            source_is_mutable: installed.source_is_mutable,
+            source_exists: installed.source_exists,
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
@@ -306,6 +301,7 @@ pub(super) fn record_cold_outcome<'a>(
 ) -> Option<ColdCapture<'a>> {
     let (failure, captured) = outcome;
     if let Some(key) = failure {
+        state.requires_build_by_snapshot.remove(&key);
         state.fetch_failed.insert(key);
     }
     let captured = captured?;

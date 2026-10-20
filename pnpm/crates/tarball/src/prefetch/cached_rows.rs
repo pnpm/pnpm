@@ -5,10 +5,11 @@ use super::{
 };
 
 /// Files reconstructed from a store-index row, plus the bundled
-/// manifest the row recorded.
+/// manifest and build-trigger verdict the row recorded.
 pub(crate) struct CachedCasPaths {
     pub files: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
+    pub requires_build: Option<bool>,
 }
 
 /// What the store-index lookup found for one row.
@@ -23,6 +24,7 @@ enum CachedRow {
     Hit {
         cas_paths: HashMap<String, PathBuf>,
         manifest: Option<serde_json::Value>,
+        requires_build: bool,
         mismatch: Option<PkgContentMismatch>,
     },
 }
@@ -93,7 +95,12 @@ fn cached_row_paths<Reporter: crate::Reporter>(
         CachedRow::Rejected(mismatch) => {
             Err(TarballError::UnexpectedPkgContentInStore { hint: mismatch.hint() })
         }
-        CachedRow::Hit { cas_paths, manifest, mismatch } => {
+        CachedRow::Hit {
+            cas_paths,
+            manifest,
+            requires_build,
+            mismatch,
+        } => {
             if let Some(mismatch) = mismatch {
                 Reporter::emit(&LogEvent::Global(GlobalLog {
                     level: LogLevel::Warn,
@@ -103,7 +110,11 @@ fn cached_row_paths<Reporter: crate::Reporter>(
                     ),
                 }));
             }
-            Ok(Some(CachedCasPaths { files: cas_paths, manifest }))
+            Ok(Some(CachedCasPaths {
+                files: cas_paths,
+                manifest,
+                requires_build: Some(requires_build),
+            }))
         }
     }
 }
@@ -133,6 +144,7 @@ fn cached_row(
         return CachedRow::Rejected(mismatch);
     }
 
+    let stored_requires_build = entry.requires_build;
     let manifest = entry.manifest.take();
     let verify_result = if verify_store_integrity {
         pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
@@ -154,7 +166,12 @@ fn cached_row(
         );
         return CachedRow::Miss;
     }
-    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, mismatch }
+    let requires_build = super::resolve_row_requires_build(
+        stored_requires_build,
+        manifest.as_ref(),
+        &verify_result.files_map,
+    );
+    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, requires_build, mismatch }
 }
 
 /// The row for `cache_key`, or `None` for a miss.

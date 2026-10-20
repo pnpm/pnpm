@@ -402,7 +402,6 @@ impl<'a> CreateVirtualStore<'a> {
                 removed_aliases_by_key: &inputs.links.removed_aliases_by_key,
                 link_template: &inputs.links.template,
                 shared_packages: inputs.links.shared_packages.as_ref(),
-                known_requires_build: self.selection.known_requires_build,
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,

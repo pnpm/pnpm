@@ -232,11 +232,12 @@ or `revisions`.
 When pnpr has verified a version's tarball (at publish time, on first read, or
 while streaming and caching an upstream tarball), its full packument,
 abbreviated `application/vnd.npm.install-v1+json` packument, and single-version
-manifest include `dist.pnpr.requiresBuild` (`true` when the tarball's
+manifest include `dist.pnpr.requiresBuild` (`true` when the tarball's root
 `package.json` declares `preinstall`, `install`, or `postinstall` under
-`scripts` or `hasInstallScript: true`, or when the tarball contains a root
-`binding.gyp`; `false` otherwise). Any `dist.pnpr` field supplied by a publisher
-or an upstream packument is stripped and never trusted.
+`scripts`, when the tarball contains a root `binding.gyp` and `package.json`
+does not set `gypfile: false`, or when it contains a `.hooks/` entry; `false`
+otherwise). Any `dist.pnpr` field supplied by a publisher or an upstream
+packument is stripped and never trusted.
 
 ## Registry write endpoints
 

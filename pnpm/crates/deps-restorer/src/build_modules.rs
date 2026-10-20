@@ -303,6 +303,14 @@ pub struct BuildModulesOutput {
     pub mutated_snapshot_keys: HashSet<PackageKey>,
 }
 
+fn take_mutated_snapshot_keys(
+    bin_state: &crate::build_options::BuildBinState,
+) -> HashSet<PackageKey> {
+    std::mem::take(
+        &mut *bin_state.slot_mutations.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+    )
+}
+
 impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
@@ -319,6 +327,9 @@ impl BuildModules<'_> {
         };
 
         let requires_build_map = self.requires_build_map(snapshots);
+        if !self.has_work(&requires_build_map) {
+            return Ok(BuildModulesOutput::default());
+        }
         let dep_states = self.dep_states(snapshots, &requires_build_map);
         let build_graph = build_graph(
             &requires_build_map,
@@ -356,11 +367,7 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mutated_snapshot_keys = std::mem::take(
-            &mut *bin_state.slot_mutations
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
+        let mutated_snapshot_keys = take_mutated_snapshot_keys(bin_state);
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
             deferred_builds: self.deferred_builds(&requires_build_map),
@@ -379,6 +386,11 @@ impl BuildModules<'_> {
                 }),
             self.scripts.ignore,
         )
+    }
+
+    fn has_work(&self, requires_build_map: &HashMap<PackageKey, bool>) -> bool {
+        !self.graph.patches.is_none_or(HashMap::is_empty)
+            || requires_build_map.values().any(|&requires_build| requires_build)
     }
 
     fn requires_build_map(

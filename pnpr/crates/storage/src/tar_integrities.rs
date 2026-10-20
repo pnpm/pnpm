@@ -13,6 +13,11 @@ pub struct DerivedTar {
     pub tar_integrity: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_build: Option<bool>,
+    /// `true` once the `.tgz` has been scanned for build triggers, even when
+    /// `requires_build` is `None` (unparsable `package.json`). `false` only
+    /// for a legacy string entry written before build-trigger scanning existed.
+    #[serde(skip)]
+    pub scanned: bool,
 }
 
 #[derive(Deserialize)]
@@ -33,10 +38,10 @@ impl<'de> Deserialize<'de> for DerivedTar {
     ) -> std::result::Result<Self, Deserializer::Error> {
         match StoredDerivedTar::deserialize(deserializer)? {
             StoredDerivedTar::Legacy(tar_integrity) => {
-                Ok(Self { tar_integrity, requires_build: None })
+                Ok(Self { tar_integrity, requires_build: None, scanned: false })
             }
             StoredDerivedTar::Record { tar_integrity, requires_build } => {
-                Ok(Self { tar_integrity, requires_build })
+                Ok(Self { tar_integrity, requires_build, scanned: true })
             }
         }
     }
@@ -184,6 +189,7 @@ fn is_tar_entry_recorded(
         .get(tgz_integrity)
         .is_some_and(|known| {
             known.tar_integrity == tar_integrity
+                && known.scanned
                 && (requires_build.is_none() || known.requires_build == requires_build)
         })
 }
@@ -201,6 +207,7 @@ fn insert_tar_entry(
         DerivedTar {
             tar_integrity: tar_integrity.to_string(),
             requires_build: merged_requires_build,
+            scanned: true,
         },
     );
 }

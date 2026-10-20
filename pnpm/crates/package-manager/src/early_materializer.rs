@@ -16,13 +16,13 @@ use pnpm_config::{Config, PackageImportMethod};
 use pnpm_deps_restorer::{
     ImportIndexedDirOpts, SkippedSnapshots, VirtualStoreLayout, create_symlink_layout,
     import_indexed_dir, install_package_from_registry::extract_tarball,
-    requires_build_from_cas_paths, safe_join_modules_dir::safe_join_modules_dir,
+    safe_join_modules_dir::safe_join_modules_dir,
 };
 use pnpm_lockfile::{
     LockfileResolution, PackageKey, PkgName, SnapshotDepRef, is_git_hosted_tarball_url,
 };
 use pnpm_resolving_deps_resolver::{FinalizedPackage, FinalizedPackageFn};
-use pnpm_tarball::{CacheValue, MemCache, package_mem_cache_key};
+use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
 use std::{
     collections::HashMap,
     marker::PhantomData,
@@ -100,10 +100,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         if !can_early_materialize(&package.result.resolution, package_url, &package.pkg_id) {
             return;
         }
-        let known_requires_build = crate::install_package_from_registry::manifest_requires_build(
+        if crate::install_package_from_registry::manifest_requires_build(
             package.result.package.manifest.as_deref(),
-        );
-        if known_requires_build == Some(true) {
+        ) == Some(true)
+        {
             return;
         }
         let Ok(key) = package.pkg_id.parse::<PackageKey>() else { return };
@@ -121,7 +121,6 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
             virtual_node_modules_dir,
             package_dir,
             dependencies: required_dependencies(&package.children),
-            known_requires_build,
         };
         if lock(&self.slots).insert(key, slot_dir).is_some() {
             return;
@@ -200,12 +199,11 @@ struct SlotJob {
     virtual_node_modules_dir: PathBuf,
     package_dir: PathBuf,
     dependencies: HashMap<PkgName, SnapshotDepRef>,
-    known_requires_build: Option<bool>,
 }
 
 impl SlotJob {
     async fn run<Reporter: pnpm_reporter::Reporter>(mut self, shared: &Arc<Shared>) {
-        let Some(cas_paths) = wait_for_cas_paths(shared, &self.mem_cache_key).await else {
+        let Some(cached) = wait_for_cas_paths(shared, &self.mem_cache_key).await else {
             return;
         };
         let Ok(_permit) = shared.permits.acquire().await else { return };
@@ -217,7 +215,7 @@ impl SlotJob {
         let shared = Arc::clone(shared);
         let package_url = std::mem::take(&mut self.package_url);
         let outcome = tokio::task::spawn_blocking(move || {
-            let import = || self.import_slot::<Reporter>(&shared, &cas_paths);
+            let import = || self.import_slot::<Reporter>(&shared, &cached);
             match early_link_pool() {
                 Some(pool) => pool.install(import),
                 None => import(),
@@ -243,12 +241,12 @@ impl SlotJob {
     fn import_slot<Reporter: pnpm_reporter::Reporter>(
         &self,
         shared: &Shared,
-        cas_paths: &HashMap<String, PathBuf>,
+        cached: &CachedTarball,
     ) -> Result<(), String> {
         // A package with a build ahead of it must not share inodes with the
         // store. The link phase imports it with `clone-or-copy` and marks it
         // for the build, and a completed slot here would make it skip that.
-        if self.known_requires_build.unwrap_or_else(|| requires_build_from_cas_paths(cas_paths)) {
+        if cached.requires_build() {
             return Ok(());
         }
         std::fs::create_dir_all(&self.virtual_node_modules_dir).map_err(|error| error.to_string())?;
@@ -256,7 +254,7 @@ impl SlotJob {
             &shared.logged_methods,
             shared.import_method,
             &self.package_dir,
-            cas_paths,
+            &cached.files,
             ImportIndexedDirOpts::default(),
         )
         .map_err(|error| error.to_string())?;
@@ -316,10 +314,7 @@ fn early_link_pool_size(global_pool_threads: usize, parallelism: usize) -> usize
 /// materializer closes first, which covers both a tarball the prefetch
 /// skipped (it never registers) and one still in flight when the
 /// install starts linking.
-async fn wait_for_cas_paths(
-    shared: &Shared,
-    mem_cache_key: &str,
-) -> Option<Arc<HashMap<String, PathBuf>>> {
+async fn wait_for_cas_paths(shared: &Shared, mem_cache_key: &str) -> Option<Arc<CachedTarball>> {
     loop {
         let slot = shared.mem_cache.get(mem_cache_key).map(|entry| Arc::clone(entry.value()));
         let Some(slot) = slot else {
@@ -330,7 +325,7 @@ async fn wait_for_cas_paths(
             continue;
         };
         let notify = match &*slot.read().await {
-            CacheValue::Available(cached) => return Some(Arc::clone(&cached.files)),
+            CacheValue::Available(cached) => return Some(Arc::clone(cached)),
             CacheValue::Failed => return None,
             CacheValue::InProgress(notify) => Arc::clone(notify),
         };

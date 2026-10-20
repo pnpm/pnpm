@@ -32,22 +32,18 @@ impl<'a> InstallFrozenLockfile<'a> {
             // value when the spawn was never deferred (GVS on, or host
             // already detected for the installability check).
             let engine_name = match phase.deferred_engine_name {
-                Some(deferred) => deferred.handle.await.ok().flatten(),
+                Some(deferred) => {
+                    let ignore_scripts = install.drivers.config.ignore_scripts;
+                    let requires_build = &phase.fetched.requires_build_by_snapshot;
+                    deferred.resolve_for_build(ignore_scripts, requires_build).await
+                }
                 None => phase.engine_name,
             };
-
             let build_extra_env = build_extra_env(
                 install.drivers.config,
                 install.platform.node_linker,
                 install.projects.workspace_root,
             );
-
-            // Run lifecycle scripts, report ignored builds, and re-link
-            // top-level bins. `workspace_root` is the `lockfileDir`;
-            // pass the real `Path` rather than reconstructing it from the
-            // lossy `requester` string so non-UTF-8 filenames survive.
-            // `allow_build_policy` was constructed up-front (before
-            // `CreateVirtualStore`) so the git fetcher could consult it.
             run_build_phase::<Reporter>(&BuildPhaseInputs {
                 cache: phase.fetched.build_cache(engine_name.as_deref(), phase.store_index_writer),
                 directories: build_directories(install.projects.workspace_root, ctx, phase.linked),
@@ -64,11 +60,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     build_scope: phase.linked.build_scope.as_ref(),
                 },
                 policy: install.build_policy(ctx.allow_build_policy),
-
-                // Resolved once inside `resolve_snapshot_patches`; the frozen
-                // path has no earlier patch resolution to reuse.
                 extra_env: &build_extra_env,
-
                 skipped: phase.skipped,
                 held_back_bins_dirs: &phase.linked.held_back_bins_dirs,
                 hoisted_bin_sources: Some(&phase.linked.hoisted_bin_sources),

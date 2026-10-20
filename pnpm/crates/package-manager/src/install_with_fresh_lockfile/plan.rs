@@ -424,8 +424,8 @@ pub(super) fn engine_name_source(
     deferred: Option<&pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
     engine_name: Option<String>,
 ) -> pnpm_deps_restorer::EngineNameSource {
-    match deferred {
-        Some(deferred) => pnpm_deps_restorer::EngineNameSource::Pending(deferred.shared()),
+    match deferred.and_then(pnpm_deps_restorer::materialization_plan::DeferredEngineName::shared) {
+        Some(slot) => pnpm_deps_restorer::EngineNameSource::Pending(slot),
         None => pnpm_deps_restorer::EngineNameSource::Ready(engine_name),
     }
 }

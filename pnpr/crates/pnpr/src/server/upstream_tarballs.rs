@@ -252,6 +252,12 @@ pub(super) async fn fetch_upstream_tarball(
     stream_and_record_upstream_tarball(state, response, write, tarball)
 }
 
+/// Concurrent background `.tgz` scans after an upstream tarball is promoted to
+/// cache. Separate from `state.inner.proxy.tar_decodes` so background metadata
+/// derivation never delays foreground decoded-tar responses.
+static BACKGROUND_TAR_SCANS: std::sync::LazyLock<tokio::sync::Semaphore> =
+    std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(8));
+
 fn stream_and_record_upstream_tarball(
     state: &AppState,
     response: pnpm_network::ThrottledResponse,
@@ -263,7 +269,6 @@ fn stream_and_record_upstream_tarball(
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
     let storage = state.inner.storage.clone();
-    let decodes = std::sync::Arc::clone(&state.inner.proxy.tar_decodes);
     let pkg_name = tarball.name.clone();
     let tgz_key = tarball.integrity.to_string();
     let streamed = streaming::stream_verified_to_cache_and_then(
@@ -272,13 +277,7 @@ fn stream_and_record_upstream_tarball(
         tarball.integrity,
         MAX_TARBALL_BYTES,
         move |cached_path| {
-            tokio::spawn(record_cached_tgz_tar_integrity(
-                storage,
-                decodes,
-                pkg_name,
-                tgz_key,
-                cached_path,
-            ));
+            tokio::spawn(record_cached_tgz_tar_integrity(storage, pkg_name, tgz_key, cached_path));
         },
     );
     match streamed {
@@ -289,7 +288,6 @@ fn stream_and_record_upstream_tarball(
 
 async fn record_cached_tgz_tar_integrity(
     storage: pnpr_storage::Storage,
-    decodes: std::sync::Arc<tokio::sync::Semaphore>,
     name: CanonicalPackageName,
     tgz_key: String,
     cached_path: std::path::PathBuf,
@@ -297,21 +295,22 @@ async fn record_cached_tgz_tar_integrity(
     if storage
         .read_tar_integrities(&name)
         .await
-        .is_ok_and(|table| {
-            table.get(&tgz_key).is_some_and(|derived| derived.requires_build.is_some())
-        })
+        .is_ok_and(|table| table.get(&tgz_key).is_some_and(|derived| derived.scanned))
     {
         return;
     }
-    let permit = decodes.acquire_owned().await.expect("the decode semaphore is never closed");
+    let permit = BACKGROUND_TAR_SCANS
+        .acquire()
+        .await
+        .expect("the background scan semaphore is never closed");
     let derived = tokio::task::spawn_blocking(move || {
-        let _permit = permit;
         let file = std::fs::File::open(cached_path).ok()?;
         super::tar_integrity_of(std::io::BufReader::new(file))
     })
     .await
     .ok()
     .flatten();
+    drop(permit);
     if let Some((tar_integrity, requires_build)) = derived
         && let Err(err) = storage.record_tar_integrity(
             &name,

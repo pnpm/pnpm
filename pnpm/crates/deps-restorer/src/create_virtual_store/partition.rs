@@ -159,13 +159,13 @@ pub(super) fn partition_snapshots<'a>(
     let mut rows = IndexRows::with_capacity_for(prefetch);
 
     for entry in skipped_entries {
-        rows.absorb(entry, prefetch, rebuilds);
+        rows.absorb(entry, prefetch, rebuilds, false);
     }
 
     // Second pass: survivors, which additionally take the warm/cold
     // partition that decides which snapshots run the link work.
     for entry in snapshot_entries {
-        rows.absorb(entry, prefetch, rebuilds);
+        rows.absorb(entry, prefetch, rebuilds, true);
         match rows.warm_entry(entry, prefetch) {
             Some(warm_entry) => warm.push(warm_entry),
             None => cold.push((entry.0, entry.1)),
@@ -235,10 +235,12 @@ impl IndexRows {
         entry: &SnapshotWithCacheKey<'_>,
         prefetch: &PrefetchResult,
         rebuilds: &Rebuilds<'_>,
+        seed_known_requires_build: bool,
     ) {
         let snapshot_key = entry.0;
-        if let Some(requires_build) =
-            super::lookup_known_requires_build(rebuilds.known_requires_build, snapshot_key)
+        if seed_known_requires_build
+            && let Some(requires_build) =
+                super::lookup_known_requires_build(rebuilds.known_requires_build, snapshot_key)
         {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
         }

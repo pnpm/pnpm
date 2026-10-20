@@ -206,6 +206,10 @@ pub enum InstallPackageBySnapshotError {
 #[derive(Debug)]
 pub struct InstalledPackage {
     pub cas_paths: HashMap<String, PathBuf>,
+    /// Whether the fetched archive carries build triggers, when determined
+    /// during tarball extraction or store-index load. `None` when the caller
+    /// must inspect [`Self::cas_paths`].
+    pub requires_build: Option<bool>,
     /// Whether [`Self::cas_paths`] points at mutable local source
     /// rather than immutable content-addressed entries. See
     /// [`crate::SlotImportSource::is_mutable`].

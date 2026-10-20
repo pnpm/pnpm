@@ -275,18 +275,25 @@ pub fn with_locked_runtime_node(
     })
 }
 
-/// A `node --version` probe still in flight. See
-/// [`resolve_engine_name`] for when one is spawned.
+/// A `node --version` probe still in flight or skipped at planning time.
+/// See [`resolve_engine_name`] for when one is spawned.
 ///
-/// The result is delivered twice: [`Self::handle`] for the async
-/// consumer (the side-effects-cache key in the build phase, awaited
-/// after linking), and a shared slot for a synchronous consumer that
+/// The result is delivered twice when running: [`Self::resolve_for_build`]
+/// for the async consumer (the side-effects-cache key in the build phase,
+/// awaited after linking), and a shared slot for a synchronous consumer that
 /// needs the name from a worker thread before the handle is awaited —
 /// the directory-clone cache's lazily built layout (see
 /// [`crate::DirCloneCache`]).
-pub struct DeferredEngineName {
-    pub handle: tokio::task::JoinHandle<Option<String>>,
-    shared: Arc<OnceLock<Option<String>>>,
+pub enum DeferredEngineName {
+    Running {
+        handle: tokio::task::JoinHandle<Option<String>>,
+        shared: Arc<OnceLock<Option<String>>>,
+    },
+    /// The upfront `node --version` probe was skipped because planning
+    /// hints indicated no snapshot needed it. If materialization discovers
+    /// a snapshot that requires a build, [`Self::resolve_for_build`] runs
+    /// the probe on demand.
+    Skipped,
 }
 
 impl DeferredEngineName {
@@ -316,14 +323,39 @@ impl DeferredEngineName {
                 name
             }
         });
-        DeferredEngineName { handle, shared }
+        DeferredEngineName::Running { handle, shared }
     }
 
     /// The slot the probe fills on completion. Blocking on it via
     /// [`OnceLock::wait`] must happen off the async reactor.
     #[must_use]
-    pub fn shared(&self) -> Arc<OnceLock<Option<String>>> {
-        Arc::clone(&self.shared)
+    pub fn shared(&self) -> Option<Arc<OnceLock<Option<String>>>> {
+        match self {
+            DeferredEngineName::Running { shared, .. } => Some(Arc::clone(shared)),
+            DeferredEngineName::Skipped => None,
+        }
+    }
+
+    /// Settle the engine name for the build phase, running the probe on
+    /// demand if it was skipped upfront and materialization discovered a
+    /// snapshot that requires a build.
+    pub async fn resolve_for_build(
+        self,
+        ignore_scripts: bool,
+        requires_build_by_snapshot: &crate::RequiresBuildBySnapshot,
+    ) -> Option<String> {
+        match self {
+            DeferredEngineName::Running { handle, .. } => handle.await.ok().flatten(),
+            DeferredEngineName::Skipped
+                if !ignore_scripts
+                    && requires_build_by_snapshot
+                        .values()
+                        .any(|&requires_build| requires_build) =>
+            {
+                tokio::task::spawn_blocking(probe_engine_name).await.ok().flatten()
+            }
+            DeferredEngineName::Skipped => None,
+        }
     }
 }
 
@@ -385,7 +417,7 @@ pub async fn resolve_engine_name(
         None if enable_global_virtual_store => {
             (tokio::task::spawn_blocking(probe_engine_name).await.ok().flatten(), None)
         }
-        None if !needs_deferred_probe => (None, None),
+        None if !needs_deferred_probe => (None, Some(DeferredEngineName::Skipped)),
         None => (None, Some(DeferredEngineName::spawn())),
     }
 }

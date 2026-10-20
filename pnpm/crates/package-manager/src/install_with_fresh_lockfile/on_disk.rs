@@ -282,6 +282,8 @@ impl<'a> OnDiskInputs<'a> {
         let engine_name = settle_engine_name(
             self.runtime.deferred_engine_name.take(),
             self.runtime.engine_name.take(),
+            self.ctx.config.ignore_scripts,
+            &materialized.requires_build_by_snapshot,
         )
         .await;
         let extra_env =
@@ -416,9 +418,13 @@ pub(super) fn publish_deps_requiring_build(
 pub(super) async fn settle_engine_name(
     deferred: Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
     engine_name: Option<String>,
+    ignore_scripts: bool,
+    requires_build_by_snapshot: &HashMap<pnpm_lockfile::PackageKey, bool>,
 ) -> Option<String> {
     match deferred {
-        Some(deferred) => deferred.handle.await.ok().flatten(),
+        Some(deferred) => {
+            deferred.resolve_for_build(ignore_scripts, requires_build_by_snapshot).await
+        }
         None => engine_name,
     }
 }
