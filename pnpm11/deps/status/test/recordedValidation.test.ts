@@ -170,6 +170,22 @@ describe('checkDepsStatus with recorded validations', () => {
     })
   })
 
+  it('holds a project a filtered install never installed when the wanted lockfile is missing', async () => {
+    const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))
+    await fs.rm(path.join(workspace.workspaceDir, 'node_modules/.pnpm-workspace-state-v1.json'))
+    await recordInstall(workspace, ['a'])
+    await fs.rm(path.join(workspace.workspaceDir, 'pnpm-lock.yaml'))
+    expect(await check(workspace, ['a'])).toMatchObject({ upToDate: true })
+    expect(await check(workspace, ['b'])).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package b has dependencies but was not installed',
+    })
+    expect(await check(workspace)).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package b has dependencies but was not installed',
+    })
+  })
+
   // https://github.com/pnpm/pnpm/issues/17011
   it('holds a selected project installed from an earlier lockfile to an install after a filtered install', async () => {
     const workspace = await installedWorkspace(lockfileWith({ bar: '1.0.0' }))

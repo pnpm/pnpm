@@ -14,6 +14,7 @@ import {
 import type { IncludedDependencies, Project, ProjectId } from '@pnpm/types'
 
 import { assertLockfilesEqual, type AssertLockfilesEqualOptions, importerClosuresMatch } from './assertLockfilesEqual.js'
+import { declaresDependencies, isProjectRecordedInCurrentLockfile, notInstalledIssue } from './findModulesDirIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { safeStatSync } from './safeStat.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
@@ -128,6 +129,19 @@ export function throwLockfileNotFound (wantedLockfileDir: string): never {
   throw new PnpmError('RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND', `Cannot find a lockfile in ${wantedLockfileDir}`, {
     hint: 'Run `pnpm install` to create the lockfile',
   })
+}
+
+export function assertCurrentLockfileRecordsProjects (
+  currentLockfile: LockfileObject,
+  lockfileDir: string,
+  projects: Project[]
+): void {
+  const notInstalled = projects.find((project) =>
+    declaresDependencies(project) &&
+    !isProjectRecordedInCurrentLockfile(currentLockfile, getLockfileImporterId(lockfileDir, project.rootDir)))
+  if (notInstalled != null) {
+    throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_DEPS', notInstalledIssue(notInstalled))
+  }
 }
 
 /**

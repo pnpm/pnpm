@@ -19,9 +19,10 @@ import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import { type ValidationProof, validationProof } from './validationProof.js'
 import {
-  allowUnawaitedFailure, assertCurrentLockfileMatches, currentLockfileDir,
-  findOutdatedLockfileChangedProject, getWantedLockfileDirs, hasUnmergedBranchLockfiles,
-  missingWantedLockfileStandIn, readWantedLockfileIn, statLockfileSync, throwLockfileNotFound, type WantedLockfilesScan,
+  allowUnawaitedFailure, assertCurrentLockfileMatches, assertCurrentLockfileRecordsProjects,
+  currentLockfileDir, findOutdatedLockfileChangedProject, getWantedLockfileDirs,
+  hasUnmergedBranchLockfiles, missingWantedLockfileStandIn, readWantedLockfileIn,
+  statLockfileSync, throwLockfileNotFound, type WantedLockfilesScan,
 } from './wantedLockfiles.js'
 
 export interface WorkspaceDepsStatusContext {
@@ -49,14 +50,6 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
   if (structureIssue != null) return outdatedResult(structureIssue, workspaceState)
 
   const allManifestStats = await statProjects(opts, allProjects)
-  const modulesDirIssue = await findModulesDirIssue({ ...ctx, allManifestStats })
-  if (modulesDirIssue != null) return outdatedResult(modulesDirIssue, workspaceState)
-
-  const { issue, patchesRevalidated } = await patchesOrHooksStatus(ctx)
-  if (issue) {
-    return { upToDate: false, issue, workspaceState }
-  }
-
   const proof = opts.sharedWorkspaceLockfile === false && coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     ? undefined
     : validationProof(workspaceState, workspaceLockfileDir(ctx), {
@@ -65,6 +58,12 @@ export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext)
       unmergedBranchLockfiles: opts.sharedWorkspaceLockfile !== false && opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
       hasUnmergedBranchLockfiles: (dir) => opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(dir, ctx.wantedLockfileName),
     })
+  const modulesDirIssue = await findModulesDirIssue({ ...ctx, allManifestStats, hasValidationProof: proof != null })
+  if (modulesDirIssue != null) return outdatedResult(modulesDirIssue, workspaceState)
+
+  const { issue, patchesRevalidated } = await patchesOrHooksStatus(ctx)
+  if (issue) return { upToDate: false, issue, workspaceState }
+
   return proof == null
     ? checkModifiedSinceLastValidation(ctx, allManifestStats, patchesRevalidated)
     : checkRecordedWorkspace(ctx, { proof, allManifestStats, patchesRevalidated })
@@ -412,7 +411,7 @@ async function createWantedLockfileReader (
   }
   const lockfileDir = workspaceLockfileDir(ctx)
   const wantedLockfileStats = statLockfileSync(path.join(lockfileDir, ctx.wantedLockfileName))
-  if (wantedLockfileStats == null) return readCurrentLockfileAsWanted(ctx)
+  if (wantedLockfileStats == null) return readCurrentLockfileAsWanted(ctx, projectsToCheck)
   const { opts, workspaceState } = ctx
   const wantedLockfilePromise = preloadedWantedLockfile !== undefined
     ? Promise.resolve(preloadedWantedLockfile)
@@ -430,18 +429,23 @@ async function createWantedLockfileReader (
 }
 
 /**
- * `pnpm-lock.yaml` is gone, but the current lockfile records exactly what the
- * previous install materialized. It stands in as the wanted lockfile for the
- * checks, and is reported back so `installDeps` can restore `pnpm-lock.yaml`
- * from it without resolving. There is no second lockfile to compare against,
- * so the wanted-vs-current equality assertion doesn't apply on this path.
+ * `pnpm-lock.yaml` is gone, but the current lockfile records what the previous
+ * install materialized. It stands in as the wanted lockfile for the checks,
+ * and is reported back so `installDeps` can restore `pnpm-lock.yaml` from it
+ * without resolving.
  */
-async function readCurrentLockfileAsWanted (ctx: WorkspaceDepsStatusContext): Promise<WantedLockfileReader> {
-  const { opts } = ctx
+async function readCurrentLockfileAsWanted (
+  ctx: WorkspaceDepsStatusContext,
+  projectsToCheck: Project[]
+): Promise<WantedLockfileReader> {
+  const { opts, workspaceState } = ctx
   const lockfileDir = workspaceLockfileDir(ctx)
   if (opts.useGitBranchLockfile) return throwLockfileNotFound(lockfileDir)
   const currentLockfile = await readCurrentLockfile(currentLockfileDir(lockfileDir, opts.modulesDir), { ignoreIncompatible: false })
   if (currentLockfile == null) return throwLockfileNotFound(lockfileDir)
+  if (workspaceState.filteredInstall) {
+    assertCurrentLockfileRecordsProjects(currentLockfile, lockfileDir, projectsToCheck)
+  }
   return {
     wantedLockfileToRestore: { lockfile: currentLockfile, lockfileDir },
     readWantedLockfileAndDir: async () => ({ wantedLockfile: currentLockfile, wantedLockfileDir: lockfileDir }),

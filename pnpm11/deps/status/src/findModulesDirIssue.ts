@@ -37,6 +37,7 @@ export interface ModulesDirCheckContext {
   allProjects: Project[]
   workspaceDir: string
   allManifestStats: ProjectStats[]
+  hasValidationProof?: boolean
 }
 
 /**
@@ -70,14 +71,14 @@ export async function findModulesDirIssue (ctx: ModulesDirCheckContext): Promise
     ? await findProjectMissingRecordedHoistedModulesDir(allProjects, workspaceState, { rootProjectManifestDir: opts.rootProjectManifestDir, selectedProjectDirs })
     : undefined
   if (missingRecordedModulesDir != null) return missingModulesDirIssue(missingRecordedModulesDir)
-  if (selectedProjectDirs == null || workspaceState.validation != null) return undefined
+  if (selectedProjectDirs == null || ctx.hasValidationProof) return undefined
   const notInstalled = await findProjectMissingFromCurrentLockfile(
     allProjects.filter(project => selectedProjectDirs.has(path.resolve(project.rootDir)) && declaresDependencies(project)),
     createCurrentLockfileLocator({ ...opts, workspaceDir: ctx.workspaceDir })
   )
   return notInstalled == null
     ? undefined
-    : `Workspace package ${notInstalled.manifest.name ?? notInstalled.rootDir} has dependencies but was not installed`
+    : notInstalledIssue(notInstalled)
 }
 
 async function findProjectWithoutModulesDir (
@@ -245,12 +246,23 @@ async function findProjectMissingFromCurrentLockfile (
     }
     // eslint-disable-next-line no-await-in-loop -- the scan stops at the first stale project, so later lockfiles are not read
     const currentLockfile = await currentLockfiles.get(virtualStoreDir)
-    const importer = currentLockfile?.importers[importerId]
-    if (importer == null || !directDependenciesRecorded(importer, currentLockfile?.packages ?? {})) {
+    if (!isProjectRecordedInCurrentLockfile(currentLockfile, importerId)) {
       return project
     }
   }
   return undefined
+}
+
+export function notInstalledIssue (project: Project): string {
+  return `Workspace package ${project.manifest.name ?? project.rootDir} has dependencies but was not installed`
+}
+
+export function isProjectRecordedInCurrentLockfile (
+  currentLockfile: LockfileObject | null | undefined,
+  importerId: ProjectId
+): boolean {
+  const importer = currentLockfile?.importers[importerId]
+  return importer != null && directDependenciesRecorded(importer, currentLockfile?.packages ?? {})
 }
 
 function directDependenciesRecorded (importer: ProjectSnapshot, packages: NonNullable<LockfileObject['packages']>): boolean {
