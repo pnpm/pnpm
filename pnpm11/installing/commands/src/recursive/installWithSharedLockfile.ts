@@ -202,7 +202,8 @@ function createInstallSomeMutation (
 }
 
 function shouldInstallWorkspaceRoot ({ opts, manifestsByPath }: RecursiveContext): boolean {
-  return !opts.excludeWorkspaceRootProject &&
+  return (!opts.pruneDirectDependencies || (!opts.filter?.length && !opts.filterProd?.length)) &&
+    !opts.excludeWorkspaceRootProject &&
     !opts.selectedProjectsGraph[opts.workspaceDir as ProjectRootDir] &&
     manifestsByPath[opts.workspaceDir as ProjectRootDir] != null
 }

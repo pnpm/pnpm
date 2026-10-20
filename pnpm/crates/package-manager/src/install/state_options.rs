@@ -19,6 +19,7 @@ pub(crate) struct ApplyPriorState {
     pub(crate) is_inconsistent: bool,
     /// See [`RecordedWorkspace::moved`].
     pub(crate) tree_moved: bool,
+    pub(crate) prune_direct_dependencies: bool,
 }
 
 pub(crate) struct ApplyProjectSelection<'a> {

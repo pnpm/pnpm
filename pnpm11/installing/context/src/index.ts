@@ -84,6 +84,7 @@ export interface ProjectOptions {
 
 interface HookOptions {
   originalManifest?: ProjectManifest
+  pruneDirectDependencies?: boolean
 }
 
 export interface GetContextOptions {

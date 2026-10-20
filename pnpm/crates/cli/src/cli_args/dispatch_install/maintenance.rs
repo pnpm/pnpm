@@ -72,8 +72,15 @@ pub(in super::super) fn prune<'a>(
     Ok(Box::pin(async move {
         let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
-        let pipeline =
-            PrunePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
+        let recursive_sort = cfg.sort;
+        let pipeline = PrunePipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+        };
         Box::pin(pipeline.run::<CliReporter>()).await?;
         Ok(())
     }))

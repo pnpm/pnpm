@@ -216,7 +216,7 @@ impl<'a> RunExecution<'a> {
             ),
             modules: dispatched.materialization_modules(
                 (self.mode.included, self.options.rebuild.as_ref()),
-                !scope.importers.filtered_install,
+                self.prune_tree_options(scope),
                 logged_methods,
             ),
             execution: self.mode.materialization_execution(
@@ -305,13 +305,7 @@ impl<'a> RunExecution<'a> {
                 dry_run: self.install.execution.dry_run,
                 peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
             },
-            prior: crate::install::state_options::ApplyPriorState {
-                lockfile: loaded.current.take(),
-                layout: dispatched.modules.old_modules,
-                metadata: dispatched.modules.previous_modules_metadata,
-                is_inconsistent: dispatched.modules.is_inconsistent,
-                tree_moved: dispatched.modules.tree_moved,
-            },
+            prior: self.take_apply_prior_state(loaded, dispatched.modules),
             projects: crate::install::state_options::ApplyProjectSelection {
                 importers: self.selected_importers(scope, project_manifests),
                 workspace_packages: self.workspace.workspace_packages.take(),

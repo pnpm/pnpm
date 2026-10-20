@@ -541,6 +541,10 @@ struct InstallSaveOptions {
 #[derive(Default)]
 struct InstallManifestOptions<'install> {
     deploy_hook: bool,
+    /// pnpm's `pruneDirectDependencies`: scan each importer's `node_modules`
+    /// and remove extraneous direct entries not recorded in the wanted
+    /// lockfile or public hoist set. Only `pacquet prune` sets it.
+    prune_direct_dependencies: bool,
     /// Project manifests used only as the source for lockfile importer
     /// specifiers. `pacquet update --no-save` resolves against an in-memory
     /// manifest rewrite but must serialize importer specifiers from the
@@ -570,6 +574,7 @@ impl Default for InstallRunOptions<'_, '_> {
             prompt_eligibility_override: None,
             manifests: crate::install::InstallManifestOptions {
                 deploy_hook: false,
+                prune_direct_dependencies: false,
                 specifier_manifests: None,
                 hooked_paths: HashSet::new(),
                 spec_bumps: None,

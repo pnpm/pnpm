@@ -452,7 +452,7 @@ impl OnDiskProjects<'_> {
 impl<'a> super::FreshPriorInstall<'a> {
     fn link_state(&self) -> pnpm_deps_restorer::PriorLinkState<'a> {
         pnpm_deps_restorer::PriorLinkState {
-            prune_orphans: self.prune_orphans,
+            prune: self.prune,
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_locations: self.hoisted_locations,
             // Rebuilds take the frozen path; a policy change rebuilds present packages here.

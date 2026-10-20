@@ -215,7 +215,7 @@ pub struct PriorMaterialization<'a> {
     /// See [`crate::PriorHoistedState::unbuilt_builds`].
     pub unbuilt_builds: &'a crate::UnbuiltBuilds,
     /// See [`crate::PruneStaleModules::prune_orphans`].
-    pub prune_orphans: bool,
+    pub prune: crate::PruneTreeOptions<'a>,
     /// Relink the bins of every slot the lockfile records, not only of the
     /// slots this install materializes. A tree that moved with its project
     /// needs it, because its other slots may hold bins naming where it was.
@@ -247,7 +247,7 @@ pub struct FrozenInstallSeed<'a> {
 impl<'a> PriorMaterialization<'a> {
     pub(crate) fn link_state(self) -> crate::PriorLinkState<'a> {
         crate::PriorLinkState {
-            prune_orphans: self.prune_orphans,
+            prune: self.prune,
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_locations: self.hoisted_locations,
             build_present_packages: self.rebuild.is_some() || self.allow_builds_changed,

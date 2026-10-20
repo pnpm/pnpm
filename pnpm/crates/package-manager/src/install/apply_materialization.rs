@@ -168,12 +168,18 @@ fn commit_apply_state<Reporter: self::Reporter>(
             filtered_install: inputs.projects.filtered_install,
         },
         write: inputs.write,
-        force_prune: matches!(inputs.scripts.mutation, crate::ProjectMutation::UninstallSome),
+        force_prune: inputs.force_prune(),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     crate::agent_skills::report_pending_skills::<Reporter>(pending_skills);
-
     run_apply_scripts::<Reporter>(inputs, state)
+}
+
+impl ApplyMaterializationInputs<'_, '_> {
+    const fn force_prune(&self) -> bool {
+        matches!(self.scripts.mutation, crate::ProjectMutation::UninstallSome)
+            || self.prior.prune_direct_dependencies
+    }
 }
 
 fn run_apply_scripts<Reporter: self::Reporter>(
