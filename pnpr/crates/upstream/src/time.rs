@@ -13,7 +13,7 @@ pub const TIME_PRECISION_HORIZON_DAYS: i64 = 7;
 ///
 /// Both reduced forms stay parseable by pnpm (`new Date`) and pacquet
 /// (`pnpm_resolving_resolver_base::parse_packument_timestamp`).
-/// Values are rounded *up* (see [`coarsen_timestamp_dt`]) so the
+/// Values are rounded *up* so the
 /// maturity- and trust-checks that read them stay fail-safe. Version
 /// entries whose coarsened timestamps would collide with or cross an
 /// adjacent version's publish time retain their exact RFC 3339 strings

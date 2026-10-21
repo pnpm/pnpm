@@ -1,9 +1,22 @@
-use super::{CanonicalPackageName, DerivedTar, TarIntegrityCache};
+use super::{CanonicalPackageName, DerivedTar, TarIntegrityCache, is_tar_entry_recorded};
 use std::{
     collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
+
+#[test]
+fn identical_unscanned_entry_is_considered_recorded_until_stats_arrive() {
+    let unscanned = DerivedTar::new("sha512-tar", None, None, None);
+    let table = BTreeMap::from([("sha512-tgz".to_string(), unscanned.clone())]);
+
+    assert!(is_tar_entry_recorded(&table, "sha512-tgz", &unscanned));
+    assert!(!is_tar_entry_recorded(
+        &table,
+        "sha512-tgz",
+        &DerivedTar::new("sha512-tar", Some(false), Some(2), Some(42)),
+    ));
+}
 
 #[test]
 fn a_read_that_started_before_a_record_keeps_the_recorded_table() {

@@ -245,12 +245,14 @@ fn is_tar_entry_recorded(
     table
         .get(tgz_integrity)
         .is_some_and(|known| {
-            known.tar_integrity == derived.tar_integrity
-                && known.scanned
-                && (derived.requires_build.is_none()
-                    || known.requires_build == derived.requires_build)
-                && (derived.file_count.is_none() || known.file_count == derived.file_count)
-                && (derived.unpacked_size.is_none() || known.unpacked_size == derived.unpacked_size)
+            known == derived
+                || (known.tar_integrity == derived.tar_integrity
+                    && known.scanned
+                    && (derived.requires_build.is_none()
+                        || known.requires_build == derived.requires_build)
+                    && (derived.file_count.is_none() || known.file_count == derived.file_count)
+                    && (derived.unpacked_size.is_none()
+                        || known.unpacked_size == derived.unpacked_size))
         })
 }
 
