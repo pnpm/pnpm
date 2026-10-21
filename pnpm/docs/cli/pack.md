@@ -65,7 +65,7 @@ Does everything a normal run does, except actually packing the tarball. Useful f
 
 Added in: v11.3.0
 
-Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.
+Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
 
 ## Life Cycle Scripts
 

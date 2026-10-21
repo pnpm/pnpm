@@ -102,7 +102,7 @@ anything is published, rather than after part of the release went out. The
 
 Added in: v11.3.0
 
-Keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.
+Keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
 
 ### --publish-wait-timeout &lt;milliseconds\>
 

@@ -130,9 +130,9 @@ fn collect_own_files(
     Ok(out)
 }
 
-/// The [`normalize_field_path`]-ed `main`, `browser`, and `bin` paths that
-/// stay inside the package (see [`is_contained_field_path`]). A non-string
-/// value, such as a `browser` replacement map, is skipped.
+/// The [`normalize_contained_field_path`]-ed `main`, `browser`, and `bin`
+/// paths that stay inside the package. A non-string value, such as a
+/// `browser` replacement map, is skipped.
 fn required_field_paths(manifest: &Value) -> Vec<String> {
     let bin_paths = match manifest.get("bin") {
         Some(Value::String(bin)) => vec![bin.as_str()],
@@ -146,9 +146,36 @@ fn required_field_paths(manifest: &Value) -> Vec<String> {
         .into_iter()
         .filter_map(|field| manifest.get(field).and_then(Value::as_str))
         .chain(bin_paths)
-        .map(normalize_field_path)
-        .filter(|path| is_contained_field_path(path))
+        .filter_map(normalize_contained_field_path)
         .collect()
+}
+
+/// The [`normalize_contained_field_path`]-ed `pnpm.config` path when it stays
+/// inside the package.
+fn pnpm_config_path(manifest: &Value) -> Option<String> {
+    manifest
+        .get("pnpm")
+        .and_then(Value::as_object)
+        .and_then(|pnpm| pnpm.get("config"))
+        .and_then(Value::as_str)
+        .and_then(normalize_contained_field_path)
+}
+
+fn normalize_contained_field_path(raw: &str) -> Option<String> {
+    let normalized = normalize_field_path(raw);
+    if !is_contained_field_path(&normalized) {
+        return None;
+    }
+    Some(
+        Path::new(&normalized)
+            .components()
+            .filter_map(|component| match component {
+                Component::Normal(segment) => segment.to_str(),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("/"),
+    )
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {

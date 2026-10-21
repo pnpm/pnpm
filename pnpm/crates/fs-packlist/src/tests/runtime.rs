@@ -112,6 +112,46 @@ fn browser_path_is_force_included_under_files_field() {
 }
 
 #[test]
+fn pnpm_config_path_is_force_included_under_files_field() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "dist/top.js");
+    touch(root, "config/policy.yaml");
+    touch(root, "config/ignored.yaml");
+    write(root, ".gitignore", "config/\n");
+    write(root, "config/.npmignore", "policy.yaml\n");
+
+    let manifest = json!({
+        "files": ["dist/top.js"],
+        "pnpm": { "config": "config/./policy.yaml" },
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, ["config/policy.yaml", "dist/top.js", "package.json"]);
+}
+
+#[test]
+fn pnpm_config_path_does_not_reinclude_ignored_sibling_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "config/policy.yaml");
+    touch(root, "config/credentials.json");
+    write(root, ".npmignore", "config/\n");
+
+    let manifest = json!({
+        "pnpm": { "config": "./config/policy.yaml" },
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, ["config/policy.yaml", "index.js", "package.json"]);
+}
+
+#[test]
 fn browser_replacement_map_is_not_a_required_path() {
     let dir = tempdir().unwrap();
     let root = dir.path();
@@ -183,6 +223,7 @@ fn escaping_main_and_bin_fields_are_not_force_included() {
         "version": "0.0.0",
         "main": "../secret.js",
         "bin": { "x-cli": "../secret.js" },
+        "pnpm": { "config": "../secret.js" },
     });
     let out = packlist(&root, &manifest).unwrap();
 
