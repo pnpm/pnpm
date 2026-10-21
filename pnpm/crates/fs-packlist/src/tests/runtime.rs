@@ -120,10 +120,11 @@ fn pnpm_config_path_is_force_included_under_files_field() {
     touch(root, "config/policy.yaml");
     touch(root, "config/ignored.yaml");
     write(root, ".gitignore", "config/\n");
+    write(root, "config/.npmignore", "policy.yaml\n");
 
     let manifest = json!({
         "files": ["dist/top.js"],
-        "pnpm": { "config": "./config/policy.yaml" },
+        "pnpm": { "config": "config/./policy.yaml" },
     });
     let mut out = packlist(root, &manifest).unwrap();
     out.sort();
