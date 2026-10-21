@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.file-mode",
-  "version": "1100.0.1",
+  "version": "1100.0.2",
   "description": "Permission bits for new files in a shared store",
   "keywords": [
     "pnpm",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.commands",
-  "version": "1101.0.11",
+  "version": "1101.0.12",
   "description": "Commands for controlling and inspecting the store",
   "keywords": [
     "pnpm",

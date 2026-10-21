@@ -1,5 +1,12 @@
 # @pnpm/get-release-text
 
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/releasing.versioning@1100.3.7
+
 ## 1100.0.7
 
 ### Patch Changes
