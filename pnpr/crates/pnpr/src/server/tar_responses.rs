@@ -170,7 +170,8 @@ fn decoded_response(
                 inspection.requires_build,
                 inspection.file_count,
                 inspection.unpacked_size,
-            );
+            )
+            .with_bins(inspection.bins);
             if let Err(err) = storage.record_tar_integrity(&name, &key, derived).await {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }

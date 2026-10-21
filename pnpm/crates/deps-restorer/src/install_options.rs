@@ -69,6 +69,9 @@ pub struct SnapshotSelection<'a> {
     /// Pre-verified `requiresBuild` flags from resolution metadata (`dist.pnpr.requiresBuild`
     /// or `pnpr`'s resolve stream).
     pub known_requires_build: Option<&'a crate::RequiresBuildBySnapshot>,
+    /// Precalculated bin commands and shebang runtimes from resolution metadata
+    /// (`dist.pnpr.bins`).
+    pub known_bins: Option<&'a crate::PackageBins>,
 }
 
 #[derive(Clone, Copy)]

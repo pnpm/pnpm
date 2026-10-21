@@ -9,9 +9,14 @@
 use super::{
     AppState, CanonicalPackageName, RegistryError, RegistrySource, Value, revision_source_registry,
 };
+use pnpm_package_manifest::{MAX_PRECALCULATED_BINS_BYTES, serialize_precalculated_bins};
 use pnpr_storage::DerivedTar;
 use ssri::{Algorithm, Integrity};
 use std::{collections::BTreeMap, sync::Arc};
+
+/// Maximum cumulative serialized JSON byte size of `dist.pnpr.bins` across
+/// all versions in a single packument response.
+const MAX_PACKUMENT_BINS_BYTES: usize = 64 * 1024;
 
 /// How a served document describes each version's tarball.
 #[derive(Clone, Copy)]
@@ -69,8 +74,9 @@ pub(super) fn describe_tars(
     let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
-    for version in versions.values_mut() {
-        describe_tar(version, table, tar_registry);
+    let mut bins_budget = MAX_PACKUMENT_BINS_BYTES;
+    for version in versions.values_mut().rev() {
+        describe_tar_with_budget(version, table, tar_registry, &mut bins_budget);
     }
 }
 
@@ -103,11 +109,21 @@ pub(super) fn describe_tar(
     table: &BTreeMap<String, DerivedTar>,
     tar_registry: bool,
 ) {
+    let mut bins_budget = MAX_PRECALCULATED_BINS_BYTES;
+    describe_tar_with_budget(version, table, tar_registry, &mut bins_budget);
+}
+
+fn describe_tar_with_budget(
+    version: &mut Value,
+    table: &BTreeMap<String, DerivedTar>,
+    tar_registry: bool,
+    bins_budget: &mut usize,
+) {
     let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
     let derived = tgz_integrity_key(dist).and_then(|key| table.get(&key));
-    apply_derived_tar_metadata(dist, derived);
+    apply_derived_tar_metadata(dist, derived, bins_budget);
     if !tar_registry || dist.contains_key("revision") {
         return;
     }
@@ -128,14 +144,27 @@ pub(super) fn describe_tar(
 fn apply_derived_tar_metadata(
     dist: &mut serde_json::Map<String, Value>,
     derived: Option<&DerivedTar>,
+    bins_budget: &mut usize,
 ) {
     dist.remove("pnpr");
     let Some(derived) = derived else {
         return;
     };
     apply_derived_tar_stats(dist, derived);
+    let mut pnpr = serde_json::Map::new();
     if let Some(requires_build) = derived.requires_build {
-        dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));
+        pnpr.insert("requiresBuild".to_string(), Value::Bool(requires_build));
+    }
+    if derived.requires_build == Some(false)
+        && let Some((bins_value, bins_bytes)) =
+            derived.bins.as_ref().and_then(serialize_precalculated_bins)
+        && bins_bytes <= *bins_budget
+    {
+        *bins_budget -= bins_bytes;
+        pnpr.insert("bins".to_string(), bins_value);
+    }
+    if !pnpr.is_empty() {
+        dist.insert("pnpr".to_string(), Value::Object(pnpr));
     }
 }
 

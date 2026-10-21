@@ -1,4 +1,5 @@
 use super::{CanonicalPackageName, DocumentWrite, RegistryError, Result, Storage};
+use pnpm_package_manifest::PackageBin;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -6,8 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// The tar integrity, build-trigger verdict, and unpacked file statistics
-/// derived from one `.tgz`.
+/// The tar integrity, build-trigger verdict, unpacked file statistics, and
+/// precalculated bin targets derived from one `.tgz`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DerivedTar {
@@ -18,6 +19,8 @@ pub struct DerivedTar {
     pub file_count: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unpacked_size: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bins: Option<BTreeMap<String, PackageBin>>,
     /// `true` once the `.tgz` has been scanned for tar metadata, even when
     /// `requires_build` is `None` (unparsable `package.json`). `false` only
     /// for a legacy string entry written before tar scanning existed.
@@ -39,8 +42,23 @@ impl DerivedTar {
             requires_build,
             file_count,
             unpacked_size,
+            bins: None,
             scanned,
         }
+    }
+
+    #[must_use]
+    pub fn with_bins(mut self, bins: Option<BTreeMap<String, PackageBin>>) -> Self {
+        self.bins = bins;
+        self
+    }
+
+    /// Whether this record includes the full set of metadata derived by the
+    /// current tar scanner (file stats plus precalculated bins when the
+    /// package does not require a build).
+    #[must_use]
+    pub fn is_fully_scanned(&self) -> bool {
+        self.scanned && (self.requires_build != Some(false) || self.bins.is_some())
     }
 }
 
@@ -57,6 +75,8 @@ enum StoredDerivedTar {
         file_count: Option<u64>,
         #[serde(default, rename = "unpackedSize")]
         unpacked_size: Option<u64>,
+        #[serde(default)]
+        bins: Option<BTreeMap<String, PackageBin>>,
     },
 }
 
@@ -70,6 +90,7 @@ impl<'de> Deserialize<'de> for DerivedTar {
                 requires_build: None,
                 file_count: None,
                 unpacked_size: None,
+                bins: None,
                 scanned: false,
             }),
             StoredDerivedTar::Record {
@@ -77,9 +98,10 @@ impl<'de> Deserialize<'de> for DerivedTar {
                 requires_build,
                 file_count,
                 unpacked_size,
+                bins,
             } => {
                 let scanned = file_count.is_some() && unpacked_size.is_some();
-                Ok(Self { tar_integrity, requires_build, file_count, unpacked_size, scanned })
+                Ok(Self { tar_integrity, requires_build, file_count, unpacked_size, bins, scanned })
             }
         }
     }
@@ -166,7 +188,7 @@ impl Storage {
     ) -> bool {
         self.tar_integrity_cache
             .get(name)
-            .is_some_and(|table| table.get(tgz_integrity).is_some_and(|derived| derived.scanned))
+            .is_some_and(|table| table.get(tgz_integrity).is_some_and(DerivedTar::is_fully_scanned))
     }
 
     /// The tar integrities derived so far for `name`'s versions, keyed by the
@@ -252,7 +274,8 @@ fn is_tar_entry_recorded(
                         || known.requires_build == derived.requires_build)
                     && (derived.file_count.is_none() || known.file_count == derived.file_count)
                     && (derived.unpacked_size.is_none()
-                        || known.unpacked_size == derived.unpacked_size))
+                        || known.unpacked_size == derived.unpacked_size)
+                    && (derived.bins.is_none() || known.bins == derived.bins))
         })
 }
 
@@ -276,6 +299,7 @@ fn insert_tar_entry(
             }),
             file_count,
             unpacked_size,
+            bins: derived.bins.or_else(|| previous.and_then(|known| known.bins.clone())),
             scanned: file_count.is_some() && unpacked_size.is_some(),
         },
     );

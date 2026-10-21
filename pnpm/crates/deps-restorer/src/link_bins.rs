@@ -15,13 +15,13 @@ use scan::{existing_commands, read_location_bin_sources, read_package, run_with_
 mod direct;
 mod top_level;
 
-use crate::{PackageManifests, SkippedSnapshots};
+use crate::{PackageBins, PackageManifests, SkippedSnapshots};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
     FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions, PackageBinSource,
-    collect_packages_in_modules_dir, link_bins_of_packages,
+    ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages_cached,
 };
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
 use rayon::prelude::*;
@@ -102,6 +102,7 @@ pub struct LinkVirtualStoreBins<'a> {
     /// installed earlier in the same run still get their bins
     /// linked.
     pub package_manifests: &'a PackageManifests,
+    pub package_bins: Option<&'a PackageBins>,
     /// Snapshots the installability pass marked optional+incompatible.
     /// Their slots were never created by [`crate::CreateVirtualStore`],
     /// so the bin linker has nothing to walk for them — and any
@@ -137,26 +138,12 @@ impl LinkVirtualStoreBins<'_> {
             + FsSetExecutable
             + FsEnsureExecutableBits,
     {
-        let LinkVirtualStoreBins {
-            layout,
-            snapshots,
-            selected_snapshots,
-            packages,
-            package_manifests,
-            skipped,
-            link_options,
-        } = self;
-        if let Some(snapshots) = snapshots {
-            let has_bin_set = build_has_bin_set(packages);
-            let bundling_set = build_bundling_set(packages);
-            run_lockfile_driven::<Sys>(
-                layout,
+        if let Some(snapshots) = self.snapshots {
+            let has_bin_set = build_has_bin_set(self.packages);
+            let bundling_set = build_bundling_set(self.packages);
+            self.run_lockfile_driven::<Sys>(
                 snapshots,
-                selected_snapshots,
                 BinSlotSets { has_bin: has_bin_set.as_ref(), bundling: &bundling_set },
-                package_manifests,
-                skipped,
-                link_options,
             )
         } else {
             // No snapshots (lockfile absent or empty): fall back to a
@@ -164,8 +151,63 @@ impl LinkVirtualStoreBins<'_> {
             // frozen installs, which <https://github.com/pnpm/pacquet/issues/432> doesn't activate GVS for, so
             // reading from `layout.package_store_dir()` reproduces
             // today's behaviour exactly when GVS is off.
-            run_with_readdir::<Sys>(layout.package_store_dir(), link_options)
+            run_with_readdir::<Sys>(self.layout.package_store_dir(), self.link_options)
         }
+    }
+
+    /// Walk the lockfile's `snapshots:` map, build each slot's bin output
+    /// directory lexically, and link every child's bins into it. The
+    /// child set comes from `snapshot.dependencies` +
+    /// `snapshot.optional_dependencies`, filtered by `sets.has_bin` so
+    /// packages that don't declare a bin never make it into the
+    /// per-slot path-building or manifest-lookup work. The corresponding
+    /// manifest comes from [`PackageManifests`] (no disk read) or, for
+    /// cold-batch packages that prefetch missed, a fallback
+    /// `package.json` read through the existing symlink at
+    /// `<slot>/node_modules/<alias>`.
+    fn run_lockfile_driven<Sys>(
+        &self,
+        snapshots: &HashMap<PackageKey, SnapshotEntry>,
+        sets: BinSlotSets<'_>,
+    ) -> Result<(), LinkVirtualStoreBinsError>
+    where
+        Sys: FsReadDir
+            + FsReadFile
+            + FsReadToString
+            + FsReadHead
+            + FsCreateDirAll
+            + FsWalkFiles
+            + FsWrite
+            + FsSetExecutable
+            + FsEnsureExecutableBits,
+    {
+        let mut seen = HashSet::new();
+        let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = match self.selected_snapshots {
+            Some(keys) => keys
+                .iter()
+                .filter(|key| seen.insert(*key))
+                .filter_map(|key| snapshots.get_key_value(key))
+                .filter(|(key, _)| !self.skipped.contains(key))
+                .collect(),
+            None => snapshots
+                .iter()
+                .filter(|(key, _)| !self.skipped.contains(key))
+                .collect(),
+        };
+        let shim_cache = ShimTargetCache::default();
+        let context = SlotBinContext {
+            layout: self.layout,
+            sets,
+            package_manifests: self.package_manifests,
+            package_bins: self.package_bins,
+            link_options: self.link_options,
+            shim_cache,
+        };
+        slot_entries
+            .par_iter()
+            .try_for_each(|(slot_key, snapshot)| {
+                link_slot_bins::<Sys>(&context, slot_key, snapshot)
+            })
     }
 }
 
@@ -234,88 +276,14 @@ fn build_bundling_set(
         .collect()
 }
 
-/// The two lockfile-derived slot classifications [`run_lockfile_driven`]
-/// consults before doing any per-slot work, from [`build_has_bin_set`] and
-/// [`build_bundling_set`] respectively.
+/// The two lockfile-derived slot classifications
+/// [`LinkVirtualStoreBins::run_lockfile_driven`] consults before doing any
+/// per-slot work, from [`build_has_bin_set`] and [`build_bundling_set`]
+/// respectively.
 #[derive(Clone, Copy)]
 struct BinSlotSets<'a> {
     has_bin: Option<&'a HashSet<PackageKey>>,
     bundling: &'a HashSet<PackageKey>,
-}
-
-/// Walk the lockfile's `snapshots:` map, build each slot's bin output
-/// directory lexically, and link every child's bins into it. The
-/// child set comes from `snapshot.dependencies` +
-/// `snapshot.optional_dependencies`, filtered by `sets.has_bin` so
-/// packages that don't declare a bin never make it into the
-/// per-slot path-building or manifest-lookup work. The corresponding
-/// manifest comes from [`PackageManifests`] (no disk read) or, for
-/// cold-batch packages that prefetch missed, a fallback
-/// `package.json` read through the existing symlink at
-/// `<slot>/node_modules/<alias>`.
-fn run_lockfile_driven<Sys>(
-    layout: &crate::VirtualStoreLayout,
-    snapshots: &HashMap<PackageKey, SnapshotEntry>,
-    selected_snapshots: Option<&[PackageKey]>,
-    sets: BinSlotSets<'_>,
-    package_manifests: &PackageManifests,
-    skipped: &SkippedSnapshots,
-    link_options: &LinkBinsOptions,
-) -> Result<(), LinkVirtualStoreBinsError>
-where
-    Sys: FsReadDir
-        + FsReadFile
-        + FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    // `has_bin_set` is `Some` exactly when the lockfile's `packages:`
-    // section was present at install start — in which case the set
-    // is authoritative and every slot is filtered through it (an
-    // empty `Some(set)` means "no package declares a bin", which
-    // short-circuits every slot below). When the section was
-    // missing we have no info and fall through to processing every
-    // child. See [`build_has_bin_set`] for the rationale.
-    // Materialise as a `Vec` so rayon can split the work; iterating
-    // a `HashMap` directly with `par_iter` would require collecting
-    // anyway, and explicit collection here keeps the parallelism
-    // contract obvious.
-    //
-    // Filter out installability-skipped snapshots here: their
-    // virtual-store slot was never created (see
-    // [`crate::CreateVirtualStore::run`]'s `survivors` filter), so
-    // attempting to walk the snapshot's `dependencies` /
-    // `optional_dependencies` for bin linking would either fall
-    // through to a cold-batch disk read against a non-existent
-    // `<slot>/node_modules/<alias>` (returning `None` harmlessly but
-    // wasting work) or — worse — create a `<slot>/.../node_modules/.bin`
-    // directory under a slot that doesn't exist on disk.
-    let mut seen = HashSet::new();
-    let slot_entries: Vec<(&PackageKey, &SnapshotEntry)> = match selected_snapshots {
-        Some(keys) => keys
-            .iter()
-            .filter(|key| seen.insert(*key))
-            .filter_map(|key| snapshots.get_key_value(key))
-            .filter(|(key, _)| !skipped.contains(key))
-            .collect(),
-        None => snapshots
-            .iter()
-            .filter(|(key, _)| !skipped.contains(key))
-            .collect(),
-    };
-    slot_entries
-        .par_iter()
-        .try_for_each(|(slot_key, snapshot)| {
-            link_slot_bins::<Sys>(
-                &SlotBinContext { layout, sets, package_manifests, link_options },
-                slot_key,
-                snapshot,
-            )
-        })
 }
 
 /// The inputs [`link_slot_bins`] shares across every slot of one pass.
@@ -323,7 +291,9 @@ struct SlotBinContext<'a> {
     layout: &'a crate::VirtualStoreLayout,
     sets: BinSlotSets<'a>,
     package_manifests: &'a PackageManifests,
+    package_bins: Option<&'a PackageBins>,
     link_options: &'a LinkBinsOptions,
+    shim_cache: ShimTargetCache,
 }
 
 /// Link one virtual-store slot's `node_modules/.bin`.
@@ -390,7 +360,8 @@ where
     if self_has_bin {
         push_bin_source::<Sys>(
             &mut bin_sources,
-            context.package_manifests,
+            context,
+            slot_key,
             &self_metadata_key,
             self_pkg_dir.clone(),
             self_pkg_dir,
@@ -400,8 +371,14 @@ where
     if bin_sources.is_empty() {
         return Ok(());
     }
-    link_bins_of_packages::<Sys>(&bin_sources, &bins_dir, context.link_options)
-        .map_err(LinkVirtualStoreBinsError::LinkBins)
+    link_bins_of_packages_cached::<Sys>(
+        &bin_sources,
+        &bins_dir,
+        context.link_options,
+        &context.shim_cache,
+    )
+    .map(|_| ())
+    .map_err(LinkVirtualStoreBinsError::LinkBins)
 }
 
 fn push_child_bin_sources<Sys: FsReadFile>(
@@ -413,7 +390,8 @@ fn push_child_bin_sources<Sys: FsReadFile>(
     for (alias, child_key, metadata_key) in with_bin {
         push_bin_source::<Sys>(
             bin_sources,
-            context.package_manifests,
+            context,
+            &child_key,
             &metadata_key,
             pkg_dir_under(modules_dir, alias),
             // The child location reaches the child through the slot's
@@ -468,7 +446,8 @@ fn children_with_bins<'a>(
 /// of the JSON tree.
 fn push_bin_source<Sys>(
     bin_sources: &mut Vec<PackageBinSource>,
-    package_manifests: &PackageManifests,
+    context: &SlotBinContext<'_>,
+    snapshot_key: &PackageKey,
     metadata_key: &PackageKey,
     location: PathBuf,
     resolved_location: PathBuf,
@@ -476,10 +455,16 @@ fn push_bin_source<Sys>(
 where
     Sys: FsReadFile,
 {
-    if let Some(manifest) = package_manifests.get(metadata_key) {
+    if !crate::snapshot_has_patch(snapshot_key)
+        && let Some(manifest) = context.package_manifests.get(metadata_key)
+    {
+        let precalculated_bins = context.package_bins
+            .and_then(|bins| bins.get(metadata_key))
+            .map(Arc::clone);
         bin_sources.push(
             PackageBinSource::new(location, Arc::clone(manifest))
-                .with_resolved_location(resolved_location),
+                .with_resolved_location(resolved_location)
+                .with_precalculated_bins(precalculated_bins),
         );
         return Ok(());
     }

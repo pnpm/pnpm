@@ -131,6 +131,7 @@ fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
     )
     .expect_err("oversized manifest must be rejected, not buffered");
 
+    assert!(!super::is_transient_error(&err));
     match err {
         TarballError::ReadTarballEntries(io_err) => {
             assert_eq!(io_err.kind(), ErrorKind::InvalidData);
@@ -905,10 +906,46 @@ fn tar_requires_build_matches_tarball_extractor_rules() {
             requires_build: Some(false),
             file_count: Some(2),
             unpacked_size: Some(54),
+            bins: Some(std::collections::BTreeMap::new()),
         },
     );
     // Truncating at the first entry boundary (1024 bytes: 512-byte header +
     // 512-byte padded payload) omits the second file and the end-of-archive
     // zero blocks, so inspection must reject the partial archive.
     assert_eq!(crate::inspect_tar(&complete[..1024]), crate::TarInspection::default());
+
+    let with_bins = tar_with_entries(&[
+        (
+            "package/package.json",
+            br#"{"name":"@scope/cli-tool","version":"1.0.0","bin":"./bin/cli.js"}"#,
+        ),
+        ("package/bin/cli.js", b"#!/usr/bin/env -S node --no-warnings\nconsole.log('ok');\n"),
+    ]);
+    let expected_bins = std::collections::BTreeMap::from([(
+        "cli-tool".to_string(),
+        pnpm_package_manifest::PackageBin {
+            path: "bin/cli.js".to_string(),
+            prog: Some("node".to_string()),
+            args: " --no-warnings".to_string(),
+        },
+    )]);
+    assert_eq!(crate::inspect_tar(with_bins.as_slice()).bins, Some(expected_bins.clone()));
+
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let (_, _, eager_bins) = crate::extract::extract_tarball_entries_with_bins(
+        &with_bins,
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect("eager extraction with bins");
+    let (_, _, streamed_bins, _) = crate::extract::stream_extract_gzipped_tarball_with_tar(
+        &gzip_bytes(&with_bins),
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect("streaming extraction with bins");
+    assert_eq!(eager_bins, Some(expected_bins.clone()));
+    assert_eq!(streamed_bins, Some(expected_bins));
 }

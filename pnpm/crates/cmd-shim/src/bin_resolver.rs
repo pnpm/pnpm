@@ -1,7 +1,15 @@
+pub use pnpm_package_manifest::{PackageBin, is_safe_bin_name};
+
 use crate::capabilities::FsWalkFiles;
 use pnpm_fs::is_subdir;
+use pnpm_package_manifest::{
+    ScriptRuntime, declared_bin_entries, normalize_package_relative_path, unscoped_bin_name,
+};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 /// One bin entry resolved from a package's `package.json`.
 ///
@@ -11,6 +19,36 @@ use std::path::{Path, PathBuf};
 pub struct Command {
     pub name: String,
     pub path: PathBuf,
+    /// Precalculated script runtime (and target existence guarantee) from
+    /// archive inspection or `dist.pnpr.bins`. `None` when resolved from
+    /// `package.json` without precalculated bin metadata.
+    pub precalculated_runtime: Option<Option<ScriptRuntime>>,
+}
+
+/// Convert precalculated [`PackageBin`] entries into [`Command`]s rooted at
+/// `pkg_path`, returning `None` if any entry fails name or path validation.
+#[must_use]
+pub fn commands_from_precalculated_bins(
+    bins: &BTreeMap<String, PackageBin>,
+    pkg_path: &Path,
+) -> Option<Vec<Command>> {
+    let mut commands = Vec::with_capacity(bins.len());
+    for (name, bin) in bins {
+        if !is_safe_bin_name(name) || !bin.is_valid() {
+            return None;
+        }
+        let rel_path = normalize_package_relative_path(&bin.path).filter(|rel| !rel.is_empty())?;
+        let bin_path = pkg_path.join(&rel_path);
+        if !is_subdir(pkg_path, &bin_path) {
+            return None;
+        }
+        commands.push(Command {
+            name: name.clone(),
+            path: bin_path,
+            precalculated_runtime: Some(bin.script_runtime()),
+        });
+    }
+    Some(commands)
 }
 
 /// Bin names that legitimately ship inside a different package than their own
@@ -105,7 +143,7 @@ fn commands_from_directories_bin<Paths: IntoIterator<Item = PathBuf>>(
         if !is_safe_bin_name(name) {
             continue;
         }
-        commands.push(Command { name: name.to_string(), path });
+        commands.push(Command { name: name.to_string(), path, precalculated_runtime: None });
     }
     commands
 }
@@ -122,63 +160,9 @@ fn commands_from_bin(bin: &Value, pkg_name: Option<&str>, pkg_path: &Path) -> Ve
         if !is_subdir(pkg_path, &bin_path) {
             continue;
         }
-        commands.push(Command { name: bin_name, path: bin_path });
+        commands.push(Command { name: bin_name, path: bin_path, precalculated_runtime: None });
     }
     commands
-}
-
-/// The `<command>` / `<relative path>` pairs a `bin` field declares. A string
-/// `bin` names one command after the package itself, so a package with no name
-/// declares none.
-fn declared_bin_entries(bin: &Value, pkg_name: Option<&str>) -> Vec<(String, String)> {
-    match bin {
-        Value::String(rel_path) => pkg_name
-            .map(|name| vec![(name.to_string(), rel_path.clone())])
-            .unwrap_or_default(),
-        Value::Object(map) => map
-            .iter()
-            .filter_map(|(key, value)| Some((key.clone(), value.as_str()?.to_string())))
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-/// The bin name a command is linked under: a scoped command drops its scope,
-/// since the scope is not part of the file name in `.bin`.
-fn unscoped_bin_name(command_name: String) -> String {
-    if !command_name.starts_with('@') {
-        return command_name;
-    }
-    match command_name.find('/') {
-        Some(slash) => command_name[slash + 1..].to_string(),
-        None => command_name,
-    }
-}
-
-/// Whether `name` matches the URL-safe character set allowed by JavaScript's
-/// `encodeURIComponent`, or is the single-character escape hatch `$` pnpm
-/// permits for awkward but legitimate bin names. Together these are the only
-/// names pnpm allows the linker to write to disk.
-///
-/// `encodeURIComponent` leaves the following bytes unescaped:
-/// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
-///
-/// `.` and `..` survive `encodeURIComponent` unchanged but resolve to the bin
-/// directory itself or its parent when joined to a target dir, so they are
-/// rejected explicitly.
-#[must_use]
-pub fn is_safe_bin_name(name: &str) -> bool {
-    if name == "$" {
-        return true;
-    }
-    if name.is_empty() || name == "." || name == ".." {
-        return false;
-    }
-    name.bytes()
-        .all(|byte| {
-            byte.is_ascii_alphanumeric()
-                || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-        })
 }
 
 #[cfg(test)]

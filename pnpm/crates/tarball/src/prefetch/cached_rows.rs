@@ -1,15 +1,26 @@
 use super::{
-    ArchiveStoreProjection, GlobalLog, HashMap, LogEvent, LogLevel, PackageContentCheck,
+    Arc, ArchiveStoreProjection, GlobalLog, HashMap, LogEvent, LogLevel, PackageContentCheck,
     PackageFilesIndex, PathBuf, PkgContentMismatch, SharedReadonlyStoreIndex,
     SharedVerifiedFilesCache, StoreDir, TarballError,
 };
+use pnpm_package_manifest::PackageBin;
+use std::collections::BTreeMap;
 
 /// Files reconstructed from a store-index row, plus the bundled
-/// manifest and build-trigger verdict the row recorded.
-pub(crate) struct CachedCasPaths {
+/// manifest, build-trigger verdict, and precalculated bins the row or
+/// extraction recorded.
+#[derive(Debug, Clone)]
+pub struct CachedCasPaths {
     pub files: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: Option<bool>,
+    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
+}
+
+impl CachedCasPaths {
+    pub(crate) fn files_only(files: HashMap<String, PathBuf>) -> Self {
+        Self { files, manifest: None, requires_build: None, bins: None }
+    }
 }
 
 /// What the store-index lookup found for one row.
@@ -25,6 +36,7 @@ enum CachedRow {
         cas_paths: HashMap<String, PathBuf>,
         manifest: Option<serde_json::Value>,
         requires_build: bool,
+        bins: Option<Arc<BTreeMap<String, PackageBin>>>,
         mismatch: Option<PkgContentMismatch>,
     },
 }
@@ -99,6 +111,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
             cas_paths,
             manifest,
             requires_build,
+            bins,
             mismatch,
         } => {
             if let Some(mismatch) = mismatch {
@@ -114,6 +127,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
                 files: cas_paths,
                 manifest,
                 requires_build: Some(requires_build),
+                bins,
             }))
         }
     }
@@ -171,7 +185,19 @@ fn cached_row(
         manifest.as_ref(),
         &verify_result.files_map,
     );
-    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, requires_build, mismatch }
+    let bins = resolve_cached_row_bins(requires_build, manifest.as_ref(), &verify_result.files_map);
+    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, requires_build, bins, mismatch }
+}
+
+fn resolve_cached_row_bins(
+    requires_build: bool,
+    manifest: Option<&serde_json::Value>,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Option<Arc<BTreeMap<String, PackageBin>>> {
+    if requires_build {
+        return None;
+    }
+    pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest?, cas_paths).map(Arc::new)
 }
 
 /// The row for `cache_key`, or `None` for a miss.

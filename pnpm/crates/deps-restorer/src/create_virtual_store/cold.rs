@@ -1,6 +1,6 @@
 use super::{
-    CreateVirtualStoreError, CreateVirtualStoreStoreContext, LinkPlan, RequiresBuildBySnapshot,
-    WantedEntries,
+    CreateVirtualStoreError, CreateVirtualStoreStoreContext, LinkPlan, PackageBins,
+    PackageManifests, RequiresBuildBySnapshot, WantedEntries,
     cache_keys::SlotReuse,
     cas_paths_key, requires_build_from_cas_paths,
     slot_linking::{COLD_LINK_CHUNK, LinkSlotsParallel, link_cold_chunk},
@@ -17,7 +17,7 @@ use pnpm_store_dir::store_index_key;
 use pnpm_tarball::{PrefetchResult, pending_progress_key};
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 
@@ -33,28 +33,18 @@ pub(super) struct ColdInputs<'i, 'a> {
 pub(super) struct ColdCapture<'a> {
     pub(super) snapshot_key: &'a PackageKey,
     pub(super) snapshot: &'a SnapshotEntry,
-    pub(super) cas_paths: HashMap<String, PathBuf>,
+    pub(super) installed: crate::InstalledPackage,
     pub(super) requires_build: bool,
-    pub(super) source_is_mutable: bool,
-    /// See [`crate::SlotImportSource::source_exists`].
-    pub(super) source_exists: bool,
     pub(super) force_import: bool,
 }
 pub(super) fn add_cold_cas_paths(map: &mut CasPathsByPkgId, cold_cas_paths: Vec<ColdCapture<'_>>) {
     map.reserve(cold_cas_paths.len());
-    for ColdCapture {
-        snapshot_key,
-        cas_paths: paths,
-        source_is_mutable,
-        source_exists,
-        ..
-    } in cold_cas_paths
-    {
+    for ColdCapture { snapshot_key, installed, .. } in cold_cas_paths {
         map.entry(cas_paths_key(snapshot_key))
             .or_insert_with(|| crate::HoistedPackageFiles {
-                cas_paths: Arc::new(paths),
-                source_is_mutable,
-                source_exists,
+                cas_paths: Arc::new(installed.cas_paths),
+                source_is_mutable: installed.source_is_mutable,
+                source_exists: installed.source_exists,
             });
     }
 }
@@ -196,10 +186,8 @@ pub(super) async fn download_one<'a, Reporter: self::Reporter>(
         Some(ColdCapture {
             snapshot_key,
             snapshot,
+            installed,
             requires_build,
-            cas_paths: installed.cas_paths,
-            source_is_mutable: installed.source_is_mutable,
-            source_exists: installed.source_exists,
             force_import: batch.reuse.must_replace(snapshot_key),
         }),
     ))
@@ -289,6 +277,8 @@ where
 /// The per-snapshot state the cold drain accumulates into.
 pub(super) struct ColdBatchState<'a> {
     pub(super) fetch_failed: &'a mut HashSet<PackageKey>,
+    pub(super) package_manifests: &'a mut PackageManifests,
+    pub(super) package_bins: &'a mut PackageBins,
     pub(super) requires_build_by_snapshot: &'a mut RequiresBuildBySnapshot,
     pub(super) shared_base_cas_paths: &'a mut crate::shared_side_effects::BaseCasPaths,
 }
@@ -302,19 +292,33 @@ pub(super) fn record_cold_outcome<'a>(
     let (failure, captured) = outcome;
     if let Some(key) = failure {
         state.requires_build_by_snapshot.remove(&key);
+        state.package_bins.remove(&key.without_peer());
         state.fetch_failed.insert(key);
     }
-    let captured = captured?;
+    let mut captured = captured?;
     state.requires_build_by_snapshot.insert(
         (*captured.snapshot_key).clone(),
         captured.requires_build,
     );
+    if !crate::snapshot_has_patch(captured.snapshot_key) {
+        let metadata_key = captured.snapshot_key.without_peer();
+        if let Some(manifest) = captured.installed.manifest.take() {
+            state.package_manifests.insert(metadata_key.clone(), manifest);
+        }
+        if !captured.requires_build
+            && let Some(bins) = captured.installed.bins.take()
+        {
+            state.package_bins.insert(metadata_key, bins);
+        } else {
+            state.package_bins.remove(&metadata_key);
+        }
+    }
     if shared_packages.is_some_and(|packages| {
         packages.contains(captured.snapshot_key.name.to_string().as_str())
     }) {
         state.shared_base_cas_paths.insert(
             (*captured.snapshot_key).clone(),
-            captured.cas_paths.clone(),
+            captured.installed.cas_paths.clone(),
         );
     }
     Some(captured)

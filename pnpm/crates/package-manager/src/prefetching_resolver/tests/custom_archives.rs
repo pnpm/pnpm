@@ -54,6 +54,7 @@ async fn git_archive_manifests_are_cached_by_subdirectory() {
                 files: Arc::new(files),
                 manifest: Some(json!({"name": "root"})),
                 requires_build: None,
+                bins: None,
             },
         )))),
     );

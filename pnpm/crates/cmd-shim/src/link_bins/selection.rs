@@ -1,7 +1,4 @@
-use super::{
-    Command, ExcludedBins, FsWalkFiles, PackageBinSource, get_bins_from_package_manifest,
-    pick_winner,
-};
+use super::{Command, ExcludedBins, FsWalkFiles, PackageBinSource, pick_winner};
 use std::collections::{HashMap, HashSet};
 
 /// The bins `packages` provide, minus `exclude_bins`, each paired with the
@@ -12,9 +9,7 @@ pub fn choose_bins<'packages, Sys: FsWalkFiles>(
     packages: &'packages [PackageBinSource],
     exclude_bins: &std::collections::HashSet<String>,
 ) -> Vec<(Command, &'packages PackageBinSource)> {
-    choose_bins_with(packages, exclude_bins, |pkg| {
-        get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location)
-    })
+    choose_bins_with(packages, exclude_bins, PackageBinSource::resolve_commands::<Sys>)
 }
 
 pub(super) fn choose_bins_with<'packages>(

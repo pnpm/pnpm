@@ -46,6 +46,7 @@ pub(super) fn link_hoisted_workspace_dependencies<Reporter: self::Reporter>(
         // `link_only` keeps only `link:` siblings, which have no
         // lockfile row for a prefetched manifest to serve.
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }

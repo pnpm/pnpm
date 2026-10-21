@@ -6,7 +6,7 @@
 //! Runs immediately after the prefetch, whose results it consumes.
 
 use super::{
-    PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
+    PackageBins, PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
     SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
     StoreIndexKeysBySnapshot, WantedEntries, snapshot_needs_build_marker,
 };
@@ -33,11 +33,16 @@ pub(super) struct Partition<'a> {
     /// Bundled manifests recovered from the store index, so the bin
     /// linker need not re-read each child's `package.json`.
     pub package_manifests: PackageManifests,
-    pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
-    pub side_effects_by_snapshot: SideEffectsBySnapshot,
-    pub remote_side_effects_quarantine_by_snapshot: RemoteSideEffectsQuarantineBySnapshot,
-    pub store_index_keys_by_snapshot: StoreIndexKeysBySnapshot,
+    pub package_bins: PackageBins,
     pub requires_build_by_snapshot: RequiresBuildBySnapshot,
+    pub side_effects: PartitionSideEffects,
+}
+
+pub(super) struct PartitionSideEffects {
+    pub maps: SideEffectsMapsBySnapshot,
+    pub diffs: SideEffectsBySnapshot,
+    pub quarantine: RemoteSideEffectsQuarantineBySnapshot,
+    pub store_index_keys: StoreIndexKeysBySnapshot,
 }
 
 #[derive(Clone, Copy)]
@@ -47,6 +52,40 @@ pub(super) struct PartitionSideEffectsContext<'a> {
     pub allow_build_policy: &'a AllowBuildPolicy,
     pub store_index_writer: &'a std::sync::Arc<StoreIndexWriter>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
+}
+
+impl PartitionSideEffects {
+    fn with_capacity_for(prefetch: &PrefetchResult) -> Self {
+        Self {
+            maps: HashMap::with_capacity(prefetch.side_effects_maps.len()),
+            diffs: HashMap::with_capacity(prefetch.side_effects.len()),
+            quarantine: HashMap::with_capacity(prefetch.remote_side_effects_quarantine.len()),
+            store_index_keys: HashMap::with_capacity(prefetch.cas_paths.len()),
+        }
+    }
+
+    fn absorb(
+        &mut self,
+        snapshot_key: &PackageKey,
+        cache_key: &str,
+        prefetch: &PrefetchResult,
+        rebuilds: &Rebuilds<'_>,
+    ) {
+        self.store_index_keys.insert(snapshot_key.clone(), cache_key.to_string());
+        // Peer-variants of the same package share the same store-index
+        // row → the same `Arc<_>`. Cheap to share.
+        if !rebuilds.requires(snapshot_key)
+            && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
+        {
+            self.maps.insert(snapshot_key.clone(), std::sync::Arc::clone(maps));
+        }
+        if let Some(diffs) = prefetch.side_effects.get(cache_key) {
+            self.diffs.insert(snapshot_key.clone(), std::sync::Arc::clone(diffs));
+        }
+        if let Some(quarantine) = prefetch.remote_side_effects_quarantine.get(cache_key) {
+            self.quarantine.insert(snapshot_key.clone(), std::sync::Arc::clone(quarantine));
+        }
+    }
 }
 
 impl Partition<'_> {
@@ -63,16 +102,16 @@ impl Partition<'_> {
             cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
                 base_cas_paths,
                 cold_snapshots: Some(&cold_snapshots),
-                by_snapshot: &self.side_effects_by_snapshot,
-                quarantine_by_snapshot: &self.remote_side_effects_quarantine_by_snapshot,
-                store_index_keys_by_snapshot: &self.store_index_keys_by_snapshot,
+                by_snapshot: &self.side_effects.diffs,
+                quarantine_by_snapshot: &self.side_effects.quarantine,
+                store_index_keys_by_snapshot: &self.side_effects.store_index_keys,
             },
             config: ctx.config,
             snapshots: ctx.wanted.snapshots,
             packages: ctx.wanted.packages,
             requires_build_by_snapshot: &self.requires_build_by_snapshot,
             allow_build_policy: ctx.allow_build_policy,
-            side_effects_maps_by_snapshot: &mut self.side_effects_maps_by_snapshot,
+            side_effects_maps_by_snapshot: &mut self.side_effects.maps,
             store_index_writer: ctx.store_index_writer,
         };
         crate::shared_side_effects::prepare_shared_side_effects(&mut options, ctx.importers).await
@@ -88,16 +127,16 @@ impl Partition<'_> {
                 cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
                     base_cas_paths,
                     cold_snapshots: None,
-                    by_snapshot: &self.side_effects_by_snapshot,
-                    quarantine_by_snapshot: &self.remote_side_effects_quarantine_by_snapshot,
-                    store_index_keys_by_snapshot: &self.store_index_keys_by_snapshot,
+                    by_snapshot: &self.side_effects.diffs,
+                    quarantine_by_snapshot: &self.side_effects.quarantine,
+                    store_index_keys_by_snapshot: &self.side_effects.store_index_keys,
                 },
                 config: ctx.config,
                 snapshots: ctx.wanted.snapshots,
                 packages: ctx.wanted.packages,
                 requires_build_by_snapshot: &self.requires_build_by_snapshot,
                 allow_build_policy: ctx.allow_build_policy,
-                side_effects_maps_by_snapshot: &mut self.side_effects_maps_by_snapshot,
+                side_effects_maps_by_snapshot: &mut self.side_effects.maps,
                 store_index_writer: ctx.store_index_writer,
             },
             ctx.importers,
@@ -115,7 +154,7 @@ impl Partition<'_> {
             resolved,
             ctx.config,
             base_cas_paths,
-            &mut self.side_effects_maps_by_snapshot,
+            &mut self.side_effects.maps,
             ctx.store_index_writer,
         )
         .await;
@@ -193,6 +232,8 @@ pub(super) struct Rebuilds<'a> {
     pub allow_build_policy: &'a AllowBuildPolicy,
     /// Pre-verified `requiresBuild` answers from resolution metadata.
     pub known_requires_build: Option<&'a RequiresBuildBySnapshot>,
+    /// Precalculated bin commands and shebang runtimes from resolution metadata.
+    pub known_bins: Option<&'a PackageBins>,
 }
 
 impl Rebuilds<'_> {
@@ -205,24 +246,18 @@ impl Rebuilds<'_> {
 /// across both partition passes.
 struct IndexRows {
     package_manifests: PackageManifests,
-    side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
-    side_effects_by_snapshot: SideEffectsBySnapshot,
-    remote_side_effects_quarantine_by_snapshot: RemoteSideEffectsQuarantineBySnapshot,
-    store_index_keys_by_snapshot: StoreIndexKeysBySnapshot,
+    package_bins: PackageBins,
     requires_build_by_snapshot: RequiresBuildBySnapshot,
+    side_effects: PartitionSideEffects,
 }
 
 impl IndexRows {
     fn with_capacity_for(prefetch: &PrefetchResult) -> Self {
         IndexRows {
             package_manifests: HashMap::with_capacity(prefetch.manifests.len()),
-            side_effects_maps_by_snapshot: HashMap::with_capacity(prefetch.side_effects_maps.len()),
-            side_effects_by_snapshot: HashMap::with_capacity(prefetch.side_effects.len()),
-            remote_side_effects_quarantine_by_snapshot: HashMap::with_capacity(
-                prefetch.remote_side_effects_quarantine.len(),
-            ),
-            store_index_keys_by_snapshot: HashMap::with_capacity(prefetch.cas_paths.len()),
+            package_bins: HashMap::new(),
             requires_build_by_snapshot: HashMap::with_capacity(prefetch.requires_build.len()),
+            side_effects: PartitionSideEffects::with_capacity_for(prefetch),
         }
     }
 
@@ -245,37 +280,50 @@ impl IndexRows {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
         }
         let Some(cache_key) = entry.2.as_deref() else { return };
-        self.store_index_keys_by_snapshot.insert(snapshot_key.clone(), cache_key.to_string());
+        self.side_effects.absorb(snapshot_key, cache_key, prefetch, rebuilds);
         if let Some(manifest) = prefetch.manifests.get(cache_key) {
             self.package_manifests
                 .entry(snapshot_key.without_peer())
                 .or_insert_with(|| std::sync::Arc::clone(manifest));
         }
-        // Peer-variants of the same package share the same store-index
-        // row → the same `Arc<_>`. Cheap to share.
-        if !rebuilds.requires(snapshot_key)
-            && let Some(maps) = prefetch.side_effects_maps.get(cache_key)
-        {
-            self.side_effects_maps_by_snapshot.insert(
-                snapshot_key.clone(),
-                std::sync::Arc::clone(maps),
-            );
-        }
-        if let Some(diffs) = prefetch.side_effects.get(cache_key) {
-            self.side_effects_by_snapshot.insert(
-                snapshot_key.clone(),
-                std::sync::Arc::clone(diffs),
-            );
-        }
-        if let Some(quarantine) = prefetch.remote_side_effects_quarantine.get(cache_key) {
-            self.remote_side_effects_quarantine_by_snapshot.insert(
-                snapshot_key.clone(),
-                std::sync::Arc::clone(quarantine),
-            );
-        }
         if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
         }
+        self.absorb_bins(snapshot_key, cache_key, prefetch, rebuilds, seed_known_requires_build);
+    }
+
+    fn absorb_bins(
+        &mut self,
+        snapshot_key: &PackageKey,
+        cache_key: &str,
+        prefetch: &PrefetchResult,
+        rebuilds: &Rebuilds<'_>,
+        seed_known_requires_build: bool,
+    ) {
+        if self.requires_build_by_snapshot.get(snapshot_key) != Some(&false)
+            || (!seed_known_requires_build && rebuilds.known_bins.is_none())
+        {
+            return;
+        }
+        let peer_stripped = snapshot_key.without_peer();
+        if self.package_bins.contains_key(&peer_stripped) {
+            return;
+        }
+        let (Some(manifest), Some(cas_paths)) =
+            (prefetch.manifests.get(cache_key), prefetch.cas_paths.get(cache_key))
+        else {
+            return;
+        };
+        let Some(resolved) =
+            pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest, cas_paths)
+        else {
+            return;
+        };
+        let verified = match super::lookup_known_bins(rebuilds.known_bins, snapshot_key) {
+            Some(known) if known.as_ref() == &resolved => std::sync::Arc::clone(known),
+            Some(_) | None => std::sync::Arc::new(resolved),
+        };
+        self.package_bins.insert(peer_stripped, verified);
     }
 
     /// The warm entry of a survivor whose cache key the prefetch found.
@@ -312,12 +360,9 @@ impl IndexRows {
             warm,
             cold,
             package_manifests: self.package_manifests,
-            side_effects_maps_by_snapshot: self.side_effects_maps_by_snapshot,
-            side_effects_by_snapshot: self.side_effects_by_snapshot,
-            remote_side_effects_quarantine_by_snapshot: self
-                .remote_side_effects_quarantine_by_snapshot,
-            store_index_keys_by_snapshot: self.store_index_keys_by_snapshot,
+            package_bins: self.package_bins,
             requires_build_by_snapshot: self.requires_build_by_snapshot,
+            side_effects: self.side_effects,
         }
     }
 }

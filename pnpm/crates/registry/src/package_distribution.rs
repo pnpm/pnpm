@@ -1,3 +1,6 @@
+use std::collections::BTreeMap;
+
+use pnpm_package_manifest::PackageBin;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 
@@ -82,6 +85,13 @@ pub struct PnprDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub requires_build: Option<bool>,
+    /// Precalculated executable bin entries and their shebang runtimes.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_pnpr_bins",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub bins: Option<BTreeMap<String, PackageBin>>,
 }
 
 /// Container for the attestation evidence a version exposes on its

@@ -1,9 +1,18 @@
 //! Tarball decompression and entry extraction into the CAS.
 
-pub(crate) use gzip::{GzipExtraction, extract_gzipped_tarball_with_tar};
-pub(crate) use limits::TarBudget;
+pub(super) mod gzip;
+
+pub(crate) use gzip::{
+    GZIP_MAGIC, GzipExtraction, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, decompress_gzip, extract_gzipped_tarball_with_tar,
+    is_eager_decode_limit_exceeded,
+};
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
-pub use manifest::{TarInspection, inspect_tar, tar_requires_build};
+pub(crate) use limits::{
+    OversizedManifestError, TarBudget, archive_entry_segments, clean_archive_entry_path,
+    oversized_manifest_error,
+};
+pub use manifest::{TarInspection, inspect_tar, read_buffered_tar_entry, tar_requires_build};
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
 };
@@ -13,19 +22,22 @@ pub(crate) use streaming::{
     stream_extract_gzipped_tarball_with_tar, tar_entry_payload,
 };
 
+use std::collections::BTreeMap;
+
 use super::{
     Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
     ParallelIterator, PathBuf, Read, TarballError, UNIX_EPOCH, cas_write_pool,
 };
 use pnpm_fs::file_mode;
-use pnpm_package_manifest::{BuildTriggers, parse_manifest_bytes};
+use pnpm_package_manifest::{
+    BuildTriggers, PackageBin, ScriptRuntime, parse_manifest_bytes, parse_shebang_from_bytes,
+    resolve_package_bins_with,
+};
 use pnpm_store_dir::{
     CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
 };
 use ssri::Integrity;
 use tar::Archive;
-use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
 
 /// Build the buffer the tarball body streams into, pre-sized from the
 /// response's `Content-Length` where possible.
@@ -52,61 +64,6 @@ pub(crate) fn allocate_tarball_buffer(
     Ok(buf)
 }
 
-/// Bound an untrusted unpacked-size claim — the registry's
-/// `dist.unpackedSize` or the archive's own gzip trailer — before it
-/// reaches zune-inflate, which reserves the hint as an infallible
-/// zero-filled `vec![0; hint]` and aborts the process if that
-/// allocation fails.
-pub(crate) fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
-    unpacked_size.map(|size| size.min(MAX_UNTRUSTED_PREALLOC_BYTES))
-}
-
-/// Decompress a whole gzipped archive into one contiguous buffer,
-/// refusing to inflate past [`MAX_UNTRUSTED_PREALLOC_BYTES`].
-///
-/// The ceiling is the same one [`should_stream_extract`] pivots on, so
-/// the two agree on how large an archive the eager path may hold — the
-/// difference being that this one measures the archive instead of
-/// trusting a hint about it. Both signals [`should_stream_extract`] has
-/// can be wrong: `dist.unpackedSize` is attacker-controlled, and the
-/// compressed length says nothing about the ratio. Integrity
-/// verification is no help either, since a gzip bomb is a legitimately
-/// published package whose hash matches. Without the ceiling the only
-/// bound is `zune-inflate`'s own 1 GiB default, which every
-/// concurrently extracting task may claim (see
-/// [`crate::post_download_semaphore`]).
-///
-/// Exceeding it is not a refusal: callers answer
-/// [`is_eager_decode_limit_exceeded`] by re-running the archive through
-/// a streaming decoder, which decodes it in full.
-#[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
-pub(crate) fn decompress_gzip(
-    gz_data: &[u8],
-    unpacked_size: Option<usize>,
-) -> Result<Vec<u8>, TarballError> {
-    let mut options = DeflateOptions::default()
-        .set_confirm_checksum(false)
-        .set_limit(MAX_UNTRUSTED_PREALLOC_BYTES);
-
-    if let Some(size) = bounded_gzip_size_hint(unpacked_size) {
-        options = options.set_size_hint(size);
-    }
-
-    DeflateDecoder::new_with_options(gz_data, options)
-        .decode_gzip()
-        .map_err(TarballError::DecodeGzip)
-}
-
-/// Whether `error` is [`decompress_gzip`] reporting that the archive
-/// inflated past its ceiling, the one decode failure that says nothing
-/// about the archive being malformed.
-pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
-    matches!(
-        error,
-        TarballError::DecodeGzip(decode) if matches!(decode.error, DecodeErrorStatus::OutputLimitExceeded(..)),
-    )
-}
-
 /// Extract a fully buffered archive, a `.tgz` or a plain tar, into the CAFS.
 /// A body that opens with the gzip magic is a `.tgz`; any other body is a tar.
 ///
@@ -125,18 +82,22 @@ pub(crate) fn extract_archive_bytes(
         return Err(TarballError::UnrecognizedArchive);
     }
     if resource.starts_with(&GZIP_MAGIC) {
-        let (files, index, tar) = extract_gzipped_tarball_with_tar(
+        let (files, index, bins, tar) = extract_gzipped_tarball_with_tar(
             resource,
             unpacked_size,
             limits,
             store_dir,
             ignore_file_pattern,
         )?;
-        return Ok(ExtractedArchiveBytes { files, index, tar: Some(tar) });
+        return Ok(ExtractedArchiveBytes { files, index, bins, tar: Some(tar) });
     }
-    let (files, index) =
-        extract_tarball_entries(resource, limits.for_tar(), store_dir, ignore_file_pattern)?;
-    Ok(ExtractedArchiveBytes { files, index, tar: None })
+    let (files, index, bins) = extract_tarball_entries_with_bins(
+        resource,
+        limits.for_tar(),
+        store_dir,
+        ignore_file_pattern,
+    )?;
+    Ok(ExtractedArchiveBytes { files, index, bins, tar: None })
 }
 
 /// The output of [`extract_archive_bytes`]. `tar` is `None` for a tar
@@ -144,75 +105,9 @@ pub(crate) fn extract_archive_bytes(
 pub(crate) struct ExtractedArchiveBytes {
     pub(crate) files: HashMap<String, PathBuf>,
     pub(crate) index: PackageFilesIndex,
+    pub(crate) bins: Option<BTreeMap<String, PackageBin>>,
     pub(crate) tar: Option<Result<Integrity, TarballError>>,
 }
-
-/// The uncompressed size a gzip stream records in its own trailer.
-///
-/// The last four bytes of a gzip member are ISIZE: what it decodes to,
-/// modulo 2^32. It is the archive's own claim and no more trustworthy
-/// than the registry's `dist.unpackedSize` — but it is available where
-/// that one often is not (a lockfile records no unpacked size, so a
-/// frozen install has nothing else), and routing on it means an honest
-/// archive that inflates past the eager ceiling is streamed on the
-/// first pass instead of being decoded twice. A dishonest one is still
-/// caught by [`decompress_gzip`]'s ceiling.
-///
-/// `None` unless the buffer opens with a deflate member header — the
-/// same three bytes the decoder itself checks first. A body that will
-/// fail at the decoder anyway keeps taking the path whose diagnostic
-/// says so, rather than being routed by four bytes of whatever it
-/// happens to end with.
-pub(crate) fn gzip_isize_hint(gz_data: &[u8]) -> Option<usize> {
-    if !gz_data.starts_with(&GZIP_MAGIC) || gz_data.get(GZIP_MAGIC.len()) != Some(&GZIP_CM_DEFLATE)
-    {
-        return None;
-    }
-    let trailer: [u8; 4] = gz_data
-        .get(gz_data.len().checked_sub(4)?..)?
-        .try_into()
-        .ok()?;
-    usize::try_from(u32::from_le_bytes(trailer)).ok()
-}
-
-/// First bytes of every gzip member, and all a reader needs to tell an
-/// archive from whatever else a server might answer with.
-pub(crate) const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
-
-/// Compression method byte following [`GZIP_MAGIC`]. Deflate is the
-/// only method npm archives use and the only one the decoder accepts.
-const GZIP_CM_DEFLATE: u8 = 8;
-
-/// Compressed-size pivot for [`should_stream_extract`]. The compressed
-/// length is the one exact size we hold in hand; npm tarballs
-/// typically inflate ~3-5×, so 16 MiB compressed puts the eager path's
-/// whole-archive buffer well past [`MAX_UNTRUSTED_PREALLOC_BYTES`].
-pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
-
-/// Whether a downloaded tarball should be extracted through the
-/// streaming path ([`stream_extract_gzipped_tarball_with_tar`]) instead of the
-/// eager whole-archive decompression
-/// ([`decompress_gzip`] + [`extract_tarball_entries`]).
-///
-/// The eager path materializes the entire decompressed archive as one
-/// contiguous buffer, which for a large package multiplies across every
-/// concurrently extracting task. Stream once either signal says the
-/// archive is large: the exact compressed length, or an unpacked-size
-/// claim ([`extract_gzipped_tarball_with_tar`] takes the larger of the
-/// registry's `dist.unpackedSize` and the gzip trailer's). A claim is
-/// attacker-controlled, but here it only picks between two correct
-/// extraction paths — a lying value costs at most the wrong path's
-/// performance profile, and [`decompress_gzip`]'s ceiling keeps even
-/// that path's memory bounded.
-pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option<usize>) -> bool {
-    compressed_len >= STREAM_EXTRACT_COMPRESSED_THRESHOLD
-        || unpacked_size.is_some_and(|size| size >= MAX_UNTRUSTED_PREALLOC_BYTES)
-}
-
-/// Minimum known compressed size for extracting a registry tarball while its
-/// body is still arriving. This reserves long-lived blocking tasks for archives
-/// whose post-download extraction is likely to extend the install tail.
-pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024;
 
 /// One regular-file tar entry whose path has been validated and
 /// cleaned, paired with its payload — a borrow into the decompressed
@@ -255,6 +150,9 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
     CafsFileInfo { digest: format!("{file_hash:x}"), mode, size, checked_at }
 }
 
+pub(crate) type ExtractedEntries =
+    (HashMap<String, PathBuf>, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>);
+
 /// Walk decompressed tar bytes, writing each regular-file entry into
 /// the CAFS and returning the `{in-tarball path → CAFS path}` map plus
 /// the per-tarball [`PackageFilesIndex`] row to hand off to the shared
@@ -268,12 +166,25 @@ pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> Cafs
 /// non-UTF-8 entry path is coerced via
 /// [`std::path::Path::to_string_lossy`] to match pnpm's string-based
 /// handling, so a mixed install against the shared `index.db` agrees.
-pub(crate) fn extract_tarball_entries(
+pub(crate) fn extract_tarball_entries_with_bins(
     tar_data: &[u8],
     limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedEntries, TarballError> {
+    let (pending, manifest, requires_build) =
+        collect_pending_tar_entries(tar_data, limits, ignore_file_pattern)?;
+    let bins = resolve_pending_bins(manifest.as_ref(), &pending);
+    let written = write_pending_files(store_dir, &pending)?;
+    let (files, index) = assemble_extract_output(written, manifest, requires_build);
+    Ok((files, index, bins))
+}
+
+fn collect_pending_tar_entries<'a>(
+    tar_data: &'a [u8],
+    limits: TarLimits,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(Vec<PendingFile<'a>>, Option<serde_json::Value>, bool), TarballError> {
     let budget = TarBudget::new(limits);
     let mut archive = Archive::new(Cursor::new(tar_data));
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
@@ -288,10 +199,6 @@ pub(crate) fn extract_tarball_entries(
         });
 
     let ((_, Some(capacity)) | (capacity, None)) = entries.size_hint();
-
-    // Header parsing has to run sequentially against the single archive
-    // stream, but it's cheap; the expensive per-file hashing + CAS write
-    // is deferred to the parallel phase below.
     let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
     let mut manifest = None;
     let mut triggers = BuildTriggers::default();
@@ -318,9 +225,30 @@ pub(crate) fn extract_tarball_entries(
         });
     }
     budget.check_buffered_end(tar_data, archive.into_inner().position())?;
+    Ok((pending, manifest, triggers.requires_build()))
+}
 
-    let written = write_pending_files(store_dir, &pending)?;
-    Ok(assemble_extract_output(written, manifest, triggers.requires_build()))
+fn resolve_pending_bins(
+    manifest: Option<&serde_json::Value>,
+    pending: &[PendingFile<'_>],
+) -> Option<BTreeMap<String, PackageBin>> {
+    let parsed = manifest?;
+    resolve_package_bins_with(
+        parsed,
+        |path| {
+            pending
+                .iter()
+                .any(|file| file.cleaned_path == path)
+        },
+        pending.iter().map(|file| file.cleaned_path.as_str()),
+        |path| {
+            let file = pending
+                .iter()
+                .rfind(|file| file.cleaned_path == path)?;
+            let head = &file.data[..file.data.len().min(512)];
+            parse_shebang_from_bytes(head)
+        },
+    )
 }
 
 /// Hash and write a slice of pending files into the content-addressed
@@ -391,70 +319,6 @@ fn assemble_extract_output(
     (cas_paths, pkg_files_idx)
 }
 
-/// Validate and clean one archive entry path: reject traversal, drop
-/// the top-level package directory (`package/`), and join the remaining
-/// segments with forward slashes.
-///
-/// Rejected rather than normalized so a tampered tarball is visible
-/// instead of silently landing outside the store.
-///
-/// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root — beside `package/`, or in a flat
-/// archive with no wrapping directory at all — so there is no
-/// top-level directory on it to drop, and pnpm keys it by its own name
-/// (`parseString` in `parseTarball.ts` advances past the first
-/// separator, which a single segment has none of). Dropping the segment
-/// instead would leave nothing to key the file by, and rejecting the
-/// entry would fail an archive that every other installer accepts. A
-/// lone `.` is the exception: it names the archive root rather than
-/// anything inside it, so there is no file for a key to address.
-///
-/// Joined by hand rather than with `PathBuf`, whose native separator
-/// would desynchronize these keys from pnpm's always-forward-slashed
-/// path layer and the `index.db` both implementations share. Callers
-/// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
-/// to U+FFFD per component.
-pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
-    let Some(mut parts) = archive_entry_segments(raw) else {
-        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "tar entry path rejected (non-normal component, possible directory traversal): {raw:?}",
-            ),
-        )));
-    };
-    if parts.as_slice() == ["."] {
-        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
-        )));
-    }
-    if parts.len() > 1 {
-        parts.remove(0);
-    }
-    Ok(parts.join("/"))
-}
-
-/// Reject a `package.json` entry that claims more than
-/// [`MAX_UNTRUSTED_PREALLOC_BYTES`].
-///
-/// A manifest has to reach memory to be parsed — the bundled manifest
-/// and its build-script detection both come from its bytes — so a
-/// reader that otherwise holds only a bounded window has to draw the
-/// line somewhere, and silently skipping the parse would record wrong
-/// build metadata instead. Real manifests are a few KB; one past the
-/// cap exists only in a hostile archive, so failing loudly is the
-/// honest outcome.
-pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
-    TarballError::ReadTarballEntries(std::io::Error::new(
-        std::io::ErrorKind::InvalidData,
-        format!(
-            "tar entry package.json is {file_size} bytes, which exceeds the \
-             {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
-        ),
-    ))
-}
-
 impl<'a> StreamingExtract<'a> {
     fn new(store_dir: &'a StoreDir) -> Self {
         StreamingExtract {
@@ -464,6 +328,15 @@ impl<'a> StreamingExtract<'a> {
             batch_bytes: 0,
             manifest: None,
             triggers: BuildTriggers::default(),
+            shebangs: HashMap::new(),
+        }
+    }
+
+    fn record_shebang(&mut self, cleaned_path: &str, head: &[u8]) {
+        if let Some(runtime) = parse_shebang_from_bytes(head) {
+            self.shebangs.insert(cleaned_path.to_string(), runtime);
+        } else if !self.shebangs.is_empty() {
+            self.shebangs.remove(cleaned_path);
         }
     }
 
@@ -500,6 +373,9 @@ impl<'a> StreamingExtract<'a> {
         }
         if meta.cleaned_path == "package.json" {
             self.manifest = capture_bundled_manifest(&data, &mut self.triggers);
+        } else {
+            let head = &data[..data.len().min(512)];
+            self.record_shebang(&meta.cleaned_path, head);
         }
         self.batch_bytes += data.len();
         self.batch.push(PendingFile {
@@ -520,11 +396,18 @@ impl<'a> StreamingExtract<'a> {
         entry: &mut tar::Entry<'_, impl Read>,
         meta: EntryMeta,
     ) -> Result<(), TarballError> {
+        let mut head = [0u8; 512];
+        let head_len = streaming::read_prefix(entry, &mut head)?;
+        self.record_shebang(&meta.cleaned_path, &head[..head_len]);
         // `Some(size)` makes the store writer reject a short stream
         // before anything is committed to a content-addressed path, so a
         // truncated archive leaves no orphan blob behind.
         let (file_path, file_hash, streamed_size) = self.store_dir
-            .write_cas_file_from_reader(entry, meta.executable, Some(meta.size))
+            .write_cas_file_from_reader(
+                &mut (&head[..head_len]).chain(entry),
+                meta.executable,
+                Some(meta.size),
+            )
             .map_err(|error| match error {
                 WriteCasFileFromReaderError::Read(error) => TarballError::ReadTarballEntries(error),
                 WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
@@ -546,44 +429,23 @@ impl<'a> StreamingExtract<'a> {
         )
     }
 
-    fn finish(mut self) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    fn finish(mut self) -> Result<ExtractedEntries, TarballError> {
         self.flush()?;
-        Ok(assemble_extract_output(self.written, self.manifest, self.triggers.requires_build()))
+        let (files, index) =
+            assemble_extract_output(self.written, self.manifest, self.triggers.requires_build());
+        let bins = index.manifest
+            .as_ref()
+            .and_then(|parsed| {
+                resolve_package_bins_with(
+                    parsed,
+                    |path| files.contains_key(path),
+                    files.keys().map(String::as_str),
+                    |path| self.shebangs.get(path).cloned(),
+                )
+            });
+        Ok((files, index, bins))
     }
 }
-
-/// Split a published archive entry's path into its segments, rejecting
-/// anything that escapes the archive root.
-///
-/// `\` is treated as a separator, as pnpm does before it validates
-/// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
-/// backslashes verbatim on Unix — where they are ordinary filename
-/// characters — and the resulting key travels through the `index.db`
-/// both implementations share to a reader that *does* treat them as
-/// separators.
-///
-/// A leading `.` is preserved because npm's `tar` counts it as the
-/// component removed by `strip: 1`. Other `.` components are ignored.
-///
-/// `None` for an absolute path or one climbing past the root.
-pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
-    if raw.starts_with(['/', '\\']) {
-        return None;
-    }
-    let mut segments = Vec::new();
-    for (index, segment) in raw.split(['/', '\\']).enumerate() {
-        match segment {
-            "" => {}
-            "." if index == 0 => segments.push(segment),
-            "." => {}
-            ".." => return None,
-            other => segments.push(other),
-        }
-    }
-    (!segments.is_empty()).then_some(segments)
-}
-
-mod gzip;
 
 mod limits;
 use limits::{TAR_BLOCK, check_trailer, is_tar_block};
@@ -597,27 +459,3 @@ use streaming::{
 
 mod manifest;
 use manifest::capture_bundled_manifest;
-
-/// Reads a TAR entry that must fit in memory, rejecting oversized payloads
-/// before allocating or reading them.
-pub fn read_buffered_tar_entry(
-    entry: &mut tar::Entry<'_, impl std::io::Read>,
-) -> std::io::Result<Vec<u8>> {
-    let size = entry.size();
-    if size > crate::MAX_TARBALL_METADATA_BYTES {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "tar entry {} is {size} bytes, which exceeds the {}-byte buffered entry limit",
-                entry
-                    .path()?
-                    .to_string_lossy()
-                    .escape_debug(),
-                crate::MAX_TARBALL_METADATA_BYTES,
-            ),
-        ));
-    }
-    let mut data = Vec::with_capacity(size as usize);
-    entry.read_to_end(&mut data)?;
-    Ok(data)
-}

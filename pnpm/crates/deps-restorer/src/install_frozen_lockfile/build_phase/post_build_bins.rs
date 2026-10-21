@@ -44,6 +44,7 @@ pub(super) fn relink_dependency_bins(
         selected_snapshots: Some(&consumers),
         packages: inputs.graph.packages,
         package_manifests: &crate::PackageManifests::default(),
+        package_bins: None,
         skipped: inputs.skipped,
         link_options: &options,
     }

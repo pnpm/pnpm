@@ -17,6 +17,7 @@ pub(crate) fn link_phase(
         selected_snapshots: Some(&selected_keys),
         packages: inputs.graph.lockfile.packages.as_ref(),
         package_manifests: inputs.packages.package_manifests,
+        package_bins: inputs.packages.package_bins,
         skipped,
         link_options: inputs.ctx.linker.bin_options,
     }

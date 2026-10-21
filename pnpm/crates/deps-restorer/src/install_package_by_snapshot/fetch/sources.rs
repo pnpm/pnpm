@@ -4,7 +4,7 @@ use super::{
         runtime::{archive_filter_for, fetch_binary_resolution_to_cas},
         tarball_resolution::{local_file_tarball_install_url, tarball_url_and_integrity},
     },
-    CustomFetched, SnapshotFetch, TarballFetch, download_tarball,
+    CustomFetched, ExtractedPackageMetadata, SnapshotFetch, TarballFetch, download_tarball,
 };
 use crate::{build_modules::exec_scripts_prepend_node_path, custom_fetcher::CustomFetchOutcome};
 use pnpm_config::PmOnFail;
@@ -149,12 +149,12 @@ impl InstallPackageBySnapshot<'_> {
 
 impl InstallPackageBySnapshot<'_> {
     /// Fetch a tarball- or registry-shaped resolution into the store and
-    /// return its CAS paths paired with the archive's `requires_build`
-    /// verdict when known.
+    /// return its CAS paths paired with the archive's extracted metadata.
     pub(super) async fn tarball_cas_paths<Reporter: self::Reporter>(
         &self,
         fetch: TarballFetch<'_, impl Fn(&str) -> Option<bool> + Send + Sync>,
-    ) -> Result<(HashMap<String, PathBuf>, Option<bool>), InstallPackageBySnapshotError> {
+    ) -> Result<(HashMap<String, PathBuf>, ExtractedPackageMetadata), InstallPackageBySnapshotError>
+    {
         let config = self.ctx.config;
         let revision_addressed = is_revision_addressed(fetch.resolution);
         let (tarball_url, integrity) =
@@ -179,7 +179,7 @@ impl InstallPackageBySnapshot<'_> {
                 )
             })
             .map(std::convert::AsRef::as_ref);
-        let (raw_cas_paths, requires_build) =
+        let (raw_cas_paths, extracted) =
             download_tarball::<Reporter>(download, mem_cache, revision_addressed)
                 .await
                 .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
@@ -187,8 +187,8 @@ impl InstallPackageBySnapshot<'_> {
             LockfileResolution::Tarball(tarball) if tarball.is_git_hosted() => self
                 .prepare_git_hosted::<Reporter>(&fetch, tarball, raw_cas_paths)
                 .await
-                .map(|cas_paths| (cas_paths, None)),
-            _ => Ok((raw_cas_paths, requires_build)),
+                .map(|cas_paths| (cas_paths, ExtractedPackageMetadata::default())),
+            _ => Ok((raw_cas_paths, extracted)),
         }
     }
 

@@ -1,4 +1,4 @@
-use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageManifests, VirtualStoreLayout};
+use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageBins, PackageManifests, VirtualStoreLayout};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
@@ -44,6 +44,7 @@ pub struct LinkLockfiles<'a> {
 
 pub struct LinkPackageData<'a> {
     pub package_manifests: &'a PackageManifests,
+    pub package_bins: Option<&'a PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
     /// gating the importer bin pass's use of `package_manifests` — see
     /// [`crate::link_direct_dep_bins_prefetched`]. `None` when the

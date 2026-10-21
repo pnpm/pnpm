@@ -57,6 +57,7 @@ fn deserializes_legacy_string_and_record_entries() {
             requires_build: None,
             file_count: None,
             unpacked_size: None,
+            bins: None,
             scanned: false,
         }),
     );
@@ -67,6 +68,7 @@ fn deserializes_legacy_string_and_record_entries() {
             requires_build: Some(true),
             file_count: Some(3),
             unpacked_size: Some(17),
+            bins: None,
             scanned: true,
         }),
     );
@@ -77,6 +79,7 @@ fn deserializes_legacy_string_and_record_entries() {
             requires_build: Some(false),
             file_count: None,
             unpacked_size: None,
+            bins: None,
             scanned: false,
         }),
     );

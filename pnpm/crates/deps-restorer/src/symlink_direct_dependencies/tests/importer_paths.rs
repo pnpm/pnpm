@@ -90,6 +90,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
             dependency_groups: [DependencyGroup::Prod],
 
             package_manifests: None,
+            package_bins: None,
             requires_build_by_snapshot: None,
             scheduled_builds: None,
         }
@@ -164,6 +165,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
         dependency_groups: [DependencyGroup::Prod],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
@@ -195,6 +197,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
         dependency_groups: [DependencyGroup::Prod],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }

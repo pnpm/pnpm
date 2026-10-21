@@ -9,7 +9,8 @@ use crate::{
     archive_integrity::ArchiveVerification,
     extract::{ExtractedArchiveBytes, GZIP_MAGIC},
 };
-use std::io::Read;
+use pnpm_package_manifest::PackageBin;
+use std::{collections::BTreeMap, io::Read};
 
 /// A whole archive response held in memory, as it arrived.
 pub(crate) struct BufferedArchive {
@@ -20,8 +21,13 @@ pub(crate) struct BufferedArchive {
     pub(crate) tar_limits: TarLimits,
 }
 
-/// The integrities, CAFS files, and store row of one extracted archive.
-pub(crate) type ExtractedFiles = (ArchiveIntegrity, HashMap<String, PathBuf>, PackageFilesIndex);
+/// The integrities, CAFS files, store row, and precalculated bins of one extracted archive.
+pub(crate) type ExtractedFiles = (
+    ArchiveIntegrity,
+    HashMap<String, PathBuf>,
+    PackageFilesIndex,
+    Option<BTreeMap<String, PackageBin>>,
+);
 
 pub(crate) async fn extract_tarball_buffer(
     archive: BufferedArchive,
@@ -86,7 +92,7 @@ impl BufferedExtraction {
             self.verification.expected.clone(),
             self.package_url.clone(),
         )?;
-        let ExtractedArchiveBytes { files, index, tar } = extract_archive_bytes(
+        let ExtractedArchiveBytes { files, index, bins, tar } = extract_archive_bytes(
             &resource,
             self.unpacked_size,
             self.limits,
@@ -102,7 +108,7 @@ impl BufferedExtraction {
             })
         });
         let integrity = self.verification.finish(Ok(integrity), tar, &self.package_url)?;
-        Ok((integrity, files, index))
+        Ok((integrity, files, index, bins))
     }
 
     fn extract_stream(
@@ -124,8 +130,8 @@ impl BufferedExtraction {
             return Err(error);
         }
         let integrity = integrity?;
-        let (cas_paths, pkg_files_idx) = extracted?;
-        Ok((integrity, cas_paths, pkg_files_idx))
+        let (cas_paths, pkg_files_idx, bins) = extracted?;
+        Ok((integrity, cas_paths, pkg_files_idx, bins))
     }
 }
 

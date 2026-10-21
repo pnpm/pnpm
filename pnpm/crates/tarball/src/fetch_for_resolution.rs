@@ -11,10 +11,15 @@ use crate::{
     read_subdir_manifest, wait_for_cached_tarball,
 };
 use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter, store_index_key};
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 use tokio::sync::{Notify, RwLock};
 
 /// Outcome of [`FetchTarballForResolution::run`]: the sha512 integrity
@@ -118,6 +123,7 @@ struct ExtractedTarball {
     /// Archive-root bundled subset. The mem-cache slot is keyed by the
     /// archive, so waiters always see this rather than a subdirectory.
     root_manifest: Option<serde_json::Value>,
+    bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
 struct ExtractedWithValidators {
@@ -146,7 +152,7 @@ impl ExtractedWithValidators {
 }
 
 enum FetchedBody {
-    Extracted(ExtractedWithValidators),
+    Extracted(Box<ExtractedWithValidators>),
     NotModified(NotModifiedResponse),
 }
 
@@ -260,6 +266,7 @@ impl FetchTarballForResolution<'_> {
                         files: Arc::clone(&extracted.body.files),
                         manifest: extracted.body.root_manifest.clone(),
                         requires_build: None,
+                        bins: extracted.body.bins.clone(),
                     },
                 )
                 .await;
@@ -305,6 +312,7 @@ impl FetchTarballForResolution<'_> {
                             files: Arc::clone(&extracted.body.files),
                             manifest: extracted.body.root_manifest.clone(),
                             requires_build: None,
+                            bins: extracted.body.bins.clone(),
                         },
                     );
                 }
@@ -350,7 +358,8 @@ impl FetchTarballForResolution<'_> {
                 }))
             }
             AttemptedFetch::Extracted(extracted) => {
-                self.process_extracted(*extracted).await.map(FetchedBody::Extracted)
+                self.process_extracted(*extracted).await
+                    .map(|validated| FetchedBody::Extracted(Box::new(validated)))
             }
         }
     }
@@ -375,6 +384,7 @@ impl FetchTarballForResolution<'_> {
                 files: Arc::new(cas_paths),
                 manifest,
                 root_manifest,
+                bins: extracted.bins.map(Arc::new),
             },
             cache_headers: extracted.meta.cache_headers,
             final_url: extracted.meta.final_url,

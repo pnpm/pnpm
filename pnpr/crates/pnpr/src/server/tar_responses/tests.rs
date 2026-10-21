@@ -147,6 +147,7 @@ async fn decoded_tar_records_regular_file_statistics_and_forwards_decode_errors(
             requires_build: Some(false),
             file_count: Some(2),
             unpacked_size: Some(b"{}".len() as u64 + b"#!/usr/bin/env node\n".len() as u64),
+            bins: Some(std::collections::BTreeMap::new()),
         },
     );
 
