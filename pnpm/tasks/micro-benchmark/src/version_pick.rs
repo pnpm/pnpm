@@ -8,8 +8,9 @@
 use criterion::{Criterion, Throughput};
 use pnpm_registry::{MirrorFile, Package, PackageVersions};
 use pnpm_resolving_npm_resolver::{
-    PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
-    pick_package_from_meta, pick_version_by_version_range,
+    PickPackageFromMetaOptions, PickVersionByVersionRangeOptions, RegistryPackageSpec,
+    RegistryPackageSpecType, pick_lowest_version_by_version_range, pick_package_from_meta,
+    pick_version_by_version_range,
 };
 use std::{hint::black_box, io::Write};
 
@@ -28,6 +29,17 @@ pub fn bench_version_pick(criterion: &mut Criterion) {
             bencher.iter(|| pick_every_range(&meta, &specs, &opts));
         });
     }
+    let meta = synthetic_package(false);
+    let lowest_opts = PickVersionByVersionRangeOptions {
+        meta: &meta,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    group.throughput(Throughput::Elements(1));
+    group.bench_function("wildcard_lowest", |bencher| {
+        bencher.iter(|| pick_lowest_version_by_version_range(black_box(&lowest_opts)));
+    });
     group.finish();
 }
 

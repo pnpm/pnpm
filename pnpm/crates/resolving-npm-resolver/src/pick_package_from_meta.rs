@@ -33,7 +33,9 @@ pub(crate) use release_age::{PublishedByView, apply_published_by_policy};
 
 pub use release_age::{filter_pkg_metadata_by_publish_date, filter_pkg_metadata_versions};
 
-use semver_range::{max_satisfying, max_version, min_satisfying, semver_satisfies_loose};
+use semver_range::{
+    max_satisfying, max_version, min_satisfying, min_version, semver_satisfies_loose,
+};
 
 mod preferred_versions;
 use preferred_versions::prioritize_preferred_versions;
@@ -479,16 +481,7 @@ pub fn pick_lowest_version_by_version_range(
     }
 
     if opts.version_range == "*" {
-        let mut parsed: Vec<(Version, &str)> = opts.meta.versions
-            .keys()
-            .filter_map(|raw| {
-                Version::parse(raw)
-                    .ok()
-                    .map(|version| (version, raw.as_str()))
-            })
-            .collect();
-        parsed.sort_by(|left, right| left.0.cmp(&right.0));
-        return parsed.first().map(|(_, raw)| (*raw).to_string());
+        return min_version(opts.meta.versions.keys().map(String::as_str));
     }
     min_satisfying(opts.meta.versions.keys().map(String::as_str), opts.version_range)
 }
