@@ -129,6 +129,81 @@ fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
     drop((root, mock_instance));
 }
 
+/// A patched package already in place is left alone too, and so is a
+/// package that only peers on one, whose dep path carries the peer's
+/// `patch_hash`. A changed patch gives the package another dep path, so
+/// it is still imported then, as `install_level_modified_patch_is_reapplied`
+/// checks under this linker.
+#[test]
+fn a_repeat_frozen_install_leaves_present_patched_hoisted_packages_alone() {
+    const PATCHED: &str = "@pnpm.e2e/peer-c";
+    const PEER_DEPENDENT: &str = "@pnpm.e2e/wants-peer-c-1.0.0";
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    let write_local = |marker: &str| {
+        fs::write(
+            local.join("package.json"),
+            serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the local package.json");
+        fs::write(local.join("marker.txt"), marker).expect("write the marker");
+    };
+    write_local("first");
+    fs::create_dir_all(workspace.join("patches")).expect("create the patches dir");
+    fs::write(workspace.join("patches/peer-c.patch"), crate::patch::MARKER_PATCH)
+        .expect("write the patch");
+    write_manifest(
+        &workspace,
+        serde_json::json!({ PATCHED: "1.0.0", PEER_DEPENDENT: "1.0.0", "local-pkg": "file:./local-pkg" }),
+    );
+    write_workspace_yaml(
+        &workspace,
+        &format!(
+            "nodeLinker: hoisted\noptimisticRepeatInstall: false\npatchedDependencies:\n  '{PATCHED}@1.0.0': patches/peer-c.patch\n",
+        ),
+    );
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    let patched_marker = workspace
+        .join("node_modules")
+        .join(PATCHED)
+        .join("patched-marker.txt");
+    assert!(patched_marker.exists(), "the patch was applied on the first install");
+    let witnesses: Vec<DirWitness> = [PATCHED, PEER_DEPENDENT]
+        .iter()
+        .map(|name| DirWitness::take(&workspace.join("node_modules").join(name)))
+        .collect();
+
+    write_local("second");
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run pnpm install");
+    assert!(output.status.success(), "repeat install failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
+
+    assert!(
+        witnesses.iter().all(DirWitness::is_intact),
+        "the patched package and its peer dependent were left in place",
+    );
+    assert!(patched_marker.exists(), "the patch is still applied");
+
+    drop((root, mock_instance));
+}
+
 /// A present package is not handed to the build phase either, so its
 /// lifecycle scripts do not run again over the already-built directory
 /// (pnpm marks an unfetched node `isBuilt`). `pnpm rebuild` still
