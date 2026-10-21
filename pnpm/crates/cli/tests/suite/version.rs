@@ -1,6 +1,6 @@
-use crate::_utils::{
-    append_workspace_yaml_key, read_v11_bundle_path, set_minimum_release_age, write_fake_bin,
-};
+#[cfg(unix)]
+use crate::_utils::read_v11_bundle_path;
+use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, write_fake_bin};
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
@@ -935,6 +935,7 @@ fn v11_switches_up_to_head_binary_from_local_registry() {
     drop((root, registry));
 }
 
+#[cfg(unix)]
 fn v11_in(workspace: &Path) -> Command {
     use pnpm_testing_utils::command_env::CommandTestExt as _;
     let bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
@@ -943,6 +944,7 @@ fn v11_in(workspace: &Path) -> Command {
     command.with_current_dir(workspace).without_ambient_pnpm_config()
 }
 
+#[cfg(unix)]
 fn start_registry_with_synthetic_pnpm(
     root: &Path,
     version: &str,

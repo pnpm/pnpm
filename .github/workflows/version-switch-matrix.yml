@@ -86,12 +86,17 @@ jobs:
           PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
             cargo nextest run --locked -p pnpm-cli --test suite -E 'test(/^version::/)'
 
-      - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11)
+      - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12)
         shell: bash
         run: |
           set -euo pipefail
           for outer_spec in "pnpm@latest-11" "pnpm@12.0.0" "pnpm@latest-12"; do
-            for pin_version in "10.10.0" "11.11.0"; do
+            outer_dir="$RUNNER_TEMP/outer-${outer_spec//[^a-zA-Z0-9]/_}"
+            mkdir -p "$outer_dir"
+            printf '{"name":"outer-runner","private":true}\n' > "$outer_dir/package.json"
+            pnpm --dir "$outer_dir" add "$outer_spec"
+            outer_bin="$outer_dir/node_modules/.bin/pnpm"
+            for pin_version in "10.10.0" "11.11.0" "12.14.0"; do
               work="$RUNNER_TEMP/switch-${outer_spec//[^a-zA-Z0-9]/_}-${pin_version}"
               mkdir -p "$work/project" "$work/home"
               printf '{"name":"matrix-proj","version":"1.0.0","packageManager":"pnpm@%s"}\n' "$pin_version" > "$work/project/package.json"
@@ -100,7 +105,7 @@ jobs:
                 PNPM_HOME="$work/home" \
                 HOME="$work" \
                 XDG_CONFIG_HOME="$work/xdg" \
-                  pnpm dlx "$outer_spec" --version
+                  "$outer_bin" --version | tr -d '\r'
               )
               if [ "$out" != "$pin_version" ]; then
                 echo "Expected $outer_spec to switch to $pin_version, got: $out" >&2
