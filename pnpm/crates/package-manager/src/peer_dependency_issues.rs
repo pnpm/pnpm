@@ -62,7 +62,7 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         &config.peer_dependency_rules,
         workspace.catalogs,
         config.resolve_peers_from_workspace_root,
-        &workspace.package_json_manifests(),
+        &workspace.manifests(),
     )
     .map_err(InstallError::CatalogResolution)?
     else {
@@ -90,16 +90,14 @@ pub(crate) struct PeerReportWorkspace<'a> {
     pub(crate) catalogs: Option<&'a Catalogs>,
     /// The manifests the install read, before `packageExtensions` and
     /// `readPackage`. A `link:` to one of these projects is checked without
-    /// reading its `package.json` again.
+    /// reading its manifest again.
     pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
 impl<'a> PeerReportWorkspace<'a> {
-    /// `pnpm peers check` reads only `package.json`, and the two must agree.
-    fn package_json_manifests(&self) -> ProjectManifests<'a> {
+    fn manifests(&self) -> ProjectManifests<'a> {
         self.project_manifests
             .iter()
-            .filter(|(_, manifest)| manifest.path().ends_with("package.json"))
             .map(|(project_dir, manifest)| {
                 (
                     pnpm_workspace::importer_id_from_root_dir(self.lockfile_dir, project_dir),

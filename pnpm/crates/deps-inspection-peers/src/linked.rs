@@ -25,7 +25,7 @@ pub(super) fn resolve_link_version(
     link_target: &str,
 ) -> Option<String> {
     let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?;
-    let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
+    let manifest = pnpm_workspace::read_project_manifest_only(&target_dir).ok()?;
     package_manifest_version(&manifest)
 }
 
@@ -387,7 +387,7 @@ fn linked_manifest<'m>(
 ) -> Option<Cow<'m, PackageManifest>> {
     match project_manifests.get(importer_id) {
         Some(&manifest) => Some(Cow::Borrowed(manifest)),
-        None => PackageManifest::from_path(dir.join("package.json")).ok().map(Cow::Owned),
+        None => pnpm_workspace::read_project_manifest_only(dir).ok().map(Cow::Owned),
     }
 }
 
