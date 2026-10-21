@@ -40,6 +40,12 @@ struct CliArgs {
     /// Measure compact and full trust-history scans over 1,000 releases.
     #[clap(long, conflicts_with = "full_workspace_resolution")]
     trust_history: bool,
+
+    #[clap(long, conflicts_with_all = ["full_workspace_resolution", "trust_history"])]
+    version_pick: bool,
+
+    #[clap(long, requires = "version_pick", conflicts_with = "save_baseline")]
+    compare_baseline: Option<String>,
 }
 
 fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_folder: &Path) {
@@ -277,17 +283,21 @@ pub fn main() -> Result<(), String> {
         save_baseline,
         full_workspace_resolution,
         trust_history,
+        version_pick: version_pick_only,
+        compare_baseline,
     } = CliArgs::parse();
     if full_workspace_resolution {
         workspace_resolution::run_full_workspace_resolution();
         return Ok(());
     }
     let mut criterion = Criterion::default().without_plots();
+    if let Some(baseline) = compare_baseline {
+        criterion = criterion.retain_baseline(baseline, true);
+    }
     if let Some(baseline) = save_baseline {
         criterion = criterion.save_baseline(baseline);
     }
-    if trust_history {
-        trust_history::bench_trust_history(&mut criterion);
+    if run_selected_benchmark(&mut criterion, trust_history, version_pick_only) {
         return Ok(());
     }
     let mut server = mockito::Server::new();
@@ -309,4 +319,20 @@ pub fn main() -> Result<(), String> {
     workspace_sort::bench_workspace_sort(&mut criterion);
 
     Ok(())
+}
+
+fn run_selected_benchmark(
+    criterion: &mut Criterion,
+    trust_history_only: bool,
+    version_pick_only: bool,
+) -> bool {
+    if trust_history_only {
+        trust_history::bench_trust_history(criterion);
+        return true;
+    }
+    if version_pick_only {
+        version_pick::bench_version_pick(criterion);
+        return true;
+    }
+    false
 }

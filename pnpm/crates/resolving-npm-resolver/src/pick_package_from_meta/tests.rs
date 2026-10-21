@@ -30,8 +30,8 @@ fn range_scans_keep_the_first_raw_version_when_precedence_ties() {
     for versions in [["v1.2.3", "1.2.3"], ["1.2.3", "v1.2.3"]] {
         let expected = Some(versions[0].to_string());
         assert_eq!(max_version(&versions), expected);
-        assert_eq!(max_satisfying(&versions, "^1"), expected);
-        assert_eq!(min_satisfying(&versions, "^1"), expected);
+        assert_eq!(max_satisfying(versions.iter().copied(), "^1"), expected);
+        assert_eq!(min_satisfying(versions.iter().copied(), "^1"), expected);
     }
 }
 
@@ -42,15 +42,15 @@ fn range_scans_keep_prerelease_and_build_spelling() {
     let versions = ["invalid", "1.2.3-beta.1+build.7", "1.2.3-beta.2+build.9"];
     assert_eq!(max_version(&versions).as_deref(), Some("1.2.3-beta.2+build.9"));
     assert_eq!(
-        max_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        max_satisfying(versions.iter().copied(), ">=1.2.3-beta.1").as_deref(),
         Some("1.2.3-beta.2+build.9"),
     );
     assert_eq!(
-        min_satisfying(&versions, ">=1.2.3-beta.1").as_deref(),
+        min_satisfying(versions.iter().copied(), ">=1.2.3-beta.1").as_deref(),
         Some("1.2.3-beta.1+build.7"),
     );
-    assert_eq!(max_satisfying(&versions, "*"), None);
-    assert_eq!(min_satisfying(&versions, "*"), None);
+    assert_eq!(max_satisfying(versions.iter().copied(), "*"), None);
+    assert_eq!(min_satisfying(versions.iter().copied(), "*"), None);
     assert_eq!(max_version(&["invalid"]), None);
 }
 
