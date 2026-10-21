@@ -12,3 +12,7 @@
 /.config/pnpm/security.yaml @zkochan
 /.pnpmfile.cjs @zkochan
 /__patches__/ @zkochan
+
+# No code owner: pnpm-workspace.yaml lets this file define only the catalog
+# and the update and task-runner settings.
+/.config/pnpm/routine.yaml

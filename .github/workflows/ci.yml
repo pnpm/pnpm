@@ -60,6 +60,7 @@ jobs:
               - 'package.json'
               - 'pnpm-workspace.yaml'
               - '.config/pnpm/security.yaml'
+              - '.config/pnpm/routine.yaml'
               - 'pnpm-lock.yaml'
               - '.pnpmfile.cjs'
               - 'eslint.config.mjs'
