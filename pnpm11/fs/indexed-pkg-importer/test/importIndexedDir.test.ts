@@ -493,3 +493,34 @@ testOnPosix('importIndexedDir() safeToSkip does not follow a stale symlink on th
   expect(fs.readlinkSync(path.join(newDir, 'bin/tool'))).toBe('../package.json')
   expect(fs.readdirSync(outside)).toStrictEqual([])
 })
+
+test('importIndexedDir() swaps an occupied target aside when rename onto an existing directory throws EPERM', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (newPath === newDir && fs.existsSync(newDir)) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    importIndexedDir(
+      { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+      newDir,
+      new Map([['package.json', path.join(src, 'package.json')]]),
+      { keepModulesDir: true }
+    )
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})

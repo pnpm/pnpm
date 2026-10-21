@@ -259,12 +259,25 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        (None, _) => import_absent_target::<Reporter>(
+        // A private target stages even when the target is absent, so that a
+        // sibling forced import's swap cannot remove a directory this one is
+        // filling in place. A shared slot is claimed in place instead, because
+        // nothing may remove it (see `import_into_shared_dir`).
+        (None, _) if !opts.safe_to_skip => stage_and_swap::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
+            staging::SwapTarget::Absent,
             opts,
+        )
+        .inspect(|()| unquarantine()),
+        (None, _) => import_into_shared_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
+            opts.preserve_symlinks,
         )
         .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
@@ -300,38 +313,6 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
     }
 }
 
-/// A forced import of a private target stages even when the target is
-/// absent, so that a sibling forced import's swap cannot remove a
-/// directory this one is filling in place. A shared slot is claimed in
-/// place instead, because nothing may remove it (see
-/// [`import_into_shared_dir`]).
-fn import_absent_target<Reporter: self::Reporter>(
-    logged_methods: &AtomicU8,
-    import_method: PackageImportMethod,
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-    opts: ImportIndexedDirOpts,
-) -> Result<(), ImportIndexedDirError> {
-    if opts.force && !opts.safe_to_skip {
-        return staging::stage_and_swap::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            staging::SwapTarget::Absent,
-            opts,
-        );
-    }
-    placement::import_absent_dir::<Reporter>(
-        logged_methods,
-        import_method,
-        dir_path,
-        cas_paths,
-        opts.safe_to_skip,
-        opts.preserve_symlinks,
-    )
-}
-
 fn force_import_existing_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
@@ -347,7 +328,7 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             file_type,
-            opts.preserve_symlinks,
+            opts,
         );
     }
     if opts.reuse_hardlinks
@@ -461,18 +442,25 @@ fn repair_existing_dir<Reporter: self::Reporter>(
 ) -> Result<(), ImportIndexedDirError> {
     // The first import may have left files that do not match the sanitized map.
     if !repair_sanitized && marker_present(dir_path, cas_paths) {
-        Ok(())
-    } else {
-        populate_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            Placement::for_target(opts.safe_to_skip || repair_sanitized),
-            opts.preserve_symlinks.then_some(dir_path),
-        )
-        .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
+        return Ok(());
     }
+    if !opts.safe_to_skip {
+        if let Some(swap_lock) = opts.swap_lock {
+            swap_lock.hold();
+        }
+        if !repair_sanitized && marker_present(dir_path, cas_paths) {
+            return Ok(());
+        }
+    }
+    populate_dir::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        Placement::for_target(opts.safe_to_skip || repair_sanitized),
+        opts.preserve_symlinks.then_some(dir_path),
+    )
+    .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
 }
 
 fn replace_non_dir<Reporter: self::Reporter>(
@@ -481,8 +469,13 @@ fn replace_non_dir<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     file_type: fs::FileType,
-    preserve_symlinks: bool,
+    opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
+    if !opts.safe_to_skip
+        && let Some(swap_lock) = opts.swap_lock
+    {
+        swap_lock.hold();
+    }
     remove_non_dir_dirent(dir_path, file_type)
         .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
             path: dir_path.to_path_buf(),
@@ -494,7 +487,7 @@ fn replace_non_dir<Reporter: self::Reporter>(
         dir_path,
         cas_paths,
         Placement::Fresh,
-        preserve_symlinks.then_some(dir_path),
+        opts.preserve_symlinks.then_some(dir_path),
     )
 }
 

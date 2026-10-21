@@ -5,7 +5,12 @@ use super::{
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
 
 #[cfg(windows)]
@@ -278,6 +283,86 @@ fn concurrent_force_imports_into_the_same_target_accept_the_completed_import() {
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"name\":\"pkg\"}");
     assert_eq!(fs::read(target.join("index.js")).unwrap(), b"content");
     assert_eq!(fs::read(target.join("node_modules/kept")).unwrap(), b"nested dependency");
+    assert!(!target.join("stale.txt").exists());
+}
+
+#[test]
+fn concurrent_forced_and_non_forced_imports_into_the_same_target_succeed() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let old_pkg_json = write_source(&src_root, "old-package.json", b"{\"version\":\"1.0.0\"}");
+    let old_extra = write_source(&src_root, "old-only.js", b"old");
+    let new_pkg_json = write_source(&src_root, "new-package.json", b"{\"version\":\"2.0.0\"}");
+    let new_code = write_source(&src_root, "index.js", b"fresh");
+    let mut non_forced_entries = vec![("package.json", old_pkg_json), ("old-only.js", old_extra)];
+    let mut forced_entries = vec![("package.json", new_pkg_json), ("index.js", new_code)];
+    for index in 0..32 {
+        let file = write_source(&src_root, &format!("sub/{index}.js"), b"payload");
+        let rel = Box::leak(format!("sub/dir-{index}/file.js").into_boxed_str());
+        non_forced_entries.push((rel, file.clone()));
+        forced_entries.push((rel, file));
+    }
+    let non_forced_cas = cas_map(&non_forced_entries);
+    let forced_cas = cas_map(&forced_entries);
+
+    let absent_target = tmp.path().join("pkg-absent");
+    assert_concurrent_forced_and_non_forced_imports_converge(
+        &absent_target,
+        &non_forced_cas,
+        &forced_cas,
+    );
+
+    let partial_target = tmp.path().join("pkg-partial");
+    fs::create_dir_all(partial_target.join("sub")).unwrap();
+    fs::write(partial_target.join("stale.txt"), b"partial").unwrap();
+    assert_concurrent_forced_and_non_forced_imports_converge(
+        &partial_target,
+        &non_forced_cas,
+        &forced_cas,
+    );
+}
+
+fn assert_concurrent_forced_and_non_forced_imports_converge(
+    target: &Path,
+    non_forced_cas: &HashMap<String, PathBuf>,
+    forced_cas: &HashMap<String, PathBuf>,
+) {
+    let cases = [
+        (non_forced_cas, false),
+        (forced_cas, true),
+        (non_forced_cas, false),
+        (forced_cas, true),
+        (non_forced_cas, false),
+        (forced_cas, true),
+    ];
+    let barrier = std::sync::Barrier::new(cases.len());
+    std::thread::scope(|scope| {
+        for (cas, force) in cases {
+            let barrier = &barrier;
+            scope.spawn(move || {
+                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap());
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    target,
+                    cas,
+                    ImportIndexedDirOpts {
+                        force,
+                        keep_modules_dir: force,
+                        swap_lock: Some(&swap_lock),
+                        ..ImportIndexedDirOpts::default()
+                    },
+                )
+                .expect("concurrent forced and non-forced imports must succeed");
+            });
+        }
+    });
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"2.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"fresh");
+    assert!(!target.join("old-only.js").exists());
     assert!(!target.join("stale.txt").exists());
 }
 
