@@ -104,41 +104,25 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     };
     write_modules_manifest::<Host>(&dirs.modules_dir, seed_modules).expect("seed .modules.yaml");
 
-    let mut projects = std::collections::BTreeMap::new();
-    projects.insert(
-        dirs.project_root.to_string_lossy().into_owned(),
-        workspace_state::ProjectEntry {
-            name: Some("project".to_string()),
-            version: Some("1.0.0".to_string()),
-            has_modules_dir: false,
-        },
-    );
-    let settings = crate::optimistic_repeat_install::settings::current_settings(
+    let seed_state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root: &dirs.project_root,
         config,
-        pnpm_config::NodeLinker::Isolated,
-        included,
-        None,
-    );
-    let mut seed_state = pnpm_workspace_state::WorkspaceState {
-        last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-            &dirs.project_root,
-        ),
-        projects,
-        pnpmfiles: Vec::new(),
-        filtered_install: false,
-        config_dependencies: None,
-        validation: None,
-        settings,
-    };
-    crate::optimistic_repeat_install::validation::record_validation(
-        &mut seed_state,
-        &crate::optimistic_repeat_install::validation::RecordValidation {
-            workspace_root: &dirs.project_root,
-            config,
-            project_manifests: &[(dirs.project_root.clone(), &manifest)],
-            vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
         },
-    );
+        catalogs: &std::collections::BTreeMap::default(),
+        project_manifests: &[(dirs.project_root.clone(), &manifest)],
+        filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
+            &dirs.project_root,
+        )),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: None,
+            kept_groups: None,
+        },
+        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+    });
     workspace_state::update_workspace_state(&dirs.project_root, &seed_state)
         .expect("seed workspace state");
 
@@ -254,42 +238,26 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         dev_dependencies: false,
         optional_dependencies: false,
     };
-    let mut projects = std::collections::BTreeMap::new();
-    projects.insert(
-        project_root.to_string_lossy().into_owned(),
-        workspace_state::ProjectEntry {
-            name: Some("project".to_string()),
-            version: Some("1.0.0".to_string()),
-            has_modules_dir: false,
-        },
-    );
-    let settings = crate::optimistic_repeat_install::settings::current_settings(
-        config,
-        pnpm_config::NodeLinker::Isolated,
-        included,
-        None,
-    );
     let last_validated_timestamp = 1_700_000_000_000;
     set_mtime_ms(&manifest_path, last_validated_timestamp - 2 * MTIME_STEP_MS);
     set_mtime_ms(&project_root.join("pnpm-lock.yaml"), last_validated_timestamp - MTIME_STEP_MS);
-    let mut seed_state = pnpm_workspace_state::WorkspaceState {
-        last_validated_timestamp,
-        projects,
-        pnpmfiles: Vec::new(),
-        filtered_install: false,
-        config_dependencies: None,
-        validation: None,
-        settings,
-    };
-    crate::optimistic_repeat_install::validation::record_validation(
-        &mut seed_state,
-        &crate::optimistic_repeat_install::validation::RecordValidation {
-            workspace_root: &project_root,
-            config,
-            project_manifests: &[(project_root.clone(), &manifest)],
-            vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+    let seed_state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root: &project_root,
+        config,
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
         },
-    );
+        catalogs: &std::collections::BTreeMap::default(),
+        project_manifests: &[(project_root.clone(), &manifest)],
+        filesystem_now_ms: Some(last_validated_timestamp),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: None,
+            kept_groups: None,
+        },
+        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+    });
     workspace_state::update_workspace_state(&project_root, &seed_state)
         .expect("seed workspace state");
 
@@ -321,6 +289,23 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         supported_architectures: None,
     };
     assert!(install_already_up_to_date(&check).is_err(), "modified manifest must fall through");
+}
+
+#[test]
+fn gvs_build_markers_complete_refuses_missing_wanted_lockfile() {
+    let dir = tempdir().unwrap();
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.dangerously_allow_all_builds = true;
+    assert_eq!(
+        crate::install::run::gvs_build_markers_complete(
+            &config,
+            MaybeLazyLockfile::Loaded(None),
+            dir.path(),
+            None,
+        ),
+        Err("the wanted lockfile cannot be read to look for global virtual store build markers"),
+    );
 }
 /// `add` / `remove` mutate the manifest in memory and persist it only
 /// after `Install::run` returns, so the on-disk mtimes the optimistic
@@ -400,41 +385,25 @@ async fn partial_install_disables_optimistic_short_circuit() {
         .save_current_to_install_state_dir(&dirs.virtual_store_dir)
         .expect("seed current lockfile");
 
-    let mut projects = std::collections::BTreeMap::new();
-    projects.insert(
-        dirs.project_root.to_string_lossy().into_owned(),
-        workspace_state::ProjectEntry {
-            name: Some("project".to_string()),
-            version: Some("1.0.0".to_string()),
-            has_modules_dir: false,
-        },
-    );
-    let settings = crate::optimistic_repeat_install::settings::current_settings(
+    let seed_state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root: &dirs.project_root,
         config,
-        pnpm_config::NodeLinker::Isolated,
-        included,
-        None,
-    );
-    let mut seed_state = pnpm_workspace_state::WorkspaceState {
-        last_validated_timestamp: pnpm_testing_utils::fs::backdate_existing_files(
-            &dirs.project_root,
-        ),
-        projects,
-        pnpmfiles: Vec::new(),
-        filtered_install: false,
-        config_dependencies: None,
-        validation: None,
-        settings,
-    };
-    crate::optimistic_repeat_install::validation::record_validation(
-        &mut seed_state,
-        &crate::optimistic_repeat_install::validation::RecordValidation {
-            workspace_root: &dirs.project_root,
-            config,
-            project_manifests: &[(dirs.project_root.clone(), &manifest)],
-            vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included,
+            supported_architectures: None,
         },
-    );
+        catalogs: &std::collections::BTreeMap::default(),
+        project_manifests: &[(dirs.project_root.clone(), &manifest)],
+        filesystem_now_ms: Some(pnpm_testing_utils::fs::backdate_existing_files(
+            &dirs.project_root,
+        )),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: None,
+            kept_groups: None,
+        },
+        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+    });
     workspace_state::update_workspace_state(&dirs.project_root, &seed_state)
         .expect("seed workspace state");
 

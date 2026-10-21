@@ -1,4 +1,6 @@
-pub(super) use fast_path::register_workspace_in_store;
+pub(super) use fast_path::{
+    check_strict_dep_builds_for_fast_path, gvs_build_markers_complete, register_workspace_in_store,
+};
 
 mod fast_path;
 use fast_path::{

@@ -11,7 +11,7 @@ import {
   getOutdatedLockfileSetting,
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
-import { getWorkspacePackagesByDirectory, linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
+import { catalogResolutionsAreUpToDate, getWorkspacePackagesByDirectory, linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, Project, ProjectId, ProjectManifest, ReadPackageHook } from '@pnpm/types'
 import { clone, once } from 'ramda'
@@ -69,15 +69,19 @@ export async function assertWantedLockfileUpToDate (
     : createDepsStatusReadPackageHook(ctx.config, opts.wantedLockfileDir, parsedOverrides)
   const projectManifest = await readPackageHook?.(clone(opts.projectManifest), opts.projectDir) ?? opts.projectManifest
 
-  if (!satisfiesPackageManifest(
-    {
-      autoInstallPeers: ctx.autoInstallPeers,
-      excludeLinksFromLockfile: ctx.excludeLinksFromLockfile,
-      ignoredOptionalDependencies: ctx.config.ignoredOptionalDependencies,
-    },
-    opts.wantedLockfile.importers[opts.projectId],
-    projectManifest
-  ).satisfies) {
+  const importer = opts.wantedLockfile.importers[opts.projectId]
+  if (
+    !satisfiesPackageManifest(
+      {
+        autoInstallPeers: ctx.autoInstallPeers,
+        excludeLinksFromLockfile: ctx.excludeLinksFromLockfile,
+        ignoredOptionalDependencies: ctx.config.ignoredOptionalDependencies,
+      },
+      importer,
+      projectManifest
+    ).satisfies ||
+    !catalogResolutionsAreUpToDate(importer, opts.wantedLockfile.catalogs)
+  ) {
     throw new PnpmError('RUN_CHECK_DEPS_UNSATISFIED_PKG_MANIFEST', `The lockfile in ${opts.wantedLockfileDir} does not satisfy project of id ${opts.projectId}`, {
       hint: 'Run `pnpm install` to update the lockfile',
     })
@@ -177,7 +181,7 @@ async function assertLockfileSettingsUpToDate (
     excludeLinksFromLockfile: config.excludeLinksFromLockfile,
     peersSuffixMaxLength: config.peersSuffixMaxLength,
     overrides: createOverridesMapFromParsed(parsedOverrides),
-    ignoredOptionalDependencies: config.ignoredOptionalDependencies?.sort(),
+    ignoredOptionalDependencies: config.ignoredOptionalDependencies == null ? undefined : [...config.ignoredOptionalDependencies].sort(),
     packageExtensionsChecksum: hashObjectNullableWithPrefix(config.packageExtensions),
     patchedDependencies,
     pnpmfileChecksum,

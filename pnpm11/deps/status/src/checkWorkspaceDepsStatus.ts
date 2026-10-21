@@ -6,7 +6,7 @@ import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { getLockfileImporterId, type LockfileObject, readCurrentLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectId } from '@pnpm/types'
-import { sharedInputPaths, updateWorkspaceState, type WorkspaceState } from '@pnpm/workspace.state'
+import type { WorkspaceState } from '@pnpm/workspace.state'
 import { equals, filter } from 'ramda'
 
 import { assertWorkspaceProjectsUpToDate } from './assertWantedLockfileUpToDate.js'
@@ -17,7 +17,7 @@ import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
 import { safeStat } from './safeStat.js'
 import { statManifestFile } from './statManifestFile.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
-import { type ValidationProof, validationProof } from './validationProof.js'
+import { recordValidatedWorkspaceState, type ValidationProof, validationProof } from './validationProof.js'
 import {
   allowUnawaitedFailure, assertCurrentLockfileMatches, assertCurrentLockfileRecordsProjects,
   currentLockfileDir, findOutdatedLockfileChangedProject, getWantedLockfileDirs,
@@ -181,31 +181,18 @@ async function validateModifiedWorkspace (
 
 async function recordVouchedWorkspaceState (
   ctx: WorkspaceDepsStatusContext,
-  vouchedProjects: string[] | undefined,
+  vouchedProjects: string[],
   onlyIfTrusted?: boolean
 ): Promise<void> {
-  const { allProjects, opts, workspaceState } = ctx
-  await updateWorkspaceState({
+  const { allProjects, opts, wantedLockfileName, workspaceState } = ctx
+  await recordValidatedWorkspaceState({
     allProjects,
-    workspaceDir: workspaceLockfileDir(ctx),
-    pnpmfiles: workspaceState.pnpmfiles,
-    settings: {
-      ...opts,
-      autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
-    },
-    ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
-    filteredInstall: workspaceState.filteredInstall,
-    configDependencies: workspaceState.configDependencies,
-    validation: vouchedProjects == null
-      ? undefined
-      : {
-        lockfileDir: workspaceLockfileDir(ctx),
-        wantedLockfileName: ctx.wantedLockfileName,
-        sharedInputs: sharedInputPaths(workspaceLockfileDir(ctx), opts.patchedDependencies, opts.pnpmfile),
-        vouchedProjects,
-        onlyIfTrusted,
-        sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
-      },
+    lockfileDir: workspaceLockfileDir(ctx),
+    opts,
+    workspaceState,
+    wantedLockfileName,
+    vouchedProjects,
+    onlyIfTrusted,
   })
 }
 

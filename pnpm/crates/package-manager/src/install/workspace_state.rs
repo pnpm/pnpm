@@ -15,11 +15,10 @@ mod nothing_to_install;
 mod write;
 
 use super::{
-    BTreeMap, Catalogs, Clock, Config, DependencyGroup, Host, IncludedDependencies, LazyLockfile,
+    BTreeMap, Catalogs, Clock, Config, DependencyGroup, IncludedDependencies, LazyLockfile,
     MaybeLazyLockfile, NodeLinker, OptimisticRepeatInstallCheck, OptimisticRepeatInstallDecision,
-    PackageManifest, Path, PathBuf, ProjectEntry, WorkspaceState, gvs_build_marker_present,
-    gvs_build_markers_may_require_recovery, load_workspace_projects, manifest_string_field,
-    unapproved_recorded_ignored_builds,
+    PackageManifest, Path, PathBuf, ProjectEntry, WorkspaceState, load_workspace_projects,
+    manifest_string_field,
 };
 use crate::optimistic_repeat_install::{
     Scope, check_optimistic_repeat_install_with_state, config_blocks_fast_path,
@@ -107,9 +106,8 @@ pub fn install_already_up_to_date(
     // from the discovered workspace root. The workspace *state* keeps its
     // own root, which only a pin moves — `state_root` below.
     let lockfile_root = lockfile_root_for(check.config, workspace_dir_opt.as_deref(), manifest_dir);
-    let state_root =
-        check.config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.to_path_buf());
-    let state = load_fast_path_state(check.config, &lockfile_root, &state_root)?;
+    let state_root = check.config.lockfile_dir.as_deref().unwrap_or(workspace_root);
+    let state = load_fast_path_state(check.config, &lockfile_root, state_root)?;
     let (workspace_manifest, catalogs) =
         fast_path_workspace_context(check.config, workspace_dir_opt.as_deref())
             .ok_or("the workspace manifest or its catalogs cannot be read")?;
@@ -121,7 +119,8 @@ pub fn install_already_up_to_date(
     check_fast_path_repeat_install(
         check,
         FastPathInputs {
-            state_root: &state_root,
+            state_root,
+            lockfile_root: &lockfile_root,
             state,
             project_manifests: &project_manifests,
             is_workspace_install: workspace_manifest.is_some(),
@@ -129,10 +128,9 @@ pub fn install_already_up_to_date(
             catalogs: &catalogs,
         },
     )?;
-    ensure_gvs_builds_complete(check, &lockfile, &lockfile_root)?;
     register_fast_path_workspace(check.config, &lockfile_root)?;
     Ok(UpToDateWorkspace {
-        root: state_root,
+        root: state_root.to_path_buf(),
         project_count: workspace_projects.as_ref().map(Vec::len),
     })
 }
@@ -145,7 +143,7 @@ fn load_fast_path_state(
     if let Some(reason) = config_blocks_fast_path(config) {
         return Err(reason);
     }
-    if strict_dep_builds_blocks_fast_path(config) {
+    if !matches!(super::run::check_strict_dep_builds_for_fast_path(config), Ok(true)) {
         return Err("strictDepBuilds has to re-check the recorded ignored builds");
     }
     if crate::agent_skills::agent_skill_targets_changed(config, lockfile_root) {
@@ -174,6 +172,7 @@ fn discover_fast_path_projects(
 /// tree by the time it checks the repeat install.
 struct FastPathInputs<'a> {
     state_root: &'a Path,
+    lockfile_root: &'a Path,
     state: WorkspaceState,
     project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     is_workspace_install: bool,
@@ -207,7 +206,12 @@ fn check_fast_path_repeat_install(
         Scope::Workspace,
     );
     match decision {
-        OptimisticRepeatInstallDecision::UpToDate => Ok(()),
+        OptimisticRepeatInstallDecision::UpToDate => super::run::gvs_build_markers_complete(
+            check.config,
+            MaybeLazyLockfile::Lazy(inputs.lockfile),
+            inputs.lockfile_root,
+            super::effective_node_version(check.config, check.manifest).as_deref(),
+        ),
         OptimisticRepeatInstallDecision::Skipped { reason } => Err(reason),
     }
 }
@@ -232,34 +236,6 @@ fn fast_path_workspace_context(
         .flatten();
     let catalogs = discovery::configured_catalogs(config, workspace_manifest.as_ref())?;
     Some((workspace_manifest, catalogs))
-}
-
-/// `Err` names what stops the fast path: a build marker the full install
-/// has to recover, or a wanted lockfile it cannot read to look for one.
-fn ensure_gvs_builds_complete(
-    check: &UpToDateFastPathCheck<'_>,
-    lockfile: &pnpm_lockfile::LazyLockfile,
-    lockfile_root: &Path,
-) -> Result<(), &'static str> {
-    if !gvs_build_markers_may_require_recovery(check.config) {
-        return Ok(());
-    }
-    let wanted = lockfile
-        .get()
-        .ok()
-        .flatten()
-        .ok_or(
-            "the wanted lockfile cannot be read to look for global virtual store build markers",
-        )?;
-    if gvs_build_marker_present(
-        wanted,
-        check.config,
-        lockfile_root,
-        super::effective_node_version(check.config, check.manifest).as_deref(),
-    ) {
-        return Err("a global virtual store build marker needs recovery");
-    }
-    Ok(())
 }
 
 /// The workspace root the run belongs to: the configured one, else the
@@ -530,25 +506,5 @@ fn lazy_wanted_lockfile(config: &Config, lockfile_root: &Path) -> LazyLockfile {
         LazyLockfile::deferred(lockfile_root.to_path_buf(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
-    }
-}
-
-/// Under `strictDepBuilds`, a recorded-and-still-unapproved ignored build must
-/// keep the install failing — never let the pre-runtime fast path report
-/// up-to-date and exit 0. `true` falls through to the full `Install::run`,
-/// whose optimistic branch raises `ERR_PNPM_IGNORED_BUILDS`. A corrupt or
-/// unreadable `.modules.yaml` is treated conservatively the same way: its
-/// `Err` cannot prove the absence of recorded ignored builds.
-fn strict_dep_builds_blocks_fast_path(config: &Config) -> bool {
-    if !config.strict_dep_builds {
-        return false;
-    }
-    match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
-        Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
-            Ok(Some(_)) | Err(_) => true,
-            Ok(None) => false,
-        },
-        Ok(None) => false,
-        Err(_) => true,
     }
 }

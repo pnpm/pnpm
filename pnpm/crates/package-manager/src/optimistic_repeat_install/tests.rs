@@ -375,19 +375,41 @@ fn setup_fresh_install_with_config(
     // doesn't fire on the happy-path tests.
     fs::create_dir_all(&config.modules_dir).unwrap();
 
-    let settings = current_settings(config, config_kind, isolated_included(), None);
-    let mut projects = BTreeMap::new();
-    projects.insert(
-        workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some(project_name.into()),
-            version: Some(project_version.into()),
-            has_modules_dir: false,
-        },
+    record_test_workspace_state(
+        workspace_root,
+        config,
+        config_kind,
+        &[(workspace_root.to_path_buf(), &manifest)],
     );
-    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     (dir, config, manifest)
+}
+
+fn record_test_workspace_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) {
+    let state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root,
+        config,
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        catalogs: &BTreeMap::default(),
+        project_manifests,
+        filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: config.auto_dedupe.then_some(true),
+            kept_groups: None,
+        },
+        vouched: &super::validation::Vouched::All,
+    });
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+    wait_for_the_next_filesystem_tick(workspace_root);
 }
 
 /// Minimal valid lockfile matching a manifest with
@@ -438,6 +460,7 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     let workspace_root = dir.path();
     fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
     fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE).unwrap();
+    let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
@@ -446,18 +469,12 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
-    let mut projects = BTreeMap::new();
-    projects.insert(
-        workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-            has_modules_dir: false,
-        },
+    record_test_workspace_state(
+        workspace_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
     );
-    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     (dir, config)
 }

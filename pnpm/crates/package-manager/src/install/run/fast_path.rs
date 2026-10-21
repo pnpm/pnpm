@@ -125,35 +125,58 @@ pub(super) enum RepeatInstallVerdict {
 pub(super) fn build_state_allows_short_circuit(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
-    if gvs_build_markers_may_require_recovery(check.workspace.config) {
-        match check.workspace.lockfile.get() {
-            Ok(Some(wanted)) => {
-                if gvs_build_marker_present(
-                    wanted,
-                    check.workspace.config,
-                    check.workspace.workspace_root,
-                    check.effective_node_version,
-                ) {
-                    return Ok(false);
-                }
-            }
-            Ok(None) => {}
-            Err(_) => return Ok(false),
-        }
+    if gvs_build_markers_complete(
+        check.workspace.config,
+        check.workspace.lockfile,
+        check.workspace.workspace_root,
+        check.effective_node_version,
+    )
+    .is_err()
+    {
+        return Ok(false);
     }
-    if !check.workspace.config.strict_dep_builds {
+    check_strict_dep_builds_for_fast_path(check.workspace.config)
+}
+
+/// `Err` names what stops the fast path: a build marker the full install has
+/// to recover, or a wanted lockfile it cannot read to look for one.
+pub(in crate::install) fn gvs_build_markers_complete(
+    config: &Config,
+    lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
+    lockfile_root: &Path,
+    effective_node_version: Option<&str>,
+) -> Result<(), &'static str> {
+    if !gvs_build_markers_may_require_recovery(config) {
+        return Ok(());
+    }
+    let wanted = lockfile
+        .get()
+        .ok()
+        .flatten()
+        .ok_or(
+            "the wanted lockfile cannot be read to look for global virtual store build markers",
+        )?;
+    if gvs_build_marker_present(wanted, config, lockfile_root, effective_node_version) {
+        return Err("a global virtual store build marker needs recovery");
+    }
+    Ok(())
+}
+
+/// Whether `strictDepBuilds` allows the fast path to stand.
+pub(in crate::install) fn check_strict_dep_builds_for_fast_path(
+    config: &Config,
+) -> Result<bool, InstallError> {
+    if !config.strict_dep_builds {
         return Ok(true);
     }
-    match pnpm_modules_yaml::read_modules_layout::<Host>(&check.workspace.config.modules_dir) {
-        Ok(Some(modules)) => {
-            match unapproved_recorded_ignored_builds(&modules, check.workspace.config) {
-                Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds { package_names }),
-                Ok(None) => Ok(true),
-                // Unreadable state or a malformed `allowBuilds`: can't trust the
-                // fast path, run the full install.
-                Err(_) => Ok(false),
-            }
-        }
+    match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+        Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
+            Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds { package_names }),
+            Ok(None) => Ok(true),
+            // Unreadable state or a malformed `allowBuilds`: can't trust the
+            // fast path, run the full install.
+            Err(_) => Ok(false),
+        },
         Ok(None) => Ok(true),
         Err(_) => Ok(false),
     }

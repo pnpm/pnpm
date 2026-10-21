@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { ProjectManifest } from '@pnpm/types'
+import type { Project, ProjectManifest } from '@pnpm/types'
 import {
   fileDigestOf,
   fileSignatureTrusted,
@@ -8,9 +8,13 @@ import {
   lockfileDigest,
   manifestDigest,
   projectValidation,
+  sharedInputPaths,
+  updateWorkspaceState,
   type Validation,
   type WorkspaceState,
 } from '@pnpm/workspace.state'
+
+import type { CheckDepsStatusOptions } from './types.js'
 
 /** Whether a project is still proven installed. */
 export type ProjectProof =
@@ -141,4 +145,39 @@ function proofOf (validation: Validation, importerId: string, manifest: ProjectM
   if (record.lockfile !== lockfile) return 'lockfileChanged'
   if (record.manifest !== manifestDigest(manifest)) return 'manifestChanged'
   return 'proven'
+}
+
+export interface RecordValidatedWorkspaceStateOptions {
+  allProjects: Array<Pick<Project, 'rootDir' | 'manifest'>>
+  lockfileDir: string
+  opts: CheckDepsStatusOptions
+  workspaceState: WorkspaceState
+  wantedLockfileName: string
+  vouchedProjects?: string[]
+  onlyIfTrusted?: boolean
+}
+
+export async function recordValidatedWorkspaceState (
+  { allProjects, lockfileDir, onlyIfTrusted, opts, vouchedProjects, wantedLockfileName, workspaceState }: RecordValidatedWorkspaceStateOptions
+): Promise<void> {
+  await updateWorkspaceState({
+    allProjects,
+    workspaceDir: lockfileDir,
+    pnpmfiles: workspaceState.pnpmfiles,
+    settings: {
+      ...opts,
+      autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
+    },
+    ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
+    filteredInstall: workspaceState.filteredInstall,
+    configDependencies: workspaceState.configDependencies,
+    validation: {
+      lockfileDir,
+      wantedLockfileName,
+      sharedInputs: sharedInputPaths(lockfileDir, opts.patchedDependencies, opts.pnpmfile),
+      vouchedProjects,
+      onlyIfTrusted,
+      sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    },
+  })
 }
