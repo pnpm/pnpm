@@ -1,4 +1,6 @@
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, write_fake_bin};
+use crate::_utils::{
+    append_workspace_yaml_key, read_v11_bundle_path, set_minimum_release_age, write_fake_bin,
+};
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
@@ -714,6 +716,302 @@ fn engine_shim(links: &Path) -> PathBuf {
         .into_iter()
         .next()
         .expect("one engine is installed")
+}
+
+#[cfg(unix)]
+struct SwitchCase<'a> {
+    manifest: &'a str,
+    workspace_yaml: Option<&'a str>,
+    npmrc_extra: Option<&'a str>,
+    env_extra: Option<(&'a str, &'a str)>,
+    cli_args: &'a [&'a str],
+    expected_stdout: &'a str,
+}
+
+#[cfg(unix)]
+fn assert_version_switch_case(
+    root: &Path,
+    registry_url: &str,
+    case_idx: usize,
+    cli_label: &str,
+    use_v11: bool,
+    case: &SwitchCase<'_>,
+) {
+    let case_dir = root.join(format!("case-{case_idx}-{cli_label}"));
+    let workspace = case_dir.join("workspace");
+    fs::create_dir_all(&workspace).expect("create case workspace");
+    fs::write(workspace.join("package.json"), case.manifest).expect("write package.json");
+    let mut ws_yaml =
+        String::from("storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n");
+    if let Some(extra) = case.workspace_yaml {
+        ws_yaml.push_str(extra);
+    }
+    fs::write(workspace.join("pnpm-workspace.yaml"), ws_yaml).expect("write pnpm-workspace.yaml");
+    let mut npmrc = format!("registry={registry_url}\nstore-dir=../store\ncache-dir=../cache\n");
+    if let Some(extra) = case.npmrc_extra {
+        npmrc.push_str(extra);
+    }
+    fs::write(workspace.join(".npmrc"), npmrc).expect("write .npmrc");
+
+    let base_cmd = if use_v11 { v11_in(&workspace) } else { pacquet_in(&workspace) };
+    let mut cmd = test_command(base_cmd, &case_dir);
+    cmd.env("PNPM_CONFIG_REGISTRY", registry_url)
+        .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+        .env("HTTPS_PROXY", "http://127.0.0.1:9/")
+        .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .args(case.cli_args);
+    if let Some((k, v)) = case.env_extra {
+        cmd.env(k, v);
+    }
+    let output = cmd.output().expect("run pnpm version switch");
+    let cli_args = case.cli_args;
+    assert!(
+        output.status.success(),
+        "case {case_idx} ({cli_label}, {cli_args:?}) failed:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        case.expected_stdout,
+        "case {case_idx} ({cli_label}, {cli_args:?}) stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
+/// Switching upward to a newer pnpm release (`99.0.0`) works across every
+/// setting source (`packageManager`, `devEngines.packageManager`,
+/// `pnpm-workspace.yaml`, `.npmrc`, env var, CLI flag) and forwards flags
+/// that only the newer release knows — both from the compiled `pnpm` binary
+/// and, when `PNPM_V11_BUNDLE` is set, from the TypeScript v11 CLI
+/// (pnpm/tasks#141, pnpm/tasks#144).
+#[test]
+#[cfg(unix)]
+fn switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() {
+    let CommandTempCwd { root, .. } = CommandTempCwd::init();
+    let script = concat!(
+        "#!/bin/sh\n",
+        "case \" $* \" in\n",
+        "  *\" --version \"*|*\" -v \"*) echo \"99.0.0\" ;;\n",
+        "  *) echo \"99.0.0:$*\" ;;\n",
+        "esac\n",
+    );
+    let registry = start_registry_with_synthetic_pnpm(root.path(), "99.0.0", script.as_bytes());
+    let has_v11 = read_v11_bundle_path().is_some();
+
+    let cases = [
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            npmrc_extra: None,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"download"}}}"#,
+            workspace_yaml: None,
+            npmrc_extra: None,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
+            workspace_yaml: Some("pmOnFail: download\n"),
+            npmrc_extra: None,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
+            workspace_yaml: None,
+            npmrc_extra: Some("pm-on-fail=download\n"),
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
+            workspace_yaml: None,
+            npmrc_extra: None,
+            env_extra: Some(("pnpm_config_pm_on_fail", "download")),
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
+            workspace_yaml: None,
+            npmrc_extra: None,
+            env_extra: None,
+            cli_args: &["--config.pm-on-fail=download", "--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            npmrc_extra: None,
+            env_extra: None,
+            cli_args: &["install", "--only-the-future-pnpm-knows"],
+            expected_stdout: "99.0.0:install --only-the-future-pnpm-knows\n",
+        },
+    ];
+
+    for (case_idx, case) in cases.iter().enumerate() {
+        assert_version_switch_case(root.path(), registry.url(), case_idx, "v12", false, case);
+        if has_v11 {
+            assert_version_switch_case(root.path(), registry.url(), case_idx, "v11", true, case);
+        }
+    }
+
+    drop((root, registry));
+}
+
+/// When `PNPM_V11_BUNDLE` is set, the TypeScript v11 CLI switches up to the
+/// compiled v12 `pnpm` binary (`HEAD`) served from local `pnpr`, and the
+/// delegated v12 binary executes without re-switching.
+#[test]
+#[cfg(unix)]
+fn v11_switches_up_to_head_binary_from_local_registry() {
+    if read_v11_bundle_path().is_none() {
+        return;
+    }
+    use assert_cmd::cargo::CommandCargoExt as _;
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let head_bin_path = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .get_program()
+        .to_os_string();
+    // Wrap the debug binary in a tiny exec trampoline so the fixture tarball
+    // does not pack ~600 MB of unstripped DWARF debug info (which exceeds
+    // Node.js's `ERR_STRING_TOO_LONG` limit during unpacking).
+    let trampoline = format!("#!/bin/sh\nexec '{}' \"$@\"\n", Path::new(&head_bin_path).display());
+    let head_version = pnpm_config::PNPM_VERSION;
+    let registry =
+        start_registry_with_synthetic_pnpm(root.path(), head_version, trampoline.as_bytes());
+
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"name":"app","version":"1.0.0","packageManager":"pnpm@{head_version}"}}"#),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={}\nstore-dir=../store\ncache-dir=../cache\n", registry.url()),
+    )
+    .expect("write .npmrc");
+
+    let output = test_command(v11_in(&workspace), root.path())
+        .env("PNPM_CONFIG_REGISTRY", registry.url())
+        .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+        .env("HTTPS_PROXY", "http://127.0.0.1:9/")
+        .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .arg("--version")
+        .output()
+        .expect("run v11 --version switching to HEAD");
+    assert!(
+        output.status.success(),
+        "v11 -> HEAD --version failed:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("{head_version}\n"),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, registry));
+}
+
+fn v11_in(workspace: &Path) -> Command {
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    let bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
+    let mut command = Command::new("node");
+    command.arg(bundle);
+    command.with_current_dir(workspace).without_ambient_pnpm_config()
+}
+
+fn start_registry_with_synthetic_pnpm(
+    root: &Path,
+    version: &str,
+    binary_bytes: &[u8],
+) -> pnpm_testing_utils::registry::TestRegistry {
+    let platform = pnpm_graph_hasher::host_platform();
+    let arch = pnpm_graph_hasher::host_arch();
+    let libc = pnpm_graph_hasher::host_libc();
+    let normalized_arch = if platform == "win32" && arch == "ia32" { "x86" } else { arch };
+    let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
+    let target = format!("{platform}-{normalized_arch}{libc_suffix}");
+    let platform_pkg = format!("@pnpm/exe.{target}");
+    let exe_name = if platform == "win32" { "pnpm.exe" } else { "pnpm" };
+
+    let packages_dir = root.join(format!("synthetic-packages-{version}"));
+    let pnpm_dir = packages_dir.join("pnpm").join(version);
+    let exe_dir = packages_dir
+        .join("@pnpm")
+        .join(format!("exe.{target}"))
+        .join(version);
+    fs::create_dir_all(&pnpm_dir).expect("create synthetic pnpm package dir");
+    fs::create_dir_all(&exe_dir).expect("create synthetic @pnpm/exe.<target> package dir");
+
+    fs::write(
+        pnpm_dir.join("package.json"),
+        serde_json::json!({
+            "name": "pnpm",
+            "version": version,
+            "bin": {
+                "pnpm": "pnpm",
+                "pn": "pn",
+                "pnpx": "pnpx",
+                "pnx": "pnx",
+            },
+            "optionalDependencies": {
+                platform_pkg: version,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write synthetic pnpm package.json");
+    for bin_name in ["pnpm", "pn", "pnpx", "pnx"] {
+        fs::write(pnpm_dir.join(bin_name), "#!/bin/sh\necho placeholder\nexit 1\n")
+            .expect("write placeholder bin");
+    }
+
+    fs::write(
+        exe_dir.join("package.json"),
+        serde_json::json!({
+            "name": format!("@pnpm/exe.{target}"),
+            "version": version,
+            "os": [platform],
+            "cpu": [arch],
+        })
+        .to_string(),
+    )
+    .expect("write synthetic @pnpm/exe.<target> package.json");
+    let exe_path = exe_dir.join(exe_name);
+    fs::write(&exe_path, binary_bytes).expect("write synthetic platform binary");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(&exe_path, fs::Permissions::from_mode(0o755))
+            .expect("set executable bit on synthetic platform binary");
+    }
+
+    let storage_dir = root.join(format!("synthetic-storage-{version}"));
+    pnpr_fixtures::build_storage_at(&packages_dir, &storage_dir);
+    pnpm_testing_utils::registry::TestRegistry::start_static_with_storage(&storage_dir)
 }
 
 fn write_dev_engine_pin(workspace: &Path, version: &str) {

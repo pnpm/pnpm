@@ -223,6 +223,8 @@ impl Harness {
         .expect("write pnpm-workspace.yaml");
         self.write_manifests(self.dep_count(), false);
         let fresh = self.install(row, "a fresh install")?;
+        self.check_repeat(row, &fresh);
+        self.check_run_gate(row);
         self.check_frozen(row, &fresh);
         self.check_dedupe(row);
         self.check_deploys(row);
@@ -230,6 +232,29 @@ impl Harness {
         self.check_incremental(row, &fresh);
         self.check_moves(row, &fresh);
         Some(fresh)
+    }
+
+    fn check_repeat(&self, row: Row, fresh: &str) {
+        if let Some(repeat) = self.install(row, "a repeat install")
+            && repeat != fresh
+        {
+            let what = format!("a repeat install changed the lockfile:\n{}", diff(fresh, &repeat));
+            self.violation(row, &what, None);
+        }
+    }
+
+    fn check_run_gate(&self, row: Row) {
+        let output = self.run(
+            self.workspace(),
+            &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""],
+        );
+        if !output.status.success() {
+            self.violation(
+                row,
+                "verifyDepsBeforeRun=error failed right after a fresh install",
+                Some(&output),
+            );
+        }
     }
 
     fn check_frozen(&self, row: Row, fresh: &str) {

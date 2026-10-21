@@ -39,7 +39,17 @@ impl CommandTempCwd<()> {
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config();
-        let pnpm = Command::new("pnpm").with_current_dir(&workspace).without_ambient_pnpm_config();
+        let pnpm = match std::env::var_os("PNPM_V11_BUNDLE").filter(|path| !path.is_empty()) {
+            Some(bundle) => {
+                let bundle = std::path::absolute(bundle).expect("resolve the pnpm v11 bundle path");
+                let mut command = Command::new("node");
+                command.arg(bundle);
+                command
+            }
+            None => Command::new("pnpm"),
+        }
+        .with_current_dir(&workspace)
+        .without_ambient_pnpm_config();
         CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info: () }
     }
 }

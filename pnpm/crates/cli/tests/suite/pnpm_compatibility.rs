@@ -7,13 +7,15 @@ use command_extra::CommandExtra;
 use pipe_trait::Pipe;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
     fs::get_all_files,
+    registry::RecordedRequest,
 };
 use pretty_assertions::assert_eq;
-use std::fs;
+use serde_json::json;
+use std::{collections::BTreeMap, fs, path::Path, process::Command};
 
 #[test]
-#[ignore = "requires metadata cache feature which pacquet doesn't yet have"]
 fn store_usable_by_pnpm_offline() {
     let CommandTempCwd {
         pacquet,
@@ -381,23 +383,7 @@ fn same_global_virtual_store_layout_pure_js() {
 /// if pnpm skipped scripts while pacquet ran them the slot trees would
 /// diverge on the script-generated `generated-by-*.js` files even
 /// though the hash itself agreed.
-///
-/// **Ignored until a pnpm release ships the engine-name fix from
-/// commit 8f05529c11.** This test requires pnpm and pacquet to agree
-/// on the `<platform>;<arch>;node<major>` triple used in the
-/// engine-included hash branch. Pre-fix pnpm anchored the value to
-/// `process.version` — the Node embedded in the `@pnpm/exe` SEA
-/// bundle on Linux/macOS CI runners, currently Node 26 — while
-/// pacquet (and any non-SEA caller) detects the `node` on `PATH`,
-/// which on GHA's standard runners is Node 24. The hash digests
-/// therefore land at different majors and the slot paths diverge.
-/// The pnpm-side fix resolves `engineName()` via
-/// `getSystemNodeVersion()` which prefers the shell `node`, so once
-/// a published pnpm version with that fix reaches
-/// [`pnpm/setup`](https://github.com/pnpm/setup) the test will pass
-/// without modification — re-enable it then.
 #[test]
-#[ignore = "depends on a published pnpm version that includes commit 8f05529c11; see test doc comment"]
 fn same_global_virtual_store_layout_with_approved_postinstall() {
     let CommandTempCwd {
         pacquet,
@@ -482,4 +468,380 @@ fn same_global_virtual_store_layout_diamond() {
     );
 
     drop((root, mock_instance));
+}
+
+#[derive(Debug, Clone, Copy)]
+struct DifferentialRow {
+    shared_lockfile: bool,
+    hoisted: bool,
+    inject_workspace_packages: bool,
+    auto_install_peers: bool,
+    dedupe_peer_dependents: bool,
+}
+
+impl DifferentialRow {
+    fn workspace_yaml(self) -> String {
+        format!(
+            "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {}\nnodeLinker: {}\n\
+             injectWorkspacePackages: {}\nautoInstallPeers: {}\ndedupePeerDependents: {}\n",
+            self.shared_lockfile,
+            if self.hoisted { "hoisted" } else { "isolated" },
+            self.inject_workspace_packages,
+            self.auto_install_peers,
+            self.dedupe_peer_dependents,
+        )
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct DifferentialSnapshot {
+    tree: BTreeMap<String, String>,
+    lockfiles: BTreeMap<String, String>,
+    modules: BTreeMap<String, pnpm_modules_yaml::Modules>,
+}
+
+const DIFFERENTIAL_PROJECTS: [&str; 3] = ["a", "b", "c"];
+
+fn write_differential_workspace(workspace: &Path, row: DifferentialRow) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let base_yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    fs::write(&yaml_path, format!("{base_yaml}{}", row.workspace_yaml()))
+        .expect("write pnpm-workspace.yaml");
+
+    write_project_manifest(
+        workspace,
+        "root",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/pkg-with-1-dep", "100.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    write_project_manifest(
+        &workspace.join("packages/a"),
+        "a",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/foo", "100.0.0")],
+            peer: &[("@pnpm.e2e/peer-a", "^1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    write_project_manifest(
+        &workspace.join("packages/b"),
+        "b",
+        ManifestDeps {
+            prod: &[
+                ("a", "workspace:*"),
+                ("@pnpm.e2e/peer-a", "1.0.0"),
+                ("@pnpm.e2e/abc-parent-with-ab", "1.0.0"),
+            ],
+            dev: &[("@pnpm.e2e/bar", "100.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    write_project_manifest(
+        &workspace.join("packages/c"),
+        "c",
+        ManifestDeps {
+            prod: &[("@pnpm.e2e/abc-parent-with-ab", "1.0.0"), ("@pnpm.e2e/peer-c", "1.0.1")],
+            ..ManifestDeps::default()
+        },
+    );
+}
+
+fn differential_snapshot(workspace: &Path) -> DifferentialSnapshot {
+    let mut resolver = TreeView::new(workspace);
+    let mut tree = BTreeMap::from([(".".to_string(), resolver.project(workspace, true))]);
+    for project in DIFFERENTIAL_PROJECTS {
+        let dir = workspace.join("packages").join(project);
+        tree.insert(project.to_string(), resolver.project(&dir, true));
+    }
+    DifferentialSnapshot {
+        tree,
+        lockfiles: workspace_lockfiles(workspace),
+        modules: workspace_modules_manifests(workspace),
+    }
+}
+
+fn wipe_workspace_install_outputs(workspace: &Path, store_dir: &Path, keep_lockfiles: bool) {
+    let _ = fs::remove_dir_all(store_dir);
+    let _ = fs::remove_dir_all(workspace.join("node_modules"));
+    for project in DIFFERENTIAL_PROJECTS {
+        let _ = fs::remove_dir_all(
+            workspace
+                .join("packages")
+                .join(project)
+                .join("node_modules"),
+        );
+    }
+    if !keep_lockfiles {
+        for path in workspace_lockfiles(workspace).keys() {
+            let _ = fs::remove_file(workspace.join(path));
+        }
+    }
+}
+
+fn pnpm_command_in(workspace: &Path) -> Command {
+    let mut cmd = if let Some(bundle) = read_v11_bundle_path() {
+        let mut node = Command::new("node");
+        node.arg(bundle);
+        node
+    } else {
+        Command::new("pnpm")
+    };
+    cmd.arg("--config.confirm-modules-purge=false").current_dir(workspace);
+    cmd.without_ambient_pnpm_config()
+}
+
+fn check_differential_row(row: DifferentialRow, extra_args: &[&str]) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    write_differential_workspace(&workspace, row);
+
+    let mut args = vec!["install", "--no-frozen-lockfile", "--ignore-scripts"];
+    args.extend_from_slice(extra_args);
+
+    pacquet_in(&workspace)
+        .with_args(&args)
+        .assert()
+        .success();
+    let pacquet_snapshot = differential_snapshot(&workspace);
+
+    wipe_workspace_install_outputs(&workspace, &store_dir, false);
+
+    pnpm_command_in(&workspace)
+        .with_args(&args)
+        .assert()
+        .success();
+    let pnpm_snapshot = differential_snapshot(&workspace);
+
+    assert_eq!(
+        pacquet_snapshot, pnpm_snapshot,
+        "v12 and v11 snapshots diverged for {row:?} (args={extra_args:?})",
+    );
+
+    if extra_args.is_empty() {
+        // Cross-CLI frozen handoff: v12 materializes from v11's wanted lockfile(s).
+        wipe_workspace_install_outputs(&workspace, &store_dir, true);
+        pacquet_in(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+            .assert()
+            .success();
+        assert_eq!(
+            differential_snapshot(&workspace),
+            pnpm_snapshot,
+            "v12 frozen install over v11 lockfile diverged for {row:?}",
+        );
+
+        // Cross-CLI frozen handoff: v11 materializes from v12's wanted lockfile(s).
+        wipe_workspace_install_outputs(&workspace, &store_dir, false);
+        pacquet_in(&workspace)
+            .with_args(&args)
+            .assert()
+            .success();
+        wipe_workspace_install_outputs(&workspace, &store_dir, true);
+        pnpm_command_in(&workspace)
+            .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+            .assert()
+            .success();
+        assert_eq!(
+            differential_snapshot(&workspace),
+            pacquet_snapshot,
+            "v11 frozen install over v12 lockfile diverged for {row:?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn same_lockfiles_modules_and_tree_isolated_shared() {
+    for (auto_install_peers, dedupe_peer_dependents) in
+        [(true, true), (true, false), (false, true), (false, false)]
+    {
+        check_differential_row(
+            DifferentialRow {
+                shared_lockfile: true,
+                hoisted: false,
+                inject_workspace_packages: false,
+                auto_install_peers,
+                dedupe_peer_dependents,
+            },
+            &[],
+        );
+    }
+}
+
+#[test]
+fn same_lockfiles_modules_and_tree_isolated_injected_and_dedicated() {
+    for (shared_lockfile, inject_workspace_packages) in
+        [(true, true), (false, false), (false, true)]
+    {
+        check_differential_row(
+            DifferentialRow {
+                shared_lockfile,
+                hoisted: false,
+                inject_workspace_packages,
+                auto_install_peers: true,
+                dedupe_peer_dependents: true,
+            },
+            &[],
+        );
+    }
+}
+
+fn invoke_cli_in(workspace: &Path, use_pnpm: bool, args: &[&str]) {
+    let cmd = if use_pnpm { pnpm_command_in(workspace) } else { pacquet_in(workspace) };
+    cmd.with_args(args).assert().success();
+}
+
+fn run_filtered_install_after_edit(
+    workspace: &Path,
+    store_dir: &Path,
+    yaml_path: &Path,
+    base_yaml: &str,
+    row: DifferentialRow,
+    use_pnpm: bool,
+) -> DifferentialSnapshot {
+    wipe_workspace_install_outputs(workspace, store_dir, false);
+    fs::write(yaml_path, base_yaml).expect("reset pnpm-workspace.yaml");
+    write_differential_workspace(workspace, row);
+    invoke_cli_in(workspace, use_pnpm, &["install", "--no-frozen-lockfile", "--ignore-scripts"]);
+    set_dependency(&workspace.join("packages/b"), "dependencies", "@pnpm.e2e/foo", "100.0.0");
+    invoke_cli_in(
+        workspace,
+        use_pnpm,
+        &["install", "--no-frozen-lockfile", "--ignore-scripts", "--filter", "b"],
+    );
+    differential_snapshot(workspace)
+}
+
+#[test]
+fn same_lockfiles_modules_and_tree_hoisted_and_filtered() {
+    for (shared_lockfile, inject_workspace_packages) in
+        [(true, false), (true, true), (false, false), (false, true)]
+    {
+        let row = DifferentialRow {
+            shared_lockfile,
+            hoisted: true,
+            inject_workspace_packages,
+            auto_install_peers: true,
+            dedupe_peer_dependents: true,
+        };
+        check_differential_row(row, &[]);
+    }
+
+    for (hoisted, shared_lockfile) in [(false, true), (false, false), (true, true), (true, false)] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+        let row = DifferentialRow {
+            shared_lockfile,
+            hoisted,
+            inject_workspace_packages: false,
+            auto_install_peers: true,
+            dedupe_peer_dependents: true,
+        };
+
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let base_yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+        let pacquet_snapshot = run_filtered_install_after_edit(
+            &workspace, &store_dir, &yaml_path, &base_yaml, row, false,
+        );
+        let pnpm_snapshot = run_filtered_install_after_edit(
+            &workspace, &store_dir, &yaml_path, &base_yaml, row, true,
+        );
+        assert_eq!(
+            pacquet_snapshot, pnpm_snapshot,
+            "v12 and v11 filtered install after edit diverged for {row:?}",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
+fn format_recorded_request(req: RecordedRequest) -> String {
+    let RecordedRequest {
+        method,
+        path,
+        accept,
+        if_none_match,
+        status,
+        ..
+    } = req;
+    let path = path.strip_prefix("/npm").unwrap_or(&path);
+    if path.ends_with(".tgz") {
+        return format!("{method} {path} {status}");
+    }
+    let is_abbreviated = accept
+        .as_deref()
+        .is_some_and(|header| header.starts_with("application/vnd.npm.install-v1+json"));
+    let doc = if is_abbreviated { "abbreviated" } else { "full" };
+    let validator = if if_none_match.is_some() { " etag" } else { "" };
+    format!("{method} {path} {doc}{validator} {status}")
+}
+
+fn run_four_install_modes_with_request_logs(use_pnpm: bool) -> Vec<Vec<String>> {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_recording_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0",
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let invoke = |args: &[&str]| {
+        invoke_cli_in(&workspace, use_pnpm, args);
+        let mut requests: Vec<String> = mock_instance
+            .take_requests()
+            .into_iter()
+            .map(format_recorded_request)
+            .collect();
+        requests.sort();
+        requests
+    };
+
+    // 1. Cold install: fetches packuments and tarballs.
+    let cold = invoke(&["install", "--no-frozen-lockfile", "--ignore-scripts"]);
+    // 2. Repeat install over populated node_modules + lockfile: 0 requests.
+    let repeat = invoke(&["install", "--no-frozen-lockfile", "--ignore-scripts"]);
+    // 3. Frozen install with warm store after wiping node_modules: 0 requests.
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    let frozen_warm = invoke(&["install", "--frozen-lockfile", "--ignore-scripts"]);
+    // 4. Fresh resolution with warm store and warm metadata cache: revalidates packuments (304), 0 tarballs.
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
+    let warm_reresolve = invoke(&["install", "--no-frozen-lockfile", "--ignore-scripts"]);
+
+    drop((root, mock_instance));
+    vec![cold, repeat, frozen_warm, warm_reresolve]
+}
+
+#[test]
+fn same_registry_request_logs_across_install_modes() {
+    let pacquet_logs = run_four_install_modes_with_request_logs(false);
+    let pnpm_logs = run_four_install_modes_with_request_logs(true);
+    assert_eq!(
+        pacquet_logs[1],
+        Vec::<String>::new(),
+        "repeat install must make no registry requests",
+    );
+    assert_eq!(
+        pacquet_logs[2],
+        Vec::<String>::new(),
+        "frozen install with warm store must make no registry requests",
+    );
+    assert_eq!(pacquet_logs, pnpm_logs, "v12 and v11 registry request logs diverged");
 }
