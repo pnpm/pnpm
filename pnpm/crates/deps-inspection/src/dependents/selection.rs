@@ -1,7 +1,7 @@
 use super::{
-    BuildDependentsOptions, DependencyGraph, DependentNode, DependentsTree, EdgeContext, HashMap,
-    Lockfile, ManifestSource, PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch, TreeNodeId,
-    WalkCtx, get_pkg_info,
+    BuildDependentsOptions, DepField, DependencyGraph, DependentNode, DependentsTree, EdgeContext,
+    HashMap, Lockfile, ManifestSource, PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch,
+    TreeNodeId, WalkCtx, get_pkg_info,
 };
 
 /// Match the search against the package's canonical name first, then against
@@ -143,7 +143,8 @@ pub fn sort_trees(trees: &mut [DependentsTree]) {
 #[must_use]
 pub fn merge_trees(trees: Vec<DependentsTree>) -> Vec<DependentsTree> {
     let mut merged: Vec<DependentsTree> = Vec::new();
-    for tree in trees {
+    for (tree_index, mut tree) in trees.into_iter().enumerate() {
+        tag_tree_dependents(&mut tree.dependents, tree.path.as_deref(), tree_index);
         match merged.iter_mut().find(|existing| same_tree_key(existing, &tree)) {
             Some(existing) => merge_into_tree(existing, tree),
             None => merged.push(tree),
@@ -151,6 +152,22 @@ pub fn merge_trees(trees: Vec<DependentsTree>) -> Vec<DependentsTree> {
     }
     sort_trees(&mut merged);
     merged
+}
+
+fn tag_tree_dependents(nodes: &mut [DependentNode], root_path: Option<&str>, tree_index: usize) {
+    for node in nodes {
+        if node.root_paths.is_empty()
+            && let Some(path) = root_path
+        {
+            node.root_paths.push(path.to_string());
+        }
+        if node.dep_field.is_some() && node.importer_id.is_none() {
+            node.importer_id = Some(format!("tree:{tree_index}"));
+        }
+        if let Some(children) = &mut node.dependents {
+            tag_tree_dependents(children, root_path, tree_index);
+        }
+    }
 }
 
 fn same_tree_key(left: &DependentsTree, right: &DependentsTree) -> bool {
@@ -184,6 +201,18 @@ fn merge_dependent_nodes(target: &mut Vec<DependentNode>, source: Vec<DependentN
                     .unwrap_or("")
                     .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
             })
+            .then_with(|| {
+                a.dep_field
+                    .map(DepField::as_str)
+                    .unwrap_or("")
+                    .cmp(b.dep_field.map(DepField::as_str).unwrap_or(""))
+            })
+            .then_with(|| {
+                a.importer_id
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.importer_id.as_deref().unwrap_or(""))
+            })
     });
 }
 
@@ -193,11 +222,17 @@ fn same_node_key(left: &DependentNode, right: &DependentNode) -> bool {
         && left.peers_suffix_hash == right.peers_suffix_hash
         && left.dep_field == right.dep_field
         && left.circular == right.circular
+        && left.importer_id == right.importer_id
 }
 
 fn merge_into_node(target: &mut DependentNode, source: DependentNode) {
     target.display_name = target.display_name.take().or(source.display_name);
     target.manifest = target.manifest.take().or(source.manifest);
+    for path in source.root_paths {
+        if !target.root_paths.contains(&path) {
+            target.root_paths.push(path);
+        }
+    }
     if let Some(node_deps) = source.dependents {
         merge_dependent_nodes(target.dependents.get_or_insert_with(Vec::new), node_deps);
         target.deduped = false;

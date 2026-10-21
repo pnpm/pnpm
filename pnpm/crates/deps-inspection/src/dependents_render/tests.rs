@@ -23,14 +23,9 @@ fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> Dependents
 fn importer(name: &str, version: &str, dep_field: DepField) -> DependentNode {
     DependentNode {
         name: name.to_string(),
-        display_name: None,
         version: version.to_string(),
-        circular: false,
-        peers_suffix_hash: None,
-        deduped: false,
         dep_field: Some(dep_field),
-        dependents: None,
-        manifest: None,
+        ..DependentNode::default()
     }
 }
 
