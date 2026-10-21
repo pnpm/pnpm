@@ -2,15 +2,17 @@
 //! one still satisfies the spec the resolver walks for it.
 
 use super::{
-    AliasScope, DependencyGroup, DependencySpec, FreshnessCheckError, ImporterSatisfactionCheck,
-    LocalDepContext, PackageManifest, Visited, check_single_directory_dep_freshness,
-    is_declared_local_directory, peers, spec_satisfies_snapshot_dep,
+    FreshnessCheckError, ImporterSatisfactionCheck, LocalDepContext, is_declared_local_directory,
+    package::check_single_directory_dep_freshness,
+    peers,
+    scope::{AliasScope, Visited},
+    spec::spec_satisfies_snapshot_dep,
 };
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
-    ChildCatalogs, ResolveDependencyTreeError, local_directory_child_specs,
+    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, local_directory_child_specs,
 };
 use std::collections::HashSet;
-
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
 pub(super) fn check_local_dep_children_freshness(
