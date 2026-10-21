@@ -106,6 +106,18 @@ pub(super) fn max_version<Raw: AsRef<str>>(versions: &[Raw]) -> Option<String> {
     best.map(|(_, raw)| raw.to_string())
 }
 
+pub(super) fn min_version<'a>(versions: impl IntoIterator<Item = &'a str>) -> Option<String> {
+    let mut best: Option<(Version, &'a str)> = None;
+    for version in versions {
+        let Ok(parsed) = Version::parse(version) else { continue };
+        match &best {
+            Some((current, _)) if current <= &parsed => {}
+            _ => best = Some((parsed, version)),
+        }
+    }
+    best.map(|(_, raw)| raw.to_string())
+}
+
 pub(super) fn max_satisfying<'a>(
     versions: impl IntoIterator<Item = &'a str>,
     range: &str,

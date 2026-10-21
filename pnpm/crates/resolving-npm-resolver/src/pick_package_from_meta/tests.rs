@@ -399,6 +399,22 @@ fn lowest_version_star_picks_smallest() {
 }
 
 #[test]
+fn lowest_version_star_includes_prereleases() {
+    let pkg = make_package(
+        "acme",
+        &[("1.0.0", None), ("1.0.0-beta.1", None), ("2.0.0", None)],
+        &[("latest", "2.0.0")],
+    );
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "*",
+        preferred_version_selectors: None,
+        published_by: None,
+    };
+    assert_eq!(pick_lowest_version_by_version_range(&opts).as_deref(), Some("1.0.0-beta.1"));
+}
+
+#[test]
 fn preferred_versions_tag_selector_wins() {
     let pkg = make_package(
         "acme",
