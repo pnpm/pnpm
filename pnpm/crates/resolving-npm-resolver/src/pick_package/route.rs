@@ -97,6 +97,9 @@ impl MirrorShortcuts {
         if !mirror_may_answer(network, mirror) {
             return None;
         }
+        if request.refresh_metadata && !network.reads_cache_first() {
+            return None;
+        }
         let stable_range = inputs.range_pick_is_stable();
         let mirror_has_no_etag =
             mirror.is_some_and(|headers| headers.etag.as_deref().is_none_or(str::is_empty));
@@ -105,10 +108,7 @@ impl MirrorShortcuts {
                 && !request.include_latest_tag
                 && !request.update_checksums,
             dominant_lockfile_version: stable_range,
-            unvalidated_mirror: stable_range
-                && !request.refresh_metadata
-                && public_scope
-                && mirror_has_no_etag,
+            unvalidated_mirror: stable_range && public_scope && mirror_has_no_etag,
         })
     }
 }
@@ -134,6 +134,9 @@ impl CacheHitCheck {
         let RouteInputs { network, request, .. } = *inputs;
         if network.forbids_registry() || registry_verified {
             return CacheHitCheck::Serve;
+        }
+        if request.refresh_metadata && !network.prefers_reachable_cache() {
+            return CacheHitCheck::Revalidate;
         }
         if !picked {
             return CacheHitCheck::Revalidate;
@@ -176,9 +179,15 @@ pub(super) enum DiskFirst {
 }
 
 impl DiskFirst {
-    pub(super) fn decide(network: NetworkPolicy, pick_lowest_version: bool) -> Self {
+    pub(super) fn decide(
+        network: NetworkPolicy,
+        pick_lowest_version: bool,
+        refresh_metadata: bool,
+    ) -> Self {
         if network.reads_cache_first() {
             DiskFirst::Always
+        } else if refresh_metadata {
+            DiskFirst::Never
         } else if pick_lowest_version {
             DiskFirst::UnlessUncacheable
         } else {

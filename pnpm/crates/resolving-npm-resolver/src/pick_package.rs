@@ -174,7 +174,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
-    let disk_first = match DiskFirst::decide(ctx.cache_policy.network, opts.pick_lowest_version) {
+    let disk_first = match DiskFirst::decide(
+        ctx.cache_policy.network,
+        opts.pick_lowest_version,
+        opts.request.refresh_metadata,
+    ) {
         DiskFirst::Never => false,
         DiskFirst::Always => true,
         DiskFirst::UnlessUncacheable => state.mirror_may_answer(ctx).await,

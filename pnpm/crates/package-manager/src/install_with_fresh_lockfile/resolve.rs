@@ -83,6 +83,7 @@ pub(super) struct SharedResolveOptions<'a> {
     /// See [`super::FreshInputs::update_checksums`].
     pub update_checksums: bool,
     pub update_behavior: pnpm_resolving_resolver_base::UpdateBehavior,
+    pub refresh_metadata: bool,
 }
 
 impl SharedResolveOptions<'_> {
@@ -108,6 +109,7 @@ impl SharedResolveOptions<'_> {
             refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
                 update_checksums: self.update_checksums,
                 update: self.update_behavior,
+                refresh_metadata: self.refresh_metadata,
                 ..Default::default()
             },
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {
