@@ -106,33 +106,39 @@ pub(super) fn max_version<Raw: AsRef<str>>(versions: &[Raw]) -> Option<String> {
     best.map(|(_, raw)| raw.to_string())
 }
 
-pub(super) fn max_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
+pub(super) fn max_satisfying<'a>(
+    versions: impl IntoIterator<Item = &'a str>,
+    range: &str,
+) -> Option<String> {
     let parsed_range = cached_range(range)?;
-    let mut best: Option<(Version, &str)> = None;
+    let mut best: Option<(Version, &'a str)> = None;
     for version in versions {
-        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
+        let Ok(parsed) = Version::parse(version) else { continue };
         if !parsed.satisfies(&parsed_range) {
             continue;
         }
         match &best {
             Some((current, _)) if current >= &parsed => {}
-            _ => best = Some((parsed, version.as_ref())),
+            _ => best = Some((parsed, version)),
         }
     }
     best.map(|(_, raw)| raw.to_string())
 }
 
-pub(super) fn min_satisfying<Raw: AsRef<str>>(versions: &[Raw], range: &str) -> Option<String> {
+pub(super) fn min_satisfying<'a>(
+    versions: impl IntoIterator<Item = &'a str>,
+    range: &str,
+) -> Option<String> {
     let parsed_range = cached_range(range)?;
-    let mut best: Option<(Version, &str)> = None;
+    let mut best: Option<(Version, &'a str)> = None;
     for version in versions {
-        let Ok(parsed) = Version::parse(version.as_ref()) else { continue };
+        let Ok(parsed) = Version::parse(version) else { continue };
         if !parsed.satisfies(&parsed_range) {
             continue;
         }
         match &best {
             Some((current, _)) if current <= &parsed => {}
-            _ => best = Some((parsed, version.as_ref())),
+            _ => best = Some((parsed, version)),
         }
     }
     best.map(|(_, raw)| raw.to_string())
