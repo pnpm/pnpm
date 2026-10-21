@@ -33,25 +33,6 @@ pub(crate) fn recorded_supported_architectures_match(
             .as_ref()
 }
 
-pub(crate) fn settings_match(
-    state: &WorkspaceState,
-    config: &Config,
-    node_linker: NodeLinker,
-    included: IncludedDependencies,
-    supported_architectures: Option<&SupportedArchitectures>,
-    ignored_workspace_state_settings: &[&str],
-) -> bool {
-    first_setting_drift(
-        state,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        ignored_workspace_state_settings,
-    )
-    .is_none()
-}
-
 /// Compare today's settings against what the previous install
 /// recorded.
 ///

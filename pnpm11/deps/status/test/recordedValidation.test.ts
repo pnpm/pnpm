@@ -487,6 +487,87 @@ describe('checkDepsStatus with recorded validations', () => {
     await fs.utimes(bLockfilePath, bLockfileMtime, bLockfileMtime)
     expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
   })
+
+  it('reports outdated when an importer catalog resolution disagrees with the lockfile catalog snapshot', async () => {
+    const catalogs = { default: { bar: '^2.0.0' } }
+    const lockfile = lockfileWith({ bar: '1.0.0' })
+    lockfile.importers['packages/b' as ProjectId].specifiers = { bar: 'catalog:' }
+    lockfile.catalogs = { default: { bar: { specifier: '^2.0.0', version: '2.0.0' } } }
+    const workspace = await installedWorkspace(lockfile)
+    workspace.manifestOf('b').dependencies = { bar: 'catalog:' }
+    await updateWorkspaceState({
+      allProjects: workspace.allProjects,
+      workspaceDir: workspace.workspaceDir,
+      pnpmfiles: [],
+      settings: { ...SETTINGS, catalogs },
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: false,
+      validation: {
+        lockfileDir: workspace.workspaceDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+      },
+    })
+    workspace.manifestOf('b').description = 'edited'
+    await fs.writeFile(path.join(workspace.projectDir('b'), 'package.json'), JSON.stringify(workspace.manifestOf('b')))
+    expect(await check(workspace, undefined, { catalogs })).toMatchObject({
+      upToDate: false,
+      issue: expect.stringContaining('does not satisfy project of id packages/b'),
+    })
+  })
+
+  it('checks a non-workspace root project against a custom lockfileDir', async () => {
+    const lockfileDir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-custom-lockfile-dir-')))
+    workspaces.push(lockfileDir)
+    const projectDir = path.join(lockfileDir, 'app')
+    await fs.mkdir(projectDir, { recursive: true })
+    const manifest: ProjectManifest = { name: 'app', version: '1.0.0', dependencies: { foo: '1.0.0' } }
+    await fs.writeFile(path.join(projectDir, 'package.json'), JSON.stringify(manifest))
+    const lockfile: LockfileObject = {
+      lockfileVersion: '9.0',
+      settings: { autoInstallPeers: true, excludeLinksFromLockfile: false },
+      importers: {
+        ['app' as ProjectId]: { specifiers: { foo: '1.0.0' }, dependencies: { foo: '1.0.0' } },
+      },
+      packages: {
+        ['foo@1.0.0' as DepPath]: { resolution: { integrity: 'sha512-foo' } },
+      },
+    }
+    await writeWantedLockfile(lockfileDir, lockfile)
+    await writeCurrentLockfile(path.join(lockfileDir, 'node_modules/.pnpm'), lockfile)
+    await updateWorkspaceState({
+      allProjects: [{ rootDir: projectDir as ProjectRootDir, manifest }],
+      workspaceDir: lockfileDir,
+      pnpmfiles: [],
+      settings: SETTINGS,
+      configDependencies: CONFIG_DEPENDENCIES,
+      filteredInstall: false,
+      validation: {
+        lockfileDir,
+        wantedLockfileName: 'pnpm-lock.yaml',
+        sharedInputs: [],
+      },
+    })
+    expect(await checkDepsStatus({
+      ...SETTINGS,
+      lockfileDir,
+      rootProjectManifestDir: projectDir,
+      rootProjectManifest: manifest,
+      pnpmfile: [],
+      configDependencies: CONFIG_DEPENDENCIES,
+    })).toMatchObject({ upToDate: true })
+
+    manifest.description = 'edited'
+    await fs.writeFile(path.join(projectDir, 'package.json'), JSON.stringify(manifest))
+    expect(await checkDepsStatus({
+      ...SETTINGS,
+      lockfileDir,
+      rootProjectManifestDir: projectDir,
+      rootProjectManifest: manifest,
+      pnpmfile: [],
+      configDependencies: CONFIG_DEPENDENCIES,
+    })).toMatchObject({ upToDate: true })
+  })
 })
 
 /**

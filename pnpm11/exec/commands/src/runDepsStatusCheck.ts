@@ -249,9 +249,22 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
       if (await installNotRequired(opts, upToDate, workspaceState)) return
       command = ['install', ...createInstallArgs(workspaceState?.settings), ...createFilterArgs(opts)]
     }
-    runInstall(opts, command)
+    if (runInstall(opts, command)) {
+      await warnIfStillOutdated(opts)
+    }
   } finally {
     await lock?.release()
+  }
+}
+
+/**
+ * Warn when the install the gate spawned left the dependencies out of date,
+ * since every later command then installs again.
+ */
+async function warnIfStillOutdated (opts: RunDepsStatusCheckOptions): Promise<void> {
+  const { upToDate, issue } = await checkDepsStatus(opts)
+  if (upToDate === false) {
+    globalWarn(`The install that ran before the script left node_modules out of date, so the next run installs again.${issue ? ` ${issue}` : ''}`)
   }
 }
 
@@ -261,13 +274,15 @@ async function lockedInstall (opts: RunDepsStatusCheckOptions, command: string[]
  * already reported why it failed. An install killed by a signal or by Ctrl-C
  * still aborts the command.
  */
-function runInstall (opts: RunDepsStatusCheckOptions, command: string[]): void {
+function runInstall (opts: RunDepsStatusCheckOptions, command: string[]): boolean {
   const loglevel = opts.loglevel === 'silent' || opts.loglevel === 'error' || opts.loglevel === 'warn' ? opts.loglevel : undefined
   try {
     runPnpmCli([...command, ...createCliConfigArgs(opts)], { cwd: opts.dir, loglevel, reporter: opts.reporter })
+    return true
   } catch (err: unknown) {
     if (!isFailedInstall(err)) throw err
     globalWarn('The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install.')
+    return false
   }
 }
 

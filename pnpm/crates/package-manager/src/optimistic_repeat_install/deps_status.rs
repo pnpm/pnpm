@@ -2,13 +2,10 @@
 
 use super::{
     Config, LockfileConflictCheckFailure, NodeLinker, OptimisticRepeatInstallCheck, Path, Scope,
-    WorkspaceState, catalogs_cache_matches, current_lockfile_file_has_content,
-    first_held_project_missing_modules_dir, first_lockfile_requiring_conflict_safe_install,
-    first_setting_drift,
+    WorkspaceState,
     freshness::{
         Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
     },
-    pnpmfiles_drift, project_structure_matches,
     relocation::relocated_state,
     wanted_lockfile_file_has_content,
 };
@@ -37,9 +34,9 @@ pub enum RunDepsStatus {
 /// the differences pnpm's run gate carries over its install fast path —
 /// it runs regardless of `optimisticRepeatInstall`, never treats local
 /// file dependencies as outdated, ignores `dev`/`optional`/`production`
-/// drift (scripts always run with the default groups), compares
-/// configuration dependencies, and reports drift with pnpm's
-/// user-facing issue wording instead of a diagnostic-only reason.
+/// drift (scripts always run with the default groups), and reports drift
+/// with pnpm's user-facing issue wording instead of a diagnostic-only
+/// reason.
 /// `state` arrives from the caller, which already had to load it to
 /// decide whether a check is possible at all (a missing state is
 /// "Cannot check whether dependencies are outdated").
@@ -70,12 +67,15 @@ pub fn check_deps_status_before_run(
     } else {
         Scope::Selected(selected_project_dirs)
     };
-    if let Some(issue) = first_static_drift(check, state, scope) {
-        return outdated(issue);
+    let mut ignored_settings = vec!["dev", "optional", "production"];
+    if install_would_run_frozen(check) {
+        ignored_settings.push("autoDedupe");
     }
-
     let policy = GatePolicy {
         gate: Gate::Run,
+        ignored_settings: &ignored_settings,
+        check_local_file_deps: false,
+        check_dangling_direct_links: false,
         missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
         newer_patch: NewerPatch::CompareHash,
         // The TypeScript run/exec handler does not forward `dedupePeers`
@@ -93,74 +93,58 @@ pub fn check_deps_status_before_run(
 /// pnpm's issue wording for a [`Stale`] verdict.
 fn stale_issue(check: &OptimisticRepeatInstallCheck<'_>, stale: Stale) -> String {
     match stale {
-        Stale::Unprovable => "Cannot check whether dependencies are outdated".to_string(),
+        Stale::UnrecordedFilteredState | Stale::Unprovable => {
+            "Cannot check whether dependencies are outdated".to_string()
+        }
+        Stale::LockfileConflict { lockfile_path, failure } => {
+            lockfile_conflict_issue(check.workspace_root, &lockfile_path, failure)
+        }
+        Stale::LocalFileDep(reason) | Stale::Content(reason) => reason.to_string(),
+        Stale::SettingChanged(setting) => {
+            format!("The value of the {setting} setting has changed")
+        }
+        Stale::ConfigDependencies => "Configuration dependencies are not up to date".to_string(),
+        Stale::CatalogsCache => "Catalogs cache outdated".to_string(),
+        Stale::ProjectStructure | Stale::MoveRefused(_) => WORKSPACE_STRUCTURE_CHANGED.to_string(),
+        Stale::MissingModulesDir(id) => {
+            format!("Workspace package {id} has dependencies but does not have a modules directory")
+        }
+        Stale::DanglingDirectLink => {
+            "a direct dependency link points to a missing target".to_string()
+        }
+        Stale::MissingBranchLockfile | Stale::NoLockfile => {
+            format!("Cannot find a lockfile in {}", check.workspace_root.display())
+        }
+        Stale::Pnpmfile(issue) => issue,
         Stale::ProjectNotInstalled(id) => {
             format!("Workspace package {id} has dependencies but was not installed")
         }
         Stale::NothingInstalled => {
             "The lockfile requires dependencies but none were installed".to_string()
         }
-        Stale::MoveRefused(_) => WORKSPACE_STRUCTURE_CHANGED.to_string(),
-        Stale::NoLockfile => {
-            format!("Cannot find a lockfile in {}", check.workspace_root.display())
+    }
+}
+
+fn lockfile_conflict_issue(
+    workspace_root: &Path,
+    lockfile_path: &Path,
+    failure: LockfileConflictCheckFailure,
+) -> String {
+    let lockfile_dir = lockfile_path
+        .parent()
+        .unwrap_or(workspace_root)
+        .display();
+    match failure {
+        LockfileConflictCheckFailure::MergeConflict => {
+            format!("The lockfile in {lockfile_dir} has merge conflicts")
         }
-        Stale::Content(reason) => reason.to_string(),
+        LockfileConflictCheckFailure::Unsafe => {
+            format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
+        }
     }
 }
 
 const WORKSPACE_STRUCTURE_CHANGED: &str = "The workspace structure has changed since last install";
-
-/// The first drift the gate can decide before stat-ing any manifest.
-fn first_static_drift(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    scope: Scope<'_>,
-) -> Option<String> {
-    first_lockfile_or_setting_drift(check, state)
-        .or_else(|| first_workspace_drift(check, state, scope))
-}
-
-fn first_lockfile_or_setting_drift(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-) -> Option<String> {
-    let &OptimisticRepeatInstallCheck {
-        config,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
-    } = check;
-    if let Some(reason) = lockfile_conflict_drift(check, state.last_validated_timestamp) {
-        return Some(reason);
-    }
-    let mut ignored_workspace_state_settings = vec!["dev", "optional", "production"];
-    if install_would_run_frozen(check) {
-        ignored_workspace_state_settings.push("autoDedupe");
-    }
-    if let Some(setting) = first_setting_drift(
-        state,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        &ignored_workspace_state_settings,
-    ) {
-        return Some(format!("The value of the {setting} setting has changed"));
-    }
-    if config_dependencies_drifted(config, state) {
-        return Some("Configuration dependencies are not up to date".to_string());
-    }
-    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
-        return Some("Catalogs cache outdated".to_string());
-    }
-    None
-}
 
 /// Whether the `pnpm install` this gate spawns would run with a frozen
 /// lockfile, the way `InstallArgs::resolve_frozen_lockfile` decides it: on CI
@@ -174,35 +158,6 @@ fn install_would_run_frozen(check: &OptimisticRepeatInstallCheck<'_>) -> bool {
     let config = check.config;
     config.frozen_lockfile.unwrap_or(config.ci && config.prefer_frozen_lockfile)
         && wanted_lockfile_file_has_content(check.workspace_root, config)
-}
-
-fn first_workspace_drift(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    scope: Scope<'_>,
-) -> Option<String> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        is_workspace_install,
-        ..
-    } = check;
-    if !project_structure_matches(state, project_manifests) {
-        return Some(WORKSPACE_STRUCTURE_CHANGED.to_string());
-    }
-    if let Some(id) = first_held_project_missing_modules_dir(check, state, scope) {
-        return Some(format!(
-            "Workspace package {id} has dependencies but does not have a modules directory",
-        ));
-    }
-    if !is_workspace_install
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.install_state_dir)
-    {
-        return Some(format!("Cannot find a lockfile in {}", workspace_root.display()));
-    }
-    pnpmfiles_drift(workspace_root, config, state)
 }
 
 /// The `pnpm install` arguments reproducing the dependency groups the
@@ -236,27 +191,4 @@ pub(crate) fn config_dependencies_drifted(config: &Config, state: &WorkspaceStat
     let empty = std::collections::BTreeMap::new();
     config.config_dependencies.as_ref().unwrap_or(&empty)
         != state.config_dependencies.as_ref().unwrap_or(&empty)
-}
-
-fn lockfile_conflict_drift(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    timestamp: i64,
-) -> Option<String> {
-    if let Some((lockfile_path, failure)) =
-        first_lockfile_requiring_conflict_safe_install(check, timestamp)
-    {
-        let lockfile_dir = lockfile_path
-            .parent()
-            .unwrap_or(check.workspace_root)
-            .display();
-        return Some(match failure {
-            LockfileConflictCheckFailure::MergeConflict => {
-                format!("The lockfile in {lockfile_dir} has merge conflicts")
-            }
-            LockfileConflictCheckFailure::Unsafe => {
-                format!("The lockfile in {lockfile_dir} cannot be checked for merge conflicts")
-            }
-        });
-    }
-    None
 }

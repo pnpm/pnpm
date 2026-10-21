@@ -738,6 +738,29 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
         "lockfile: false must skip the write",
     );
 }
+
+#[test]
+fn install_and_run_refuse_missing_branch_lockfile_even_when_current_lockfile_exists() {
+    let (dir, config) = setup_content_check_project();
+    let mut branch_config = config.clone();
+    branch_config.use_git_branch_lockfile = true;
+    let branch_config = branch_config.leak();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = content_check_decision(&dir, branch_config, true, &project_manifests);
+    assert_eq!(decision, Decision::Skipped { reason: "the branch lockfile is missing" });
+
+    let status = super::workspace_deps_status(&dir, branch_config, &project_manifests);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: format!("Cannot find a lockfile in {}", dir.path().display()),
+            install_args: Vec::new(),
+        },
+    );
+}
 /// On a sub-second filesystem the lockfile freshness check uses
 /// whole-millisecond precision so the unchanged lockfile is never flagged
 /// against its own millisecond-truncated baseline (which the nanosecond
