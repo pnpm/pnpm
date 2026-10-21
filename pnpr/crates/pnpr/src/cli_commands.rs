@@ -1,7 +1,10 @@
 pub mod args;
 pub use args::{FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval};
 
-use crate::{Config, RegistryError};
+use crate::{
+    Config, RegistryError,
+    cache_maintenance::{CacheGcEffect, CacheGcScope},
+};
 use clap::Subcommand;
 use pnpm_diagnostics::{print, println};
 use std::{path::PathBuf, time::Duration};
@@ -168,7 +171,9 @@ async fn run_cache_gc_command(config: &Config, command: Command) -> miette::Resu
     else {
         return Ok(());
     };
-    run_cache_gc(config, dry_run, max_size, max_age.map(|d| d.as_secs()), orphans_only).await
+    let effect = if dry_run { CacheGcEffect::DryRun } else { CacheGcEffect::Apply };
+    let scope = if orphans_only { CacheGcScope::OrphansOnly } else { CacheGcScope::Full };
+    run_cache_gc(config, effect, max_size, max_age.map(|age| age.as_secs()), scope).await
 }
 
 async fn run_verify_command(config: &Config, command: Command) -> miette::Result<()> {
@@ -302,10 +307,10 @@ async fn run_oci_gc(
 
 async fn run_cache_gc(
     config: &Config,
-    dry_run: bool,
+    effect: CacheGcEffect,
     max_size: Option<String>,
     max_age_secs: Option<u64>,
-    orphans_only: bool,
+    scope: CacheGcScope,
 ) -> miette::Result<()> {
     let max_size = if let Some(raw) = max_size.as_deref() {
         Some(pnpr_config::parse_byte_size(raw).ok_or_else(|| {
@@ -317,10 +322,10 @@ async fn run_cache_gc(
         None
     };
     let options = crate::cache_maintenance::CacheGcOptions {
-        dry_run,
+        effect,
         max_size,
         max_age: max_age_secs.map(Duration::from_secs),
-        orphans_only,
+        scope,
     };
     let report = crate::cache_maintenance::collect_cache(config, &options).await
         .map_err(|err| redacted_report(&err))?;
@@ -328,7 +333,7 @@ async fn run_cache_gc(
         namespaces = report.namespaces_removed,
         files = report.files_evicted,
         bytes = report.bytes_reclaimed,
-        dry_run,
+        effect = ?effect,
         "cache collection completed",
     );
     Ok(())

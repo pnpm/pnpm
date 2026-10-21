@@ -8,7 +8,7 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 
-use super::{ResolveDependencyTreeError, WantedSpec};
+use super::{DependencySpec, ResolveDependencyTreeError};
 
 /// The anchor for an entry the manifest in `consumer_dir` dereferences.
 /// An install with no `pnpm-workspace.yaml` declares no catalogs, so
@@ -31,15 +31,20 @@ pub(super) fn catalog_anchor<'a>(
 /// entry surfaces immediately rather than masquerading as a
 /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`.
 pub(crate) fn resolve_catalog_specifiers(
-    specs: Vec<WantedSpec>,
+    specs: Vec<DependencySpec>,
     catalogs: &Catalogs,
     anchor: CatalogAnchor<'_>,
-) -> Result<Vec<WantedSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     specs
         .into_iter()
-        .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name, range, catalogs, anchor)
-                .map(|(name, range)| (name, range, optional, injected))
+        .map(|spec| {
+            resolve_catalog_specifier(spec.alias, spec.bare_specifier, catalogs, anchor)
+                .map(|(alias, bare_specifier)| DependencySpec {
+                    alias,
+                    bare_specifier,
+                    optional: spec.optional,
+                    injected: spec.injected,
+                })
         })
         .collect()
 }
@@ -73,13 +78,13 @@ pub struct ChildCatalogs<'a> {
 /// it drops the required children that the package's own peers supply
 /// (`is_peer_shadowed`), then resolves `catalog:` specs.
 pub(super) fn walked_child_specs(
-    specs: &[super::ChildSpec],
+    specs: &[DependencySpec],
     is_peer_shadowed: impl Fn(&str) -> bool,
     catalogs: Option<(&Catalogs, CatalogAnchor<'_>)>,
-) -> Result<Vec<super::ChildSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let walked = specs
         .iter()
-        .filter(|(name, _, optional, _)| *optional || !is_peer_shadowed(name))
+        .filter(|spec| spec.optional || !is_peer_shadowed(&spec.alias))
         .cloned()
         .collect();
     match catalogs {
@@ -99,7 +104,7 @@ pub fn local_directory_child_specs(
     parent: &str,
     is_peer_shadowed: impl Fn(&str) -> bool,
     catalogs: Option<ChildCatalogs<'_>>,
-) -> Result<Vec<super::ChildSpec>, ResolveDependencyTreeError> {
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let specs = super::manifest::manifest_child_specs(manifest, parent)?;
     let catalogs = catalogs
         .filter(|catalogs| !catalogs.catalogs.is_empty())

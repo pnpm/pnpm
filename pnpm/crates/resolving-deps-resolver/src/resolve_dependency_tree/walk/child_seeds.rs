@@ -1,7 +1,7 @@
 use super::{
-    Arc, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path, PendingNode,
-    Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError, Resolver,
-    ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
+    Arc, Catalogs, ChildEdge, Cow, DependencySpec, FrontierNode, HashSet, NodeSeed, Path,
+    PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
+    Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
     catalog_anchor, declaring_manifest_dir, extract_children, finish_reused_seeds, future,
     higher_direct_dep_version, keeps_locked_version, level_aliases, level_versions,
     lock_recoverable, prior_child_key, read_recoverable, real_package_name_of, resolve_node_seed,
@@ -45,14 +45,14 @@ where
 ///
 /// The manifest's specs are cached per package id. The cache value is
 /// held by `Arc` so revisits clone the refcount instead of the inner
-/// `Vec<ChildSpec>`, and it is cached unfiltered because which of the
+/// `Vec<DependencySpec>`, and it is cached unfiltered because which of the
 /// specs the package's own `peerDependencies` shadow is a property of
 /// the owner occurrence, not of the manifest.
 pub(super) fn child_specs_of(
     ctx: &TreeCtx,
     pending: &PendingNode,
     peer_shadowed: &HashSet<String>,
-) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
+) -> Result<Arc<Vec<DependencySpec>>, ResolveDependencyTreeError> {
     let cached =
         read_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
     let child_specs = if let Some(specs) = cached {
@@ -73,7 +73,8 @@ pub(super) fn child_specs_of(
         ctx,
         &pending.result,
         &child_specs,
-        (peer_shadowed, pending.resolves_children_through_catalogs),
+        peer_shadowed,
+        pending.resolves_children_through_catalogs,
     )
     .map(Arc::new)
 }
@@ -83,9 +84,10 @@ pub(super) fn child_specs_of(
 pub(super) fn walk_child_specs(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
-    specs: &[ChildSpec],
-    (peer_shadowed, through_catalogs): (&HashSet<String>, bool),
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+    specs: &[DependencySpec],
+    peer_shadowed: &HashSet<String>,
+    through_catalogs: bool,
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let catalogs = catalogs_for_children(ctx, through_catalogs);
     let declaring_dir = catalogs.and_then(|_| declaring_manifest_dir(ctx, result));
     let catalogs = catalogs.map(|catalogs| {
@@ -152,7 +154,7 @@ pub(super) async fn seed_child<Chain>(
     resolver: &Chain,
     node: &FrontierNode,
     scope: &ChildSeedScope<'_>,
-    spec: &ChildSpec,
+    spec: &DependencySpec,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -187,24 +189,31 @@ where
 pub(super) fn child_wanted(
     ctx: &TreeCtx,
     scope: &ChildSeedScope<'_>,
-    (name, range, optional, injected): &ChildSpec,
+    spec: &DependencySpec,
     depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
+    let DependencySpec {
+        alias,
+        bare_specifier,
+        optional,
+        injected,
+    } = spec;
     let mut wanted = WantedDependency {
-        alias: Some(name.clone()),
-        bare_specifier: Some(range.clone()),
+        alias: Some(alias.clone()),
+        bare_specifier: Some(bare_specifier.clone()),
         optional: Some(*optional),
         injected: injected.then_some(true),
         ..WantedDependency::default()
     };
-    let mut prior =
-        scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, name, range));
+    let mut prior = scope.prior_children_snapshot.and_then(|snapshot| {
+        prior_child_key(snapshot, alias, bare_specifier)
+    });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix
             .version_semver()
-            .zip(range.parse::<node_semver::Range>().ok())
+            .zip(bare_specifier.parse::<node_semver::Range>().ok())
             .and_then(|(pinned, parsed)| {
-                higher_direct_dep_version(scope.direct_versions.as_deref(), name, pinned, &parsed)
+                higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
             })
         && keeps_locked_version(ctx, &wanted, key, depth)
     {

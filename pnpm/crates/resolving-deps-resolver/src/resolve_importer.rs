@@ -55,7 +55,7 @@ use crate::{
         get_hoistable_optional_peers_with_preferred_versions, hoist_peers,
     },
     resolve_dependency_tree::{
-        TreeCtx, WantedSpec, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
+        DependencySpec, TreeCtx, WorkspaceTreeCtx, extend_tree, record_changed_direct_deps,
         unwrap_package_name,
     },
     resolve_peers::{

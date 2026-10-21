@@ -1,6 +1,6 @@
 use super::{
-    NewToken, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify, parse_htpasswd, sha256_hex,
+    NewToken, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserCreation, UserRemoval, UserStore, identify, parse_htpasswd, sha256_hex,
 };
 use crate::validation::{
     MAX_USERNAME_CHARS, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
@@ -606,20 +606,20 @@ async fn an_unreadable_cidr_whitelist_is_refused_rather_than_dropped() {
 /// The admin operations every [`UserBackend`] supports, starting from an
 /// empty store.
 pub(crate) async fn assert_admin_round_trip(users: &dyn UserBackend) {
-    assert!(users.create_user("alice", "first").await.unwrap());
-    assert!(!users.create_user("alice", "other").await.unwrap());
+    assert_eq!(users.create_user("alice", "first").await.unwrap(), UserCreation::Created);
+    assert_eq!(users.create_user("alice", "other").await.unwrap(), UserCreation::NameTaken);
     assert_eq!(users.list_users().await.unwrap(), ["alice"]);
 
-    assert!(users.set_password("alice", "second").await.unwrap());
+    assert_eq!(users.set_password("alice", "second").await.unwrap(), PasswordChange::Changed);
     assert!(users.add_or_login("alice", "first").await.is_err());
     assert!(matches!(
         users.add_or_login("alice", "second").await.unwrap(),
         (UpsertOutcome::LoggedIn, _),
     ));
-    assert!(!users.set_password("bob", "x").await.unwrap());
+    assert_eq!(users.set_password("bob", "x").await.unwrap(), PasswordChange::NoSuchUser);
 
-    assert!(users.delete_user("alice").await.unwrap());
-    assert!(!users.delete_user("alice").await.unwrap());
+    assert_eq!(users.delete_user("alice").await.unwrap(), UserRemoval::Removed);
+    assert_eq!(users.delete_user("alice").await.unwrap(), UserRemoval::NoSuchUser);
     assert!(
         users
             .list_users()
@@ -639,9 +639,9 @@ async fn admin_created_users_bypass_disabled_registration_and_persist() {
     let tmp = tempfile::tempdir().unwrap();
     let path = tmp.path().join("htpasswd");
     let store = UserStore::open_with_cost(path.clone(), MaxUsers::Disabled, TEST_COST).unwrap();
-    assert!(store.create_user("alice", "secret").await.unwrap());
-    assert!(store.create_user("bob", "secret").await.unwrap());
-    assert!(store.delete_user("bob").await.unwrap());
+    assert_eq!(store.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.create_user("bob", "secret").await.unwrap(), UserCreation::Created);
+    assert_eq!(store.delete_user("bob").await.unwrap(), UserRemoval::Removed);
 
     let reopened = UserStore::open_with_cost(path, MaxUsers::Disabled, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
@@ -688,7 +688,7 @@ async fn a_failed_write_changes_nothing_and_can_be_repeated() {
     );
 
     std::fs::remove_dir(&path).unwrap();
-    assert!(store.create_user("alice", "x").await.unwrap());
+    assert_eq!(store.create_user("alice", "x").await.unwrap(), UserCreation::Created);
     let reopened = UserStore::open_with_cost(path, MaxUsers::Unlimited, TEST_COST).unwrap();
     assert_eq!(reopened.list_users().await.unwrap(), ["alice"]);
 }
@@ -1020,7 +1020,7 @@ async fn file_backed_user_store_picks_up_external_edits() {
     let store1 = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
     let store2 = UserStore::open(htpasswd_path, MaxUsers::Unlimited).unwrap();
 
-    assert!(store1.create_user("alice", "pass1").await.unwrap());
+    assert_eq!(store1.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
     // store2 (simulating a running server or other process) should observe alice
     assert!(
         store2
@@ -1031,9 +1031,9 @@ async fn file_backed_user_store_picks_up_external_edits() {
     );
 
     // store2 updates alice's password
-    assert!(store2.set_password("alice", "pass2").await.unwrap());
+    assert_eq!(store2.set_password("alice", "pass2").await.unwrap(), PasswordChange::Changed);
     // store1 adds bob
-    assert!(store1.create_user("bob", "pass3").await.unwrap());
+    assert_eq!(store1.create_user("bob", "pass3").await.unwrap(), UserCreation::Created);
 
     // Both stores should observe both alice and bob without losing either edit
     assert!(
@@ -1058,7 +1058,7 @@ async fn holds_fails_closed_on_corrupt_htpasswd_and_reflects_deletion() {
     let htpasswd_path = dir.path().join("htpasswd");
     let store = UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap();
 
-    assert!(store.create_user("alice", "pass1").await.unwrap());
+    assert_eq!(store.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
     assert!(store.holds("alice").unwrap());
     assert!(!store.holds("bob").unwrap());
 
@@ -1078,7 +1078,7 @@ async fn concurrent_lookups_during_removal_and_replacement_do_not_deadlock() {
     let store =
         std::sync::Arc::new(UserStore::open(htpasswd_path.clone(), MaxUsers::Unlimited).unwrap());
 
-    assert!(store.create_user("alice", "pass1").await.unwrap());
+    assert_eq!(store.create_user("alice", "pass1").await.unwrap(), UserCreation::Created);
 
     let mut handles = Vec::new();
     for index in 0..10 {

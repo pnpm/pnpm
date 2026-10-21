@@ -7,8 +7,8 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthState, Config, OwnedTokens, RegistryError, TokenBackend, TokenRecord, TokenStore,
-    UpsertOutcome, UserBackend, UserStore, router_with_auth,
+    AuthState, Config, OwnedTokens, PasswordChange, RegistryError, TokenBackend, TokenRecord,
+    TokenStore, UpsertOutcome, UserBackend, UserCreation, UserRemoval, UserStore, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -204,16 +204,16 @@ impl UserBackend for RemovedDuringLogin {
         Ok(None)
     }
 
-    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<UserCreation> {
+        Ok(UserCreation::NameTaken)
     }
 
-    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -325,16 +325,16 @@ impl UserBackend for ReplacedDuringLogin {
             .flatten())
     }
 
-    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn create_user(&self, _username: &str, _password: &str) -> pnpr::Result<UserCreation> {
+        Ok(UserCreation::NameTaken)
     }
 
-    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn set_password(&self, _username: &str, _password: &str) -> pnpr::Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
     }
 
-    async fn delete_user(&self, _username: &str) -> pnpr::Result<bool> {
-        Ok(false)
+    async fn delete_user(&self, _username: &str) -> pnpr::Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 

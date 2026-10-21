@@ -52,7 +52,7 @@ use freshness::{
     Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
 };
 use modules_dirs::{
-    direct_dependency_link_dangling, first_project_missing_modules_dir,
+    SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
     first_selected_project_missing_modules_dir,
 };
 use settle::{
@@ -346,10 +346,20 @@ fn first_held_project_missing_modules_dir(
 ) -> Option<String> {
     match scope {
         Scope::Selected(selected) if state.filtered_install => {
-            first_selected_project_missing_modules_dir(check, state, selected, false)
+            first_selected_project_missing_modules_dir(
+                check,
+                state,
+                selected,
+                SelectedReach::SelectedOnly,
+            )
         }
         Scope::Command(selected) if state.filtered_install => {
-            first_selected_project_missing_modules_dir(check, state, selected, true)
+            first_selected_project_missing_modules_dir(
+                check,
+                state,
+                selected,
+                SelectedReach::WithWorkspaceDeps,
+            )
         }
         _ => first_project_missing_modules_dir(check, state),
     }

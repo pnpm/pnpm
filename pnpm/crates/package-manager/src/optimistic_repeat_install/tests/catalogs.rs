@@ -301,7 +301,10 @@ fn expanded_selected_modules_dir_check_reanchors_catalog_links_from_workspace_di
 
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("linked"),
@@ -310,7 +313,10 @@ fn expanded_selected_modules_dir_check_reanchors_catalog_links_from_workspace_di
     fs::create_dir_all(linked_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         ),
         None,
     );

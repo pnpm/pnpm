@@ -6,6 +6,7 @@ use super::{
     json_response, private_no_cache, require_admin, team_mutations::respond,
     tokens::token_response_object,
 };
+use crate::UserRemoval;
 use axum::{
     Router,
     body::Bytes,
@@ -111,8 +112,14 @@ async fn delete_user(
         let removed = state.inner.identity.auth.users.delete_user(&path.user).await?;
         state.inner.identity.oidc.revoke_user_sessions(&path.user);
         let revoked_after = state.inner.identity.auth.revoke_all_tokens(&path.user).await?;
-        if !removed && revoked_before + revoked_after == 0 {
-            return Err(RegistryError::NotFound);
+        let had_nothing_to_revoke = revoked_before + revoked_after == 0;
+        match removed {
+            // A user the store never held, who also left no tokens behind,
+            // was never there to delete.
+            UserRemoval::NoSuchUser if had_nothing_to_revoke => {
+                return Err(RegistryError::NotFound);
+            }
+            UserRemoval::NoSuchUser | UserRemoval::Removed => {}
         }
         let actor = identity.username().unwrap_or("-");
         let revoked_total = revoked_before + revoked_after;

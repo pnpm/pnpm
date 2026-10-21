@@ -48,6 +48,15 @@ impl Default for LoginRateLimiter {
     }
 }
 
+/// When a sweep of expired records may run ahead of [`EVICTION_INTERVAL`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Sweep {
+    /// Once the map has grown past [`EVICTION_MAP_THRESHOLD`].
+    WhenLarge,
+    /// At the first moment [`FULL_EVICTION_COOLDOWN`] allows.
+    AsSoonAsAllowed,
+}
+
 impl LoginRateLimiter {
     pub(crate) fn new(
         window: Duration,
@@ -68,10 +77,13 @@ impl LoginRateLimiter {
         }
     }
 
-    fn evict_if_needed(&self, inner: &mut RateLimiterInner, now: Instant, force: bool) {
+    fn evict_if_needed(&self, inner: &mut RateLimiterInner, now: Instant, sweep: Sweep) {
+        let off_schedule = match sweep {
+            Sweep::AsSoonAsAllowed => true,
+            Sweep::WhenLarge => inner.map.len() > EVICTION_MAP_THRESHOLD,
+        };
         let should_evict = now.duration_since(inner.last_eviction) >= EVICTION_INTERVAL
-            || ((force || inner.map.len() > EVICTION_MAP_THRESHOLD)
-                && now.duration_since(inner.last_eviction) >= FULL_EVICTION_COOLDOWN);
+            || (off_schedule && now.duration_since(inner.last_eviction) >= FULL_EVICTION_COOLDOWN);
         if should_evict {
             let web_login_count = &mut inner.web_login_count;
             inner.map.retain(|key, record| {
@@ -112,7 +124,7 @@ impl LoginRateLimiter {
     pub(crate) fn check(&self, client_ip: Option<IpAddr>, username: &str) -> Result<(), u64> {
         let now = Instant::now();
         let mut inner = self.records.lock().unwrap();
-        self.evict_if_needed(&mut inner, now, false);
+        self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
 
         if let Some(ip_address) = client_ip {
             self.check_key(
@@ -164,7 +176,7 @@ impl LoginRateLimiter {
         if inner.web_login_count < MAX_WEB_LOGIN_RECORDS {
             return Ok(());
         }
-        self.evict_if_needed(inner, now, true);
+        self.evict_if_needed(inner, now, Sweep::AsSoonAsAllowed);
         if inner.web_login_count < MAX_WEB_LOGIN_RECORDS {
             return Ok(());
         }
@@ -206,7 +218,7 @@ impl LoginRateLimiter {
         }
 
         self.ensure_web_login_capacity(&mut inner, now)?;
-        self.evict_if_needed(&mut inner, now, false);
+        self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
 
         inner.map.insert(key, AttemptRecord { count: 1, first_attempt: now });
         inner.web_login_count += 1;
@@ -218,7 +230,7 @@ impl LoginRateLimiter {
     pub(crate) fn record_failure(&self, client_ip: Option<IpAddr>, username: &str) {
         let now = Instant::now();
         let mut inner = self.records.lock().unwrap();
-        self.evict_if_needed(&mut inner, now, false);
+        self.evict_if_needed(&mut inner, now, Sweep::WhenLarge);
 
         let keys = if let Some(ip_address) = client_ip {
             vec![

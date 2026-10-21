@@ -28,22 +28,31 @@ pub(super) fn first_project_missing_modules_dir(
 ) -> Option<String> {
     first_missing_modules_dir(check, state, &|_| true)
 }
+/// How far a selected scope reaches past the projects named in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SelectedReach {
+    /// The selected projects alone.
+    SelectedOnly,
+    /// The selected projects and the workspace projects they reach.
+    WithWorkspaceDeps,
+}
+
 /// [`first_project_missing_modules_dir`] restricted to the projects the gate
-/// selected, plus their transitive workspace dependencies when
-/// `expand_workspace_deps` is set.
+/// selected, as far as `reach` takes them.
 pub(super) fn first_selected_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     selected_project_dirs: &[&Path],
-    expand_workspace_deps: bool,
+    reach: SelectedReach,
 ) -> Option<String> {
-    let selected = if expand_workspace_deps {
-        reached_workspace_project_dirs(check, state, selected_project_dirs)
-    } else {
-        selected_project_dirs
+    let selected = match reach {
+        SelectedReach::WithWorkspaceDeps => {
+            reached_workspace_project_dirs(check, state, selected_project_dirs)
+        }
+        SelectedReach::SelectedOnly => selected_project_dirs
             .iter()
             .map(|dir| lexical_normalize(dir))
-            .collect()
+            .collect(),
     };
     first_missing_modules_dir(check, state, &|root_dir| {
         selected.contains(&lexical_normalize(root_dir))

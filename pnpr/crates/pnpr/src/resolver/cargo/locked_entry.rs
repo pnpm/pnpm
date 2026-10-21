@@ -5,7 +5,7 @@ use std::{
 
 use crate::server::StripedLocks;
 
-use super::IndexFetcher;
+use super::{IndexFetcher, StaleEntry};
 
 /// A cached index file whose fetch lock is held: the stripe of its cache
 /// path, released when this is dropped. Only the holder may evict or
@@ -30,6 +30,6 @@ impl<'locks> LockedEntry<'locks> {
     /// the same crates past their TTL replaces entries instead of
     /// accumulating them.
     pub(super) async fn cached_or_evict(&self, ttl: Duration) -> Option<String> {
-        IndexFetcher::cached_entry(&self.path, ttl, true).await
+        IndexFetcher::cached_entry(&self.path, ttl, StaleEntry::Delete).await
     }
 }

@@ -343,7 +343,10 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
 
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         ),
         None,
     );
@@ -351,7 +354,10 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     fs::remove_dir_all(pkg_b_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("pkg-b"),
@@ -361,7 +367,10 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     fs::remove_dir_all(pkg_c_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("pkg-c"),
@@ -371,7 +380,10 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     fs::remove_dir_all(pkg_d_v2_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("pkg-d"),
@@ -381,7 +393,10 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     fs::remove_dir_all(pkg_e_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("pkg-e"),
@@ -393,7 +408,7 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
             &check,
             &no_auto_peers_state,
             &selected,
-            true,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         ),
         None,
     );
@@ -402,7 +417,10 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
     fs::remove_dir_all(pkg_f_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("pkg-f"),
@@ -470,7 +488,10 @@ fn expanded_selected_modules_dir_check_under_dedicated_lockfiles_with_injection_
 
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         )
         .as_deref(),
         Some("linked"),
@@ -479,7 +500,10 @@ fn expanded_selected_modules_dir_check_under_dedicated_lockfiles_with_injection_
     fs::create_dir_all(linked_dir.join("node_modules")).unwrap();
     assert_eq!(
         super::super::modules_dirs::first_selected_project_missing_modules_dir(
-            &check, &state, &selected, true,
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
         ),
         None,
     );

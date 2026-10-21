@@ -1,6 +1,7 @@
 use super::{
-    super::TokenRecord, AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size,
-    sql_max_users, timeout_millis, with_auth_timeout,
+    super::{PasswordChange, TokenRecord, UserRemoval},
+    AuthSqlBackend, InsertUser, SqlAuth, StoredUser, invalid_pool_size, sql_max_users,
+    timeout_millis, with_auth_timeout,
 };
 use async_trait::async_trait;
 use pnpr_config::{MaxUsers, SqlBackendSettings};
@@ -158,13 +159,21 @@ impl AuthSqlBackend for PostgresDatabase {
             .await?)
     }
 
-    async fn update_password_hash(&self, username: &str, bcrypt_hash: &str) -> Result<bool> {
+    async fn update_password_hash(
+        &self,
+        username: &str,
+        bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
         let updated = sqlx::query("UPDATE users SET bcrypt_hash = $2 WHERE username = $1")
             .bind(username)
             .bind(bcrypt_hash)
             .execute(&self.pool)
             .await?;
-        Ok(updated.rows_affected() > 0)
+        if updated.rows_affected() > 0 {
+            Ok(PasswordChange::Changed)
+        } else {
+            Ok(PasswordChange::NoSuchUser)
+        }
     }
 
     async fn update_user_hash_if_current(
@@ -184,7 +193,7 @@ impl AuthSqlBackend for PostgresDatabase {
         Ok(updated.rows_affected() > 0)
     }
 
-    async fn delete_user(&self, username: &str) -> Result<bool> {
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         let mut tx = self.pool.begin().await?;
         let removed = sqlx::query("DELETE FROM users WHERE username = $1")
             .bind(username)
@@ -198,7 +207,7 @@ impl AuthSqlBackend for PostgresDatabase {
                 .await?;
         }
         tx.commit().await?;
-        Ok(removed > 0)
+        Ok(if removed > 0 { UserRemoval::Removed } else { UserRemoval::NoSuchUser })
     }
 
     async fn check_readiness(&self) -> Result<()> {

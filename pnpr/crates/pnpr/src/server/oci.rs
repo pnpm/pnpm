@@ -23,7 +23,7 @@ pub(super) use publication::{OciPublication, authorize_publication};
 
 mod response;
 use response::{
-    accepted, api_version, created, hosted_manifest_response, insert_header, json,
+    ResponseBody, accepted, api_version, created, hosted_manifest_response, insert_header, json,
     method_not_allowed, no_content, range_not_satisfiable, ranged_blob_response, registry_error,
     server_error, unknown_repository,
 };

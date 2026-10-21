@@ -10,10 +10,9 @@ use super::{
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{
-    ChildCatalogs, ChildSpec, ResolveDependencyTreeError, local_directory_child_specs,
+    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, local_directory_child_specs,
 };
 use std::collections::HashSet;
-
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
 pub(super) fn check_local_dep_children_freshness(
@@ -54,13 +53,13 @@ fn check_child_directory_dep_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     (parent_snapshot, scope): (&pnpm_lockfile::SnapshotEntry, &AliasScope),
     parent_dep: &LocalDepContext<'_>,
-    (name, spec, optional, _): &ChildSpec,
+    child: &DependencySpec,
     visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
-    let Some(pkg_key) = (!*optional || check.config.optional)
-        .then(|| recorded_child(parent_snapshot, name, *optional))
+    let Some(pkg_key) = (!child.optional || check.config.optional)
+        .then(|| recorded_child(parent_snapshot, &child.alias, RecordedDeps::of(child)))
         .flatten()
-        .zip(pnpm_lockfile::PkgName::parse(name).ok())
+        .zip(child.alias.parse::<pnpm_lockfile::PkgName>().ok())
         .and_then(|(recorded, pkg_name)| recorded.resolve(&pkg_name))
     else {
         return Ok(());
@@ -69,6 +68,7 @@ fn check_child_directory_dep_freshness(
         .as_ref()
         .and_then(|packages| packages.get(&pkg_key.without_peer()))
     else {
+        let spec = child.bare_specifier.as_str();
         return if is_declared_local_directory(spec) || spec.starts_with("workspace:") {
             Err(parent_dep.outdated())
         } else {
@@ -82,7 +82,8 @@ fn check_child_directory_dep_freshness(
     let snapshot = check.lockfile.snapshots
         .as_ref()
         .and_then(|s| s.get(&pkg_key));
-    let child_dep = parent_dep.child(name, spec, &dir_res.directory, &local_dep_dir);
+    let child_dep =
+        parent_dep.child(&child.alias, &child.bare_specifier, &dir_res.directory, &local_dep_dir);
     check_single_directory_dep_freshness(
         check,
         scope,
@@ -99,32 +100,51 @@ fn child_is_fresh(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     snapshot: &pnpm_lockfile::SnapshotEntry,
-    (name, spec, optional, _): &ChildSpec,
+    child: &DependencySpec,
 ) -> bool {
-    if *optional && !check.config.optional {
-        return recorded_child(snapshot, name, false).is_none();
+    let name = child.alias.as_str();
+    if child.optional && !check.config.optional {
+        return recorded_child(snapshot, name, RecordedDeps::Required).is_none();
     }
-    match recorded_child(snapshot, name, *optional) {
-        Some(recorded) => spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, spec, recorded)
-            .unwrap_or(check.optional_exclusions.frozen_lockfile),
+    match recorded_child(snapshot, name, RecordedDeps::of(child)) {
+        Some(recorded) => {
+            spec_satisfies_snapshot_dep(&dep.dirs, dep.dir, name, &child.bare_specifier, recorded)
+                .unwrap_or(check.optional_exclusions.frozen_lockfile)
+        }
         // A child recorded as required has changed, not gone unresolved.
         None => {
-            *optional
+            child.optional
                 && check.optional_exclusions.frozen_lockfile
-                && recorded_child(snapshot, name, false).is_none()
+                && recorded_child(snapshot, name, RecordedDeps::Required).is_none()
         }
     }
 }
 
-/// The resolution the snapshot records for a child, in the map its
-/// optionality puts it in.
+/// Which of a snapshot's two dependency maps a child is recorded in.
+#[derive(Clone, Copy)]
+enum RecordedDeps {
+    Required,
+    Optional,
+}
+
+impl RecordedDeps {
+    /// Where a child of this optionality is recorded.
+    fn of(child: &DependencySpec) -> Self {
+        if child.optional { RecordedDeps::Optional } else { RecordedDeps::Required }
+    }
+}
+
+/// The resolution the snapshot records for a child in `deps`.
 fn recorded_child<'s>(
     snapshot: &'s pnpm_lockfile::SnapshotEntry,
     name: &str,
-    optional: bool,
+    deps: RecordedDeps,
 ) -> Option<&'s pnpm_lockfile::SnapshotDepRef> {
     let name = pnpm_lockfile::PkgName::parse(name).ok()?;
-    let recorded = if optional { &snapshot.optional_dependencies } else { &snapshot.dependencies };
+    let recorded = match deps {
+        RecordedDeps::Required => &snapshot.dependencies,
+        RecordedDeps::Optional => &snapshot.optional_dependencies,
+    };
     recorded.as_ref()?.get(&name)
 }
 
@@ -134,11 +154,11 @@ fn check_snapshot_keys_are_children(
     check: &ImporterSatisfactionCheck<'_>,
     dep: &LocalDepContext<'_>,
     local_manifest: &PackageManifest,
-    (children, snapshot): (&[ChildSpec], &pnpm_lockfile::SnapshotEntry),
+    (children, snapshot): (&[DependencySpec], &pnpm_lockfile::SnapshotEntry),
 ) -> Result<(), FreshnessCheckError> {
     let expected: HashSet<&str> = children
         .iter()
-        .map(|(name, ..)| name.as_str())
+        .map(|spec| spec.alias.as_str())
         .chain(
             local_manifest
                 .dependencies([DependencyGroup::Peer])

@@ -1,7 +1,7 @@
 use super::{
-    Arc, BTreeMap, ChildEdge, DepPath, DirectDep, HashMap, HashSet, NodeId, ParentPkgInfo,
-    ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain, UndoRealize,
-    Walker,
+    Arc, BTreeMap, ChildEdge, DepPath, DepPathRecording, DirectDep, HashMap, HashSet, NodeId,
+    ParentPkgInfo, ParentRefs, PeerProviderChildren, ResolvedPackage, ResolvedTree, SharedChain,
+    UndoRealize, Walker,
 };
 
 /// Output of [`Walker::resolve_node`] — the per-node result the parent
@@ -56,7 +56,7 @@ impl ChildOutputs {
         alias: &str,
         output: NodeOutput,
         provider_children: &BTreeMap<String, NodeId>,
-        collect_dep_paths: bool,
+        dep_paths: DepPathRecording,
     ) {
         let NodeOutput {
             dep_path,
@@ -70,8 +70,11 @@ impl ChildOutputs {
         {
             self.missing_summaries.push(summary);
         }
-        if collect_dep_paths {
-            self.dep_paths.insert(alias.to_string(), dep_path);
+        match dep_paths {
+            DepPathRecording::Record => {
+                self.dep_paths.insert(alias.to_string(), dep_path);
+            }
+            DepPathRecording::Skip => {}
         }
         self.auto_install_resolved_peers.extend(auto_install_resolved_peers);
         for (peer_alias, peer_node_id) in external_resolved_peers.iter() {

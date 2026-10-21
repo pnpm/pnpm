@@ -42,8 +42,9 @@ mod config_file;
 use config_file::{
     ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
     DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
-    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RoutesFile, SqlBackendFile,
-    StorageAccessFile, UpstreamFile,
+    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock,
+    RemovedUplinksBlock, RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile,
+    UpstreamFile,
 };
 
 mod hosted;

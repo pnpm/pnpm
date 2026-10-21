@@ -19,6 +19,7 @@ pub use internal_symlink::{relative_link_target, symlink_file_or_copy};
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
+pub use lock_mode::LockMode;
 #[cfg(unix)]
 pub use pending_temp::die_from_signal;
 pub use pending_temp::{
@@ -64,6 +65,7 @@ mod internal_symlink;
 mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
+mod lock_mode;
 mod pending_temp;
 mod private_named_tempfile;
 mod read_modules_dir;

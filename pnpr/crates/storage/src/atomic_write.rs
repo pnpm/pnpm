@@ -10,19 +10,28 @@ pub(super) static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub(super) const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
 
+/// What a write does with an existing destination. `Keep` commits with a
+/// hard link, which fails when the path is taken, and then removes the
+/// temp file the rename would have consumed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ExistingDestination {
+    Replace,
+    Keep,
+}
+
 pub async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
-    write_atomic_with_replace(path, bytes, true).await
+    write_atomic_with_destination(path, bytes, ExistingDestination::Replace).await
 }
 
 /// Publishes a complete file without replacing an existing destination.
 pub async fn write_atomic_new(path: &Path, bytes: &[u8]) -> Result<()> {
-    write_atomic_with_replace(path, bytes, false).await
+    write_atomic_with_destination(path, bytes, ExistingDestination::Keep).await
 }
 
-pub(super) async fn write_atomic_with_replace(
+pub(super) async fn write_atomic_with_destination(
     path: &Path,
     bytes: &[u8],
-    replace: bool,
+    destination: ExistingDestination,
 ) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
@@ -39,14 +48,22 @@ pub(super) async fn write_atomic_with_replace(
         return Err(err.into());
     }
     drop(file);
-    let committed =
-        if replace { fs::rename(&tmp, path).await } else { fs::hard_link(&tmp, path).await };
+    let committed = match destination {
+        ExistingDestination::Replace => fs::rename(&tmp, path).await,
+        ExistingDestination::Keep => fs::hard_link(&tmp, path).await,
+    };
     if let Err(err) = committed {
         let _ = fs::remove_file(&tmp).await;
         return Err(err.into());
     }
-    if !replace && let Err(err) = fs::remove_file(&tmp).await {
-        tracing::warn!(?err, path = %tmp.display(), "atomic publication temp cleanup failed");
+    let leftover = match destination {
+        ExistingDestination::Replace => None,
+        ExistingDestination::Keep => Some(&tmp),
+    };
+    if let Some(leftover) = leftover
+        && let Err(err) = fs::remove_file(leftover).await
+    {
+        tracing::warn!(?err, path = %leftover.display(), "atomic publication temp cleanup failed");
     }
     Ok(())
 }

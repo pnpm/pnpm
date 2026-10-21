@@ -29,6 +29,24 @@ pub trait OrgAccess: Sync {
     fn may_publish(&self, org: &str) -> bool;
 }
 
+/// Which of an organization's grants a request needs: `Read` takes its
+/// access grant, `Publish` its publish grant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrgGrant {
+    Read,
+    Publish,
+}
+
+impl OrgGrant {
+    /// Whether `caller` holds this grant on `org`.
+    fn allows(self, caller: &(impl OrgAccess + ?Sized), org: &str) -> bool {
+        match self {
+            OrgGrant::Read => caller.may_read(org),
+            OrgGrant::Publish => caller.may_publish(org),
+        }
+    }
+}
+
 /// The storage key of what `org` owns.
 pub(super) fn org_key(org: &str) -> String {
     digest_segment(OwnerScope::organization(org).namespace().as_bytes())
@@ -36,7 +54,7 @@ pub(super) fn org_key(org: &str) -> String {
 
 /// The storage key of `owner`, when `caller` may read what it owns.
 pub(super) fn owner_key(caller: &(impl OrgAccess + ?Sized), owner: &OwnerScope) -> Result<String> {
-    authorized_owner_key(caller, owner, false)
+    authorized_owner_key(caller, owner, OrgGrant::Read)
 }
 
 /// The storage key of `owner`, when `caller` may publish what it owns.
@@ -44,25 +62,24 @@ pub(super) fn publisher_owner_key(
     caller: &(impl OrgAccess + ?Sized),
     owner: &OwnerScope,
 ) -> Result<String> {
-    authorized_owner_key(caller, owner, true)
+    authorized_owner_key(caller, owner, OrgGrant::Publish)
 }
 
 fn authorized_owner_key(
     caller: &(impl OrgAccess + ?Sized),
     owner: &OwnerScope,
-    publish: bool,
+    grant: OrgGrant,
 ) -> Result<String> {
     if let OwnerScope::Organization { name } = owner
-        && (if publish { caller.may_publish(name) } else { caller.may_read(name) })
+        && grant.allows(caller, name)
     {
         return Ok(org_key(name));
     }
     Err(RegistryError::Forbidden {
         user: caller.username().to_string(),
-        action: if publish {
-            "publish shared artifacts owned by"
-        } else {
-            "access shared artifacts owned by"
+        action: match grant {
+            OrgGrant::Read => "access shared artifacts owned by",
+            OrgGrant::Publish => "publish shared artifacts owned by",
         },
         resource: owner.namespace(),
     })

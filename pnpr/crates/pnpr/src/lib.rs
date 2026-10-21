@@ -28,8 +28,8 @@ pub use cli_commands::{
     Command, ConfigSubcommand, FeatureArgs, OsvArgs, ServerArgs, parse_cli_interval, run_command,
 };
 pub use pnpr_auth::{
-    AuthState, OwnedTokens, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify,
+    AuthState, OwnedTokens, PasswordChange, TokenBackend, TokenRecord, TokenStore, UpsertOutcome,
+    UserBackend, UserCreation, UserRemoval, UserStore, identify,
 };
 pub use pnpr_config::{
     AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,

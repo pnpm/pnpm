@@ -195,8 +195,8 @@ pub struct DependenciesTreeNode {
     /// `alias → child NodeId` edges, possibly deferred.
     pub children: TreeChildren,
     /// Distance from the root importer (root = 0). A `depth = -1` marks
-    /// linked / pruned nodes; pacquet doesn't emit `-1` today because
-    /// workspace-link resolution hasn't been implemented.
+    /// a linked or pruned node, which the peer-resolution pass
+    /// short-circuits.
     pub depth: i32,
     /// Wanted-lockfile carry-over for this occurrence, boxed because it
     /// is `None` for every fresh resolution — which is every node the

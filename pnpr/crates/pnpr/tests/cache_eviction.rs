@@ -4,7 +4,8 @@
 use pnpr::{
     Config,
     cache_maintenance::{
-        CacheGcOptions, active_cache_namespaces, collect_cache, prune_orphaned_namespaces_startup,
+        CacheGcEffect, CacheGcOptions, CacheGcScope, active_cache_namespaces, collect_cache,
+        prune_orphaned_namespaces_startup,
     },
 };
 use pnpr_storage::layout::encode_segment;
@@ -77,8 +78,12 @@ async fn orphaned_namespaces_are_pruned_while_active_remain() {
         tmp.path().join("~upstreams/stale-secret-hash/packages/pkg3/blobs/pkg3.tgz");
     create_file_with_age(&orphan_private, b"fake-tgz-data", Duration::from_secs(10));
 
-    let options =
-        CacheGcOptions { dry_run: false, max_size: None, max_age: None, orphans_only: true };
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::Apply,
+        max_size: None,
+        max_age: None,
+        scope: CacheGcScope::OrphansOnly,
+    };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.namespaces_removed, 2);
     assert_eq!(report.files_evicted, 2);
@@ -106,8 +111,12 @@ async fn dry_run_reports_without_deleting_orphaned_namespaces() {
     let orphan = tmp.path().join("~upstreams/orphan-hash/packages/pkg/document.json");
     create_file_with_age(&orphan, b"{}", Duration::from_secs(10));
 
-    let options =
-        CacheGcOptions { dry_run: true, max_size: None, max_age: None, orphans_only: true };
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::DryRun,
+        max_size: None,
+        max_age: None,
+        scope: CacheGcScope::OrphansOnly,
+    };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.namespaces_removed, 1);
     assert_eq!(report.files_evicted, 1);
@@ -134,10 +143,10 @@ async fn ttl_eviction_removes_expired_files_and_cleans_empty_dirs() {
     create_file_with_age(&fresh_file, b"{}", Duration::from_mins(1));
 
     let options = CacheGcOptions {
-        dry_run: false,
+        effect: CacheGcEffect::Apply,
         max_size: None,
         max_age: Some(Duration::from_hours(120)),
-        orphans_only: false,
+        scope: CacheGcScope::Full,
     };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.files_evicted, 1);
@@ -176,8 +185,12 @@ async fn lru_eviction_enforces_max_size_cap() {
     create_file_with_age(&file2, &payload, Duration::from_secs(200));
     create_file_with_age(&file3, &payload, Duration::from_secs(100));
 
-    let options =
-        CacheGcOptions { dry_run: false, max_size: Some(1500), max_age: None, orphans_only: false };
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::Apply,
+        max_size: Some(1500),
+        max_age: None,
+        scope: CacheGcScope::Full,
+    };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.files_evicted, 2);
     assert_eq!(report.bytes_reclaimed, 2000);
@@ -216,10 +229,10 @@ async fn ttl_eviction_prunes_empty_package_directories() {
     create_file_with_age(&scoped_file, b"{}", Duration::from_hours(240));
 
     let options = CacheGcOptions {
-        dry_run: false,
+        effect: CacheGcEffect::Apply,
         max_size: None,
         max_age: Some(Duration::from_hours(120)),
-        orphans_only: false,
+        scope: CacheGcScope::Full,
     };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.files_evicted, 1);
@@ -272,8 +285,12 @@ registries:
         tmp.path().join("~upstreams/sibling-process-digest/packages/pkg/document.json");
     create_file_with_age(&private_ns, b"{}", Duration::from_secs(10));
 
-    let options =
-        CacheGcOptions { dry_run: false, max_size: None, max_age: None, orphans_only: true };
+    let options = CacheGcOptions {
+        effect: CacheGcEffect::Apply,
+        max_size: None,
+        max_age: None,
+        scope: CacheGcScope::OrphansOnly,
+    };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.namespaces_removed, 1);
     assert!(!orphan_public.exists());
@@ -298,10 +315,10 @@ async fn in_flight_tmp_files_are_preserved_during_eviction() {
     create_file_with_age(&expired_file, b"old content", Duration::from_hours(2));
 
     let options = CacheGcOptions {
-        dry_run: false,
+        effect: CacheGcEffect::Apply,
         max_size: Some(10),
         max_age: Some(Duration::from_hours(1)),
-        orphans_only: false,
+        scope: CacheGcScope::Full,
     };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.files_evicted, 1);
@@ -317,10 +334,10 @@ async fn ttl_eviction_covers_the_tar_variants() {
     create_file_with_age(&variant, b"variant", Duration::from_hours(240));
 
     let options = CacheGcOptions {
-        dry_run: false,
+        effect: CacheGcEffect::Apply,
         max_size: None,
         max_age: Some(Duration::from_hours(24)),
-        orphans_only: false,
+        scope: CacheGcScope::Full,
     };
     let report = collect_cache(&config, &options).await.unwrap();
     assert_eq!(report.files_evicted, 1);

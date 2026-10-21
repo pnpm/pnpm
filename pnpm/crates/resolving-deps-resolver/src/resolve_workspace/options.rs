@@ -42,20 +42,14 @@ pub struct WorkspaceResolveOptions {
 #[derive(Default)]
 pub struct WorkspacePeerResolutionOptions {
     pub dedupe_peers: bool,
-    /// `true` enables [`fn@crate::resolve_peers_workspace`]'s cross-
-    /// importer dedupe pass — `dependenciesMeta[<alias>].injected: true`
-    /// workspace edges collapse back to `link:` when the injected
-    /// snapshot's children are a subset of the target project's own
-    /// direct deps.
+    /// Threaded into [`crate::WorkspacePeerSettings::dedupe_injected_deps`].
     pub dedupe_injected_deps: bool,
-    /// `true` enables [`fn@crate::resolve_peers_workspace`]'s peer-
-    /// dependent dedupe pass — peer-suffixed variants of one package
-    /// that are a subset of a larger compatible variant collapse into
-    /// it. Maps to the `dedupePeerDependents` setting (default `true`).
+    /// Threaded into [`crate::WorkspacePeerSettings::dedupe_peer_dependents`],
+    /// and overrides every per-importer
+    /// [`crate::ImporterPeerOptions::dedupe_peer_dependents`].
     pub dedupe_peer_dependents: bool,
-    /// When true, non-root importers can resolve peers from the
-    /// workspace root's direct dependencies. Maps to the
-    /// `resolvePeersFromWorkspaceRoot` setting.
+    /// Threaded into
+    /// [`crate::WorkspacePeerSettings::resolve_peers_from_workspace_root`].
     pub resolve_peers_from_workspace_root: bool,
     /// Threaded into [`crate::PeerLinkOptions::exclude_links_from_lockfile`]
     /// for the workspace-wide peer pass. Per-importer

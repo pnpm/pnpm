@@ -12,7 +12,9 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
-        walker::{MissingPeerInfo, NodeOutput, NodeWalkContext, SubtreeMissingByPkg, Walker},
+        walker::{
+            MissingPeerInfo, NodeOutput, NodeWalkContext, PeerWalkMode, SubtreeMissingByPkg, Walker,
+        },
     },
     resolved_tree::{ChildEdge, DependenciesTreeNode, TreeChildren},
 };
@@ -349,16 +351,19 @@ impl Walker<'_> {
         let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
         let own_peers = self.tree.packages[&pkg_id].peer_set.taken().clone();
         let chain_with_self = parent_pkg_ids_chain.pushed(Arc::clone(&pkg_id));
-        if self.traversal.discovery {
-            self.record_discovery_cache_hit_issues(
-                &own_peers,
-                output,
-                missing_peers_of_children,
-                parent_chain_names,
-                parent_pkg_ids_chain,
-                &chain_with_self,
-            );
-            return;
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                self.record_discovery_cache_hit_issues(
+                    &own_peers,
+                    output,
+                    missing_peers_of_children,
+                    parent_chain_names,
+                    parent_pkg_ids_chain,
+                    &chain_with_self,
+                );
+                return;
+            }
+            PeerWalkMode::Final => {}
         }
         for (peer_name, info) in output.missing_peers.iter() {
             let declaring_chain = if own_peers.contains_key(peer_name) {
@@ -439,8 +444,9 @@ impl Walker<'_> {
         output: &NodeOutput,
         missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     ) {
-        if self.traversal.discovery {
-            return;
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => return,
+            PeerWalkMode::Final => {}
         }
         if &owner_node_id != node_id {
             let owner_is_fully_walked = !self.nodes.cache_owners.contains_key(&owner_node_id);

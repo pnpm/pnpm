@@ -276,7 +276,7 @@ impl HeldFile {
             return Ok(None);
         };
 
-        match crate::try_lock_file(&file, true) {
+        match crate::try_lock_file(&file, crate::LockMode::Exclusive) {
             Ok(()) => {}
             Err(TryLockError::WouldBlock) => {
                 if !crate::copy_file_exclusive::path_still_names(&file, path) {

@@ -56,7 +56,7 @@ use context::{
     ChainSuffixMemo, CurrentProviderSource, ParentRefs, importer_relative_link_dep_path,
 };
 use discovery::PeerDiscoveryCaches;
-use finalize::FinalDepPaths;
+use finalize::{FinalDepPaths, PeerIdRecording};
 use pnpm_deps_path::{DepPath, PeerId};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -64,7 +64,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use walker::{NodeWalkContext, Walker};
+use walker::{NodeWalkContext, PeerWalkMode, Walker};
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]
@@ -157,6 +157,26 @@ impl Default for ResolvePeersOptions {
             },
         }
     }
+}
+
+/// The workspace-wide settings [`fn@resolve_peers_workspace`] takes as one
+/// parameter.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct WorkspacePeerSettings {
+    /// `true` enables the cross-importer dedupe pass:
+    /// `dependenciesMeta[<alias>].injected: true` workspace edges collapse
+    /// back to `link:` when the injected snapshot's children are a subset
+    /// of the target project's own direct deps.
+    pub dedupe_injected_deps: bool,
+    /// `true` enables the peer-dependent dedupe pass: peer-suffixed
+    /// variants of one package that are a subset of a larger compatible
+    /// variant collapse into it. Maps to the `dedupePeerDependents`
+    /// setting.
+    pub dedupe_peer_dependents: bool,
+    /// When true, non-root importers can resolve peers from the workspace
+    /// root's direct dependencies. Maps to the
+    /// `resolvePeersFromWorkspaceRoot` setting.
+    pub resolve_peers_from_workspace_root: bool,
 }
 
 /// See [`crate::PeerResolutionScope::hoist_missing_scope`].
@@ -302,7 +322,7 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
         node_ids_by_previous_dep_path,
         current_provider_sources,
         PeerDiscoveryCaches::default(),
-        false,
+        PeerWalkMode::Final,
     );
     walker.walk()
 }
@@ -324,9 +344,7 @@ pub fn resolve_peers_workspace(
     tree: &mut ResolvedTree,
     importers: &[ImporterPeerInput],
     lockfile_dir: &Path,
-    dedupe_injected_deps_enabled: bool,
-    dedupe_peer_dependents_enabled: bool,
-    resolve_peers_from_workspace_root: bool,
+    settings: WorkspacePeerSettings,
     opts: ResolvePeersOptions,
 ) -> WorkspaceResolvePeersResult {
     let node_ids_by_previous_dep_path = build_node_ids_by_previous_dep_path(tree, &opts);
@@ -336,18 +354,22 @@ pub fn resolve_peers_workspace(
         node_ids_by_previous_dep_path,
         Vec::new(),
         PeerDiscoveryCaches::default(),
-        false,
+        PeerWalkMode::Final,
     );
     let importers = sorted_importer_inputs(importers);
     let peer_dependency_issues_by_importer =
-        walk_importers(&mut walker, &importers, resolve_peers_from_workspace_root);
+        walk_importers(&mut walker, &importers, settings.resolve_peers_from_workspace_root);
     walker.patch_pending_peer_edges();
-    let mut finished =
-        finish_workspace_graph(&walker, &importers, lockfile_dir, dedupe_peer_dependents_enabled);
-    if dedupe_peer_dependents_enabled {
+    let peer_id_recording = if settings.dedupe_peer_dependents {
+        PeerIdRecording::Record
+    } else {
+        PeerIdRecording::Skip
+    };
+    let mut finished = finish_workspace_graph(&walker, &importers, lockfile_dir, peer_id_recording);
+    if settings.dedupe_peer_dependents {
         finished.dedupe_peer_dependents(walker.opts.peers_suffix_max_length);
     }
-    if dedupe_injected_deps_enabled {
+    if settings.dedupe_injected_deps {
         dedupe_injected_deps(
             &mut finished.graph,
             &mut finished.direct_dependencies_by_importer,
@@ -435,13 +457,13 @@ fn finish_workspace_graph(
     walker: &Walker<'_>,
     importers: &[&ImporterPeerInput],
     lockfile_dir: &Path,
-    record_peer_ids: bool,
+    recording: PeerIdRecording,
 ) -> FinishedWorkspaceGraph {
     let FinalDepPaths {
         by_node_id: final_dep_paths,
         peer_ids,
         ..
-    } = walker.build_final_dep_paths(record_peer_ids);
+    } = walker.build_final_dep_paths(recording);
     let direct_dependencies_by_importer = importers
         .iter()
         .map(|importer| {

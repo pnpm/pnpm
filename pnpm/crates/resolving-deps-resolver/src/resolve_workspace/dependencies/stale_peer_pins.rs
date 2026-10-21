@@ -89,16 +89,16 @@ fn collect_direct_specs(
         ) else {
             continue;
         };
-        for (alias, spec, ..) in wanted {
-            if let Ok(version) = exact_version(&spec) {
+        for spec in wanted {
+            if let Ok(version) = exact_version(&spec.bare_specifier) {
                 direct_specs.versions
-                    .entry(alias.clone())
+                    .entry(spec.alias.clone())
                     .or_default()
                     .insert(version.to_string());
             }
-            if let Ok(range) = spec.parse::<Range>() {
+            if let Ok(range) = spec.bare_specifier.parse::<Range>() {
                 direct_specs.ranges
-                    .entry(alias)
+                    .entry(spec.alias)
                     .or_default()
                     .insert(range);
             }

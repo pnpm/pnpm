@@ -1,11 +1,11 @@
 use super::{
-    ChildSeedScope, ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, PkgNameVerPeer,
-    ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey, async_recursion, child_wanted,
-    children_warmup_claimed, claim_children_warmup, declaring_manifest_dir, extract_children,
-    future, is_update_target, landed_on_prior_entry, node_depends_on_changed_direct_dep,
-    opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
-    resolve_wanted_cached, resolves_children_through_catalogs, try_reuse_node, walk_child_specs,
-    wanted_package_root_link,
+    ChildSeedScope, DependencySpec, HashSet, NodeKind, NodeSeed, ParentPkgAliases, Pipe,
+    PkgNameVerPeer, ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey,
+    async_recursion, child_wanted, children_warmup_claimed, claim_children_warmup,
+    declaring_manifest_dir, extract_children, future, is_update_target, landed_on_prior_entry,
+    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
+    peer_shadowed_dependencies, project_relative_cache_scope, resolve_wanted_cached,
+    resolves_children_through_catalogs, try_reuse_node, walk_child_specs, wanted_package_root_link,
 };
 
 /// Speculatively warm a freshly-seeded node's whole subtree so its
@@ -42,8 +42,9 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.is_link {
-        return;
+    match pending.kind {
+        NodeKind::Link => return,
+        NodeKind::Leaf | NodeKind::Branch => {}
     }
     let parent = WarmedParent {
         result: &pending.result,
@@ -145,7 +146,7 @@ fn importer_claim_id(ctx: &TreeCtx, pkg_id: &str) -> String {
 fn children_to_warm(
     ctx: &TreeCtx,
     scope: &ChildSeedScope<'_>,
-    specs: &[ChildSpec],
+    specs: &[DependencySpec],
     depth: i32,
 ) -> (Vec<(WantedDependency, Option<PkgNameVerPeer>)>, bool) {
     let mut skipped_any = false;
@@ -171,9 +172,9 @@ pub(super) fn warm_child_specs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     through_catalogs: bool,
-) -> Option<Vec<ChildSpec>> {
+) -> Option<Vec<DependencySpec>> {
     let specs = extract_children(result).ok()?;
-    walk_child_specs(ctx, result, &specs, (peer_shadowed, through_catalogs)).ok()
+    walk_child_specs(ctx, result, &specs, peer_shadowed, through_catalogs).ok()
 }
 
 /// Warm one child edge through the same per-wanted dedup cache, under the
