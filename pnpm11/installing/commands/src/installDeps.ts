@@ -63,6 +63,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'ignoredOptionalDependencies'
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'
+| 'overrides'
 | 'linkWorkspacePackages'
 | 'lockfile'
 | 'lockfileDir'
@@ -333,6 +334,9 @@ async function installWorkspaceProjects (
   const allProjectsGraph: ProjectsGraph = opts.allProjectsGraph ?? createProjectsGraph(allProjects, {
     catalogs: opts.catalogs,
     linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
+    overrides: opts.overrides == null
+      ? undefined
+      : { overrides: opts.overrides, catalogs: opts.catalogs, lockfileDir: opts.lockfileDir ?? workspaceDir },
   }).graph
 
   return recursiveInstallThenUpdateWorkspaceState(allProjects,
