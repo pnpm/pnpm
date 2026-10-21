@@ -150,18 +150,10 @@ pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
             .mode(0o600)
             .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW);
     }
-    for _ in 0..4 {
-        let file = options.open(path)?;
-        #[cfg(unix)]
-        if !validate_unix_file(&file)? {
-            continue;
-        }
-        return Ok(file);
-    }
-    Err(io::Error::new(
-        io::ErrorKind::NotFound,
-        "lock file was repeatedly unlinked before validation",
-    ))
+    let file = options.open(path)?;
+    #[cfg(unix)]
+    validate_unix_file(&file)?;
+    Ok(file)
 }
 
 #[cfg(target_os = "wasi")]
@@ -234,7 +226,7 @@ fn secure_unix_directory(directory: &Path) -> io::Result<()> {
 }
 
 #[cfg(unix)]
-fn validate_unix_file(file: &fs::File) -> io::Result<bool> {
+fn validate_unix_file(file: &fs::File) -> io::Result<()> {
     use std::os::unix::fs::MetadataExt as _;
 
     let metadata = file.metadata()?;
@@ -244,8 +236,10 @@ fn validate_unix_file(file: &fs::File) -> io::Result<bool> {
         return Err(io::Error::other("lock must be a regular file owned by the current user"));
     }
     match metadata.nlink() {
-        0 => Ok(false),
-        1 => Ok(true),
+        0 => {
+            Err(io::Error::new(io::ErrorKind::NotFound, "lock file was unlinked before validation"))
+        }
+        1 => Ok(()),
         _ => Err(io::Error::other("lock must be a regular file owned by the current user")),
     }
 }

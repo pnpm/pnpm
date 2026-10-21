@@ -321,6 +321,14 @@ fn concurrent_forced_and_non_forced_imports_into_the_same_target_succeed() {
         &non_forced_cas,
         &forced_cas,
     );
+
+    let file_target = tmp.path().join("pkg-file");
+    fs::write(&file_target, b"a file, not a dir").unwrap();
+    assert_concurrent_forced_and_non_forced_imports_converge(
+        &file_target,
+        &non_forced_cas,
+        &forced_cas,
+    );
 }
 
 fn assert_concurrent_forced_and_non_forced_imports_converge(

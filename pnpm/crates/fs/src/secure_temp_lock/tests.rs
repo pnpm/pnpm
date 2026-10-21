@@ -116,9 +116,9 @@ fn reports_an_unlinked_lock_file_for_retry() {
     let root = tempfile::tempdir().unwrap();
     let lock = root.path().join("lock");
     let file = open_secure_lock_file(&lock).unwrap();
-    assert!(validate_unix_file(&file).unwrap());
+    validate_unix_file(&file).unwrap();
     std::fs::remove_file(&lock).unwrap();
-    assert!(!validate_unix_file(&file).unwrap());
+    assert_eq!(validate_unix_file(&file).unwrap_err().kind(), std::io::ErrorKind::NotFound);
 }
 
 #[cfg(not(target_os = "android"))]

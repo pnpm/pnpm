@@ -335,3 +335,30 @@ fn persistent_held_file_open_error_falls_back_to_unavailable_after_retry_budget(
     assert_eq!(held.classify_open_error(&error), Liveness::Unavailable);
     assert!(held.held_path.is_none(), "held path is cleared once retry budget expires");
 }
+
+#[test]
+fn missing_parent_held_file_open_retries_within_budget_then_falls_back() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    let missing = root
+        .path()
+        .join("missing-dir")
+        .join("lock.held");
+    let mut held = HeldFile::open(&path);
+    held.held_path = Some(missing.clone());
+
+    assert!(
+        held.open_file(&missing)
+            .expect("within retry budget")
+            .is_none(),
+    );
+    assert!(held.held_path.is_some(), "transient NotFound keeps held_path for retry");
+
+    held.open_retry_started = Some(
+        std::time::Instant::now()
+            .checked_sub(super::RELEASE_RETRY_BUDGET + Duration::from_millis(1))
+            .expect("instant before retry budget"),
+    );
+    assert_eq!(held.open_file(&missing).unwrap_err(), Liveness::Unavailable);
+    assert!(held.held_path.is_none(), "expired retry budget clears held_path");
+}

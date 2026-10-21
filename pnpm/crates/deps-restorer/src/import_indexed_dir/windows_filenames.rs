@@ -1,8 +1,51 @@
-use std::{collections::HashMap, path::PathBuf};
+use super::ImportIndexedDirError;
+use crate::LinkFileError;
+use pnpm_reporter::Reporter;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 pub(super) struct SanitizedFilenames {
     pub paths: HashMap<String, PathBuf>,
     pub renamed: Vec<String>,
+}
+
+pub(super) fn sanitize_after_not_found<R: Reporter>(
+    error: &ImportIndexedDirError,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Option<HashMap<String, PathBuf>> {
+    if !is_import_not_found(error) {
+        return None;
+    }
+    let sanitized = sanitize_filenames(cas_paths)?;
+    let relative_dir = std::env::current_dir()
+        .map(|cwd| pnpm_fs::relative_path(&cwd, dir_path))
+        .unwrap_or_else(|_| dir_path.to_path_buf());
+    let renamed: Vec<_> = sanitized.renamed
+        .iter()
+        .map(|filename| pnpm_text_sanitize::sanitize_inline(filename))
+        .collect();
+    pnpm_reporter::emit_global_warning::<R>(&format!(
+        r#"The package linked to "{}" had files with invalid names: {}. They were renamed."#,
+        pnpm_text_sanitize::sanitize_inline(&relative_dir.to_string_lossy()),
+        renamed.join(", "),
+    ));
+    Some(sanitized.paths)
+}
+
+fn is_import_not_found(error: &ImportIndexedDirError) -> bool {
+    match error {
+        ImportIndexedDirError::CreateDir { error, .. }
+        | ImportIndexedDirError::InspectTarget { error, .. }
+        | ImportIndexedDirError::PlaceFile { error, .. }
+        | ImportIndexedDirError::ClearBlockingDirEntry { error, .. }
+        | ImportIndexedDirError::LinkFile(LinkFileError::Import { error, .. }) => {
+            pnpm_fs::is_not_found(error)
+        }
+        _ => false,
+    }
 }
 
 /// Rename invalid Windows filename components, as pnpm 11's fallback does.

@@ -202,45 +202,19 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     );
     #[cfg(windows)]
     if let Err(error) = &result
-        && is_import_not_found(error)
-        && let Some(sanitized) = windows_filenames::sanitize_filenames(cas_paths)
+        && let Some(paths) =
+            windows_filenames::sanitize_after_not_found::<Reporter>(error, dir_path, cas_paths)
     {
-        let relative_dir = std::env::current_dir()
-            .map(|cwd| pnpm_fs::relative_path(&cwd, dir_path))
-            .unwrap_or_else(|_| dir_path.to_path_buf());
-        let renamed: Vec<_> = sanitized.renamed
-            .iter()
-            .map(|filename| pnpm_text_sanitize::sanitize_inline(filename))
-            .collect();
-        pnpm_reporter::emit_global_warning::<Reporter>(&format!(
-            r#"The package linked to "{}" had files with invalid names: {}. They were renamed."#,
-            pnpm_text_sanitize::sanitize_inline(&relative_dir.to_string_lossy()),
-            renamed.join(", "),
-        ));
         return import_indexed_dir_once::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
-            &sanitized.paths,
+            &paths,
             opts,
             true,
         );
     }
     result
-}
-
-#[cfg(windows)]
-fn is_import_not_found(error: &ImportIndexedDirError) -> bool {
-    match error {
-        ImportIndexedDirError::CreateDir { error, .. }
-        | ImportIndexedDirError::InspectTarget { error, .. }
-        | ImportIndexedDirError::PlaceFile { error, .. }
-        | ImportIndexedDirError::ClearBlockingDirEntry { error, .. }
-        | ImportIndexedDirError::LinkFile(LinkFileError::Import { error, .. }) => {
-            pnpm_fs::is_not_found(error)
-        }
-        _ => false,
-    }
 }
 
 fn import_indexed_dir_once<Reporter: self::Reporter>(
@@ -321,17 +295,9 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
     file_type: fs::FileType,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
-    if !file_type.is_dir() {
-        return replace_non_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            file_type,
-            opts,
-        );
-    }
-    if opts.reuse_hardlinks
+    let is_dir = clear_forced_non_dir_target(dir_path, file_type, opts)?;
+    if is_dir
+        && opts.reuse_hardlinks
         && import_method == PackageImportMethod::Hardlink
         && hardlinks::directory_matches(dir_path, cas_paths, opts.keep_modules_dir)
     {
@@ -350,12 +316,14 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
             opts.preserve_symlinks,
         );
     }
+    let swap_target =
+        if is_dir { staging::SwapTarget::Occupied } else { staging::SwapTarget::Absent };
     stage_and_swap::<Reporter>(
         logged_methods,
         import_method,
         dir_path,
         cas_paths,
-        staging::SwapTarget::Occupied,
+        swap_target,
         opts,
     )
 }
@@ -463,32 +431,34 @@ fn repair_existing_dir<Reporter: self::Reporter>(
     .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
 }
 
-fn replace_non_dir<Reporter: self::Reporter>(
-    logged_methods: &AtomicU8,
-    import_method: PackageImportMethod,
+fn clear_forced_non_dir_target(
     dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
     file_type: fs::FileType,
     opts: ImportIndexedDirOpts,
-) -> Result<(), ImportIndexedDirError> {
-    if !opts.safe_to_skip
+) -> Result<bool, ImportIndexedDirError> {
+    if file_type.is_dir() {
+        return Ok(true);
+    }
+    let current = if !opts.safe_to_skip
         && let Some(swap_lock) = opts.swap_lock
     {
         swap_lock.hold();
+        existing_dirent_kind(dir_path)?
+    } else {
+        Some(file_type)
+    };
+    match current {
+        Some(current) if current.is_dir() => Ok(true),
+        Some(current) => {
+            remove_non_dir_dirent(dir_path, current)
+                .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
+                    path: dir_path.to_path_buf(),
+                    error,
+                })?;
+            Ok(false)
+        }
+        None => Ok(false),
     }
-    remove_non_dir_dirent(dir_path, file_type)
-        .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
-            path: dir_path.to_path_buf(),
-            error,
-        })?;
-    populate_dir::<Reporter>(
-        logged_methods,
-        import_method,
-        dir_path,
-        cas_paths,
-        Placement::Fresh,
-        opts.preserve_symlinks.then_some(dir_path),
-    )
 }
 
 /// Remove a non-directory dirent at `path`.
@@ -501,12 +471,24 @@ fn replace_non_dir<Reporter: self::Reporter>(
 /// so a dangling junction left behind by a deleted target is unlinked
 /// too.
 fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()> {
-    #[cfg(windows)]
-    if std::os::windows::fs::FileTypeExt::is_symlink_dir(&file_type) {
-        return pnpm_fs::remove_dir_with_retry(path);
+    let result = {
+        #[cfg(windows)]
+        if std::os::windows::fs::FileTypeExt::is_symlink_dir(&file_type) {
+            pnpm_fs::remove_dir_with_retry(path)
+        } else {
+            pnpm_fs::remove_file_with_retry(path)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = file_type;
+            pnpm_fs::remove_file_with_retry(path)
+        }
+    };
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
-    let _ = file_type;
-    pnpm_fs::remove_file_with_retry(path)
 }
 
 #[cfg(test)]

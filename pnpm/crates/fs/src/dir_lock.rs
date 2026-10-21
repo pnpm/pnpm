@@ -263,12 +263,18 @@ impl HeldFile {
     /// holder unlinked the inode between our open and our lock.
     fn try_lock_once(&mut self, path: &Path) -> Result<Option<LockedHeldFile>, Liveness> {
         #[cfg(not(windows))]
-        let file = match self.waiting.take() {
-            Some(file) => file,
-            None => self.open_file(path)?,
+        let file = if let Some(file) = self.waiting.take() {
+            file
+        } else {
+            let Some(file) = self.open_file(path)? else {
+                return Ok(None);
+            };
+            file
         };
         #[cfg(windows)]
-        let file = self.open_file(path)?;
+        let Some(file) = self.open_file(path)? else {
+            return Ok(None);
+        };
 
         match crate::try_lock_file(&file, true) {
             Ok(()) => {}
@@ -298,25 +304,32 @@ impl HeldFile {
         Ok(Some(LockedHeldFile { file, path: path.to_path_buf(), id }))
     }
 
-    fn open_file(&mut self, path: &Path) -> Result<File, Liveness> {
+    fn open_file(&mut self, path: &Path) -> Result<Option<File>, Liveness> {
         match crate::open_secure_lock_file(path) {
             Ok(file) => {
                 self.open_retry_started = None;
-                Ok(file)
+                Ok(Some(file))
+            }
+            // On Unix, a held file unlinked by the releasing holder between
+            // `open` and `fstat` has `nlink == 0` and fails validation with
+            // `NotFound`; retry opening within the release retry budget.
+            Err(error) if error.kind() == io::ErrorKind::NotFound && self.within_retry_budget() => {
+                Ok(None)
             }
             Err(error) => Err(self.classify_open_error(&error)),
         }
     }
 
     fn classify_open_error(&mut self, error: &io::Error) -> Liveness {
-        if is_transient_release_error(error) {
-            let started = self.open_retry_started.get_or_insert_with(Instant::now);
-            if started.elapsed() < RELEASE_RETRY_BUDGET {
-                return Liveness::Busy;
-            }
+        if is_transient_release_error(error) && self.within_retry_budget() {
+            return Liveness::Busy;
         }
         self.held_path = None;
         Liveness::Unavailable
+    }
+
+    fn within_retry_budget(&mut self) -> bool {
+        self.open_retry_started.get_or_insert_with(Instant::now).elapsed() < RELEASE_RETRY_BUDGET
     }
 
     /// The identity of the held file this process holds the lock on.
