@@ -45,13 +45,15 @@ impl<'a> PackageImportOptions<'a> {
         }
     }
 
-    /// The method a package's files are actually materialized with: `clone-or-copy`,
-    /// or `copy` when that is [`Self::method`], when a build or patch will still
-    /// write them, or when the source is a mutable local directory this install
-    /// must not share inodes with;
-    /// `hardlink` for any other mutable local directory under the `auto`
-    /// method, so an in-place edit of the source reaches the injected copy,
-    /// as pnpm v11's directory fetcher asks for; [`Self::method`] otherwise.
+    /// The method a package's files are actually materialized with:
+    ///
+    /// - When a build or patch will still write them, or the source is a
+    ///   mutable local directory this install must not share inodes with:
+    ///   [`fn@crate::effective_import_method`].
+    /// - For any other mutable local directory under the `auto` method:
+    ///   `hardlink`, so an in-place edit of the source reaches the injected
+    ///   copy, as pnpm v11's directory fetcher asks for.
+    /// - Otherwise: [`Self::method`].
     #[must_use]
     pub fn method_for(&self, source_is_mutable: bool, needs_build: bool) -> PackageImportMethod {
         let needs_private_files =

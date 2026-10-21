@@ -221,7 +221,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
 /// not share inodes with its source, so it ignores `packageImportMethod`
 /// unless that is `copy`. Every other slot keeps the configured method.
 #[test]
-fn needs_build_slots_ignore_the_configured_import_method() {
+fn needs_build_slots_never_share_inodes_with_their_source() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
