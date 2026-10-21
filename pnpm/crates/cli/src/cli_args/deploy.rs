@@ -7,7 +7,7 @@ use crate::{
 };
 use clap::Args;
 use derive_more::{Display, Error};
-use install::{legacy_deploy_preferred_versions, source_pnpmfile_hooks};
+use install::{LegacyDeploySource, source_pnpmfile_hooks};
 use lockfile::{
     ConvertCtx, DeployFiles, create_deploy_files, deployed_workspace_projects,
     load_deploy_lockfile, manifest_dependency_names,
@@ -205,7 +205,7 @@ impl DeployArgs {
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
         apply_deploy_hook(deploy_dir, &selected.project.root_dir)?;
-        let preferred_versions_override = legacy_deploy_preferred_versions::<ReporterT>(
+        let legacy_source = LegacyDeploySource::load::<ReporterT>(
             config,
             config.lockfile_dir_for(&selected.project.root_dir),
         );
@@ -217,7 +217,7 @@ impl DeployArgs {
             DeployInstallMode::Legacy,
             false,
             source_hooks,
-            preferred_versions_override,
+            legacy_source,
         ))
         .await
     }
