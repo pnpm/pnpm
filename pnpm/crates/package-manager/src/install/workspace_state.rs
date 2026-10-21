@@ -251,12 +251,7 @@ fn ensure_gvs_builds_complete(
         .ok_or(
             "the wanted lockfile cannot be read to look for global virtual store build markers",
         )?;
-    if gvs_build_marker_present(
-        wanted,
-        check.config,
-        lockfile_root,
-        super::effective_node_version(check.config, check.manifest).as_deref(),
-    ) {
+    if gvs_build_marker_present(wanted, check.config, lockfile_root) {
         return Err("a global virtual store build marker needs recovery");
     }
     Ok(())
