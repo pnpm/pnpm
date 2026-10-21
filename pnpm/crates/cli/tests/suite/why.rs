@@ -121,17 +121,22 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
         dunce::canonicalize(app.join("custom_modules").join(HELLO)).expect("canonicalize app dep");
     let lib_hello =
         dunce::canonicalize(lib.join("node_modules").join(HELLO)).expect("canonicalize lib dep");
-    assert!(
-        parseable_lines[0].starts_with("app@1.0.0 > ")
-            && parseable_lines[0].contains(&app_hello.to_string_lossy().into_owned()),
-        "app line should reference app's custom_modules path: {}",
-        parseable_lines[0],
+    let suffix = format!(":{HELLO}@1.0.0");
+    let app_reported = parseable_lines[0]
+        .strip_prefix("app@1.0.0 > ")
+        .and_then(|rest| rest.strip_suffix(&suffix))
+        .unwrap_or_else(|| panic!("unexpected app parseable line: {}", parseable_lines[0]));
+    assert_eq!(
+        dunce::canonicalize(app_reported).expect("canonicalize app reported path"),
+        app_hello,
     );
-    assert!(
-        parseable_lines[1].starts_with("lib@1.0.0 > ")
-            && parseable_lines[1].contains(&lib_hello.to_string_lossy().into_owned()),
-        "lib line should reference lib's node_modules path: {}",
-        parseable_lines[1],
+    let lib_reported = parseable_lines[1]
+        .strip_prefix("lib@1.0.0 > ")
+        .and_then(|rest| rest.strip_suffix(&suffix))
+        .unwrap_or_else(|| panic!("unexpected lib parseable line: {}", parseable_lines[1]));
+    assert_eq!(
+        dunce::canonicalize(lib_reported).expect("canonicalize lib reported path"),
+        lib_hello,
     );
 
     let json = pacquet(&workspace, ["why", "--json", "--long", PKG])
