@@ -21,11 +21,13 @@ const ABANDONED_AFTER: Duration = Duration::from_hours(2);
 /// one modules directory, so that two installs replacing the same
 /// directories at once take turns instead of undoing each other's work.
 ///
-/// Taken on the first forced import of a private target, including into
-/// an absent one, and held until [`Self::release`]: one acquisition per
-/// linking phase, however many packages it imports, and none for an
-/// isolated install that forces nothing. The workers of one install
-/// share the held lock. The linking phase releases it before any
+/// Taken when a private import replaces or repairs a directory — on any
+/// forced import, when an incomplete directory is rebuilt, or when a
+/// lock-free rename into an absent target meets a directory another
+/// install placed first — and held until [`Self::release`]: at most one
+/// acquisition per linking phase, however many packages it imports, and
+/// none for an uncontended cold isolated install. The workers of one
+/// install share the held lock. The linking phase releases it before any
 /// lifecycle script runs, so an install a script starts in the same
 /// project does not wait on its parent. An install that cannot take it,
 /// because the per-user lock root is unusable or the wait ran out,

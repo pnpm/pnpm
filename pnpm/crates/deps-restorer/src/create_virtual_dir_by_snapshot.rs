@@ -402,7 +402,7 @@ fn slot_import_opts<'a>(
     // A mutable source that is currently missing must never be forced, even by
     // interrupted_build or force_import — see SlotImportSource::source_exists.
     if source_is_mutable && !source_exists {
-        return ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() };
+        return ImportIndexedDirOpts { safe_to_skip, swap_lock, ..ImportIndexedDirOpts::default() };
     }
     if interrupted_build || source_is_mutable || force_import {
         return ImportIndexedDirOpts {
@@ -414,7 +414,7 @@ fn slot_import_opts<'a>(
             swap_lock,
         };
     }
-    ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
+    ImportIndexedDirOpts { safe_to_skip, swap_lock, ..ImportIndexedDirOpts::default() }
 }
 
 /// Unlink every child but the package's own `node_modules/<self>` directory.

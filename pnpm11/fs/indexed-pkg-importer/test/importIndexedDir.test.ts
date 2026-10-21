@@ -7,6 +7,7 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { tempDir } from '@pnpm/prepare'
 
 import { importIndexedDir } from '../src/importIndexedDir.js'
+import { overwriteDirSync } from '../src/overwriteDir.js'
 
 test('importIndexedDir() keepModulesDir merges node_modules', async () => {
   const tmp = tempDir()
@@ -492,4 +493,141 @@ testOnPosix('importIndexedDir() safeToSkip does not follow a stale symlink on th
   expect(fs.lstatSync(path.join(newDir, 'bin')).isDirectory()).toBe(true)
   expect(fs.readlinkSync(path.join(newDir, 'bin/tool'))).toBe('../package.json')
   expect(fs.readdirSync(outside)).toStrictEqual([])
+})
+
+test('importIndexedDir() swaps an occupied target aside when rename onto an existing directory throws EPERM', () => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(src, { recursive: true })
+  fs.writeFileSync(path.join(src, 'package.json'), '{"name":"pkg"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (newPath === newDir && fs.existsSync(newDir)) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    importIndexedDir(
+      { importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync },
+      newDir,
+      new Map([['package.json', path.join(src, 'package.json')]]),
+      { keepModulesDir: true }
+    )
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
+test('overwriteDirSync() stages cross-device copies into a sibling directory before swapping', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === stage && newPath === newDir) {
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.existsSync(stage)).toBe(false)
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+})
+
+test('overwriteDirSync() falls back to removing newDir when renaming it aside throws EPERM', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if ((newPath === newDir && fs.existsSync(newDir)) || oldPath === newDir) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    overwriteDirSync(stage, newDir)
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"fresh"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
+})
+
+test('overwriteDirSync() restores the backed-up target when both moving newDir aside and renaming stage fail', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === stage || oldPath === newDir) {
+      throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+    }
+    realRenameSync(oldPath, newPath)
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EPERM')
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"old"}')
+})
+
+test('overwriteDirSync() keeps the displaced directory on disk if both swap and restore renames fail', () => {
+  const tmp = tempDir()
+  const stage = path.join(tmp, 'stage')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(stage, { recursive: true })
+  fs.writeFileSync(path.join(stage, 'package.json'), '{"name":"fresh"}')
+  fs.mkdirSync(newDir, { recursive: true })
+  fs.writeFileSync(path.join(newDir, 'package.json'), '{"name":"old"}')
+
+  let movedAsidePath: string | undefined
+  const realRenameSync = fs.renameSync.bind(fs)
+  const renameSpy = jest.spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+    if (oldPath === newDir) {
+      movedAsidePath = String(newPath)
+      realRenameSync(oldPath, newPath)
+      return
+    }
+    throw Object.assign(new Error('EPERM: operation not permitted, rename'), { code: 'EPERM' })
+  })
+  try {
+    expect(() => overwriteDirSync(stage, newDir)).toThrow('EPERM')
+  } finally {
+    renameSpy.mockRestore()
+  }
+
+  expect(movedAsidePath).toBeDefined()
+  expect(fs.readFileSync(path.join(movedAsidePath!, 'package.json'), 'utf8')).toBe('{"name":"old"}')
 })

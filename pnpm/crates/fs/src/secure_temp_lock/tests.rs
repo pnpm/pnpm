@@ -1,6 +1,6 @@
 use super::{
     android_user_lock_root, open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir,
-    xdg_runtime_dir,
+    validate_unix_file, xdg_runtime_dir,
 };
 
 #[test]
@@ -108,6 +108,17 @@ fn refuses_a_hardlinked_lock_file() {
     let link = root.path().join("lock");
     std::fs::hard_link(target, &link).unwrap();
     assert!(open_secure_lock_file(&link).is_err());
+}
+
+#[cfg(unix)]
+#[test]
+fn reports_an_unlinked_lock_file_for_retry() {
+    let root = tempfile::tempdir().unwrap();
+    let lock = root.path().join("lock");
+    let file = open_secure_lock_file(&lock).unwrap();
+    validate_unix_file(&file).unwrap();
+    std::fs::remove_file(&lock).unwrap();
+    assert_eq!(validate_unix_file(&file).unwrap_err().kind(), std::io::ErrorKind::NotFound);
 }
 
 #[cfg(not(target_os = "android"))]
