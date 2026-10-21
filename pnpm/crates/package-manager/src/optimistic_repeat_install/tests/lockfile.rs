@@ -760,6 +760,18 @@ fn install_and_run_refuse_missing_branch_lockfile_even_when_current_lockfile_exi
             install_args: Vec::new(),
         },
     );
+
+    let mut no_lockfile_branch_config = branch_config.clone();
+    no_lockfile_branch_config.lockfile = false;
+    let no_lockfile_branch_config = no_lockfile_branch_config.leak();
+    assert_eq!(
+        content_check_decision(&dir, no_lockfile_branch_config, false, &project_manifests),
+        Decision::UpToDate,
+    );
+    assert_eq!(
+        super::workspace_deps_status(&dir, no_lockfile_branch_config, &project_manifests),
+        RunDepsStatus::UpToDate,
+    );
 }
 /// On a sub-second filesystem the lockfile freshness check uses
 /// whole-millisecond precision so the unchanged lockfile is never flagged

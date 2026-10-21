@@ -567,6 +567,19 @@ describe('checkDepsStatus with recorded validations', () => {
       pnpmfile: [],
       configDependencies: CONFIG_DEPENDENCIES,
     })).toMatchObject({ upToDate: true })
+
+    const refreshed = loadWorkspaceState(lockfileDir)!
+    expect(refreshed.configDependencies).toStrictEqual(CONFIG_DEPENDENCIES)
+    expect(refreshed.projects[projectDir as ProjectRootDir]).toMatchObject({ name: 'app', version: '1.0.0' })
+    expect(refreshed.validation?.manifests?.app).toBeDefined()
+    expect(await checkDepsStatus({
+      ...SETTINGS,
+      lockfileDir,
+      rootProjectManifestDir: projectDir,
+      rootProjectManifest: manifest,
+      pnpmfile: [],
+      configDependencies: CONFIG_DEPENDENCIES,
+    })).toMatchObject({ upToDate: true })
   })
 })
 

@@ -290,6 +290,23 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
     };
     assert!(install_already_up_to_date(&check).is_err(), "modified manifest must fall through");
 }
+
+#[test]
+fn gvs_build_markers_complete_refuses_missing_wanted_lockfile() {
+    let dir = tempdir().unwrap();
+    let mut config = Config::new();
+    config.enable_global_virtual_store = true;
+    config.dangerously_allow_all_builds = true;
+    assert_eq!(
+        crate::install::run::gvs_build_markers_complete(
+            &config,
+            MaybeLazyLockfile::Loaded(None),
+            dir.path(),
+            None,
+        ),
+        Err("the wanted lockfile cannot be read to look for global virtual store build markers"),
+    );
+}
 /// `add` / `remove` mutate the manifest in memory and persist it only
 /// after `Install::run` returns, so the on-disk mtimes the optimistic
 /// check reads still describe the pre-mutation project. A partial

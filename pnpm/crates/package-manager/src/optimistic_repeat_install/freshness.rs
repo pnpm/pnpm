@@ -274,7 +274,8 @@ fn check_lockfile_inputs_freshness(
         is_workspace_install,
         ..
     } = check;
-    if config.use_git_branch_lockfile
+    if config.lockfile
+        && config.use_git_branch_lockfile
         && !workspace_root.join(config.wanted_lockfile_name()).exists()
     {
         return Err(Stale::MissingBranchLockfile);

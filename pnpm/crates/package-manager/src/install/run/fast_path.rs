@@ -149,18 +149,17 @@ pub(in crate::install) fn gvs_build_markers_complete(
     if !gvs_build_markers_may_require_recovery(config) {
         return Ok(());
     }
-    match lockfile.get() {
-        Ok(Some(wanted)) => {
-            if gvs_build_marker_present(wanted, config, lockfile_root, effective_node_version) {
-                return Err("a global virtual store build marker needs recovery");
-            }
-            Ok(())
-        }
-        Ok(None) => Ok(()),
-        Err(_) => {
-            Err("the wanted lockfile cannot be read to look for global virtual store build markers")
-        }
+    let wanted = lockfile
+        .get()
+        .ok()
+        .flatten()
+        .ok_or(
+            "the wanted lockfile cannot be read to look for global virtual store build markers",
+        )?;
+    if gvs_build_marker_present(wanted, config, lockfile_root, effective_node_version) {
+        return Err("a global virtual store build marker needs recovery");
     }
+    Ok(())
 }
 
 /// Whether `strictDepBuilds` allows the fast path to stand.
