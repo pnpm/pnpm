@@ -90,6 +90,7 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - '.config/pnpm/security.yaml'
+              - '.config/pnpm/catalog.yaml'
               - '.config/pnpm/routine.yaml'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'

@@ -29,6 +29,7 @@ on:
       - 'package.json'
       - 'pnpm-workspace.yaml'
       - '.config/pnpm/security.yaml'
+      - '.config/pnpm/catalog.yaml'
       - '.config/pnpm/routine.yaml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/benchmark.yml'

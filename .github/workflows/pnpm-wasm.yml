@@ -18,6 +18,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.config/pnpm/security.yaml'
+      - '.config/pnpm/catalog.yaml'
       - '.config/pnpm/routine.yaml'
       - '.github/workflows/pnpm-wasm.yml'
       - '.github/workflows/release.yml'

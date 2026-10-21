@@ -81,8 +81,9 @@ include:
     - trustPolicyExclude
     - trustPolicyExcludePrune
     - trustPolicyIgnoreAfter
+  ./.config/pnpm/catalog.yaml:
+    - catalogs
   ./.config/pnpm/routine.yaml:
-    - catalog
     - concurrencyGroups
     - pipelines
     - tasks
