@@ -1,4 +1,6 @@
-use pnpm_lockfile::{Lockfile, extract_env_document, extract_main_document};
+use pnpm_lockfile::{
+    Lockfile, extract_env_document, extract_main_document, normalize_lockfile_content,
+};
 
 /// Whether the rewritten lockfile `next_text` is `previous` with only the
 /// `deprecated` notices of its packages replaced by those of `next`. The
@@ -20,11 +22,13 @@ pub(super) fn differs_only_in_deprecations(
             .is_some_and(|patched| is_serialized_as(&patched, next_text))
 }
 
-/// Whether `text` holds `lockfile` exactly as pnpm writes it.
+/// Whether `text` holds `lockfile` exactly as pnpm writes it, with no byte
+/// order mark or CRLF line endings for the extraction to normalize away.
 fn is_serialized_as(lockfile: &Lockfile, text: &str) -> bool {
-    lockfile
-        .to_yaml_string()
-        .is_ok_and(|yaml| yaml == extract_main_document(text))
+    *normalize_lockfile_content(text) == *text
+        && lockfile
+            .to_yaml_string()
+            .is_ok_and(|yaml| yaml == extract_main_document(text))
 }
 
 /// `lockfile` with each package's `deprecated` notice taken from `source`,
@@ -39,3 +43,6 @@ fn with_deprecations_of(lockfile: &Lockfile, source: &Lockfile) -> Option<Lockfi
     }
     Some(lockfile)
 }
+
+#[cfg(test)]
+mod tests;
