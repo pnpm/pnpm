@@ -135,8 +135,14 @@ jobs:
               - 'pnpm/crates/cli/src/config_overrides/**'
               - 'pnpm/crates/cli/src/cli_args/workspace_state*'
               - 'pnpm/crates/workspace-state/**'
+              - 'pnpm/crates/cli/tests/suite/_utils/**'
               - 'pnpm/crates/cli/tests/suite/peer_convergence.rs'
+              - 'pnpm/crates/cli/tests/suite/peer_convergence/**'
               - 'pnpm/crates/cli/tests/suite/repeat_install_oracle.rs'
+              - 'pnpm/crates/cli/tests/suite/pnpm_compatibility.rs'
+              - 'pnpm/crates/cli/tests/suite/injected_freshness_matrix.rs'
+              - 'pnpm/crates/cli/tests/suite/version.rs'
+              - 'pnpm/crates/testing-utils/**'
               - 'pnpm/crates/config/**'
               - 'pnpm11/deps/status/**'
               - 'pnpm11/exec/commands/**'
@@ -148,6 +154,7 @@ jobs:
               - 'pnpm11/releasing/commands/src/deploy/**'
               - 'pnpm11/workspace/state/**'
               - 'pnpr/.fixtures/**'
+              - '.config/nextest.toml'
               - '.github/workflows/pacquet-ci.yml'
 
   change-check:
@@ -448,7 +455,7 @@ jobs:
           unset PNPM_HOME
           unset XDG_DATA_HOME
           PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
-            pnpm test:rust -p pnpm-cli -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/)'
+            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
 
   clippy:
     name: Rust CI / Clippy / ${{ matrix.os_label }}

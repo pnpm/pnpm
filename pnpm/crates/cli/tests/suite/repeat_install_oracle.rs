@@ -87,11 +87,13 @@ struct Scenario {
 }
 
 /// What an install leaves behind that a user can observe: where every
-/// dependency resolves from each project, and every lockfile.
+/// dependency resolves from each project, every lockfile, and every
+/// `.modules.yaml` manifest.
 #[derive(Debug, PartialEq, Eq)]
 struct Snapshot {
     tree: BTreeMap<String, String>,
     lockfiles: BTreeMap<String, String>,
+    modules: BTreeMap<String, pnpm_modules_yaml::Modules>,
 }
 
 /// What a lockfile records for one project: its importer entry, and for a
@@ -135,14 +137,10 @@ impl Scenario {
         Args: IntoIterator<Item = Arg>,
         Arg: AsRef<OsStr>,
     {
-        let command = if let Some(bundle) = v11_bundle {
-            let mut cmd = Command::new("node");
-            cmd.arg(bundle).arg("--config.confirm-modules-purge=false");
-            cmd
-        } else {
-            pacquet_in(cwd)
-        };
-        command
+        if let Some(bundle) = v11_bundle {
+            return self.fixture.v11_command_at(bundle, cwd, args);
+        }
+        pacquet_in(cwd)
             .without_ambient_pnpm_config()
             .current_dir(cwd)
             .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
@@ -257,12 +255,7 @@ impl Scenario {
     /// Run `node -e ""` through `exec` for `selection` under
     /// `verifyDepsBeforeRun: action`, returning whether the command ran.
     fn exec(&self, selection: &[&str], action: &str) -> bool {
-        let mut args = vec![format!("--config.verify-deps-before-run={action}")];
-        for project in selection {
-            args.push("--filter".to_string());
-            args.push((*project).to_string());
-        }
-        args.extend(["exec", "node", "-e", ""].map(str::to_string));
+        let args = exec_args(selection, action);
         let check_output = |output: Output| {
             let stderr = String::from_utf8_lossy(&output.stderr);
             assert!(
@@ -353,8 +346,7 @@ impl Scenario {
     /// Where every dependency of `projects` resolves from in the tree under
     /// `workspace`. Dev dependencies count only when `with_dev` is set.
     fn tree(workspace: &Path, projects: &[&str], with_dev: bool) -> BTreeMap<String, String> {
-        let root = fs::canonicalize(workspace).expect("canonicalize workspace");
-        let mut resolver = TreeView { root, memo: HashMap::new() };
+        let mut resolver = TreeView::new(workspace);
         projects
             .iter()
             .map(|project| {
@@ -364,26 +356,11 @@ impl Scenario {
             .collect()
     }
 
-    /// Every lockfile under `workspace`, the current ones included.
-    fn lockfiles(workspace: &Path) -> BTreeMap<String, String> {
-        walk_files(workspace)
-            .into_iter()
-            .filter(|path| {
-                path.file_name()
-                    .is_some_and(|name| name == "pnpm-lock.yaml" || name == "lock.yaml")
-            })
-            .map(|path| {
-                let relative = path.strip_prefix(workspace).expect("under the workspace");
-                let text = fs::read_to_string(&path).expect("read a lockfile");
-                (relative.to_string_lossy().replace('\\', "/"), text)
-            })
-            .collect()
-    }
-
     fn snapshot(&self) -> Snapshot {
         Snapshot {
             tree: Self::tree(self.workspace(), &PROJECTS, true),
-            lockfiles: Self::lockfiles(self.workspace()),
+            lockfiles: workspace_lockfiles(self.workspace()),
+            modules: workspace_modules_manifests(self.workspace()),
         }
     }
 
@@ -491,6 +468,13 @@ impl Scenario {
         let before = self.snapshot();
         let offered = self.offers_next_install_fast_path();
         if self.install(&[]) {
+            assert_eq!(
+                self.snapshot(),
+                before,
+                "{:?} ({:?}): the install fast path modified the snapshot",
+                self.layout,
+                self.driver,
+            );
             assert!(!self.install(&["--config.optimistic-repeat-install=false"]));
             assert_eq!(
                 self.snapshot(),
@@ -508,19 +492,69 @@ impl Scenario {
                 self.driver,
             );
         }
+        let settled = self.snapshot();
+        let raw_modules_before_repeat = workspace_raw_modules_manifests(self.workspace());
+        let repeat_offered = self.offers_next_install_fast_path();
         assert!(
             self.install_takes_fast_path(&[]),
             "{:?} ({:?}): a repeat install must take the fast path",
             self.layout,
             self.driver,
         );
+        assert_eq!(
+            self.snapshot(),
+            settled,
+            "{:?} ({:?}): a repeat install must be byte-identical",
+            self.layout,
+            self.driver,
+        );
+        if repeat_offered {
+            assert_eq!(
+                workspace_raw_modules_manifests(self.workspace()),
+                raw_modules_before_repeat,
+                "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
+                self.layout,
+                self.driver,
+            );
+        }
         if matches!(self.driver, Driver::Mixed { .. }) {
+            let raw_modules_before_cross = workspace_raw_modules_manifests(self.workspace());
+            let cross_repeat_offered = self.offers_next_install_fast_path();
             assert!(
                 self.install_takes_fast_path(&[]),
                 "{:?} ({:?}): a cross-CLI repeat install must take the fast path",
                 self.layout,
                 self.driver,
             );
+            assert_eq!(
+                self.snapshot(),
+                settled,
+                "{:?} ({:?}): a cross-CLI repeat install must be byte-identical",
+                self.layout,
+                self.driver,
+            );
+            if cross_repeat_offered {
+                assert_eq!(
+                    workspace_raw_modules_manifests(self.workspace()),
+                    raw_modules_before_cross,
+                    "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
+                    self.layout,
+                    self.driver,
+                );
+            }
+        }
+        let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
+        assert_success(&frozen);
+        assert_eq!(
+            self.snapshot(),
+            settled,
+            "{:?} ({:?}): a frozen install must accept and preserve the converged snapshot",
+            self.layout,
+            self.driver,
+        );
+        if self.layout.shared_lockfile {
+            let dedupe = self.command_at(self.workspace(), ["dedupe", "--check"]);
+            assert_success(&dedupe);
         }
     }
 
@@ -548,7 +582,7 @@ impl Scenario {
     }
 
     /// `exec` under the `install` action, then the properties that action
-    /// promises: the command ran, and the gate passes next time.
+    /// promises: the command ran, and the gate is quiet on the next run.
     #[track_caller]
     fn exec_installing(&self, selection: &[&str]) {
         assert!(self.exec(selection, "install"), "the gated command must run");
@@ -557,95 +591,31 @@ impl Scenario {
             "{:?}: the install the gate spawned for {selection:?} must satisfy the gate",
             self.layout,
         );
-    }
-}
-
-/// Resolves dependencies through `node_modules` the way Node.js does, from
-/// each package's real path, and spells the result without absolute paths.
-struct TreeView {
-    root: PathBuf,
-    memo: HashMap<PathBuf, String>,
-}
-
-impl TreeView {
-    fn project(&mut self, project_dir: &Path, with_dev: bool) -> String {
-        let manifest = read_manifest(project_dir);
-        let groups: &[&str] = if with_dev {
-            &["dependencies", "optionalDependencies", "devDependencies"]
-        } else {
-            &["dependencies", "optionalDependencies"]
-        };
-        let dependencies = declared(&manifest, groups);
-        self.dependencies(project_dir, &dependencies)
-    }
-
-    fn dependencies(&mut self, from: &Path, names: &[String]) -> String {
-        let resolved = names
-            .iter()
-            .map(|name| {
-                let target = resolve(from, name)
-                    .map_or_else(|| "<missing>".to_string(), |dir| self.package(&dir));
-                format!("{name}={target}")
-            })
-            .collect::<Vec<_>>();
-        format!("{{{}}}", resolved.join(","))
-    }
-
-    fn package(&mut self, dir: &Path) -> String {
-        let real = fs::canonicalize(dir).expect("canonicalize a resolved dependency");
-        if let Some(seen) = self.memo.get(&real) {
-            return seen.clone();
+        let repeat_count = if matches!(&self.driver, Driver::Mixed { .. }) { 2 } else { 1 };
+        for _ in 0..repeat_count {
+            let repeat = self.command_at(self.workspace(), exec_args(selection, "install"));
+            assert_success(&repeat);
+            let records = ndjson_records(&repeat);
+            assert!(
+                !records
+                    .iter()
+                    .any(|record| record["name"] == "pnpm:stage"),
+                "{:?} ({:?}): the run gate for {selection:?} must be quiet after the install it spawned",
+                self.layout,
+                self.driver,
+            );
         }
-        self.memo.insert(real.clone(), "<cycle>".to_string());
-        let manifest = read_manifest(&real);
-        let label = match real.strip_prefix(&self.root) {
-            Ok(relative)
-                if !relative
-                    .components()
-                    .any(|part| part.as_os_str() == "node_modules") =>
-            {
-                format!("workspace:{}", relative.to_string_lossy().replace('\\', "/"))
-            }
-            _ => format!(
-                "{}@{}",
-                manifest["name"].as_str().unwrap_or_default(),
-                manifest["version"].as_str().unwrap_or_default(),
-            ),
-        };
-        let dependencies = declared(&manifest, &["dependencies", "optionalDependencies"]);
-        let described = format!("{label}{}", self.dependencies(&real, &dependencies));
-        self.memo.insert(real, described.clone());
-        described
     }
 }
 
-fn read_manifest(dir: &Path) -> Value {
-    fs::read_to_string(dir.join("package.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or(Value::Null)
-}
-
-fn declared(manifest: &Value, groups: &[&str]) -> Vec<String> {
-    let mut names = groups
-        .iter()
-        .filter_map(|group| manifest[*group].as_object())
-        .flat_map(|deps| deps.keys().cloned())
-        .collect::<Vec<_>>();
-    names.sort();
-    names.dedup();
-    names
-}
-
-/// Node.js's lookup of `name` from a package at `from`.
-fn resolve(from: &Path, name: &str) -> Option<PathBuf> {
-    from.ancestors()
-        .filter(|dir| {
-            dir.file_name()
-                .is_none_or(|base| base != "node_modules")
-        })
-        .map(|dir| dir.join("node_modules").join(name))
-        .find(|candidate| candidate.join("package.json").is_file())
+fn exec_args(selection: &[&str], action: &str) -> Vec<String> {
+    let mut args = vec![format!("--config.verify-deps-before-run={action}")];
+    for project in selection {
+        args.push("--filter".to_string());
+        args.push((*project).to_string());
+    }
+    args.extend(["exec", "node", "-e", ""].map(str::to_string));
+    args
 }
 
 /// Overwrite `path` with `contents`, keeping the mtime it had: what `cp -p`,
