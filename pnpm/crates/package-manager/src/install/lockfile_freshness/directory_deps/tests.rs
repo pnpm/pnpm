@@ -297,7 +297,7 @@ fn check_directory_dep_in_scope(
     };
     let mut visited = super::scope::Visited::new(check.lockfile);
     let pkg_key: pnpm_lockfile::PackageKey = "lib@file:lib".parse().expect("parse the package key");
-    super::check_single_directory_dep_freshness(
+    super::package::check_single_directory_dep_freshness(
         &check,
         &super::scope::importer_aliases(&importer),
         &dep,
