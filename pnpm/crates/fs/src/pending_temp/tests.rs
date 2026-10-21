@@ -74,3 +74,39 @@ fn slot_released_during_a_walk_stays_usable() {
     assert!(first.exists(), "released slot must not be unlinked: {first:?}");
     assert!(!second.exists(), "reused slot must be unlinked: {second:?}");
 }
+
+#[cfg(unix)]
+#[test]
+fn die_from_signal_does_not_dump_core() {
+    let _lock = LOCK.lock().expect("registry test lock");
+    let dir = tempfile::tempdir().expect("tempdir");
+    let temp = dir.path().join(".pnpm-lock.yaml.123.2.tmp");
+    fs::write(&temp, "partial lockfile").expect("stage temp file");
+    let _guard = track_temp_file(&temp);
+
+    // SAFETY: the child runs only async-signal-safe syscalls and
+    // `die_from_signal`, which never returns to unwind the test process.
+    let status = unsafe {
+        let pid = libc::fork();
+        assert!(pid >= 0, "fork failed: {}", std::io::Error::last_os_error());
+        if pid == 0 {
+            let mut limit: libc::rlimit = std::mem::zeroed();
+            if libc::getrlimit(libc::RLIMIT_CORE, &raw mut limit) == 0 {
+                limit.rlim_cur = limit.rlim_max;
+                libc::setrlimit(libc::RLIMIT_CORE, &raw const limit);
+            }
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0);
+            super::die_from_signal(libc::SIGABRT);
+        }
+        let mut status: libc::c_int = 0;
+        let waited = libc::waitpid(pid, &raw mut status, 0);
+        assert_eq!(waited, pid);
+        status
+    };
+
+    assert!(!temp.exists(), "die_from_signal must unlink pending temp files: {temp:?}");
+    assert!(libc::WIFSIGNALED(status), "process should die by signal: {status:#x}");
+    assert_eq!(libc::WTERMSIG(status), libc::SIGABRT);
+    assert!(!libc::WCOREDUMP(status), "die_from_signal must not dump core: {status:#x}");
+}
