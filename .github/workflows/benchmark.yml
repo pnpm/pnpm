@@ -29,6 +29,7 @@ on:
       - 'package.json'
       - 'pnpm-workspace.yaml'
       - '.config/pnpm/policies.yaml'
+      - '__patches__/patches.yaml'
       - '.config/pnpm/catalog.yaml'
       - '.config/pnpm/tasks.yaml'
       - 'pnpm-lock.yaml'

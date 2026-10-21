@@ -74,13 +74,14 @@ include:
     - minimumReleaseAgeExcludePrune
     - overrides
     - packageExtensions
-    - patchedDependencies
-    - patchesDir
     - registries
     - trustPolicy
     - trustPolicyExclude
     - trustPolicyExcludePrune
     - trustPolicyIgnoreAfter
+  ./__patches__/patches.yaml:
+    - patchedDependencies
+    - patchesDir
   ./.config/pnpm/catalog.yaml:
     - catalogMode
     - catalogPrune
