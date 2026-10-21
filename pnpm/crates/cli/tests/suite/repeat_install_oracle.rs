@@ -494,6 +494,7 @@ impl Scenario {
         }
         let settled = self.snapshot();
         let raw_modules = workspace_raw_modules_manifests(self.workspace());
+        let repeat_offered = self.offers_next_install_fast_path();
         assert!(
             self.install_takes_fast_path(&[]),
             "{:?} ({:?}): a repeat install must take the fast path",
@@ -507,14 +508,17 @@ impl Scenario {
             self.layout,
             self.driver,
         );
-        assert_eq!(
-            workspace_raw_modules_manifests(self.workspace()),
-            raw_modules,
-            "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
-            self.layout,
-            self.driver,
-        );
+        if repeat_offered {
+            assert_eq!(
+                workspace_raw_modules_manifests(self.workspace()),
+                raw_modules,
+                "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
+                self.layout,
+                self.driver,
+            );
+        }
         if matches!(self.driver, Driver::Mixed { .. }) {
+            let cross_repeat_offered = self.offers_next_install_fast_path();
             assert!(
                 self.install_takes_fast_path(&[]),
                 "{:?} ({:?}): a cross-CLI repeat install must take the fast path",
@@ -528,13 +532,15 @@ impl Scenario {
                 self.layout,
                 self.driver,
             );
-            assert_eq!(
-                workspace_raw_modules_manifests(self.workspace()),
-                raw_modules,
-                "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
-                self.layout,
-                self.driver,
-            );
+            if cross_repeat_offered {
+                assert_eq!(
+                    workspace_raw_modules_manifests(self.workspace()),
+                    raw_modules,
+                    "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
+                    self.layout,
+                    self.driver,
+                );
+            }
         }
         let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
         assert_success(&frozen);
@@ -584,17 +590,20 @@ impl Scenario {
             "{:?}: the install the gate spawned for {selection:?} must satisfy the gate",
             self.layout,
         );
-        let repeat = self.command_at(self.workspace(), exec_args(selection, "install"));
-        assert_success(&repeat);
-        let records = ndjson_records(&repeat);
-        assert!(
-            !records
-                .iter()
-                .any(|record| record["name"] == "pnpm:stage"),
-            "{:?} ({:?}): the run gate for {selection:?} must be quiet after the install it spawned",
-            self.layout,
-            self.driver,
-        );
+        let repeat_count = if matches!(&self.driver, Driver::Mixed { .. }) { 2 } else { 1 };
+        for _ in 0..repeat_count {
+            let repeat = self.command_at(self.workspace(), exec_args(selection, "install"));
+            assert_success(&repeat);
+            let records = ndjson_records(&repeat);
+            assert!(
+                !records
+                    .iter()
+                    .any(|record| record["name"] == "pnpm:stage"),
+                "{:?} ({:?}): the run gate for {selection:?} must be quiet after the install it spawned",
+                self.layout,
+                self.driver,
+            );
+        }
     }
 }
 

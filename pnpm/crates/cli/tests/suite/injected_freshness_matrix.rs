@@ -99,8 +99,11 @@ impl Scenario {
         fs::write(
             self.workspace().join("pnpm-workspace.yaml"),
             format!(
-                "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {}\n\
+                "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n\
+                 packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {}\n\
                  injectWorkspacePackages: {}\ncatalog:\n  '@pnpm.e2e/bar': '{bar_catalog_entry}'\n",
+                self.fixture.registry.store_dir.display(),
+                self.fixture.registry.cache_dir.display(),
                 self.layout.shared_lockfile,
                 matches!(self.layout.injection, Injection::InjectWorkspacePackages),
             ),

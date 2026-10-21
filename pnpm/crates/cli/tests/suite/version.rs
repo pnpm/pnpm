@@ -820,7 +820,9 @@ fn assert_version_switch_case(
         None => pacquet_in(&workspace),
     };
     let mut cmd = test_command(base_cmd, &case_dir);
-    if !case.registry_from_user_npmrc {
+    if case.registry_from_user_npmrc {
+        cmd.env("PNPM_CONFIG_NPMRC_AUTH_FILE", case_dir.join(".npmrc"));
+    } else {
         cmd.env("PNPM_CONFIG_REGISTRY", registry_url);
     }
     cmd.env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")

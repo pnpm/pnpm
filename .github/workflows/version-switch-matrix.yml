@@ -79,6 +79,9 @@ jobs:
           pnpm --filter pnpm run bundle
 
       - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12, HEAD)
+        # zizmor: ignore[adhoc-packages] -- This matrix intentionally installs
+        # the latest published pnpm 11 and 12 dist-tags to test cross-version
+        # switching.
         shell: bash
         run: |
           set -euo pipefail
