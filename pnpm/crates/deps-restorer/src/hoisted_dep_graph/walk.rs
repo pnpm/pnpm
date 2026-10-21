@@ -283,8 +283,10 @@ fn record_injected_location(
             .push(dir.to_path_buf());
     }
 }
-/// Mutable directory dependencies and patches need a fresh copy. Other packages must match
-/// both the previous recorded location and the on-disk manifest version, and retain their resolution.
+/// Mutable directory dependencies need a fresh copy. Other packages must match both the previous
+/// recorded location and the on-disk manifest version, and retain their resolution. A patched
+/// package is no exception: `reference` carries its `patch_hash`, so a changed patch is recorded
+/// under another key.
 pub(super) fn package_is_reusable(
     state: &WalkState<'_>,
     resolved: &ResolvedReference<'_>,
@@ -298,7 +300,6 @@ pub(super) fn package_is_reusable(
         .unwrap_or_else(|| resolved.pkg_key.suffix.version().to_string());
     !state.opts.force
         && !matches!(resolved.metadata.resolution, LockfileResolution::Directory(_))
-        && !reference.contains("(patch_hash=")
         && state.opts.current_hoisted_locations.is_some_and(|locations| {
             locations
                 .get(reference)
