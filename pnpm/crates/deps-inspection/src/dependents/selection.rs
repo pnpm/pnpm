@@ -203,8 +203,9 @@ fn merge_dependent_nodes(target: &mut Vec<DependentNode>, source: Vec<DependentN
             })
             .then_with(|| {
                 a.dep_field
-                    .map_or("", DepField::as_str)
-                    .cmp(b.dep_field.map_or("", DepField::as_str))
+                    .map(DepField::as_str)
+                    .unwrap_or("")
+                    .cmp(b.dep_field.map(DepField::as_str).unwrap_or(""))
             })
             .then_with(|| {
                 a.importer_id

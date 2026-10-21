@@ -391,7 +391,8 @@ fn importer_node(ctx: &WalkCtx<'_>, importer_id: &str, edge: &ReverseEdge) -> De
 
 fn importer_identity(lockfile_dir: &std::path::Path, importer_id: &str) -> String {
     crate::build::safe_importer_dir(lockfile_dir, importer_id)
-        .map_or_else(|| importer_id.to_string(), |dir| dir.to_string_lossy().into_owned())
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .unwrap_or_else(|| importer_id.to_string())
 }
 
 fn resolve_parent_name(ctx: &WalkCtx<'_>, parent: &TreeNodeId) -> String {
