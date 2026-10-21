@@ -226,7 +226,7 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
         workspace,
         npmrc_info,
         ..
-    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    } = CommandTempCwd::init().add_recording_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     mock_instance.remove_version_field("@pnpm.e2e/deprecated", "1.0.0", "deprecated");
     fs::write(
@@ -244,9 +244,11 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
+    let _ = mock_instance.take_requests();
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("{lockfile}");
     assert!(!lockfile.contains("deprecated: This package is deprecated."));
     add_registry_deprecation(
         &root.path().join("registry-storage"),
@@ -259,7 +261,17 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
         .assert()
         .success();
 
+    let dedupe_requests = mock_instance.take_requests();
+    dbg!(&dedupe_requests);
+    assert!(
+        dedupe_requests
+            .iter()
+            .any(|request| {
+                request.if_none_match.is_some() || request.if_modified_since.is_some()
+            }),
+    );
     let deduped_lockfile = fs::read_to_string(&lockfile_path).expect("read deduped lockfile");
+    eprintln!("{deduped_lockfile}");
     assert!(deduped_lockfile.contains("deprecated: This package is deprecated."));
     drop((root, mock_instance));
 }

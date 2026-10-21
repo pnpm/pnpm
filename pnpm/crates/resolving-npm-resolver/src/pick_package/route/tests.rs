@@ -234,16 +234,63 @@ fn an_unvalidated_mirror_is_fresh_within_its_max_age_either_way() {
 
 #[test]
 fn the_disk_is_read_first_when_the_cache_comes_first_or_the_pick_is_lowest() {
+    struct Case {
+        network: NetworkPolicy,
+        pick_lowest_version: bool,
+        refresh_metadata: bool,
+        disk_first: DiskFirst,
+    }
     let cases = [
-        (NetworkPolicy::Online, false, false, DiskFirst::Never),
-        (NetworkPolicy::Online, true, false, DiskFirst::UnlessUncacheable),
-        (NetworkPolicy::Online, true, true, DiskFirst::Never),
-        (NetworkPolicy::PreferCache, false, false, DiskFirst::Always),
-        (NetworkPolicy::PreferCache, true, false, DiskFirst::Always),
-        (NetworkPolicy::PreferCache, true, true, DiskFirst::Always),
-        (NetworkPolicy::Offline, false, false, DiskFirst::Always),
+        Case {
+            network: NetworkPolicy::Online,
+            pick_lowest_version: false,
+            refresh_metadata: false,
+            disk_first: DiskFirst::Never,
+        },
+        Case {
+            network: NetworkPolicy::Online,
+            pick_lowest_version: true,
+            refresh_metadata: false,
+            disk_first: DiskFirst::UnlessUncacheable,
+        },
+        Case {
+            network: NetworkPolicy::Online,
+            pick_lowest_version: true,
+            refresh_metadata: true,
+            disk_first: DiskFirst::Never,
+        },
+        Case {
+            network: NetworkPolicy::PreferCache,
+            pick_lowest_version: false,
+            refresh_metadata: false,
+            disk_first: DiskFirst::Always,
+        },
+        Case {
+            network: NetworkPolicy::PreferCache,
+            pick_lowest_version: true,
+            refresh_metadata: false,
+            disk_first: DiskFirst::Always,
+        },
+        Case {
+            network: NetworkPolicy::PreferCache,
+            pick_lowest_version: true,
+            refresh_metadata: true,
+            disk_first: DiskFirst::Always,
+        },
+        Case {
+            network: NetworkPolicy::Offline,
+            pick_lowest_version: false,
+            refresh_metadata: false,
+            disk_first: DiskFirst::Always,
+        },
     ];
-    for (network, pick_lowest_version, refresh_metadata, disk_first) in cases {
+    for Case {
+        network,
+        pick_lowest_version,
+        refresh_metadata,
+        disk_first,
+    } in cases
+    {
         assert_eq!(
             DiskFirst::decide(network, pick_lowest_version, refresh_metadata),
             disk_first,
