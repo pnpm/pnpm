@@ -1,5 +1,6 @@
 pub(crate) use lockfile_guard::LockfileGuard;
 
+mod deprecations;
 mod lockfile_guard;
 
 use crate::{
@@ -16,7 +17,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PkgNameVerPeer, extract_env_document};
+use pnpm_lockfile::{Lockfile, PkgNameVerPeer};
 use pnpm_modules_yaml::{Host, read_modules_manifest};
 use pnpm_package_manager::{
     ImporterDiffKey, InstallabilityHost, LockfileDiff, PolicyExcludes, ResolutionObserver,
@@ -123,7 +124,7 @@ pub(crate) fn check_lockfile<Reporter: self::Reporter>(
     }
     let previous = parse_snapshot(existing, lockfile_path);
     let next = parse_snapshot(current.as_deref(), lockfile_path);
-    if differs_only_in_deprecations(
+    if deprecations::differs_only_in_deprecations(
         (existing, previous.as_ref()),
         (current.as_deref(), next.as_ref()),
     ) {
@@ -133,31 +134,6 @@ pub(crate) fn check_lockfile<Reporter: self::Reporter>(
     let diff = diff_lockfiles(previous.as_ref(), next.as_ref(), ImporterDiffKey::Version);
     emit_dedupe_check_error::<Reporter>(&diff);
     Err(DedupeError::CheckIssues.into())
-}
-
-/// Whether two lockfile snapshots, each given as its text and its parsed
-/// main document, differ only in the `deprecated` notices of their packages.
-/// The registry can deprecate a version after it was locked, so a refreshed
-/// notice is not a change for `--check` to fail on.
-fn differs_only_in_deprecations(
-    (previous_text, previous): (Option<&str>, Option<&Lockfile>),
-    (next_text, next): (Option<&str>, Option<&Lockfile>),
-) -> bool {
-    let (Some(previous_text), Some(next_text), Some(previous), Some(next)) =
-        (previous_text, next_text, previous, next)
-    else {
-        return false;
-    };
-    extract_env_document(previous_text) == extract_env_document(next_text)
-        && without_deprecations(previous) == without_deprecations(next)
-}
-
-fn without_deprecations(lockfile: &Lockfile) -> Lockfile {
-    let mut lockfile = lockfile.clone();
-    for metadata in lockfile.packages.iter_mut().flat_map(HashMap::values_mut) {
-        metadata.deprecated = None;
-    }
-    lockfile
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

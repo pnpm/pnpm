@@ -322,7 +322,7 @@ fn dedupe_check_ignores_a_deprecation_the_lockfile_does_not_record() {
     let stale = recorded
         .lines()
         .filter(|line| !line.trim_start().starts_with("deprecated: "))
-        .map(|line| format!("{line}\n"))
+        .flat_map(|line| [line, "\n"])
         .collect::<String>();
     assert_ne!(stale, recorded, "the lockfile must record the deprecation:\n{recorded}");
     fs::write(&lockfile_path, &stale).expect("write the pre-deprecation lockfile");
