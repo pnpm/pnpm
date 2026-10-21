@@ -56,7 +56,7 @@ jobs:
             ts:
               - 'pnpm11/**'
               - '.meta-updater/**'
-              - '__patches__/**'
+              - '.config/pnpm/**'
               - 'package.json'
               - 'pnpm-workspace.yaml'
               - 'pnpm-lock.yaml'

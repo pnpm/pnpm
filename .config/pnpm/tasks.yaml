@@ -1,0 +1,95 @@
+# Every `ci:*` script lives in the root manifest only, so the workflows run
+# these pipelines with `--include-workspace-root --full`; the test runners do
+# their own package selection and file sharding. The workflows also pass
+# `--no-cache`: no task declares `outputs`, so none is cacheable today, and the
+# flag keeps a check from being skipped if one ever does.
+pipelines:
+  ts-check: [ci:compile, ci:lint]
+  # Named after the scripts they run: the test workflow passes one value as both
+  # the pipeline name and the `TEST_SCRIPT` the chunk runner re-runs.
+  ci:test-all: [ci:test-all]
+  ci:test-branch: [ci:test-branch]
+  ts-test-chunk: [ci:test-chunk]
+  rust-test: [ci:rust-test]
+  pnpr-test: [ci:pnpr-test]
+  rust-clippy: [ci:rust-clippy]
+  rust-doc: [ci:rust-doc]
+  rust-deny: [ci:rust-deny]
+  rust-format: [ci:rust-fmt, ci:toml-fmt]
+  rust-dylint: [ci:rust-dylint]
+  build-pnpr: [ci:build-pnpr]
+
+# Every entry names a script the root manifest alone defines. A name a
+# workspace package also defines must not appear here: the entry would drop
+# that task's default `dependsOn: ['^<name>']` ordering, and each project's
+# run of it would take a slot of the group, serializing a recursive run.
+tasks:
+  ci:compile:
+    concurrencyGroup: typescript
+  ci:lint:
+    dependsOn: [ci:compile]
+    concurrencyGroup: typescript
+  ci:test-all:
+    concurrencyGroup: typescript
+  ci:test-branch:
+    concurrencyGroup: typescript
+  ci:test-chunk:
+    concurrencyGroup: typescript
+  test-all:
+    concurrencyGroup: typescript
+  test-branch:
+    concurrencyGroup: typescript
+  test-pkgs-all:
+    concurrencyGroup: typescript
+  test-pkgs-all-report-summary:
+    concurrencyGroup: typescript
+  test-pkgs-branch:
+    concurrencyGroup: typescript
+  build:pnpm:
+    concurrencyGroup: cargo
+  build:pnpm:wasm:
+    concurrencyGroup: cargo
+  build:wasm-runtime-probe:
+    concurrencyGroup: cargo
+  check:rust:
+    concurrencyGroup: cargo
+  fix:rust:
+    concurrencyGroup: cargo
+  lint:rust:
+    concurrencyGroup: cargo
+  pre-push:rust:
+    concurrencyGroup: cargo
+    priority: 10
+  ready:rust:
+    concurrencyGroup: cargo
+  test:rust:
+    concurrencyGroup: cargo
+  test:rust-affected:
+    concurrencyGroup: cargo
+  test:rust-smoke:
+    concurrencyGroup: cargo
+  ci:build-pnpr:
+    concurrencyGroup: cargo
+  ci:pnpr-test:
+    concurrencyGroup: cargo
+  ci:rust-clippy:
+    concurrencyGroup: cargo
+    outputs: []
+    env: [RUSTFLAGS]
+  ci:rust-doc:
+    concurrencyGroup: cargo
+    outputs: []
+    env: [RUSTFLAGS, RUSTDOCFLAGS]
+  ci:rust-dylint:
+    concurrencyGroup: cargo
+  ci:rust-test:
+    concurrencyGroup: cargo
+
+# The repository is checked out into many worktrees at once, and a second
+# Rust build or TypeScript test run on the same machine only takes cores and
+# memory from the first. The TypeScript test scripts also share the
+# `../pnpm_tmp` scratch directory across worktrees, which one of them wipes
+# on startup. A task past the limit waits for a slot instead of starting.
+concurrencyGroups:
+  cargo: 1
+  typescript: 1
