@@ -9,8 +9,8 @@ pub(crate) use gzip::{
 };
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
 pub(crate) use limits::{
-    OversizedManifestError, TarBudget, archive_entry_segments, clean_archive_entry_path,
-    oversized_manifest_error,
+    OversizedManifestError, RejectedEntryPathError, TarBudget, archive_entry_segments,
+    clean_archive_entry_path, oversized_manifest_error,
 };
 pub use manifest::{TarInspection, inspect_tar, read_buffered_tar_entry, tar_requires_build};
 pub(crate) use manifest::{
