@@ -20,11 +20,7 @@ impl<Value> CheckboxPrompt<Value> {
         self.checked.fill(false);
         self.checked[active] = true;
         self.mode = Mode::Select;
-        self.theme = CheckboxTheme {
-            checked: String::new(),
-            unchecked: String::new(),
-            highlight_active: true,
-        };
+        self.theme = CheckboxTheme { checked: String::new(), unchecked: String::new() };
         self
     }
 

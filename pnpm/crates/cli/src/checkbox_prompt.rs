@@ -37,7 +37,6 @@ pub(crate) struct CheckboxChoice<Value> {
 pub(crate) struct CheckboxTheme {
     pub checked: String,
     pub unchecked: String,
-    pub highlight_active: bool,
 }
 
 impl Default for CheckboxTheme {
@@ -45,7 +44,6 @@ impl Default for CheckboxTheme {
         Self {
             checked: stdout_styled("◉", |text| text.green().to_string()),
             unchecked: "◯".to_string(),
-            highlight_active: true,
         }
     }
 }
@@ -320,11 +318,7 @@ impl<Value> CheckboxPrompt<Value> {
         let checkbox =
             if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
         let line = format!("{cursor}{checkbox} {}", choice.name);
-        if active && self.theme.highlight_active {
-            stdout_styled(&line, |text| text.cyan().to_string())
-        } else {
-            line
-        }
+        if active { stdout_styled(&line, in_active_cyan) } else { line }
     }
 
     /// The line left behind once Enter confirmed the selection.
@@ -403,6 +397,23 @@ fn terminal_rows(frame: &str, columns: usize) -> usize {
         })
         .sum()
 }
+
+/// `line` painted in [`ACTIVE_FOREGROUND`], keeping any colors of its own.
+///
+/// A choice's name can carry foreground colors of its own, such as the
+/// changed part of a version, and their resets would end a cyan foreground
+/// painted once around the line. So cyan is painted again after every reset.
+fn in_active_cyan(line: &str) -> String {
+    let mut painted = format!("{ACTIVE_FOREGROUND}{line}");
+    for reset in [RESET_ALL, RESET_FOREGROUND] {
+        painted = painted.replace(reset, &format!("{reset}{ACTIVE_FOREGROUND}"));
+    }
+    format!("{painted}{RESET_FOREGROUND}")
+}
+
+const ACTIVE_FOREGROUND: &str = <owo_colors::colors::Cyan as owo_colors::Color>::ANSI_FG;
+const RESET_ALL: &str = "\u{1b}[0m";
+const RESET_FOREGROUND: &str = "\u{1b}[39m";
 
 fn stdout_styled(text: &str, style: impl Fn(&str) -> String) -> String {
     text.if_supports_color(Stream::Stdout, |text| style(text)).to_string()
