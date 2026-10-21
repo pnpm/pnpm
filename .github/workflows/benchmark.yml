@@ -28,10 +28,7 @@ on:
       - 'pnpm11/**'
       - 'package.json'
       - 'pnpm-workspace.yaml'
-      - '.config/pnpm/policies.yaml'
-      - '__patches__/patches.yaml'
-      - '.config/pnpm/catalog.yaml'
-      - '.config/pnpm/tasks.yaml'
+      - '.config/pnpm/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/benchmark.yml'
 

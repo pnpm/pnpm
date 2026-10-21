@@ -79,7 +79,7 @@ include:
     - trustPolicyExclude
     - trustPolicyExcludePrune
     - trustPolicyIgnoreAfter
-  ./__patches__/patches.yaml:
+  ./.config/pnpm/patches/patches.yaml:
     - patchedDependencies
     - patchesDir
   ./.config/pnpm/catalog.yaml:
