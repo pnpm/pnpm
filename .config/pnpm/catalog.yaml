@@ -300,6 +300,10 @@ catalog:
   yauzl: ^3.4.0
   enhanced-resolve: 5.26.0
 
+catalogMode: strict
+
+catalogPrune: true
+
 # Dependencies deliberately held back, which `pnpm update --latest` (run by the
 # update-lockfile workflow) would otherwise bump. Most of them are packages
 # whose newer versions require a Node.js version above pnpm's supported floor

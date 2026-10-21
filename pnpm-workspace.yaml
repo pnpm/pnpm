@@ -82,6 +82,8 @@ include:
     - trustPolicyExcludePrune
     - trustPolicyIgnoreAfter
   ./.config/pnpm/catalog.yaml:
+    - catalogMode
+    - catalogPrune
     - catalogs
     - update
   ./.config/pnpm/tasks.yaml:
@@ -130,10 +132,6 @@ versioning:
 
 cargo:
   enabled: true
-
-catalogMode: strict
-
-catalogPrune: true
 
 enablePrePostScripts: false
 
