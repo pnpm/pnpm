@@ -1,4 +1,10 @@
 pub mod package_manager_spec;
+pub use bins::{
+    PackageBin, ScriptRuntime, declared_bin_entries, extension_program,
+    infer_script_runtime_from_head, infer_script_runtime_from_shebang, is_safe_bin_name,
+    manifest_declares_bins, normalize_package_relative_path, parse_shebang,
+    parse_shebang_from_bytes, resolve_package_bins, unscoped_bin_name, verify_package_bins,
+};
 pub use build_triggers::{
     BINDING_GYP, BuildTriggers, files_build_triggers, files_include_install_scripts,
     manifest_opts_out_of_gyp_build, manifest_requires_build, pkg_build_triggers,
@@ -34,6 +40,7 @@ use serialization::{empty_dependency_fields, normalize_dependency_fields, serial
 use strum::IntoStaticStr;
 #[cfg(not(target_os = "wasi"))]
 use tempfile::NamedTempFile;
+mod bins;
 mod blank_lines;
 mod build_triggers;
 mod error;

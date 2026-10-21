@@ -22,7 +22,7 @@ use ssri::Integrity;
 /// and returning the `{relative-path → CAFS path}` map plus the
 /// per-package [`PackageFilesIndex`] row to hand off to the shared
 /// store-index writer. Same contract as
-/// [`crate::extract::extract_tarball_entries`], for the
+/// [`crate::extract::extract_tarball_entries_with_bins`], for the
 /// `BinaryResolution { archive: zip, .. }` artifacts Node.js / Bun /
 /// Deno ship their Windows builds in.
 ///
@@ -406,7 +406,7 @@ impl ZipExtraction {
 }
 
 /// Run [`fetch_and_extract_zip_once`] under pnpm's retry policy.
-/// Same shape as [`crate::download::fetch_and_extract_with_retry`]:
+/// Same shape as [`crate::download::fetch_and_extract_conditional`]:
 /// permanent errors fail fast, while transient errors retry with
 /// exponential backoff until [`RetryOpts::retries`] is exhausted.
 /// On success, emit `pnpm:progress fetched` once per resolved package.

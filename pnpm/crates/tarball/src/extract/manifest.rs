@@ -1,7 +1,59 @@
-use super::{
-    BuildTriggers, CafsFileInfo, HashMap, PackageFilesIndex, PathBuf, StoreDir, TarballError,
-    UNIX_EPOCH, parse_manifest_bytes,
+use std::collections::BTreeMap;
+
+use pnpm_package_manifest::{
+    PackageBin, ScriptRuntime, parse_shebang_from_bytes, resolve_package_bins,
 };
+
+use super::{
+    BuildTriggers, CafsFileInfo, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex, PathBuf,
+    StoreDir, TarballError, UNIX_EPOCH, parse_manifest_bytes,
+};
+
+/// Reject a `package.json` entry that claims more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+///
+/// A manifest has to reach memory to be parsed — the bundled manifest
+/// and its build-script detection both come from its bytes — so a
+/// reader that otherwise holds only a bounded window has to draw the
+/// line somewhere, and silently skipping the parse would record wrong
+/// build metadata instead. Real manifests are a few KB; one past the
+/// cap exists only in a hostile archive, so failing loudly is the
+/// honest outcome.
+pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
+    TarballError::ReadTarballEntries(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!(
+            "tar entry package.json is {file_size} bytes, which exceeds the \
+             {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
+        ),
+    ))
+}
+
+/// Reads a TAR entry that must fit in memory, rejecting oversized payloads
+/// before allocating or reading them.
+pub fn read_buffered_tar_entry(
+    entry: &mut tar::Entry<'_, impl std::io::Read>,
+) -> std::io::Result<Vec<u8>> {
+    use std::io::Read as _;
+
+    let size = entry.size();
+    if size > crate::MAX_TARBALL_METADATA_BYTES {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "tar entry {} is {size} bytes, which exceeds the {}-byte buffered entry limit",
+                entry
+                    .path()?
+                    .to_string_lossy()
+                    .escape_debug(),
+                crate::MAX_TARBALL_METADATA_BYTES,
+            ),
+        ));
+    }
+    let mut data = Vec::with_capacity(size as usize);
+    entry.read_to_end(&mut data)?;
+    Ok(data)
+}
 
 /// Pick the `package.json` fields downstream code actually reads — bin
 /// linking, dependency resolution, build-script detection — and discard
@@ -221,7 +273,7 @@ const TAR_SCAN_MAX_METADATA_BYTES: u64 = 64 * 1024;
 const TAR_SCAN_MAX_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
 
 /// Facts derived from a single scan of a `.tar` stream.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TarInspection {
     /// Whether the archive contains lifecycle scripts, `binding.gyp`
     /// (unless `gypfile: false`), or `.hooks/`. `None` when the tar stream
@@ -232,6 +284,10 @@ pub struct TarInspection {
     pub file_count: Option<u64>,
     /// Total unpacked byte size of regular files in the archive.
     pub unpacked_size: Option<u64>,
+    /// Precalculated bin commands and shebang/extension runtimes for the
+    /// archive. Empty when the package declares no bins or when a declared bin
+    /// target must be resolved on disk at link time.
+    pub bins: Option<BTreeMap<String, PackageBin>>,
 }
 
 /// Inspect a `.tar` stream in a single pass, recording regular-file counts
@@ -255,35 +311,70 @@ impl<Reader: std::io::Read> std::io::Read for TarStreamReader<Reader> {
     }
 }
 
+#[derive(Default)]
+struct TarScanState {
+    triggers: BuildTriggers,
+    manifest: Option<serde_json::Value>,
+    manifest_parse_failed: bool,
+    file_count: u64,
+    unpacked_size: u64,
+    archive_files: BTreeMap<String, Option<ScriptRuntime>>,
+}
+
+impl TarScanState {
+    fn visit_entry<Reader: std::io::Read>(
+        &mut self,
+        entry: &mut tar::Entry<'_, Reader>,
+    ) -> Option<()> {
+        self.file_count = self.file_count.checked_add(1)?;
+        self.unpacked_size = self.unpacked_size.checked_add(entry.size())?;
+        let raw_path = entry.path().ok()?;
+        let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
+        self.triggers.add_file(&cleaned_path);
+        if cleaned_path == "package.json" {
+            if let Some(parsed) = read_tar_manifest_entry(entry, &mut self.triggers)? {
+                self.manifest_parse_failed = false;
+                self.manifest = Some(parsed);
+            } else {
+                self.manifest_parse_failed = true;
+                self.manifest = None;
+            }
+            self.archive_files.insert(cleaned_path, None);
+        } else {
+            let shebang = read_tar_entry_shebang(entry)?;
+            self.archive_files.insert(cleaned_path, shebang);
+        }
+        Some(())
+    }
+
+    fn finish(self) -> TarInspection {
+        let requires_build = (!self.manifest_parse_failed).then(|| self.triggers.requires_build());
+        let bins = (requires_build == Some(false)).then(|| {
+            self.manifest
+                .as_ref()
+                .and_then(|parsed| resolve_package_bins(parsed, &self.archive_files))
+                .unwrap_or_default()
+        });
+        TarInspection {
+            requires_build,
+            file_count: Some(self.file_count),
+            unpacked_size: Some(self.unpacked_size),
+            bins,
+        }
+    }
+}
+
 fn inspect_tar_entries(reader: impl std::io::Read) -> Option<TarInspection> {
     let mut archive = tar::Archive::new(TarStreamReader { inner: reader, unexpected_eof: false });
     archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
-    let mut triggers = BuildTriggers::default();
-    let mut manifest_parse_failed = false;
-    let mut file_count = 0u64;
-    let mut unpacked_size = 0u64;
+    let mut state = TarScanState::default();
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
-        if !entry.header().entry_type().is_file() {
-            continue;
-        }
-        file_count = file_count.checked_add(1)?;
-        unpacked_size = unpacked_size.checked_add(entry.size())?;
-        let raw_path = entry.path().ok()?;
-        let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
-        triggers.add_file(&cleaned_path);
-        if cleaned_path == "package.json" {
-            manifest_parse_failed = !read_tar_manifest_entry(&mut entry, &mut triggers)?;
+        if entry.header().entry_type().is_file() {
+            state.visit_entry(&mut entry)?;
         }
     }
-    if archive.into_inner().unexpected_eof {
-        return None;
-    }
-    Some(TarInspection {
-        requires_build: (!manifest_parse_failed).then(|| triggers.requires_build()),
-        file_count: Some(file_count),
-        unpacked_size: Some(unpacked_size),
-    })
+    (!archive.into_inner().unexpected_eof).then(|| state.finish())
 }
 
 /// Whether the tar stream read from `reader` carries build triggers:
@@ -300,7 +391,7 @@ pub fn tar_requires_build(reader: impl std::io::Read) -> Option<bool> {
 fn read_tar_manifest_entry<Reader: std::io::Read>(
     entry: &mut tar::Entry<'_, Reader>,
     triggers: &mut BuildTriggers,
-) -> Option<bool> {
+) -> Option<Option<serde_json::Value>> {
     use std::io::Read as _;
 
     let size = entry.size();
@@ -316,8 +407,26 @@ fn read_tar_manifest_entry<Reader: std::io::Read>(
     }
     let Ok(parsed) = parse_manifest_bytes(&data) else {
         triggers.forget_manifest();
-        return Some(false);
+        return Some(None);
     };
     triggers.read_manifest(&parsed);
-    Some(true)
+    Some(Some(parsed))
+}
+
+fn read_tar_entry_shebang<Reader: std::io::Read>(
+    entry: &mut tar::Entry<'_, Reader>,
+) -> Option<Option<ScriptRuntime>> {
+    use std::io::Read as _;
+
+    let mut head = [0u8; 512];
+    let mut filled = 0;
+    while filled < head.len() {
+        match entry.read(&mut head[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => return None,
+        }
+    }
+    Some(parse_shebang_from_bytes(&head[..filled]))
 }

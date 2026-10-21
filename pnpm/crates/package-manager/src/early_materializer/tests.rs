@@ -107,6 +107,7 @@ async fn pnpr_requires_build_hint_skips_scheduling_and_never_bypasses_tarball_ve
             files: plain_files,
             manifest: None,
             requires_build: Some(false),
+            bins: None,
         })))),
     );
     materializer.schedule(&plain);

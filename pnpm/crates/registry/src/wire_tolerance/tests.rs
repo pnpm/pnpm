@@ -341,3 +341,38 @@ fn an_off_shape_peer_meta_entry_keeps_its_name_with_optional_unset() {
         );
     }
 }
+
+#[test]
+fn pnpr_bins_decode_when_valid_and_degrade_to_absent_when_invalid() {
+    let version = parse_with(
+        r#", "pnpr": { "requiresBuild": false, "bins": { "cli": { "path": "bin/cli.js", "prog": "node" } } }"#,
+        "",
+    );
+    let pnpr = version.dist.pnpr.as_ref().expect("pnpr present");
+    assert_eq!(pnpr.requires_build, Some(false));
+    let bins = pnpr.bins.as_ref().expect("bins present");
+    let cli = bins.get("cli").expect("cli bin present");
+    assert_eq!(cli.path, "bin/cli.js");
+    assert_eq!(cli.prog.as_deref(), Some("node"));
+
+    for bad_bins in [
+        "{}",
+        "[]",
+        r#"{ "../escape": { "path": "bin/cli.js" } }"#,
+        r#"{ "cli": { "path": "../escape.js" } }"#,
+        r#"{ "cli": { "path": "./bin/cli.js" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "node;rm" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "node -e" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "-e" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "prog": "node", "args": " ; rm -rf /" } }"#,
+        r#"{ "cli": { "path": "bin/cli.js", "args": "-e" } }"#,
+    ] {
+        let version = parse_with(
+            &format!(r#", "pnpr": {{ "requiresBuild": false, "bins": {bad_bins} }}"#),
+            "",
+        );
+        let pnpr = version.dist.pnpr.as_ref().expect("pnpr record survives invalid bins");
+        assert_eq!(pnpr.requires_build, Some(false));
+        assert!(pnpr.bins.is_none(), "invalid bins {bad_bins} must degrade to None");
+    }
+}

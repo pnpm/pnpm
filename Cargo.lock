@@ -7021,6 +7021,7 @@ dependencies = [
  "percent-encoding",
  "pnpm-crypto-hash",
  "pnpm-network",
+ "pnpm-package-manifest",
  "pnpr-config",
  "pnpr-error",
  "pnpr-package-name",

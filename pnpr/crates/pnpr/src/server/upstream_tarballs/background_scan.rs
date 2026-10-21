@@ -291,7 +291,9 @@ async fn record_cached_tgz_tar_integrity(
     if storage
         .read_tar_integrities(&name)
         .await
-        .is_ok_and(|table| table.get(&tgz_key).is_some_and(|derived| derived.scanned))
+        .is_ok_and(|table| {
+            table.get(&tgz_key).is_some_and(pnpr_storage::DerivedTar::is_fully_scanned)
+        })
     {
         return;
     }
@@ -308,7 +310,8 @@ async fn record_cached_tgz_tar_integrity(
             inspection.requires_build,
             inspection.file_count,
             inspection.unpacked_size,
-        );
+        )
+        .with_bins(inspection.bins);
         if let Err(err) = storage.record_tar_integrity(&name, &tgz_key, derived).await {
             tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
         }

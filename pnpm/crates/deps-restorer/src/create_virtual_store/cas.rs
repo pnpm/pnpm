@@ -46,6 +46,7 @@ impl CreateVirtualStore<'_> {
         let mut materialized = installer.run_inner::<Report>().await?;
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
         materialized.package_manifests.extend(fetched.package_manifests);
+        materialized.package_bins.extend(fetched.package_bins);
         materialized.fetch_failed.extend(fetched.fetch_failed);
         Ok(materialized)
     }
@@ -107,15 +108,29 @@ pub(super) fn retain_fetch_pass_rows(
         else {
             continue;
         };
-        if rows.cas_paths.contains_key(cache_key) {
-            continue;
-        }
-        if let Some(files) = immutable_download(downloaded, snapshot_key) {
-            rows.cas_paths.insert(cache_key.clone(), Arc::clone(&files.cas_paths));
-            if let Some(&requires_build) = fetched.requires_build_by_snapshot.get(snapshot_key) {
-                rows.requires_build.insert(cache_key.clone(), requires_build);
-            }
-        }
+        insert_downloaded_row(rows, downloaded, fetched, snapshot_key, cache_key);
+    }
+}
+
+fn insert_downloaded_row(
+    rows: &mut PrefetchResult,
+    downloaded: &crate::CasPathsByPkgId,
+    fetched: &CreateVirtualStoreOutput,
+    snapshot_key: &PackageKey,
+    cache_key: &String,
+) {
+    if rows.cas_paths.contains_key(cache_key) {
+        return;
+    }
+    let Some(files) = immutable_download(downloaded, snapshot_key) else {
+        return;
+    };
+    rows.cas_paths.insert(cache_key.clone(), Arc::clone(&files.cas_paths));
+    if let Some(&requires_build) = fetched.requires_build_by_snapshot.get(snapshot_key) {
+        rows.requires_build.insert(cache_key.clone(), requires_build);
+    }
+    if let Some(manifest) = fetched.package_manifests.get(&snapshot_key.without_peer()) {
+        rows.manifests.insert(cache_key.clone(), Arc::clone(manifest));
     }
 }
 

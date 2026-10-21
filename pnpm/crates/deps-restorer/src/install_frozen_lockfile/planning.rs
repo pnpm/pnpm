@@ -127,6 +127,7 @@ impl<'a> FrozenInputs<'a> {
                 include_optional: install.included().optional_dependencies,
                 supported_architectures: install.platform.supported_architectures,
                 known_requires_build,
+                known_bins: None,
             },
             ctx,
 

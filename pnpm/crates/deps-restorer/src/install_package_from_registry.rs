@@ -317,6 +317,24 @@ pub fn manifest_requires_build(manifest: Option<&Value>) -> Option<bool> {
         .as_bool()
 }
 
+/// Read `dist.pnpr.bins` off the resolver-fetched manifest.
+#[must_use]
+pub fn manifest_bins(
+    manifest: Option<&Value>,
+) -> Option<std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>> {
+    let raw = manifest?
+        .get("dist")?
+        .get("pnpr")?
+        .get("bins")?;
+    let bins: std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin> =
+        serde_json::from_value(raw.clone()).ok()?;
+    (!bins.is_empty()
+        && bins
+            .iter()
+            .all(|(name, bin)| pnpm_package_manifest::is_safe_bin_name(name) && bin.is_valid()))
+    .then(|| std::sync::Arc::new(bins))
+}
+
 fn manifest_dist_field(manifest: Option<&Value>, field: &str) -> Option<usize> {
     // `usize::try_from` so a `u64` value larger than the host's
     // `usize` (32-bit targets) degrades to "no hint" rather than

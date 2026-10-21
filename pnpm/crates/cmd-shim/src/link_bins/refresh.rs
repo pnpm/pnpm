@@ -163,7 +163,7 @@ impl DirectoryBinPlan {
     }
 
     fn insert_package<Sys: FsWalkFiles>(&mut self, package: &PackageBinSource) {
-        let commands = get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location);
+        let commands = package.resolve_commands::<Sys>();
         self.insert_commands(package, commands);
     }
 

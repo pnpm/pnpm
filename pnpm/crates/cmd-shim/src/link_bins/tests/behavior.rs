@@ -710,3 +710,95 @@ fn a_shim_in_a_junctioned_bin_dir_names_its_target_from_the_physical_dir() {
     let body = read_to_string(bins_dir.join("tool")).unwrap();
     assert!(body.contains(r#""$basedir_abs/../../../pkg/cli.js""#), "body was:\n{body}");
 }
+
+#[test]
+fn precalculated_bins_write_shims_without_walking_directories_or_reading_shebangs() {
+    use crate::{PackageBin, capabilities::DirCreation};
+    use std::{collections::BTreeMap, io};
+
+    struct NoProbeSys;
+    impl FsReadToString for NoProbeSys {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            Host::read_to_string(path)
+        }
+    }
+    impl FsReadHead for NoProbeSys {
+        fn read_head(path: &Path, _: u64, _: &mut [u8]) -> io::Result<usize> {
+            panic!("unexpected read_head on {}", path.display());
+        }
+    }
+    impl FsCreateDirAll for NoProbeSys {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            Host::create_dir_all(path)
+        }
+        fn create_dir_all_reporting(path: &Path) -> io::Result<DirCreation> {
+            Host::create_dir_all_reporting(path)
+        }
+    }
+    impl FsWalkFiles for NoProbeSys {
+        fn walk_files(dir: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            panic!("unexpected walk_files on {}", dir.display());
+            #[expect(unreachable_code, reason = "satisfies impl Iterator return type")]
+            Ok(empty())
+        }
+    }
+    impl FsWrite for NoProbeSys {
+        fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
+            Host::write(path, contents)
+        }
+        fn write_new(path: &Path, contents: &[u8]) -> io::Result<()> {
+            Host::write_new(path, contents)
+        }
+        fn write_replace(path: &Path, contents: &[u8]) -> io::Result<()> {
+            Host::write_replace(path, contents)
+        }
+    }
+    impl FsSetExecutable for NoProbeSys {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            Host::set_executable(path)
+        }
+        fn ensure_executable(path: &Path) -> io::Result<()> {
+            Host::ensure_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for NoProbeSys {
+        fn ensure_executable_bits(path: &Path, modules_dir: Option<&Path>) -> io::Result<()> {
+            Host::ensure_executable_bits(path, modules_dir)
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("pkg");
+    create_dir_all(pkg.join("bin")).unwrap();
+    write_file(pkg.join("bin/cli.js"), "#!/usr/bin/env -S node --no-warnings\n").unwrap();
+
+    let mut precalculated = BTreeMap::new();
+    precalculated.insert(
+        "cli.js".to_string(),
+        PackageBin {
+            path: "bin/cli.js".to_string(),
+            prog: Some("node".to_string()),
+            args: " --no-warnings".to_string(),
+        },
+    );
+    let source = PackageBinSource::new(
+        pkg.clone(),
+        Arc::new(json!({
+            "name": "dir-pkg",
+            "version": "1.0.0",
+            "directories": { "bin": "./bin" }
+        })),
+    )
+    .with_precalculated_bins(Some(Arc::new(precalculated)));
+
+    // Link into the package's own `node_modules/.bin` as well to prove
+    // `awaits_target` also skips `target_is_missing` (`read_head`).
+    let own_bins = pkg.join("node_modules/.bin");
+    link_bins_of_packages::<NoProbeSys>(&[source], &own_bins, &LinkBinsOptions::default()).unwrap();
+
+    let shim = read_to_string(own_bins.join("cli.js")).unwrap();
+    assert!(
+        shim.contains("node  --no-warnings"),
+        "shim should include precalculated runtime:\n{shim}",
+    );
+}

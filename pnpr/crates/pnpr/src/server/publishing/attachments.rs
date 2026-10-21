@@ -278,7 +278,8 @@ pub(super) async fn write_attachment_slot(
                 inspection.requires_build,
                 inspection.file_count,
                 inspection.unpacked_size,
-            );
+            )
+            .with_bins(inspection.bins.clone());
             if let Err(err) = storage.record_tar_integrity(name, &tgz_integrity, derived).await {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }

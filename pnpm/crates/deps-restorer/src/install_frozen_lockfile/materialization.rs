@@ -90,6 +90,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 },
                 packages: crate::LinkPackageData {
                     package_manifests: &phase.fetched.package_manifests,
+                    package_bins: Some(&phase.fetched.package_bins),
                     requires_build_by_snapshot: Some(&phase.fetched.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: phase.cas_paths_by_pkg_id,
                 },

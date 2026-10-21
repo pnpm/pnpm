@@ -25,7 +25,6 @@ pub use fetch_for_resolution::{
 };
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;
-pub(crate) use prefetch::CachedCasPaths;
 pub use prefetch::*;
 pub use zip_archive::*;
 
@@ -48,7 +47,7 @@ mod zip_archive;
 
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     io::{self, Cursor, Read},
     path::{Component, Path, PathBuf},
     sync::{Arc, LazyLock},
@@ -58,6 +57,7 @@ use std::{
 use dashmap::{DashMap, DashSet};
 use pipe_trait::Pipe;
 use pnpm_network::AuthHeaders;
+use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use rayon::prelude::*;
 use ssri::Integrity;
@@ -128,7 +128,7 @@ fn streaming_extract_semaphore() -> &'static Semaphore {
 }
 
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
-/// ([`crate::extract::extract_tarball_entries`]).
+/// ([`crate::extract::extract_tarball_entries_with_bins`]).
 ///
 /// Separate from the global pool because the install overlaps
 /// extraction with linking, and the linker runs on the global pool:
@@ -178,6 +178,7 @@ pub struct CachedTarball {
     pub files: Arc<HashMap<String, PathBuf>>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: Option<bool>,
+    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
 impl CachedTarball {
@@ -190,7 +191,7 @@ impl CachedTarball {
 
     #[must_use]
     pub fn from_files_arc(files: Arc<HashMap<String, PathBuf>>) -> Arc<Self> {
-        Arc::new(Self { files, manifest: None, requires_build: None })
+        Arc::new(Self { files, manifest: None, requires_build: None, bins: None })
     }
 
     /// Whether the extracted archive carries build triggers. Uses the verdict
@@ -268,6 +269,7 @@ pub struct FetchedTarball {
     pub files_map: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
     pub requires_build: bool,
+    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
 impl<'a> IngestTarballToStore<'a> {
@@ -423,6 +425,7 @@ impl<'a> IngestTarballToStore<'a> {
                         files: Arc::new(loaded.files),
                         manifest: loaded.manifest,
                         requires_build: loaded.requires_build,
+                        bins: loaded.bins,
                     },
                 )
                 .await;
@@ -450,13 +453,12 @@ impl<'a> IngestTarballToStore<'a> {
     }
 
     /// Execute without the in-memory cache and return the CAS map paired with
-    /// the archive's `requires_build` verdict when known.
+    /// the archive's extracted metadata.
     pub async fn run_cached_without_mem_cache<Reporter: self::Reporter>(
         &self,
         revision_addressed: bool,
-    ) -> Result<(HashMap<String, PathBuf>, Option<bool>), TarballError> {
+    ) -> Result<CachedCasPaths, TarballError> {
         self.load_or_fetch::<Reporter>(revision_addressed).await
-            .map(|cached| (cached.files, cached.requires_build))
     }
 
     /// Execute the subroutine without an in-memory cache.

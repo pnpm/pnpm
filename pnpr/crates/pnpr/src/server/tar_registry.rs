@@ -134,8 +134,20 @@ fn apply_derived_tar_metadata(
         return;
     };
     apply_derived_tar_stats(dist, derived);
+    let mut pnpr = serde_json::Map::new();
     if let Some(requires_build) = derived.requires_build {
-        dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));
+        pnpr.insert("requiresBuild".to_string(), Value::Bool(requires_build));
+    }
+    if derived.requires_build == Some(false)
+        && let Some(bins) = derived.bins
+            .as_ref()
+            .filter(|bins| !bins.is_empty())
+        && let Ok(bins_value) = serde_json::to_value(bins)
+    {
+        pnpr.insert("bins".to_string(), bins_value);
+    }
+    if !pnpr.is_empty() {
+        dist.insert("pnpr".to_string(), Value::Object(pnpr));
     }
 }
 

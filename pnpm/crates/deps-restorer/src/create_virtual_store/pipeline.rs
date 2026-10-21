@@ -120,6 +120,7 @@ impl<'a> CreateVirtualStore<'a> {
             markers: &plan.marker_rebuilds,
             allow_build_policy: self.ctx.allow_build_policy,
             known_requires_build: self.selection.known_requires_build,
+            known_bins: self.selection.known_bins,
         }
     }
 
@@ -178,8 +179,9 @@ impl<'a> CreateVirtualStore<'a> {
 
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
-            side_effects_maps_by_snapshot: partition.side_effects_maps_by_snapshot,
-            side_effects_by_snapshot: partition.side_effects_by_snapshot,
+            package_bins: partition.package_bins,
+            side_effects_maps_by_snapshot: partition.side_effects.maps,
+            side_effects_by_snapshot: partition.side_effects.diffs,
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
             materialized_snapshots: plan.materialized_keys(),
             fetch_failed,
@@ -358,6 +360,7 @@ impl<'a> CreateVirtualStore<'a> {
             let fetch_failed = self.download_cold::<Reporter>(
                 inputs,
                 &partition.cold,
+                (&mut partition.package_manifests, &mut partition.package_bins),
                 &mut partition.requires_build_by_snapshot,
                 indexes,
             )
@@ -369,12 +372,13 @@ impl<'a> CreateVirtualStore<'a> {
         let download_future = self.download_cold::<Reporter>(
             inputs,
             &partition.cold,
+            (&mut partition.package_manifests, &mut partition.package_bins),
             &mut partition.requires_build_by_snapshot,
             indexes,
         );
         let resolve_future = crate::shared_side_effects::resolve_prepared_side_effects(
             prepared,
-            &partition.remote_side_effects_quarantine_by_snapshot,
+            &partition.side_effects.quarantine,
         );
         let (fetch_failed, resolved) = tokio::join!(download_future, resolve_future);
         let fetch_failed = fetch_failed?;
@@ -386,6 +390,7 @@ impl<'a> CreateVirtualStore<'a> {
         &self,
         inputs: ColdInputs<'_, 'a>,
         cold: &[(&'a PackageKey, &'a SnapshotEntry)],
+        (package_manifests, package_bins): (&mut super::PackageManifests, &mut super::PackageBins),
         requires_build_by_snapshot: &mut super::RequiresBuildBySnapshot,
         indexes: &mut CasIndexes,
     ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
@@ -405,6 +410,8 @@ impl<'a> CreateVirtualStore<'a> {
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
+                package_manifests,
+                package_bins,
                 requires_build_by_snapshot,
                 shared_base_cas_paths: &mut indexes.shared_base,
             },

@@ -94,6 +94,7 @@ async fn install_unfetchable_optional_dependency(progress_reported: &SharedRepor
             include_optional: true,
             supported_architectures: None,
             known_requires_build: None,
+            known_bins: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {

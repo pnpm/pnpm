@@ -742,3 +742,56 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
         .unwrap();
     assert_eq!(rewrite_legacy.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn published_tar_surfaces_precalculated_bins_and_shebang_runtimes_in_dist_pnpr() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
+    let tar = tar_of(&[
+        (
+            "package/package.json",
+            br#"{"name":"@acme/cli","version":"1.0.0","bin":{"acme-cli":"./bin/cli.js","acme-sh":"./bin/run"}}"#,
+        ),
+        (
+            "package/bin/cli.js",
+            b"#!/usr/bin/env -S node --no-warnings\nconsole.log('hi');\n",
+        ),
+        ("package/bin/run", b"#!/bin/sh\necho hi\n"),
+    ]);
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/cli",
+            "@acme/cli",
+            "1.0.0",
+            &gzip(&tar),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let expected_pnpr = serde_json::json!({
+        "requiresBuild": false,
+        "bins": {
+            "acme-cli": {
+                "path": "bin/cli.js",
+                "prog": "node",
+                "args": " --no-warnings",
+            },
+            "acme-sh": {
+                "path": "bin/run",
+                "prog": "/bin/sh",
+            },
+        },
+    });
+
+    let packument = body_json(get(&app, "/npm/@acme%2Fcli", None).await.into_body()).await;
+    assert_eq!(packument["versions"]["1.0.0"]["dist"]["pnpr"], expected_pnpr);
+
+    let version =
+        body_json(get(&app, "/npm/~zstd/@acme%2Fcli/1.0.0", None).await.into_body()).await;
+    assert_eq!(version["dist"]["pnpr"], expected_pnpr);
+}

@@ -86,6 +86,6 @@ pub(crate) fn stream_extract_gzipped_tarball_with_tar(
         ignore_file_pattern,
         "",
     );
-    let (files, index) = extracted?;
-    Ok((files, index, tar))
+    let (files, index, bins) = extracted?;
+    Ok((files, index, bins, tar))
 }
