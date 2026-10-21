@@ -93,35 +93,3 @@ tasks:
 concurrencyGroups:
   cargo: 1
   typescript: 1
-
-# Dependencies deliberately held back, which `pnpm update --latest` (run by the
-# update-lockfile workflow) would otherwise bump. Most of them are packages
-# whose newer versions require a Node.js version above pnpm's supported floor
-# (>=22.13); the comment at each entry in catalog.yaml records the reason.
-# typescript is held on 6.x because typescript-eslint does not support the
-# TypeScript 7.0 API yet.
-update:
-  ignoreDeps:
-    - '@babel/core'
-    - '@babel/plugin-transform-explicit-resource-management'
-    - '@jest/globals'
-    - '@types/node'
-    - '@yarnpkg/core'
-    - bin-links
-    - bole
-    - cspell
-    - eslint-plugin-regexp
-    - ini
-    - jest
-    - jest-diff
-    - libnpmpublish
-    - node-gyp
-    - normalize-package-data
-    - npm-packlist
-    - npm-registry-fetch
-    - ssri
-    - tempy
-    - typescript
-    - undici
-    - validate-npm-package-name
-    - write-file-atomic

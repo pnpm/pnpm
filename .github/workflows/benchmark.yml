@@ -28,9 +28,9 @@ on:
       - 'pnpm11/**'
       - 'package.json'
       - 'pnpm-workspace.yaml'
-      - '.config/pnpm/security.yaml'
+      - '.config/pnpm/policies.yaml'
       - '.config/pnpm/catalog.yaml'
-      - '.config/pnpm/routine.yaml'
+      - '.config/pnpm/tasks.yaml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/benchmark.yml'
 
