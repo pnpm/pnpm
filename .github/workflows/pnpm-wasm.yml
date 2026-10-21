@@ -17,6 +17,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.config/pnpm/security.yaml'
       - '.github/workflows/pnpm-wasm.yml'
       - '.github/workflows/release.yml'
       - '.github/actions/wasm-toolchain/**'

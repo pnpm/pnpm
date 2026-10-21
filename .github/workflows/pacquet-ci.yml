@@ -89,6 +89,7 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - '.config/pnpm/security.yaml'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
               - 'deny.toml'

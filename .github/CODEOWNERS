@@ -6,3 +6,9 @@
 /pnpm11/reviewing/license-scanner/* @weyert
 /pnpm11/reviewing/plugin-commands-licenses/* @weyert
 /pnpm11/hooks/* @d3lm
+
+# Supply-chain settings and code that runs on install
+/pnpm-workspace.yaml @zkochan
+/.config/pnpm/security.yaml @zkochan
+/.pnpmfile.cjs @zkochan
+/__patches__/ @zkochan

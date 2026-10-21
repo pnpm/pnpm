@@ -59,6 +59,7 @@ jobs:
               - '__patches__/**'
               - 'package.json'
               - 'pnpm-workspace.yaml'
+              - '.config/pnpm/security.yaml'
               - 'pnpm-lock.yaml'
               - '.pnpmfile.cjs'
               - 'eslint.config.mjs'
