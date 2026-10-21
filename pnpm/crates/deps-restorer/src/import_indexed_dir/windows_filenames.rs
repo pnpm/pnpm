@@ -11,7 +11,7 @@ pub(super) struct SanitizedFilenames {
     pub renamed: Vec<String>,
 }
 
-pub(super) fn sanitize_after_not_found<R: Reporter>(
+pub(super) fn sanitize_after_not_found<Reporter: self::Reporter>(
     error: &ImportIndexedDirError,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
@@ -27,7 +27,7 @@ pub(super) fn sanitize_after_not_found<R: Reporter>(
         .iter()
         .map(|filename| pnpm_text_sanitize::sanitize_inline(filename))
         .collect();
-    pnpm_reporter::emit_global_warning::<R>(&format!(
+    pnpm_reporter::emit_global_warning::<Reporter>(&format!(
         r#"The package linked to "{}" had files with invalid names: {}. They were renamed."#,
         pnpm_text_sanitize::sanitize_inline(&relative_dir.to_string_lossy()),
         renamed.join(", "),

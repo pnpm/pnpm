@@ -77,23 +77,33 @@ function moveExistingTargetAside (newDir: string): string | undefined {
     fs.renameSync(newDir, aside)
     return aside
   } catch (err: unknown) {
-    removeTargetAfterFailedDisplace(newDir, err)
-    return undefined
+    return backupAndRemoveTargetAfterFailedDisplace(newDir, aside, err)
   }
 }
 
-function removeTargetAfterFailedDisplace (newDir: string, err: unknown): void {
+function backupAndRemoveTargetAfterFailedDisplace (
+  newDir: string,
+  aside: string,
+  err: unknown
+): string | undefined {
   if (!isError(err) || !('code' in err)) throw err
   switch (err.code) {
     case 'ENOENT':
-      return
-    // Windows refuses to rename a directory a process runs from; fall
-    // back to removing it in place.
+      return undefined
+    // Windows refuses to rename a directory a process runs from; copy a
+    // backup to `aside` before removing `newDir` in place so a failed
+    // stage rename can still restore the previous package.
     case 'EPERM':
     case 'EACCES':
     case 'EBUSY':
-      rimrafSync(newDir)
-      return
+      try {
+        fs.cpSync(newDir, aside, { recursive: true, verbatimSymlinks: true })
+        rimrafSync(newDir)
+        return aside
+      } catch (fallbackErr: unknown) {
+        removeQuietly(aside)
+        throw fallbackErr
+      }
     default:
       throw err
   }
