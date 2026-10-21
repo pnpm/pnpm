@@ -557,3 +557,46 @@ diff --git a/package.json b/package.json
 
     drop((root, mock_instance));
 }
+
+/// Deploy writes its files with the mode the umask gives any new file, not 0600.
+#[cfg(unix)]
+#[test]
+fn deployed_files_get_the_umask_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let mode = |path: &std::path::Path| {
+        fs::metadata(path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "deploy"])
+        .assert()
+        .success();
+
+    let reference = workspace.join("reference");
+    fs::File::create(&reference).unwrap();
+    let deploy_dir = workspace.join("deploy");
+    for file in ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml"] {
+        let path = deploy_dir.join(file);
+        assert_eq!(mode(&path), mode(&reference), "{file} is {:o}", mode(&path));
+    }
+
+    drop((root, mock_instance));
+}

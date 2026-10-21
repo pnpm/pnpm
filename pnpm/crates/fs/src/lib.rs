@@ -48,7 +48,7 @@ pub use wasi_fs::{
     create_new as create_new_with_mode, executable_access, file_link_count, lock_file,
     open_nofollow as open_file_without_following, register_sqlite_permissions, try_lock_file,
 };
-pub use write_atomic::{write_atomic, write_atomic_private};
+pub use write_atomic::{write_atomic, write_atomic_private, write_atomic_with_umask};
 
 mod background_drop;
 mod canonical_paths;
