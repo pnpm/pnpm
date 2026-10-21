@@ -17,14 +17,12 @@ use crate::_utils::{
     ManifestDeps, WorkspaceFixture, assert_success, copy_sources, read_manifest,
     read_v11_bundle_path, set_dependency, walk_files, write_manifest_value,
 };
-use pnpm_testing_utils::command_env::CommandTestExt;
 
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
-    process::Command,
 };
 
 use serde_json::{Value, json};
@@ -228,14 +226,7 @@ impl Scenario {
             fs::remove_file(copy.join(lockfile)).expect("remove a lockfile");
         }
         let output = if let Some(bundle) = v11_bundle {
-            Command::new("node")
-                .without_ambient_pnpm_config()
-                .arg(bundle)
-                .current_dir(&copy)
-                .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
-                .args(["--reporter=ndjson", "install", "--no-frozen-lockfile"])
-                .output()
-                .expect("run the pnpm v11 bundle")
+            self.fixture.v11_command_at(bundle, &copy, ["install", "--no-frozen-lockfile"])
         } else {
             self.fixture.command_at(&copy, ["install", "--no-frozen-lockfile"])
         };

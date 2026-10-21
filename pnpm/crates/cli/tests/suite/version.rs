@@ -1,6 +1,7 @@
-#[cfg(unix)]
-use crate::_utils::read_v11_bundle_path;
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, write_fake_bin};
+use crate::_utils::{
+    append_workspace_yaml_key, read_v11_bundle_path, set_minimum_release_age, v11_in,
+    write_fake_bin,
+};
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
@@ -722,10 +723,72 @@ fn engine_shim(links: &Path) -> PathBuf {
 struct SwitchCase<'a> {
     manifest: &'a str,
     workspace_yaml: Option<&'a str>,
-    npmrc_extra: Option<&'a str>,
+    registry_from_user_npmrc: bool,
     env_extra: Option<(&'a str, &'a str)>,
     cli_args: &'a [&'a str],
     expected_stdout: &'a str,
+}
+
+#[cfg(unix)]
+fn switch_cases() -> [SwitchCase<'static>; 7] {
+    [
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"download"}}}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"error"}}}"#,
+            workspace_yaml: Some("pmOnFail: download\n"),
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: true,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"error"}}}"#,
+            workspace_yaml: Some("pmOnFail: error\n"),
+            registry_from_user_npmrc: false,
+            env_extra: Some(("pnpm_config_pm_on_fail", "download")),
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"error"}}}"#,
+            workspace_yaml: Some("pmOnFail: error\n"),
+            registry_from_user_npmrc: false,
+            env_extra: Some(("pnpm_config_pm_on_fail", "error")),
+            cli_args: &["--pm-on-fail=download", "--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["install", "--only-the-future-pnpm-knows"],
+            expected_stdout: "99.0.0:install --only-the-future-pnpm-knows\n",
+        },
+    ]
 }
 
 #[cfg(unix)]
@@ -734,7 +797,7 @@ fn assert_version_switch_case(
     registry_url: &str,
     case_idx: usize,
     cli_label: &str,
-    use_v11: bool,
+    v11_bundle: Option<&std::ffi::OsStr>,
     case: &SwitchCase<'_>,
 ) {
     let case_dir = root.join(format!("case-{case_idx}-{cli_label}"));
@@ -747,16 +810,20 @@ fn assert_version_switch_case(
         ws_yaml.push_str(extra);
     }
     fs::write(workspace.join("pnpm-workspace.yaml"), ws_yaml).expect("write pnpm-workspace.yaml");
-    let mut npmrc = format!("registry={registry_url}\nstore-dir=../store\ncache-dir=../cache\n");
-    if let Some(extra) = case.npmrc_extra {
-        npmrc.push_str(extra);
+    if case.registry_from_user_npmrc {
+        fs::write(case_dir.join(".npmrc"), format!("registry={registry_url}\n"))
+            .expect("write user .npmrc");
     }
-    fs::write(workspace.join(".npmrc"), npmrc).expect("write .npmrc");
 
-    let base_cmd = if use_v11 { v11_in(&workspace) } else { pacquet_in(&workspace) };
+    let base_cmd = match v11_bundle {
+        Some(bundle) => v11_in(bundle, &workspace),
+        None => pacquet_in(&workspace),
+    };
     let mut cmd = test_command(base_cmd, &case_dir);
-    cmd.env("PNPM_CONFIG_REGISTRY", registry_url)
-        .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+    if !case.registry_from_user_npmrc {
+        cmd.env("PNPM_CONFIG_REGISTRY", registry_url);
+    }
+    cmd.env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
         .env("HTTPS_PROXY", "http://127.0.0.1:9/")
         .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
         .env("NO_PROXY", "127.0.0.1,localhost")
@@ -781,117 +848,88 @@ fn assert_version_switch_case(
     );
 }
 
-/// Switching upward to a newer pnpm release (`99.0.0`) works across every
-/// setting source (`packageManager`, `devEngines.packageManager`,
-/// `pnpm-workspace.yaml`, `.npmrc`, env var, CLI flag) and forwards flags
-/// that only the newer release knows — both from the compiled `pnpm` binary
-/// and, when `PNPM_V11_BUNDLE` is set, from the TypeScript v11 CLI
-/// (pnpm/tasks#141, pnpm/tasks#144).
-#[test]
 #[cfg(unix)]
-fn switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() {
-    let CommandTempCwd { root, .. } = CommandTempCwd::init();
-    let script = concat!(
+fn synthetic_99_script() -> &'static str {
+    concat!(
         "#!/bin/sh\n",
         "case \" $* \" in\n",
         "  *\" --version \"*|*\" -v \"*) echo \"99.0.0\" ;;\n",
         "  *) echo \"99.0.0:$*\" ;;\n",
         "esac\n",
-    );
-    let registry = start_registry_with_synthetic_pnpm(root.path(), "99.0.0", script.as_bytes());
-    let has_v11 = read_v11_bundle_path().is_some();
+    )
+}
 
-    let cases = [
-        SwitchCase {
-            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
-            workspace_yaml: None,
-            npmrc_extra: None,
-            env_extra: None,
-            cli_args: &["--version"],
-            expected_stdout: "99.0.0\n",
-        },
-        SwitchCase {
-            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"download"}}}"#,
-            workspace_yaml: None,
-            npmrc_extra: None,
-            env_extra: None,
-            cli_args: &["--version"],
-            expected_stdout: "99.0.0\n",
-        },
-        SwitchCase {
-            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
-            workspace_yaml: Some("pmOnFail: download\n"),
-            npmrc_extra: None,
-            env_extra: None,
-            cli_args: &["--version"],
-            expected_stdout: "99.0.0\n",
-        },
-        SwitchCase {
-            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
-            workspace_yaml: None,
-            npmrc_extra: Some("pm-on-fail=download\n"),
-            env_extra: None,
-            cli_args: &["--version"],
-            expected_stdout: "99.0.0\n",
-        },
-        SwitchCase {
-            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
-            workspace_yaml: None,
-            npmrc_extra: None,
-            env_extra: Some(("pnpm_config_pm_on_fail", "download")),
-            cli_args: &["--version"],
-            expected_stdout: "99.0.0\n",
-        },
-        SwitchCase {
-            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0"}}}"#,
-            workspace_yaml: None,
-            npmrc_extra: None,
-            env_extra: None,
-            cli_args: &["--config.pm-on-fail=download", "--version"],
-            expected_stdout: "99.0.0\n",
-        },
-        SwitchCase {
-            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
-            workspace_yaml: None,
-            npmrc_extra: None,
-            env_extra: None,
-            cli_args: &["install", "--only-the-future-pnpm-knows"],
-            expected_stdout: "99.0.0:install --only-the-future-pnpm-knows\n",
-        },
-    ];
+/// Switching upward to a newer pnpm release (`99.0.0`) works across every
+/// setting source (`packageManager`, `devEngines.packageManager`,
+/// `pnpm-workspace.yaml`, `.npmrc`, env var, CLI flag) and forwards flags
+/// that only the newer release knows (pnpm/tasks#141, pnpm/tasks#144).
+#[test]
+#[cfg(unix)]
+fn switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() {
+    let CommandTempCwd { root, .. } = CommandTempCwd::init();
+    let registry =
+        start_registry_with_synthetic_pnpm(root.path(), "99.0.0", synthetic_99_script().as_bytes());
 
-    for (case_idx, case) in cases.iter().enumerate() {
-        assert_version_switch_case(root.path(), registry.url(), case_idx, "v12", false, case);
-        if has_v11 {
-            assert_version_switch_case(root.path(), registry.url(), case_idx, "v11", true, case);
-        }
+    for (case_idx, case) in switch_cases().iter().enumerate() {
+        assert_version_switch_case(root.path(), registry.url(), case_idx, "v12", None, case);
     }
 
     drop((root, registry));
 }
 
-/// When `PNPM_V11_BUNDLE` is set, the TypeScript v11 CLI switches up to the
-/// compiled v12 `pnpm` binary (`HEAD`) served from local `pnpr`, and the
-/// delegated v12 binary executes without re-switching.
+/// The TypeScript v11 CLI switches upward to a newer pnpm release (`99.0.0`)
+/// across every setting source (`packageManager`, `devEngines.packageManager`,
+/// `pnpm-workspace.yaml`, `.npmrc`, env var, CLI flag) and forwards flags
+/// that only the newer release knows (pnpm/tasks#141, pnpm/tasks#144).
 #[test]
 #[cfg(unix)]
-fn v11_switches_up_to_head_binary_from_local_registry() {
-    if read_v11_bundle_path().is_none() {
-        return;
+#[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
+fn v11_switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() {
+    let v11_bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
+    let CommandTempCwd { root, .. } = CommandTempCwd::init();
+    let registry =
+        start_registry_with_synthetic_pnpm(root.path(), "99.0.0", synthetic_99_script().as_bytes());
+
+    for (case_idx, case) in switch_cases().iter().enumerate() {
+        assert_version_switch_case(
+            root.path(),
+            registry.url(),
+            case_idx,
+            "v11",
+            Some(&v11_bundle),
+            case,
+        );
     }
+
+    drop((root, registry));
+}
+
+/// The TypeScript v11 CLI (and any additional outer CLI binaries listed in
+/// `PNPM_TEST_OUTER_CLIS`) switches up to the compiled v12 `pnpm` binary
+/// (`HEAD`) served from local `pnpr`, and the delegated v12 binary executes
+/// without re-switching.
+#[test]
+#[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
+fn v11_switches_up_to_head_binary_from_local_registry() {
     use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    let v11_bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let head_bin_path = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .get_program()
         .to_os_string();
-    // Wrap the debug binary in a tiny exec trampoline so the fixture tarball
-    // does not pack ~600 MB of unstripped DWARF debug info (which exceeds
-    // Node.js's `ERR_STRING_TOO_LONG` limit during unpacking).
-    let trampoline = format!("#!/bin/sh\nexec '{}' \"$@\"\n", Path::new(&head_bin_path).display());
+    #[cfg(unix)]
+    let head_bytes = {
+        // Wrap the debug binary in a tiny exec trampoline so the fixture tarball
+        // does not pack ~600 MB of unstripped DWARF debug info (which exceeds
+        // Node.js's `ERR_STRING_TOO_LONG` limit during unpacking).
+        format!("#!/bin/sh\nexec '{}' \"$@\"\n", Path::new(&head_bin_path).display()).into_bytes()
+    };
+    #[cfg(windows)]
+    let head_bytes = fs::read(&head_bin_path).expect("read compiled pnpm binary");
     let head_version = pnpm_config::PNPM_VERSION;
-    let registry =
-        start_registry_with_synthetic_pnpm(root.path(), head_version, trampoline.as_bytes());
+    let registry = start_registry_with_synthetic_pnpm(root.path(), head_version, &head_bytes);
 
     fs::write(
         workspace.join("package.json"),
@@ -909,42 +947,52 @@ fn v11_switches_up_to_head_binary_from_local_registry() {
     )
     .expect("write .npmrc");
 
-    let output = test_command(v11_in(&workspace), root.path())
-        .env("PNPM_CONFIG_REGISTRY", registry.url())
-        .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
-        .env("HTTPS_PROXY", "http://127.0.0.1:9/")
-        .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
-        .env("NO_PROXY", "127.0.0.1,localhost")
-        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
-        .arg("--version")
-        .output()
-        .expect("run v11 --version switching to HEAD");
-    assert!(
-        output.status.success(),
-        "v11 -> HEAD --version failed:\nstdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-    );
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("{head_version}\n"),
-        "stderr:\n{}",
-        String::from_utf8_lossy(&output.stderr),
-    );
+    let mut outer_runners: Vec<(String, Command)> =
+        vec![("v11-bundle".to_string(), v11_in(&v11_bundle, &workspace))];
+    if let Ok(extra_clis) = std::env::var("PNPM_TEST_OUTER_CLIS") {
+        for raw_entry in extra_clis.split(';') {
+            let entry = raw_entry.trim();
+            if entry.is_empty() {
+                continue;
+            }
+            let cmd =
+                Command::new(entry).with_current_dir(&workspace).without_ambient_pnpm_config();
+            outer_runners.push((entry.to_string(), cmd));
+        }
+    }
+
+    for (idx, (label, base_cmd)) in outer_runners.into_iter().enumerate() {
+        let runner_root = root
+            .path()
+            .join(format!("outer-runner-{idx}"));
+        fs::create_dir_all(&runner_root).expect("create outer runner root");
+        let output = test_command(base_cmd, &runner_root)
+            .env("PNPM_CONFIG_REGISTRY", registry.url())
+            .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+            .env("HTTPS_PROXY", "http://127.0.0.1:9/")
+            .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+            .env("NO_PROXY", "127.0.0.1,localhost")
+            .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+            .arg("--version")
+            .output()
+            .expect("run outer CLI --version switching to HEAD");
+        assert!(
+            output.status.success(),
+            "{label} -> HEAD --version failed:\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"),
+            format!("{head_version}\n"),
+            "{label} stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
 
     drop((root, registry));
 }
 
-#[cfg(unix)]
-fn v11_in(workspace: &Path) -> Command {
-    use pnpm_testing_utils::command_env::CommandTestExt as _;
-    let bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
-    let mut command = Command::new("node");
-    command.arg(bundle);
-    command.with_current_dir(workspace).without_ambient_pnpm_config()
-}
-
-#[cfg(unix)]
 fn start_registry_with_synthetic_pnpm(
     root: &Path,
     version: &str,

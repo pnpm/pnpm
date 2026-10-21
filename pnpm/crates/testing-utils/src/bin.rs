@@ -20,6 +20,17 @@ pub struct CommandTempCwd<NpmrcInfo> {
     pub npmrc_info: NpmrcInfo,
 }
 
+/// Read `PNPM_V11_BUNDLE` from the environment, ignoring empty values, and
+/// resolve it to an absolute path.
+#[must_use]
+pub fn read_v11_bundle_path() -> Option<std::ffi::OsString> {
+    std::env::var_os("PNPM_V11_BUNDLE")
+        .filter(|path| !path.is_empty())
+        .map(|bundle| {
+            std::path::absolute(bundle).expect("resolve the pnpm v11 bundle path").into_os_string()
+        })
+}
+
 impl CommandTempCwd<()> {
     /// Create a temporary directory, a `workspace` sub-directory, a `pacquet` command,
     /// and a `pnpm` command with current dir set to the `workspace` sub-directory.
@@ -39,9 +50,8 @@ impl CommandTempCwd<()> {
             .expect("find the pnpm binary")
             .with_current_dir(&workspace)
             .without_ambient_pnpm_config();
-        let pnpm = match std::env::var_os("PNPM_V11_BUNDLE").filter(|path| !path.is_empty()) {
+        let pnpm = match read_v11_bundle_path() {
             Some(bundle) => {
-                let bundle = std::path::absolute(bundle).expect("resolve the pnpm v11 bundle path");
                 let mut command = Command::new("node");
                 command.arg(bundle);
                 command

@@ -137,14 +137,10 @@ impl Scenario {
         Args: IntoIterator<Item = Arg>,
         Arg: AsRef<OsStr>,
     {
-        let command = if let Some(bundle) = v11_bundle {
-            let mut cmd = Command::new("node");
-            cmd.arg(bundle).arg("--config.confirm-modules-purge=false");
-            cmd
-        } else {
-            pacquet_in(cwd)
-        };
-        command
+        if let Some(bundle) = v11_bundle {
+            return self.fixture.v11_command_at(bundle, cwd, args);
+        }
+        pacquet_in(cwd)
             .without_ambient_pnpm_config()
             .current_dir(cwd)
             .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
@@ -259,12 +255,7 @@ impl Scenario {
     /// Run `node -e ""` through `exec` for `selection` under
     /// `verifyDepsBeforeRun: action`, returning whether the command ran.
     fn exec(&self, selection: &[&str], action: &str) -> bool {
-        let mut args = vec![format!("--config.verify-deps-before-run={action}")];
-        for project in selection {
-            args.push("--filter".to_string());
-            args.push((*project).to_string());
-        }
-        args.extend(["exec", "node", "-e", ""].map(str::to_string));
+        let args = exec_args(selection, action);
         let check_output = |output: Output| {
             let stderr = String::from_utf8_lossy(&output.stderr);
             assert!(
@@ -502,6 +493,7 @@ impl Scenario {
             );
         }
         let settled = self.snapshot();
+        let raw_modules = workspace_raw_modules_manifests(self.workspace());
         assert!(
             self.install_takes_fast_path(&[]),
             "{:?} ({:?}): a repeat install must take the fast path",
@@ -512,6 +504,13 @@ impl Scenario {
             self.snapshot(),
             settled,
             "{:?} ({:?}): a repeat install must be byte-identical",
+            self.layout,
+            self.driver,
+        );
+        assert_eq!(
+            workspace_raw_modules_manifests(self.workspace()),
+            raw_modules,
+            "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
             self.layout,
             self.driver,
         );
@@ -526,6 +525,13 @@ impl Scenario {
                 self.snapshot(),
                 settled,
                 "{:?} ({:?}): a cross-CLI repeat install must be byte-identical",
+                self.layout,
+                self.driver,
+            );
+            assert_eq!(
+                workspace_raw_modules_manifests(self.workspace()),
+                raw_modules,
+                "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
                 self.layout,
                 self.driver,
             );
@@ -578,13 +584,7 @@ impl Scenario {
             "{:?}: the install the gate spawned for {selection:?} must satisfy the gate",
             self.layout,
         );
-        let mut args = vec!["--config.verify-deps-before-run=install".to_string()];
-        for project in selection {
-            args.push("--filter".to_string());
-            args.push((*project).to_string());
-        }
-        args.extend(["exec", "node", "-e", ""].map(str::to_string));
-        let repeat = self.command_at(self.workspace(), &args);
+        let repeat = self.command_at(self.workspace(), exec_args(selection, "install"));
         assert_success(&repeat);
         let records = ndjson_records(&repeat);
         assert!(
@@ -596,6 +596,16 @@ impl Scenario {
             self.driver,
         );
     }
+}
+
+fn exec_args(selection: &[&str], action: &str) -> Vec<String> {
+    let mut args = vec![format!("--config.verify-deps-before-run={action}")];
+    for project in selection {
+        args.push("--filter".to_string());
+        args.push((*project).to_string());
+    }
+    args.extend(["exec", "node", "-e", ""].map(str::to_string));
+    args
 }
 
 /// Overwrite `path` with `contents`, keeping the mtime it had: what `cp -p`,

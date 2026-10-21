@@ -1,6 +1,8 @@
 pub mod console;
 pub mod terminal;
 
+pub use pnpm_testing_utils::bin::read_v11_bundle_path;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -15,7 +17,7 @@ use pnpm_workspace_state::WorkspaceState;
 use serde_json::{Map, Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
@@ -25,12 +27,13 @@ use std::{
 };
 use tempfile::TempDir;
 
-pub fn read_v11_bundle_path() -> Option<OsString> {
-    std::env::var_os("PNPM_V11_BUNDLE")
-        .filter(|path| !path.is_empty())
-        .map(|bundle| {
-            std::path::absolute(bundle).expect("resolve the pnpm v11 bundle path").into_os_string()
-        })
+/// Fresh `node <bundle>` invocation anchored in `workspace` with ambient pnpm
+/// config cleared.
+#[must_use]
+pub fn v11_in(bundle: &OsStr, workspace: &Path) -> Command {
+    let mut command = Command::new("node");
+    command.arg(bundle);
+    command.with_current_dir(workspace).without_ambient_pnpm_config()
 }
 
 #[cfg(unix)]
@@ -369,6 +372,21 @@ impl WorkspaceFixture {
             .args(args)
             .output()
             .expect("run pacquet")
+    }
+
+    pub fn v11_command_at<Args, Arg>(&self, bundle: &OsStr, cwd: &Path, args: Args) -> Output
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        v11_in(bundle, cwd)
+            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
+            .arg("--config.confirm-modules-purge=false")
+            .arg("--reporter=ndjson")
+            .args(args)
+            .output()
+            .expect("run the pnpm v11 bundle")
     }
 
     pub fn run<Args, Arg>(&self, args: Args) -> Vec<Value>
@@ -935,6 +953,23 @@ fn read_normalized_modules_manifest(modules_dir: &Path) -> Modules {
     manifest
 }
 
+/// Every `node_modules/.modules.yaml` under `workspace` as raw file text.
+#[must_use]
+pub fn workspace_raw_modules_manifests(workspace: &Path) -> BTreeMap<String, String> {
+    walk_files(workspace)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name == pnpm_modules_yaml::MODULES_FILENAME)
+        })
+        .map(|path| {
+            let relative = path.strip_prefix(workspace).expect("under the workspace");
+            let text = fs::read_to_string(&path).expect("read .modules.yaml");
+            (relative.to_string_lossy().replace('\\', "/"), text)
+        })
+        .collect()
+}
+
 /// Every `node_modules/.modules.yaml` under `workspace`, normalized so
 /// run-specific timestamps, CLI version strings, and host store paths do not
 /// mask layout differences.
@@ -985,7 +1020,8 @@ impl TreeView {
             .iter()
             .map(|name| {
                 let target = resolve_node_modules_package(from, name)
-                    .map_or_else(|| "<missing>".to_string(), |dir| self.package(&dir));
+                    .map(|dir| self.package(&dir))
+                    .unwrap_or_else(|| "<missing>".to_string());
                 format!("{name}={target}")
             })
             .collect::<Vec<_>>();

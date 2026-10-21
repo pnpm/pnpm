@@ -78,24 +78,22 @@ jobs:
           pnpm --filter pnpm exec tsgo --build
           pnpm --filter pnpm run bundle
 
-      - name: Run the version-switch suite across HEAD and v11
-        shell: bash
-        run: |
-          unset PNPM_HOME
-          unset XDG_DATA_HOME
-          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
-            cargo nextest run --locked -p pnpm-cli --test suite -E 'test(/^version::/)'
-
-      - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12)
+      - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12, HEAD)
         shell: bash
         run: |
           set -euo pipefail
+          outer_bins=()
           for outer_spec in "pnpm@latest-11" "pnpm@12.0.0" "pnpm@latest-12"; do
             outer_dir="$RUNNER_TEMP/outer-${outer_spec//[^a-zA-Z0-9]/_}"
             mkdir -p "$outer_dir"
             printf '{"name":"outer-runner","private":true}\n' > "$outer_dir/package.json"
             pnpm --dir "$outer_dir" add "$outer_spec"
             outer_bin="$outer_dir/node_modules/.bin/pnpm"
+            if [ "${RUNNER_OS:-}" = "Windows" ] && [ -f "${outer_bin}.cmd" ]; then
+              outer_bins+=("${outer_bin}.cmd")
+            else
+              outer_bins+=("$outer_bin")
+            fi
             for pin_version in "10.10.0" "11.11.0" "12.14.0"; do
               work="$RUNNER_TEMP/switch-${outer_spec//[^a-zA-Z0-9]/_}-${pin_version}"
               mkdir -p "$work/project" "$work/home"
@@ -113,3 +111,11 @@ jobs:
               fi
             done
           done
+          IFS=';'
+          outer_clis="${outer_bins[*]}"
+          unset IFS
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
+          PNPM_TEST_OUTER_CLIS="$outer_clis" \
+            cargo nextest run --locked --run-ignored all -p pnpm-cli --test suite -E 'test(/^version::/)'

@@ -1,5 +1,4 @@
 use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path, write_project_manifest};
-use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::Value;
 use std::{
     cell::RefCell,
@@ -7,7 +6,7 @@ use std::{
     ffi::OsString,
     fmt, fs,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::Output,
 };
 
 pub(super) type Deps = &'static [(&'static str, &'static str)];
@@ -483,15 +482,7 @@ impl Harness {
         let Cli::V11(bundle) = &self.cli else {
             return self.fixture.command_at(cwd, args);
         };
-        Command::new("node")
-            .without_ambient_pnpm_config()
-            .arg(bundle)
-            .current_dir(cwd)
-            .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
-            .arg("--reporter=ndjson")
-            .args(args)
-            .output()
-            .expect("run the pnpm v11 bundle")
+        self.fixture.v11_command_at(bundle, cwd, args)
     }
 
     /// `install` over whatever lockfile is there, returning the lockfile it
