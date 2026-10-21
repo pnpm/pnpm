@@ -493,7 +493,7 @@ impl Scenario {
             );
         }
         let settled = self.snapshot();
-        let raw_modules = workspace_raw_modules_manifests(self.workspace());
+        let raw_modules_before_repeat = workspace_raw_modules_manifests(self.workspace());
         let repeat_offered = self.offers_next_install_fast_path();
         assert!(
             self.install_takes_fast_path(&[]),
@@ -511,13 +511,14 @@ impl Scenario {
         if repeat_offered {
             assert_eq!(
                 workspace_raw_modules_manifests(self.workspace()),
-                raw_modules,
+                raw_modules_before_repeat,
                 "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
                 self.layout,
                 self.driver,
             );
         }
         if matches!(self.driver, Driver::Mixed { .. }) {
+            let raw_modules_before_cross = workspace_raw_modules_manifests(self.workspace());
             let cross_repeat_offered = self.offers_next_install_fast_path();
             assert!(
                 self.install_takes_fast_path(&[]),
@@ -535,7 +536,7 @@ impl Scenario {
             if cross_repeat_offered {
                 assert_eq!(
                     workspace_raw_modules_manifests(self.workspace()),
-                    raw_modules,
+                    raw_modules_before_cross,
                     "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
                     self.layout,
                     self.driver,
