@@ -132,6 +132,25 @@ fn pnpm_config_path_is_force_included_under_files_field() {
 }
 
 #[test]
+fn pnpm_config_path_does_not_reinclude_ignored_sibling_files() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    touch(root, "index.js");
+    touch(root, "config/policy.yaml");
+    touch(root, "config/credentials.json");
+    write(root, ".npmignore", "config/\n");
+
+    let manifest = json!({
+        "pnpm": { "config": "./config/policy.yaml" },
+    });
+    let mut out = packlist(root, &manifest).unwrap();
+    out.sort();
+
+    assert_eq!(out, ["config/policy.yaml", "index.js", "package.json"]);
+}
+
+#[test]
 fn browser_replacement_map_is_not_a_required_path() {
     let dir = tempdir().unwrap();
     let root = dir.path();
