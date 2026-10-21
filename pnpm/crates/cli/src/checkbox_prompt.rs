@@ -37,7 +37,6 @@ pub(crate) struct CheckboxChoice<Value> {
 pub(crate) struct CheckboxTheme {
     pub checked: String,
     pub unchecked: String,
-    pub active_row: ActiveRowStyle,
 }
 
 impl Default for CheckboxTheme {
@@ -45,19 +44,8 @@ impl Default for CheckboxTheme {
         Self {
             checked: stdout_styled("◉", |text| text.green().to_string()),
             unchecked: "◯".to_string(),
-            active_row: ActiveRowStyle::Cyan,
         }
     }
-}
-
-/// How the row under the cursor stands out, besides the `❯` in front of it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ActiveRowStyle {
-    /// Repaints the row cyan, over any colors of its own.
-    Cyan,
-    /// Keeps the row's own colors and puts a background behind it, as wide
-    /// as the widest choice so the bar stays the same width on every row.
-    Background,
 }
 
 /// What the answer to a [`CheckboxPrompt`] was.
@@ -134,12 +122,6 @@ impl<Value> CheckboxPrompt<Value> {
     pub(crate) fn theme(mut self, theme: CheckboxTheme) -> Self {
         self.theme = theme;
         self
-    }
-
-    /// The style only shows with color, which tests run without.
-    #[cfg(test)]
-    pub(crate) fn active_row(&self) -> ActiveRowStyle {
-        self.theme.active_row
     }
 
     /// Run the prompt on the terminal behind stdout, where pnpm draws it,
@@ -336,30 +318,7 @@ impl<Value> CheckboxPrompt<Value> {
         let checkbox =
             if self.checked[index] { &self.theme.checked } else { &self.theme.unchecked };
         let line = format!("{cursor}{checkbox} {}", choice.name);
-        if !active {
-            return line;
-        }
-        match self.theme.active_row {
-            ActiveRowStyle::Cyan => stdout_styled(&line, |text| text.cyan().to_string()),
-            ActiveRowStyle::Background => {
-                let width = self.widest_choice_row();
-                stdout_styled(&line, |text| on_active_background(text, width))
-            }
-        }
-    }
-
-    /// The terminal width of the widest choice row, checked or not.
-    fn widest_choice_row(&self) -> usize {
-        let checkbox =
-            measure_text_width(&self.theme.checked).max(measure_text_width(&self.theme.unchecked));
-        self.items
-            .iter()
-            .filter_map(|item| match item {
-                CheckboxItem::Choice(choice) => Some(measure_text_width(&choice.name)),
-                CheckboxItem::Separator(_) => None,
-            })
-            .max()
-            .map_or(0, |name| measure_text_width("❯") + checkbox + 1 + name)
+        if active { stdout_styled(&line, in_active_cyan) } else { line }
     }
 
     /// The line left behind once Enter confirmed the selection.
@@ -439,24 +398,22 @@ fn terminal_rows(frame: &str, columns: usize) -> usize {
         .sum()
 }
 
-/// `line` padded to `width` on [`ACTIVE_BACKGROUND`].
+/// `line` painted in [`ACTIVE_FOREGROUND`], keeping any colors of its own.
 ///
-/// A choice's name carries colors of its own, such as the changed part of a
-/// version, and their resets would end a background painted once around the
-/// line. So the background is painted again after every reset.
-fn on_active_background(line: &str, width: usize) -> String {
-    let padding = " ".repeat(width.saturating_sub(measure_text_width(line)));
-    let mut painted = format!("{ACTIVE_BACKGROUND}{line}{padding}");
-    for reset in [RESET_ALL, RESET_BACKGROUND] {
-        painted = painted.replace(reset, &format!("{reset}{ACTIVE_BACKGROUND}"));
+/// A choice's name can carry foreground colors of its own, such as the
+/// changed part of a version, and their resets would end a cyan foreground
+/// painted once around the line. So cyan is painted again after every reset.
+fn in_active_cyan(line: &str) -> String {
+    let mut painted = format!("{ACTIVE_FOREGROUND}{line}");
+    for reset in [RESET_ALL, RESET_FOREGROUND] {
+        painted = painted.replace(reset, &format!("{reset}{ACTIVE_FOREGROUND}"));
     }
-    format!("{painted}{RESET_BACKGROUND}")
+    format!("{painted}{RESET_FOREGROUND}")
 }
 
-/// The terminal's bright black: a grey that follows the user's color scheme.
-const ACTIVE_BACKGROUND: &str = <owo_colors::colors::BrightBlack as owo_colors::Color>::ANSI_BG;
+const ACTIVE_FOREGROUND: &str = <owo_colors::colors::Cyan as owo_colors::Color>::ANSI_FG;
 const RESET_ALL: &str = "\u{1b}[0m";
-const RESET_BACKGROUND: &str = "\u{1b}[49m";
+const RESET_FOREGROUND: &str = "\u{1b}[39m";
 
 fn stdout_styled(text: &str, style: impl Fn(&str) -> String) -> String {
     text.if_supports_color(Stream::Stdout, |text| style(text)).to_string()

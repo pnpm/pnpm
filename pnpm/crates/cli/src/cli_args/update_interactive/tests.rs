@@ -4,10 +4,7 @@ use super::{
     InteractiveUpdateProject, PromptRow, PromptStyle, UpdatePrompt, collect_choices,
     dependencies_prompt_message,
 };
-use crate::{
-    checkbox_prompt::{ActiveRowStyle, KeyOutcome},
-    cli_args::update::UpdateArgs,
-};
+use crate::{checkbox_prompt::KeyOutcome, cli_args::update::UpdateArgs};
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -1005,7 +1002,6 @@ fn the_dependencies_prompt_uses_pnpm_theme_and_requires_a_choice() {
 
     let frame = console::strip_ansi_codes(&prompt.render_frame()).into_owned();
     assert!(frame.contains("\n ── dependencies ──\n❯○ foo 1.0.0 ❯ 2.0.0\n"), "{frame}");
-    assert_eq!(prompt.active_row(), ActiveRowStyle::Background);
     assert_eq!(prompt.handle_key(&console::Key::Enter), KeyOutcome::Redraw);
 }
 
@@ -1015,6 +1011,5 @@ fn the_global_groups_prompt_uses_the_default_theme_and_allows_no_choice() {
 
     let frame = console::strip_ansi_codes(&prompt.render_frame()).into_owned();
     assert!(frame.contains("\n❯◯ foo 1.0.0 ❯ 2.0.0\n"), "{frame}");
-    assert_eq!(prompt.active_row(), ActiveRowStyle::Cyan);
     assert_eq!(prompt.handle_key(&console::Key::Enter), KeyOutcome::Submit);
 }

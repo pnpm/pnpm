@@ -1,6 +1,5 @@
 use super::{
-    ActiveRowStyle, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome,
-    on_active_background,
+    CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome, in_active_cyan,
 };
 use console::{Key, strip_ansi_codes};
 
@@ -174,11 +173,7 @@ fn the_answer_names_the_selection_by_its_short_form() {
 #[test]
 fn the_theme_picks_the_icons() {
     let mut prompt = grouped_prompt()
-        .theme(CheckboxTheme {
-            checked: "●".to_string(),
-            unchecked: "○".to_string(),
-            active_row: ActiveRowStyle::Background,
-        });
+        .theme(CheckboxTheme { checked: "●".to_string(), unchecked: "○".to_string() });
 
     press(&mut prompt, &[Key::Char(' ')]);
 
@@ -188,29 +183,12 @@ fn the_theme_picks_the_icons() {
 }
 
 #[test]
-fn the_active_background_spans_the_widest_choice() {
-    let prompt = grouped_prompt()
-        .theme(CheckboxTheme {
-            checked: "●".to_string(),
-            unchecked: "○".to_string(),
-            active_row: ActiveRowStyle::Background,
-        });
-
-    assert_eq!(prompt.widest_choice_row(), "❯○ foo 1.0.0 ❯ 2.0.0".chars().count());
-    assert_eq!(
-        frame_lines(&prompt)[3],
-        "❯○ foo 1.0.0 ❯ 2.0.0",
-        "without color the row is not padded",
-    );
-}
-
-#[test]
-fn the_active_background_survives_the_rows_own_resets() {
-    let line = "❯○ foo \u{1b}[31m2.0.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m";
+fn the_active_row_cyan_survives_the_rows_own_resets() {
+    let line = "❯○ foo 1.0.0 ❯ 2.\u{1b}[32m1.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m https://example.com";
 
     assert_eq!(
-        on_active_background(line, 20),
-        "\u{1b}[100m❯○ foo \u{1b}[31m2.0.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m\u{1b}[100m    \u{1b}[49m",
+        in_active_cyan(line),
+        "\u{1b}[36m❯○ foo 1.0.0 ❯ 2.\u{1b}[32m1.0\u{1b}[39m\u{1b}[36m \u{1b}[1mweb\u{1b}[0m\u{1b}[36m https://example.com\u{1b}[39m",
     );
 }
 

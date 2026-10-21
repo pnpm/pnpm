@@ -19,7 +19,7 @@ pub(crate) use global::select_global_package_groups;
 
 use crate::{
     checkbox_prompt::{
-        ActiveRowStyle, CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
+        CheckboxAnswer, CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme,
     },
     cli_args::{
         global::has_pnpm_cli_dependency,
@@ -90,11 +90,7 @@ impl PromptStyle {
         match self {
             Self::Dependencies => CheckboxPrompt::new(message, items)
                 .required(true)
-                .theme(CheckboxTheme {
-                    checked: "●".to_string(),
-                    unchecked: "○".to_string(),
-                    active_row: ActiveRowStyle::Background,
-                }),
+                .theme(CheckboxTheme { checked: "●".to_string(), unchecked: "○".to_string() }),
             Self::GlobalGroups => CheckboxPrompt::new(message, items),
         }
     }
