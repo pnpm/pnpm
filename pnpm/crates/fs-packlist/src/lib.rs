@@ -130,9 +130,9 @@ fn collect_own_files(
     Ok(out)
 }
 
-/// The [`normalize_field_path`]-ed `main`, `browser`, and `bin` paths that
-/// stay inside the package (see [`is_contained_field_path`]). A non-string
-/// value, such as a `browser` replacement map, is skipped.
+/// The [`normalize_field_path`]-ed `main`, `browser`, `bin`, and `pnpm.config`
+/// paths that stay inside the package (see [`is_contained_field_path`]). A
+/// non-string value, such as a `browser` replacement map, is skipped.
 fn required_field_paths(manifest: &Value) -> Vec<String> {
     let bin_paths = match manifest.get("bin") {
         Some(Value::String(bin)) => vec![bin.as_str()],
@@ -142,10 +142,16 @@ fn required_field_paths(manifest: &Value) -> Vec<String> {
             .collect(),
         _ => Vec::new(),
     };
+    let pnpm_config = manifest
+        .get("pnpm")
+        .and_then(Value::as_object)
+        .and_then(|pnpm| pnpm.get("config"))
+        .and_then(Value::as_str);
     ["main", "browser"]
         .into_iter()
         .filter_map(|field| manifest.get(field).and_then(Value::as_str))
         .chain(bin_paths)
+        .chain(pnpm_config)
         .map(normalize_field_path)
         .filter(|path| is_contained_field_path(path))
         .collect()

@@ -235,10 +235,11 @@ fn a_config_dependency_packed_with_pnpm_pack_keeps_its_config_entry() {
                 "config": "./config.yaml",
                 "overrides": { "ignored": "1.0.0" },
             },
-            "files": ["config.yaml"],
+            "files": ["index.js"],
         })
         .to_string(),
     );
+    write(&policy_dir, "index.js", "");
     write(&policy_dir, "config.yaml", "nodeLinker: hoisted\n");
 
     pnpm_at(&policy_dir)
