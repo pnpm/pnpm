@@ -486,6 +486,45 @@ describe('checkDepsStatus with recorded validations', () => {
     await fs.mkdir(bLockfilePath)
     await fs.utimes(bLockfilePath, bLockfileMtime, bLockfileMtime)
     expect(await check(workspace, ['a'], { sharedWorkspaceLockfile: false })).toMatchObject({ upToDate: true })
+
+    // Under dedicated lockfiles with injection, a non-recursive check in `a`
+    // skips injected `workspace:*` dependencies while still holding `link:` dependencies.
+    await fs.rm(bLockfilePath, { recursive: true, force: true })
+    await fs.rm(path.join(workspace.projectDir('b'), 'node_modules'), { recursive: true, force: true })
+    const recordVouchedA = async (bSpec: string): Promise<void> => {
+      workspace.manifestOf('a').dependencies = { foo: '1.0.0', b: bSpec }
+      await updateWorkspaceState({
+        allProjects: workspace.allProjects,
+        workspaceDir: workspace.workspaceDir,
+        pnpmfiles: [],
+        settings: { ...SETTINGS, injectWorkspacePackages: true },
+        configDependencies: CONFIG_DEPENDENCIES,
+        filteredInstall: true,
+        validation: {
+          lockfileDir: workspace.workspaceDir,
+          wantedLockfileName: 'pnpm-lock.yaml',
+          sharedInputs: [],
+          sharedWorkspaceLockfile: false,
+          vouchedProjects: [workspace.projectDir('a')],
+        },
+      })
+    }
+    await recordVouchedA('workspace:*')
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+      injectWorkspacePackages: true,
+      sharedWorkspaceLockfile: false,
+    })).toMatchObject({ upToDate: true })
+
+    await recordVouchedA('link:../b')
+    expect(await check(workspace, undefined, {
+      dir: workspace.projectDir('a'),
+      injectWorkspacePackages: true,
+      sharedWorkspaceLockfile: false,
+    })).toMatchObject({
+      upToDate: false,
+      issue: 'Workspace package b has dependencies but does not have a modules directory',
+    })
   })
 })
 

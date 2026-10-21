@@ -6,14 +6,40 @@
 //! selection resolves through the prod-pruned graph so the dev edges it
 //! dropped are not pulled back in.
 
-use super::{filtered_projects_dependencies, projects_with_workspace_dependencies, sequence_graph};
+use super::{
+    RecursiveSelection, dependencies::projects_with_workspace_dependencies_filtered,
+    filtered_projects_dependencies, projects_to_verify, sequence_graph,
+};
+use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_package_manager::graph_sequencer;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{ProjectGraph, ProjectGraphNode};
 use pretty_assertions::assert_eq;
 use std::{
     collections::{HashMap, HashSet},
+    fs,
     path::{Path, PathBuf},
 };
+
+fn projects_with_workspace_dependencies<'graph, 'dirs, Pkg>(
+    project_dirs: impl IntoIterator<Item = &'dirs Path>,
+    all: &'graph ProjectGraph<Pkg>,
+    prod_all: Option<&'graph ProjectGraph<Pkg>>,
+    prod_only_selected: &HashSet<PathBuf>,
+) -> Vec<PathBuf> {
+    projects_with_workspace_dependencies_filtered(
+        project_dirs,
+        all,
+        prod_all,
+        prod_only_selected,
+        |_, _, deps| {
+            deps.iter()
+                .map(PathBuf::as_path)
+                .collect()
+        },
+    )
+}
 
 fn make_graph(adjacency: &[(&str, &[&str])]) -> ProjectGraph<()> {
     adjacency
@@ -252,4 +278,81 @@ fn projects_with_workspace_dependencies_lists_a_shared_dependency_once() {
         ),
         dirs(&["a", "c", "b"]),
     );
+}
+
+#[test]
+fn projects_to_verify_under_dedicated_lockfiles_with_injection_follows_only_link_edges() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(
+        tmp.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - '*'\ncatalog:\n  d: link:./d\n",
+    )
+    .unwrap();
+    let write_project = |name: &str, json: &str| {
+        let dir = tmp.path().join(name);
+        fs::create_dir_all(&dir).unwrap();
+        let manifest_path = dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        Project {
+            root_dir: dir,
+            manifest: PackageManifest::from_path(manifest_path).unwrap(),
+            dependency_manifest: None,
+        }
+    };
+    let pkg_a = write_project(
+        "a",
+        r#"{"name":"a","version":"1.0.0","dependencies":{"b":"workspace:*","c":"link:../c","d":"catalog:"}}"#,
+    );
+    let pkg_b = write_project("b", r#"{"name":"b","version":"1.0.0"}"#);
+    let pkg_c = write_project("c", r#"{"name":"c","version":"1.0.0"}"#);
+    let pkg_d = write_project("d", r#"{"name":"d","version":"1.0.0"}"#);
+    let all: ProjectGraph<GraphPkg<'_>> = [
+        (
+            pkg_a.root_dir.clone(),
+            ProjectGraphNode {
+                package: GraphPkg { project: &pkg_a },
+                dependencies: vec![
+                    pkg_b.root_dir.clone(),
+                    pkg_c.root_dir.clone(),
+                    pkg_d.root_dir.clone(),
+                ],
+            },
+        ),
+        (
+            pkg_b.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_b }, dependencies: Vec::new() },
+        ),
+        (
+            pkg_c.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_c }, dependencies: Vec::new() },
+        ),
+        (
+            pkg_d.root_dir.clone(),
+            ProjectGraphNode { package: GraphPkg { project: &pkg_d }, dependencies: Vec::new() },
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let selected =
+        std::iter::once((pkg_a.root_dir.clone(), all[&pkg_a.root_dir].clone())).collect();
+    let selection = RecursiveSelection {
+        selected,
+        all: Some(all),
+        prod_all: None,
+        prod_only_selected: HashSet::new(),
+    };
+    let config = Config {
+        verify_deps_before_run: VerifyDepsBeforeRun::Error,
+        shared_workspace_lockfile: false,
+        inject_workspace_packages: true,
+        workspace_dir: Some(tmp.path().to_path_buf()),
+        ..Config::default()
+    };
+
+    let mut verified =
+        projects_to_verify([pkg_a.root_dir.as_path()], &selection, &config, tmp.path()).unwrap();
+    verified.sort();
+    let mut expected = vec![pkg_a.root_dir, pkg_c.root_dir, pkg_d.root_dir];
+    expected.sort();
+    assert_eq!(verified, expected);
 }

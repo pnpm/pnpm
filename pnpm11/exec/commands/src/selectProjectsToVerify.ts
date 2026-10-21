@@ -66,29 +66,27 @@ function walkDependencies (projectsGraph: ProjectsGraph, roots: ProjectRootDir[]
     const node = projectsGraph[dir]
     if (reached[dir] != null || node == null) continue
     reached[dir] = node
-    const dependencies = onlyLinked
-      ? node.dependencies.filter((depDir) => hasLinkDependencyTo(dir, node.package.manifest, depDir))
-      : node.dependencies
+    let dependencies = node.dependencies
+    if (onlyLinked && dependencies.length > 0) {
+      const linkedTargets = linkedDependencyDirs(dir, node.package.manifest)
+      dependencies = dependencies.filter((depDir) => linkedTargets.has(path.resolve(depDir)))
+    }
     stack.push(...dependencies)
   }
   return reached
 }
 
-function hasLinkDependencyTo (parentDir: ProjectRootDir, manifest: ProjectManifest | undefined, targetDir: ProjectRootDir): boolean {
-  if (manifest == null) return false
-  const resolvedTarget = path.resolve(targetDir)
+function linkedDependencyDirs (parentDir: ProjectRootDir, manifest: ProjectManifest | undefined): Set<string> {
+  const targets = new Set<string>()
+  if (manifest == null) return targets
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const) {
     for (const spec of Object.values(manifest[field] ?? {})) {
-      if (
-        typeof spec === 'string' &&
-        spec.startsWith('link:') &&
-        path.resolve(parentDir, spec.slice('link:'.length).replace(/\\/g, '/')) === resolvedTarget
-      ) {
-        return true
+      if (typeof spec === 'string' && spec.startsWith('link:')) {
+        targets.add(path.resolve(parentDir, spec.slice('link:'.length).replace(/\\/g, '/')))
       }
     }
   }
-  return false
+  return targets
 }
 
 function hasNegatedSelector (opts: ProjectsToVerifyOptions): boolean {

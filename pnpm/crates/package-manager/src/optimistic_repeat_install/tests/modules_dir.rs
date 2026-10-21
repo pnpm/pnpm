@@ -408,3 +408,79 @@ fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versio
         Some("pkg-f"),
     );
 }
+
+#[test]
+fn expanded_selected_modules_dir_check_under_dedicated_lockfiles_with_injection_follows_only_link_deps()
+ {
+    let linker = pnpm_config::NodeLinker::Isolated;
+    let (dir, config, root_manifest) =
+        setup_fresh_install_with_config(linker, "root", "1.0.0", "", |config| {
+            config.shared_workspace_lockfile = false;
+            config.inject_workspace_packages = true;
+        });
+    let write_pkg = |rel: &str, json: &str, create_modules_dir: bool| {
+        let pkg_dir = dir.path().join(rel);
+        fs::create_dir_all(&pkg_dir).unwrap();
+        if create_modules_dir {
+            fs::create_dir_all(pkg_dir.join("node_modules")).unwrap();
+        }
+        let manifest_path = pkg_dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        (pkg_dir, PackageManifest::from_path(manifest_path).unwrap())
+    };
+    let (app_dir, app_manifest) = write_pkg(
+        "app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"injected":"workspace:*","linked":"link:../linked"}}"#,
+        true,
+    );
+    let (injected_dir, injected_manifest) = write_pkg(
+        "injected",
+        r#"{"name":"injected","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        false,
+    );
+    let (linked_dir, linked_manifest) = write_pkg(
+        "linked",
+        r#"{"name":"linked","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        false,
+    );
+
+    let project_manifests = [
+        (dir.path().to_path_buf(), &root_manifest),
+        (app_dir.clone(), &app_manifest),
+        (injected_dir, &injected_manifest),
+        (linked_dir.clone(), &linked_manifest),
+    ];
+    let catalogs = BTreeMap::default();
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = pnpm_workspace_state::WorkspaceState::default();
+    let selected = [app_dir.as_path()];
+
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        )
+        .as_deref(),
+        Some("linked"),
+    );
+
+    fs::create_dir_all(linked_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check, &state, &selected, true,
+        ),
+        None,
+    );
+}
