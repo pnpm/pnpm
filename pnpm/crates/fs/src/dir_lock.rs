@@ -196,14 +196,19 @@ enum Liveness {
 /// The held file standing for the lock directory, locked on the first
 /// poll that finds it free.
 ///
-/// The file handle is opened only inside [`Self::lock`] and dropped
-/// before returning [`Liveness::Busy`], so a waiting process never
-/// keeps an unlocked handle open across [`POLL_INTERVAL`] (which on
-/// Windows would hold a released held file in the delete-pending state).
+/// On Windows the file handle is dropped before returning
+/// [`Liveness::Busy`], so a waiting process never keeps an unlocked
+/// handle open across [`POLL_INTERVAL`] and holds a released held file
+/// in the delete-pending state. On Unix an open descriptor does not
+/// keep an unlinked path alive, so a waiting process reuses its open
+/// handle across polls until the inode is unlinked or locked.
 struct HeldFile {
     lock_path: PathBuf,
     held_path: Option<PathBuf>,
+    #[cfg(not(windows))]
+    waiting: Option<File>,
     locked: Option<LockedHeldFile>,
+    open_retry_started: Option<Instant>,
 }
 
 #[derive(Debug)]
@@ -227,7 +232,10 @@ impl HeldFile {
         Self {
             lock_path: lock_path.to_path_buf(),
             held_path: held_path(lock_path).ok(),
+            #[cfg(not(windows))]
+            waiting: None,
             locked: None,
+            open_retry_started: None,
         }
     }
 
@@ -239,20 +247,76 @@ impl HeldFile {
             return Liveness::Unavailable;
         };
         for _ in 0..4 {
-            match try_lock_held_file_once(&held_path) {
+            match self.try_lock_once(&held_path) {
                 Ok(Some(locked)) => {
                     self.locked = Some(locked);
                     return Liveness::Proven;
                 }
                 Ok(None) => {}
-                Err(Liveness::Unavailable) => {
-                    self.held_path = None;
-                    return Liveness::Unavailable;
-                }
                 Err(liveness) => return liveness,
             }
         }
         Liveness::Busy
+    }
+
+    /// Open and lock `path` once, returning `Ok(None)` when the previous
+    /// holder unlinked the inode between our open and our lock.
+    fn try_lock_once(&mut self, path: &Path) -> Result<Option<LockedHeldFile>, Liveness> {
+        #[cfg(not(windows))]
+        let file = match self.waiting.take() {
+            Some(file) => file,
+            None => self.open_file(path)?,
+        };
+        #[cfg(windows)]
+        let file = self.open_file(path)?;
+
+        match crate::try_lock_file(&file, true) {
+            Ok(()) => {}
+            Err(TryLockError::WouldBlock) => {
+                if !crate::copy_file_exclusive::path_still_names(&file, path) {
+                    return Ok(None);
+                }
+                #[cfg(not(windows))]
+                {
+                    self.waiting = Some(file);
+                }
+                return Err(Liveness::Busy);
+            }
+            Err(TryLockError::Error(_)) => {
+                self.held_path = None;
+                return Err(Liveness::Unavailable);
+            }
+        }
+        if !crate::copy_file_exclusive::path_still_names(&file, path) {
+            return Ok(None);
+        }
+        let id = held_file_id(&file)
+            .map_err(|_| {
+                self.held_path = None;
+                Liveness::Unavailable
+            })?;
+        Ok(Some(LockedHeldFile { file, path: path.to_path_buf(), id }))
+    }
+
+    fn open_file(&mut self, path: &Path) -> Result<File, Liveness> {
+        match crate::open_secure_lock_file(path) {
+            Ok(file) => {
+                self.open_retry_started = None;
+                Ok(file)
+            }
+            Err(error) => Err(self.classify_open_error(&error)),
+        }
+    }
+
+    fn classify_open_error(&mut self, error: &io::Error) -> Liveness {
+        if is_transient_release_error(error) {
+            let started = self.open_retry_started.get_or_insert_with(Instant::now);
+            if started.elapsed() < RELEASE_RETRY_BUDGET {
+                return Liveness::Busy;
+            }
+        }
+        self.held_path = None;
+        Liveness::Unavailable
     }
 
     /// The identity of the held file this process holds the lock on.
@@ -263,25 +327,6 @@ impl HeldFile {
     fn take_locked(&mut self) -> Option<LockedHeldFile> {
         self.locked.take()
     }
-}
-
-/// Open and lock `path` once, returning `Ok(None)` when the previous
-/// holder unlinked the inode between our open and our lock.
-fn try_lock_held_file_once(path: &Path) -> Result<Option<LockedHeldFile>, Liveness> {
-    let file = crate::open_secure_lock_file(path)
-        .map_err(|error| {
-            if is_transient_release_error(&error) { Liveness::Busy } else { Liveness::Unavailable }
-        })?;
-    match crate::try_lock_file(&file, true) {
-        Ok(()) => {}
-        Err(TryLockError::WouldBlock) => return Err(Liveness::Busy),
-        Err(TryLockError::Error(_)) => return Err(Liveness::Unavailable),
-    }
-    if !crate::copy_file_exclusive::path_still_names(&file, path) {
-        return Ok(None);
-    }
-    let id = held_file_id(&file).map_err(|_| Liveness::Unavailable)?;
-    Ok(Some(LockedHeldFile { file, path: path.to_path_buf(), id }))
 }
 
 impl Drop for HeldFile {

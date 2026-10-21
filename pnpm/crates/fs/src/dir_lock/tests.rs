@@ -316,3 +316,22 @@ fn transient_release_error_classifier_is_windows_specific() {
         assert!(!super::is_transient_release_error(&io::Error::from(kind)), "{kind:?}");
     }
 }
+
+#[test]
+fn persistent_held_file_open_error_falls_back_to_unavailable_after_retry_budget() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    let mut held = HeldFile::open(&path);
+    let error = io::Error::from(io::ErrorKind::PermissionDenied);
+
+    let initial = held.classify_open_error(&error);
+    assert_eq!(initial, if cfg!(windows) { Liveness::Busy } else { Liveness::Unavailable });
+
+    held.open_retry_started = Some(
+        std::time::Instant::now()
+            .checked_sub(super::RELEASE_RETRY_BUDGET + Duration::from_millis(1))
+            .expect("instant before retry budget"),
+    );
+    assert_eq!(held.classify_open_error(&error), Liveness::Unavailable);
+    assert!(held.held_path.is_none(), "held path is cleared once retry budget expires");
+}

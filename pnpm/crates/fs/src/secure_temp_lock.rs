@@ -150,10 +150,18 @@ pub fn open_secure_lock_file(path: &Path) -> io::Result<fs::File> {
             .mode(0o600)
             .custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW);
     }
-    let file = options.open(path)?;
-    #[cfg(unix)]
-    validate_unix_file(&file)?;
-    Ok(file)
+    for _ in 0..4 {
+        let file = options.open(path)?;
+        #[cfg(unix)]
+        if !validate_unix_file(&file)? {
+            continue;
+        }
+        return Ok(file);
+    }
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "lock file was repeatedly unlinked before validation",
+    ))
 }
 
 #[cfg(target_os = "wasi")]
@@ -226,16 +234,20 @@ fn secure_unix_directory(directory: &Path) -> io::Result<()> {
 }
 
 #[cfg(unix)]
-fn validate_unix_file(file: &fs::File) -> io::Result<()> {
+fn validate_unix_file(file: &fs::File) -> io::Result<bool> {
     use std::os::unix::fs::MetadataExt as _;
 
     let metadata = file.metadata()?;
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
     let effective_user = unsafe { libc::geteuid() };
-    if !metadata.is_file() || metadata.uid() != effective_user || metadata.nlink() != 1 {
+    if !metadata.is_file() || metadata.uid() != effective_user {
         return Err(io::Error::other("lock must be a regular file owned by the current user"));
     }
-    Ok(())
+    match metadata.nlink() {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(io::Error::other("lock must be a regular file owned by the current user")),
+    }
 }
 
 #[cfg(all(test, unix))]

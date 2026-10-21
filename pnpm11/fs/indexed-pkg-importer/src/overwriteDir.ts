@@ -26,9 +26,7 @@ export function overwriteDirSync (stage: string, newDir: string): void {
         overwriteDirSync(stage, newDir)
         return
       case 'EXDEV':
-        rimrafSync(newDir)
-        fs.cpSync(stage, newDir, { recursive: true, verbatimSymlinks: true })
-        rimrafSync(stage)
+        copyStageAcrossDevicesSync(stage, newDir)
         return
       case 'ENOTEMPTY':
       case 'EEXIST':
@@ -42,6 +40,18 @@ export function overwriteDirSync (stage: string, newDir: string): void {
         throw err
     }
   }
+}
+
+function copyStageAcrossDevicesSync (stage: string, newDir: string): void {
+  fs.mkdirSync(path.dirname(newDir), { recursive: true })
+  const localStage = `${pathTemp(newDir)}_stage_${swapCounter++}`
+  try {
+    fs.cpSync(stage, localStage, { recursive: true, verbatimSymlinks: true })
+    swapDirSync(localStage, newDir)
+  } finally {
+    removeQuietly(localStage)
+  }
+  removeQuietly(stage)
 }
 
 function swapDirSync (stage: string, newDir: string): void {
@@ -67,10 +77,25 @@ function moveExistingTargetAside (newDir: string): string | undefined {
     fs.renameSync(newDir, aside)
     return aside
   } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') {
-      return undefined
-    }
-    throw err
+    removeTargetAfterFailedDisplace(newDir, err)
+    return undefined
+  }
+}
+
+function removeTargetAfterFailedDisplace (newDir: string, err: unknown): void {
+  if (!isError(err) || !('code' in err)) throw err
+  switch (err.code) {
+    case 'ENOENT':
+      return
+    // Windows refuses to rename a directory a process runs from; fall
+    // back to removing it in place.
+    case 'EPERM':
+    case 'EACCES':
+    case 'EBUSY':
+      rimrafSync(newDir)
+      return
+    default:
+      throw err
   }
 }
 
@@ -78,9 +103,12 @@ function restoreOrRemoveAside (aside: string, newDir: string): void {
   try {
     if (!fs.existsSync(newDir)) {
       fs.renameSync(aside, newDir)
+      return
     }
   } catch {}
-  removeQuietly(aside)
+  if (fs.existsSync(newDir)) {
+    removeQuietly(aside)
+  }
 }
 
 function removeQuietly (target: string): void {
