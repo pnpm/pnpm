@@ -8,11 +8,13 @@ pub(crate) use gzip::{
     is_eager_decode_limit_exceeded,
 };
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
-pub(crate) use limits::{TarBudget, archive_entry_segments, clean_archive_entry_path};
+pub(crate) use limits::{
+    OversizedManifestError, TarBudget, archive_entry_segments, clean_archive_entry_path,
+    oversized_manifest_error,
+};
 pub use manifest::{TarInspection, inspect_tar, read_buffered_tar_entry, tar_requires_build};
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
-    oversized_manifest_error,
 };
 pub(crate) use streaming::{
     BodyChunkReceiver, BodyChunkSender, ExtractedResource, STREAM_ENTRY_BUFFER_MAX,

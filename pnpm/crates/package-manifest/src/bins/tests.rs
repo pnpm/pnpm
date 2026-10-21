@@ -4,8 +4,8 @@ use serde_json::json;
 use tempfile::tempdir;
 
 use super::{
-    PackageBin, normalize_package_relative_path, parse_shebang_from_bytes, resolve_package_bins,
-    verify_package_bins,
+    MAX_PRECALCULATED_BINS, PackageBin, normalize_package_relative_path, parse_shebang_from_bytes,
+    resolve_package_bins, serialize_precalculated_bins, verify_package_bins,
 };
 
 #[test]
@@ -177,4 +177,31 @@ fn verify_package_bins_checks_manifest_and_file_set() {
         ),
     ]);
     assert!(!verify_package_bins(&extra_bin, &manifest, &files));
+}
+
+#[test]
+fn caps_precalculated_bins_count_and_serialized_size() {
+    let manifest = json!({
+        "name": "many-bins",
+        "version": "1.0.0",
+        "directories": { "bin": "./bin" },
+    });
+    let mut at_limit = BTreeMap::new();
+    for index in 0..MAX_PRECALCULATED_BINS {
+        at_limit.insert(format!("bin/cmd-{index}.js"), None);
+    }
+    let resolved = resolve_package_bins(&manifest, &at_limit).expect("64 bins should fit budget");
+    assert_eq!(resolved.len(), MAX_PRECALCULATED_BINS);
+    assert!(serialize_precalculated_bins(&resolved).is_some());
+
+    let mut over_count = at_limit;
+    over_count.insert(format!("bin/cmd-{MAX_PRECALCULATED_BINS}.js"), None);
+    assert_eq!(resolve_package_bins(&manifest, &over_count), None);
+
+    let long_subpath = "sub/".repeat(60);
+    let mut over_bytes = BTreeMap::new();
+    for index in 0..40 {
+        over_bytes.insert(format!("bin/{long_subpath}command-name-{index}.js"), None);
+    }
+    assert_eq!(resolve_package_bins(&manifest, &over_bytes), None);
 }

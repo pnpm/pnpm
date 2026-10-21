@@ -3,6 +3,13 @@ use std::{collections::BTreeMap, path::Path};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Maximum number of commands precalculated in `dist.pnpr.bins`. Packages
+/// declaring more commands fall back to on-disk bin discovery at link time.
+pub const MAX_PRECALCULATED_BINS: usize = 64;
+
+/// Maximum serialized JSON byte size of a single version's `dist.pnpr.bins`.
+pub const MAX_PRECALCULATED_BINS_BYTES: usize = 8 * 1024;
+
 /// Detected runtime for a target script.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptRuntime {
@@ -316,7 +323,7 @@ pub fn resolve_package_bins_with<'files>(
         }
         bins.insert(bin_name, pkg_bin);
     }
-    Some(bins)
+    is_within_precalculated_bins_budget(&bins).then_some(bins)
 }
 
 /// Precalculate the package's resolved bins and shebang/extension runtimes
@@ -347,7 +354,32 @@ pub fn resolve_package_bins_from_cas_paths<Hasher: std::hash::BuildHasher>(
         }
         bins.insert(bin_name, pkg_bin);
     }
-    Some(bins)
+    is_within_precalculated_bins_budget(&bins).then_some(bins)
+}
+
+/// Whether `bins` satisfies the per-version command-count and serialized
+/// byte-size limits for `dist.pnpr.bins`.
+#[must_use]
+pub fn is_within_precalculated_bins_budget(bins: &BTreeMap<String, PackageBin>) -> bool {
+    bins.len() <= MAX_PRECALCULATED_BINS
+        && serde_json::to_vec(bins)
+            .is_ok_and(|encoded| encoded.len() <= MAX_PRECALCULATED_BINS_BYTES)
+}
+
+/// Serialize `bins` to a JSON [`Value`] along with its compact JSON byte
+/// length when `bins` is non-empty and within [`MAX_PRECALCULATED_BINS`] and
+/// [`MAX_PRECALCULATED_BINS_BYTES`].
+#[must_use]
+pub fn serialize_precalculated_bins(bins: &BTreeMap<String, PackageBin>) -> Option<(Value, usize)> {
+    if bins.is_empty() || bins.len() > MAX_PRECALCULATED_BINS {
+        return None;
+    }
+    let encoded = serde_json::to_vec(bins).ok()?;
+    if encoded.len() > MAX_PRECALCULATED_BINS_BYTES {
+        return None;
+    }
+    let value = serde_json::to_value(bins).ok()?;
+    Some((value, encoded.len()))
 }
 
 fn read_file_head(path: &Path, buf: &mut [u8]) -> Option<usize> {
@@ -416,6 +448,9 @@ fn resolve_paths_from_bin_field(
             return None;
         }
         paths.insert(bin_name, normalized);
+        if paths.len() > MAX_PRECALCULATED_BINS {
+            return None;
+        }
     }
     Some(paths)
 }
@@ -430,7 +465,9 @@ fn resolve_paths_from_directories_bin<'files>(
         let Some(file_name) = bin_dir_entry_name(file_path, &bin_dir) else {
             continue;
         };
-        if paths.insert(file_name.to_string(), file_path.to_string()).is_some() {
+        if paths.insert(file_name.to_string(), file_path.to_string()).is_some()
+            || paths.len() > MAX_PRECALCULATED_BINS
+        {
             return None;
         }
     }

@@ -131,6 +131,7 @@ fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
     )
     .expect_err("oversized manifest must be rejected, not buffered");
 
+    assert!(!super::is_transient_error(&err));
     match err {
         TarballError::ReadTarballEntries(io_err) => {
             assert_eq!(io_err.kind(), ErrorKind::InvalidData);

@@ -795,3 +795,43 @@ async fn published_tar_surfaces_precalculated_bins_and_shebang_runtimes_in_dist_
         body_json(get(&app, "/npm/~zstd/@acme%2Fcli/1.0.0", None).await.into_body()).await;
     assert_eq!(version["dist"]["pnpr"], expected_pnpr);
 }
+
+#[tokio::test]
+async fn pathological_bin_counts_omit_dist_pnpr_bins_and_preserve_requires_build() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = issue_token(&auth, "alice").await;
+    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
+
+    let mut entries: Vec<(String, Vec<u8>)> = vec![(
+        "package/package.json".to_string(),
+        br#"{"name":"@acme/many-bins","version":"1.0.0","directories":{"bin":"./bin"}}"#.to_vec(),
+    )];
+    for index in 0..=pnpm_package_manifest::MAX_PRECALCULATED_BINS {
+        entries.push((format!("package/bin/cmd-{index}.js"), b"#!/usr/bin/env node\n".to_vec()));
+    }
+    let borrowed: Vec<(&str, &[u8])> = entries
+        .iter()
+        .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+        .collect();
+    let tar = tar_of(&borrowed);
+
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/npm/~acme/@acme/many-bins",
+            "@acme/many-bins",
+            "1.0.0",
+            &gzip(&tar),
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let packument = body_json(get(&app, "/npm/@acme%2Fmany-bins", None).await.into_body()).await;
+    assert_eq!(
+        packument["versions"]["1.0.0"]["dist"]["pnpr"],
+        serde_json::json!({ "requiresBuild": false }),
+    );
+}

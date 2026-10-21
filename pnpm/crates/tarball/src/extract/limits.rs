@@ -1,8 +1,28 @@
 //! The decoded-output budget: how much a tar may make pnpm decode before
 //! its hash is known to match.
 
-use super::{Read, TarballError};
+use super::{MAX_UNTRUSTED_PREALLOC_BYTES, Read, TarballError};
 use std::{cell::Cell, io};
+
+/// Error attached to [`TarballError::ReadTarballEntries`] when a
+/// `package.json` entry claims more than [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[display(
+    "tar entry package.json is {file_size} bytes, which exceeds the \
+     {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit"
+)]
+pub(crate) struct OversizedManifestError {
+    pub(crate) file_size: u64,
+}
+
+/// Reject a `package.json` entry that claims more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
+    TarballError::ReadTarballEntries(io::Error::new(
+        io::ErrorKind::InvalidData,
+        OversizedManifestError { file_size },
+    ))
+}
 
 /// Default of the payload ceiling a [`TarLimits`] starts from.
 pub const DEFAULT_MAX_TARBALL_UNPACKED_SIZE: u64 = 4 * 1024 * 1024 * 1024;
@@ -320,8 +340,16 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
             "." if index == 0 => segments.push(segment),
             "." => {}
             ".." => return None,
+            other if has_windows_drive_prefix(other) => return None,
             other => segments.push(other),
         }
     }
     (!segments.is_empty()).then_some(segments)
+}
+
+fn has_windows_drive_prefix(segment: &str) -> bool {
+    segment
+        .as_bytes()
+        .get(..2)
+        .is_some_and(|bytes| bytes[0].is_ascii_alphabetic() && bytes[1] == b':')
 }

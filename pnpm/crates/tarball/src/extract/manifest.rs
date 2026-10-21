@@ -6,29 +6,9 @@ use pnpm_package_manifest::{
 };
 
 use super::{
-    BuildTriggers, CafsFileInfo, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, PackageFilesIndex, PathBuf,
-    StoreDir, TarballError, UNIX_EPOCH, parse_manifest_bytes,
+    BuildTriggers, CafsFileInfo, HashMap, PackageFilesIndex, PathBuf, StoreDir, TarballError,
+    UNIX_EPOCH, parse_manifest_bytes,
 };
-
-/// Reject a `package.json` entry that claims more than
-/// [`MAX_UNTRUSTED_PREALLOC_BYTES`].
-///
-/// A manifest has to reach memory to be parsed — the bundled manifest
-/// and its build-script detection both come from its bytes — so a
-/// reader that otherwise holds only a bounded window has to draw the
-/// line somewhere, and silently skipping the parse would record wrong
-/// build metadata instead. Real manifests are a few KB; one past the
-/// cap exists only in a hostile archive, so failing loudly is the
-/// honest outcome.
-pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
-    TarballError::ReadTarballEntries(std::io::Error::new(
-        std::io::ErrorKind::InvalidData,
-        format!(
-            "tar entry package.json is {file_size} bytes, which exceeds the \
-             {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
-        ),
-    ))
-}
 
 /// Reads a TAR entry that must fit in memory, rejecting oversized payloads
 /// before allocating or reading them.
