@@ -90,6 +90,42 @@ fn write_atomic_private_does_not_inherit_a_readable_mode() {
     assert_eq!(mode, 0o600, "got {mode:o}");
 }
 
+#[cfg(unix)]
+fn mode(path: &std::path::Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::metadata(path)
+        .expect("stat")
+        .permissions()
+        .mode()
+        & 0o777
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_creates_a_new_file_readable_only_by_its_owner() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("auth.ini");
+    write_atomic(&path, b"//host/:_authToken=tok\n").expect("write the credential");
+    assert_eq!(mode(&path), 0o600, "got {:o}", mode(&path));
+}
+
+#[cfg(unix)]
+#[test]
+fn write_atomic_with_umask_creates_a_file_with_the_umask_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("pnpm-workspace.yaml");
+    super::write_atomic_with_umask(&path, b"packages: []\n").expect("write a new file");
+    let reference = dir.path().join("reference");
+    std::fs::File::create(&reference).expect("create the reference file");
+    assert_eq!(mode(&path), mode(&reference), "got {:o}", mode(&path));
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640))
+        .expect("narrow the mode");
+    super::write_atomic_with_umask(&path, b"packages: [a]\n").expect("replace the file");
+    assert_eq!(mode(&path), 0o640, "got {:o}", mode(&path));
+}
+
 #[test]
 fn concurrent_replacements_leave_complete_content() {
     let directory = TempDir::new().unwrap();

@@ -5,6 +5,7 @@ use super::{
     is_ancestor_path, is_child_path, lexical_normalize, path_compare::has_path_prefix,
     remove_dirent, same_path, warn,
 };
+use pnpm_fs::write_atomic_with_umask;
 use pnpm_local_spec::LocalSpec;
 #[cfg(windows)]
 use std::os::windows::fs::MetadataExt;
@@ -353,22 +354,22 @@ pub(super) fn write_deploy_files(
         .to_yaml_string()
         .map_err(miette::Report::new)
         .wrap_err("serialize deployed lockfile")?;
-    write_atomic(&deploy_dir.join(Lockfile::FILE_NAME), lockfile.as_bytes())
+    write_atomic_with_umask(&deploy_dir.join(Lockfile::FILE_NAME), lockfile.as_bytes())
         .into_diagnostic()
         .wrap_err("write deployed lockfile")?;
     if let Some(workspace_manifest) = &deploy_files.workspace_manifest {
         let workspace_manifest = serde_saphyr::to_string(workspace_manifest)
             .into_diagnostic()
             .wrap_err("serialize deployed workspace manifest")?;
-        write_atomic(&deploy_dir.join(WORKSPACE_MANIFEST_FILENAME), workspace_manifest.as_bytes())
-            .into_diagnostic()
-            .wrap_err("write deployed workspace manifest")?;
+        write_atomic_with_umask(
+            &deploy_dir.join(WORKSPACE_MANIFEST_FILENAME),
+            workspace_manifest.as_bytes(),
+        )
+        .into_diagnostic()
+        .wrap_err("write deployed workspace manifest")?;
     }
-    write_atomic(&deploy_dir.join("package.json"), manifest.as_bytes())
+    write_atomic_with_umask(&deploy_dir.join("package.json"), manifest.as_bytes())
         .into_diagnostic()
         .wrap_err("write deployed package.json")?;
     Ok(())
 }
-
-mod atomic_write;
-use atomic_write::write_atomic;
