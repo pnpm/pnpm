@@ -235,21 +235,21 @@ fn an_unvalidated_mirror_is_fresh_within_its_max_age_either_way() {
 #[test]
 fn the_disk_is_read_first_when_the_cache_comes_first_or_the_pick_is_lowest() {
     let cases = [
-        (NetworkPolicy::Online, false, DiskFirst::Never),
-        (NetworkPolicy::Online, true, DiskFirst::UnlessUncacheable),
-        (NetworkPolicy::PreferCache, false, DiskFirst::Always),
-        (NetworkPolicy::PreferCache, true, DiskFirst::Always),
-        (NetworkPolicy::Offline, false, DiskFirst::Always),
+        (NetworkPolicy::Online, false, false, DiskFirst::Never),
+        (NetworkPolicy::Online, true, false, DiskFirst::UnlessUncacheable),
+        (NetworkPolicy::Online, true, true, DiskFirst::Never),
+        (NetworkPolicy::PreferCache, false, false, DiskFirst::Always),
+        (NetworkPolicy::PreferCache, true, false, DiskFirst::Always),
+        (NetworkPolicy::PreferCache, true, true, DiskFirst::Always),
+        (NetworkPolicy::Offline, false, false, DiskFirst::Always),
     ];
-    for (network, pick_lowest_version, disk_first) in cases {
+    for (network, pick_lowest_version, refresh_metadata, disk_first) in cases {
         assert_eq!(
-            DiskFirst::decide(network, pick_lowest_version, false),
+            DiskFirst::decide(network, pick_lowest_version, refresh_metadata),
             disk_first,
-            "network={network:?} pick_lowest_version={pick_lowest_version}",
+            "network={network:?} pick_lowest_version={pick_lowest_version} refresh_metadata={refresh_metadata}",
         );
     }
-    assert_eq!(DiskFirst::decide(NetworkPolicy::Online, true, true), DiskFirst::Never);
-    assert_eq!(DiskFirst::decide(NetworkPolicy::PreferCache, true, true), DiskFirst::Always);
 }
 
 #[test]

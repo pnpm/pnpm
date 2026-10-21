@@ -108,10 +108,7 @@ impl MirrorShortcuts {
                 && !request.include_latest_tag
                 && !request.update_checksums,
             dominant_lockfile_version: stable_range,
-            unvalidated_mirror: stable_range
-                && !request.refresh_metadata
-                && public_scope
-                && mirror_has_no_etag,
+            unvalidated_mirror: stable_range && public_scope && mirror_has_no_etag,
         })
     }
 }

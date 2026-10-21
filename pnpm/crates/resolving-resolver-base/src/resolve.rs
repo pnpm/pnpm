@@ -452,9 +452,9 @@ pub struct ResolutionRefreshOptions {
 }
 
 impl ResolutionRefreshOptions {
-    /// Whether the resolution must see versions published since the
-    /// metadata mirror was written: an update is running, or this package
-    /// is its target.
+    /// Whether the resolution must revalidate cached metadata against the
+    /// registry: an update or deduplication is running, or this package is
+    /// its target.
     #[must_use]
     pub fn refreshes_metadata(&self) -> bool {
         self.update != UpdateBehavior::Off || self.update_requested || self.refresh_metadata
