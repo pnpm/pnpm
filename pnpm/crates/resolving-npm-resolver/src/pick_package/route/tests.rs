@@ -120,7 +120,7 @@ fn a_package_excluded_from_the_release_age_keeps_the_range_shortcuts() {
 }
 
 #[test]
-fn only_a_public_mirror_without_an_etag_skips_revalidation() {
+fn an_unvalidated_mirror_skips_cache_shortcut_when_metadata_must_be_refreshed() {
     let untagged = headers(None, false);
     let empty_etag = headers(Some(""), false);
     let tagged = headers(Some(r#""etag""#), false);
@@ -134,18 +134,15 @@ fn only_a_public_mirror_without_an_etag_skips_revalidation() {
             RouteInputs { public_scope: false, ..range_pick(&NO_POLICY, Some(&untagged)) },
             false,
         ),
-        (
-            "pnpm update",
-            with_request(range_pick(&NO_POLICY, Some(&untagged)), |request| {
-                request.refresh_metadata = true;
-            }),
-            false,
-        ),
     ];
     for (name, inputs, unvalidated_mirror) in cases {
         let shortcuts = MirrorShortcuts::decide(&inputs).expect("the mirror may answer");
         assert_eq!(shortcuts.unvalidated_mirror, unvalidated_mirror, "{name}");
     }
+    let refresh = with_request(range_pick(&NO_POLICY, Some(&untagged)), |request| {
+        request.refresh_metadata = true;
+    });
+    assert_eq!(MirrorShortcuts::decide(&refresh), None);
 }
 
 #[test]
@@ -158,11 +155,20 @@ fn a_pinned_version_may_be_read_from_the_mirror_unless_fresh_metadata_is_needed(
         ("latest tag", with_request(base, |request| request.include_latest_tag = true), false),
         ("update checksums", with_request(base, |request| request.update_checksums = true), false),
         (
+            "offline refresh metadata",
+            with_request(RouteInputs { network: NetworkPolicy::Offline, ..base }, |request| {
+                request.refresh_metadata = true;
+            }),
+            true,
+        ),
+        (
             "tag",
             with_request(base, |request| request.spec_type = RegistryPackageSpecType::Tag),
             false,
         ),
     ];
+    let refresh = with_request(base, |request| request.refresh_metadata = true);
+    assert_eq!(MirrorShortcuts::decide(&refresh), None);
     for (name, inputs, exact_version) in cases {
         let shortcuts = MirrorShortcuts::decide(&inputs).expect("the mirror may answer");
         assert_eq!(shortcuts.exact_version, exact_version, "{name}");
@@ -237,11 +243,13 @@ fn the_disk_is_read_first_when_the_cache_comes_first_or_the_pick_is_lowest() {
     ];
     for (network, pick_lowest_version, disk_first) in cases {
         assert_eq!(
-            DiskFirst::decide(network, pick_lowest_version),
+            DiskFirst::decide(network, pick_lowest_version, false),
             disk_first,
             "network={network:?} pick_lowest_version={pick_lowest_version}",
         );
     }
+    assert_eq!(DiskFirst::decide(NetworkPolicy::Online, true, true), DiskFirst::Never);
+    assert_eq!(DiskFirst::decide(NetworkPolicy::PreferCache, true, true), DiskFirst::Always);
 }
 
 #[test]
@@ -299,6 +307,13 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
             CacheHitCheck::Serve,
         ),
         ("version", version_pick(&release_age, None), CacheHitCheck::Serve),
+        (
+            "refresh metadata on a version",
+            with_request(version_pick(&NO_POLICY, None), |request| {
+                request.refresh_metadata = true;
+            }),
+            CacheHitCheck::Revalidate,
+        ),
         ("stable range", base, CacheHitCheck::StableRangePick),
         (
             "latest tag",
@@ -308,6 +323,11 @@ fn an_unverified_cache_hit_serves_only_a_pick_a_stale_mirror_cannot_change() {
         (
             "update checksums",
             with_request(base, |request| request.update_checksums = true),
+            CacheHitCheck::Revalidate,
+        ),
+        (
+            "refresh metadata",
+            with_request(base, |request| request.refresh_metadata = true),
             CacheHitCheck::Revalidate,
         ),
         ("release age", RouteInputs { policy: &release_age, ..base }, CacheHitCheck::Revalidate),

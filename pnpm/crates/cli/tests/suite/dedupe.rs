@@ -6,6 +6,7 @@ use pnpm_testing_utils::{
     command_env::CommandTestExt,
 };
 use std::{fs, path::Path, process::Command};
+use walkdir::WalkDir;
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
@@ -191,6 +192,70 @@ fn dedupe_writes_lockfile() {
         "lockfile must record the dependency:\n{lockfile}",
     );
 
+    drop((root, mock_instance));
+}
+
+#[test]
+fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { cache_dir, mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/deprecated": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert!(lockfile.contains("deprecated: This package is deprecated."));
+    let lockfile_without_deprecation = format!(
+        "{}\n",
+        lockfile
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("deprecated:"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+    fs::write(&lockfile_path, lockfile_without_deprecation).expect("remove deprecation metadata");
+
+    let (mirror_path, mirror) = WalkDir::new(&cache_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .find_map(|entry| {
+            let mirror = fs::read_to_string(entry.path()).ok()?;
+            mirror
+                .contains("@pnpm.e2e/deprecated")
+                .then(|| (entry.into_path(), mirror))
+        })
+        .expect("find cached package metadata");
+    let stale_mirror = mirror.replace(r#""deprecated":"#, r#""deprecatx":"#);
+    assert_ne!(mirror, stale_mirror);
+    fs::write(mirror_path, stale_mirror).expect("make cached metadata stale");
+
+    pacquet_at(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let deduped_lockfile = fs::read_to_string(&lockfile_path).expect("read deduped lockfile");
+    assert!(deduped_lockfile.contains("deprecated: This package is deprecated."));
     drop((root, mock_instance));
 }
 
