@@ -7,9 +7,7 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
-pub use dependencies::{
-    filtered_projects_dependencies, projects_with_workspace_dependencies, sequence_graph,
-};
+pub use dependencies::{filtered_projects_dependencies, projects_to_verify, sequence_graph};
 pub use execution_args::RecursiveExecutionArgs;
 pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
@@ -20,10 +18,7 @@ mod execution_args;
 mod importer_selection;
 mod unmatched;
 
-use crate::cli_args::{
-    catalogs::{configured_catalogs, workspace_catalogs},
-    verify_deps::with_dependencies,
-};
+use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -148,84 +143,6 @@ impl<'a> RecursiveSelection<'a> {
     pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
         self.all.as_ref().unwrap_or(&self.selected)
     }
-}
-
-/// The projects a gated recursive command holds to the modules-directory
-/// requirement: `project_dirs` themselves, plus every workspace dependency
-/// they reach that the installs the gate spawns cover.
-///
-/// A workspace dependency that is not installed leaves the selection out of
-/// date too. With one shared lockfile, the install the gate spawns selects the
-/// dependencies of the selected projects, and a negated selector reaches it
-/// unchanged, so a dependency it excludes is not required; `project_dirs`
-/// themselves always are. With a lockfile per project the gate checks and
-/// installs each project on its own, and a workspace dependency the project
-/// injects is part of that project's own install. `prefix` is where the
-/// command's path selectors resolve.
-pub fn projects_to_verify<'dirs>(
-    project_dirs: impl IntoIterator<Item = &'dirs Path>,
-    selection: &RecursiveSelection<'_>,
-    config: &Config,
-    prefix: &Path,
-) -> miette::Result<Vec<PathBuf>> {
-    if !config.verify_deps_before_run.is_enabled() {
-        return Ok(Vec::new());
-    }
-    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
-    // An injected workspace dependency is a copy inside the project that
-    // depends on it, which that project's own install covers.
-    if !config.shares_one_lockfile() && config.inject_workspace_packages {
-        return Ok(project_dirs
-            .into_iter()
-            .map(Path::to_path_buf)
-            .collect());
-    }
-    let mut projects = projects_with_workspace_dependencies(
-        project_dirs.iter().copied(),
-        selection.full_graph(),
-        selection.prod_all.as_ref(),
-        &selection.prod_only_selected,
-    );
-    if config.shares_one_lockfile() && has_negated_selector(config) {
-        let mut kept = install_selected_projects(selection, config, prefix)?;
-        kept.extend(project_dirs.iter().map(|dir| dir.to_path_buf()));
-        projects.retain(|project_dir| kept.contains(project_dir));
-    }
-    Ok(projects)
-}
-
-fn has_negated_selector(config: &Config) -> bool {
-    config.filter
-        .iter()
-        .chain(&config.filter_prod)
-        .any(|selector| selector.starts_with('!'))
-}
-
-/// The projects the install the gate spawns selects, evaluated against the
-/// graphs the command's own selection was drawn from.
-fn install_selected_projects(
-    selection: &RecursiveSelection<'_>,
-    config: &Config,
-    prefix: &Path,
-) -> miette::Result<HashSet<PathBuf>> {
-    let walk_opts = recursive_filter_options(config, prefix);
-    let filter = with_dependencies_selectors(&config.filter);
-    let mut installed: HashSet<PathBuf> =
-        filter_against(selection.full_graph(), &filter, None, false, prefix, &walk_opts)?
-            .into_iter()
-            .collect();
-    if let Some(prod_all) = &selection.prod_all {
-        let filter_prod = with_dependencies_selectors(&config.filter_prod);
-        installed.extend(filter_against(prod_all, &filter_prod, None, true, prefix, &walk_opts)?);
-    }
-    Ok(installed)
-}
-
-fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
-    selectors
-        .iter()
-        .map(|selector| with_dependencies(selector))
-        .collect()
 }
 
 /// Build the `--filter`-selected workspace projects the recursive command

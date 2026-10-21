@@ -8,6 +8,7 @@ import { renderHelp } from 'render-help'
 
 import { BASE_RC_OPTION_KEYS, computeInclude, determineReportAs, resolveFinders, SHARED_CLI_HELP_OPTIONS } from './common.js'
 import { EXCLUDE_PEERS_HELP, type ListCommandOptions } from './list.js'
+import { whyRecursive } from './recursive.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([...BASE_RC_OPTION_KEYS, 'depth'], allTypes)
@@ -64,23 +65,31 @@ export async function handler (
 
   const include = computeInclude(opts)
   const finders = resolveFinders(opts)
-  const lockfileDir = opts.lockfileDir ?? opts.dir
   const reportAs = determineReportAs(opts)
   const depth = opts.cliOptions?.['depth'] as number | undefined
-
-  const projectPaths = opts.recursive && opts.selectedProjectsGraph
-    ? Object.keys(opts.selectedProjectsGraph)
-    : [opts.dir]
-
-  return whyForPackages(params, projectPaths, {
+  const whyOpts = {
     depth,
     include,
     long: opts.long,
-    lockfileDir,
     reportAs,
     modulesDir: opts.modulesDir,
+    nodeLinker: opts.nodeLinker,
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     checkWantedLockfileOnly: opts.lockfileOnly,
     finders,
+  }
+
+  if (opts.recursive && opts.selectedProjectsGraph != null) {
+    const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+    return whyRecursive(pkgs, params, {
+      ...whyOpts,
+      lockfileDir: opts.lockfileDir,
+      packageConfigs: opts.packageConfigs,
+    })
+  }
+
+  return whyForPackages(params, [opts.dir], {
+    ...whyOpts,
+    lockfileDir: opts.lockfileDir ?? opts.dir,
   })
 }

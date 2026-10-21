@@ -375,19 +375,41 @@ fn setup_fresh_install_with_config(
     // doesn't fire on the happy-path tests.
     fs::create_dir_all(&config.modules_dir).unwrap();
 
-    let settings = current_settings(config, config_kind, isolated_included(), None);
-    let mut projects = BTreeMap::new();
-    projects.insert(
-        workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some(project_name.into()),
-            version: Some(project_version.into()),
-            has_modules_dir: false,
-        },
+    record_test_workspace_state(
+        workspace_root,
+        config,
+        config_kind,
+        &[(workspace_root.to_path_buf(), &manifest)],
     );
-    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     (dir, config, manifest)
+}
+
+fn record_test_workspace_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) {
+    let state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root,
+        config,
+        layout: crate::RepeatInstallLayout {
+            node_linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        catalogs: &BTreeMap::default(),
+        project_manifests,
+        filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: config.auto_dedupe.then_some(true),
+            kept_groups: None,
+        },
+        vouched: &super::validation::Vouched::All,
+    });
+    update_workspace_state(workspace_root, &state).expect("write workspace state");
+    wait_for_the_next_filesystem_tick(workspace_root);
 }
 
 /// Minimal valid lockfile matching a manifest with
@@ -438,6 +460,7 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     let workspace_root = dir.path();
     fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
     fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE).unwrap();
+    let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
@@ -446,18 +469,12 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
-    let settings =
-        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
-    let mut projects = BTreeMap::new();
-    projects.insert(
-        workspace_root.to_string_lossy().into_owned(),
-        ProjectEntry {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-            has_modules_dir: false,
-        },
+    record_test_workspace_state(
+        workspace_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
     );
-    write_state(workspace_root, backdate_validated_files(workspace_root), settings, projects);
 
     (dir, config)
 }
@@ -783,7 +800,9 @@ fn a_filtered_state_still_requires_a_modules_dir_for_the_selected_projects() {
 }
 
 /// A modules directory does not prove that the filtered install materialized
-/// a selected project. It must also be an importer of the current lockfile.
+/// a selected project. The current lockfile must also record the project and
+/// its direct dependencies, including when `pnpm-lock.yaml` is missing and
+/// the current lockfile stands in for it.
 #[test]
 fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
     let (dir, config, root_manifest, project_manifest) = setup_filtered_install_workspace();
@@ -792,19 +811,33 @@ fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
         [(dir.path().to_path_buf(), &root_manifest), (project_dir.clone(), &project_manifest)];
     let selected = [project_dir.as_path()];
     fs::create_dir_all(project_dir.join("node_modules")).unwrap();
+    let current_without_importer = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n";
+    let current_without_snapshot = "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n\n  packages/a:\n    dependencies:\n      foo:\n        specifier: ^1.0.0\n        version: 1.0.0\n";
+
+    for current in [current_without_importer, current_without_snapshot] {
+        fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current).unwrap();
+        assert!(
+            matches!(
+                workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+                RunDepsStatus::Outdated { issue, .. }
+                    if issue == "Workspace package a has dependencies but was not installed"
+            ),
+            "a selected project the current lockfile does not record as installed is outdated",
+        );
+    }
+
     fs::write(
         config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
-        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n",
+        "lockfileVersion: '9.0'\n\nimporters:\n\n  .: {}\n  packages/a: {}\n",
     )
     .unwrap();
-
     assert!(
         matches!(
             workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
             RunDepsStatus::Outdated { issue, .. }
                 if issue == "Workspace package a has dependencies but was not installed"
         ),
-        "a selected project the current lockfile does not list is outdated",
+        "a selected project the current lockfile carries without dependencies is outdated",
     );
 
     let root_only = [dir.path()];
@@ -813,6 +846,19 @@ fn a_filtered_state_requires_the_selected_projects_in_the_current_lockfile() {
         RunDepsStatus::UpToDate,
         "a selected project without dependencies needs no importer",
     );
+
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    for current in [current_without_importer, current_without_snapshot] {
+        fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), current).unwrap();
+        assert!(
+            matches!(
+                workspace_deps_status_for_selected(&dir, config, &project_manifests, &selected),
+                RunDepsStatus::Outdated { issue, .. }
+                    if issue == "Workspace package a has dependencies but was not installed"
+            ),
+            "deleting pnpm-lock.yaml does not make an uninstalled project current",
+        );
+    }
 }
 
 const FILTERED_WANTED_LOCKFILE: &str = "lockfileVersion: '9.0'

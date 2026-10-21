@@ -57,6 +57,7 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -111,6 +112,7 @@ fn skips_slot_own_package_when_walking_children() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -141,6 +143,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -184,6 +187,7 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -239,6 +243,7 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -294,6 +299,7 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -324,6 +330,7 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -356,6 +363,7 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -416,6 +424,7 @@ fn lockfile_driven_linking_only_visits_selected_snapshots() {
         selected_snapshots: Some(&selected_snapshots),
         packages: Some(&packages),
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -627,6 +636,7 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
         selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
+        package_bins: None,
         skipped: &SkippedSnapshots::default(),
         link_options: &LinkBinsOptions::default(),
     }
@@ -839,6 +849,138 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
     let shim = modules.join(".bin/foo");
     let body = read_to_string(&shim).expect("shim written from the prefetched manifest");
     assert!(is_shim_pointing_at(&body, &shim, &foo_dir.join("cli.js")));
+}
+
+#[test]
+fn prefetched_and_virtual_store_bin_passes_use_precalculated_bins_without_disk_reads() {
+    use pnpm_cmd_shim::{
+        FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
+        FsSetExecutable, FsWalkFiles, FsWrite, Host,
+    };
+    use std::io;
+
+    struct NoSourceReads;
+    impl FsReadDir for NoSourceReads {
+        fn read_dir(dir: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            Host::read_dir(dir)
+        }
+    }
+    impl FsReadFile for NoSourceReads {
+        fn read_file(path: &Path) -> io::Result<Vec<u8>> {
+            panic!("unexpected FsReadFile at {path:?}");
+        }
+    }
+    impl FsReadToString for NoSourceReads {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            Host::read_to_string(path)
+        }
+    }
+    impl FsReadHead for NoSourceReads {
+        fn read_head(path: &Path, _: u64, _: &mut [u8]) -> io::Result<usize> {
+            panic!("unexpected FsReadHead at {path:?}");
+        }
+    }
+    impl FsCreateDirAll for NoSourceReads {
+        fn create_dir_all(dir: &Path) -> io::Result<()> {
+            Host::create_dir_all(dir)
+        }
+    }
+    impl FsWalkFiles for NoSourceReads {
+        fn walk_files(dir: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            panic!("unexpected FsWalkFiles at {dir:?}");
+            #[expect(unreachable_code, reason = "satisfy return type")]
+            Ok(empty())
+        }
+    }
+    impl FsWrite for NoSourceReads {
+        fn write(path: &Path, data: &[u8]) -> io::Result<()> {
+            Host::write(path, data)
+        }
+    }
+    impl FsSetExecutable for NoSourceReads {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            Host::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for NoSourceReads {
+        fn ensure_executable_bits(path: &Path, modules_dir: Option<&Path>) -> io::Result<()> {
+            Host::ensure_executable_bits(path, modules_dir)
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let virtual_dir = tmp.path().join(".pacquet");
+    let layout = VirtualStoreLayout::legacy(
+        virtual_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let key: PackageKey = "foo@1.0.0".parse().expect("parse key");
+    let pkg_dir = layout.slot_dir(&key).join("node_modules/foo");
+    create_dir_all(pkg_dir.join("bin")).unwrap();
+    // Script on disk has NO shebang, and there is NO package.json on disk.
+    write_file(pkg_dir.join("bin/cli.js"), "console.log('hi');\n").unwrap();
+
+    let packages = HashMap::from([(
+        key.clone(),
+        metadata_with_resolution(
+            LockfileResolution::Directory(DirectoryResolution { directory: "foo".into() }),
+            Some(true),
+        ),
+    )]);
+    let manifests = HashMap::from([(
+        key.clone(),
+        std::sync::Arc::new(json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "directories": { "bin": "bin" }
+        })),
+    )]);
+    let bins = HashMap::from([(
+        key.clone(),
+        std::sync::Arc::new(std::collections::BTreeMap::from([(
+            "cli.js".to_string(),
+            pnpm_package_manifest::PackageBin {
+                path: "bin/cli.js".to_string(),
+                prog: Some("node".to_string()),
+                args: "--experimental-strip-types".to_string(),
+            },
+        )])),
+    )]);
+    let requires_build = HashMap::from([(key.clone(), false)]);
+    let snapshots = HashMap::from([(key.clone(), SnapshotEntry::default())]);
+
+    LinkVirtualStoreBins {
+        layout: &layout,
+        snapshots: Some(&snapshots),
+        selected_snapshots: None,
+        packages: Some(&packages),
+        package_manifests: &manifests,
+        package_bins: Some(&bins),
+        skipped: &SkippedSnapshots::default(),
+        link_options: &LinkBinsOptions::default(),
+    }
+    .run_with::<NoSourceReads>()
+    .expect("virtual store bin pass must succeed without reading package.json, walking directories.bin, or reading shebangs");
+
+    let slot_shim = pkg_dir.join("node_modules/.bin/cli.js");
+    let slot_body = read_to_string(&slot_shim).expect("slot shim written");
+    assert!(slot_body.contains("--experimental-strip-types"), "got:\n{slot_body}");
+
+    let modules = tmp.path().join("node_modules");
+    create_dir_all(&modules).unwrap();
+    pnpm_fs::symlink_dir(&pkg_dir, &modules.join("foo")).unwrap();
+    let lookup = PrefetchedBinLookup::new(Some(&packages), Some(&manifests), Some(&requires_build))
+        .with_package_bins(Some(&bins));
+    link_direct_dep_bins_prefetched(
+        &modules,
+        &[("foo".to_string(), pkg_dir, Some(key))],
+        &lookup,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+    let direct_shim = modules.join(".bin/cli.js");
+    let direct_body = read_to_string(&direct_shim).expect("direct shim written");
+    assert!(direct_body.contains("--experimental-strip-types"), "got:\n{direct_body}");
 }
 
 #[test]

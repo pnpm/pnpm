@@ -9,7 +9,6 @@ import { sanitizeInline } from '@pnpm/text.sanitize'
 import { rimrafSync } from '@zkochan/rimraf'
 import { makeEmptyDirSync } from 'make-empty-dir'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwriteSync } from 'rename-overwrite'
 
 import { copyInternalSymlink, type SymlinkDirs } from './copyInternalSymlink.js'
 import { makeFileMapDirs } from './dirUtils.js'
@@ -18,6 +17,7 @@ import {
   moveOrMergeModulesDirs,
   sanitizeFilenames,
 } from './fileMapUtils.js'
+import { overwriteDirSync } from './overwriteDir.js'
 import {
   allFilesMatch,
   allImportedEntriesMatchExactly,
@@ -112,22 +112,32 @@ function importWithStaging (dirImport: IndexedDirImport): void {
 // completed the target is a success: the target holds exactly this import, and
 // a preserved `node_modules/` moved into the stage goes back where it was.
 function commitStagedDir (stage: string, { newDir, filenames, opts }: IndexedDirImport): void {
+  const keepModulesDir = opts.keepModulesDir === true
+  const entries = { dir: newDir, filenames, symlinks: opts.symlinks, keepModulesDir }
   try {
+    let attempt = 0
     withFileLockRetry(() => {
-      renameOverwriteSync(stage, newDir)
+      if (attempt++ > 0 && allImportedEntriesMatchExactly(entries)) {
+        acceptExistingImport(stage, newDir, keepModulesDir)
+        return
+      }
+      overwriteDirSync(stage, newDir)
     })
   } catch (renameErr: unknown) {
-    const keepModulesDir = opts.keepModulesDir === true
-    if (destinationHoldsThisImport({ dir: newDir, filenames, symlinks: opts.symlinks, keepModulesDir })) {
-      if (keepModulesDir) {
-        moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
-      }
-      cleanStageDir(stage)
+    if (destinationHoldsThisImport(entries)) {
+      acceptExistingImport(stage, newDir, keepModulesDir)
       return
     }
     cleanStageDir(stage)
     throw renameErr
   }
+}
+
+function acceptExistingImport (stage: string, newDir: string, keepModulesDir: boolean): void {
+  if (keepModulesDir) {
+    moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
+  }
+  cleanStageDir(stage)
 }
 
 // A concurrent import that is mid-swap leaves the destination absent or
@@ -213,15 +223,36 @@ function tryExclusiveImport (
   entries: ImportedEntries
 ): boolean {
   if (!tryExclusiveMkdir(newDir)) return false
+  const createdStat = safeLstat(newDir)
   try {
     tryImportIndexedDir(importer, newDir, filenames, entries)
     return true
   } catch {
-    try {
-      rimrafSync(newDir)
-    } catch {}
+    if (sameCreatedDirectory(newDir, createdStat)) {
+      try {
+        rimrafSync(newDir)
+      } catch {}
+    }
     return false
   }
+}
+
+function safeLstat (dir: string): fs.BigIntStats | undefined {
+  try {
+    return fs.lstatSync(dir, { bigint: true })
+  } catch {
+    return undefined
+  }
+}
+
+function sameCreatedDirectory (dir: string, createdStat: fs.BigIntStats | undefined): boolean {
+  if (createdStat == null) return false
+  const currentStat = safeLstat(dir)
+  if (currentStat == null || !currentStat.isDirectory()) return false
+  return currentStat.dev === createdStat.dev &&
+    currentStat.ino === createdStat.ino &&
+    currentStat.birthtimeNs === createdStat.birthtimeNs &&
+    !fs.existsSync(path.join(dir, 'package.json'))
 }
 
 function retryWithSanitizedFilenames ({ importer, newDir, filenames, opts }: IndexedDirImport): boolean {

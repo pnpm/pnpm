@@ -1,6 +1,6 @@
 use super::{
-    FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths, remove_bin,
-    shim_writer::with_extension_appended,
+    DirCreation, FsReadHead, LinkBinsError, LinkBinsOptions, PackageBinSource, bin_node_paths,
+    remove_bin, shim_writer::with_extension_appended,
 };
 use crate::bin_resolver::Command;
 use pnpm_fs::{is_subdir, realpath_missing};
@@ -23,11 +23,15 @@ pub(super) struct LinkingPaths<'a> {
     pub(super) relocatable_root: Option<PathBuf>,
     pub(super) project_node_path: Option<String>,
     pub(super) extra_node_paths: Cow<'a, [String]>,
+    /// Whether this run created the bin directory. Read by
+    /// [`read_or_create_shim`](super::shim_writer), which documents what it is worth.
+    pub(super) bin_dir: DirCreation,
 }
 
 impl<'a> LinkingPaths<'a> {
     pub(super) fn new(
         bins_dir: &'a Path,
+        bin_dir: DirCreation,
         options: &'a LinkBinsOptions,
     ) -> Result<Self, LinkBinsError> {
         let mut paths = Self {
@@ -43,6 +47,7 @@ impl<'a> LinkingPaths<'a> {
             project_node_path: project_modules_dir(bins_dir, options)
                 .map(|dir| dir.to_string_lossy().into_owned()),
             extra_node_paths: Cow::Borrowed(&options.extra_node_paths),
+            bin_dir,
         };
         let Some(root) = options.relocatable_root
             .as_deref()
@@ -253,7 +258,7 @@ pub(super) fn remove_bins_awaiting_target<'packages, Sys: FsReadHead>(
 ) -> Result<Vec<(Command, &'packages PackageBinSource)>, LinkBinsError> {
     let (awaiting, to_link): (Vec<_>, Vec<_>) = chosen
         .into_par_iter()
-        .partition(|(command, pkg)| awaits_target::<Sys>(pkg, bins_dir, &command.path));
+        .partition(|(command, pkg)| awaits_target::<Sys>(pkg, bins_dir, command));
     awaiting
         .par_iter()
         .try_for_each(|(command, _)| {
@@ -275,9 +280,16 @@ pub(super) fn remove_bins_awaiting_target<'packages, Sys: FsReadHead>(
 /// ([`PackageBinSource::build_pending`]). A shim an earlier install left is
 /// removed. Other dependents get the shim right away, because the target may
 /// be built after install.
-fn awaits_target<Sys: FsReadHead>(pkg: &PackageBinSource, bins_dir: &Path, target: &Path) -> bool {
+fn awaits_target<Sys: FsReadHead>(
+    pkg: &PackageBinSource,
+    bins_dir: &Path,
+    command: &Command,
+) -> bool {
+    if command.precalculated_runtime.is_some() && !pkg.build_pending {
+        return false;
+    }
     (pkg.build_pending || pkg.location.join("node_modules").join(".bin") == bins_dir)
-        && target_is_missing::<Sys>(&target_probe_path(pkg, target))
+        && target_is_missing::<Sys>(&target_probe_path(pkg, &command.path))
 }
 
 /// Whether neither `path` nor, for an extensionless `path` on Windows, its

@@ -20,6 +20,9 @@ impl ConfigOverrides {
             "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
             "optional" => self.optional = parse_bool(value),
             "prefer-offline" => self.prefer_offline = parse_bool(value),
+            "prune-direct-dependencies" => {
+                self.prune_direct_dependencies = parse_bool(value);
+            }
             "save-workspace-protocol" => {
                 self.save_workspace_protocol = parse_bool_or_enum(value);
             }

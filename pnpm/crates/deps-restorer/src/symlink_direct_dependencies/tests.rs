@@ -176,6 +176,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
@@ -335,6 +336,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         dependency_groups: [DependencyGroup::Prod, DependencyGroup::Optional],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
@@ -435,6 +437,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
         dependency_groups: [DependencyGroup::Prod],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
@@ -522,6 +525,7 @@ fn empty_importers_is_a_no_op() {
         dependency_groups: [DependencyGroup::Prod],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
@@ -608,6 +612,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
             dependency_groups: [DependencyGroup::Prod],
 
             package_manifests: None,
+            package_bins: None,
             requires_build_by_snapshot: None,
             scheduled_builds: None,
         }
@@ -732,6 +737,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         dependency_groups: [DependencyGroup::Prod],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }
@@ -836,6 +842,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
         dependency_groups: [DependencyGroup::Prod],
 
         package_manifests: None,
+        package_bins: None,
         requires_build_by_snapshot: None,
         scheduled_builds: None,
     }

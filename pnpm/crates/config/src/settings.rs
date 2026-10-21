@@ -5,8 +5,8 @@ use super::{
     PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
     PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
     ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SmartDefault, StoreDir, StoreIndexFormat, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
-    WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
+    SmartDefault, StoreDir, StoreIndexFormat, SystemTime, Tool, ToolSettings, TrustPolicy,
+    VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
     default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
@@ -15,7 +15,7 @@ use super::{
     default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
     default_tag_version_prefix, default_unsafe_perm, default_user_agent,
     default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, workspace_yaml,
+    side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -63,6 +63,11 @@ pub struct Config {
     /// configuration.
     #[default(_code = "is_ci()")]
     pub ci: bool,
+
+    /// The time from `SOURCE_DATE_EPOCH`, recorded in place of the current
+    /// time in `.modules.yaml` and `.pnpm-workspace-state-v1.json`.
+    #[default(_code = "source_date_epoch()")]
+    pub source_date_epoch: Option<SystemTime>,
 
     /// Whether the default reporter renders dependency and download progress.
     #[default = true]
@@ -253,6 +258,10 @@ pub struct Config {
     /// works when the hoisted dependencies are in the root of `node_modules`, you can set this to
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
+
+    /// Whether to prune direct dependencies that were removed from `package.json`,
+    /// and leave unselected workspace projects untouched during a filtered install.
+    pub prune_direct_dependencies: bool,
 
     /// The location where all packages are saved on disk. Share a
     /// writable store only between mutually trusted users, jobs, and
@@ -1807,23 +1816,15 @@ pub struct Config {
     /// `--config.<key>` override and bare setting flag, `registry` for
     /// `--registry`, `storeDir` / `stateDir` for `--store-dir` /
     /// `--state-dir`. A `--config.@<scope>:registry` override is recorded
-    /// under that `@<scope>:registry` key. Recorded by the CLI as it layers
-    /// the flags onto the loaded config; the `updateConfig` hooks cannot
+    /// under that `@<scope>:registry` key. Recorded as the command-line
+    /// settings are applied; the `updateConfig` hooks cannot
     /// change these settings, since the command line outranks every other
     /// layer.
     pub cli_settings: BTreeSet<String>,
 
-    /// The `--config.<setting>=<value>` values the command line carries
-    /// for settings the CLI has no handling of its own for, keyed by
-    /// kebab-case name. The CLI seeds them before [`Config::current`], which
-    /// applies them above `PNPM_CONFIG_*` and before the derivations that
-    /// read the final settings, such as the lockfile-dir anchoring and the
-    /// global virtual store.
-    pub cli_setting_values: BTreeMap<String, String>,
-
-    /// Every `--config.<key>=<value>` token of the command line, as given
-    /// and in argv order, for forwarding to a child pnpm the command spawns.
-    pub raw_cli_config: Vec<(String, String)>,
+    /// What the command line sets, seeded by the CLI before
+    /// [`Config::current`].
+    pub cli: crate::CliLayer,
 
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,

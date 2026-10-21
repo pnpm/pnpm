@@ -82,9 +82,17 @@ pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trust_lockfile: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub cargo: Option<CargoSettings>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<SupportedArchitectures>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub allow_builds: BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CargoSettings {
+    pub enabled: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]

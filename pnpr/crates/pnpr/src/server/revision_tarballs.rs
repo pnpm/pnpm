@@ -315,12 +315,14 @@ pub(super) async fn hosted_original(
     };
     let Some(tgz_integrity) = tgz_integrity_key(dist) else { return Ok(None) };
     let table = storage.read_tar_integrities(package).await?;
-    let current = table
-        .get(&tgz_integrity)
-        .and_then(|tar| tar.parse::<Integrity>().ok())
+    let derived = table.get(&tgz_integrity);
+    let current = derived
+        .and_then(|tar| tar.tar_integrity.parse::<Integrity>().ok())
         .and_then(|tar| integrity_addressed_tarball_path(&tar))
         .is_some_and(|path| path == format!("-/tarballs/sha512/{digest}"));
-    let unpacked_size = dist.get("unpackedSize").and_then(Value::as_u64);
+    let unpacked_size = derived
+        .and_then(|tar| tar.unpacked_size)
+        .or_else(|| dist.get("unpackedSize").and_then(Value::as_u64));
     Ok(current.then_some(HostedOriginal { tgz_integrity, unpacked_size }))
 }
 

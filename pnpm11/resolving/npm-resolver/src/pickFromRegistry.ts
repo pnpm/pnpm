@@ -166,6 +166,7 @@ async function persistFreshMeta (request: PickRequest, fetched: FetchMetadataRes
   if (upgrade.attemptedReleaseAgeUpgrade) {
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
   }
+  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, request.spec, meta)
   if (!opts.dryRun) {
     mirrorFreshMeta(request, { resultToSave, meta })
   }
@@ -174,7 +175,7 @@ async function persistFreshMeta (request: PickRequest, fetched: FetchMetadataRes
   ctx.metaCache.set(request.cacheKey, meta)
   return {
     meta,
-    pickedPackage: pickMatchingVersionFinal(request.pickerOpts, request.spec, meta),
+    pickedPackage,
   }
 }
 

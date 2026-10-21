@@ -193,7 +193,7 @@ impl NpmResolutionVerifier {
         if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
             return Ok(Some(value));
         }
-        if self.metadata.registry_supports_time_field
+        if self.supports_time_field(registry)
             && let Some(value) = self.abbreviated_version_time(registry, name, version).await
         {
             return Ok(Some(value));

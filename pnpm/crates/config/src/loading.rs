@@ -19,7 +19,8 @@ impl Config {
     /// Config sources (low → high precedence): `SmartDefault`, the supported
     /// `.npmrc` subset (cwd, falling back to home), global `config.yaml`,
     /// project `pnpm-workspace.yaml`, `PNPM_CONFIG_*` env, then
-    /// [`Config::cli_setting_values`].
+    /// [`CliLayer::setting_values`](crate::CliLayer::setting_values), then
+    /// the [`CliLayer`](crate::CliLayer) registry routes.
     ///
     /// Other `.npmrc` entries — project-structural settings like
     /// `storeDir`, `lockfile` and `hoist-pattern` — are silently
@@ -219,6 +220,7 @@ impl Config {
 
         self.apply_env_settings::<Sys>(&mut explicit, &default_state_dir, start_dir);
         self.apply_cli_setting_values(&mut explicit, &default_state_dir, start_dir);
+        self.apply_cli_registries();
 
         self.apply_store_derivations::<Sys>(explicit, &mut npmrc_auth, start_dir)?;
 
@@ -336,18 +338,19 @@ impl Config {
         }
     }
 
-    /// Layer [`Self::cli_setting_values`] over every other source, before the
-    /// derivations that read the final settings run.
+    /// Layer [`CliLayer::setting_values`](crate::CliLayer::setting_values)
+    /// over every other source, before the derivations that read the final
+    /// settings run.
     fn apply_cli_setting_values(
         &mut self,
         explicit: &mut ExplicitPaths,
         default_state_dir: &Path,
         start_dir: &Path,
     ) {
-        if self.cli_setting_values.is_empty() {
+        if self.cli.setting_values.is_empty() {
             return;
         }
-        let mut settings = WorkspaceSettings::from_string_values(&self.cli_setting_values);
+        let mut settings = WorkspaceSettings::from_string_values(&self.cli.setting_values);
         explicit.note(&settings);
         self.boot_overrides.overlay(&settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);

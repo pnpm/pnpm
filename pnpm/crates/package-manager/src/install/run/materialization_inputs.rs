@@ -62,7 +62,7 @@ impl Dispatched<'_> {
     pub(super) fn materialization_modules<'r>(
         &'r self,
         (included, rebuild): (IncludedDependencies, Option<&'r RebuildOptions>),
-        prune_orphans: bool,
+        prune: pnpm_deps_restorer::PruneTreeOptions<'r>,
         logged_methods: &'r AtomicU8,
     ) -> crate::install::materialize::MaterializationModules<'r> {
         let prior_modules = self.modules.previous_modules_metadata.as_ref();
@@ -72,7 +72,7 @@ impl Dispatched<'_> {
             modules_manifest: self.modules.old_modules.as_ref(),
             prior_hoisted_dependencies: prior_hoisted_dependencies(prior_modules),
             prior_hoisted_locations: prior_hoisted_locations(prior_modules),
-            prune_orphans,
+            prune,
             relink_every_slot_bin: self.modules.tree_moved,
             logged_methods,
         }
@@ -122,6 +122,39 @@ impl Lockfiles<'_> {
             synthesized_from_current: self.wanted.synthesized_from_current(),
             fast_updated: self.wanted.was_fast_updated(),
             save,
+        }
+    }
+}
+
+impl super::RunExecution<'_> {
+    const fn prune_direct_dependencies(&self) -> bool {
+        self.options.manifests.prune_direct_dependencies
+            || self.install.context.config.prune_direct_dependencies
+    }
+
+    pub(super) const fn prune_tree_options<'r>(
+        &self,
+        scope: &'r InstallScope<'_>,
+    ) -> pnpm_deps_restorer::PruneTreeOptions<'r> {
+        pnpm_deps_restorer::PruneTreeOptions {
+            orphans: !scope.importers.filtered_install,
+            direct_dependencies: self.prune_direct_dependencies(),
+            importer_ids: scope.importers.requested_importer_ids.as_ref(),
+        }
+    }
+
+    pub(super) fn take_apply_prior_state(
+        &self,
+        loaded: &mut Loaded<'_>,
+        modules: super::super::PreparedModulesState<'_>,
+    ) -> crate::install::state_options::ApplyPriorState {
+        crate::install::state_options::ApplyPriorState {
+            lockfile: loaded.current.take(),
+            layout: modules.old_modules,
+            metadata: modules.previous_modules_metadata,
+            is_inconsistent: modules.is_inconsistent,
+            tree_moved: modules.tree_moved,
+            prune_direct_dependencies: self.prune_direct_dependencies(),
         }
     }
 }

@@ -115,7 +115,7 @@ The `resolve` response is an NDJSON stream:
 
 | Frame | Description |
 | --- | --- |
-| `package` | One resolved tarball: `id`, `name`, `version`, `integrity`, `tarball`, and optional `unpackedSize` / `fileCount`. |
+| `package` | One resolved tarball: `id`, `name`, `version`, `integrity`, `tarball`, and optional `unpackedSize` / `fileCount` / `requiresBuild`. |
 | `done` | Terminal success frame. For `resolve`, carries `lockfile` and `stats.totalPackages`; for `verify-lockfile`, only indicates success. |
 | `violations` | Terminal policy failure frame. Carries rendered lockfile or OSV violations. |
 | `error` | Terminal server-side resolution or verification error. |
@@ -228,6 +228,20 @@ revision `0` once and the selected revision once. Such a version's `dist`
 omits `shasum` and `signatures`, which describe a `.tgz`, on either registry
 format. Any other version is served as ordinary metadata, without `revision`
 or `revisions`.
+
+When pnpr has verified a version's tarball (at publish time, on first read, or
+while streaming and caching an upstream tarball), its full packument,
+abbreviated `application/vnd.npm.install-v1+json` packument, and single-version
+manifest include `dist.fileCount`, `dist.unpackedSize`,
+`dist.pnpr.requiresBuild` (`true` when the tarball's root
+`package.json` declares `preinstall`, `install`, or `postinstall` under
+`scripts`, when the tarball contains a root `binding.gyp` and `package.json`
+does not set `gypfile: false`, or when it contains a `.hooks/` entry; `false`
+otherwise), and — when `requiresBuild` is `false` and the package declares
+executables via `bin` or `directories.bin` — `dist.pnpr.bins` mapping each
+command name to its normalized package-relative `path` and optional `prog` /
+`args` runtime. Any `dist.pnpr` field supplied by a publisher or an upstream
+packument is stripped and never trusted.
 
 ## Registry write endpoints
 

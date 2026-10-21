@@ -1,14 +1,12 @@
-pub(crate) use apply::{
-    apply_registry_override, apply_state_dir_override, apply_store_dir_override,
-};
+pub(crate) use apply::{apply_state_dir_override, apply_store_dir_override};
 pub(crate) use tokens::{bare_boolean_setting_claims, bare_setting_flag_width, parse_bool};
 
 use pnpm_network::normalize_registry_url;
 
 use pnpm_config::{
-    ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
-    LinkWorkspacePackages, NodeLinkerSetting, PackageImportMethod, PmOnFail, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
+    CliLayer, ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir,
+    LinkProbe, LinkWorkspacePackages, NodeLinkerSetting, PackageImportMethod, PmOnFail,
+    RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
     naming_cases::to_kebab_case, resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
@@ -108,6 +106,7 @@ pub struct ConfigOverrides {
     package_import_method: Option<PackageImportMethod>,
     pm_on_fail: Option<PmOnFail>,
     progress: Option<bool>,
+    prune_direct_dependencies: Option<bool>,
     public_hoist_pattern: Option<Vec<String>>,
     runtime_on_fail: Option<RuntimeOnFail>,
     save_workspace_protocol: Option<SaveWorkspaceProtocol>,
@@ -128,12 +127,12 @@ pub struct ConfigOverrides {
     /// value parsed, for [`Config::cli_settings`].
     pub(super) settings: BTreeSet<String>,
 
-    /// The `--config.<key>=<value>` tokens as given, in argv order, for
-    /// [`Config::raw_cli_config`].
-    pub(super) raw_cli_config: Vec<(String, String)>,
+    /// Every `--config.<key>=<value>` token and install flag as given, in
+    /// argv order, for [`CliLayer::npmrc_tokens`].
+    pub(super) npmrc_tokens: Vec<(String, String)>,
 
     /// The `--config.<key>=<value>` tokens no table above claims, by
-    /// kebab-case setting name, for [`Config::cli_setting_values`].
+    /// kebab-case setting name, for [`CliLayer::setting_values`].
     unported: BTreeMap<String, String>,
 }
 
@@ -180,13 +179,8 @@ macro_rules! record_list_overrides {
 }
 
 impl ConfigOverrides {
-    fn record_raw_config(&mut self, arg: &OsStr, key: &str, value: &str) {
-        if arg
-            .to_str()
-            .is_some_and(|arg| arg.starts_with("--config."))
-        {
-            self.raw_cli_config.push((key.to_owned(), value.to_owned()));
-        }
+    fn record_raw_config(&mut self, key: &str, value: &str) {
+        self.npmrc_tokens.push((key.to_owned(), value.to_owned()));
     }
 
     pub(crate) fn shared_workspace_lockfile(&self) -> Option<bool> {
@@ -197,13 +191,22 @@ impl ConfigOverrides {
         &self.unported
     }
 
-    pub(crate) fn initial_setting_values(&self) -> BTreeMap<String, String> {
-        let mut values = self.unported_settings().clone();
+    /// The [`CliLayer`] [`Config::current`] reads, with `registry_flag`, the
+    /// `--registry` flag, outranking a `--config.registry` token.
+    pub(crate) fn cli_layer(&self, registry_flag: Option<&str>) -> CliLayer {
+        let mut setting_values = self.unported_settings().clone();
         // Linker selection must reach directory derivation before command overrides run.
         if let Some(linker) = &self.node_linker {
-            values.insert("node-linker".to_string(), setting_value(linker).to_string());
+            setting_values.insert("node-linker".to_string(), setting_value(linker).to_string());
         }
-        values
+        CliLayer {
+            npmrc_tokens: self.npmrc_tokens.clone(),
+            registry: registry_flag
+                .map(|registry| normalize_registry_url(registry).into_owned())
+                .or_else(|| self.registry.clone()),
+            scoped_registries: self.registries.clone(),
+            setting_values,
+        }
     }
 
     /// Pull `--config.<key>=<value>` tokens and [`BARE_SETTING_FLAGS`](tokens::BARE_SETTING_FLAGS)
@@ -263,22 +266,28 @@ impl ConfigOverrides {
         };
         match classify(&arg, claimed_by_command) {
             ConfigToken::WellFormed { key, value } if matches!(key, "state-dir" | "store-dir") => {
-                self.record_raw_config(&arg, key, value);
+                self.record_raw_config(key, value);
                 remaining.push(OsString::from(format!("--{key}={value}")));
             }
             ConfigToken::WellFormed { key, value } => {
-                self.record_raw_config(&arg, key, value);
+                self.record_raw_config(key, value);
                 self.set(key, value);
             }
             ConfigToken::BooleanFollows(key) => {
-                self.set(key, following(key).as_deref().unwrap_or("true"));
+                let value = following(key);
+                let value = value.as_deref().unwrap_or("true");
+                self.record_raw_config(key, value);
+                self.set(key, value);
             }
             // A flag whose value is missing — because it ends argv, or
             // because the token after it is one the setting does not
             // take — goes back in place for clap to report; see
             // [`classify`].
             ConfigToken::ValueFollows(key) => match following(key) {
-                Some(value) => self.set(key, &value),
+                Some(value) => {
+                    self.record_raw_config(key, &value);
+                    self.set(key, &value);
+                }
                 None => remaining.push(arg),
             },
             ConfigToken::Malformed => {}

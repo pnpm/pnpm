@@ -63,6 +63,8 @@ async fn cold_batch_links_slots_in_parallel() {
         } else {
             format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#)
         };
+        let parsed_manifest: serde_json::Value =
+            serde_json::from_str(&manifest).expect("parse package manifest");
         fs::write(&manifest_path, manifest).expect("write package manifest");
         let index_path = source_dir.join("index.js");
         fs::write(&index_path, "module.exports = true\n").expect("write package body");
@@ -71,15 +73,26 @@ async fn cold_batch_links_slots_in_parallel() {
             ("package.json".to_string(), manifest_path),
             ("index.js".to_string(), index_path),
         ]);
+        let bins = Some(Arc::new(std::collections::BTreeMap::from([(
+            package_name.to_string(),
+            pnpm_package_manifest::PackageBin {
+                path: "index.js".to_string(),
+                prog: Some("node".to_string()),
+                args: String::new(),
+            },
+        )])));
         mem_cache.insert(
             package_mem_cache_key(
                 &format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
                 Some(&DUMMY_SHA512.parse().expect("parse integrity")),
                 false,
             ),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(CachedTarball::from_files(
-                cas_paths,
-            )))),
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(CachedTarball {
+                files: Arc::new(cas_paths),
+                manifest: Some(parsed_manifest),
+                requires_build: None,
+                bins,
+            })))),
         );
 
         snapshots.insert(package_key.clone(), SnapshotEntry::default());
@@ -118,6 +131,8 @@ async fn cold_batch_links_slots_in_parallel() {
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            known_requires_build: None,
+            known_bins: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
@@ -165,6 +180,22 @@ async fn cold_batch_links_slots_in_parallel() {
     let cold_b = key("cold-b", "1.0.0");
     assert_eq!(output.requires_build_by_snapshot.get(&cold_a), Some(&true));
     assert_eq!(output.requires_build_by_snapshot.get(&cold_b), Some(&false));
+    assert!(
+        output.package_manifests.contains_key(&cold_a),
+        "cold-batch packages must populate package_manifests",
+    );
+    assert!(
+        output.package_manifests.contains_key(&cold_b),
+        "cold-batch packages must populate package_manifests",
+    );
+    assert!(
+        !output.package_bins.contains_key(&cold_a),
+        "packages with requiresBuild: true must not populate precalculated package_bins",
+    );
+    assert!(
+        output.package_bins.contains_key(&cold_b),
+        "build-free cold-batch packages must populate precalculated package_bins",
+    );
     assert_eq!(
         output.materialized_snapshots.into_iter().collect::<HashSet<_>>(),
         HashSet::from([cold_a, cold_b, key("cold-c", "1.0.0"), key("cold-d", "1.0.0"),]),
@@ -324,6 +355,8 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            known_requires_build: None,
+            known_bins: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {

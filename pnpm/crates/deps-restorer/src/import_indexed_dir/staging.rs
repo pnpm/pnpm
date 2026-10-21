@@ -1,6 +1,6 @@
 use super::{
     ImportIndexedDirError, ImportIndexedDirOpts, Placement, PreserveModulesFailure,
-    PreservedModules, existing_dirent_kind, file_matches_store_entry, populate_dir,
+    PreservedModules, existing_dirent_kind, file_matches_store_entry, marker_present, populate_dir,
 };
 mod swap;
 use crate::import_into_fresh_target;
@@ -74,12 +74,24 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         cas_paths,
         opts.preserve_symlinks,
     )?;
+    // A non-forced import into an absent target claims it with a single
+    // lock-free rename so cold installs never touch the swap lock unless a
+    // concurrent importer already occupied the path while staging.
+    if !opts.force
+        && target == SwapTarget::Absent
+        && pnpm_fs::rename_with_retry(&paths.stage, dir_path).is_ok()
+    {
+        return Ok(());
+    }
     // The install's swap lock serializes this replacement with the other
     // installs replacing directories under the same modules directory.
     // An install without one, or one that could not take it, replaces
     // unserialized; see `ModulesSwapLock`.
     if let Some(swap_lock) = opts.swap_lock {
         swap_lock.hold();
+    }
+    if !opts.force && completed_or_non_dir_target(&paths.stage, dir_path, cas_paths)? {
+        return Ok(());
     }
     // An absent target takes the staged tree in one rename, which also
     // settles which of several importers that found it absent owns it.
@@ -124,6 +136,28 @@ fn populate_staging_dir<Reporter: self::Reporter>(
         return Err(error);
     }
     Ok(())
+}
+
+/// Whether `dir_path` is now occupied by a completed package (or a
+/// non-directory dirent) that a non-forced import must leave in place.
+/// Cleans up `stage` when returning `Ok(true)` or `Err`.
+fn completed_or_non_dir_target(
+    stage: &Path,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Result<bool, ImportIndexedDirError> {
+    let keep_existing = match existing_dirent_kind(dir_path) {
+        Ok(Some(file_type)) => !file_type.is_dir() || marker_present(dir_path, cas_paths),
+        Ok(None) => false,
+        Err(error) => {
+            let _ = fs::remove_dir_all(stage);
+            return Err(error);
+        }
+    };
+    if keep_existing {
+        let _ = fs::remove_dir_all(stage);
+    }
+    Ok(keep_existing)
 }
 
 /// The temporary paths a staged swap works through, and the recovery

@@ -70,14 +70,24 @@ pub(super) fn enforce_published_version_immutability(
     name: &CanonicalPackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
-    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
+    let Some(incoming_versions) = incoming.get_mut("versions").and_then(Value::as_object_mut)
+    else {
         return Some(RegistryError::BadRequest {
             reason: "packument must contain an object-valued versions field".to_string(),
         });
     };
+    // `GET /:pkg` overlays `dist.pnpr` from the server's tar-integrity table
+    // while the stored packument omits it (see `pnpr_storage::publish`). Strip
+    // any round-tripped or client-supplied `dist.pnpr` before comparing or
+    // persisting.
+    for manifest in incoming_versions.values_mut() {
+        if let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) {
+            dist.remove("pnpr");
+        }
+    }
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
     let mut restores = PendingRestores::default();
-    for (version, manifest) in incoming_versions {
+    for (version, manifest) in &*incoming_versions {
         let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
             return Some(RegistryError::BadRequest {
                 reason: format!(

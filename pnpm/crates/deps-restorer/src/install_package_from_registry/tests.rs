@@ -32,11 +32,13 @@ fn create_config(
 ) -> Config {
     Config {
         node_linker_excluded: Vec::new(),
+        prune_direct_dependencies: false,
         tools: std::collections::BTreeMap::new(),
         indexes_by_ecosystem: std::collections::BTreeMap::new(),
         network_concurrency_by_registry: std::collections::BTreeMap::new(),
         bail: true,
         ci: false,
+        source_date_epoch: None,
         progress: true,
         update_notifier: true,
         color: Default::default(),
@@ -278,8 +280,7 @@ fn create_config(
         package_manager_bootstrap: Default::default(),
         explicit_settings: Default::default(),
         cli_settings: Default::default(),
-        cli_setting_values: Default::default(),
-        raw_cli_config: Default::default(),
+        cli: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
     }

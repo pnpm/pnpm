@@ -7,6 +7,7 @@ mod children;
 use children::check_local_dep_children_freshness;
 mod injected_manifest;
 mod peers;
+mod scope;
 mod spec;
 
 #[cfg(test)]
@@ -18,11 +19,10 @@ use peers::PeerShadowing;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::StalenessReason;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{
-    ChildCatalogs, DependencySpec, ResolveDependencyTreeError, local_directory_child_specs,
-};
+use pnpm_resolving_deps_resolver::DependencySpec;
+use scope::{AliasScope, Visited, importer_aliases, snapshot_aliases};
 use spec::{SpecDirs, spec_satisfies_snapshot_dep};
-use std::{collections::HashSet, path::Path};
+use std::path::Path;
 
 struct LocalDepContext<'a> {
     name: &'a str,
@@ -64,7 +64,7 @@ pub(crate) fn check_directory_dependencies_freshness(
     check: &ImporterSatisfactionCheck<'_>,
     importer: &pnpm_lockfile::ProjectSnapshot,
 ) -> Result<(), FreshnessCheckError> {
-    let mut visited = HashSet::new();
+    let mut visited = Visited::new(check.lockfile);
     for group in [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional] {
         if let Some(dep_map) = importer.get_map_by_group(group) {
             for (dep_name, dep_spec) in dep_map {
@@ -123,6 +123,7 @@ fn spec_dirs<'a>(check: &'a ImporterSatisfactionCheck<'a>) -> SpecDirs<'a> {
         workspace_root: check.config.workspace_dir.as_deref().unwrap_or(check.lockfile_dir),
         lockfile_dir: check.lockfile_dir,
         manifests_by_dir: check.workspace.manifests_by_dir,
+        canonical_paths: check.workspace.canonical_paths,
     }
 }
 
@@ -160,7 +161,7 @@ fn check_single_dep_spec_directory_freshness(
     importer: &pnpm_lockfile::ProjectSnapshot,
     dep_name: &pnpm_lockfile::PkgName,
     dep_spec: &pnpm_lockfile::ResolvedDependencySpec,
-    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+    visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let dep_str = dep_name.to_string();
     if let pnpm_lockfile::ImporterDepVersion::Link(link_target) = &dep_spec.version {
@@ -179,9 +180,6 @@ fn check_single_dep_spec_directory_freshness(
     let pnpm_lockfile::LockfileResolution::Directory(dir_res) = &pkg_meta.resolution else {
         return Ok(());
     };
-    if !visited.insert(pkg_key.clone()) {
-        return Ok(());
-    }
     check_directory_resolution(
         check,
         importer,
@@ -200,7 +198,7 @@ fn check_directory_resolution(
         &pnpm_lockfile::PackageMetadata,
         &str,
     ),
-    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+    visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let snapshot = check.lockfile.snapshots
         .as_ref()
@@ -221,9 +219,9 @@ fn check_directory_resolution(
     };
     check_single_directory_dep_freshness(
         check,
-        |name| importer_declares(importer, name),
+        &importer_aliases(importer),
         &dep,
-        (snapshot, pkg_meta),
+        (pkg_key, snapshot, pkg_meta),
         visited,
     )
 }
@@ -248,40 +246,41 @@ fn read_and_override_manifest(
 
 fn check_single_directory_dep_freshness(
     check: &ImporterSatisfactionCheck<'_>,
-    parent_declares: impl Fn(&str) -> bool,
+    scope: &AliasScope,
     dep: &LocalDepContext<'_>,
-    (snapshot, pkg_meta): (Option<&pnpm_lockfile::SnapshotEntry>, &pnpm_lockfile::PackageMetadata),
-    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+    (pkg_key, snapshot, pkg_meta): (
+        &pnpm_lockfile::PackageKey,
+        Option<&pnpm_lockfile::SnapshotEntry>,
+        &pnpm_lockfile::PackageMetadata,
+    ),
+    visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let local_manifest = read_and_override_manifest(check, dep)?;
     let Some(snapshot) = snapshot else {
         return Err(dep.outdated());
     };
-    let peers =
-        PeerShadowing::of(&local_manifest, parent_declares, check.config.auto_install_peers);
+    // A revisit in the same peer scope is a cycle or a shared dependency
+    // already checked.
+    if !visited.first_visit(pkg_key, &local_manifest, scope) {
+        return Ok(());
+    }
+    let peers = PeerShadowing::of(
+        &local_manifest,
+        |name| scope.contains(name),
+        check.config.auto_install_peers,
+    );
+    let children_scope: AliasScope = scope
+        .iter()
+        .cloned()
+        .chain(snapshot_aliases(snapshot))
+        .collect();
     check_local_dep_children_freshness(
         check,
-        dep,
+        (dep, &children_scope),
         &local_manifest,
         snapshot,
         &peers.shadowed,
         visited,
     )?;
     peers.check_local_peer_deps_freshness(dep, &local_manifest, pkg_meta)
-}
-
-fn importer_declares(importer: &pnpm_lockfile::ProjectSnapshot, name: &str) -> bool {
-    let Ok(name) = pnpm_lockfile::PkgName::parse(name) else { return false };
-    [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]
-        .into_iter()
-        .filter_map(|group| importer.get_map_by_group(group))
-        .any(|dependencies| dependencies.contains_key(&name))
-}
-
-fn snapshot_declares(snapshot: &pnpm_lockfile::SnapshotEntry, name: &str) -> bool {
-    let Ok(name) = pnpm_lockfile::PkgName::parse(name) else { return false };
-    [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
-        .into_iter()
-        .flatten()
-        .any(|dependencies| dependencies.contains_key(&name))
 }

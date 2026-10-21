@@ -63,7 +63,7 @@ export async function generateSbomForProject (
 
   const rootComponent = await describeRootComponent(opts, ctx)
 
-  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const lockfileDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
   const includedImporterIds = opts.selectedProjectsGraph
     ? Object.keys(opts.selectedProjectsGraph)
       .map((projectDir) => getLockfileImporterId(lockfileDir, projectDir))
@@ -90,6 +90,7 @@ export async function generateSbomForProject (
     supportedArchitectures: opts.supportedArchitectures,
     lockfileOnly: opts.lockfileOnly,
     storeDir: ctx.storeDir,
+    directoryRootsByDepPath: ctx.directoryRootsByDepPath,
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     workspacePackages,
     resolvedWorkspaceDeps,
@@ -118,7 +119,7 @@ async function resolveReachableWorkspacePackages (
   )
   const workspacePackages = await buildWorkspacePackagesMap(
     resolvedWorkspaceDeps.additionalImporterIds,
-    opts.lockfileDir ?? opts.dir,
+    opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     ctx.workspaceManifestsByImporterId
   )
   return { resolvedWorkspaceDeps, workspacePackages }

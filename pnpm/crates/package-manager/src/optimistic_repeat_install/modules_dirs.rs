@@ -1,4 +1,9 @@
-use super::{OptimisticRepeatInstallCheck, manifest_has_runtime_deps, manifest_string_field};
+mod workspace_deps;
+
+use super::{
+    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
+    manifest_string_field,
+};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
@@ -12,6 +17,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use workspace_deps::reached_workspace_project_dirs;
 
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
@@ -22,17 +28,32 @@ pub(super) fn first_project_missing_modules_dir(
 ) -> Option<String> {
     first_missing_modules_dir(check, state, &|_| true)
 }
+/// How far a selected scope reaches past the projects named in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SelectedReach {
+    /// The selected projects alone.
+    SelectedOnly,
+    /// The selected projects and the workspace projects they reach.
+    WithWorkspaceDeps,
+}
+
 /// [`first_project_missing_modules_dir`] restricted to the projects the gate
-/// selected.
+/// selected, as far as `reach` takes them.
 pub(super) fn first_selected_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     selected_project_dirs: &[&Path],
+    reach: SelectedReach,
 ) -> Option<String> {
-    let selected: HashSet<PathBuf> = selected_project_dirs
-        .iter()
-        .map(|dir| lexical_normalize(dir))
-        .collect();
+    let selected = match reach {
+        SelectedReach::WithWorkspaceDeps => {
+            reached_workspace_project_dirs(check, state, selected_project_dirs)
+        }
+        SelectedReach::SelectedOnly => selected_project_dirs
+            .iter()
+            .map(|dir| lexical_normalize(dir))
+            .collect(),
+    };
     first_missing_modules_dir(check, state, &|root_dir| {
         selected.contains(&lexical_normalize(root_dir))
     })
@@ -118,7 +139,9 @@ fn first_project_without_modules_dir(
                 return None;
             }
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
-            let installed = !manifest_has_runtime_deps(manifest)
+            let has_deps = manifest_has_runtime_deps(manifest)
+                || (config.auto_install_peers && manifest_has_required_peers(manifest));
+            let installed = !has_deps
                 || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
                     sibling_modules_dir(config, root_dir, manifest)
                 })
@@ -257,7 +280,7 @@ fn dedupe_links_nothing(
     let (Some(root), Some(sibling)) = (importer(root_dir), importer(sibling_dir)) else {
         return false;
     };
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     sibling
         .dependencies_by_groups(groups.iter().copied())
         .all(|(alias, _)| {

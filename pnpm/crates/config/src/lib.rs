@@ -23,6 +23,7 @@ pub use crate::{
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
+    source_date_epoch::source_date_epoch,
     store_path::StoreRelocation,
     windows_path_env::{
         UnexpandedWindowsEnvVar, ensure_windows_dir_envs, ensure_windows_home_dir_env,
@@ -30,6 +31,7 @@ pub use crate::{
 };
 pub use boot_config::BootConfig;
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
+pub use cli_layer::CliLayer;
 pub use loading::ConfigLoadFailure;
 pub use network_policy::NetworkPolicy;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
@@ -67,12 +69,14 @@ mod api;
 mod boot_config;
 mod cas;
 mod ci_detection;
+mod cli_layer;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;
 mod node_linker;
 mod npmrc_auth;
 mod override_version_references;
+mod source_date_epoch;
 mod store_path;
 mod windows_path_env;
 mod workspace_yaml;
@@ -106,6 +110,7 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 /// Which path-valued settings the user pinned somewhere in the cascade, as
@@ -308,18 +313,28 @@ mod pnpm_default_parity;
 mod tests;
 
 /// Whether the resolution has to read full packument metadata from a given
-/// registry, as [`Config::requires_full_metadata_for_registry_fn`] answers it.
-pub type NeedsFullMetadataFor = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+/// registry (and whether the dependency is optional), as
+/// [`Config::requires_full_metadata_for_registry_fn`] answers it.
+pub type NeedsFullMetadataFn = dyn Fn(&str, bool) -> bool + Send + Sync;
 
-/// Whether a resolution has to read full packument metadata: trust evidence
-/// (`_npmUser`) is never in the abbreviated form, and a time-based resolution
-/// needs `time`, which a registry may or may not carry there.
+/// Shared handle to a [`NeedsFullMetadataFn`].
+pub type NeedsFullMetadataFor = Arc<NeedsFullMetadataFn>;
+
+/// Whether a resolution has to read full packument metadata: optional
+/// dependencies (`libc`) and trust evidence (`_npmUser`, `dist.attestations`)
+/// are omitted from standard npm abbreviated metadata (though included by
+/// `pnpr`), and a time-based resolution needs `time`, which a registry may or
+/// may not carry there.
 fn full_metadata_policy(
     trust_policy: TrustPolicy,
     time_based: bool,
     supports_time_field: bool,
+    optional: bool,
+    server_type: Option<pnpm_lockfile::RegistryServerType>,
 ) -> bool {
-    trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
+    let is_pnpr = server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr);
+    (!is_pnpr && (optional || trust_policy == TrustPolicy::NoDowngrade))
+        || (time_based && !supports_time_field)
 }
 
 /// Reads one field of the remote tier from the environment, under the name

@@ -172,15 +172,6 @@ pub(super) async fn prefetch_allowed(
         .any(|fetcher| fetcher.has_can_fetch() && fetcher.has_fetch()))
 }
 
-/// Whether the resolve streams its packages into a prefetcher, and what
-/// the prefetcher needs to start.
-struct ResolveStreaming<'a> {
-    lockfile_dir: &'a std::path::Path,
-    lockfile_only: bool,
-    partial_selection: bool,
-    prefetch_allowed: bool,
-}
-
 /// Ask the pnpr server to resolve the projects, streaming each resolved
 /// package into a tarball prefetcher as its frame arrives so the fetch
 /// overlaps the server's resolution
@@ -192,38 +183,51 @@ struct ResolveStreaming<'a> {
 /// consumed with a no-op callback. A partial install also waits for the
 /// merged lockfile before fetching, because only then is the selected
 /// workspace closure known.
+struct PnprResolveResult {
+    outcome: pnpm_pnpr_client::ResolveOutcome,
+    prefetcher: Option<TarballPrefetcher>,
+    known_requires_build: Option<std::collections::HashMap<pnpm_lockfile::PackageKey, bool>>,
+}
+
 async fn resolve_via_pnpr(
-    state: &State,
     pnpr_server: &str,
     opts: ResolveProjectsOptions,
     benchmark_registry_override: Option<&PnprBenchmarkRegistryOverride>,
-    streaming: ResolveStreaming<'_>,
-) -> miette::Result<(pnpm_pnpr_client::ResolveOutcome, Option<TarballPrefetcher>)> {
+    prefetcher: Option<TarballPrefetcher>,
+) -> miette::Result<PnprResolveResult> {
     let client = PnprClient::new(pnpr_server);
-    let prefetcher = streaming_prefetcher(state, &streaming).await;
+    let mut known_requires_build = std::collections::HashMap::new();
 
-    let result = match prefetcher.as_ref() {
-        Some(prefetcher) => {
-            client.resolve_projects_streaming(opts, |pkg| {
-                let tarball = match benchmark_registry_override {
-                    Some(registry) => registry.client_tarball_url(&pkg.tarball),
-                    None => pkg.tarball.clone(),
-                };
-                prefetcher.prefetch(
-                    pkg.id,
-                    tarball,
-                    &pkg.integrity,
-                    pkg.unpacked_size,
-                    pkg.file_count,
-                    pkg.revision.is_some(),
-                );
-            })
-            .await
+    let result = client.resolve_projects_streaming(opts, |pkg| {
+        if let Some(requires_build) = pkg.requires_build
+            && let Ok(key) = pkg.id.parse::<pnpm_lockfile::PackageKey>()
+        {
+            known_requires_build.insert(key.without_peer(), requires_build);
         }
-        None => client.resolve_projects(opts).await,
-    };
+        if let Some(prefetcher) = prefetcher.as_ref() {
+            let tarball = match benchmark_registry_override {
+                Some(registry) => registry.client_tarball_url(&pkg.tarball),
+                None => pkg.tarball.clone(),
+            };
+            prefetcher.prefetch(
+                pkg.id,
+                tarball,
+                &pkg.integrity,
+                pkg.unpacked_size,
+                pkg.file_count,
+                pkg.revision.is_some(),
+            );
+        }
+    })
+    .await;
     match result {
-        Ok(outcome) => Ok((outcome, prefetcher)),
+        Ok(outcome) => Ok(PnprResolveResult {
+            outcome,
+            prefetcher,
+            known_requires_build: (!known_requires_build.is_empty()).then_some(
+                known_requires_build,
+            ),
+        }),
         Err(err) => Err(map_pnpr_client_error(err)),
     }
 }
@@ -373,55 +377,54 @@ async fn resolve_and_link_pnpr<Reporter: self::Reporter + 'static>(
     {
         check_frozen_pnpmfile(state, inputs.pnpmfile_hook.as_ref(), previous_wanted).await?;
     }
+    let prefetcher = streaming_prefetcher(state, lockfile_dir, &link, &session, &inputs).await;
     let opts = resolve_projects_options(state, pnpr_server, &link, &mut session, &mut inputs);
-    let (mut outcome, prefetcher) = resolve_via_pnpr(
-        state,
+    let resolved = resolve_via_pnpr(
         pnpr_server,
         opts,
         inputs.benchmark_registry_override.as_ref(),
-        ResolveStreaming {
-            lockfile_dir,
-            lockfile_only: link.lockfile.only,
-            partial_selection: session.partial_selection,
-            prefetch_allowed: inputs.prefetch_allowed,
-        },
+        prefetcher,
     )
     .await?;
-    check_pnpr_applied_settings(state.config, outcome.lockfile.settings.as_ref())?;
-
-    outcome.lockfile = merge_and_save_pnpr_lockfile::<Reporter>(
+    check_pnpr_applied_settings(state.config, resolved.outcome.lockfile.settings.as_ref())?;
+    let lockfile = merge_and_save_pnpr_lockfile::<Reporter>(
         state,
         selection,
         &link,
         &session,
         &inputs,
-        outcome.lockfile,
+        resolved.outcome.lockfile,
     )
     .await?;
-
-    if link.lockfile.only {
-        return Ok(());
-    }
-
-    link_pnpr_lockfile::<Reporter>(state, selection, link, &outcome.lockfile, inputs.pnpmfile_hook)
+    if !link.lockfile.only {
+        link_pnpr_lockfile::<Reporter>(
+            state,
+            selection,
+            link,
+            &lockfile,
+            resolved.known_requires_build,
+            inputs.pnpmfile_hook,
+        )
         .await?;
-
-    // The materialization install has awaited every tarball's mem-cache
-    // slot, so all prefetch downloads have finished and queued their
-    // store-index rows. Drain the writer so those rows are persisted for
-    // the next install before returning.
-    if let Some(prefetcher) = prefetcher {
-        prefetcher.shutdown().await;
+        // The materialization install has awaited every tarball's mem-cache
+        // slot, so all prefetch downloads have finished and queued their
+        // store-index rows. Drain the writer so those rows are persisted for
+        // the next install before returning.
+        if let Some(prefetcher) = resolved.prefetcher {
+            prefetcher.shutdown().await;
+        }
     }
-
     Ok(())
 }
 
 async fn streaming_prefetcher(
     state: &State,
-    streaming: &ResolveStreaming<'_>,
+    lockfile_dir: &std::path::Path,
+    link: &PnprLink<'_>,
+    session: &PnprSession<'_>,
+    inputs: &PnprRequestInputs,
 ) -> Option<TarballPrefetcher> {
-    if streaming.lockfile_only || streaming.partial_selection || !streaming.prefetch_allowed {
+    if link.lockfile.only || session.partial_selection || !inputs.prefetch_allowed {
         None
     } else {
         Some(
@@ -430,7 +433,7 @@ async fn streaming_prefetcher(
                 &state.http_client,
                 &state.tarball_mem_cache,
                 None,
-                &streaming.lockfile_dir.to_string_lossy(),
+                &lockfile_dir.to_string_lossy(),
                 None,
             )
             .await,

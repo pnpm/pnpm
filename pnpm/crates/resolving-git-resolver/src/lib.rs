@@ -43,7 +43,9 @@ extern crate pnpm_http as reqwest;
 pub use create_git_hosted_pkg_id::create_git_hosted_pkg_id;
 pub use git_resolver::{GitFetchContext, GitProbe, GitResolver, ProbeFuture};
 pub use hosted_git::{HostedGit, HostedGitType, HostedOpts};
-pub use parse_bare_specifier::{HostedPackageSpec, PartialSpec, parse_bare_specifier};
+pub use parse_bare_specifier::{
+    HostedPackageSpec, PartialSpec, git_spec_committish_and_path, parse_bare_specifier,
+};
 pub use resolve_ref::{
     GitCommandRunner, GitResolveRefError, GitRunError, get_repo_refs, resolve_ref,
 };

@@ -35,12 +35,12 @@ pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_supported_architectures_match, settings_match,
+    recorded_supported_architectures_match,
 };
 pub(crate) use timestamps::{
     file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
-    filesystem_now_ns_in_modules, lockfile_modified_since, modified_at_or_after,
-    refreshed_validation_baseline_ms, validation_baseline_ms,
+    filesystem_now_ns_in_modules, last_validated_timestamp, lockfile_modified_since,
+    modified_at_or_after,
 };
 
 mod current_lockfile;
@@ -52,7 +52,7 @@ use freshness::{
     Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
 };
 use modules_dirs::{
-    direct_dependency_link_dangling, first_project_missing_modules_dir,
+    SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
     first_selected_project_missing_modules_dir,
 };
 use settle::{
@@ -172,18 +172,22 @@ pub(crate) fn check_optimistic_repeat_install_in(
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
+    check_optimistic_repeat_install_with_state(check, state, scope)
+}
+
+pub(crate) fn check_optimistic_repeat_install_with_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: WorkspaceState,
+    scope: Scope<'_>,
+) -> Decision {
     let (state, moved) =
         relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
             .map_or((state, false), |relocated| (relocated, true));
-    if let Some(reason) = state_blocks_fast_path(check, &state, scope) {
-        return Decision::Skipped { reason };
-    }
-    // The fast-path conclusion: nothing newer than the last validation, or
-    // a content re-check proving the newer files still agree with the
-    // lockfile. A rewrite that left the dependency fields intact (`touch`,
-    // a `scripts` edit, `npm pkg set/delete`) still reports up to date.
     let policy = GatePolicy {
         gate: Gate::Install,
+        ignored_settings: &[],
+        check_local_file_deps: true,
+        check_dangling_direct_links: true,
         missing_wanted_lockfile: MissingWantedLockfile::Restore,
         newer_patch: NewerPatch::Refuse,
         dedupe_peers: check.config.dedupe_peers,
@@ -198,22 +202,37 @@ pub(crate) fn check_optimistic_repeat_install_in(
 /// The diagnostic reason the fast path is skipped for.
 fn skip_reason(stale: &Stale) -> &'static str {
     match stale {
+        Stale::UnrecordedFilteredState => "the previous install was filtered",
+        Stale::LockfileConflict { .. } => {
+            "a changed lockfile contains or cannot be checked for merge conflict markers"
+        }
+        Stale::LocalFileDep(reason) | Stale::MoveRefused(reason) | Stale::Content(reason) => reason,
+        Stale::SettingChanged(_) => "settings drift",
+        Stale::ConfigDependencies => "config dependencies drift",
+        Stale::CatalogsCache => "catalogs cache outdated",
+        Stale::ProjectStructure => "workspace project list changed",
+        Stale::MissingModulesDir(_) => "project has dependencies but no node_modules directory",
+        Stale::DanglingDirectLink => "a direct dependency link points to a missing target",
+        Stale::MissingBranchLockfile => "the branch lockfile is missing",
+        Stale::Pnpmfile(_) => "a pnpmfile changed since the last validation",
         Stale::Unprovable => "the lockfile cannot be read",
         Stale::NothingInstalled => "current lockfile missing",
         Stale::ProjectNotInstalled(_) => "a project with dependencies was never installed",
         Stale::NoLockfile => "wanted lockfile missing",
-        Stale::MoveRefused(reason) | Stale::Content(reason) => reason,
     }
 }
 
 /// The configuration alone can rule the fast path out, before anything is
 /// read from disk.
-fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
+pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
         return Some("CAS installation requires manifest verification");
     }
     if !config.optimistic_repeat_install {
         return Some("optimistic_repeat_install disabled");
+    }
+    if config.prune_direct_dependencies {
+        return Some("prune_direct_dependencies enabled");
     }
     // The merge has to run, and it rewrites the wanted lockfile and
     // deletes the per-branch ones — neither of which any fast path does.
@@ -221,29 +240,6 @@ fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
         return Some("the git branch lockfiles have to be merged");
     }
     None
-}
-
-/// The first reason the recorded workspace state cannot prove this install is
-/// a no-op.
-fn state_blocks_fast_path(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    scope: Scope<'_>,
-) -> Option<&'static str> {
-    // A filtered state without validation records names no installed
-    // project, and the current lockfile lists the projects that install did
-    // not select as if it had installed them.
-    if state.filtered_install && state.validation.is_none() && matches!(scope, Scope::Workspace) {
-        return Some("the previous install was filtered");
-    }
-    if first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
-        .is_some()
-    {
-        return Some("a changed lockfile contains or cannot be checked for merge conflict markers");
-    }
-    local_file_blocks_fast_path(check)
-        .or_else(|| settings_block_fast_path(check, state, scope))
-        .or_else(|| lockfile_inputs_block_fast_path(check, state))
 }
 
 /// A local file dependency's contents can change with nothing in the manifest
@@ -283,89 +279,6 @@ fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Opti
     None
 }
 
-fn settings_block_fast_path(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    scope: Scope<'_>,
-) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck {
-        config,
-        project_manifests,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
-    } = check;
-    if !settings_match(state, config, node_linker, included, supported_architectures, &[]) {
-        return Some("settings drift");
-    }
-    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
-        return Some("catalogs cache outdated");
-    }
-    if !project_structure_matches(state, project_manifests) {
-        return Some("workspace project list changed");
-    }
-    if first_held_project_missing_modules_dir(check, state, scope).is_some() {
-        return Some("project has dependencies but no node_modules directory");
-    }
-    if direct_dependency_link_dangling(check) {
-        return Some("a direct dependency link points to a missing target");
-    }
-    None
-}
-
-/// The lockfile and the resolution inputs beside the manifests: a missing
-/// lockfile the current one may not stand in for, an edited pnpmfile. An
-/// edited patch is left to the content phase's [`NewerPatch`] policy.
-fn lockfile_inputs_block_fast_path(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        is_workspace_install,
-        ..
-    } = check;
-    // Single-project installs require a lockfile to even attempt the
-    // fast path. The single-project branch raises
-    // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
-    // stat is absent, which resolves to not-up-to-date.
-    // Workspace installs skip this existence gate — the workspace
-    // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
-    // scan `continue`s on ENOENT, and the missing lockfile is restored
-    // from the current one rather than failing). The mtime side of that
-    // probe is handled by `InputDrift::stat` in the content phase.
-    // The current lockfile is not a stand-in for a missing *branch*
-    // lockfile: it records what the previous branch's install
-    // materialized, and pnpm refuses the substitution for the same
-    // reason.
-    if config.use_git_branch_lockfile
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-    {
-        return Some("the branch lockfile is missing");
-    }
-    if !is_workspace_install
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.install_state_dir)
-    {
-        return Some("wanted lockfile missing");
-    }
-    // A pnpmfile added, removed, or edited in place can change
-    // resolution (readPackage rewrites, custom resolvers, a
-    // `shouldRefreshResolution` verdict) without touching any manifest,
-    // so it must defeat the mtime fast path.
-    if pnpmfiles_drift(workspace_root, config, state).is_some() {
-        return Some("a pnpmfile changed since the last validation");
-    }
-    None
-}
-
 pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     let value = manifest.value();
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
@@ -375,6 +288,36 @@ pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
             deps.as_object()
                 .is_some_and(|map| !map.is_empty())
         })
+}
+
+/// Whether the manifest declares at least one peer that is not marked
+/// optional. The caller decides whether `autoInstallPeers` fetches them.
+pub(crate) fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
+    let Some(peers) = manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let meta = manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object);
+    peers
+        .keys()
+        .any(|name| !peer_dependency_is_optional(meta, name))
+}
+
+fn peer_dependency_is_optional(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+    name: &str,
+) -> bool {
+    meta.and_then(|meta| meta.get(name))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|entry| entry.get("optional"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
 }
 
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
@@ -402,8 +345,21 @@ fn first_held_project_missing_modules_dir(
     scope: Scope<'_>,
 ) -> Option<String> {
     match scope {
-        Scope::Selected(selected) | Scope::Command(selected) if state.filtered_install => {
-            first_selected_project_missing_modules_dir(check, state, selected)
+        Scope::Selected(selected) if state.filtered_install => {
+            first_selected_project_missing_modules_dir(
+                check,
+                state,
+                selected,
+                SelectedReach::SelectedOnly,
+            )
+        }
+        Scope::Command(selected) if state.filtered_install => {
+            first_selected_project_missing_modules_dir(
+                check,
+                state,
+                selected,
+                SelectedReach::WithWorkspaceDeps,
+            )
         }
         _ => first_project_missing_modules_dir(check, state),
     }

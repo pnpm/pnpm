@@ -495,3 +495,87 @@ fn coarsens_time_entries_by_age() {
     // Synthesized top-level `modified` mirrors the coarsened entry.
     assert_eq!(out["modified"], "2024-03-02");
 }
+
+#[test]
+fn preserves_bundled_dependencies_in_abbreviated_packument() {
+    let doc = json!({
+        "name": "foo",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "bundleDependencies": ["a"],
+                "bundledDependencies": ["b"],
+                "dist": { "tarball": "x/foo-1.0.0.tgz" }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let version = &out["versions"]["1.0.0"];
+    assert_eq!(version["bundleDependencies"], json!(["a"]));
+    assert_eq!(version["bundledDependencies"], json!(["b"]));
+}
+
+#[test]
+fn preserves_minimal_npm_user_in_abbreviated_packument() {
+    let doc = json!({
+        "name": "foo",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "_npmUser": {
+                    "name": "alice",
+                    "email": "alice@example.com",
+                    "trustedPublisher": { "id": "github-actions" },
+                    "approver": { "id": "bob" }
+                },
+                "dist": { "tarball": "x/foo-1.0.0.tgz" }
+            },
+            "2.0.0": {
+                "version": "2.0.0",
+                "_npmUser": {
+                    "name": "charlie",
+                    "email": "charlie@example.com",
+                    "trustedPublisher": false,
+                    "approver": null
+                },
+                "dist": { "tarball": "x/foo-2.0.0.tgz" }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let v1 = &out["versions"]["1.0.0"]["_npmUser"];
+    assert_eq!(v1["trustedPublisher"], json!(true));
+    assert_eq!(v1["approver"], json!(true));
+    assert!(v1.get("name").is_none());
+    assert!(v1.get("email").is_none());
+
+    let v2 = &out["versions"]["2.0.0"];
+    assert!(v2.get("_npmUser").is_none());
+}
+
+#[test]
+fn preserves_exact_timestamps_for_same_day_releases_so_trust_order_survives() {
+    let doc = json!({
+        "name": "foo",
+        "time": {
+            "modified": "2024-03-01T18:00:00.000Z",
+            "1.0.0": "2024-01-10T08:00:00.000Z",
+            "1.0.1": "2024-01-10T18:00:00.000Z",
+            "2.0.0": "2024-02-15T12:00:00.000Z"
+        },
+        "versions": {
+            "1.0.0": { "version": "1.0.0", "dist": { "tarball": "x/foo-1.0.0.tgz" } },
+            "1.0.1": { "version": "1.0.1", "dist": { "tarball": "x/foo-1.0.1.tgz" } },
+            "2.0.0": { "version": "2.0.0", "dist": { "tarball": "x/foo-2.0.0.tgz" } }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let time = &out["time"];
+    assert_eq!(time["1.0.0"], "2024-01-10T08:00:00.000Z");
+    assert_eq!(time["1.0.1"], "2024-01-10T18:00:00.000Z");
+    assert_eq!(time["2.0.0"], "2024-02-16");
+    assert_eq!(time["modified"], "2024-03-02");
+}

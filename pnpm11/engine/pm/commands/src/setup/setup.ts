@@ -293,9 +293,8 @@ export async function handler (
 }
 
 /**
- * A shell that names no config file to edit, as in a container with no
- * `SHELL`, still leaves pnpm installed, so setup succeeds and prints the
- * lines to add by hand. Every other error fails the setup.
+ * Unavailable shell configuration or registry access leaves pnpm installed,
+ * with instructions for configuring the environment manually.
  */
 async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: string }): Promise<string> {
   try {
@@ -309,6 +308,9 @@ async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: strin
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
+      case 'ERR_PNPM_REG_READ':
+      case 'ERR_PNPM_FAILED_SET_ENV':
+        return renderWindowsManualSetupOutput(err.message, opts.pnpmHomeDir)
       case 'ERR_PNPM_UNKNOWN_SHELL':
       case 'ERR_PNPM_NO_SHELL_CONFIG':
         return renderManualSetupOutput(err.message, opts.pnpmHomeDir)
@@ -321,6 +323,19 @@ async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: strin
     }
     throw err
   }
+}
+
+function renderWindowsManualSetupOutput (reason: string, pnpmHomeDir: string): string {
+  // PowerShell also treats typographic apostrophes as string delimiters.
+  const quotedHome = pnpmHomeDir.replace(/['\u2018-\u201b]/g, quote => quote + quote)
+  return `${reason}
+
+pnpm is installed, but its environment could not be saved in the registry.
+To start using pnpm in this PowerShell session, run:
+$env:PNPM_HOME = '${quotedHome}'
+$env:Path = "$env:PNPM_HOME\\bin;$env:Path"
+
+Add these lines to your PowerShell profile to use pnpm in future sessions.`
 }
 
 function renderManualSetupOutput (reason: string, pnpmHomeDir: string): string {

@@ -205,6 +205,56 @@ fn patch_commands_in_a_workspace_project_with_its_own_lockfile() {
 }
 
 #[test]
+fn patch_commands_from_workspace_root_with_per_project_lockfiles() {
+    let (root, workspace, app_dir, npmrc_info) =
+        setup_installed_workspace_project_with_yaml("sharedWorkspaceLockfile: false\n");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let other_dir = workspace.join("packages/other");
+    fs::create_dir_all(&other_dir).expect("create sibling package");
+    fs::write(
+        other_dir.join("package.json"),
+        serde_json::json!({
+            "name": "other",
+            "version": "0.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write sibling package.json");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "patched from root");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let installed_path = app_dir.join("node_modules/is-positive/index.js");
+    let installed = fs::read_to_string(&installed_path).unwrap();
+    assert!(installed.contains("patched from root"), "installed: {installed}");
+
+    // Repeat install across the workspace (including projects that do not depend on is-positive)
+    // must not fail with ERR_PNPM_UNUSED_PATCH.
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    pacquet(&workspace, ["patch-remove", "is-positive@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+
+    let installed = fs::read_to_string(&installed_path).unwrap();
+    assert!(!installed.contains("patched from root"), "installed: {installed}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn patch_commit_accepts_relative_patch_dir() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;

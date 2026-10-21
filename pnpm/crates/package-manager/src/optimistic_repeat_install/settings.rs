@@ -33,25 +33,6 @@ pub(crate) fn recorded_supported_architectures_match(
             .as_ref()
 }
 
-pub(crate) fn settings_match(
-    state: &WorkspaceState,
-    config: &Config,
-    node_linker: NodeLinker,
-    included: IncludedDependencies,
-    supported_architectures: Option<&SupportedArchitectures>,
-    ignored_workspace_state_settings: &[&str],
-) -> bool {
-    first_setting_drift(
-        state,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        ignored_workspace_state_settings,
-    )
-    .is_none()
-}
-
 /// Compare today's settings against what the previous install
 /// recorded.
 ///
@@ -396,6 +377,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             .then(|| map_trust_policy(config.trust_policy)),
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
+        workspace_package_patterns: config.workspace_package_patterns.clone(),
         ..agent_skills_settings(config)
     }
 }

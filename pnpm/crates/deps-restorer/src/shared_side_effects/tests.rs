@@ -629,6 +629,7 @@ mod restore {
             super::super::ApplySharedSideEffectsOptions {
                 cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
                     base_cas_paths: &HashMap::from([(snapshot_key.clone(), HashMap::new())]),
+                    cold_snapshots: None,
                     by_snapshot: &HashMap::new(),
                     quarantine_by_snapshot: &HashMap::new(),
                     store_index_keys_by_snapshot: &HashMap::from([(

@@ -144,6 +144,116 @@ snapshots:
 }
 
 #[test]
+fn licenses_requires_a_lockfile() {
+    let project = tempfile::tempdir().expect("create project");
+    fs::write(project.path().join("package.json"), "{}").expect("write manifest");
+
+    let output = pacquet_in(project.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_LICENSES_NO_LOCKFILE"), "{stderr}");
+    assert!(stderr.contains("No pnpm-lock.yaml found"), "{stderr}");
+}
+
+#[test]
+fn licenses_renders_empty_results_in_the_requested_format() {
+    let project = tempfile::tempdir().expect("create project");
+    fs::write(project.path().join("package.json"), "{}").expect("write manifest");
+    fs::write(
+        project.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+    )
+    .expect("write lockfile");
+
+    for (arguments, expected) in [
+        (vec!["licenses", "list"], "No licenses in packages found\n"),
+        (vec!["licenses", "list", "--json"], "{}\n"),
+        (vec!["licenses", "list", "--prod"], "No licenses in packages found\n"),
+    ] {
+        let output = pacquet_in(project.path())
+            .args(arguments)
+            .output()
+            .expect("run licenses");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    }
+}
+
+#[test]
+fn licenses_renders_empty_results_when_no_recursive_projects_match() {
+    for workspace_settings in ["", "sharedWorkspaceLockfile: false\n"] {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        fs::write(workspace.path().join("package.json"), "{}").expect("write root manifest");
+        fs::write(
+            workspace.path().join("pnpm-workspace.yaml"),
+            format!("packages:\n  - packages/*\n{workspace_settings}"),
+        )
+        .expect("write workspace manifest");
+        let project = workspace.path().join("packages/alpha");
+        fs::create_dir_all(&project).expect("create workspace project");
+        fs::write(project.join("package.json"), r#"{"name":"alpha"}"#)
+            .expect("write project manifest");
+
+        for (json, expected) in [(false, "No licenses in packages found\n"), (true, "{}\n")] {
+            let mut command = pacquet_in(workspace.path());
+            command.args(["--filter", "no-such-pkg", "--recursive", "licenses", "list"]);
+            if json {
+                command.arg("--json");
+            }
+            let output = command.output().expect("run licenses");
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+        }
+    }
+}
+
+#[test]
+fn licenses_does_not_use_root_dependencies_for_an_unrecorded_workspace_project() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    let project = workspace.path().join("new-pkg");
+    fs::create_dir(&project).expect("create project");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - new-pkg\n")
+        .expect("write workspace manifest");
+    fs::write(workspace.path().join("package.json"), "{}").expect("write root manifest");
+    fs::write(project.join("package.json"), r#"{"name":"new-pkg"}"#)
+        .expect("write project manifest");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      alpha:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  alpha@1.0.0:\n    resolution: {integrity: sha512-alpha}\nsnapshots:\n  alpha@1.0.0: {}\n",
+    )
+    .expect("write lockfile");
+    let package_dir = workspace.path().join("node_modules/.pnpm/alpha@1.0.0/node_modules/alpha");
+    fs::create_dir_all(&package_dir).expect("create package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        r#"{"name":"alpha","version":"1.0.0","license":"MIT"}"#,
+    )
+    .expect("write package manifest");
+
+    let output = pacquet_in(&project)
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "{}\n");
+
+    assert_eq!(
+        listed_names(workspace.path(), &["--recursive", "licenses", "list", "--json"]),
+        ["alpha"],
+    );
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--dev"])
+        .output()
+        .expect("run licenses for dev dependencies");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "No licenses in packages found\n");
+}
+
+#[test]
 fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
     let CommandTempCwd {
         pacquet,

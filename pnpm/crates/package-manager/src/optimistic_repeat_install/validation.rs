@@ -308,15 +308,19 @@ pub(crate) struct RecordValidation<'a> {
 /// The files are stat'd before the filesystem clock is probed, so a file
 /// rewritten after its stat either has a stat that no longer matches or falls
 /// inside the window [`FileDigests`] distrusts.
+///
+/// Under `SOURCE_DATE_EPOCH`, whose output must not vary with file stats or
+/// the clock, `recorded_at_ns` and each file signature's stat timestamps are
+/// zeroed while keeping content digests. [`signature_trusted`] then always
+/// returns `false`, so the next check rehashes the files on disk against the
+/// recorded digests instead of trusting modification times.
 pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValidation<'_>) {
     let previous = match inputs.vouched {
         Vouched::All => None,
         Vouched::Projects { previous, .. } => *previous,
     };
     let (lockfile, files) = recorded_files(state, inputs, previous);
-    let Some(recorded_at_ns) = super::filesystem_now_ns_in_modules(
-        &inputs.config.workspace_state_modules_dir(inputs.workspace_root),
-    ) else {
+    let Some(recorded_at_ns) = recorded_validation_time_ns(inputs) else {
         state.validation = None;
         state.filtered_install = true;
         return;
@@ -330,6 +334,15 @@ pub(crate) fn record_validation(state: &mut WorkspaceState, inputs: &RecordValid
     let recorded = record_projects(&mut validation, inputs, carried, lockfile.as_deref());
     state.filtered_install = recorded != inputs.project_manifests.len();
     state.validation = Some(validation);
+}
+
+fn recorded_validation_time_ns(inputs: &RecordValidation<'_>) -> Option<i64> {
+    if inputs.config.source_date_epoch.is_some() {
+        return Some(0);
+    }
+    super::filesystem_now_ns_in_modules(&inputs.config.workspace_state_modules_dir(
+        inputs.workspace_root,
+    ))
 }
 
 /// The lockfile digest and the signatures of the shared input files, read
@@ -352,7 +365,11 @@ fn recorded_files(
                 }),
         )
         .filter_map(|(path, digest)| match digest {
-            FileDigest::Present(signature) => {
+            FileDigest::Present(mut signature) => {
+                if inputs.config.source_date_epoch.is_some() {
+                    signature.mtime_ns = 0;
+                    signature.ctime_ns = None;
+                }
                 Some((path.to_string_lossy().into_owned(), signature))
             }
             FileDigest::Absent | FileDigest::Unreadable => None,
@@ -428,9 +445,24 @@ fn shared_inputs_match(
             .map(|signature| signature.digest.clone())
     };
     // Only a resolving install records `autoDedupe`, and it shapes no tree.
-    let settings = |state: &WorkspaceState| pnpm_workspace_state::WorkspaceStateSettings {
-        auto_dedupe: None,
-        ..state.settings.clone()
+    // Empty maps and `enableGlobalVirtualStore: false` match their omitted defaults.
+    let settings = |state: &WorkspaceState| {
+        let mut settings = state.settings.clone();
+        settings.auto_dedupe = None;
+        if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
+            settings.allow_builds = None;
+        }
+        if settings.enable_global_virtual_store == Some(false) {
+            settings.enable_global_virtual_store = None;
+        }
+        if settings.package_extensions
+            .as_ref()
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(serde_json::Map::is_empty)
+        {
+            settings.package_extensions = None;
+        }
+        settings
     };
     settings(previous) == settings(state)
         && previous.pnpmfiles == state.pnpmfiles

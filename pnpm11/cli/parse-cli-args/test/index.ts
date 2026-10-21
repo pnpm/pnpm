@@ -168,6 +168,29 @@ test('allow any option that starts with "config."', async () => {
   expect(options['save-dev']).toBe(true)
 })
 
+test('a "config." option takes the type the command declares for it', async () => {
+  const { options, rawCliConfig } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          'fetch-retries': Number,
+          'hoist-pattern': [String, Array],
+          offline: Boolean,
+        }
+      }
+      return {}
+    },
+    universalOptionsTypes: { 'test-pattern': [String, Array] },
+  }, ['install', '--config.hoist-pattern=*eslint*', '--config.test-pattern=test/**', '--config.fetch-retries=3', '--config.offline=false', '--config.qar=1'])
+  expect(options['hoist-pattern']).toStrictEqual(['*eslint*'])
+  expect(options['test-pattern']).toStrictEqual(['test/**'])
+  expect(options['fetch-retries']).toBe(3)
+  expect(options.offline).toBe(false)
+  expect(options.qar).toBe('1')
+  expect(rawCliConfig).toStrictEqual({ 'hoist-pattern': ['*eslint*'], 'test-pattern': ['test/**'], 'fetch-retries': 3, offline: false, qar: '1' })
+})
+
 test('do not incorrectly change "install" command to "add"', async () => {
   const { cmd, fallbackCommandUsed } = await parseCliArgs({
     ...DEFAULT_OPTS,

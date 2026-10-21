@@ -11,7 +11,10 @@ use persisted::{
 };
 
 mod remote;
-use remote::{RemoteCacheSetup, fetch_remote_artifacts, remote_cache_setup};
+use remote::{
+    ApplyResolvedRemoteArtifacts, RemoteCacheSetup, apply_resolved_remote_artifacts,
+    remote_cache_setup, resolve_remote_artifacts,
+};
 
 mod planning;
 use planning::{CandidatePlan, plan_candidate_groups, plan_eligible_roots};
@@ -56,12 +59,37 @@ pub(crate) struct ApplySharedSideEffectsOptions<'a> {
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
-/// `importers` are the wanted lockfile's: the root project's runtime pin
-/// picks the Node.js major of the artifacts.
-pub(crate) async fn apply_shared_side_effects(
-    mut options: ApplySharedSideEffectsOptions<'_>,
+pub(crate) struct PreparedSharedSideEffects {
+    setup: RemoteCacheSetup,
+    groups: BTreeMap<String, planning::CandidateGroup>,
+}
+
+pub(crate) struct ResolvedSharedSideEffects {
+    setup: RemoteCacheSetup,
+    groups: BTreeMap<String, planning::CandidateGroup>,
+    resolved: Option<(
+        BTreeMap<String, pnpm_pnpr_client::VerifiedArtifact>,
+        Vec<pnpm_pnpr_client::RejectedArtifact>,
+    )>,
+}
+
+pub(crate) fn cold_shared_packages_have_known_requires_build(
+    cold: &[(&PackageKey, &SnapshotEntry)],
+    shared_packages: Option<&HashSet<&str>>,
+    requires_build_by_snapshot: &RequiresBuildBySnapshot,
+) -> bool {
+    let Some(shared_packages) = shared_packages else { return true };
+    cold.iter()
+        .all(|(snapshot_key, _)| {
+            !shared_packages.contains(snapshot_key.name.to_string().as_str())
+                || requires_build_by_snapshot.contains_key(*snapshot_key)
+        })
+}
+
+pub(crate) async fn prepare_shared_side_effects(
+    options: &mut ApplySharedSideEffectsOptions<'_>,
     importers: &HashMap<String, ProjectSnapshot>,
-) {
+) -> Option<PreparedSharedSideEffects> {
     let persisted_remote = take_persisted_remote_side_effects(
         options.side_effects_maps_by_snapshot,
         options.cached.by_snapshot,
@@ -69,13 +97,11 @@ pub(crate) async fn apply_shared_side_effects(
     if !options.config.side_effects_cache_read() {
         options.side_effects_maps_by_snapshot.clear();
     }
-    let Some(setup) = remote_cache_setup(options.config, importers) else { return };
-
-    let roots = plan_eligible_roots(&options, &setup);
+    let setup = remote_cache_setup(options.config, importers)?;
+    let roots = plan_eligible_roots(options, &setup);
     if roots.is_empty() {
-        return;
+        return None;
     }
-
     let groups = plan_candidate_groups(
         &CandidatePlan {
             config: options.config,
@@ -91,9 +117,60 @@ pub(crate) async fn apply_shared_side_effects(
     )
     .await;
     if groups.is_empty() || options.config.frozen_store {
-        return;
+        return None;
     }
-    fetch_remote_artifacts(&mut options, &setup, &groups).await;
+    Some(PreparedSharedSideEffects { setup, groups })
+}
+
+pub(crate) async fn resolve_prepared_side_effects(
+    prepared: Option<PreparedSharedSideEffects>,
+    quarantine_by_snapshot: &RemoteSideEffectsQuarantineBySnapshot,
+) -> Option<ResolvedSharedSideEffects> {
+    let prepared = prepared?;
+    let resolved =
+        resolve_remote_artifacts(&prepared.setup, &prepared.groups, quarantine_by_snapshot).await;
+    Some(ResolvedSharedSideEffects { setup: prepared.setup, groups: prepared.groups, resolved })
+}
+
+pub(crate) async fn finish_shared_side_effects(
+    resolved: Option<ResolvedSharedSideEffects>,
+    config: &Config,
+    base_cas_paths: &BaseCasPaths,
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+    store_index_writer: &Arc<StoreIndexWriter>,
+) {
+    let Some(resolved) = resolved else { return };
+    apply_resolved_remote_artifacts(
+        ApplyResolvedRemoteArtifacts {
+            config,
+            setup: &resolved.setup,
+            groups: &resolved.groups,
+            base_cas_paths,
+            side_effects_maps_by_snapshot,
+            store_index_writer,
+        },
+        resolved.resolved,
+    )
+    .await;
+}
+
+/// `importers` are the wanted lockfile's: the root project's runtime pin
+/// picks the Node.js major of the artifacts.
+pub(crate) async fn apply_shared_side_effects(
+    mut options: ApplySharedSideEffectsOptions<'_>,
+    importers: &HashMap<String, ProjectSnapshot>,
+) {
+    let prepared = prepare_shared_side_effects(&mut options, importers).await;
+    let resolved =
+        resolve_prepared_side_effects(prepared, options.cached.quarantine_by_snapshot).await;
+    finish_shared_side_effects(
+        resolved,
+        options.config,
+        options.cached.base_cas_paths,
+        options.side_effects_maps_by_snapshot,
+        options.store_index_writer,
+    )
+    .await;
 }
 
 fn non_empty(value: &str) -> Option<&str> {
@@ -254,6 +331,7 @@ mod tests;
 
 pub(crate) struct SharedSideEffectsCacheRows<'a> {
     pub base_cas_paths: &'a BaseCasPaths,
+    pub cold_snapshots: Option<&'a HashSet<&'a PackageKey>>,
     pub by_snapshot: &'a SideEffectsBySnapshot,
     pub quarantine_by_snapshot: &'a RemoteSideEffectsQuarantineBySnapshot,
     pub store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,

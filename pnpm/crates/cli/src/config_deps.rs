@@ -18,7 +18,7 @@ pub(crate) use declarations::declared_specifier;
 
 mod declarations;
 mod network;
-mod store_index;
+mod store;
 
 use crate::{
     cli_args::config_warnings::emit_config_warning, config_overrides::apply_store_dir_override,
@@ -33,7 +33,8 @@ use pnpm_config::{
     known_settings::is_known_setting_key, resolve_configured_state_dir,
 };
 use pnpm_env_installer::{
-    ConfigDepUpdates, ConfigDependencyVerification, ConfigDepsInstallOptions, pnpm_engine_packages,
+    ConfigDepUpdates, ConfigDependencyVerification, ConfigDepsInstallMode,
+    ConfigDepsInstallOptions, pnpm_engine_packages, read_config_dependency_lockfile,
     resolve_and_install_config_deps_updating, resolve_package_manager_integrities,
     running_version_unpublished,
 };
@@ -41,7 +42,7 @@ use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
 use pnpm_resolving_resolver_base::{
     ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
@@ -54,21 +55,18 @@ use std::{
     sync::Arc,
 };
 
-/// Resolve + install the project's `configDependencies` (a no-op when
-/// none are declared). `root_dir` is the lockfile directory;
+/// Prepare the project's `configDependencies` according to `mode`.
+/// `root_dir` is the lockfile directory;
 /// `frozen_lockfile` forwards `--frozen-lockfile` so config deps refuse
 /// to mutate an out-of-date env lockfile.
 pub async fn install_config_deps<Reporter: self::Reporter>(
     config: &Config,
     root_dir: &Path,
     frozen_lockfile: bool,
+    mode: ConfigDepsInstallMode,
 ) -> Result<()> {
-    let Some(config_dependencies) = config.config_dependencies.as_ref() else {
-        return Ok(());
-    };
-    if config_dependencies.is_empty() {
-        return Ok(());
-    }
+    let empty = BTreeMap::new();
+    let config_dependencies = config.config_dependencies.as_ref().unwrap_or(&empty);
     let updates = ConfigDepUpdates::default();
     resolve_and_install::<Reporter>(
         config,
@@ -76,6 +74,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
         root_dir,
         frozen_lockfile,
         &updates,
+        mode,
     )
     .await?;
     Ok(())
@@ -95,7 +94,13 @@ pub async fn prepare<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
 ) -> Result<()> {
-    install_config_deps::<Reporter>(config, root_dir, frozen_lockfile).await?;
+    install_config_deps::<Reporter>(
+        config,
+        root_dir,
+        frozen_lockfile,
+        ConfigDepsInstallMode::Reconcile,
+    )
+    .await?;
     apply_config_dependency_settings(config)?;
     run_update_config_hooks::<Reporter>(config, root_dir).await?;
     Ok(())
@@ -309,34 +314,29 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
     updates: &ConfigDepUpdates,
+    mode: ConfigDepsInstallMode,
 ) -> Result<BTreeMap<String, String>> {
+    let Some(env_lockfile) =
+        read_config_dependency_lockfile(Some(config_dependencies), root_dir, mode)?
+    else {
+        return Ok(BTreeMap::new());
+    };
     let boot_config = config.for_boot();
     let config = &*boot_config;
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Debug,
-        message: "Waiting for the configuration dependency store operation lock".to_string(),
-    }));
-    let _store_lock = if config.frozen_store {
-        config.store_dir.lock_for_frozen_use()
-    } else {
-        config.store_dir.lock_for_use()
-    }
-    .wrap_err("lock the store while installing configuration dependencies")?;
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Debug,
-        message: "Acquired the configuration dependency store operation lock".to_string(),
-    }));
+    let _store_lock = store::lock_config_dependency_store::<Reporter>(config)?;
 
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let mut options = context.options(root_dir, frozen_lockfile);
+    options.mode = mode;
     // Sampled before the verifiers so the resolution cutoff is never later
     // than the verification cutoff.
     options.verification.resolution_policy = release_age_policy(config)?;
     options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
     let store_index =
-        store_index::StoreIndexSession::attach(&mut options, context.store.dir, config).await;
+        store::StoreIndexSession::attach(&mut options.store_index, context.store.dir, config).await;
     let result = resolve_and_install_config_deps_updating::<Reporter>(
+        env_lockfile,
         config_dependencies,
         updates,
         &context.resolver,
@@ -460,6 +460,7 @@ impl EnvInstallerContext {
         frozen_lockfile: bool,
     ) -> ConfigDepsInstallOptions<'a> {
         ConfigDepsInstallOptions {
+            mode: ConfigDepsInstallMode::Reconcile,
             verification: ConfigDependencyVerification {
                 registries: &self.network.registries,
                 resolution_verifiers: Vec::new(),
@@ -481,8 +482,7 @@ impl EnvInstallerContext {
                 ..Default::default()
             },
             store: self.store,
-            store_index: None,
-            store_index_writer: None,
+            store_index: pnpm_env_installer::ConfigDependencyStoreIndex::default(),
             root_dir,
 
             frozen_lockfile,

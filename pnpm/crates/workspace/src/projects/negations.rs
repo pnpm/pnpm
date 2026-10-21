@@ -1,49 +1,66 @@
-use super::{FindWorkspaceProjectsError, Path, negated_directory_pattern};
+use super::{FindWorkspaceProjectsError, Path};
+use crate::directory_patterns::negated_directory_pattern;
+use wax::{Glob, Program as _};
 
-pub(super) fn subtree_negations(
-    patterns: &[String],
-) -> Result<Vec<String>, FindWorkspaceProjectsError> {
-    patterns
-        .iter()
-        .filter_map(|pattern| negated_directory_pattern(pattern).transpose())
-        .filter(|pattern| match pattern {
-            Ok(pattern) => {
-                !pattern.starts_with("../") && (pattern == "**" || pattern.ends_with("/**"))
-            }
-            Err(_) => true,
-        })
-        .collect()
+pub(super) struct CompiledNegations {
+    pub(super) user: wax::Any<'static>,
+    pub(super) subtree: wax::Any<'static>,
 }
 
-/// Negations stay workspace-relative even when an include walks from an ancestor.
-/// Parent-relative exclusions remain covered by the manifest matcher.
-pub(super) fn rebase_subtree_negations(
+pub(super) fn compile_negations(
     patterns: &[String],
-    workspace_root: &Path,
-    walk_root: &Path,
-) -> Vec<String> {
-    let Ok(relative) = workspace_root.strip_prefix(walk_root) else {
-        return Vec::new();
-    };
-    let Some(components) = relative
-        .components()
-        .map(|component| {
-            component
-                .as_os_str()
-                .to_str()
-                .map(|name| wax::escape(name).into_owned())
+) -> Result<CompiledNegations, FindWorkspaceProjectsError> {
+    let mut user_globs = Vec::new();
+    let mut subtree_globs = Vec::new();
+    for pattern in patterns {
+        let Some(directory) = negated_directory_pattern(pattern)? else {
+            continue;
+        };
+        let glob = Glob::new(&directory)
+            .map(Glob::into_owned)
+            .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                pattern: pattern.clone(),
+                message: err.to_string(),
+            })?;
+        if directory == "**" || directory.ends_with("/**") {
+            subtree_globs.push(glob.clone());
+        }
+        user_globs.push(glob);
+    }
+    Ok(CompiledNegations { user: compile_any(user_globs)?, subtree: compile_any(subtree_globs)? })
+}
+
+fn compile_any(globs: Vec<Glob<'static>>) -> Result<wax::Any<'static>, FindWorkspaceProjectsError> {
+    wax::any(globs)
+        .map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: "<negated pattern>".to_string(),
+            message: err.to_string(),
         })
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Vec::new();
-    };
-    let prefix = components.join("/");
-    patterns
-        .iter()
-        .map(
-            |pattern| {
-                if prefix.is_empty() { pattern.clone() } else { format!("{prefix}/{pattern}") }
-            },
-        )
-        .collect()
+}
+
+pub(super) fn is_negated_directory(
+    dir: &Path,
+    workspace_root: &Path,
+    user_negations: &wax::Any<'_>,
+) -> bool {
+    if let Ok(relative) = dir.strip_prefix(workspace_root) {
+        return !relative.as_os_str().is_empty() && user_negations.is_match(relative);
+    }
+    pathdiff::diff_paths(dir, workspace_root)
+        .is_some_and(|relative| user_negations.is_match(relative.as_path()))
+}
+
+pub(super) fn is_pruned_by_subtree_negation(
+    dir: &Path,
+    workspace_root: &Path,
+    subtree_negations: &wax::Any<'_>,
+) -> bool {
+    if let Ok(relative) = dir.strip_prefix(workspace_root) {
+        return !relative.as_os_str().is_empty() && subtree_negations.is_match(relative);
+    }
+    if workspace_root.starts_with(dir) {
+        return false;
+    }
+    pathdiff::diff_paths(dir, workspace_root)
+        .is_some_and(|relative| subtree_negations.is_match(relative.as_path()))
 }

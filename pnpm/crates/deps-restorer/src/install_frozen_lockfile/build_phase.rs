@@ -262,6 +262,9 @@ fn build_or_defer<Reporter: self::Reporter>(
         && inputs.policy.rebuild.is_none()
         && patches.is_none_or(HashMap::is_empty)
         && (!config.side_effects_cache_read() || inputs.cache.maps_by_snapshot.is_empty());
+    if let Some(sources) = inputs.hoisted_bin_sources {
+        bin_state.refreshed_hoisted_bins.seed(sources);
+    }
     let build_output = if can_defer_without_build_modules {
         let newly_deferred = inputs.graph.materialized_snapshots
             .iter()
@@ -275,10 +278,19 @@ fn build_or_defer<Reporter: self::Reporter>(
             mutated_slots: false,
             mutated_snapshot_keys: std::collections::HashSet::default(),
         }
+    } else if inputs.policy.rebuild.is_none()
+        && patches.is_none_or(HashMap::is_empty)
+        && inputs.graph.snapshots.is_none_or(|snapshots| {
+            snapshots
+                .keys()
+                .filter(|snapshot_key| !inputs.skipped.contains(snapshot_key))
+                .all(|snapshot_key| {
+                    inputs.cache.requires_build_by_snapshot.get(snapshot_key) == Some(&false)
+                })
+        })
+    {
+        crate::BuildModulesOutput::default()
     } else {
-        if let Some(sources) = inputs.hoisted_bin_sources {
-            bin_state.refreshed_hoisted_bins.seed(sources);
-        }
         build_modules(inputs, patches, shared_side_effects_publisher)
             .run_with_bin_state::<Reporter>(bin_state)
             .map_err(BuildPhaseError::BuildModules)?

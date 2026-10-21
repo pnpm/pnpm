@@ -3,7 +3,7 @@ import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, normalizeUnsetSetting, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals } from 'ramda'
 
@@ -17,7 +17,7 @@ import { getWantedLockfileDirs, scanWantedLockfiles } from './wantedLockfiles.js
 export type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 
 export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<CheckDepsStatusResult> {
-  const workspaceState = loadWorkspaceState(opts.workspaceDir ?? opts.rootProjectManifestDir)
+  const workspaceState = loadWorkspaceState(opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir)
   if (!workspaceState) {
     if (opts.allProjects == null && opts.workspaceDir == null && opts.rootProjectManifest == null) {
       // There is no project here at all (for example, a mistyped command fell
@@ -119,12 +119,22 @@ function checkWithoutLockfiles (opts: CheckDepsStatusOptions, workspaceState: Wo
     return { upToDate: true, workspaceState: undefined }
   }
 
-  if (opts.ignoreFilteredInstallCache && workspaceState.filteredInstall) {
+  if (
+    opts.ignoreFilteredInstallCache &&
+    workspaceState.filteredInstall &&
+    workspaceState.validation == null &&
+    isUnfilteredWorkspaceInstall(opts)
+  ) {
     return { upToDate: undefined, workspaceState }
   }
 
   const settingsIssue = findSettingsIssue(opts, workspaceState)
   return settingsIssue == null ? undefined : outdatedResult(settingsIssue, workspaceState)
+}
+
+function isUnfilteredWorkspaceInstall (opts: CheckDepsStatusOptions): boolean {
+  return opts.selectedProjectsGraph == null ||
+    Object.keys(opts.selectedProjectsGraph).length === (opts.allProjects?.length ?? 0)
 }
 
 function findSettingsIssue (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): string | undefined {
@@ -159,28 +169,9 @@ async function findWorkspaceProjects (opts: CheckDepsStatusOptions): Promise<Pro
   const workspaceRoot = opts.workspaceDir ?? opts.rootProjectManifestDir
   const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
   if (!(workspaceManifest ?? opts.workspaceDir)) return undefined
-  return findWorkspaceProjectsNoCheck(opts.rootProjectManifestDir, {
+  return findWorkspaceProjectsNoCheck(workspaceRoot, {
     patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
     modulesDir: opts.modulesDir,
     modulesDirsByProjectName: opts.modulesDirsByProjectName,
   })
-}
-
-/**
- * Settings whose unset form means the same as a concrete value.
- *
- * The workspace state only records settings that were configured, so a
- * setting left at its default has no key in the state file. The resolved
- * config, on the other hand, may carry the value the default resolves to:
- * `@pnpm/config.reader` writes `enableGlobalVirtualStore: false` when `ci`
- * is set, and reading `allowBuilds` yields `{}`. Normalizing unset values
- * ensures an unrecorded setting matches its resolved default.
- */
-const SETTING_UNSET_EQUIVALENTS: Partial<Record<keyof WorkspaceStateSettings, unknown>> = {
-  allowBuilds: {},
-  enableGlobalVirtualStore: false,
-}
-
-function normalizeUnsetSetting (settingName: keyof WorkspaceStateSettings, value: unknown): unknown {
-  return value ?? SETTING_UNSET_EQUIVALENTS[settingName]
 }

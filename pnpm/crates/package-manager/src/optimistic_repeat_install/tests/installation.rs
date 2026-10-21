@@ -527,6 +527,54 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
+
+/// Drift in `configDependencies` must defeat the install fast path as well as
+/// the pre-run gate: `configDependencies` lives in the workspace manifest and
+/// in a separate YAML document when merged into `pnpm-lock.yaml`, so neither
+/// the manifest digest nor the main lockfile digest sees a removed entry.
+#[test]
+fn install_and_run_refuse_drifted_config_dependencies() {
+    let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| {
+            config.config_dependencies = Some(BTreeMap::from([(
+                "my-cfg".into(),
+                pnpm_workspace_state::ConfigDependency::VersionWithIntegrity(
+                    "1.0.0+sha512-aaa".into(),
+                ),
+            )]));
+        },
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    assert_eq!(
+        check(dir.path(), recorded_config, pnpm_config::NodeLinker::Isolated, &project_manifests),
+        Decision::UpToDate,
+    );
+
+    let mut without_config_deps = recorded_config.clone();
+    without_config_deps.config_dependencies = None;
+    let without_config_deps = without_config_deps.leak();
+
+    let decision = check(
+        dir.path(),
+        without_config_deps,
+        pnpm_config::NodeLinker::Isolated,
+        &project_manifests,
+    );
+    assert_eq!(decision, Decision::Skipped { reason: "config dependencies drift" });
+
+    let status = super::single_project_deps_status(&dir, without_config_deps, &project_manifests);
+    assert_eq!(
+        status,
+        super::RunDepsStatus::Outdated {
+            issue: "Configuration dependencies are not up to date".to_string(),
+            install_args: Vec::new(),
+        },
+    );
+}
 /// Drift in `packageExtensions` invalidates the cached state.
 #[test]
 fn returns_skipped_when_package_extensions_drift() {
@@ -757,4 +805,32 @@ fn install_args_reproduce_the_recorded_dependency_groups() {
     assert_eq!(args(Some(true), Some(false), None), ["--dev", "--no-optional"]);
     assert_eq!(args(Some(true), Some(true), Some(true)), [] as [&str; 0]);
     assert_eq!(args(Some(true), Some(false), Some(true)), ["--no-optional"]);
+}
+
+#[test]
+fn install_already_up_to_date_bails_before_walking_projects_when_workspace_state_is_missing() {
+    use crate::install::{UpToDateFastPathCheck, install_already_up_to_date};
+    use pnpm_package_manifest::DependencyGroup;
+
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let broken_dir = workspace_root.join("packages/broken");
+    fs::create_dir_all(&broken_dir).unwrap();
+    fs::write(broken_dir.join("package.json"), "{invalid json").unwrap();
+
+    let manifest_path = workspace_root.join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    let config = config.leak();
+
+    let result = install_already_up_to_date(&UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![DependencyGroup::Prod],
+        node_linker: pnpm_config::NodeLinker::Isolated,
+        supported_architectures: None,
+    });
+    assert_eq!(result, Err("no workspace state on disk"));
 }

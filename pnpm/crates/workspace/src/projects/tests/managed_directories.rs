@@ -1,8 +1,5 @@
 use super::{
-    super::{
-        FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir,
-        managed::managed_directory_ignores,
-    },
+    super::{FindWorkspaceProjectsOpts, find_workspace_projects, is_workspace_project_dir},
     make_project,
 };
 use pretty_assertions::assert_eq;
@@ -156,20 +153,36 @@ fn a_managed_directory_on_another_drive_does_not_break_a_glob_pattern() {
     );
 }
 
-/// A walk glob can prune only a directory under the walk root. Paths that
-/// share no root with it, like the other-drive case above, stand in here as
-/// an absolute directory against a relative root so that every platform
-/// covers it.
+#[cfg(unix)]
 #[test]
-fn only_a_managed_directory_under_the_walk_root_yields_a_walk_glob() {
-    let ignores = |walk_root: &str, dir: &str| {
-        managed_directory_ignores(Path::new(walk_root), &[PathBuf::from(dir)])
-    };
+fn managed_and_dot_directories_under_prefixed_globs_are_not_read() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/keep", "keep");
+    make_project(tmp.path(), "packages/store/pkg", "store-pkg");
+    make_project(tmp.path(), "packages/.cache/ok/lib", "cached-ok");
+    make_project(tmp.path(), "packages/.cache/.hidden/lib", "cached-hidden");
 
-    assert_eq!(ignores("/workspace", "/workspace/store"), ["store/**"]);
-    assert_eq!(ignores("/workspace", "/workspace"), Vec::<String>::new());
-    assert_eq!(ignores("/workspace", "/pnpm-cache"), Vec::<String>::new());
-    assert_eq!(ignores("workspace", "/pnpm-cache"), Vec::<String>::new());
+    let store_dir = tmp.path().join("packages/store");
+    let hidden_dir = tmp.path().join("packages/.cache/.hidden");
+    let store_perms = fs::metadata(&store_dir).unwrap().permissions();
+    let hidden_perms = fs::metadata(&hidden_dir).unwrap().permissions();
+    fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o000)).unwrap();
+    fs::set_permissions(&hidden_dir, fs::Permissions::from_mode(0o000)).unwrap();
+
+    let result = std::panic::catch_unwind(|| {
+        find_sorted_names(
+            tmp.path(),
+            &["packages/**", "packages/.cache/*/lib"],
+            vec![PathBuf::from("packages/store")],
+        )
+    });
+
+    fs::set_permissions(&store_dir, store_perms).unwrap();
+    fs::set_permissions(&hidden_dir, hidden_perms).unwrap();
+    let names = result.unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+    assert_eq!(names, ["cached-ok", "keep", "root"]);
 }
 
 #[cfg(any(windows, target_os = "macos"))]

@@ -209,6 +209,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         built_lockfile: Lockfile,
         allow_build_policy: AllowBuildPolicy,
     ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
+        let known_requires_build = collect_known_requires_build(&self.resolved.graph.merged_graph);
+        let known_bins = collect_known_bins(&self.resolved.graph.merged_graph);
         let initial =
             MaterializationScope::initial(self.install, self.shape.is_hoisted, &built_lockfile);
         let mut plan = plan_fresh_materialization::<Reporter>(
@@ -223,6 +225,7 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                 groups: &initial.groups,
                 include_transitive_optional_dependencies: self.shape
                     .include_transitive_optional_dependencies,
+                known_requires_build: known_requires_build.as_ref(),
             },
         )
         .await?;
@@ -235,8 +238,15 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
             self.install.drivers.logged_methods,
         )
         .await;
-        let on_disk =
-            self.run_on_disk(&built_lockfile, &scope, &mut plan, &allow_build_policy).await?;
+        let on_disk = self.run_on_disk(
+            &built_lockfile,
+            &scope,
+            &mut plan,
+            &allow_build_policy,
+            known_requires_build.as_ref(),
+            known_bins.as_ref(),
+        )
+        .await?;
         self.persist_result(built_lockfile, on_disk).await
     }
 
@@ -275,6 +285,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         scope: &FinalScope,
         plan: &mut FreshPlan<'_>,
         allow_build_policy: &AllowBuildPolicy,
+        known_requires_build: Option<&pnpm_deps_restorer::RequiresBuildBySnapshot>,
+        known_bins: Option<&pnpm_deps_restorer::PackageBins>,
     ) -> Result<OnDiskOutput, InstallWithFreshLockfileError> {
         let store = on_disk_store(
             self.stores.take_writer(),
@@ -307,6 +319,8 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
                     host_node: plan.host_node.as_ref(),
                     engine_name: plan.engine_name.take(),
                     deferred_engine_name: plan.deferred_engine_name.take(),
+                    known_requires_build,
+                    known_bins,
                 },
                 projects: scope.on_disk_projects(built_lockfile, &self.resolved.importer_manifests),
             },
@@ -315,6 +329,42 @@ impl<Reporter: self::Reporter + 'static> FreshMaterialization<'_, Reporter> {
         )
         .await
     }
+}
+
+fn collect_known_requires_build(
+    graph: &pnpm_resolving_deps_resolver::DependenciesGraph,
+) -> Option<pnpm_deps_restorer::RequiresBuildBySnapshot> {
+    let mut known = pnpm_deps_restorer::RequiresBuildBySnapshot::new();
+    for node in graph.values() {
+        let Some(requires_build) = pnpm_deps_restorer::manifest_requires_build(
+            node.resolve_result.package.manifest.as_deref(),
+        ) else {
+            continue;
+        };
+        if let Ok(key) = node.dep_path.as_str().parse::<pnpm_lockfile::PackageKey>() {
+            known.insert(key.without_peer(), requires_build);
+        }
+    }
+    (!known.is_empty()).then_some(known)
+}
+
+fn collect_known_bins(
+    graph: &pnpm_resolving_deps_resolver::DependenciesGraph,
+) -> Option<pnpm_deps_restorer::PackageBins> {
+    let mut known = pnpm_deps_restorer::PackageBins::new();
+    for node in graph.values() {
+        let manifest = node.resolve_result.package.manifest.as_deref();
+        if pnpm_deps_restorer::manifest_requires_build(manifest) != Some(false) {
+            continue;
+        }
+        let Some(bins) = pnpm_deps_restorer::manifest_bins(manifest) else {
+            continue;
+        };
+        if let Ok(key) = node.dep_path.as_str().parse::<pnpm_lockfile::PackageKey>() {
+            known.insert(key.without_peer(), bins);
+        }
+    }
+    (!known.is_empty()).then_some(known)
 }
 pub(super) fn fresh_install_context<'b>(
     install: FreshInputs<'b>,

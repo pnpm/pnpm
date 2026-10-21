@@ -8,8 +8,12 @@ use scripts::{
 
 mod fixtures;
 
-use fixtures::{create_npmrc, create_package_json, create_pnpm_workspace, save_pristine_copies};
+use fixtures::{
+    create_generated_projects, create_npmrc, create_package_json, create_pnpm_workspace,
+    save_pristine_copies,
+};
 
+mod cargo_workspace;
 mod injected_workspace;
 mod linked_workspace;
 mod unlocked_deps;
@@ -285,12 +289,7 @@ impl WorkEnv {
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
-            if scenario.uses_injected_workspace_fixture() {
-                injected_workspace::create_project(&dir);
-            }
-            if scenario.uses_linked_workspace_fixture() {
-                linked_workspace::create_projects(&dir);
-            }
+            create_generated_projects(&dir, scenario);
             self.write_registry_config(&dir, registry);
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
             may_create_lockfile(&dir, scenario, self.options.selection.fixture_dir.as_deref());
@@ -429,16 +428,24 @@ impl WorkEnv {
     /// fetches tarballs, not packuments; an up-to-date `node_modules`
     /// short-circuits the install outright).
     fn prewarm_caches(&self, cleanup_command: &str) {
+        let scenario =
+            self.options.selection.scenario.expect("scenario set when prewarm_caches() is reached");
         Command::new("bash")
             .current_dir(self.root())
             .arg("-c")
             .arg(cleanup_command)
             .pipe_mut(executor("prewarm cleanup"));
         for id in self.benchmarked_ids() {
+            if scenario.uses_cargo_workspace_fixture() {
+                cargo_workspace::seed_store(&self.bench_dir(id));
+            }
             eprintln!("Pre-warming caches for {id}...");
             Command::new("bash")
                 .arg(self.prewarm_script_path(id))
                 .pipe_mut(executor(PREWARM_SCRIPT));
+            if scenario.uses_cargo_workspace_fixture() {
+                cargo_workspace::verify_materialized_crates(&self.bench_dir(id));
+            }
         }
     }
 

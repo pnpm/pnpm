@@ -2,15 +2,20 @@ use crate::{
     ArchiveIntegrity, ArchiveStoreProjection, CachedCasPaths, FetchedTarball, IgnoreEntryFilter,
     SharedReportedProgressKeys, TarballError, apply_append_manifest, apply_placeholder_manifest,
     archive_integrity::{ArchiveVerification, IntegrityKind},
-    download::{download_priority, fetch_and_extract_with_retry, store_index_cache_key},
+    download::{download_priority, fetch_and_extract_archive_with_retry, store_index_cache_key},
     emit_progress_found_in_store, load_cached_cas_paths, load_legacy_synthesized_cas_paths,
     local_file_tarball_path,
     zip_archive::fetch_and_extract_zip_with_retry,
 };
+use pnpm_package_manifest::PackageBin;
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::PackageFilesIndex;
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) enum ArchiveFormat<'a> {
@@ -51,17 +56,25 @@ impl ArchiveIngestion<'_> {
             return Ok(cached);
         }
         self.fetch::<Reporter>(false).await
-            .map(|result| CachedCasPaths { files: result.files_map, manifest: result.manifest })
+            .map(|result| CachedCasPaths {
+                files: result.files_map,
+                manifest: result.manifest,
+                requires_build: Some(result.requires_build),
+                bins: result.bins,
+            })
     }
 
     pub(crate) async fn load_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<Option<CachedCasPaths>, TarballError> {
-        let cache_key = self.cache_key();
-        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
+        let Some(cache_key) = self.cache_key() else {
+            return Ok(None);
+        };
+        let progress_key = self.progress_reported
+            .as_ref()
+            .map(|reported| (reported, cache_key.as_str()));
         if let Some(prefetched) = self.store.prefetched_cas_paths
-            && let Some(cache_key) = cache_key.as_deref()
-            && let Some(cas_paths) = prefetched.get(cache_key)
+            && let Some(cas_paths) = prefetched.get(cache_key.as_str())
         {
             tracing::info!(
                 target: "pacquet::download",
@@ -70,32 +83,23 @@ impl ArchiveIngestion<'_> {
                 "Reusing prefetched CAFS entry — skipping download",
             );
             emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
-            return Ok(Some(CachedCasPaths { files: (**cas_paths).clone(), manifest: None }));
+            return Ok(Some(CachedCasPaths::files_only((**cas_paths).clone())));
         }
-        if let Some(cache_key) = cache_key.clone() {
-            let cached = load_cached_cas_paths::<Reporter>(
-                self.store.index.clone(),
-                self.store.dir,
-                cache_key,
-                self.store.verify_integrity,
-                self.store_projection.package_content_check(self.store.strict_pkg_content_check),
-                Arc::clone(&self.store.verified_files_cache),
-            )
-            .await?;
-            if let Some(cached) = cached {
-                tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing cached CAFS entry — skipping download");
-                emit_progress_found_in_store::<Reporter>(
-                    self.package.id,
-                    self.requester,
-                    progress_key,
-                );
-                return Ok(Some(cached));
-            }
-            if let Some(cas_paths) = self.load_legacy_cache::<Reporter>(progress_key).await? {
-                return Ok(Some(CachedCasPaths { files: cas_paths, manifest: None }));
-            }
+        if let Some(cached) = load_cached_cas_paths::<Reporter>(
+            self.store.index.clone(),
+            self.store.dir,
+            cache_key.clone(),
+            self.store.verify_integrity,
+            self.store_projection.package_content_check(self.store.strict_pkg_content_check),
+            Arc::clone(&self.store.verified_files_cache),
+        )
+        .await?
+        {
+            tracing::info!(target: "pacquet::download", package_url = ?self.package.url, package_id = ?self.package.id, "Reusing cached CAFS entry — skipping download");
+            emit_progress_found_in_store::<Reporter>(self.package.id, self.requester, progress_key);
+            return Ok(Some(cached));
         }
-        Ok(None)
+        Ok(self.load_legacy_cache::<Reporter>(progress_key).await?.map(CachedCasPaths::files_only))
     }
 
     pub(crate) async fn ingest_zip_buffer(
@@ -168,7 +172,7 @@ impl ArchiveIngestion<'_> {
 
         tracing::info!(target: "pacquet::download", package_url = ?self.package.url, "New cache");
 
-        let (computed, mut cas_paths, mut pkg_files_idx) = self.fetch_archive::<Reporter>(
+        let (computed, mut cas_paths, mut pkg_files_idx, bins) = self.fetch_archive::<Reporter>(
             self.progress_reported.as_ref().zip(cache_key.as_deref()),
         )
         .await?;
@@ -198,6 +202,7 @@ impl ArchiveIngestion<'_> {
             files_map: cas_paths,
             manifest,
             requires_build,
+            bins: bins.map(Arc::new),
         })
     }
 
@@ -220,7 +225,15 @@ impl ArchiveIngestion<'_> {
     async fn fetch_archive<Reporter: self::Reporter>(
         &self,
         progress_key: Option<(&SharedReportedProgressKeys, &str)>,
-    ) -> Result<(ArchiveIntegrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<
+        (
+            ArchiveIntegrity,
+            HashMap<String, PathBuf>,
+            PackageFilesIndex,
+            Option<BTreeMap<String, PackageBin>>,
+        ),
+        TarballError,
+    > {
         match self.format {
             ArchiveFormat::TarGz {
                 unpacked_size,
@@ -232,7 +245,7 @@ impl ArchiveIngestion<'_> {
                 } else {
                     self.package.integrity_kind
                 };
-                fetch_and_extract_with_retry::<Reporter>(
+                fetch_and_extract_archive_with_retry::<Reporter>(
                     self.fetching.http_client,
                     self.package.url,
                     &ArchiveVerification::new(self.package.integrity, kind),
@@ -253,7 +266,7 @@ impl ArchiveIngestion<'_> {
             ArchiveFormat::Zip { integrity, prefix, max_bytes } => {
                 let (integrity, files, index) =
                     self.fetch_zip::<Reporter>(integrity, prefix, max_bytes).await?;
-                Ok((ArchiveIntegrity { resource: integrity, tar: None }, files, index))
+                Ok((ArchiveIntegrity { resource: integrity, tar: None }, files, index, None))
             }
         }
     }

@@ -69,7 +69,7 @@ function resolvesToInjectedWorkspacePackage (alias: string, spec: unknown, ctx: 
   return actualSpec != null && resolvesToWorkspacePackage(alias, actualSpec, ctx.getWorkspacePackages(), ctx.linkWorkspacePackages)
 }
 
-function dereferenceCatalog (alias: string, spec: string, catalogs?: Catalogs): string | undefined {
+export function dereferenceCatalog (alias: string, spec: string, catalogs?: Catalogs): string | undefined {
   if (!spec.startsWith('catalog:')) return spec
   const result = resolveFromCatalog(catalogs ?? {}, { alias, bareSpecifier: spec })
   return result.type === 'found' ? result.resolution.specifier : undefined
@@ -99,7 +99,7 @@ function isPath (spec: string): boolean {
 }
 
 /** `name@range`, or a bare range that belongs to `alias`. */
-function splitNameAndRange (alias: string, spec: string): { name: string, range: string } {
+export function splitNameAndRange (alias: string, spec: string): { name: string, range: string } {
   if (spec.startsWith('npm:')) {
     const body = spec.slice('npm:'.length)
     if (semver.validRange(body) != null) {
@@ -113,9 +113,9 @@ function splitNameAndRange (alias: string, spec: string): { name: string, range:
   return at > 0 ? { name: spec.slice(0, at), range: spec.slice(at + 1) } : { name: alias, range: spec }
 }
 
-function rangeMatches (range: string, version: string | undefined, isWorkspaceProtocol: boolean): boolean {
+export function rangeMatches (range: string, version: string | undefined, isWorkspaceProtocol: boolean): boolean {
   if (range === '' || range === '*' || range === '^' || range === '~') return true
   if (semver.validRange(range) == null) return isWorkspaceProtocol
-  if (version == null) return true
+  if (version == null) return isWorkspaceProtocol
   return semver.satisfies(version, range, { includePrerelease: true })
 }

@@ -62,7 +62,7 @@ pub(super) struct MaterializationModules<'a> {
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
     pub(super) prior_hoisted_locations: Option<&'a pnpm_deps_restorer::HoistedLocations>,
-    pub(super) prune_orphans: bool,
+    pub(super) prune: pnpm_deps_restorer::PruneTreeOptions<'a>,
     /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
     pub(super) relink_every_slot_bin: bool,
     pub(super) logged_methods: &'a AtomicU8,
@@ -111,6 +111,7 @@ pub(super) struct MaterializationResolution<'a> {
     pub(super) pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) deploy_manifest_hook: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    pub(super) known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
     pub(super) inputs: crate::install::run::ResolutionInputs,
 }
 
@@ -203,7 +204,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 self.modules.modules_manifest,
                 self.install.context.config,
             ),
-            prune_orphans: self.modules.prune_orphans,
+            prune: self.modules.prune,
             relink_every_slot_bin: self.modules.relink_every_slot_bin,
         }
     }

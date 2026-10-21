@@ -1,9 +1,10 @@
 mod named_registry;
 
 use super::{
-    InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices, dependencies_prompt_message,
+    InteractiveUpdateProject, PromptRow, PromptStyle, UpdatePrompt, collect_choices,
+    dependencies_prompt_message,
 };
-use crate::cli_args::update::UpdateArgs;
+use crate::{checkbox_prompt::KeyOutcome, cli_args::update::UpdateArgs};
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -982,4 +983,33 @@ importers:
     .expect("collect interactive choices");
 
     assert!(choices.is_empty());
+}
+
+fn prompt_rows() -> Vec<PromptRow> {
+    vec![
+        PromptRow::Separator("── dependencies ──".to_string()),
+        PromptRow::Choice {
+            label: "foo 1.0.0 ❯ 2.0.0".to_string(),
+            short: "foo".to_string(),
+            value: "foo".to_string(),
+        },
+    ]
+}
+
+#[test]
+fn the_dependencies_prompt_uses_pnpm_theme_and_requires_a_choice() {
+    let mut prompt = PromptStyle::Dependencies.checkbox_prompt("Choose", &prompt_rows());
+
+    let frame = console::strip_ansi_codes(&prompt.render_frame()).into_owned();
+    assert!(frame.contains("\n ── dependencies ──\n❯○ foo 1.0.0 ❯ 2.0.0\n"), "{frame}");
+    assert_eq!(prompt.handle_key(&console::Key::Enter), KeyOutcome::Redraw);
+}
+
+#[test]
+fn the_global_groups_prompt_uses_the_default_theme_and_allows_no_choice() {
+    let mut prompt = PromptStyle::GlobalGroups.checkbox_prompt("Choose", &prompt_rows());
+
+    let frame = console::strip_ansi_codes(&prompt.render_frame()).into_owned();
+    assert!(frame.contains("\n❯◯ foo 1.0.0 ❯ 2.0.0\n"), "{frame}");
+    assert_eq!(prompt.handle_key(&console::Key::Enter), KeyOutcome::Submit);
 }

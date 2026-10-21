@@ -1,12 +1,11 @@
+pub(in crate::install) mod commit;
 pub(in crate::install) mod completion;
 
+use commit::{CommitModulesStateInputs, commit_modules_state};
 use completion::{
     MaterializedProjectScriptsInputs, ReportInstallCompletionInputs, ResolveOnlyCompletionInputs,
     complete_resolve_only, report_install_completion, run_materialized_project_scripts,
 };
-
-mod commit;
-use commit::{CommitModulesStateInputs, commit_modules_state};
 
 mod selection;
 use selection::{
@@ -168,12 +167,18 @@ fn commit_apply_state<Reporter: self::Reporter>(
             filtered_install: inputs.projects.filtered_install,
         },
         write: inputs.write,
-        force_prune: matches!(inputs.scripts.mutation, crate::ProjectMutation::UninstallSome),
+        force_prune: inputs.force_prune(),
     })?;
     tracing::info!(target: "pacquet::install::phase", phase = "apply.commit_modules_state", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     crate::agent_skills::report_pending_skills::<Reporter>(pending_skills);
-
     run_apply_scripts::<Reporter>(inputs, state)
+}
+
+impl ApplyMaterializationInputs<'_, '_> {
+    const fn force_prune(&self) -> bool {
+        matches!(self.scripts.mutation, crate::ProjectMutation::UninstallSome)
+            || self.prior.prune_direct_dependencies
+    }
 }
 
 fn run_apply_scripts<Reporter: self::Reporter>(
@@ -204,8 +209,6 @@ fn run_apply_scripts<Reporter: self::Reporter>(
 async fn apply<Reporter: self::Reporter + 'static>(
     mut inputs: ApplyMaterializationInputs<'_, '_>,
 ) -> Result<(), InstallError> {
-    let peer_catalogs =
-        inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs);
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
     // can hold more — importers a filtered run left alone, or ones
@@ -228,8 +231,7 @@ async fn apply<Reporter: self::Reporter + 'static>(
 
         prefix: &inputs.completion.prefix,
         config: inputs.completion.config,
-        catalogs: peer_catalogs,
-        workspace_root: &inputs.projects.workspace_root,
+        peer_workspace: peer_report_workspace(&inputs),
         installed_importer_ids,
     })? {
         return Ok(());
@@ -253,6 +255,16 @@ async fn apply<Reporter: self::Reporter + 'static>(
         materialized_dirs.as_ref(),
         (selected_current_lockfile, current_lockfile),
     )
+}
+
+fn peer_report_workspace<'a>(
+    inputs: &'a ApplyMaterializationInputs<'_, '_>,
+) -> crate::peer_dependency_issues::PeerReportWorkspace<'a> {
+    crate::peer_dependency_issues::PeerReportWorkspace {
+        lockfile_dir: &inputs.projects.workspace_root,
+        catalogs: inputs.completion.catalog_context_present.then_some(&inputs.completion.catalogs),
+        project_manifests: inputs.projects.importers.declared_manifests,
+    }
 }
 
 /// The projects a filtered install materialized, the only ones it vouches
@@ -300,6 +312,7 @@ fn finish_apply<Reporter: self::Reporter>(
             catalogs: peer_catalogs,
             workspace_root: &inputs.projects.workspace_root,
             workspace_manifest_dir: &inputs.completion.workspace_manifest_dir,
+            project_manifests: inputs.projects.importers.declared_manifests,
         },
 
         prefix: inputs.completion.prefix,

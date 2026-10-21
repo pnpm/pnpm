@@ -1,6 +1,7 @@
 //! Modification times, and the baseline a recorded validation is compared against.
 
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf, SystemTime, fs};
+use pnpm_modules_yaml::Clock;
 
 pub(crate) const NANOS_PER_MILLI: i64 = 1_000_000;
 
@@ -165,6 +166,25 @@ fn filesystem_now_in_modules(parent: &Path) -> Option<FileMtime> {
 /// costs one more content check rather than repeating forever.
 pub(crate) fn refreshed_validation_baseline_ms(baseline_ms: i64, now_ms: Option<i64>) -> i64 {
     now_ms.map_or(baseline_ms, |now| baseline_ms.max(now))
+}
+
+/// The [`refreshed_validation_baseline_ms`] of the validated files, lowered
+/// to `SOURCE_DATE_EPOCH` when it is set. Never raised to it: a later value
+/// would hide manifest edits made before that time.
+pub(crate) fn last_validated_timestamp<Sys: Clock>(
+    workspace_root: &Path,
+    config: &Config,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    filesystem_now_ms: Option<i64>,
+) -> i64 {
+    let validated = refreshed_validation_baseline_ms(
+        validation_baseline_ms(workspace_root, config, project_manifests)
+            .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+        filesystem_now_ms,
+    );
+    config.source_date_epoch.map_or(validated, |epoch| {
+        validated.min(pnpm_workspace_state::millis_since_epoch(epoch))
+    })
 }
 
 /// Whether the lockfile's `subject` mtime post-dates `reference_ms`.

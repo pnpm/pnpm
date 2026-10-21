@@ -20,14 +20,44 @@ pub use _utils::*;
 use crate::_utils;
 
 use std::{
+    cell::{Cell, RefCell},
     collections::{BTreeMap, HashMap},
+    ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
+    process::{Command, Output},
     time::{Duration, SystemTime},
 };
 
-use pnpm_lockfile::ProjectSnapshot;
+use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
+use pnpm_testing_utils::command_env::CommandTestExt;
 use serde_json::{Value, json};
+
+#[derive(Debug, Clone)]
+enum Driver {
+    V12,
+    V11(OsString),
+    Mixed { bundle: OsString, next_v11: Cell<bool> },
+}
+
+thread_local! {
+    static CURRENT_DRIVER: RefCell<Driver> = const { RefCell::new(Driver::V12) };
+}
+
+fn run_across_drivers(layout: Layout, scenario: fn(Layout)) {
+    CURRENT_DRIVER.with(|driver| *driver.borrow_mut() = Driver::V12);
+    scenario(layout);
+    if let Some(bundle) = read_v11_bundle_path() {
+        CURRENT_DRIVER.with(|driver| *driver.borrow_mut() = Driver::V11(bundle.clone()));
+        scenario(layout);
+        if layout.shared_lockfile {
+            CURRENT_DRIVER.with(|driver| {
+                *driver.borrow_mut() = Driver::Mixed { bundle, next_v11: Cell::new(false) }
+            });
+            scenario(layout);
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 struct Layout {
@@ -45,43 +75,46 @@ impl Layout {
             self.inject_workspace_packages,
         )
     }
-
-    /// A dedicated lockfile records an injected package's dependencies in its
-    /// `file:` snapshot, which the install fast path does not compare, so it
-    /// always refuses (pnpm/tasks#145).
-    fn offers_install_fast_path(self) -> bool {
-        self.shared_lockfile || !self.inject_workspace_packages
-    }
 }
 
 const PROJECTS: [&str; 3] = ["a", "b", "c"];
 
 struct Scenario {
+    driver: Driver,
     fixture: WorkspaceFixture,
     layout: Layout,
     oracle_runs: usize,
 }
 
 /// What an install leaves behind that a user can observe: where every
-/// dependency resolves from each project, and every lockfile.
+/// dependency resolves from each project, every lockfile, and every
+/// `.modules.yaml` manifest.
 #[derive(Debug, PartialEq, Eq)]
 struct Snapshot {
     tree: BTreeMap<String, String>,
     lockfiles: BTreeMap<String, String>,
+    modules: BTreeMap<String, pnpm_modules_yaml::Modules>,
 }
+
+/// What a lockfile records for one project: its importer entry, and for a
+/// dedicated lockfile its package snapshots (including injected workspace
+/// packages).
+type ProjectLockfileEntry = (ProjectSnapshot, Option<HashMap<PackageKey, SnapshotEntry>>);
 
 /// Where the selected projects' dependencies resolve from, and the entries
 /// that record them in the wanted and the current lockfiles.
-type SelectionView = (BTreeMap<String, String>, BTreeMap<String, [Option<ProjectSnapshot>; 2]>);
+type SelectionView =
+    (BTreeMap<String, String>, BTreeMap<String, [Option<ProjectLockfileEntry>; 2]>);
 
 impl Scenario {
     /// A workspace whose `c` depends on its sibling `a`, so a selection reaches
     /// a project it did not name, and whose `b` has a dev dependency.
     fn new(layout: Layout) -> Self {
+        let driver = CURRENT_DRIVER.with(|driver| driver.borrow().clone());
         let fixture = WorkspaceFixture::new();
         fixture.append_workspace_yaml(&layout.workspace_yaml());
         fixture.write_root_manifest("root", ManifestDeps::default());
-        let scenario = Self { fixture, layout, oracle_runs: 0 };
+        let scenario = Self { driver, fixture, layout, oracle_runs: 0 };
         scenario.set_dependencies("a", &json!({ "@pnpm.e2e/foo": "100.0.0" }));
         scenario.write_manifest(
             "b",
@@ -92,6 +125,46 @@ impl Scenario {
         );
         scenario.set_dependencies("c", &json!({ "a": "workspace:*", "@pnpm.e2e/bar": "100.0.0" }));
         scenario
+    }
+
+    fn command_at_with<Args, Arg>(
+        &self,
+        v11_bundle: Option<&OsStr>,
+        cwd: &Path,
+        args: Args,
+    ) -> Output
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        if let Some(bundle) = v11_bundle {
+            return self.fixture.v11_command_at(bundle, cwd, args);
+        }
+        pacquet_in(cwd)
+            .without_ambient_pnpm_config()
+            .current_dir(cwd)
+            .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
+            .env("XDG_CONFIG_HOME", self.fixture.workspace.with_file_name("xdg-config"))
+            .arg("--reporter=ndjson")
+            .args(args)
+            .output()
+            .expect("run pnpm")
+    }
+
+    fn command_at<Args, Arg>(&self, cwd: &Path, args: Args) -> Output
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        match &self.driver {
+            Driver::V12 => self.command_at_with(None, cwd, args),
+            Driver::V11(bundle) => self.command_at_with(Some(bundle), cwd, args),
+            Driver::Mixed { bundle, next_v11 } => {
+                let use_v11 = next_v11.get();
+                next_v11.set(!use_v11);
+                self.command_at_with(use_v11.then_some(bundle.as_os_str()), cwd, args)
+            }
+        }
     }
 
     fn workspace(&self) -> &Path {
@@ -134,17 +207,37 @@ impl Scenario {
             .expect("write package.json");
     }
 
+    /// Whether the CLI that runs the next `pnpm install` offers its fast path
+    /// in this layout.
+    ///
+    /// A dedicated lockfile records an injected package's dependencies in its
+    /// `file:` snapshot, which the install fast path does not compare, so both
+    /// CLIs refuse it (pnpm/tasks#145). With a shared lockfile, v11 also
+    /// refuses the install fast path to refresh injected copies (pnpm/pnpm#15679).
+    fn offers_next_install_fast_path(&self) -> bool {
+        if !self.layout.inject_workspace_packages {
+            return true;
+        }
+        let next_is_v11 = match &self.driver {
+            Driver::V12 => false,
+            Driver::V11(_) => true,
+            Driver::Mixed { next_v11, .. } => next_v11.get(),
+        };
+        self.layout.shared_lockfile && !next_is_v11
+    }
+
     /// Runs `pnpm install` with `args` and tells whether it took the fast
     /// path, or ran in a layout that never offers it.
     fn install_takes_fast_path(&self, args: &[&str]) -> bool {
-        self.install(args) || !self.layout.offers_install_fast_path()
+        let offered = self.offers_next_install_fast_path();
+        self.install(args) || !offered
     }
 
     /// `pnpm install` with `args`, returning whether it took the fast path:
     /// it said "Already up to date" without starting a resolution or an
     /// import.
     fn install(&self, args: &[&str]) -> bool {
-        let output = self.fixture.command_at(
+        let output = self.command_at(
             self.workspace(),
             ["install", "--no-frozen-lockfile"].iter().chain(args),
         );
@@ -162,31 +255,74 @@ impl Scenario {
     /// Run `node -e ""` through `exec` for `selection` under
     /// `verifyDepsBeforeRun: action`, returning whether the command ran.
     fn exec(&self, selection: &[&str], action: &str) -> bool {
-        let mut args = vec![format!("--config.verify-deps-before-run={action}")];
-        for project in selection {
-            args.push("--filter".to_string());
-            args.push((*project).to_string());
+        let args = exec_args(selection, action);
+        let check_output = |output: Output| {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !stderr.contains("left node_modules out of date"),
+                "{:?} ({:?}): the install the gate spawned for {selection:?} did not converge:\n{stderr}",
+                self.layout,
+                self.driver,
+            );
+            output.status.success()
+        };
+        if action == "error"
+            && let Driver::Mixed { bundle, next_v11 } = &self.driver
+        {
+            let first_v11 = next_v11.get();
+            next_v11.set(!first_v11);
+            let first_out = self.command_at_with(
+                first_v11.then_some(bundle.as_os_str()),
+                self.workspace(),
+                &args,
+            );
+            let first_err = String::from_utf8_lossy(&first_out.stderr).into_owned();
+            let first_std = String::from_utf8_lossy(&first_out.stdout).into_owned();
+            let first = check_output(first_out);
+            let second_out = self.command_at_with(
+                (!first_v11).then_some(bundle.as_os_str()),
+                self.workspace(),
+                &args,
+            );
+            let second_err = String::from_utf8_lossy(&second_out.stderr).into_owned();
+            let second_std = String::from_utf8_lossy(&second_out.stdout).into_owned();
+            let second = check_output(second_out);
+            assert_eq!(
+                first, second,
+                "{:?}: v11 and v12 run gates disagreed for {selection:?} (first_v11={first_v11})\nfirst stdout: {first_std}\nfirst stderr: {first_err}\nsecond stdout: {second_std}\nsecond stderr: {second_err}",
+                self.layout,
+            );
+            return first;
         }
-        args.extend(["exec", "node", "-e", ""].map(str::to_string));
-        let output = self.fixture.command_at(self.workspace(), &args);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(
-            !stderr.contains("left node_modules out of date"),
-            "{:?}: the install the gate spawned for {selection:?} did not converge:\n{stderr}",
-            self.layout,
-        );
-        output.status.success()
+        check_output(self.command_at(self.workspace(), &args))
     }
 
     /// [`Self::exec`] without a filter, from `project` (`.` for the root).
     fn exec_from(&self, project: &str, action: &str) -> bool {
-        self.fixture
-            .command_at(
-                &self.workspace().join(project),
-                [&*format!("--config.verify-deps-before-run={action}"), "exec", "node", "-e", ""],
-            )
-            .status
-            .success()
+        let cwd = self.workspace().join(project);
+        let args =
+            [&*format!("--config.verify-deps-before-run={action}"), "exec", "node", "-e", ""];
+        if action == "error"
+            && let Driver::Mixed { bundle, next_v11 } = &self.driver
+        {
+            let first_v11 = next_v11.get();
+            next_v11.set(!first_v11);
+            let first = self
+                .command_at_with(first_v11.then_some(bundle.as_os_str()), &cwd, args)
+                .status
+                .success();
+            let second = self
+                .command_at_with((!first_v11).then_some(bundle.as_os_str()), &cwd, args)
+                .status
+                .success();
+            assert_eq!(
+                first, second,
+                "{:?}: v11 and v12 run gates disagreed from {project} (first_v11={first_v11})",
+                self.layout,
+            );
+            return first;
+        }
+        self.command_at(&cwd, args).status.success()
     }
 
     /// Drop the validation records from every state.
@@ -210,8 +346,7 @@ impl Scenario {
     /// Where every dependency of `projects` resolves from in the tree under
     /// `workspace`. Dev dependencies count only when `with_dev` is set.
     fn tree(workspace: &Path, projects: &[&str], with_dev: bool) -> BTreeMap<String, String> {
-        let root = fs::canonicalize(workspace).expect("canonicalize workspace");
-        let mut resolver = TreeView { root, memo: HashMap::new() };
+        let mut resolver = TreeView::new(workspace);
         projects
             .iter()
             .map(|project| {
@@ -221,26 +356,11 @@ impl Scenario {
             .collect()
     }
 
-    /// Every lockfile under `workspace`, the current ones included.
-    fn lockfiles(workspace: &Path) -> BTreeMap<String, String> {
-        walk_files(workspace)
-            .into_iter()
-            .filter(|path| {
-                path.file_name()
-                    .is_some_and(|name| name == "pnpm-lock.yaml" || name == "lock.yaml")
-            })
-            .map(|path| {
-                let relative = path.strip_prefix(workspace).expect("under the workspace");
-                let text = fs::read_to_string(&path).expect("read a lockfile");
-                (relative.to_string_lossy().replace('\\', "/"), text)
-            })
-            .collect()
-    }
-
     fn snapshot(&self) -> Snapshot {
         Snapshot {
             tree: Self::tree(self.workspace(), &PROJECTS, true),
-            lockfiles: Self::lockfiles(self.workspace()),
+            lockfiles: workspace_lockfiles(self.workspace()),
+            modules: workspace_modules_manifests(self.workspace()),
         }
     }
 
@@ -250,12 +370,18 @@ impl Scenario {
         &self,
         workspace: &Path,
         projects: &[&str],
-    ) -> BTreeMap<String, [Option<ProjectSnapshot>; 2]> {
+    ) -> BTreeMap<String, [Option<ProjectLockfileEntry>; 2]> {
+        let dedicated = !self.layout.shared_lockfile;
         let entry = |lockfile: PathBuf, importer_id: &str| {
             lockfile
                 .is_file()
                 .then(|| read_lockfile(&lockfile))
-                .and_then(|lockfile| lockfile.importers.get(importer_id).cloned())
+                .and_then(|lockfile| {
+                    Some((
+                        lockfile.importers.get(importer_id)?.clone(),
+                        dedicated.then_some(lockfile.snapshots).flatten(),
+                    ))
+                })
         };
         projects
             .iter()
@@ -276,8 +402,8 @@ impl Scenario {
         (Self::tree(workspace, selection, false), self.importers(workspace, selection))
     }
 
-    /// [`Self::selection_view`] of a clean install of a copy of the sources.
-    fn oracle(&mut self, selection: &[&str]) -> SelectionView {
+    /// Clean-installed copy of the sources.
+    fn oracle_workspace(&mut self) -> PathBuf {
         self.oracle_runs += 1;
         let copy = self
             .workspace()
@@ -287,44 +413,50 @@ impl Scenario {
         if self.recorded_production_only() {
             args.push("--prod");
         }
-        let output = self.fixture.command_at(&copy, args);
+        let output = self.command_at_with(None, &copy, args);
         assert_success(&output);
-        self.selection_view(&copy, selection)
+        copy
     }
 
     /// Whether the last install left the dev dependencies out, so a run gate
     /// holds the tree to a production install.
     fn recorded_production_only(&self) -> bool {
-        let state_dir = if self.layout.shared_lockfile {
-            self.workspace().to_path_buf()
+        let candidates = if self.layout.shared_lockfile {
+            vec![self.workspace().to_path_buf()]
         } else {
-            self.workspace().join("packages/a")
+            vec![self.workspace().join("packages/a"), self.workspace().to_path_buf()]
         };
-        fs::read_to_string(state_dir.join("node_modules/.pnpm-workspace-state-v1.json"))
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        candidates
+            .into_iter()
+            .find_map(|state_dir| {
+                fs::read_to_string(state_dir.join("node_modules/.pnpm-workspace-state-v1.json"))
+                    .ok()
+                    .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+            })
             .is_some_and(|state| state["settings"]["dev"] == false)
     }
 
     /// The run gate for `selection` lets the command through exactly when
     /// the selection already is what a clean install makes it.
     #[track_caller]
-    fn assert_run_gate(&mut self, selection: &[&str]) {
+    fn assert_run_gate(&self, oracle: &Path, selection: &[&str]) {
         let passed = self.exec(selection, "error");
         let actual = self.selection_view(self.workspace(), selection);
-        let expected = self.oracle(selection);
+        let expected = self.selection_view(oracle, selection);
         let current = actual == expected;
         assert!(
             !passed || current,
-            "{:?}: the run gate for {selection:?} let the command run, but a clean install \
+            "{:?} ({:?}): the run gate for {selection:?} let the command run, but a clean install \
              differs:\n  actual: {actual:#?}\n  expected: {expected:#?}",
             self.layout,
+            self.driver,
         );
         assert!(
             passed || !current,
-            "{:?}: the run gate for {selection:?} refused, but a clean install changes nothing \
+            "{:?} ({:?}): the run gate for {selection:?} refused, but a clean install changes nothing \
              for it",
             self.layout,
+            self.driver,
         );
     }
 
@@ -334,27 +466,96 @@ impl Scenario {
     #[track_caller]
     fn assert_install_gate(&self, conservative: bool) {
         let before = self.snapshot();
+        let offered = self.offers_next_install_fast_path();
         if self.install(&[]) {
+            assert_eq!(
+                self.snapshot(),
+                before,
+                "{:?} ({:?}): the install fast path modified the snapshot",
+                self.layout,
+                self.driver,
+            );
             assert!(!self.install(&["--config.optimistic-repeat-install=false"]));
             assert_eq!(
                 self.snapshot(),
                 before,
-                "{:?}: the install fast path was taken, but a full install changes the tree",
+                "{:?} ({:?}): the install fast path was taken, but a full install changes the tree",
                 self.layout,
+                self.driver,
             );
-        } else if !conservative && self.layout.offers_install_fast_path() {
+        } else if !conservative && offered {
             assert_ne!(
                 self.snapshot(),
                 before,
-                "{:?}: the install fast path was refused, but the install changed nothing",
+                "{:?} ({:?}): the install fast path was refused, but the install changed nothing",
                 self.layout,
+                self.driver,
             );
         }
+        let settled = self.snapshot();
+        let raw_modules_before_repeat = workspace_raw_modules_manifests(self.workspace());
+        let repeat_offered = self.offers_next_install_fast_path();
         assert!(
             self.install_takes_fast_path(&[]),
-            "{:?}: a repeat install must take the fast path",
+            "{:?} ({:?}): a repeat install must take the fast path",
             self.layout,
+            self.driver,
         );
+        assert_eq!(
+            self.snapshot(),
+            settled,
+            "{:?} ({:?}): a repeat install must be byte-identical",
+            self.layout,
+            self.driver,
+        );
+        if repeat_offered {
+            assert_eq!(
+                workspace_raw_modules_manifests(self.workspace()),
+                raw_modules_before_repeat,
+                "{:?} ({:?}): a fast-path repeat install must not rewrite .modules.yaml",
+                self.layout,
+                self.driver,
+            );
+        }
+        if matches!(self.driver, Driver::Mixed { .. }) {
+            let raw_modules_before_cross = workspace_raw_modules_manifests(self.workspace());
+            let cross_repeat_offered = self.offers_next_install_fast_path();
+            assert!(
+                self.install_takes_fast_path(&[]),
+                "{:?} ({:?}): a cross-CLI repeat install must take the fast path",
+                self.layout,
+                self.driver,
+            );
+            assert_eq!(
+                self.snapshot(),
+                settled,
+                "{:?} ({:?}): a cross-CLI repeat install must be byte-identical",
+                self.layout,
+                self.driver,
+            );
+            if cross_repeat_offered {
+                assert_eq!(
+                    workspace_raw_modules_manifests(self.workspace()),
+                    raw_modules_before_cross,
+                    "{:?} ({:?}): a cross-CLI fast-path repeat install must not rewrite .modules.yaml",
+                    self.layout,
+                    self.driver,
+                );
+            }
+        }
+        let frozen = self.command_at(self.workspace(), ["install", "--frozen-lockfile"]);
+        assert_success(&frozen);
+        assert_eq!(
+            self.snapshot(),
+            settled,
+            "{:?} ({:?}): a frozen install must accept and preserve the converged snapshot",
+            self.layout,
+            self.driver,
+        );
+        if self.layout.shared_lockfile {
+            let dedupe = self.command_at(self.workspace(), ["dedupe", "--check"]);
+            assert_success(&dedupe);
+        }
     }
 
     /// Every gate over the workspace, then the convergence the install leaves.
@@ -365,21 +566,23 @@ impl Scenario {
 
     #[track_caller]
     fn check_gates_allowing(&mut self, conservative: bool) {
+        let oracle = self.oracle_workspace();
         for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
-            self.assert_run_gate(selection);
+            self.assert_run_gate(&oracle, selection);
         }
         self.assert_install_gate(conservative);
         for selection in [&["a"][..], &["b"], &["c"], &PROJECTS] {
             assert!(
                 self.exec(selection, "error"),
-                "{:?}: the run gate for {selection:?} must pass right after a full install",
+                "{:?} ({:?}): the run gate for {selection:?} must pass right after a full install",
                 self.layout,
+                self.driver,
             );
         }
     }
 
     /// `exec` under the `install` action, then the properties that action
-    /// promises: the command ran, and the gate passes next time.
+    /// promises: the command ran, and the gate is quiet on the next run.
     #[track_caller]
     fn exec_installing(&self, selection: &[&str]) {
         assert!(self.exec(selection, "install"), "the gated command must run");
@@ -388,95 +591,31 @@ impl Scenario {
             "{:?}: the install the gate spawned for {selection:?} must satisfy the gate",
             self.layout,
         );
-    }
-}
-
-/// Resolves dependencies through `node_modules` the way Node.js does, from
-/// each package's real path, and spells the result without absolute paths.
-struct TreeView {
-    root: PathBuf,
-    memo: HashMap<PathBuf, String>,
-}
-
-impl TreeView {
-    fn project(&mut self, project_dir: &Path, with_dev: bool) -> String {
-        let manifest = read_manifest(project_dir);
-        let groups: &[&str] = if with_dev {
-            &["dependencies", "optionalDependencies", "devDependencies"]
-        } else {
-            &["dependencies", "optionalDependencies"]
-        };
-        let dependencies = declared(&manifest, groups);
-        self.dependencies(project_dir, &dependencies)
-    }
-
-    fn dependencies(&mut self, from: &Path, names: &[String]) -> String {
-        let resolved = names
-            .iter()
-            .map(|name| {
-                let target = resolve(from, name)
-                    .map_or_else(|| "<missing>".to_string(), |dir| self.package(&dir));
-                format!("{name}={target}")
-            })
-            .collect::<Vec<_>>();
-        format!("{{{}}}", resolved.join(","))
-    }
-
-    fn package(&mut self, dir: &Path) -> String {
-        let real = fs::canonicalize(dir).expect("canonicalize a resolved dependency");
-        if let Some(seen) = self.memo.get(&real) {
-            return seen.clone();
+        let repeat_count = if matches!(&self.driver, Driver::Mixed { .. }) { 2 } else { 1 };
+        for _ in 0..repeat_count {
+            let repeat = self.command_at(self.workspace(), exec_args(selection, "install"));
+            assert_success(&repeat);
+            let records = ndjson_records(&repeat);
+            assert!(
+                !records
+                    .iter()
+                    .any(|record| record["name"] == "pnpm:stage"),
+                "{:?} ({:?}): the run gate for {selection:?} must be quiet after the install it spawned",
+                self.layout,
+                self.driver,
+            );
         }
-        self.memo.insert(real.clone(), "<cycle>".to_string());
-        let manifest = read_manifest(&real);
-        let label = match real.strip_prefix(&self.root) {
-            Ok(relative)
-                if !relative
-                    .components()
-                    .any(|part| part.as_os_str() == "node_modules") =>
-            {
-                format!("workspace:{}", relative.to_string_lossy().replace('\\', "/"))
-            }
-            _ => format!(
-                "{}@{}",
-                manifest["name"].as_str().unwrap_or_default(),
-                manifest["version"].as_str().unwrap_or_default(),
-            ),
-        };
-        let dependencies = declared(&manifest, &["dependencies", "optionalDependencies"]);
-        let described = format!("{label}{}", self.dependencies(&real, &dependencies));
-        self.memo.insert(real, described.clone());
-        described
     }
 }
 
-fn read_manifest(dir: &Path) -> Value {
-    fs::read_to_string(dir.join("package.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or(Value::Null)
-}
-
-fn declared(manifest: &Value, groups: &[&str]) -> Vec<String> {
-    let mut names = groups
-        .iter()
-        .filter_map(|group| manifest[*group].as_object())
-        .flat_map(|deps| deps.keys().cloned())
-        .collect::<Vec<_>>();
-    names.sort();
-    names.dedup();
-    names
-}
-
-/// Node.js's lookup of `name` from a package at `from`.
-fn resolve(from: &Path, name: &str) -> Option<PathBuf> {
-    from.ancestors()
-        .filter(|dir| {
-            dir.file_name()
-                .is_none_or(|base| base != "node_modules")
-        })
-        .map(|dir| dir.join("node_modules").join(name))
-        .find(|candidate| candidate.join("package.json").is_file())
+fn exec_args(selection: &[&str], action: &str) -> Vec<String> {
+    let mut args = vec![format!("--config.verify-deps-before-run={action}")];
+    for project in selection {
+        args.push("--filter".to_string());
+        args.push((*project).to_string());
+    }
+    args.extend(["exec", "node", "-e", ""].map(str::to_string));
+    args
 }
 
 /// Overwrite `path` with `contents`, keeping the mtime it had: what `cp -p`,
@@ -713,7 +852,7 @@ macro_rules! matrix {
         $(
             #[test]
             fn $scenario() {
-                super::$scenario(LAYOUT);
+                super::run_across_drivers(LAYOUT, super::$scenario);
             }
         )*
     };
@@ -760,4 +899,169 @@ matrix! {
         shared_lockfile: false,
         inject_workspace_packages: true,
     },
+}
+
+#[test]
+fn ci_and_auto_dedupe_gate_converges_across_v11_and_v12() {
+    let layout = Layout { hoisted: false, shared_lockfile: true, inject_workspace_packages: false };
+    CURRENT_DRIVER.with(|driver| *driver.borrow_mut() = Driver::V12);
+    let scenario = Scenario::new(layout);
+    scenario.fixture.append_workspace_yaml("autoDedupe: true\n");
+
+    let run_in_ci = |v11_bundle: Option<&OsStr>, args: &[&str]| {
+        let command = if let Some(bundle) = v11_bundle {
+            let mut cmd = Command::new("node");
+            cmd.arg(bundle).arg("--config.confirm-modules-purge=false");
+            cmd
+        } else {
+            pacquet_in(scenario.workspace())
+        };
+        command
+            .without_ambient_pnpm_config()
+            .current_dir(scenario.workspace())
+            .env("CI", "true")
+            .env("PNPM_CONFIG_CI", "true")
+            .env("PNPM_CONFIG_REGISTRY", scenario.fixture.registry.mock_instance.url())
+            .env("XDG_CONFIG_HOME", scenario.fixture.workspace.with_file_name("xdg-config"))
+            .arg("--reporter=ndjson")
+            .args(args)
+            .output()
+            .expect("run pnpm in CI")
+    };
+
+    let first_ci = run_in_ci(None, &["install", "--no-frozen-lockfile"]);
+    assert_success(&first_ci);
+    let second_ci = run_in_ci(None, &["install", "--no-frozen-lockfile"]);
+    assert_success(&second_ci);
+    let records = ndjson_records(&second_ci);
+    assert!(
+        records
+            .iter()
+            .any(|record| record["message"] == "Already up to date")
+            && !records
+                .iter()
+                .any(|record| record["name"] == "pnpm:stage"),
+        "v12 repeat install in CI with autoDedupe: true must take the fast path",
+    );
+    let ci_exec =
+        run_in_ci(None, &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""]);
+    assert_success(&ci_exec);
+    if let Some(bundle) = read_v11_bundle_path() {
+        let v11_ci_repeat = run_in_ci(Some(&bundle), &["install", "--no-frozen-lockfile"]);
+        assert_success(&v11_ci_repeat);
+        let v11_ci_records = ndjson_records(&v11_ci_repeat);
+        assert!(
+            v11_ci_records
+                .iter()
+                .any(|record| record["message"] == "Already up to date")
+                && !v11_ci_records
+                    .iter()
+                    .any(|record| record["name"] == "pnpm:stage"),
+            "v11 repeat install in CI after v12 CI install must take the fast path",
+        );
+        let v11_ci_exec = run_in_ci(
+            Some(&bundle),
+            &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""],
+        );
+        assert_success(&v11_ci_exec);
+    }
+
+    // Outside CI, v12 records `autoDedupe: true` in `pnpm-state.yaml`; v11 must
+    // accept that state on its fast path and preserve `autoDedupe: true` when it
+    // rewrites the state file so a subsequent v12 gate still converges.
+    assert!(scenario.install(&[]));
+    if let Some(bundle) = read_v11_bundle_path() {
+        let v11_repeat = scenario.command_at_with(
+            Some(&bundle),
+            scenario.workspace(),
+            ["install", "--no-frozen-lockfile"],
+        );
+        assert_success(&v11_repeat);
+        let v11_records = ndjson_records(&v11_repeat);
+        assert!(
+            v11_records
+                .iter()
+                .any(|record| record["message"] == "Already up to date")
+                && !v11_records
+                    .iter()
+                    .any(|record| record["name"] == "pnpm:stage"),
+            "v11 repeat install must accept v12's recorded autoDedupe setting",
+        );
+
+        scenario.set_dependencies("a", &json!({ "@pnpm.e2e/bar": "100.0.0" }));
+        let v11_filtered = scenario.command_at_with(
+            Some(&bundle),
+            scenario.workspace(),
+            ["install", "--no-frozen-lockfile", "--filter", "a"],
+        );
+        assert_success(&v11_filtered);
+
+        assert!(
+            scenario.install(&["--filter", "a"]),
+            "v12 filtered repeat install must take the fast path after v11 rewrote pnpm-state.yaml",
+        );
+        assert!(
+            scenario.exec(&["a"], "error"),
+            "v12 verifyDepsBeforeRun=error must pass after v11 rewrote pnpm-state.yaml",
+        );
+    }
+}
+
+#[test]
+fn verify_deps_install_forwards_lockfile_dir_and_converges() {
+    let layout = Layout { hoisted: false, shared_lockfile: true, inject_workspace_packages: false };
+    run_across_drivers(layout, |layout| {
+        let scenario = Scenario::new(layout);
+        scenario.write_manifest(
+            "a",
+            json!({
+                "dependencies": {
+                    "@pnpm.e2e/foo": "100.0.0"
+                },
+                "scripts": {
+                    "test": r#"node -e "require('@pnpm.e2e/foo/package.json')""#
+                }
+            }),
+        );
+        let project_dir = scenario
+            .workspace()
+            .join("packages")
+            .join("a");
+        let lockfile_dir = scenario.workspace().with_file_name("shared-lockfile-dir");
+        let _ = fs::remove_dir_all(&lockfile_dir);
+        fs::create_dir_all(&lockfile_dir).expect("create lockfile dir");
+        let lockfile_dir = lockfile_dir.canonicalize().unwrap_or(lockfile_dir);
+
+        let lockfile_dir_arg = format!("--lockfile-dir={}", lockfile_dir.display());
+        let first_run = scenario.command_at(
+            &project_dir,
+            [lockfile_dir_arg.as_str(), "--config.verify-deps-before-run=install", "run", "test"],
+        );
+        assert_success(&first_run);
+        assert!(
+            lockfile_dir.join("pnpm-lock.yaml").is_file(),
+            "spawned install must write pnpm-lock.yaml in --lockfile-dir",
+        );
+        assert!(
+            !scenario
+                .workspace()
+                .join("pnpm-lock.yaml")
+                .exists()
+                && !project_dir.join("pnpm-lock.yaml").exists(),
+            "spawned install must not write pnpm-lock.yaml in the workspace or project directory",
+        );
+        assert!(
+            lockfile_dir
+                .join("node_modules")
+                .join(".pnpm-workspace-state-v1.json")
+                .is_file(),
+            "spawned install must write workspace state under --lockfile-dir",
+        );
+
+        let second_run = scenario.command_at(
+            &project_dir,
+            [lockfile_dir_arg.as_str(), "--config.verify-deps-before-run=error", "run", "test"],
+        );
+        assert_success(&second_run);
+    });
 }

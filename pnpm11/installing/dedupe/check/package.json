@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.dedupe.check",
-  "version": "1100.1.16",
+  "version": "1100.1.17",
   "description": "Visualize pnpm dedupe --check issues.",
   "keywords": [
     "pnpm",

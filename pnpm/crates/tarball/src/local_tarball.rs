@@ -303,7 +303,7 @@ pub(crate) fn read_bundled_manifest_from_archive(
 /// manifest an extraction stashes on [`pnpm_store_dir::PackageFilesIndex`].
 ///
 /// Shares the entry conventions of
-/// [`crate::extract::extract_tarball_entries`] but deliberately not its
+/// [`crate::extract::extract_tarball_entries_with_bins`] but deliberately not its
 /// error handling: there an unparsable `package.json` degrades to
 /// `None`, since install-side consumers re-read it from disk. Here it
 /// is the only thing naming the package, and an unnamed package

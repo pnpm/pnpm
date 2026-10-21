@@ -276,6 +276,7 @@ fn resolved_dep_hint() -> pnpm_package_manager::ResolvedPackageHint<'static> {
         unpacked_size: None,
         file_count: None,
         revision: None,
+        requires_build: None,
         from_registry: true,
         identity: pnpm_package_manager::ResolvedPackageIdentity {
             id: "dep@2.0.0",

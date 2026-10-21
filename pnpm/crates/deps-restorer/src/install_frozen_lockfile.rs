@@ -310,6 +310,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             &allow_build_policy,
             owned.early_host_detection,
             owned.node_version,
+            owned.known_requires_build.as_ref(),
         )
         .await?;
 
@@ -318,6 +319,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             plan,
             owned.skipped,
             owned.lockfile_verification_override,
+            owned.known_requires_build.as_ref(),
         )
         .await
     }
@@ -336,6 +338,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         plan: MaterializationPlan<'_>,
         seed_skipped: Option<Vec<String>>,
         verification_override: Option<LockfileVerificationOverride<'_>>,
+        known_requires_build: Option<&crate::RequiresBuildBySnapshot>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
         let swap_lock = crate::ModulesSwapLock::new(&self.drivers.config.modules_dir);
         let ctx = crate::InstallContext {
@@ -379,6 +382,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
                 store_index_writer: &store_index_writer,
                 skipped: &settled.skipped,
+                known_requires_build,
                 verification_override,
             },
         )

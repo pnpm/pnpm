@@ -266,3 +266,37 @@ fn rejects_non_string_or_modified_shasum() {
         enforce_published_version_immutability(&hosted, &pkg, &mut incoming_null_shasum).unwrap();
     assert!(matches!(err, RegistryError::BadRequest { .. }));
 }
+
+#[test]
+fn strips_round_tripped_dist_pnpr_overlay() {
+    let pkg = CanonicalPackageName::parse("mypkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let hosted = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                }
+            }
+        }
+    });
+
+    let mut incoming = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/mypkg/-/mypkg-1.0.0.tgz",
+                    "pnpr": { "requiresBuild": false },
+                }
+            }
+        }
+    });
+
+    assert!(enforce_published_version_immutability(&hosted, &pkg, &mut incoming).is_none());
+    assert!(incoming["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
+}

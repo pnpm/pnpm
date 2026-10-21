@@ -5,7 +5,12 @@ use std::path::{Path, PathBuf};
 fn dirs<'a>(workspace_root: &'a Path, lockfile_dir: &'a Path) -> SpecDirs<'a> {
     static NO_MANIFESTS: std::sync::LazyLock<ProjectManifestsByDir<'static>> =
         std::sync::LazyLock::new(ProjectManifestsByDir::new);
-    SpecDirs { workspace_root, lockfile_dir, manifests_by_dir: &NO_MANIFESTS }
+    SpecDirs {
+        workspace_root,
+        lockfile_dir,
+        manifests_by_dir: &NO_MANIFESTS,
+        canonical_paths: Box::leak(Box::default()),
+    }
 }
 
 #[test]
@@ -185,6 +190,7 @@ fn workspace_range_reads_a_loaded_manifest_before_the_disk() {
         workspace_root: &workspace_root,
         lockfile_dir: &workspace_root,
         manifests_by_dir: &manifests_by_dir,
+        canonical_paths: Box::leak(Box::default()),
     };
     let local_dep_dir = workspace_root.join("packages/consumer");
 
@@ -221,6 +227,7 @@ fn loaded_target_satisfies(workspace_root: &Path, target_dir: PathBuf) -> bool {
         workspace_root,
         lockfile_dir: workspace_root,
         manifests_by_dir: &manifests_by_dir,
+        canonical_paths: Box::leak(Box::default()),
     };
     let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
     local_spec_satisfies(
@@ -275,6 +282,7 @@ fn a_loaded_project_above_the_workspace_root_is_trusted_unless_linked_elsewhere(
         workspace_root: &workspace_root,
         lockfile_dir: &workspace_root,
         manifests_by_dir: &manifests_by_dir,
+        canonical_paths: Box::leak(Box::default()),
     };
     assert!(super::importer_link_satisfies(
         &dirs,

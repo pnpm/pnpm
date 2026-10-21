@@ -5,12 +5,11 @@ import path from 'node:path'
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 
-// Mock renameOverwriteSync so we can verify it's called (or not called)
+// Mock overwriteDirSync so we can verify it's called (or not called)
 // and control its behavior in tests.
 const renameOverwriteSyncMock = jest.fn()
-jest.unstable_mockModule('rename-overwrite', () => ({
-  renameOverwrite: jest.fn(),
-  renameOverwriteSync: renameOverwriteSyncMock,
+jest.unstable_mockModule('../src/overwriteDir.js', () => ({
+  overwriteDirSync: renameOverwriteSyncMock,
 }))
 
 const { importIndexedDir } = await import('../src/importIndexedDir.js')
@@ -347,4 +346,44 @@ test('an exact match rejects an absolute file map entry without spinning on its 
     symlinks: undefined,
     keepModulesDir: false,
   })).toBe(false)
+})
+
+test('a failed exclusive import does not remove a directory replaced by a concurrent importer', () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'dest')
+  fs.mkdirSync(srcDir, { recursive: true })
+  fs.writeFileSync(path.join(srcDir, 'package.json'), '{"name":"pkg"}')
+  fs.writeFileSync(path.join(srcDir, 'index.js'), 'content')
+
+  let firstCall = true
+  const importFile = (src: string, dest: string): void => {
+    if (firstCall) {
+      firstCall = false
+      const replaced = `${newDir}-concurrent`
+      fs.mkdirSync(replaced, { recursive: true })
+      fs.writeFileSync(path.join(replaced, 'package.json'), '{"name":"pkg"}')
+      fs.writeFileSync(path.join(replaced, 'index.js'), 'content')
+      fs.rmSync(newDir, { recursive: true, force: true })
+      fs.renameSync(replaced, newDir)
+      throw Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+    }
+    fs.copyFileSync(src, dest)
+  }
+
+  renameOverwriteSyncMock.mockImplementationOnce(() => {
+    throw Object.assign(new Error('ENOTEMPTY: directory not empty'), { code: 'ENOTEMPTY' })
+  })
+
+  expect(() => importIndexedDir(
+    { importFile, importFileAtomic: fs.copyFileSync },
+    newDir,
+    new Map([
+      ['package.json', path.join(srcDir, 'package.json')],
+      ['index.js', path.join(srcDir, 'index.js')],
+    ]),
+    {}
+  )).not.toThrow()
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('content')
 })

@@ -45,6 +45,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 manifest.skipped.clone()
             }),
             lockfile_verification_override: frozen_verification_override,
+            known_requires_build: self.resolution.known_requires_build.take(),
         }
     }
 
@@ -81,7 +82,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 ),
                 unbuilt_builds: prior_unbuilt_builds,
                 previously_skipped,
-                prune_orphans: self.modules.prune_orphans,
+                prune: self.modules.prune,
                 relink_every_slot_bin: self.modules.relink_every_slot_bin,
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {

@@ -66,6 +66,23 @@ where
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
     }
 
+    /// Execute `pacquet prune`, enabling extraneous direct-dependency
+    /// removal and optional workspace project selection.
+    pub async fn run_prune<Reporter: self::Reporter + 'static>(
+        self,
+        selection: Option<WorkspaceInstallSelection<'_>>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection,
+            manifests: crate::install::InstallManifestOptions {
+                prune_direct_dependencies: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
+    }
+
     /// Execute as a check: the caller compares the lockfile the run
     /// produced against the one it snapshotted and restores that snapshot,
     /// so nothing else on disk may be left changed. pnpm's
@@ -197,6 +214,36 @@ where
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
             lockfile_verification_override: Some(lockfile_verification_override),
             selection: Some(selection),
+            ..Default::default()
+        }))
+        .await
+    }
+
+    pub async fn run_with_known_requires_build<Reporter: self::Reporter + 'static>(
+        self,
+        known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            manifests: crate::install::InstallManifestOptions {
+                known_requires_build,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
+    }
+
+    pub async fn run_selected_with_known_requires_build<Reporter: self::Reporter + 'static>(
+        self,
+        selection: WorkspaceInstallSelection<'_>,
+        known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection: Some(selection),
+            manifests: crate::install::InstallManifestOptions {
+                known_requires_build,
+                ..Default::default()
+            },
             ..Default::default()
         }))
         .await

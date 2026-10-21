@@ -26,7 +26,7 @@ fn file_selection_matches_typescript_packlist() {
     let mut actual = Vec::new();
     for (manifest, ignore_kind) in manifests()
         .into_iter()
-        .flat_map(|manifest| (0..3).map(move |kind| (manifest.clone(), kind)))
+        .flat_map(|manifest| (0..5).map(move |kind| (manifest.clone(), kind)))
     {
         let dir = tempdir().unwrap();
         let root = dir.path();
@@ -41,6 +41,32 @@ fn file_selection_matches_typescript_packlist() {
             "b",
             "foo",
             "foofoo",
+            "part-02.js",
+            "part-01.js",
+            "part000.js",
+            "part001.js",
+            "part01.js",
+            "part02.js",
+            "part03.js",
+            "part04.js",
+            "part05.js",
+            "part06.js",
+            "part07.js",
+            "part08.js",
+            "part09.js",
+            "part10.js",
+            "part1.js",
+            "part2.js",
+            "part3.js",
+            "part4.js",
+            "parta.js",
+            "partb.js",
+            "partc.js",
+            "partd.js",
+            "part1a.js",
+            "part2b.js",
+            "part3a.js",
+            "nested/part2.js",
             "README.md",
             "LICENSE",
             "dist/index.js",
@@ -67,14 +93,7 @@ fn file_selection_matches_typescript_packlist() {
         write(root, "package.json", &manifest.to_string());
         fs::create_dir(root.join("sub")).unwrap();
         pnpm_fs::symlink_dir(&root.join("lib"), &root.join("sub/link")).unwrap();
-        write(root, ".gitignore", "dist/\n");
-        write(root, ".npmignore", "dist/\n!npm-debug.log\n!file.orig\n!.DS_Store\n!yarn.lock\n");
-        if ignore_kind != 0 {
-            fs::remove_file(root.join(".npmignore")).unwrap();
-        }
-        if ignore_kind == 2 {
-            fs::remove_file(root.join(".gitignore")).unwrap();
-        }
+        write_root_ignore_files(root, ignore_kind);
         write(root, "dist/.npmignore", "index.js\n");
         write(root, "lib/.gitignore", "*.test.js\n");
         write(
@@ -109,6 +128,26 @@ fn file_selection_matches_typescript_packlist() {
     }
 }
 
+fn write_root_ignore_files(root: &Path, kind: u8) {
+    let range_ignore = "part{03..01..2}.js\n";
+    write(root, ".gitignore", if kind == 4 { range_ignore } else { "dist/\n" });
+    write(
+        root,
+        ".npmignore",
+        if kind == 3 {
+            range_ignore
+        } else {
+            "dist/\n!npm-debug.log\n!file.orig\n!.DS_Store\n!yarn.lock\n"
+        },
+    );
+    if !matches!(kind, 0 | 3) {
+        fs::remove_file(root.join(".npmignore")).unwrap();
+    }
+    if kind == 2 {
+        fs::remove_file(root.join(".gitignore")).unwrap();
+    }
+}
+
 fn manifests() -> Vec<Value> {
     let mut manifests = vec![json!({}), json!({ "bundleDependencies": ["bundled"] })];
     for files in [
@@ -131,6 +170,19 @@ fn manifests() -> Vec<Value> {
         json!(["**", "!dist", "dist/index.js"]),
         json!(["**", "!sub", "sub/link"]),
         json!(["file.orig", "npm-debug.log", ".DS_Store", "yarn.lock", "lib/yarn.lock"]),
+        json!(["part{1..3}.js"]),
+        json!(["part{3..1}.js"]),
+        json!(["part{1..5..2}.js"]),
+        json!(["part{1..5..-2}.js"]),
+        json!(["part{1..3..0}.js"]),
+        json!(["part{1..10..02}.js"]),
+        json!(["part{10..1..-02}.js"]),
+        json!(["part{01..03}.js"]),
+        json!(["part{-03..01}.js"]),
+        json!(["part{1..3}{a,b}.js"]),
+        json!(["part{a..c}.js"]),
+        json!(["part{d..a..2}.js"]),
+        json!(["*.js", "!part{1..3}.js"]),
     ] {
         manifests.push(json!({ "files": files }));
         manifests.push(json!({ "files": files, "bundleDependencies": ["bundled"] }));

@@ -69,6 +69,69 @@ async fn cache_key_separates_abbreviated_from_full() {
 }
 
 #[tokio::test]
+async fn optional_dependency_on_pnpr_registry_does_not_fetch_full_metadata() {
+    let mut server = mockito::Server::new_async().await;
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(ABBREVIATED_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache_dir = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let needs_full_metadata_for = |_: &str, _optional: bool| false;
+    let ctx = PickPackageContext {
+        full_metadata: false,
+        needs_full_metadata_for: Some(&needs_full_metadata_for),
+        filter_metadata: false,
+        cache_policy: crate::MetadataCachePolicy {
+            network: pnpm_config::NetworkPolicy::Online,
+            ignore_missing_time_field: false,
+        },
+        store_view: None,
+        metadata: crate::MetadataRequestContext {
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            http: crate::MetadataHttpClient {
+                http_client: &http_client,
+                auth_headers: &auth_headers,
+                retry_opts: RetryOpts::default(),
+            },
+        },
+    };
+
+    let mut opts = default_opts(&registry);
+    opts.request.optional = true;
+    let result =
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &opts).await.expect("optional pick");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.0.0");
+    assert!(
+        meta_cache
+            .get(&format!("{registry}\x00acme"))
+            .is_some(),
+        "abbreviated cache key populated",
+    );
+    assert!(
+        meta_cache
+            .get(&format!("{registry}\x00acme:full"))
+            .is_none(),
+        "full cache key not populated",
+    );
+    abbrev_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn cache_key_separates_filtered_full_from_unfiltered_full() {
     let mut server = mockito::Server::new_async().await;
     let full_mock = server

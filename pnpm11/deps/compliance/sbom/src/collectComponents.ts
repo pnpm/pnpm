@@ -44,6 +44,7 @@ export interface CollectSbomComponentsOptions {
   supportedArchitectures?: SupportedArchitectures
   lockfileOnly?: boolean
   storeDir?: string
+  directoryRootsByDepPath?: Map<string, string>
   virtualStoreDirMaxLength?: number
   workspacePackages?: Record<ProjectId, WorkspacePackageInfo>
   resolvedWorkspaceDeps?: ReturnType<typeof resolveWorkspaceDeps>
@@ -135,6 +136,7 @@ async function walkImporters (
         storeDir: opts.storeDir,
         storeIndex,
         lockfileDir: opts.lockfileDir,
+        directoryRootsByDepPath: opts.directoryRootsByDepPath,
         virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength ?? 120,
       }
       : undefined,

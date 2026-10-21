@@ -112,7 +112,8 @@ pub(super) fn prepare_committed_build_state(
         now,
     );
     tracing::info!(target: "pacquet::install::phase", phase = "apply.prune", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    let pruned_at = pruned_at(inputs.prior.layout, did_prune, now);
+    let pruned_at =
+        pruned_at(inputs.prior.layout, did_prune, now, inputs.tree.config.source_date_epoch);
     // The build phase settles a dependency only when it actually
     // rebuilt it, so a `pnpm rebuild --pending` that the policy still
     // blocks (`allowBuilds: None`/`false`) leaves the debt in place.
@@ -168,12 +169,19 @@ pub(super) fn merge_committed_modules_metadata(
 }
 /// Stamp `prunedAt` only when the sweep ran (or there was no prior
 /// `.modules.yaml`); otherwise preserve the recorded timestamp so
-/// the throttle keeps counting from the last real prune.
-pub(super) fn pruned_at(
+/// the throttle keeps counting from the last real prune. When
+/// `SOURCE_DATE_EPOCH` is set, always record the capped epoch so
+/// existing installations produce reproducible output even when a
+/// sweep is not due.
+pub(in crate::install) fn pruned_at(
     prior_modules: Option<&pnpm_modules_yaml::ModulesLayout>,
     did_prune: bool,
     now: SystemTime,
+    source_date_epoch: Option<SystemTime>,
 ) -> String {
+    if let Some(epoch) = source_date_epoch {
+        return httpdate::fmt_http_date(epoch.min(now));
+    }
     match (prior_modules, did_prune) {
         (Some(prior), false) => prior.pruned_at.clone(),
         _ => httpdate::fmt_http_date(now),
@@ -274,7 +282,7 @@ fn virtual_store_prune_is_due(
                 false,
                 prior_modules.map(|modules| modules.pruned_at.as_str()),
                 config.modules_cache_max_age,
-                now,
+                config.source_date_epoch.map_or(now, |epoch| epoch.min(now)),
             ))
 }
 

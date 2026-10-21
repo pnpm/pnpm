@@ -62,6 +62,7 @@ export interface ImporterInfo {
 }
 
 interface WalkContext {
+  lockfileDir: string
   reverseMap: Map<string, ReverseEdge[]>
   graph: DependencyGraph
   importers: Record<string, ProjectSnapshot>
@@ -73,6 +74,16 @@ interface WalkContext {
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
   expanded: Set<string>
+}
+
+const dependentNodeImporterIds = new WeakMap<DependentNode, string>()
+
+export function setDependentNodeImporterId (node: DependentNode, importerId: string): void {
+  dependentNodeImporterIds.set(node, importerId)
+}
+
+export function getDependentNodeImporterId (node: DependentNode): string | undefined {
+  return dependentNodeImporterIds.get(node)
 }
 
 type NameFormatter = (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
@@ -125,6 +136,7 @@ export async function buildDependentsTree (
   })
 
   const trees = collectMatchedTrees(search, {
+    lockfileDir: opts.lockfileDir,
     reverseMap,
     graph,
     importers: opts.lockfile.importers,
@@ -238,7 +250,7 @@ function searchPackage (
   return false
 }
 
-function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
+export function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
   const nameCmp = lexCompare(left.name, right.name)
   if (nameCmp !== 0) return nameCmp
   const versionCmp = semver.valid(left.version) && semver.valid(right.version)
@@ -359,13 +371,16 @@ function walkReverse (
 function createCircularDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | undefined {
   const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
   if (parentNode?.nodeId.type === 'importer') {
-    const info = ctx.importerInfoMap.get(parentNode.nodeId.importerId)
+    const importerId = parentNode.nodeId.importerId
+    const info = ctx.importerInfoMap.get(importerId)
     if (!info) return undefined
-    return {
+    const node: DependentNode = {
       name: info.name,
       version: info.version,
       circular: true,
     }
+    setDependentNodeImporterId(node, path.join(ctx.lockfileDir, importerId))
+    return node
   }
   if (parentNode?.nodeId.type !== 'package') return undefined
   const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
@@ -384,11 +399,13 @@ function createDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | 
     const importerId = parentNodeId.importerId
     const info = ctx.importerInfoMap.get(importerId) ?? { name: importerId, version: '' }
     const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
-    return {
+    const node: DependentNode = {
       name: info.name,
       version: info.version,
       depField,
     }
+    setDependentNodeImporterId(node, path.join(ctx.lockfileDir, importerId))
+    return node
   }
   if (parentNodeId.type === 'package') {
     return createPackageDependent(edge, parentNodeId.depPath, ctx)

@@ -1,6 +1,7 @@
 use super::{
-    BuildDependentsOptions, DependencyGraph, EdgeContext, HashMap, Lockfile, ManifestSource,
-    PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch, TreeNodeId, WalkCtx, get_pkg_info,
+    BuildDependentsOptions, DepField, DependencyGraph, DependentNode, DependentsTree, EdgeContext,
+    HashMap, Lockfile, ManifestSource, PkgInfoEnv, PkgNameVerPeer, ReverseEdge, SearchMatch,
+    TreeNodeId, WalkCtx, get_pkg_info,
 };
 
 /// Match the search against the package's canonical name first, then against
@@ -119,5 +120,123 @@ pub fn compare_versions(left: &str, right: &str) -> std::cmp::Ordering {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left.cmp(&right),
         _ => left.cmp(right),
+    }
+}
+
+pub fn sort_trees(trees: &mut [DependentsTree]) {
+    trees.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| compare_versions(&a.version, &b.version))
+            .then_with(|| {
+                a.peers_suffix_hash
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
+            })
+    });
+}
+
+/// Merge reverse dependency trees collected from dedicated per-project
+/// lockfiles so a package version shared across projects renders once
+/// with all of its dependents.
+#[must_use]
+pub fn merge_trees(trees: Vec<DependentsTree>) -> Vec<DependentsTree> {
+    let mut merged: Vec<DependentsTree> = Vec::new();
+    for (tree_index, mut tree) in trees.into_iter().enumerate() {
+        tag_tree_dependents(&mut tree.dependents, tree.path.as_deref(), tree_index);
+        match merged.iter_mut().find(|existing| same_tree_key(existing, &tree)) {
+            Some(existing) => merge_into_tree(existing, tree),
+            None => merged.push(tree),
+        }
+    }
+    sort_trees(&mut merged);
+    merged
+}
+
+fn tag_tree_dependents(nodes: &mut [DependentNode], root_path: Option<&str>, tree_index: usize) {
+    for node in nodes {
+        if node.root_paths.is_empty()
+            && let Some(path) = root_path
+        {
+            node.root_paths.push(path.to_string());
+        }
+        if node.dep_field.is_some() && node.importer_id.is_none() {
+            node.importer_id = Some(format!("tree:{tree_index}"));
+        }
+        if let Some(children) = &mut node.dependents {
+            tag_tree_dependents(children, root_path, tree_index);
+        }
+    }
+}
+
+fn same_tree_key(left: &DependentsTree, right: &DependentsTree) -> bool {
+    left.name == right.name
+        && left.version == right.version
+        && left.peers_suffix_hash == right.peers_suffix_hash
+}
+
+fn merge_into_tree(target: &mut DependentsTree, source: DependentsTree) {
+    target.display_name = target.display_name.take().or(source.display_name);
+    target.path = target.path.take().or(source.path);
+    target.search_message = target.search_message.take().or(source.search_message);
+    target.manifest = target.manifest.take().or(source.manifest);
+    merge_dependent_nodes(&mut target.dependents, source.dependents);
+}
+
+fn merge_dependent_nodes(target: &mut Vec<DependentNode>, source: Vec<DependentNode>) {
+    for node in source {
+        match target.iter_mut().find(|existing| same_node_key(existing, &node)) {
+            Some(existing) => merge_into_node(existing, node),
+            None => target.push(node),
+        }
+    }
+    target.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| compare_versions(&a.version, &b.version))
+            .then_with(|| {
+                a.peers_suffix_hash
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.peers_suffix_hash.as_deref().unwrap_or(""))
+            })
+            .then_with(|| {
+                a.dep_field
+                    .map(DepField::as_str)
+                    .unwrap_or("")
+                    .cmp(b.dep_field.map(DepField::as_str).unwrap_or(""))
+            })
+            .then_with(|| {
+                a.importer_id
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.importer_id.as_deref().unwrap_or(""))
+            })
+    });
+}
+
+fn same_node_key(left: &DependentNode, right: &DependentNode) -> bool {
+    left.name == right.name
+        && left.version == right.version
+        && left.peers_suffix_hash == right.peers_suffix_hash
+        && left.dep_field == right.dep_field
+        && left.circular == right.circular
+        && left.importer_id == right.importer_id
+}
+
+fn merge_into_node(target: &mut DependentNode, source: DependentNode) {
+    target.display_name = target.display_name.take().or(source.display_name);
+    target.manifest = target.manifest.take().or(source.manifest);
+    for path in source.root_paths {
+        if !target.root_paths.contains(&path) {
+            target.root_paths.push(path);
+        }
+    }
+    if let Some(node_deps) = source.dependents {
+        merge_dependent_nodes(target.dependents.get_or_insert_with(Vec::new), node_deps);
+        target.deduped = false;
+    } else if target.dependents.is_some() {
+        target.deduped = false;
     }
 }

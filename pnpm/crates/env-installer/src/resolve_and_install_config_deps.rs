@@ -11,7 +11,8 @@
 
 use crate::{
     ConfigDepError, install_config_deps::install_config_deps, options::ConfigDepsInstallOptions,
-    prune::prune_env_lockfile, resolve_optional_subdeps::resolve_optional_subdeps,
+    prune_env_lockfile, read_config_dependency_lockfile,
+    resolve_optional_subdeps::resolve_optional_subdeps,
     verify_config_dep_resolutions::verify_config_dep_resolutions,
     verify_env_lockfile::write_verified_env_lockfile,
 };
@@ -47,9 +48,20 @@ pub async fn resolve_and_install_config_deps<Reporter: self::Reporter>(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
+    let Some(env_lockfile) =
+        read_config_dependency_lockfile(Some(config_deps), opts.root_dir, opts.mode)?
+    else {
+        return Ok(());
+    };
     let updates = ConfigDepUpdates::default();
-    resolve_and_install_config_deps_updating::<Reporter>(config_deps, &updates, resolver, opts)
-        .await?;
+    resolve_and_install_config_deps_updating::<Reporter>(
+        env_lockfile,
+        config_deps,
+        &updates,
+        resolver,
+        opts,
+    )
+    .await?;
     Ok(())
 }
 
@@ -78,19 +90,17 @@ impl ConfigDepUpdates {
     }
 }
 
-/// [`resolve_and_install_config_deps`], but the config dependencies in
+/// Reconcile a previously loaded env lockfile. The config dependencies in
 /// `updates` are resolved again even when the env lockfile already holds
 /// their specifier. Returns the specifier each of them is recorded with,
 /// which `pnpm-workspace.yaml` must declare from now on.
 pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
+    mut env_lockfile: EnvLockfile,
     config_deps: &BTreeMap<String, ConfigDependency>,
     updates: &ConfigDepUpdates,
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<BTreeMap<String, String>, ConfigDepError> {
-    let mut env_lockfile = EnvLockfile::read(opts.root_dir)
-        .map_err(ConfigDepError::ReadLockfile)?
-        .unwrap_or_else(EnvLockfile::create);
     let (to_resolve, lockfile_changed) =
         plan_config_deps(&mut env_lockfile, config_deps, updates, opts)?;
 

@@ -166,6 +166,7 @@ test('create package graph using peer dependencies', () => {
 })
 
 test('create package graph for local directory dependencies', () => {
+  const TAR_DIR_PATH = pathResolve('/zkochan/src/bar.tgz')
   const result = createProjectsGraph([
     {
       rootDir: BAR1_PATH,
@@ -199,7 +200,16 @@ test('create package graph for local directory dependencies', () => {
 
         dependencies: {
           foo: 'file:../foo@2',
+          bar1: 'link:../bar',
+          tarDir: 'link:../bar.tgz',
         },
+      },
+    },
+    {
+      rootDir: TAR_DIR_PATH,
+      manifest: {
+        name: 'tar-dir',
+        version: '1.0.0',
       },
     },
     {
@@ -243,7 +253,7 @@ test('create package graph for local directory dependencies', () => {
       },
     },
     [BAR2_PATH]: {
-      dependencies: [FOO2_PATH],
+      dependencies: [FOO2_PATH, BAR1_PATH, TAR_DIR_PATH],
       package: {
         rootDir: BAR2_PATH,
         manifest: {
@@ -252,7 +262,19 @@ test('create package graph for local directory dependencies', () => {
 
           dependencies: {
             foo: 'file:../foo@2',
+            bar1: 'link:../bar',
+            tarDir: 'link:../bar.tgz',
           },
+        },
+      },
+    },
+    [TAR_DIR_PATH]: {
+      dependencies: [],
+      package: {
+        rootDir: TAR_DIR_PATH,
+        manifest: {
+          name: 'tar-dir',
+          version: '1.0.0',
         },
       },
     },

@@ -7,7 +7,9 @@ pub use selection::choose_bins;
 pub use shim_writer::remove_bin;
 
 use crate::{
-    bin_resolver::{Command, get_bins_from_package_manifest},
+    bin_resolver::{
+        Command, PackageBin, commands_from_precalculated_bins, get_bins_from_package_manifest,
+    },
     capabilities::{
         DirCreation, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
         FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite,
@@ -23,7 +25,7 @@ use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -65,6 +67,11 @@ pub struct PackageBinSource {
     /// missing, because the scripts may create it and run with this
     /// `.bin` on `PATH`. The linking pass after the build links it.
     pub build_pending: bool,
+    /// Precalculated bin targets and shebang runtimes from `dist.pnpr.bins` or
+    /// archive extraction. Used when `build_pending` is `false` to skip on-disk
+    /// `directories.bin` directory walks, missing-target head reads, and
+    /// shebang reads.
+    pub precalculated_bins: Option<Arc<BTreeMap<String, PackageBin>>>,
 }
 
 impl PackageBinSource {
@@ -81,6 +88,7 @@ impl PackageBinSource {
             origin: BinOrigin::Direct,
             resolved_location: None,
             build_pending: false,
+            precalculated_bins: None,
         }
     }
 
@@ -105,6 +113,27 @@ impl PackageBinSource {
     pub fn with_build_pending(mut self, build_pending: bool) -> Self {
         self.build_pending = build_pending;
         self
+    }
+
+    /// Attach precalculated bin metadata (`dist.pnpr.bins` or archive-extracted
+    /// bins).
+    #[must_use]
+    pub fn with_precalculated_bins(
+        mut self,
+        precalculated_bins: Option<Arc<BTreeMap<String, PackageBin>>>,
+    ) -> Self {
+        self.precalculated_bins = precalculated_bins;
+        self
+    }
+
+    pub(crate) fn resolve_commands<Sys: FsWalkFiles>(&self) -> Vec<Command> {
+        if !self.build_pending
+            && let Some(bins) = &self.precalculated_bins
+            && let Some(commands) = commands_from_precalculated_bins(bins, &self.location)
+        {
+            return commands;
+        }
+        get_bins_from_package_manifest::<Sys>(&self.manifest, &self.location)
     }
 }
 
@@ -431,7 +460,7 @@ where
     let bin_dir = Sys::create_dir_all_reporting(bins_dir)
         .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
 
-    let paths = linking_paths::LinkingPaths::new(bins_dir, options)?;
+    let paths = linking_paths::LinkingPaths::new(bins_dir, bin_dir, options)?;
 
     let to_link = remove_bins_awaiting_target::<Sys>(chosen, bins_dir, &paths.bins_dir)?;
 
@@ -461,7 +490,9 @@ where
                     options,
                     windows: WindowsShimPolicy::for_package(pkg_name),
                     paths: &paths,
-                    bin_dir,
+                    precalculated_runtime: command.precalculated_runtime
+                        .as_ref()
+                        .filter(|_| !pkg.build_pending),
                 },
                 cache,
             )

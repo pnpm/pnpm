@@ -1,0 +1,124 @@
+name: Version Switch Matrix
+
+# Nightly cross-version and cross-platform package-manager switching matrix
+# (pnpm/tasks#141, pnpm/tasks#144). Exercises outer pnpm CLIs (v11 bundle,
+# released 11.x / 12.x, and compiled HEAD) switching down and up across
+# pinned versions and setting sources (`packageManager`,
+# `devEngines.packageManager`, `pnpm-workspace.yaml`, `.npmrc`, env, CLI).
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version-switch-matrix:
+    if: github.repository == 'pnpm/pnpm'
+    name: Version Switch Matrix (${{ matrix.os_label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: blacksmith-8vcpu-ubuntu-2404
+            os_label: ubuntu
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
+          - os: blacksmith-8vcpu-windows-2025
+            os_label: windows
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free up runner disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install Rust Toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          install: false
+
+      - name: Install Node.js via pnpm
+        run: pnpm runtime set node 22 --global
+
+      - name: Install just and cargo-nextest
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: just,cargo-nextest
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          just install
+
+      - name: Bundle pnpm v11
+        shell: bash
+        run: |
+          pnpm --filter pnpm exec tsgo --build
+          pnpm --filter pnpm run bundle
+
+      - name: Switch matrix across released outer pnpm versions (11.latest, 12.0.0, 12.latest) and pins (10, 11, 12, HEAD)
+        # zizmor: ignore[adhoc-packages] -- This matrix intentionally installs
+        # the latest published pnpm 11 and 12 dist-tags to test cross-version
+        # switching.
+        shell: bash
+        run: |
+          set -euo pipefail
+          outer_bins=()
+          for outer_spec in "pnpm@latest-11" "pnpm@12.0.0" "pnpm@latest-12"; do
+            outer_dir="$RUNNER_TEMP/outer-${outer_spec//[^a-zA-Z0-9]/_}"
+            mkdir -p "$outer_dir"
+            printf '{"name":"outer-runner","private":true}\n' > "$outer_dir/package.json"
+            pnpm --dir "$outer_dir" add "$outer_spec"
+            outer_bin="$outer_dir/node_modules/.bin/pnpm"
+            if [ "${RUNNER_OS:-}" = "Windows" ] && [ -f "${outer_bin}.cmd" ]; then
+              outer_bins+=("${outer_bin}.cmd")
+            else
+              outer_bins+=("$outer_bin")
+            fi
+            for pin_version in "10.10.0" "11.11.0" "12.14.0"; do
+              work="$RUNNER_TEMP/switch-${outer_spec//[^a-zA-Z0-9]/_}-${pin_version}"
+              mkdir -p "$work/project" "$work/home"
+              printf '{"name":"matrix-proj","version":"1.0.0","packageManager":"pnpm@%s"}\n' "$pin_version" > "$work/project/package.json"
+              out=$(
+                cd "$work/project"
+                PNPM_HOME="$work/home" \
+                HOME="$work" \
+                XDG_CONFIG_HOME="$work/xdg" \
+                  "$outer_bin" --version | tr -d '\r'
+              )
+              if [ "$out" != "$pin_version" ]; then
+                echo "Expected $outer_spec to switch to $pin_version, got: $out" >&2
+                exit 1
+              fi
+            done
+          done
+          IFS=';'
+          outer_clis="${outer_bins[*]}"
+          unset IFS
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
+          PNPM_TEST_OUTER_CLIS="$outer_clis" \
+            cargo nextest run --locked --run-ignored all -p pnpm-cli --test suite -E 'test(/^version::/)'

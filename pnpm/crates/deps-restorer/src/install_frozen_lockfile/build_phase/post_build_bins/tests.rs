@@ -43,7 +43,7 @@ fn refreshes_the_physical_hoisted_bin_container_for_scoped_and_unscoped_packages
             link_bins::<Host>(&directory, &directory.join(".bin"), &link_options(&options, true))
                 .expect("refresh selected bins");
         }
-        let output = Command::new(modules.join(".bin/tool")).output().expect("run refreshed bin");
+        let output = run_bin(&modules.join(".bin/tool"));
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         assert_eq!(output.stdout, b"built binary\n");
     }
@@ -78,7 +78,7 @@ fn final_hoisted_refresh_reuses_discovery_and_completed_provider_reads() {
     let roots = HashMap::from([(key.clone(), vec![root.clone()])]);
     let mutated = HashSet::from([key]);
     assert!(super::refresh_cached_directory(&plans, &modules, &roots, &mutated, &options).unwrap());
-    let output = Command::new(modules.join(".bin/tool")).output().unwrap();
+    let output = run_bin(&modules.join(".bin/tool"));
     assert!(output.status.success());
     assert_eq!(output.stdout, b"refreshed\n");
     fs::write(root.join("package.json"), "completed provider must not be reread").unwrap();
@@ -106,12 +106,6 @@ fn final_importer_sources_clear_pending_without_changing_pre_consumer_candidates
     .with_build_pending(true);
     let plans = crate::build_options::HoistedBinPlans::default();
     plans.seed(&HashMap::from([(modules.to_owned(), vec![source].into())]));
-    plans
-        .directory(modules)
-        .lock()
-        .unwrap()
-        .initialize(modules)
-        .unwrap();
     let sources = super::importer_sources(&plans, modules, &["tool".into()], &[]).unwrap();
     assert!(!sources[&location].source().build_pending);
     assert!(
@@ -126,4 +120,19 @@ fn final_importer_sources_clear_pending_without_changing_pre_consumer_candidates
             .unwrap()
             .build_pending,
     );
+}
+
+fn run_bin(path: &std::path::Path) -> std::process::Output {
+    let mut last_busy = None;
+    for _ in 0..200 {
+        match Command::new(path).output() {
+            Ok(output) => return output,
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                last_busy = Some(error);
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(error) => panic!("run refreshed bin {}: {error:?}", path.display()),
+        }
+    }
+    panic!("refreshed bin stayed busy {}: {last_busy:?}", path.display());
 }

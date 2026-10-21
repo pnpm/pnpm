@@ -85,7 +85,7 @@ impl PickPolicy {
         // `full_metadata` wherever a registry is in hand, and a filtered
         // fetch keeps only the fields an install reads.
         self.full_metadata = true;
-        self.needs_full_metadata_for = Arc::new(|_registry| true);
+        self.needs_full_metadata_for = Arc::new(|_registry, _optional| true);
         self.filter_metadata = false;
     }
 

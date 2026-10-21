@@ -28,6 +28,7 @@ pub(super) fn refresh(
         selected_snapshots: Some(std::slice::from_ref(snapshot_key)),
         packages: context.graph.packages,
         package_manifests: &crate::PackageManifests::default(),
+        package_bins: None,
         skipped: context.graph.skipped,
         link_options: &options,
     }

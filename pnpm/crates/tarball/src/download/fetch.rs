@@ -10,6 +10,8 @@ use crate::{
     TarLimits, archive_integrity::ArchiveVerification, content_coding::ContentCoding,
     download::buffered::ExtractedFiles,
 };
+use pnpm_package_manifest::PackageBin;
+use std::collections::BTreeMap;
 
 /// Run one full tarball-fetch attempt: network, body, integrity hash,
 /// decompress, extract into the CAFS. Returns the cas-paths map and the
@@ -73,11 +75,12 @@ async fn fetch_local_archive<Reporter: self::Reporter>(
     attempt: u32,
 ) -> Result<AttemptedFetch, TarballError> {
     let package_url = download.package_url;
-    let (integrity, files, index) = download.fetch_local::<Reporter>(path, attempt).await?;
+    let (integrity, files, index, bins) = download.fetch_local::<Reporter>(path, attempt).await?;
     Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive {
         integrity,
         files,
         index,
+        bins,
         meta: empty_meta(package_url),
     })))
 }
@@ -106,15 +109,22 @@ async fn fetch_remote<Reporter: self::Reporter>(
         drop(response_head);
         return Ok(AttemptedFetch::NotModified(meta));
     }
-    let (integrity, files, index) =
+    let (integrity, files, index, bins) =
         download.extract_response::<Reporter, _>(client, response_head, attempt).await?;
-    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive { integrity, files, index, meta })))
+    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive {
+        integrity,
+        files,
+        index,
+        bins,
+        meta,
+    })))
 }
 
 pub(crate) struct ExtractedArchive {
     pub integrity: crate::ArchiveIntegrity,
     pub files: HashMap<String, PathBuf>,
     pub index: PackageFilesIndex,
+    pub bins: Option<BTreeMap<String, PackageBin>>,
     pub meta: crate::archive_request::ArchiveResponseMeta,
 }
 

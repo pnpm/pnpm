@@ -14,7 +14,10 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_lockfile::{
+    EnvLockfile, LoadLockfileError, Lockfile, PackageKey, prune_env_lockfile,
+    retain_config_dependencies,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
@@ -204,8 +207,11 @@ pub(crate) fn post_install_prune(
         return Ok(());
     };
     let mut resolved = ResolvedPackageVersions::new();
-    record_resolved_package_versions(&lockfile, &mut resolved);
-    prune_unresolved_entries(config, &workspace_dir, &resolved)
+    record_resolved_package_versions(
+        lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        &mut resolved,
+    );
+    prune_unresolved_entries(config, &workspace_dir, resolved)
 }
 
 /// The post-install exclude prune for a workspace with a lockfile per project
@@ -249,31 +255,45 @@ pub fn prune_against_project_lockfiles(
         else {
             return Ok(());
         };
-        record_resolved_package_versions(&lockfile, &mut resolved);
+        record_resolved_package_versions(
+            lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+            &mut resolved,
+        );
     }
-    prune_unresolved_entries(config, workspace_dir, &resolved)
+    prune_unresolved_entries(config, workspace_dir, resolved)
 }
 
 fn prune_unresolved_entries(
     config: &Config,
     workspace_dir: &Path,
-    resolved: &ResolvedPackageVersions,
+    mut resolved: ResolvedPackageVersions,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
+    if (config.minimum_release_age_exclude_prune || config.trust_policy_exclude_prune)
+        && let Some(mut env) = EnvLockfile::read(config.root_project_manifest_dir(workspace_dir))
+            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
+    {
+        retain_config_dependencies(&mut env, |name| {
+            config.config_dependencies
+                .as_ref()
+                .is_some_and(|dependencies| dependencies.contains_key(name))
+        });
+        prune_env_lockfile(&mut env);
+        record_resolved_package_versions(env.snapshots.keys(), &mut resolved);
+    }
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
             prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
             prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
-            resolved_package_versions: Some(resolved),
+            resolved_package_versions: Some(&resolved),
             ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
 }
 
-/// Adds every package in the lockfile to `resolved` with its resolved
-/// versions.
+/// Adds each snapshot key to `resolved` with its resolved version.
 /// A registry-qualified slot (`<name>@<registryName>:<version>`)
 /// registers the version after the prefix — `PkgVerPeer::version_semver`
 /// treats it as opaque for reuse/preference paths, but here the version
@@ -282,8 +302,11 @@ fn prune_unresolved_entries(
 /// `file:`) register only their name: their presence can still be
 /// confirmed (a bare-name exclude entry survives), but no exact version
 /// can (a versioned entry is pruned).
-fn record_resolved_package_versions(lockfile: &Lockfile, resolved: &mut ResolvedPackageVersions) {
-    for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
+fn record_resolved_package_versions<'a>(
+    keys: impl IntoIterator<Item = &'a PackageKey>,
+    resolved: &mut ResolvedPackageVersions,
+) {
+    for key in keys {
         let versions = resolved.entry(key.name.to_string()).or_default();
         let version = key.suffix
             .version_semver()

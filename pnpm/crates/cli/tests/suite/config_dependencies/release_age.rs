@@ -87,20 +87,52 @@ fn minimum_release_age_exclude_in_workspace_yaml_admits_a_config_dependency() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    declare_config_dependency(&workspace, "1.1.0");
+    declare_config_dependency(&workspace, "^1.1.0");
     set_minimum_release_age(&workspace, bravo_dep_mature_up_to_1_0_1_minimum_release_age());
     append_workspace_yaml_key(&workspace, "minimumReleaseAgeExclude", "['@pnpm.e2e/bravo-dep']");
+
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeExcludePrune", "true");
+    append_workspace_yaml_key(&workspace, "trustPolicyExcludePrune", "true");
+    append_workspace_yaml_key(
+        &workspace,
+        "trustPolicyExclude",
+        "['@pnpm.e2e/bravo-dep@1.0.0 || 1.1.0', 'unused-plugin']",
+    );
 
     pacquet_at(&workspace)
         .with_arg("install")
         .assert()
         .success();
+    let yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace settings");
+    let settings: pnpm_config::WorkspaceSettings =
+        serde_saphyr::from_str(&yaml).expect("parse settings");
+    assert_eq!(settings.minimum_release_age_exclude, Some(vec!["@pnpm.e2e/bravo-dep".into()]));
+    assert_eq!(settings.trust_policy_exclude, Some(vec!["@pnpm.e2e/bravo-dep@1.1.0".into()]));
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
     pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()
         .success();
     assert_eq!(installed_bravo_dep_version(&workspace), "1.1.0");
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read workspace settings");
+    let mut document: serde_json::Value = serde_saphyr::from_str(&yaml).expect("parse settings");
+    document["configDependencies"] = serde_json::json!({});
+    fs::write(&yaml_path, serde_saphyr::to_string(&document).expect("serialize settings"))
+        .expect("remove the config dependency declaration");
+    pacquet_at(&workspace)
+        .with_args(["install", "--force"])
+        .assert()
+        .success();
+    let yaml = fs::read_to_string(&yaml_path).expect("read workspace settings");
+    let settings: pnpm_config::WorkspaceSettings =
+        serde_saphyr::from_str(&yaml).expect("parse settings");
+    assert_eq!(settings.minimum_release_age_exclude, None);
+    assert_eq!(settings.trust_policy_exclude, None);
+    assert_eq!(settings.minimum_release_age_exclude_prune, Some(true));
+    assert_eq!(settings.trust_policy_exclude_prune, Some(true));
 
     drop((root, mock_instance));
 }

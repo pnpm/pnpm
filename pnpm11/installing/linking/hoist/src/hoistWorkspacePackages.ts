@@ -2,12 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { isError } from '@pnpm/error'
-import { prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { getTrustedHoistRoot, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { HoistedDependencies, ProjectId } from '@pnpm/types'
 import { resolveLinkTarget } from 'resolve-link-target'
 
 import { createGetAliasHoistType } from './createGetAliasHoistType.js'
-import { getTrustedRoot, hoistLogger, selectHoistedModulesDir } from './hoistedModulesDirs.js'
+import { hoistLogger, selectHoistedModulesDir } from './hoistedModulesDirs.js'
 import { symlinkHoistedDependency } from './symlinkHoistedDependency.js'
 import type { DependenciesGraph, DirectDependenciesByImporterId, HoistedModulesDirs, HoistedWorkspaceProject, HoistType } from './types.js'
 import { findConflictingWorkspaceProjectIds, type OccupiedAliases, type WorkspacePlacementCandidate } from './workspaceAliasConflicts.js'
@@ -85,7 +85,7 @@ async function prepareWorkspacePlacements (
   try {
     return await Promise.all(placementCandidates.map(async ([projectId, project, hoistType]) => {
       const targetDir = selectHoistedModulesDir(hoistType, dirs)
-      const trustedRoot = getTrustedRoot(dirs.publicHoistedModulesDir, targetDir)
+      const trustedRoot = getTrustedHoistRoot(dirs.publicHoistedModulesDir, targetDir)
       const destination = await prepareWorkspaceModulesDir(targetDir, project.name, trustedRoot)
       return [projectId, project, hoistType, destination] as const
     }))
@@ -169,7 +169,7 @@ async function readStaleWorkspaceLinks (opts: {
 }
 
 async function readWorkspaceLink (alias: string, modulesDir: string, publicHoistedModulesDir: string): Promise<StaleWorkspaceLink | undefined> {
-  const trustedRoot = getTrustedRoot(publicHoistedModulesDir, modulesDir)
+  const trustedRoot = getTrustedHoistRoot(publicHoistedModulesDir, modulesDir)
   const destination = await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
   let target: string
   try {

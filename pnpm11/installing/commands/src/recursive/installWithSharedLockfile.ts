@@ -34,17 +34,12 @@ interface ImporterToMutate {
  */
 export async function installWithSharedLockfile (ctx: RecursiveContext): Promise<RecursiveResult> {
   const importers = getImportersInsideRepository(ctx.opts)
-  if (importers.length === 0) return { passed: true }
+  if (importers.length === 0) return { passed: true, installedProjectDirs: [] }
   const mutatedImporters = await createMutatedImporters(ctx, importers)
   if ((mutatedImporters.length === 0) && ctx.cmdFullName === 'update' && ctx.opts.depth === 0) {
     throw createNoPackageInDependenciesError()
   }
-  if (shouldInstallWorkspaceRoot(ctx)) {
-    mutatedImporters.push({
-      mutation: 'install',
-      rootDir: ctx.opts.workspaceDir as ProjectRootDir,
-    })
-  }
+  includeUnselectedWorkspaceRoot(ctx, mutatedImporters)
   const saveManifests = createManifestsSaver(ctx)
   const {
     updatedCatalogs,
@@ -68,7 +63,12 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     resolutionPolicyViolations,
   })
   await handleIgnoredBuilds(ctx.opts, ignoredBuilds)
-  return { passed: true, updatedCatalogs, dryRunResult }
+  return {
+    passed: true,
+    installedProjectDirs: mutatedImporters.map(({ rootDir }) => rootDir),
+    updatedCatalogs,
+    dryRunResult,
+  }
 }
 
 function getImportersInsideRepository (
@@ -201,10 +201,28 @@ function createInstallSomeMutation (
   } as MutatedProject
 }
 
-function shouldInstallWorkspaceRoot ({ opts, manifestsByPath }: RecursiveContext): boolean {
-  return !opts.excludeWorkspaceRootProject &&
+function includeUnselectedWorkspaceRoot ({ opts, manifestsByPath }: RecursiveContext, mutatedImporters: MutatedProject[]): void {
+  if (installCoversUnselectedWorkspaceRoot(opts) &&
     !opts.selectedProjectsGraph[opts.workspaceDir as ProjectRootDir] &&
-    manifestsByPath[opts.workspaceDir as ProjectRootDir] != null
+    manifestsByPath[opts.workspaceDir as ProjectRootDir] != null) {
+    mutatedImporters.push({
+      mutation: 'install',
+      rootDir: opts.workspaceDir as ProjectRootDir,
+    })
+  }
+}
+
+/**
+ * Whether an install under a shared lockfile also installs the workspace
+ * root when the selection leaves it out. A filtered install that prunes
+ * direct dependencies leaves the root alone, as `excludeWorkspaceRootProject`
+ * does.
+ */
+function installCoversUnselectedWorkspaceRoot (
+  opts: Pick<RecursiveOptions, 'excludeWorkspaceRootProject' | 'filter' | 'filterProd' | 'pruneDirectDependencies'>
+): boolean {
+  return (!opts.pruneDirectDependencies || (!opts.filter?.length && !opts.filterProd?.length)) &&
+    !opts.excludeWorkspaceRootProject
 }
 
 /**
@@ -231,6 +249,7 @@ async function persistManifests (
   // manifest never saw, and the next install would re-prompt or
   // fail verification.
   const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+  const resolvedPackageVersions = await resolvedPackageVersionsForPrune(opts, newLockfile)
   const promises: Array<Promise<void>> = updatedProjects
     .filter(({ rootDir }) => manifestsByPath[rootDir] != null)
     .map(async ({ originalManifest, manifest, rootDir }) => {
@@ -240,7 +259,7 @@ async function persistManifests (
     updatedCatalogs,
     catalogPrune: opts.catalogPrune,
     keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
-    resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+    resolvedPackageVersions,
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects,

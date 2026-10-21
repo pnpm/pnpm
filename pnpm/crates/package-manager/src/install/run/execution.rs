@@ -216,7 +216,7 @@ impl<'a> RunExecution<'a> {
             ),
             modules: dispatched.materialization_modules(
                 (self.mode.included, self.options.rebuild.as_ref()),
-                !scope.importers.filtered_install,
+                self.prune_tree_options(scope),
                 logged_methods,
             ),
             execution: self.mode.materialization_execution(
@@ -242,6 +242,7 @@ impl<'a> RunExecution<'a> {
             pnpmfile_hook: loaded.pnpmfile_hook.take(),
             deploy_manifest_hook: self.options.manifests.deploy_hook,
             manifest_spec_bumps: self.options.manifests.spec_bumps,
+            known_requires_build: self.options.manifests.known_requires_build.take(),
             inputs: std::mem::take(&mut self.owned.resolution),
         }
     }
@@ -272,6 +273,20 @@ impl<'a> RunExecution<'a> {
         }
     }
 
+    fn selected_importers<'r>(
+        &self,
+        scope: &'r InstallScope<'_>,
+        project_manifests: &'r [(PathBuf, &'r PackageManifest)],
+    ) -> crate::install::state_options::SelectedImporters<'r> {
+        crate::install::state_options::SelectedImporters {
+            requested_ids: scope.importers.requested_importer_ids.as_ref(),
+            real_ids: &scope.importers.real_importer_ids,
+            manifests: project_manifests,
+            declared_manifests: &scope.project_manifests,
+            ignore_manifest_check: self.install.lockfile_policy.ignore_manifest_check,
+        }
+    }
+
     fn apply_inputs<'r>(
         &mut self,
         projects: (&'r InstallScope<'_>, &'r [(PathBuf, &'r PackageManifest)]),
@@ -291,20 +306,9 @@ impl<'a> RunExecution<'a> {
                 dry_run: self.install.execution.dry_run,
                 peer_issues_sink_is_none: self.mode.peer_issues_sink_is_none,
             },
-            prior: crate::install::state_options::ApplyPriorState {
-                lockfile: loaded.current.take(),
-                layout: dispatched.modules.old_modules,
-                metadata: dispatched.modules.previous_modules_metadata,
-                is_inconsistent: dispatched.modules.is_inconsistent,
-                tree_moved: dispatched.modules.tree_moved,
-            },
+            prior: self.take_apply_prior_state(loaded, dispatched.modules),
             projects: crate::install::state_options::ApplyProjectSelection {
-                importers: crate::install::state_options::SelectedImporters {
-                    requested_ids: scope.importers.requested_importer_ids.as_ref(),
-                    real_ids: &scope.importers.real_importer_ids,
-                    manifests: project_manifests,
-                    ignore_manifest_check: self.install.lockfile_policy.ignore_manifest_check,
-                },
+                importers: self.selected_importers(scope, project_manifests),
                 workspace_packages: self.workspace.workspace_packages.take(),
                 workspace_root: std::mem::take(&mut self.workspace.dirs.workspace_root),
                 included: self.mode.included,

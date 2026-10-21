@@ -1,4 +1,4 @@
-use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageManifests, VirtualStoreLayout};
+use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageBins, PackageManifests, VirtualStoreLayout};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
@@ -44,6 +44,7 @@ pub struct LinkLockfiles<'a> {
 
 pub struct LinkPackageData<'a> {
     pub package_manifests: &'a PackageManifests,
+    pub package_bins: Option<&'a PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
     /// gating the importer bin pass's use of `package_manifests` — see
     /// [`crate::link_direct_dep_bins_prefetched`]. `None` when the
@@ -52,9 +53,16 @@ pub struct LinkPackageData<'a> {
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PruneTreeOptions<'a> {
+    pub orphans: bool,
+    pub direct_dependencies: bool,
+    pub importer_ids: Option<&'a std::collections::HashSet<String>>,
+}
+
 #[derive(Clone, Copy)]
 pub struct PriorLinkState<'a> {
-    pub prune_orphans: bool,
+    pub prune: PruneTreeOptions<'a>,
     pub hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`; lets the hoisted linker leave packages that are

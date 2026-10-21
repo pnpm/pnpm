@@ -2,6 +2,7 @@ pub mod file_mode;
 #[cfg(all(windows, feature = "test"))]
 pub mod test_support;
 pub use background_drop::background_drop;
+pub use canonical_paths::CanonicalPaths;
 pub use capabilities::*;
 pub use copy_dirent::{copy_dir_contents, copy_dirent, create_symlink};
 pub use copy_file_exclusive::{
@@ -50,6 +51,7 @@ pub use wasi_fs::{
 pub use write_atomic::{write_atomic, write_atomic_private};
 
 mod background_drop;
+mod canonical_paths;
 mod capabilities;
 mod copy_dirent;
 mod copy_file_exclusive;

@@ -53,6 +53,8 @@ async fn git_archive_manifests_are_cached_by_subdirectory() {
             pnpm_tarball::CachedTarball {
                 files: Arc::new(files),
                 manifest: Some(json!({"name": "root"})),
+                requires_build: None,
+                bins: None,
             },
         )))),
     );

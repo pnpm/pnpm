@@ -8,16 +8,17 @@ export async function updatePatchedDependencies (
   opts: Omit<WriteSettingsOptions, 'updatedSettings'>
 ): Promise<void> {
   const workspaceDir = opts.workspaceDir ?? opts.rootProjectManifestDir
+  const relativePatchedDependencies: Record<string, string> = {}
   for (const [patchName, patchPath] of Object.entries(patchedDependencies)) {
-    if (path.isAbsolute(patchPath)) {
-      patchedDependencies[patchName] = normalizePath(path.relative(workspaceDir, patchPath))
-    }
+    relativePatchedDependencies[patchName] = path.isAbsolute(patchPath)
+      ? normalizePath(path.relative(workspaceDir, patchPath))
+      : patchPath
   }
   await writeSettings({
     ...opts,
     workspaceDir,
     updatedSettings: {
-      patchedDependencies: Object.keys(patchedDependencies).length ? patchedDependencies : undefined,
+      patchedDependencies: Object.keys(relativePatchedDependencies).length ? relativePatchedDependencies : undefined,
     },
   })
 }

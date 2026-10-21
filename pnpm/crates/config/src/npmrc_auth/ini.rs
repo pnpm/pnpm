@@ -1,7 +1,7 @@
 use super::{
-    Cow, EnvVar, NpmrcAuth, Path, apply_creds_field, apply_tls_field, env_replace_lossy,
-    expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key, resolve_cafile,
-    split_ini_creds_key, split_ssl_key,
+    Cow, EnvVar, NpmrcAuth, NpmrcRoutes, Path, apply_creds_field, apply_tls_field,
+    env_replace_lossy, expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key,
+    resolve_cafile, split_ini_creds_key, split_ssl_key,
 };
 use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
@@ -96,6 +96,30 @@ impl NpmrcAuth {
             npmrc_dir,
             ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
         )
+    }
+
+    /// Read the command line's settings
+    /// ([`CliLayer::npmrc_tokens`](crate::CliLayer::npmrc_tokens)) as the
+    /// top `.npmrc` layer. Values are used as given: the shell has expanded them.
+    /// Unscoped credentials pin to [`CliLayer::registry`](crate::CliLayer::registry) when set, else to
+    /// the tokens' own `registry`.
+    pub fn from_cli_config(cli: &crate::CliLayer) -> Self {
+        let mut auth = NpmrcAuth::default();
+        for (key, value) in &cli.npmrc_tokens {
+            if crate::config_types::is_ini_config_key(key) {
+                auth.raw_ini_config.insert(key.clone(), value.clone());
+            }
+            // The empty base leaves a relative `cafile` to the current directory.
+            auth.apply_ini_entry(key, value.clone(), Path::new(""));
+        }
+        if let Some(registry) = &cli.registry {
+            auth.routes.default = Some(registry.clone());
+        }
+        auth.rescope_unscoped("<command line>");
+        // `Config::apply_cli_registries` applies the routes over the
+        // workspace yaml, which the `.npmrc` routes rank below.
+        auth.routes = NpmrcRoutes::default();
+        auth
     }
 
     fn from_ini_with_options<Sys: EnvVar>(

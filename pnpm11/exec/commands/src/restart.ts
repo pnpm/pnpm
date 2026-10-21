@@ -8,17 +8,22 @@ import {
   IF_PRESENT_OPTION_HELP,
   type RunOpts,
 } from './run.js'
+import { INSTALL_CLI_OPTION_NAMES } from './runDepsStatusCheck.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
+      ...INSTALL_CLI_OPTION_NAMES,
       'npm-path',
     ], allTypes),
   }
 }
 
 export function cliOptionsTypes (): Record<string, unknown> {
-  return IF_PRESENT_OPTION
+  return {
+    ...rcOptionsTypes(),
+    ...IF_PRESENT_OPTION,
+  }
 }
 
 export const commandNames = ['restart']

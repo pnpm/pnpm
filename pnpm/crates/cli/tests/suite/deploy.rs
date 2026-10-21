@@ -1143,3 +1143,5 @@ mod source_isolation;
 mod local_dependencies;
 
 mod self_containment;
+
+mod reproducible;

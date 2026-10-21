@@ -69,8 +69,13 @@ pub async fn prepare_config<Reporter: self::Reporter>(
     dir: &Path,
 ) -> Result<Vec<Arc<dyn PnpmfileHooks>>> {
     let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-    install_config_deps::<Reporter>(config, &config_root, config.frozen_lockfile.unwrap_or(false))
-        .await?;
+    install_config_deps::<Reporter>(
+        config,
+        &config_root,
+        config.frozen_lockfile.unwrap_or(false),
+        pnpm_env_installer::ConfigDepsInstallMode::Bootstrap,
+    )
+    .await?;
     apply_config_dependency_settings(config)?;
     run_update_config_hooks::<Reporter>(config, &config_root).await
 }

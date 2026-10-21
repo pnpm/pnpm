@@ -17,6 +17,7 @@ import { canUsePnprForInstall, pnpmfileHookPnprCannotRun } from './pnpr.js'
 
 export type { BeforeLifecycleScriptsResult }
 export { IgnoredBuildsError } from './ignoredBuilds.js'
+export { verifyPatchesOfLockfiles } from './lockfileState.js'
 export { mutateModules } from './mutateModules.js'
 export type {
   DependenciesMutation,
@@ -53,7 +54,7 @@ export async function install (
     })
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -75,7 +76,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations, dryRunResult }
 }
 
 export async function mutateModulesInSingleProject (
@@ -129,7 +130,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -158,5 +159,5 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations }
 }

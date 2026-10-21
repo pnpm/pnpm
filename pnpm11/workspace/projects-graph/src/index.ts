@@ -104,6 +104,7 @@ function parseDependencySpec (
   isWorkspaceSpec: boolean
 ): { depName: string, rawSpec: string, spec: { fetchSpec: string, type: string } } | undefined {
   try {
+    const isLinkSpec = !isWorkspaceSpec && rawSpec.startsWith('link:')
     if (isWorkspaceSpec) {
       const npmSpec = workspacePrefToNpm(rawSpec)
       if (isRelativePathSpec(npmSpec)) {
@@ -113,8 +114,13 @@ function parseDependencySpec (
       }
     } else if (rawSpec.startsWith('npm:')) {
       ({ depName, rawSpec } = parseRegistrySpec(depName, rawSpec))
+    } else if (isLinkSpec) {
+      rawSpec = `file:${rawSpec.slice('link:'.length)}`
     }
     const spec = npa.resolve(depName, rawSpec, projectRootDir)
+    if (isLinkSpec && spec.type === 'file') {
+      spec.type = 'directory'
+    }
     return { depName, rawSpec, spec }
   } catch {
     return undefined

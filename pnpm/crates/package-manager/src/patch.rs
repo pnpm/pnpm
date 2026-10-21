@@ -1,3 +1,5 @@
+pub use verify_projects::{VerifyProjectPatchesError, verify_patches_against_project_lockfiles};
+
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, InstallPackageBySnapshotError, import_indexed_dir,
     tarball_url_and_integrity,
@@ -69,6 +71,8 @@ pub enum PatchTargetError {
     #[diagnostic(code(ERR_PNPM_PATCH_VERSION_NOT_FOUND))]
     VersionNotFound { requested: String, hint: String },
 }
+
+mod verify_projects;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]

@@ -74,6 +74,7 @@ pub(super) fn rewrite_dist_tarball(
     let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
+    dist.remove("pnpr");
     rewrite_dist_attestations(dist, pkg, version.as_deref(), public_url);
     if let Some(source_registry) = source_registry {
         rewrite_upstream_revision_tarball_urls(dist, source_registry, public_url);

@@ -92,9 +92,8 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
 
 /// The output of a setup whose CLI install succeeded.
 ///
-/// A shell that names no config file to edit, as in a container with no
-/// `SHELL`, still leaves pnpm installed, so setup succeeds and prints the
-/// lines to add by hand. Every other error fails the setup.
+/// Unavailable shell configuration or registry access leaves pnpm installed,
+/// with instructions for configuring the environment manually.
 fn render_env_path_outcome(
     result: Result<PathExtenderReport, PathExtenderError>,
     pnpm_home_dir: &Path,
@@ -104,8 +103,25 @@ fn render_env_path_outcome(
         Err(
             error @ (PathExtenderError::UnknownShell | PathExtenderError::NoShellConfig { .. }),
         ) => Ok(render_manual_setup_output(&error, pnpm_home_dir)),
+        Err(error @ (PathExtenderError::RegRead | PathExtenderError::FailedSetEnv { .. })) => {
+            Ok(render_windows_manual_setup_output(&error, pnpm_home_dir))
+        }
         Err(error) => Err(error.into()),
     }
+}
+
+fn render_windows_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
+    let mut quoted_home = String::new();
+    for character in pnpm_home_dir.to_string_lossy().chars() {
+        quoted_home.push(character);
+        // PowerShell also treats typographic apostrophes as string delimiters.
+        if matches!(character, '\'' | '\u{2018}'..='\u{201b}') {
+            quoted_home.push(character);
+        }
+    }
+    format!(
+        "{reason}\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = '{quoted_home}'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+    )
 }
 
 fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {

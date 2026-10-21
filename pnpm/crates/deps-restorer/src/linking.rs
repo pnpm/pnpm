@@ -10,8 +10,7 @@
 use crate::{
     LinkVirtualStoreBins, SkippedSnapshots, SymlinkDirectDependencies,
     install_frozen_lockfile::{
-        HoistPlan, HoistedLinkerError, HoistedLinkerInputs, collect_public_hoist_targets,
-        compute_hoist_plan, run_hoisted_linker, workspace_packages_for_hoist,
+        HoistPlan, HoistedLinkerError, HoistedLinkerInputs, run_hoisted_linker,
     },
     link_direct_dep_bins_resolved, link_root_component_members,
 };
@@ -199,47 +198,6 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     write_project_links::<Reporter>(inputs, skipped, hoist.plan)
 }
 
-/// Planned before the links are written, not with them: an importer's
-/// dep that public-hoist lands at root has to be in
-/// `SymlinkDirectDependencies`'s dedupe map, and [`write_hoist_links`]
-/// reuses the plan rather than walking a second time.
-struct PlannedHoist {
-    plan: Option<HoistPlan>,
-    public_targets: Option<BTreeMap<String, PathBuf>>,
-}
-
-fn plan_hoist(inputs: &LinkPhaseInputs<'_>, skipped: &SkippedSnapshots) -> PlannedHoist {
-    let config = inputs.ctx.config;
-    // `hoistWorkspacePackages`: named non-root projects become hoist
-    // candidates whose links point at the project dirs.
-    let hoisted_workspace_packages = config.hoist_workspace_packages.then(|| {
-        workspace_packages_for_hoist(inputs.ctx.workspace_root, inputs.projects.manifests)
-    });
-    let phase_start = std::time::Instant::now();
-    let plan = compute_hoist_plan(
-        config,
-        inputs.graph.lockfile.snapshots.as_ref(),
-        inputs.graph.lockfile.packages.as_ref(),
-        &inputs.graph.lockfile.importers,
-        inputs.projects.dependency_groups,
-        skipped,
-        inputs.ctx.is_hoisted(),
-        hoisted_workspace_packages.as_ref(),
-    );
-    let public_targets = plan
-        .as_ref()
-        .map(|plan| {
-            collect_public_hoist_targets(
-                &plan.result,
-                &plan.graph,
-                inputs.ctx.linker.layout,
-                &plan.skipped,
-            )
-        });
-    tracing::info!(target: "pacquet::install::phase", phase = "link.hoist_plan", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
-    PlannedHoist { plan, public_targets }
-}
-
 /// Reconcile first, so stale direct-dep and orphaned hoist links vacate
 /// the slots the relink + rehoist claim. This `removed` pairs with the
 /// `added` that `CreateVirtualStore` emits, keeping it one pair per
@@ -251,7 +209,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
     hoist: &PlannedHoist,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
-    prune_importer_tree::<Reporter>(inputs, hoist.plan.as_ref())?;
+    prune_importer_tree::<Reporter>(inputs, hoist)?;
 
     let scheduled_builds = inputs.scheduled_builds();
     let phase_start = std::time::Instant::now();
@@ -276,6 +234,7 @@ fn relink_importer_tree<Reporter: self::Reporter>(
         dependency_groups: inputs.projects.dependency_groups.iter().copied(),
 
         package_manifests: Some(inputs.packages.package_manifests),
+        package_bins: inputs.packages.package_bins,
         requires_build_by_snapshot: inputs.packages.requires_build_by_snapshot,
         scheduled_builds: scheduled_builds.as_ref(),
     }
@@ -298,22 +257,37 @@ fn relink_importer_tree<Reporter: self::Reporter>(
 
 fn prune_importer_tree<Reporter: self::Reporter>(
     inputs: &LinkPhaseInputs<'_>,
-    hoist_plan: Option<&HoistPlan>,
+    hoist: &PlannedHoist,
 ) -> Result<(), LinkPhaseError> {
     let config = inputs.ctx.config;
     let current_lockfile = inputs.graph.current_lockfile.unwrap_or(inputs.graph.lockfile);
+    let wanted_hoisted = hoist.plan.as_ref().map(|plan| &plan.result.hoisted_dependencies);
     let removed_count = crate::PruneStaleModules {
         config,
         workspace_root: inputs.projects.symlink_root,
         wanted_lockfile: inputs.graph.lockfile,
         current_lockfile,
         prior_hoisted_dependencies: inputs.prior.hoisted_dependencies,
-        wanted_hoisted_dependencies: hoist_plan.map(|plan| &plan.result.hoisted_dependencies),
+        wanted_hoisted_dependencies: wanted_hoisted,
         included_groups: inputs.projects.dependency_groups,
-        prune_orphans: inputs.prior.prune_orphans,
+        prune_orphans: inputs.prior.prune.orphans,
     }
     .run::<Reporter>()
     .map_err(LinkPhaseError::PruneStaleModules)?;
+    if inputs.prior.prune.direct_dependencies {
+        crate::prune_extraneous_deps::PruneExtraneousDirectDeps {
+            config,
+            workspace_root: inputs.projects.symlink_root,
+            wanted_lockfile: inputs.graph.lockfile,
+            wanted_hoisted_dependencies: wanted_hoisted,
+            public_hoist_targets: hoist.public_targets.as_ref(),
+            manifests: inputs.projects.manifests,
+            included_groups: inputs.projects.dependency_groups,
+            selected_importer_ids: inputs.prior.prune.importer_ids,
+        }
+        .run::<Reporter>()
+        .map_err(LinkPhaseError::PruneStaleModules)?;
+    }
     Reporter::emit(&LogEvent::Stats(StatsLog {
         level: LogLevel::Debug,
         message: StatsMessage::Removed {
@@ -340,6 +314,7 @@ fn link_virtual_store_bins(
         selected_snapshots: inputs.graph.materialized_snapshots,
         packages: inputs.graph.lockfile.packages.as_ref(),
         package_manifests: inputs.packages.package_manifests,
+        package_bins: inputs.packages.package_bins,
         skipped,
         link_options: inputs.ctx.linker.bin_options,
     }
@@ -475,24 +450,7 @@ fn link_hoisted_projects<Reporter: self::Reporter>(
         .map(Option::unwrap_or_default)
 }
 
-/// Publicly hoisted *workspace* packages are the one source of root
-/// bins nothing else shims: every importer's direct-dep bins were
-/// written by `SymlinkDirectDependencies`, and publicly hoisted regular
-/// packages go through the post-build top-level pass
-/// (`publicly_hoisted_for_post_build`) — but that pass resolves bins out
-/// of virtual-store slots, which a workspace project doesn't have.
-/// Collected before [`write_hoist_links`] consumes the plan; shimmed after
-/// the hoist symlinks land.
-fn public_workspace_bin_deps(plan: Option<&HoistPlan>) -> Vec<(String, PathBuf)> {
-    plan.map(|plan| {
-        plan.result.hoisted_workspace_aliases
-            .iter()
-            .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
-            .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
-            .collect()
-    })
-    .unwrap_or_default()
-}
-
 mod hoist_links;
-use hoist_links::{HoistLinks, write_hoist_links};
+use hoist_links::{
+    HoistLinks, PlannedHoist, plan_hoist, public_workspace_bin_deps, write_hoist_links,
+};

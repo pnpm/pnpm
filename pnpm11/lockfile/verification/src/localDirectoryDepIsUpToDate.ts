@@ -14,6 +14,7 @@ import {
 import type { PackageSnapshot, PackageSnapshots } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
+import { parseGitSpecCommittishAndPath } from '@pnpm/resolving.git-resolver'
 import type { DirectoryResolution } from '@pnpm/resolving.resolver-base'
 import type { DependencyManifest, ReadPackageHook } from '@pnpm/types'
 import { safeReadParentPublishManifest, safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
@@ -89,14 +90,53 @@ export async function localDirectoryDepIsUpToDate (
   pkgSnapshot: PackageSnapshot,
   parentPkgAliases: Record<string, unknown> = {}
 ): Promise<boolean> {
+  return localDirectoryDepIsUpToDateRec(ctx, pkgSnapshot, {
+    parentPkgAliases,
+    visited: new Map(),
+    recordedPeers: recordedPeersOf(ctx.lockfilePackages),
+  })
+}
+
+interface DirectoryWalk {
+  /** The aliases of every ancestor, which supply the package's peers. */
+  parentPkgAliases: Record<string, unknown>
+  /** The peer scopes each snapshot was checked in. */
+  visited: Map<PackageSnapshot, Set<string>>
+  /**
+   * Every peer the lockfile records for a package, which bounds the part of
+   * a scope the descendants of a package can take.
+   */
+  recordedPeers: string[]
+}
+
+const recordedPeersByPackages = new WeakMap<object, string[]>()
+
+function recordedPeersOf (lockfilePackages: LocalDirectoryDepContext['lockfilePackages']): string[] {
+  if (lockfilePackages == null) return []
+  let peers = recordedPeersByPackages.get(lockfilePackages)
+  if (peers == null) {
+    peers = Array.from(new Set(Object.values(lockfilePackages).flatMap((pkg) => Object.keys(pkg.peerDependencies ?? {}))))
+    recordedPeersByPackages.set(lockfilePackages, peers)
+  }
+  return peers
+}
+
+async function localDirectoryDepIsUpToDateRec (
+  ctx: LocalDirectoryDepContext,
+  pkgSnapshot: PackageSnapshot,
+  walk: DirectoryWalk
+): Promise<boolean> {
   if (!('directory' in (pkgSnapshot.resolution ?? {}))) return true
   const localDepDir = path.join(ctx.lockfileDir, (pkgSnapshot.resolution as DirectoryResolution).directory)
   const manifest = await readHookedManifestOnce(ctx, localDepDir)
   if (!manifest) return false
+  // A revisit in the same peer scope is a cycle or a shared dependency that
+  // is already being checked.
+  if (!markVisited(walk, pkgSnapshot, manifest)) return true
   if (!recordedPeersMatch(ctx, manifest, pkgSnapshot)) return false
   const children = getNonDevWantedDependencies(prepareDependencyManifest(clone(manifest), {
     autoInstallPeers: ctx.resolution?.autoInstallPeers ?? true,
-    parentPkgAliases,
+    parentPkgAliases: walk.parentPkgAliases,
   }))
   if (!recordedChildrenAreExpected(manifest, children, pkgSnapshot)) return false
   const localDep: LocalDirectoryDep = {
@@ -105,7 +145,35 @@ export async function localDirectoryDepIsUpToDate (
     manifestsByDir: ctx.manifestsByDir,
     workspaceRoot: ctx.workspaceDir ?? ctx.lockfileDir,
   }
-  return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child))
+  const childWalk: DirectoryWalk = {
+    parentPkgAliases: { ...walk.parentPkgAliases, ...dependencyAliasesOf(pkgSnapshot) },
+    visited: walk.visited,
+    recordedPeers: walk.recordedPeers,
+  }
+  return pEvery.default(children, async (child) => childIsUpToDate(ctx, localDep, pkgSnapshot, child, childWalk))
+}
+
+/** Records the snapshot in its peer scope. `false` when it was already there. */
+function markVisited (walk: DirectoryWalk, pkgSnapshot: PackageSnapshot, manifest: DependencyManifest): boolean {
+  const scope = Array.from(new Set([...Object.keys(manifest.peerDependencies ?? {}), ...walk.recordedPeers]))
+    .filter((peer) => Boolean(walk.parentPkgAliases[peer]))
+    .sort()
+    .join('\0')
+  let scopes = walk.visited.get(pkgSnapshot)
+  if (scopes == null) {
+    scopes = new Set()
+    walk.visited.set(pkgSnapshot, scopes)
+  }
+  if (scopes.has(scope)) return false
+  scopes.add(scope)
+  return true
+}
+
+function dependencyAliasesOf (pkgSnapshot: PackageSnapshot): Record<string, true> {
+  return Object.fromEntries([
+    ...Object.keys(pkgSnapshot.dependencies ?? {}),
+    ...Object.keys(pkgSnapshot.optionalDependencies ?? {}),
+  ].map((alias) => [alias, true as const]))
 }
 
 /**
@@ -191,7 +259,8 @@ async function childIsUpToDate (
   ctx: LocalDirectoryDepContext,
   localDep: LocalDirectoryDep,
   pkgSnapshot: PackageSnapshot,
-  child: ManifestWantedDependency
+  child: ManifestWantedDependency,
+  walk: DirectoryWalk
 ): Promise<boolean> {
   const recorded = child.optional ? pkgSnapshot.optionalDependencies : pkgSnapshot.dependencies
   const lockfileDep = recorded?.[child.alias]
@@ -203,27 +272,92 @@ async function childIsUpToDate (
   const currentSpec = resolveCatalogSpec(ctx, child)
   if (currentSpec == null) return false
   if (isLocalSpec(currentSpec)) {
-    return localSpecIsUpToDate(localDep, { depName: child.alias, currentSpec, lockfileDep })
+    return localChildIsUpToDate(ctx, localDep, pkgSnapshot, child, currentSpec, lockfileDep, walk)
   }
   const locked = lockedPackage(ctx, child.alias, lockfileDep)
   if (locked == null) return false
+  if (isLockedToOtherSource(currentSpec, locked)) return false
   return lockedVersionSatisfies({ alias: child.alias, bareSpecifier: currentSpec }, locked) ??
     (ctx.resolution?.frozenLockfile === true && locked.name === getTargetPkgName(currentSpec, child.alias))
+}
+
+/**
+ * Whether a `link:`, `file:` or `workspace:` child still resolves to the
+ * recorded directory, and that directory's own dependencies still match its
+ * lockfile snapshot.
+ */
+async function localChildIsUpToDate (
+  ctx: LocalDirectoryDepContext,
+  localDep: LocalDirectoryDep,
+  pkgSnapshot: PackageSnapshot,
+  child: ManifestWantedDependency,
+  currentSpec: string,
+  lockfileDep: string,
+  walk: DirectoryWalk
+): Promise<boolean> {
+  if (!await localSpecIsUpToDate(localDep, { depName: child.alias, currentSpec, lockfileDep })) return false
+  // A directory child whose spec still matches can itself be stale: its own
+  // dependencies may have changed without the directory moving. Links have
+  // no dependency snapshot to validate, so only directory children recurse.
+  const depPath = refToRelative(lockfileDep, child.alias)
+  if (depPath == null) return true
+  const childSnapshot = ctx.lockfilePackages?.[depPath]
+  if (childSnapshot == null) {
+    // A workspace child recorded through a file:-resolved parent has no
+    // snapshot of its own; the workspace verifies it through its importer
+    // entry. A file: child with no snapshot has an incomplete lockfile
+    // entry: its own dependencies cannot be validated, so it is stale.
+    return currentSpec.startsWith('workspace:')
+  }
+  return localDirectoryDepIsUpToDateRec(ctx, childSnapshot, walk)
 }
 
 function isLocalSpec (spec: string): boolean {
   return spec.startsWith('link:') || spec.startsWith('file:') || spec.startsWith('workspace:')
 }
 
-/** The name, version and registry of the package a dependency is locked to. */
+/**
+ * Whether a spec that names one exact source, a tarball URL or a git commit,
+ * asks for a source other than the one the package is locked to. The lockfile
+ * keys such a package by the URL or commit it resolved.
+ */
+function isLockedToOtherSource (spec: string, { depPath, name }: { depPath: string, name: string }): boolean {
+  const lockedId = removeSuffix(depPath)
+  const git = parseGitSpecCommittishAndPath(spec)
+  if (git !== undefined) {
+    return git.gitCommittish != null && isFullCommit(git.gitCommittish) &&
+      !isLockedToGitCommit(lockedId, { commit: git.gitCommittish, path: git.path })
+  }
+  if (spec.startsWith('http:') || spec.startsWith('https:')) {
+    // A URL may end in a parenthesized segment, which removeSuffix takes for a peer suffix.
+    return !URL.canParse(spec) || ![depPath, lockedId].includes(`${name}@${new URL(spec).toString()}`)
+  }
+  return false
+}
+
+/** Whether a locked git or hosted-archive id names the commit and subdirectory. */
+function isLockedToGitCommit (lockedId: string, { commit, path }: { commit: string, path?: string }): boolean {
+  const pathIndex = lockedId.lastIndexOf('path:')
+  const lockedSource = pathIndex === -1 ? lockedId : lockedId.slice(0, pathIndex).replace(/[#&]$/, '')
+  const lockedPath = pathIndex === -1 ? undefined : lockedId.slice(pathIndex + 'path:'.length)
+  // Hosted archive ids end in the commit or in `<sha>.tar.gz` or `<project>-<sha>.tar.gz` after it.
+  const lockedCommit = lockedSource.split(/[#/]/).map((segment) => segment.replace(/\.tar\.gz$/, '')).filter(isFullCommit).at(-1)
+  return path === lockedPath && lockedCommit?.toLowerCase() === commit.toLowerCase()
+}
+
+function isFullCommit (committish: string): boolean {
+  return /^[0-9a-f]{40}$/i.test(committish)
+}
+
+/** The dependency path, name, version and registry of the package a dependency is locked to. */
 function lockedPackage (
   ctx: LocalDirectoryDepContext,
   alias: string,
   lockfileDep: string
-): { name: string, version: string, registryName?: string } | undefined {
+): { depPath: string, name: string, version: string, registryName?: string } | undefined {
   const depPath = refToRelative(lockfileDep, alias)
   const locked = depPath == null ? undefined : ctx.lockfilePackages?.[depPath]
-  return depPath == null || locked == null ? undefined : nameVerFromPkgSnapshot(depPath, locked)
+  return depPath == null || locked == null ? undefined : { depPath, ...nameVerFromPkgSnapshot(depPath, locked) }
 }
 
 /**

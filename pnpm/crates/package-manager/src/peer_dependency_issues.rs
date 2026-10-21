@@ -10,10 +10,14 @@
 
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_deps_inspection_peers::peer_issues_for_lockfile;
+use pnpm_deps_inspection_peers::{ProjectManifests, peer_issues_for_lockfile};
 use pnpm_lockfile::Lockfile;
+use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, PeerDependencyIssuesLog};
-use std::{collections::HashSet, path::Path};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use crate::InstallError;
 
@@ -31,17 +35,12 @@ use crate::InstallError;
 /// acted on. A `--filter`ed install leaves every unselected importer in
 /// the lockfile untouched, and pnpm reports only on the projects that
 /// took part in the resolution.
-///
-/// `catalogs` is `None` when the install has no catalog context. Raw
-/// `catalog:` peer ranges in externally linked packages then remain peer
-/// issues instead of becoming catalog-configuration errors.
 pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     resolved_lockfile: Option<&Lockfile>,
     peer_issue_importer_ids: &HashSet<String>,
     installed_importer_ids: &HashSet<String>,
-    lockfile_dir: &Path,
+    workspace: PeerReportWorkspace<'_>,
     config: &Config,
-    catalogs: Option<&Catalogs>,
 ) -> Result<(), InstallError> {
     let Some(lockfile) = resolved_lockfile else { return Ok(()) };
     let mut importer_ids: Vec<String> = peer_issue_importer_ids
@@ -52,14 +51,18 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         })
         .cloned()
         .collect();
+    if importer_ids.is_empty() {
+        return Ok(());
+    }
     importer_ids.sort();
     let Some(report) = peer_issues_for_lockfile(
         lockfile,
-        lockfile_dir,
+        workspace.lockfile_dir,
         &importer_ids,
         &config.peer_dependency_rules,
-        catalogs,
+        workspace.catalogs,
         config.resolve_peers_from_workspace_root,
+        &workspace.manifests(),
     )
     .map_err(InstallError::CatalogResolution)?
     else {
@@ -75,6 +78,34 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         issues_by_projects: serde_json::to_value(report.issues()).unwrap_or_default(),
     }));
     Ok(())
+}
+
+/// The workspace an install's peer report is checked against.
+#[derive(Clone, Copy)]
+pub(crate) struct PeerReportWorkspace<'a> {
+    pub(crate) lockfile_dir: &'a Path,
+    /// `None` when the install has no catalog context. Raw `catalog:` peer
+    /// ranges in externally linked packages then remain peer issues instead
+    /// of becoming catalog-configuration errors.
+    pub(crate) catalogs: Option<&'a Catalogs>,
+    /// The manifests the install read, before `packageExtensions` and
+    /// `readPackage`. A `link:` to one of these projects is checked without
+    /// reading its manifest again.
+    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+}
+
+impl<'a> PeerReportWorkspace<'a> {
+    fn manifests(&self) -> ProjectManifests<'a> {
+        self.project_manifests
+            .iter()
+            .map(|(project_dir, manifest)| {
+                (
+                    pnpm_workspace::importer_id_from_root_dir(self.lockfile_dir, project_dir),
+                    *manifest,
+                )
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]

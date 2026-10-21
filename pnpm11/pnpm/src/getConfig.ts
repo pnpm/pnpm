@@ -7,7 +7,7 @@ import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/c
 import { type CliOptions, type Config, type ConfigContext, getConfig as _getConfig } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
 import { requireHooks } from '@pnpm/hooks.pnpmfile'
-import { resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
+import { type ConfigDepsInstallMode, readConfigDependencyLockfile, resolveAndInstallConfigDeps } from '@pnpm/installing.env-installer'
 import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
@@ -76,6 +76,7 @@ export async function installConfigDepsAndLoadHooks (
   context: ConfigContext,
   opts?: {
     tolerateConfigDependenciesErrors?: boolean
+    reconcileConfigDependencies?: boolean
     // Set by `self-update`: don't auto-load the repo-controlled default
     // `.pnpmfile.(c|m)js`. Its `updateConfig` hook could rewrite any setting —
     // including the release-age policy the config reader just resolved for
@@ -86,13 +87,11 @@ export async function installConfigDepsAndLoadHooks (
     forSelfUpdate?: boolean
   }
 ): Promise<{ config: Config, context: ConfigContext }> {
-  let configDependenciesVerified = false
-  if (config.configDependencies) {
-    configDependenciesVerified = await installConfigDeps(config, context, {
-      configDependencies: config.configDependencies,
-      tolerateErrors: opts?.tolerateConfigDependenciesErrors,
-    })
-  }
+  const configDependenciesVerified = await installConfigDeps(config, context, {
+    configDependencies: config.configDependencies ?? {},
+    mode: opts?.reconcileConfigDependencies ? 'reconcile' : 'bootstrap',
+    tolerateErrors: opts?.tolerateConfigDependenciesErrors,
+  })
   if (config.ignorePnpmfile) {
     return { config, context }
   }
@@ -105,8 +104,12 @@ export async function installConfigDepsAndLoadHooks (
 async function installConfigDeps (
   config: Config,
   context: ConfigContext,
-  opts: { configDependencies: ConfigDependencies, tolerateErrors?: boolean }
+  opts: { configDependencies: ConfigDependencies, mode: ConfigDepsInstallMode, tolerateErrors?: boolean }
 ): Promise<boolean> {
+  const rootDir = config.lockfileDir ?? context.rootProjectManifestDir
+  const envLockfile = await readConfigDependencyLockfile(opts.configDependencies, rootDir, opts.mode)
+    .catch((err: unknown) => handleConfigDependencyError(err, opts.tolerateErrors))
+  if (!envLockfile) return false
   const store = await createStoreController({ ...config, ...context, skipBypassedHomeStoreWarning: true })
   try {
     await resolveAndInstallConfigDeps(opts.configDependencies, {
@@ -114,23 +117,27 @@ async function installConfigDeps (
       ...context,
       store: store.ctrl,
       storeDir: store.dir,
-      rootDir: config.lockfileDir ?? context.rootProjectManifestDir,
+      rootDir,
+      envLockfile,
+      mode: opts.mode,
       frozenLockfile: config.frozenLockfile,
     })
     return true
   } catch (err: unknown) {
-    if (!opts.tolerateErrors || isConfigDependencyVerificationError(err)) {
-      throw err
-    }
-    const errorMessage = isError(err) ? err.message : String(err)
-    logger.debug({
-      message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
-      err,
-    })
-    return false
+    return handleConfigDependencyError(err, opts.tolerateErrors)
   } finally {
     await store.ctrl.close()
   }
+}
+
+function handleConfigDependencyError (err: unknown, tolerateErrors: boolean | undefined): false {
+  if (!tolerateErrors || isConfigDependencyVerificationError(err)) throw err
+  const errorMessage = isError(err) ? err.message : String(err)
+  logger.debug({
+    message: `Failed to install configDependencies. This is expected if authentication is not yet configured. Proceeding. Error: ${errorMessage}`,
+    err,
+  })
+  return false
 }
 
 /**

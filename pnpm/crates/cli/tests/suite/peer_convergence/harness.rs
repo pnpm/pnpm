@@ -1,5 +1,4 @@
-use crate::_utils::{ManifestDeps, WorkspaceFixture, write_project_manifest};
-use pnpm_testing_utils::command_env::CommandTestExt;
+use crate::_utils::{ManifestDeps, WorkspaceFixture, read_v11_bundle_path, write_project_manifest};
 use serde_json::Value;
 use std::{
     cell::RefCell,
@@ -7,7 +6,7 @@ use std::{
     ffi::OsString,
     fmt, fs,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::Output,
 };
 
 pub(super) type Deps = &'static [(&'static str, &'static str)];
@@ -153,7 +152,7 @@ impl Harness {
         let v12 = Self::new(Cli::V12, projects, moves, divergences);
         let v12_fresh = v12.check_rows();
         let mut violations = v12.violations.into_inner();
-        if let Some(bundle) = std::env::var_os("PNPM_V11_BUNDLE") {
+        if let Some(bundle) = read_v11_bundle_path() {
             let v11 = Self::new(Cli::V11(bundle), v12.projects, v12.moves, v12.divergences);
             let v11_fresh = v11.check_rows();
             for (row, v11_lockfile) in &v11_fresh {
@@ -223,6 +222,8 @@ impl Harness {
         .expect("write pnpm-workspace.yaml");
         self.write_manifests(self.dep_count(), false);
         let fresh = self.install(row, "a fresh install")?;
+        self.check_repeat(row, &fresh);
+        self.check_run_gate(row);
         self.check_frozen(row, &fresh);
         self.check_dedupe(row);
         self.check_deploys(row);
@@ -230,6 +231,29 @@ impl Harness {
         self.check_incremental(row, &fresh);
         self.check_moves(row, &fresh);
         Some(fresh)
+    }
+
+    fn check_repeat(&self, row: Row, fresh: &str) {
+        if let Some(repeat) = self.install(row, "a repeat install")
+            && repeat != fresh
+        {
+            let what = format!("a repeat install changed the lockfile:\n{}", diff(fresh, &repeat));
+            self.violation(row, &what, None);
+        }
+    }
+
+    fn check_run_gate(&self, row: Row) {
+        let output = self.run(
+            self.workspace(),
+            &["--config.verify-deps-before-run=error", "exec", "node", "-e", ""],
+        );
+        if !output.status.success() {
+            self.violation(
+                row,
+                "verifyDepsBeforeRun=error failed right after a fresh install",
+                Some(&output),
+            );
+        }
     }
 
     fn check_frozen(&self, row: Row, fresh: &str) {
@@ -458,15 +482,7 @@ impl Harness {
         let Cli::V11(bundle) = &self.cli else {
             return self.fixture.command_at(cwd, args);
         };
-        Command::new("node")
-            .without_ambient_pnpm_config()
-            .arg(bundle)
-            .current_dir(cwd)
-            .env("PNPM_CONFIG_REGISTRY", self.fixture.registry.mock_instance.url())
-            .arg("--reporter=ndjson")
-            .args(args)
-            .output()
-            .expect("run the pnpm v11 bundle")
+        self.fixture.v11_command_at(bundle, cwd, args)
     }
 
     /// `install` over whatever lockfile is there, returning the lockfile it

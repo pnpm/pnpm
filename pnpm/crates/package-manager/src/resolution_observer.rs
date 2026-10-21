@@ -9,7 +9,7 @@
 //! while the server is still resolving.
 
 use crate::install_package_from_registry::{
-    extract_tarball, manifest_file_count, manifest_unpacked_size,
+    extract_tarball, manifest_file_count, manifest_requires_build, manifest_unpacked_size,
 };
 use dashmap::DashSet;
 use pnpm_resolving_resolver_base::{
@@ -41,6 +41,9 @@ pub struct ResolvedPackageHint<'a> {
     /// Registry artifact revision. Its presence selects the immutable
     /// one-request, no-redirect download policy on the client.
     pub revision: Option<u64>,
+    /// `dist.pnpr.requiresBuild` from the resolver-fetched manifest, when
+    /// the registry published one.
+    pub requires_build: Option<bool>,
     /// Whether the package resolved from a registry (npm / named / jsr), so
     /// [`Self::tarball_url`] is the registry packument's `dist.tarball`. A
     /// server router must classify such a package by its *registry* route, not
@@ -147,6 +150,7 @@ impl ObservingResolver {
             unpacked_size: manifest_unpacked_size(result.package.manifest.as_deref()),
             file_count: manifest_file_count(result.package.manifest.as_deref()),
             revision,
+            requires_build: manifest_requires_build(result.package.manifest.as_deref()),
             from_registry: is_registry_resolution(&result.resolved_via),
             identity: crate::ResolvedPackageIdentity { id: &id, name: &name, version: &version },
         });

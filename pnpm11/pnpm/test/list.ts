@@ -369,4 +369,29 @@ test('list shows correct package path when nodeLinker is hoisted', async () => {
   )
 })
 
+test('why from workspace root without -r inspects projects with separate lockfiles', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+    },
+    {
+      location: 'packages/project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+  await execPnpm(['install'])
+
+  const { stdout } = execPnpmSync(['why', '@pnpm.e2e/dep-of-pkg-with-1-dep'], { expectSuccess: true })
+  const output = stdout.toString()
+  expect(output).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(output).toContain('project-1@1.0.0')
+  expect(output).toContain('project-2@1.0.0')
+  expect(output).toContain('Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
 

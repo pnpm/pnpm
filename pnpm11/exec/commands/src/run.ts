@@ -19,7 +19,7 @@ import { createLifecycleOpts, suppressesScriptEcho } from './createLifecycleOpts
 import { handler as exec } from './exec.js'
 import { throwOrFilterHiddenScripts } from './hiddenScripts.js'
 import { printProjectCommands } from './printProjectCommands.js'
-import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { INSTALL_CLI_OPTION_NAMES, runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { getSpecifiedScripts as getSpecifiedScriptWithoutStartCommand, type RecursiveRunOpts, runRecursive } from './runRecursive.js'
 import { getRunScriptCommands, projectLockfilesOf, runScript, type RunScriptOptions } from './runScript.js'
 
@@ -93,6 +93,7 @@ export const shorthands: Record<string, string[]> = {
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
+      ...INSTALL_CLI_OPTION_NAMES,
       'npm-path',
       'node-experimental-package-map',
       'node-package-map-type',
@@ -102,6 +103,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
 
 export function cliOptionsTypes (): Record<string, unknown> {
   return {
+    ...rcOptionsTypes(),
     ...pick([
       'bail',
       'sort',

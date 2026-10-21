@@ -2,6 +2,7 @@ pub(crate) use configuration::{
     apply_install_cli_config, derive_config_root, warn_about_config_root,
 };
 pub(crate) use install::InstallPipeline;
+pub(in crate::cli_args) use install::run_dedicated_lockfile_workspace_install;
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
 pub(crate) use selection::{WorkspaceScope, select_workspace_projects};
@@ -183,6 +184,14 @@ impl DedicatedProjects {
     }
 }
 
+/// The declared `"name"` of a workspace project, when it is a string.
+pub(crate) fn project_manifest_name(project: &pnpm_workspace::Project) -> Option<&str> {
+    project.manifest
+        .value()
+        .get("name")?
+        .as_str()
+}
+
 /// The declared name of every project that declares one, keyed by its
 /// directory. Empty when `packageConfigs` is unset: addressing a project
 /// by name is the only thing the map feeds.
@@ -196,10 +205,7 @@ pub(crate) fn project_names(
     projects
         .iter()
         .filter_map(|project| {
-            let name = project.manifest
-                .value()
-                .get("name")?
-                .as_str()?;
+            let name = project_manifest_name(project)?;
             Some((project.root_dir.clone(), name.to_string()))
         })
         .collect()

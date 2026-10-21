@@ -121,8 +121,8 @@ fn rank_verdicts(
         return Err(error);
     }
     let integrity = resource.integrity?;
-    let (cas_paths, pkg_files_idx) = resource.extracted?;
-    Ok((integrity, cas_paths, pkg_files_idx))
+    let (cas_paths, pkg_files_idx, bins) = resource.extracted?;
+    Ok((integrity, cas_paths, pkg_files_idx, bins))
 }
 
 /// The extractor's end of the body stream. The extractor reads the whole

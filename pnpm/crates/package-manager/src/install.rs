@@ -42,7 +42,7 @@ use crate::{
     HoistedDependencies, InstallFrozenLockfile, InstallWithFreshLockfile,
     InstallWithFreshLockfileError, LockfileVerificationOverride, OptimisticRepeatInstallCheck,
     RebuildOptions, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install, emit_initial_package_manifest, link_project_bins,
+    emit_initial_package_manifest, link_project_bins,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
     prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
@@ -541,6 +541,10 @@ struct InstallSaveOptions {
 #[derive(Default)]
 struct InstallManifestOptions<'install> {
     deploy_hook: bool,
+    /// pnpm's `pruneDirectDependencies`: scan each importer's `node_modules`
+    /// and remove extraneous direct entries not recorded in the wanted
+    /// lockfile or public hoist set. Only `pacquet prune` sets it.
+    prune_direct_dependencies: bool,
     /// Project manifests used only as the source for lockfile importer
     /// specifiers. `pacquet update --no-save` resolves against an in-memory
     /// manifest rewrite but must serialize importer specifiers from the
@@ -556,6 +560,8 @@ struct InstallManifestOptions<'install> {
     hooked_paths: HashSet<PathBuf>,
     /// See [`crate::ManifestSpecBumps`]. Only `pacquet update` sets it.
     spec_bumps: Option<&'install crate::ManifestSpecBumps>,
+    /// Pre-seeded `requiresBuild` verdicts from a `pnpr` resolve stream.
+    known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
 }
 
 impl Default for InstallRunOptions<'_, '_> {
@@ -570,9 +576,11 @@ impl Default for InstallRunOptions<'_, '_> {
             prompt_eligibility_override: None,
             manifests: crate::install::InstallManifestOptions {
                 deploy_hook: false,
+                prune_direct_dependencies: false,
                 specifier_manifests: None,
                 hooked_paths: HashSet::new(),
                 spec_bumps: None,
+                known_requires_build: None,
             },
         }
     }

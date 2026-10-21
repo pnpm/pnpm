@@ -7,7 +7,10 @@ import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { prepare } from '@pnpm/prepare'
 
+const envInstaller = await import('@pnpm/installing.env-installer')
+
 jest.unstable_mockModule('@pnpm/installing.env-installer', () => ({
+  ...envInstaller,
   resolveAndInstallConfigDeps: jest.fn(),
 }))
 
@@ -213,6 +216,33 @@ test('hoist: false removes hoistPattern', async () => {
 })
 
 describe('installConfigDepsAndLoadHooks', () => {
+  test.each([false, true])('handles malformed lockfiles before opening the store (tolerate=%s)', async (tolerateConfigDependenciesErrors) => {
+    prepare()
+    fs.writeFileSync('pnpm-lock.yaml', '---\nlockfileVersion: [invalid\n---\n')
+    const { config, context } = buildBaseConfig()
+    const result = installConfigDepsAndLoadHooks(config, context, { tolerateConfigDependenciesErrors })
+    if (tolerateConfigDependenciesErrors) {
+      await expect(result).resolves.toBeDefined()
+      expect(loggerMock.debug).toHaveBeenCalledWith(expect.objectContaining({
+        message: expect.stringContaining('Failed to install configDependencies'),
+      }))
+    } else {
+      await expect(result).rejects.toThrow()
+      expect(loggerMock.debug).not.toHaveBeenCalled()
+    }
+    expect(createStoreController).not.toHaveBeenCalled()
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+  })
+
+  test.each([false, true])('does not open the store without config dependencies (reconcile=%s)', async (reconcileConfigDependencies) => {
+    prepare()
+    const { config, context } = buildBaseConfig()
+    delete config.configDependencies
+    await installConfigDepsAndLoadHooks(config, context, { reconcileConfigDependencies })
+    expect(createStoreController).not.toHaveBeenCalled()
+    expect(resolveAndInstallConfigDeps).not.toHaveBeenCalled()
+  })
+
   test('proceeds normally when configDependencies install succeeds', async () => {
     prepare()
 

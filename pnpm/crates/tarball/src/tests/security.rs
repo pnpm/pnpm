@@ -104,11 +104,17 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
 
 /// An absolute entry path names a destination of its own, so joining
 /// it onto the package directory would write wherever the archive says.
-/// A leading `\` counts, since it is the separator pnpm folds to `/`
-/// before validating.
+/// A leading `\` or a Windows drive-prefixed segment counts, since `\`
+/// is folded to `/` and stripping `package/` from `package/C:/...`
+/// would otherwise leave a drive-prefixed path on Windows.
 #[test]
 fn extract_rejects_an_absolute_entry_path() {
-    for name in [&b"/etc/passwd"[..], &br"\windows\evil.txt"[..]] {
+    for name in [
+        &b"/etc/passwd"[..],
+        &br"\windows\evil.txt"[..],
+        &b"C:/windows/evil.txt"[..],
+        &b"package/C:/windows/evil.txt"[..],
+    ] {
         let (tempdir, store_path) = tempdir_with_leaked_path();
 
         let tar_bytes = tar_with_raw_entry_name(name, b"bytes");

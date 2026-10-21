@@ -109,8 +109,8 @@ jobs:
               - '.github/workflows/pacquet-ci.yml'
             changesets:
               - '.changeset/**'
-            # What decides the lockfile either CLI writes, for the job that
-            # runs the peer convergence harness through both.
+            # What decides the lockfile or workspace state either CLI writes,
+            # for the job that runs the convergence harnesses through both.
             convergence:
               - 'pnpm/crates/resolving-*/**'
               - 'pnpm/crates/lockfile*/**'
@@ -119,19 +119,42 @@ jobs:
               - 'pnpm/crates/cli/src/cli_args/deploy/**'
               - 'pnpm/crates/cli/src/cli_args/dispatch_install*'
               - 'pnpm/crates/cli/src/cli_args/dispatch_install/**'
+              - 'pnpm/crates/cli/src/cli_args/exec*'
+              - 'pnpm/crates/cli/src/cli_args/exec/**'
               - 'pnpm/crates/cli/src/cli_args/install*'
               - 'pnpm/crates/cli/src/cli_args/install/**'
               - 'pnpm/crates/cli/src/cli_args/dedupe*'
               - 'pnpm/crates/cli/src/cli_args/dedupe/**'
+              - 'pnpm/crates/cli/src/cli_args/recursive*'
+              - 'pnpm/crates/cli/src/cli_args/recursive/**'
+              - 'pnpm/crates/cli/src/cli_args/run*'
+              - 'pnpm/crates/cli/src/cli_args/run/**'
+              - 'pnpm/crates/cli/src/cli_args/verify_deps*'
+              - 'pnpm/crates/cli/src/cli_args/dispatch/configuration*'
+              - 'pnpm/crates/cli/src/config_overrides*'
+              - 'pnpm/crates/cli/src/config_overrides/**'
+              - 'pnpm/crates/cli/src/cli_args/workspace_state*'
+              - 'pnpm/crates/workspace-state/**'
+              - 'pnpm/crates/cli/tests/suite/_utils/**'
               - 'pnpm/crates/cli/tests/suite/peer_convergence.rs'
+              - 'pnpm/crates/cli/tests/suite/peer_convergence/**'
+              - 'pnpm/crates/cli/tests/suite/repeat_install_oracle.rs'
+              - 'pnpm/crates/cli/tests/suite/pnpm_compatibility.rs'
+              - 'pnpm/crates/cli/tests/suite/injected_freshness_matrix.rs'
+              - 'pnpm/crates/cli/tests/suite/version.rs'
+              - 'pnpm/crates/testing-utils/**'
               - 'pnpm/crates/config/**'
+              - 'pnpm11/deps/status/**'
+              - 'pnpm11/exec/commands/**'
               - 'pnpm11/installing/**'
               - 'pnpm11/config/reader/**'
               - 'pnpm11/pnpm/src/**'
               - 'pnpm11/lockfile/**'
               - 'pnpm11/resolving/**'
               - 'pnpm11/releasing/commands/src/deploy/**'
+              - 'pnpm11/workspace/state/**'
               - 'pnpr/.fixtures/**'
+              - '.config/nextest.toml'
               - '.github/workflows/pacquet-ci.yml'
 
   change-check:
@@ -377,9 +400,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # The peer convergence harness through pnpm v11 as well as v12, so a
-  # resolution or lockfile change in either stack cannot make them drift
-  # apart. The harness also runs through v12 alone in the test job above.
+  # The peer convergence and repeat-install oracle harnesses through pnpm v11
+  # as well as v12, so a resolution, lockfile, or workspace-state change in
+  # either stack cannot make them drift apart. Both harnesses also run through
+  # v12 alone in the test job above.
   convergence:
     name: Rust CI / Peer Convergence v11+v12
     needs: changes
@@ -426,12 +450,12 @@ jobs:
           pnpm --filter pnpm exec tsgo --build
           pnpm --filter pnpm run bundle
 
-      - name: Run the peer convergence harness through v11 and v12
+      - name: Run the convergence harnesses through v11 and v12
         run: |
           unset PNPM_HOME
           unset XDG_DATA_HOME
           PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
-            pnpm test:rust -p pnpm-cli -E 'test(/^peer_convergence::/)'
+            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
 
   clippy:
     name: Rust CI / Clippy / ${{ matrix.os_label }}

@@ -4,10 +4,7 @@ use super::{
     now_millis, prepare_config, prints_json_errors,
     warn_shared_workspace_lockfile_outside_workspace,
 };
-use crate::{
-    cli_args::reporter::CliReporter,
-    config_overrides::{ConfigOverrides, apply_registry_override},
-};
+use crate::{cli_args::reporter::CliReporter, config_overrides::ConfigOverrides};
 use pnpm_hooks::PnpmfileHooks;
 use std::sync::Arc;
 
@@ -213,11 +210,12 @@ pub(in crate::cli_args) fn seed_config(
     npmrc_auth_file: Option<&Path>,
     ignore_workspace: bool,
     config_overrides: &ConfigOverrides,
+    registry: Option<&str>,
 ) -> Config {
     Config {
         npmrc_auth_file: npmrc_auth_file.map(Path::to_path_buf),
         ignore_workspace,
-        cli_setting_values: config_overrides.initial_setting_values(),
+        cli: config_overrides.cli_layer(registry),
         ..Config::default()
     }
 }
@@ -243,20 +241,30 @@ pub(super) fn apply_color_override(
 pub(super) fn apply_location_overrides(
     cfg: &mut Config,
     anchor: &Path,
-    registry: Option<&str>,
     store_dir: Option<&Path>,
     state_dir: Option<&Path>,
 ) -> miette::Result<()> {
-    if let Some(registry) = registry {
-        apply_registry_override(cfg, registry);
-    }
     if let Some(store_dir) = store_dir {
         apply_store_dir_override::<Host>(cfg, store_dir, anchor)?;
         cfg.cli_settings.insert("storeDir".to_string());
+        if !cfg.cli.npmrc_tokens
+            .iter()
+            .any(|(key, _)| matches!(key.as_str(), "store-dir" | "storeDir"))
+            && let Some(raw) = store_dir.to_str()
+        {
+            cfg.cli.npmrc_tokens.push(("store-dir".to_string(), raw.to_string()));
+        }
     }
     if let Some(state_dir) = state_dir {
         apply_state_dir_override::<Host>(cfg, state_dir, anchor);
         cfg.cli_settings.insert("stateDir".to_string());
+        if !cfg.cli.npmrc_tokens
+            .iter()
+            .any(|(key, _)| matches!(key.as_str(), "state-dir" | "stateDir"))
+            && let Some(raw) = state_dir.to_str()
+        {
+            cfg.cli.npmrc_tokens.push(("state-dir".to_string(), raw.to_string()));
+        }
     }
     Ok(())
 }

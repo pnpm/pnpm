@@ -168,17 +168,19 @@ fn project_or_disk_manifest<'a>(
     let normalized = pnpm_fs::lexical_normalize(target_dir);
     let manifest_path = target_dir.join("package.json");
     if let Some(manifest) = dirs.manifests_by_dir.get(&normalized) {
-        let canonical_root = loaded_project_boundary(dirs.workspace_root, &normalized, target_dir)?;
+        let canonical_root = loaded_project_boundary(dirs, &normalized, target_dir)?;
         // A project passed in memory may have no `package.json`. One that has
         // a `package.json` linking outside its boundary is not trusted, as the
         // disk read below does not trust it.
         let escapes = std::fs::symlink_metadata(&manifest_path).is_ok()
-            && !std::fs::canonicalize(&manifest_path)
+            && !dirs.canonical_paths
+                .canonicalize(&manifest_path)
                 .is_ok_and(|canonical| pnpm_fs::is_subdir(&canonical_root, &canonical));
         return (!escapes).then_some(Cow::Borrowed(manifest.value()));
     }
-    let canonical_root = target_dir_within_workspace(dirs.workspace_root, target_dir).ok()?;
-    let canonical_manifest = std::fs::canonicalize(&manifest_path).ok()?;
+    let canonical_root =
+        target_dir_within_workspace(dirs.canonical_paths, dirs.workspace_root, target_dir).ok()?;
+    let canonical_manifest = dirs.canonical_paths.canonicalize(&manifest_path).ok()?;
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_manifest) {
         return None;
     }
@@ -187,19 +189,20 @@ fn project_or_disk_manifest<'a>(
 }
 
 fn loaded_project_boundary(
-    workspace_root: &Path,
+    dirs: &super::spec::SpecDirs<'_>,
     normalized_target: &Path,
     target_dir: &Path,
 ) -> Option<PathBuf> {
-    if pnpm_fs::is_subdir(workspace_root, normalized_target) {
-        return target_dir_within_workspace(workspace_root, target_dir).ok();
+    if pnpm_fs::is_subdir(dirs.workspace_root, normalized_target) {
+        return target_dir_within_workspace(dirs.canonical_paths, dirs.workspace_root, target_dir)
+            .ok();
     }
     if std::fs::symlink_metadata(normalized_target)
         .is_ok_and(|metadata| metadata.file_type().is_symlink())
     {
         return None;
     }
-    target_dir_within_workspace(normalized_target, target_dir).ok()
+    target_dir_within_workspace(dirs.canonical_paths, normalized_target, target_dir).ok()
 }
 
 fn publishing_project_manifest<'a>(
@@ -210,7 +213,8 @@ fn publishing_project_manifest<'a>(
         return None;
     }
     if std::fs::symlink_metadata(normalized_target).is_ok()
-        && target_dir_within_workspace(dirs.workspace_root, normalized_target).is_err()
+        && target_dir_within_workspace(dirs.canonical_paths, dirs.workspace_root, normalized_target)
+            .is_err()
     {
         return None;
     }
@@ -234,12 +238,20 @@ fn publishing_project_manifest<'a>(
 /// The canonical workspace root, when `target_dir` lies inside it both as
 /// written and with symlinks resolved. A loaded project is held to this too,
 /// so a project directory that links outside the workspace is not trusted.
-fn target_dir_within_workspace(workspace_root: &Path, target_dir: &Path) -> Result<PathBuf, ()> {
+fn target_dir_within_workspace(
+    canonical_paths: &pnpm_fs::CanonicalPaths,
+    workspace_root: &Path,
+    target_dir: &Path,
+) -> Result<PathBuf, ()> {
     if !pnpm_fs::is_subdir(workspace_root, target_dir) {
         return Err(());
     }
-    let canonical_root = std::fs::canonicalize(workspace_root).map_err(|_| ())?;
-    let canonical_target = std::fs::canonicalize(target_dir).map_err(|_| ())?;
+    let canonical_root = canonical_paths
+        .canonicalize(workspace_root)
+        .map_err(|_| ())?;
+    let canonical_target = canonical_paths
+        .canonicalize(target_dir)
+        .map_err(|_| ())?;
     if !pnpm_fs::is_subdir(&canonical_root, &canonical_target) {
         return Err(());
     }

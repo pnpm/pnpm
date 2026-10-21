@@ -12,7 +12,7 @@ import loudRejection from 'loud-rejection'
 
 import { checkForUpdates } from './checkForUpdates.js'
 import { checkSudo } from './checkSudo.js'
-import { type Command, NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds } from './cmd/index.js'
+import { type Command, configDependencyReconciliationCommands, NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from './getConfig.js'
 import { handlePackageManagerAndRuntimes, shouldSkipPmHandling, switchPastUnreadableConfig } from './packageManagerCheck.js'
@@ -165,6 +165,7 @@ async function readCommandConfig (
   // hit the pnpm/pnpm#10684 crash via any of these three entry points.
   ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
     tolerateConfigDependenciesErrors: isConfigCommand,
+    reconcileConfigDependencies: cmd != null && configDependencyReconciliationCommands.has(cmd),
     forSelfUpdate: cmd === 'self-update',
   }) as LoadedConfig)
   applyInvocationToConfig(config, parsedCliArgs)

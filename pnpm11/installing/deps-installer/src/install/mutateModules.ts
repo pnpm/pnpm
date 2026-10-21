@@ -130,7 +130,7 @@ async function openMutationRun (base: MutationRunBase): Promise<OpenedMutationRu
   const openedCtx = await getMutationContext(base)
   const scriptsOpts = createScriptsOptions(opts, openedCtx)
   const rootProjectPreinstallRan = await runRootProjectEarlyHooks(base, { ctx: openedCtx, rootProjectManifest, scriptsOpts })
-  const ctx = await validateModulesAndReopenContext(opts, openedCtx, installsOnly)
+  const ctx = await validateModulesAndReopenContext(opts, openedCtx, { installsOnly, projects })
   return {
     ...base,
     allowBuild,
@@ -266,12 +266,16 @@ async function runRootProjectEarlyHooks (
 async function validateModulesAndReopenContext (
   opts: StrictInstallOptions,
   ctx: PnpmContext,
-  installsOnly: boolean
+  { installsOnly, projects }: { installsOnly: boolean, projects: MutatedProject[] }
 ): Promise<PnpmContext> {
-  if (opts.lockfileOnly || isCheckOnlyInstall(opts) || ctx.modulesFile == null) return ctx
+  if (opts.lockfileOnly || isCheckOnlyInstall(opts) || ctx.modulesFile == null) {
+    applyProjectPruneFlags(ctx, projects)
+    return ctx
+  }
+  const isPrune = projects.some((project) => 'pruneDirectDependencies' in project && Boolean(project.pruneDirectDependencies))
   const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
     forceNewModules: installsOnly,
-    include: opts.include,
+    include: isPrune ? undefined : opts.include,
     lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
     registriesByScope: opts.registriesByScope,
@@ -287,7 +291,17 @@ async function validateModulesAndReopenContext (
     currentPublicHoistPattern: ctx.currentPublicHoistPattern,
     global: opts.global,
   })
-  return purged ? getContext(opts) : ctx
+  const nextCtx = purged ? await getContext(opts) : ctx
+  applyProjectPruneFlags(nextCtx, projects)
+  return nextCtx
+}
+
+function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): void {
+  for (const project of projects) {
+    if ('pruneDirectDependencies' in project && project.pruneDirectDependencies != null && ctx.projects[project.rootDir] != null) {
+      ctx.projects[project.rootDir].pruneDirectDependencies = project.pruneDirectDependencies
+    }
+  }
 }
 
 /**

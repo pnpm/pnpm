@@ -60,7 +60,7 @@ pub fn check_deps_status_before_run_at(
         return cannot_check_deps();
     };
     let workspace_manifest = workspace_manifest.flatten();
-    let config = gate_config(config, manifest_dir, &manifest);
+    let config = gate_config(config, workspace_dir_opt.as_deref(), manifest_dir, &manifest);
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
@@ -142,20 +142,26 @@ pub fn deps_install_root(dir: &Path, config: &Config) -> std::path::PathBuf {
 }
 fn gate_config<'a>(
     config: &'a Config,
+    workspace_dir: Option<&Path>,
     manifest_dir: &Path,
     manifest: &PackageManifest,
 ) -> Cow<'a, Config> {
-    if config.shares_one_lockfile() {
-        Cow::Borrowed(config)
-    } else {
-        let mut project_config = config.clone();
+    let needs_workspace_dir = config.workspace_dir.is_none() && workspace_dir.is_some();
+    if config.shares_one_lockfile() && !needs_workspace_dir {
+        return Cow::Borrowed(config);
+    }
+    let mut project_config = config.clone();
+    if needs_workspace_dir {
+        project_config.workspace_dir = workspace_dir.map(Path::to_path_buf);
+    }
+    if !config.shares_one_lockfile() {
         let project_name = manifest
             .value()
             .get("name")
             .and_then(serde_json::Value::as_str);
         project_config.anchor_dedicated_project(manifest_dir, project_name);
-        Cow::Owned(project_config)
     }
+    Cow::Owned(project_config)
 }
 pub(super) fn cannot_check_deps() -> Option<crate::RunDepsStatus> {
     Some(crate::RunDepsStatus::Outdated {

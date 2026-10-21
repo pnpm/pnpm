@@ -1,22 +1,25 @@
-//! The children a directory dependency's snapshot records, and whether
-//! each one still satisfies the spec the resolver walks for it.
+//! The children a directory dependency's snapshot records, and whether each
+//! one still satisfies the spec the resolver walks for it.
 
 use super::{
-    ChildCatalogs, DependencyGroup, DependencySpec, FreshnessCheckError, HashSet,
-    ImporterSatisfactionCheck, LocalDepContext, PackageManifest, ResolveDependencyTreeError,
-    check_single_directory_dep_freshness, is_declared_local_directory, local_directory_child_specs,
-    peers, snapshot_declares, spec_satisfies_snapshot_dep,
+    AliasScope, DependencyGroup, DependencySpec, FreshnessCheckError, ImporterSatisfactionCheck,
+    LocalDepContext, PackageManifest, Visited, check_single_directory_dep_freshness,
+    is_declared_local_directory, peers, spec_satisfies_snapshot_dep,
 };
+use pnpm_resolving_deps_resolver::{
+    ChildCatalogs, ResolveDependencyTreeError, local_directory_child_specs,
+};
+use std::collections::HashSet;
 
 /// Compares the children the resolver walks for the package (see
 /// [`local_directory_child_specs`]) with the ones its snapshot records.
 pub(super) fn check_local_dep_children_freshness(
     check: &ImporterSatisfactionCheck<'_>,
-    dep: &LocalDepContext<'_>,
+    (dep, scope): (&LocalDepContext<'_>, &AliasScope),
     local_manifest: &PackageManifest,
     snapshot: &pnpm_lockfile::SnapshotEntry,
     shadowed: &HashSet<&str>,
-    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+    visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     // A `file:` dependency resolves through the local resolver, which leaves
     // its children's `catalog:` specs alone.
@@ -39,24 +42,23 @@ pub(super) fn check_local_dep_children_freshness(
         if !child_is_fresh(check, dep, snapshot, child) {
             return Err(dep.outdated());
         }
-        check_child_directory_dep_freshness(check, snapshot, dep, child, visited)?;
+        check_child_directory_dep_freshness(check, (snapshot, scope), dep, child, visited)?;
     }
     Ok(())
 }
 
 fn check_child_directory_dep_freshness(
     check: &ImporterSatisfactionCheck<'_>,
-    parent_snapshot: &pnpm_lockfile::SnapshotEntry,
+    (parent_snapshot, scope): (&pnpm_lockfile::SnapshotEntry, &AliasScope),
     parent_dep: &LocalDepContext<'_>,
     child: &DependencySpec,
-    visited: &mut HashSet<pnpm_lockfile::PackageKey>,
+    visited: &mut Visited,
 ) -> Result<(), FreshnessCheckError> {
     let Some(pkg_key) = (!child.optional || check.config.optional)
         .then(|| recorded_child(parent_snapshot, &child.alias, RecordedDeps::of(child)))
         .flatten()
         .zip(child.alias.parse::<pnpm_lockfile::PkgName>().ok())
         .and_then(|(recorded, pkg_name)| recorded.resolve(&pkg_name))
-        .filter(|pkg_key| visited.insert(pkg_key.clone()))
     else {
         return Ok(());
     };
@@ -82,9 +84,9 @@ fn check_child_directory_dep_freshness(
         parent_dep.child(&child.alias, &child.bare_specifier, &dir_res.directory, &local_dep_dir);
     check_single_directory_dep_freshness(
         check,
-        |peer_name| snapshot_declares(parent_snapshot, peer_name),
+        scope,
         &child_dep,
-        (snapshot, pkg_meta),
+        (&pkg_key, snapshot, pkg_meta),
         visited,
     )
 }

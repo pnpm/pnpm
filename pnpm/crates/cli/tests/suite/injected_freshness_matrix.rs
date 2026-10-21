@@ -14,12 +14,13 @@
 //!   another project.
 
 use crate::_utils::{
-    ManifestDeps, WorkspaceFixture, assert_success, copy_sources, read_manifest, set_dependency,
-    walk_files, write_manifest_value,
+    ManifestDeps, WorkspaceFixture, assert_success, copy_sources, read_manifest,
+    read_v11_bundle_path, set_dependency, walk_files, write_manifest_value,
 };
 
 use std::{
     collections::BTreeMap,
+    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
 };
@@ -98,8 +99,11 @@ impl Scenario {
         fs::write(
             self.workspace().join("pnpm-workspace.yaml"),
             format!(
-                "packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {}\n\
+                "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n\
+                 packages:\n  - 'packages/*'\nsharedWorkspaceLockfile: {}\n\
                  injectWorkspacePackages: {}\ncatalog:\n  '@pnpm.e2e/bar': '{bar_catalog_entry}'\n",
+                self.fixture.registry.store_dir.display(),
+                self.fixture.registry.cache_dir.display(),
                 self.layout.shared_lockfile,
                 matches!(self.layout.injection, Injection::InjectWorkspacePackages),
             ),
@@ -219,12 +223,16 @@ impl Scenario {
     }
 
     /// The lockfiles a clean install without lockfiles writes.
-    fn resolved_from_scratch(&mut self) -> BTreeMap<String, String> {
+    fn resolved_from_scratch(&mut self, v11_bundle: Option<&OsStr>) -> BTreeMap<String, String> {
         let copy = self.clean_copy();
         for lockfile in Self::lockfiles(&copy).keys() {
             fs::remove_file(copy.join(lockfile)).expect("remove a lockfile");
         }
-        let output = self.fixture.command_at(&copy, ["install", "--no-frozen-lockfile"]);
+        let output = if let Some(bundle) = v11_bundle {
+            self.fixture.v11_command_at(bundle, &copy, ["install", "--no-frozen-lockfile"])
+        } else {
+            self.fixture.command_at(&copy, ["install", "--no-frozen-lockfile"])
+        };
         assert_success(&output);
         Self::lockfiles(&copy)
     }
@@ -247,11 +255,29 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
         before != after,
     );
 
+    scenario.install(filter);
+    assert_eq!(
+        Scenario::lockfiles(scenario.workspace()),
+        after,
+        "{layout:?}, {edit:?}, filter {filter:?}: a repeat install must keep the lockfiles byte-identical",
+    );
+    if filter.is_empty() {
+        let run_gate = scenario.fixture.command_at(
+            scenario.workspace(),
+            ["--config.verify-deps-before-run=error", "exec", "node", "-e", ""],
+        );
+        assert_success(&run_gate);
+    }
+
     assert!(
         scenario.frozen_install_passes(filter),
         "{layout:?}, {edit:?}, filter {filter:?}: a frozen install must pass after the install",
     );
-    let mut expected = scenario.resolved_from_scratch();
+    if filter.is_empty() && layout.shared_lockfile {
+        let dedupe = scenario.fixture.command_at(scenario.workspace(), ["dedupe", "--check"]);
+        assert_success(&dedupe);
+    }
+    let mut expected = scenario.resolved_from_scratch(None);
     let mut actual = after;
     if !filter.is_empty() {
         if layout.shared_lockfile {
@@ -264,6 +290,15 @@ fn check(layout: Layout, edit: Edit, filter: &[&str]) {
         actual, expected,
         "{layout:?}, {edit:?}, filter {filter:?}: the lockfiles differ from a resolution from scratch",
     );
+    if filter.is_empty()
+        && let Some(bundle) = read_v11_bundle_path()
+    {
+        let v11_expected = scenario.resolved_from_scratch(Some(&bundle));
+        assert_eq!(
+            actual, v11_expected,
+            "{layout:?}, {edit:?}: the v12 lockfiles differ from a v11 resolution from scratch",
+        );
+    }
 }
 
 /// The lockfile `--filter app` owns when every project has its own. A

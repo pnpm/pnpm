@@ -230,6 +230,7 @@ function describeResolutionPolicies (opts: InstallInContextOptions) {
   return {
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     allowUnusedPatches: opts.allowUnusedPatches,
+    verifyPatches: !(opts.sharedWorkspaceLockfile === false && opts.workspaceDir != null),
     autoInstallPeers: opts.autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
     defaultUpdateDepth: opts.depth,

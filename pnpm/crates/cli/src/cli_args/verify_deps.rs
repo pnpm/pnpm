@@ -398,13 +398,77 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
     }
 }
 
-/// The command line's `--config.*` tokens, which the install inherits.
+/// The command line's setting overrides, which the install inherits.
 /// They stay out of the prompt, which could otherwise print a credential
 /// such as `--config.//registry.example/:_authToken=...`.
 fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
-    config.raw_cli_config
+    let raw = config.cli.npmrc_tokens
         .iter()
-        .map(|(key, value)| format!("--config.{key}={value}"))
+        .map(|(key, value)| {
+            let resolved = match pnpm_config::naming_cases::to_kebab_case(key).as_str() {
+                "lockfile-dir" => config.lockfile_dir.as_deref().map(Path::display),
+                "store-dir" if !value.is_empty() => Some(config.store_dir.root().display()),
+                "state-dir" if !value.is_empty() => Some(config.state_dir.display()),
+                "global-dir" => config.global_dir.as_deref().map(Path::display),
+                _ => None,
+            };
+            match resolved {
+                Some(path) => format!("--config.{key}={path}"),
+                None => format!("--config.{key}={value}"),
+            }
+        });
+    let npmrc_auth_file = config.npmrc_auth_file
+        .as_deref()
+        .map(resolve_against_current_dir)
+        .map(|path| format!("--npmrc-auth-file={}", path.display()));
+    let ignore_workspace =
+        config.workspace_search_skipped.then(|| "--ignore-workspace".to_string());
+    let workspace_packages = cli_list_args(
+        config,
+        "workspacePackagePatterns",
+        "workspace-packages",
+        config.workspace_package_patterns.as_deref().unwrap_or_default(),
+    );
+    let test_pattern = cli_list_args(config, "testPattern", "test-pattern", &config.test_pattern);
+    let changed_files_ignore_pattern = cli_list_args(
+        config,
+        "changedFilesIgnorePattern",
+        "changed-files-ignore-pattern",
+        &config.changed_files_ignore_pattern,
+    );
+    raw.chain(npmrc_auth_file)
+        .chain(ignore_workspace)
+        .chain(workspace_packages)
+        .chain(test_pattern)
+        .chain(changed_files_ignore_pattern)
+}
+
+/// `values` as one `--<flag>=<value>` each when the command line set the
+/// `setting`, else nothing: a value from the workspace manifest or the
+/// environment reaches the install on its own.
+fn cli_list_args<'a>(
+    config: &'a Config,
+    setting: &str,
+    flag: &'a str,
+    values: &'a [String],
+) -> impl Iterator<Item = String> + 'a {
+    config.cli_settings
+        .contains(setting)
+        .then_some(values)
+        .into_iter()
+        .flatten()
+        .map(move |value| format!("--{flag}={value}"))
+}
+
+fn resolve_against_current_dir(path: &Path) -> std::path::PathBuf {
+    if path.is_relative() {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path),
+            Err(_) => path.to_path_buf(),
+        }
+    } else {
+        path.to_path_buf()
+    }
 }
 
 #[cfg(test)]

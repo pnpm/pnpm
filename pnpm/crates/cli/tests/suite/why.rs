@@ -51,28 +51,163 @@ fn recursive_why_uses_the_active_dedicated_lockfile() {
     let (_root, workspace, _anchor) = setup();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\npackageConfigs:\n  app:\n    modulesDir: custom_modules\n",
     )
     .expect("write workspace manifest");
     write_manifest(&workspace, "{}");
     let app = workspace.join("packages/app");
+    let lib = workspace.join("packages/lib");
     fs::create_dir_all(&app).expect("create app project");
+    fs::create_dir_all(&lib).expect("create lib project");
     fs::write(
         app.join("package.json"),
         format!(
-            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+            r#"{{ "name": "app", "version": "1.0.0", "dependencies": {{ "{PKG}": "100.0.0", "{HELLO}": "1.0.0" }} }}"#,
         ),
     )
     .expect("write app manifest");
-    pacquet(&app, ["install"]).assert().success();
+    fs::write(
+        lib.join("package.json"),
+        format!(
+            r#"{{ "name": "lib", "version": "1.0.0", "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#,
+        ),
+    )
+    .expect("write lib manifest");
 
-    let output = pacquet(&app, ["-r", "why", PKG]).output().expect("run recursive pacquet why");
+    let before_install =
+        pacquet(&workspace, ["why", DEP]).output().expect("run why before install");
+    assert!(before_install.status.success(), "why without lockfiles should succeed");
+    assert!(before_install.stdout.is_empty(), "no output before install");
 
-    assert!(output.status.success(), "recursive why should succeed: {output:?}");
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    for args in [&["why", DEP][..], &["-r", "why", DEP][..], &["--filter", "app", "why", DEP][..]] {
+        let output = pacquet(&workspace, args).output().expect("run pacquet why");
+        assert!(output.status.success(), "why {args:?} should succeed: {output:?}");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains(DEP) && stdout.contains(PKG) && stdout.contains("app@1.0.0"),
+            "why {args:?} should query dedicated project lockfiles: {stdout}",
+        );
+    }
+
+    let shared_dep = pacquet(&workspace, ["why", HELLO]).output().expect("run why for shared dep");
+    assert!(shared_dep.status.success(), "why shared dep should succeed: {shared_dep:?}");
+    let shared_raw = String::from_utf8_lossy(&shared_dep.stdout);
+    let shared_stdout = strip_ansi_codes(&shared_raw);
     assert!(
-        stdout.contains(PKG) && stdout.contains("app@1.0.0"),
-        "recursive why should query the active project lockfile: {stdout}",
+        shared_stdout.contains("app@1.0.0") && shared_stdout.contains("lib@1.0.0"),
+        "shared dep should list both dependents: {shared_stdout}",
+    );
+    assert!(
+        shared_stdout.contains(&format!("Found 1 version of {HELLO}"))
+            && !shared_stdout.contains("instances"),
+        "shared dep should be merged into a single tree: {shared_stdout}",
+    );
+
+    let parseable_long = pacquet(&workspace, ["why", "--parseable", "--long", HELLO])
+        .output()
+        .expect("run pacquet why --parseable --long");
+    assert!(
+        parseable_long.status.success(),
+        "why --parseable --long should succeed: {parseable_long:?}",
+    );
+    let parseable_lines: Vec<String> = String::from_utf8_lossy(&parseable_long.stdout)
+        .lines()
+        .map(str::to_string)
+        .collect();
+    assert_eq!(parseable_lines.len(), 2, "expected 2 parseable lines: {parseable_lines:?}");
+    let app_hello =
+        dunce::canonicalize(app.join("custom_modules").join(HELLO)).expect("canonicalize app dep");
+    let lib_hello =
+        dunce::canonicalize(lib.join("node_modules").join(HELLO)).expect("canonicalize lib dep");
+    let suffix = format!(":{HELLO}@1.0.0");
+    let app_reported = parseable_lines[0]
+        .strip_prefix("app@1.0.0 > ")
+        .and_then(|rest| rest.strip_suffix(&suffix))
+        .unwrap_or_else(|| panic!("unexpected app parseable line: {}", parseable_lines[0]));
+    assert_eq!(
+        dunce::canonicalize(app_reported).expect("canonicalize app reported path"),
+        app_hello,
+    );
+    let lib_reported = parseable_lines[1]
+        .strip_prefix("lib@1.0.0 > ")
+        .and_then(|rest| rest.strip_suffix(&suffix))
+        .unwrap_or_else(|| panic!("unexpected lib parseable line: {}", parseable_lines[1]));
+    assert_eq!(
+        dunce::canonicalize(lib_reported).expect("canonicalize lib reported path"),
+        lib_hello,
+    );
+
+    let json = pacquet(&workspace, ["why", "--json", "--long", PKG])
+        .output()
+        .expect("run pacquet why --json --long");
+    assert!(json.status.success(), "why --json --long should succeed: {json:?}");
+    let parsed: serde_json::Value = serde_json::from_slice(&json.stdout).expect("parse why JSON");
+    let pkg_path = parsed[0]["path"].as_str().expect("package path in JSON");
+    assert_eq!(
+        dunce::canonicalize(pkg_path).expect("canonicalize reported path"),
+        dunce::canonicalize(app.join("custom_modules").join(PKG))
+            .expect("canonicalize custom_modules path"),
+    );
+
+    let filtered_out = pacquet(&workspace, ["--filter", "lib", "why", DEP])
+        .output()
+        .expect("run filtered pacquet why");
+    assert!(filtered_out.status.success(), "filtered why should succeed: {filtered_out:?}");
+    assert!(
+        filtered_out.stdout.is_empty(),
+        "unselected project lockfile should not be included: {}",
+        String::from_utf8_lossy(&filtered_out.stdout),
+    );
+
+    write_finder_pnpmfile(&app, "'Found in app'");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\nrecursiveInstall: false\npackageConfigs:\n  app:\n    modulesDir: custom_modules\n",
+    )
+    .expect("write workspace manifest with recursiveInstall: false");
+    let local_finder = pacquet(&app, ["why", "--find-by=test-finder"])
+        .output()
+        .expect("run non-recursive why with project-local finder");
+    assert!(local_finder.status.success(), "local finder why should succeed: {local_finder:?}");
+    let local_finder_stdout = String::from_utf8_lossy(&local_finder.stdout);
+    assert!(
+        local_finder_stdout.contains("Found in app"),
+        "non-recursive why should use project-local finder: {local_finder_stdout}",
+    );
+}
+
+#[test]
+fn recursive_why_preserves_distinct_unnamed_projects_with_dedicated_lockfiles() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), "{}").expect("write root manifest");
+    for dir in ["packages/app", "packages/lib"] {
+        let project_dir = workspace.join(dir);
+        fs::create_dir_all(&project_dir).expect("create project dir");
+        fs::write(
+            project_dir.join("package.json"),
+            format!(r#"{{ "dependencies": {{ "{HELLO}": "1.0.0" }} }}"#),
+        )
+        .expect("write unnamed project manifest");
+    }
+
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output =
+        pacquet(&workspace, ["why", HELLO]).output().expect("run why for unnamed projects");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let raw = String::from_utf8_lossy(&output.stdout);
+    let stdout = strip_ansi_codes(&raw);
+    assert_eq!(
+        stdout.matches("the root project (dependencies)").count(),
+        2,
+        "both unnamed projects should remain in merged output: {stdout}",
     );
 }
 

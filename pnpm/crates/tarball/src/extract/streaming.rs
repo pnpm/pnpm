@@ -1,10 +1,10 @@
 pub(crate) use gzip_members::stream_extract_gzipped_tarball_with_tar;
 
 use super::{
-    Archive, BuildTriggers, CafsFileInfo, GZIP_MAGIC, HashMap, IgnoreEntryFilter,
-    PackageFilesIndex, PathBuf, PendingFile, Read, StoreDir, TAR_BLOCK, TarBudget, TarLimits,
-    TarballError, check_trailer, clean_archive_entry_path, file_mode, is_tar_block,
-    write_pending_files,
+    Archive, BTreeMap, BuildTriggers, CafsFileInfo, ExtractedEntries, GZIP_MAGIC, HashMap,
+    IgnoreEntryFilter, PackageBin, PackageFilesIndex, PathBuf, PendingFile, Read, ScriptRuntime,
+    StoreDir, TAR_BLOCK, TarBudget, TarLimits, TarballError, check_trailer,
+    clean_archive_entry_path, file_mode, is_tar_block, write_pending_files,
 };
 use crate::{
     ArchiveIntegrity, BodyHasher, IntegrityKind,
@@ -207,8 +207,11 @@ impl StreamedResource<'_> {
     }
 }
 
-/// The CAFS files and the store row of one extraction.
-pub(crate) type Extraction = Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError>;
+/// The CAFS files, the store row, and precalculated bins of one extraction.
+pub(crate) type Extraction = Result<
+    (HashMap<String, PathBuf>, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>),
+    TarballError,
+>;
 
 /// Drain what follows the archive into its hash and pair the hashes with
 /// the extraction's verdict. A failed drain leaves no hash, and an extraction
@@ -230,7 +233,10 @@ fn finish_resource(
     ExtractedResource { integrity, extracted }
 }
 
-fn read_prefix(reader: &mut impl Read, prefix: &mut [u8]) -> Result<usize, TarballError> {
+pub(super) fn read_prefix(
+    reader: &mut impl Read,
+    prefix: &mut [u8],
+) -> Result<usize, TarballError> {
     let mut filled = 0;
     while filled < prefix.len() {
         match reader.read(&mut prefix[filled..]) {
@@ -292,7 +298,7 @@ pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
 pub(super) const STREAM_BATCH_BUDGET_BYTES: usize = 32 * 1024 * 1024;
 
 /// Walk a tar stream, writing each regular-file entry into the CAFS
-/// and returning the same outputs as [`extract_tarball_entries`](crate::extract::extract_tarball_entries),
+/// and returning the same outputs as [`extract_tarball_entries_with_bins`](crate::extract::extract_tarball_entries_with_bins),
 /// while holding only a bounded window of the archive in memory.
 ///
 /// Small entries are buffered and flushed in bounded batches through
@@ -310,7 +316,7 @@ pub(crate) fn extract_tarball_entries_streaming(
     limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedEntries, TarballError> {
     let budget = TarBudget::new(limits);
     walk_tar_stream(budget.reader(reader), &budget, store_dir, ignore_file_pattern)
         .map_err(|error| budget.explain(error))
@@ -321,7 +327,7 @@ fn walk_tar_stream(
     budget: &TarBudget,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedEntries, TarballError> {
     let mut archive = Archive::new(reader);
     archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let mut extract = StreamingExtract::new(store_dir);
@@ -389,6 +395,7 @@ pub(super) struct StreamingExtract<'a> {
     pub(super) batch_bytes: usize,
     pub(super) manifest: Option<serde_json::Value>,
     pub(super) triggers: BuildTriggers,
+    pub(super) shebangs: HashMap<String, ScriptRuntime>,
 }
 
 pub(super) fn truncated_entry_error() -> TarballError {

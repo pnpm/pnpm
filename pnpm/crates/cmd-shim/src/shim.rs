@@ -1,3 +1,6 @@
+pub use pnpm_package_manifest::{
+    ScriptRuntime, extension_program, parse_shebang, parse_shebang_from_bytes,
+};
 pub use powershell::generate_pwsh_shim;
 pub use quoting::{cmd_escape, sh_single_quote};
 pub(crate) use relocatable::{is_relocatable_shim, is_within_root};
@@ -11,33 +14,12 @@ pub(crate) use wasm::generate_wasm_shim;
 mod wasm;
 
 use crate::{capabilities::FsReadHead, path_util::lexical_normalize};
+use pnpm_package_manifest::infer_script_runtime_from_shebang;
 use std::{
     fmt::Write as _,
     io,
     path::{Path, PathBuf},
 };
-
-/// Detected runtime for a target script.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScriptRuntime {
-    /// The interpreter to invoke. `None` means "exec the file directly".
-    pub prog: Option<String>,
-    /// Extra arguments declared after the interpreter in the shebang. Empty
-    /// when the runtime came from the extension fallback.
-    pub args: String,
-}
-
-/// Map of file extensions to their default runtime when the script lacks a
-/// shebang.
-fn extension_program(extension: &str) -> Option<&'static str> {
-    match extension {
-        "js" | "cjs" | "mjs" => Some("node"),
-        "cmd" | "bat" => Some("cmd"),
-        "ps1" => Some("pwsh"),
-        "sh" => Some("sh"),
-        _ => None,
-    }
-}
 
 /// Read up to 512 bytes of `path` and infer the runtime.
 ///
@@ -46,22 +28,8 @@ fn extension_program(extension: &str) -> Option<&'static str> {
 /// has already verified the bin path resolves under the package root by
 /// this point and a real failure deserves to surface.
 pub fn search_script_runtime<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
-    let extension = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
-
     let runtime_from_shebang = read_shebang::<Sys>(path)?;
-    if let Some(rt) = runtime_from_shebang {
-        return Ok(Some(rt));
-    }
-
-    if let Some(prog) = extension_program(extension) {
-        let args = if prog == "cmd" { "/C" } else { "" };
-        return Ok(Some(ScriptRuntime { prog: Some(prog.to_string()), args: args.to_string() }));
-    }
-
-    Ok(None)
+    Ok(infer_script_runtime_from_shebang(path, runtime_from_shebang))
 }
 
 fn read_shebang<Sys: FsReadHead>(path: &Path) -> io::Result<Option<ScriptRuntime>> {
@@ -95,69 +63,6 @@ pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Res
         }
     }
     Ok(total)
-}
-
-/// Parse the runtime out of the first line of a script's content. Pure
-/// function over bytes so the caller can plug in any I/O strategy.
-///
-/// Does **not** trim leading whitespace before looking for `#!`. The
-/// kernel treats `#!` as a shebang only when it sits at byte 0 of the
-/// file; trimming would accept inputs like
-/// `" \n#!/usr/bin/env node"` as a valid shebang and could select the
-/// wrong runtime for files that just happen to mention `#!` after some
-/// whitespace. The first line is taken exactly as-is (`#!` is matched
-/// at column 0 of that line via `strip_prefix` in `parse_shebang`).
-#[must_use]
-pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
-    let head = String::from_utf8_lossy(bytes);
-    let first_line = head
-        .split('\n')
-        .next()
-        .unwrap_or("")
-        .trim_end_matches('\r');
-    parse_shebang(first_line)
-}
-
-/// Parses the shebang against the grammar
-/// `^#!\s*(?:/usr/bin/env(?:\s+-S\s*)?)?\s*([^ \t]+)(.*)$`.
-///
-/// `args` is captured **including the leading whitespace** that
-/// separates it from `prog` — everything from after `prog`'s end of
-/// match to end of line. Preserving the leading whitespace is what
-/// produces byte-identical shim text (e.g. the double space between
-/// `$basedir/sh` and `-e` in the rendered exec line).
-fn parse_shebang(line: &str) -> Option<ScriptRuntime> {
-    let rest = line.strip_prefix("#!")?.trim_start();
-    let (rest, _) = strip_env_prefix(rest);
-    let rest = rest.trim_start();
-
-    // Slice at the first space or tab; the args slice keeps the separator
-    // so the rendered shim stays byte-for-byte stable. Using `splitn`
-    // would discard the separator and silently drop one space from the
-    // `exec` line.
-    let (prog, args) = match rest.find([' ', '\t']) {
-        Some(idx) => rest.split_at(idx),
-        None => (rest, ""),
-    };
-
-    if prog.is_empty() {
-        return None;
-    }
-
-    Some(ScriptRuntime { prog: Some(prog.to_string()), args: args.to_string() })
-}
-
-/// Strip a leading `/usr/bin/env`, optionally followed by `-S`, from the
-/// shebang body. Returns the remainder and whether `env` was present.
-fn strip_env_prefix(input: &str) -> (&str, bool) {
-    let Some(rest) = input.strip_prefix("/usr/bin/env") else {
-        return (input, false);
-    };
-    let trimmed = rest.trim_start();
-    if let Some(after_dash_s) = trimmed.strip_prefix("-S") {
-        return (after_dash_s, true);
-    }
-    (trimmed, true)
 }
 
 /// Render `node_path` entries into the platform variants cmd-shim's

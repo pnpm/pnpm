@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/types",
-  "version": "1102.1.1",
+  "version": "1102.1.2",
   "description": "Basic types used by pnpm",
   "keywords": [
     "pnpm",

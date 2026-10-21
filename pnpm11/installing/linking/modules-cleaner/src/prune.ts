@@ -102,7 +102,7 @@ async function pruneImporterDirectDeps (
   const { binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir } = importer
   const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
   const currentPkgs = Object.entries(mergeDependencies(currentImporter))
-  const wantedPkgs = mergeDependencies(wantedLockfile.importers[id])
+  const wantedPkgs = mergeDependencies(wantedLockfile.importers[id] ?? ({} as ProjectSnapshot))
 
   const allCurrentPackages = new Set(
     (pruneDirectDependencies === true || removePackages?.length)
@@ -229,7 +229,7 @@ function findOrphanDepPaths (
   opts: PruneOptions
 ): DepPath[] {
   const selectedImporterIds = importers.map((importer) => importer.id).sort()
-  const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
+  const currentPkgIdsByDepPaths = equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers).sort())
     ? getPkgsDepPaths(opts.currentLockfile.packages ?? {}, opts.skipped)
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.currentLockfile, opts)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(wantedLockfile.packages ?? {}, opts.skipped)
@@ -381,15 +381,23 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     skipped: Set<DepPath>
   }
 ): Record<string, string> {
+  const existingImporterIds = importerIds.filter((importerId) => lockfile.importers[importerId] != null)
+  if (existingImporterIds.length === 0) {
+    return {}
+  }
   const filterOpts = {
     failOnMissingDependencies: false,
-    include: opts.include,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
     resolvePeersFromWorkspaceRoot: opts.resolvePeersFromWorkspaceRoot,
     skipped: opts.skipped,
   }
-  const selected = filterLockfileByImporters(lockfile, importerIds, filterOpts)
+  const selected = filterLockfileByImporters(lockfile, existingImporterIds, filterOpts)
   const other = filterLockfileByImporters(lockfile,
-    difference(Object.keys(lockfile.importers) as ProjectId[], importerIds),
+    difference(Object.keys(lockfile.importers) as ProjectId[], existingImporterIds),
     filterOpts)
   const packagesOfSelectedOnly = pickAll(
     difference(Object.keys(selected.packages!), Object.keys(other.packages!)),

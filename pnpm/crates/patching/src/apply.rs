@@ -65,11 +65,10 @@ pub enum PatchApplyError {
 /// `git apply` is hard to execute on a subdirectory of an existing
 /// repository, so an in-process applier sidesteps both problems.
 ///
-/// Supported file operations: `Modify`, `Create`, `Delete`.
+/// Supported file operations: `Modify`, `Create`, `Delete`, `Rename`.
 ///
-/// File paths in the patch are stripped one level
-/// (`diffy::FileOperation::strip_prefix(1)`) to drop the conventional
-/// `a/` and `b/` prefixes git uses, then validated against
+/// File paths in the patch are read with the `a/` and `b/` prefixes git
+/// uses dropped, then validated against
 /// `patched_dir`: absolute paths, `..` segments, and (on Windows)
 /// drive prefixes / root components are rejected as
 /// `ERR_PNPM_PATCH_FAILED`.
@@ -132,7 +131,7 @@ fn apply_one_file(
     patch_file_path: &Path,
     file_patch: &FilePatch<'_, str>,
 ) -> Result<(), PatchApplyError> {
-    let operation = file_patch.operation().strip_prefix(1);
+    let operation = package_relative_operation(file_patch);
     let apply = FileApply { patched_dir, canonical_dir, patch_file_path };
 
     let text_patch = || {
@@ -155,9 +154,28 @@ fn apply_one_file(
         FileOperation::Delete(path) => {
             apply.delete(&apply.resolve_target(Path::new(path.as_ref()))?, text_patch()?)
         }
-        FileOperation::Rename { .. } | FileOperation::Copy { .. } => {
-            Err(apply.failed("rename/copy operations in patches are not yet supported".to_string()))
+        FileOperation::Rename { from, to } => apply.rename(
+            &apply.resolve_target(Path::new(from.as_ref()))?,
+            &apply.resolve_target(Path::new(to.as_ref()))?,
+            text_patch()?,
+            file_patch.new_mode(),
+        ),
+        FileOperation::Copy { .. } => {
+            Err(apply.failed("copy operations in patches are not yet supported".to_string()))
         }
+    }
+}
+
+/// The record's operation with paths relative to the patched directory.
+///
+/// Git prefixes the `diff --git`, `---` and `+++` paths with `a/` and `b/`,
+/// which are stripped, but writes `rename from` and `rename to` bare.
+pub(super) fn package_relative_operation<'patch>(
+    file_patch: &'patch FilePatch<'_, str>,
+) -> FileOperation<'patch, str> {
+    match file_patch.operation() {
+        rename @ FileOperation::Rename { .. } => rename.clone(),
+        operation => operation.strip_prefix(1),
     }
 }
 
@@ -273,6 +291,40 @@ impl FileApply<'_> {
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
     }
 
+    /// An existing `to` is not overwritten, for the reason [`Self::create`]
+    /// gives. A missing `from` means an earlier apply of the same patch
+    /// already moved it. A rename without hunks or a mode change only moves
+    /// the entry, so its bytes are never decoded and a symlink stays a
+    /// symlink rather than being replaced by what it points at.
+    fn rename(
+        &self,
+        from: &Path,
+        to: &Path,
+        text_patch: &Patch<'_, str>,
+        new_mode: Option<&FileMode>,
+    ) -> Result<(), PatchApplyError> {
+        if from.symlink_metadata().is_ok() {
+            if to.symlink_metadata().is_ok() {
+                let (from, to) = (from.display(), to.display());
+                return Err(self.failed(format!(
+                    "cannot rename {from} to {to}: target already exists",
+                )));
+            }
+            self.create_parent_dir(to)?;
+            fs::rename(from, to)
+                .map_err(|source| {
+                    self.failed(format!("rename {} to {}: {source}", from.display(), to.display()))
+                })?;
+        } else if to.symlink_metadata().is_err() {
+            let (from, to) = (from.display(), to.display());
+            return Err(self.failed(format!("cannot rename {from} to {to}: neither exists")));
+        }
+        if text_patch.hunks().is_empty() && !atomic_write::needs_mode_change(to, new_mode) {
+            return Ok(());
+        }
+        self.modify(to, text_patch, new_mode)
+    }
+
     /// A "new file" patch (`--- /dev/null`) means the target is expected NOT
     /// to exist. Refusing to overwrite matches `patch`'s and `git apply`'s
     /// behavior — silently clobbering a real file would be a data-loss
@@ -293,15 +345,18 @@ impl FileApply<'_> {
         if exists && self.existing_file_matches(target, &created, new_mode)? {
             return Ok(());
         }
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|source| {
-                    self.failed(format!("create parent of {}: {source}", target.display()))
-                })?;
-        }
+        self.create_parent_dir(target)?;
         let permissions = atomic_write::create_permissions(new_mode);
         write_atomic_with_mode(target, created.as_bytes(), permissions.as_ref())
             .map_err(|source| self.failed(format!("write {}: {source}", target.display())))
+    }
+
+    fn create_parent_dir(&self, target: &Path) -> Result<(), PatchApplyError> {
+        let Some(parent) = target.parent() else { return Ok(()) };
+        fs::create_dir_all(parent)
+            .map_err(|source| {
+                self.failed(format!("create parent of {}: {source}", target.display()))
+            })
     }
 
     fn existing_file_matches(

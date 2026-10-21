@@ -124,6 +124,72 @@ test('pnpm licenses: output as json', async () => {
   expect(packagesWithMIT[0].paths[0].includes(_path)).toBeTruthy()
 })
 
+test('pnpm licenses: empty results use text or JSON according to the output mode', async () => {
+  const projectDir = tempDir()
+  fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+  fs.writeFileSync(path.join(projectDir, 'pnpm-lock.yaml'), "lockfileVersion: '9.0'\nimporters:\n  .: {}\n")
+
+  const results = await Promise.all([false, true].map(async (json) =>
+    licenses.handler({ ...DEFAULT_OPTS, dir: projectDir, json }, ['list'])
+  ))
+  for (const [index, expected] of ['No licenses in packages found', '{}'].entries()) {
+    const { output, exitCode } = results[index]
+    expect(exitCode).toBe(0)
+    expect(output).toBe(expected)
+  }
+})
+
+test('pnpm licenses: a missing lockfile is an error', async () => {
+  const projectDir = tempDir()
+  fs.writeFileSync(path.join(projectDir, 'package.json'), '{}')
+
+  await expect(licenses.handler({ ...DEFAULT_OPTS, dir: projectDir }, ['list']))
+    .rejects.toMatchObject({ code: 'ERR_PNPM_LICENSES_NO_LOCKFILE' })
+})
+
+test('pnpm licenses: a workspace package missing from the lockfile has no recorded licenses', async () => {
+  const workspaceDir = tempDir()
+  testFixtures.copy('simple-licenses', workspaceDir)
+  await install.handler({ ...DEFAULT_OPTS, dir: workspaceDir, pnpmHomeDir: '' })
+
+  const projectDir = path.join(workspaceDir, 'new-pkg')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(projectDir, 'package.json'), '{"name":"new-pkg"}')
+  fs.writeFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'packages:\n  - new-pkg\n')
+
+  const { output, exitCode } = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: projectDir,
+    lockfileDir: workspaceDir,
+    json: true,
+  }, ['list'])
+  expect(exitCode).toBe(0)
+  expect(JSON.parse(output)).toEqual({})
+
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+  const recursiveResult = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    selectedProjectsGraph,
+    recursive: true,
+    json: true,
+  }, ['list'])
+  expect(recursiveResult.exitCode).toBe(0)
+  const packages = Object.values(JSON.parse(recursiveResult.output) as Record<string, Array<{ name: string }>>).flat()
+  expect(packages.map(({ name }) => name)).toEqual(['is-positive'])
+
+  const devResult = await licenses.handler({
+    ...DEFAULT_OPTS,
+    dir: workspaceDir,
+    lockfileDir: workspaceDir,
+    dev: true,
+    production: false,
+  }, ['list'])
+  expect(devResult.exitCode).toBe(0)
+  expect(devResult.output).toBe('No licenses in packages found')
+})
+
 test('pnpm licenses: paths point at the packages placed by the hoisted linker', async () => {
   const workspaceDir = tempDir()
   testFixtures.copy('simple-licenses', workspaceDir)

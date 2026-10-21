@@ -240,6 +240,116 @@ pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
 }
 
 #[test]
+pub fn cli_config_auth_outranks_url_scoped_env_and_project_npmrc() {
+    fake_env!();
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "//env2e.example.com/:_authToken=project-token\n");
+    set_fake_env(&[("npm_config_//env2e.example.com/:_authToken", "env-token")]);
+
+    let config = Config {
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![(
+                "//env2e.example.com/:_authToken".to_string(),
+                "cli-token".to_string(),
+            )],
+            ..crate::CliLayer::default()
+        },
+        ..Config::default()
+    }
+    .current::<FakeEnv>(project.path())
+    .expect("load config");
+
+    assert_eq!(
+        config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
+        Some("Bearer cli-token"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.auth_headers
+            .for_url("https://env2e.example.com/pkg")
+            .as_deref(),
+        Some("Bearer cli-token"),
+    );
+    assert_eq!(
+        config.raw_auth_config.get("//env2e.example.com/:_authToken").map(String::as_str),
+        Some("cli-token"),
+    );
+}
+
+#[test]
+pub fn unscoped_cli_config_auth_token_pins_to_the_cli_registry() {
+    let project = tempdir().expect("project tempdir");
+
+    let config = Config {
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![
+                ("registry".to_string(), "https://cli.example.com/".to_string()),
+                ("_authToken".to_string(), "cli-token".to_string()),
+            ],
+            ..crate::CliLayer::default()
+        },
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
+
+    assert_eq!(
+        config.auth_headers.for_url("https://cli.example.com/pkg").as_deref(),
+        Some("Bearer cli-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("https://registry.npmjs.org/pkg"), None);
+    assert!(
+        config.npmrc_warnings
+            .iter()
+            .any(|warning| warning.contains(r#""<command line>""#)),
+        "{:?}",
+        config.npmrc_warnings,
+    );
+}
+
+#[test]
+pub fn unscoped_cli_config_auth_token_pins_to_the_registry_flag() {
+    let project = tempdir().expect("project tempdir");
+
+    let config = Config {
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![
+                ("registry".to_string(), "https://cli.example.com/".to_string()),
+                ("_authToken".to_string(), "cli-token".to_string()),
+            ],
+            registry: Some("https://flag.example.com/".to_string()),
+            ..crate::CliLayer::default()
+        },
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
+
+    assert_eq!(
+        config.auth_headers.for_url("https://flag.example.com/pkg").as_deref(),
+        Some("Bearer cli-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("https://cli.example.com/pkg"), None);
+}
+
+#[test]
+pub fn cli_config_tls_setting_outranks_project_npmrc() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "strict-ssl=true\n");
+
+    let config = Config {
+        cli: crate::CliLayer {
+            npmrc_tokens: vec![("strict-ssl".to_string(), "false".to_string())],
+            ..crate::CliLayer::default()
+        },
+        ..Config::default()
+    }
+    .current::<HostNoHome>(project.path())
+    .expect("load config");
+
+    assert_eq!(config.tls.strict_ssl, Some(false));
+}
+
+#[test]
 pub fn json_env_host_keyed_token_is_used_and_outranks_project_npmrc() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");

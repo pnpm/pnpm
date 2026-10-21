@@ -138,10 +138,13 @@ pub struct PrefetchedBinLookup<'a> {
     /// bin and is skipped without IO), `None` means the lockfile had no
     /// `packages:` section and every dep must be probed.
     has_bin: Option<HashSet<PackageKey>>,
-    /// Parsed manifests recovered from the store-index prefetch. A hit
-    /// replaces the per-importer `package.json` read; a miss falls back
-    /// to disk.
+    /// Parsed manifests recovered from the store-index prefetch or
+    /// cold-batch tarball extraction. A hit replaces the per-importer
+    /// `package.json` read; a miss falls back to disk.
     package_manifests: Option<&'a PackageManifests>,
+    /// Precalculated bin commands and shebang runtimes recovered from
+    /// `dist.pnpr.bins` or cold-batch tarball extraction.
+    package_bins: Option<&'a crate::PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the same prefetch. The
     /// no-IO path is only sound for a snapshot known not to run build
     /// scripts: a persisted global-virtual-store slot that was built may
@@ -169,6 +172,12 @@ impl<'a> PrefetchedBinLookup<'a> {
         self
     }
 
+    #[must_use]
+    pub fn with_package_bins(mut self, package_bins: Option<&'a crate::PackageBins>) -> Self {
+        self.package_bins = package_bins;
+        self
+    }
+
     fn is_build_pending(&self, snapshot_key: Option<&PackageKey>) -> bool {
         let (Some(scheduled), Some(key)) = (self.scheduled_builds, snapshot_key) else {
             return false;
@@ -185,6 +194,7 @@ impl<'a> PrefetchedBinLookup<'a> {
         PrefetchedBinLookup {
             has_bin: build_has_bin_set(packages),
             package_manifests,
+            package_bins: None,
             requires_build,
             shim_cache: ShimTargetCache::default(),
             scheduled_builds: None,
@@ -257,7 +267,9 @@ pub(super) fn prefetched_bin_source(
     let Some(snapshot_key) = snapshot_key else {
         return PrefetchedBin::ReadFromDisk;
     };
-    if lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false) {
+    if crate::snapshot_has_patch(snapshot_key)
+        || lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) != Some(&false)
+    {
         return PrefetchedBin::ReadFromDisk;
     }
     let metadata_key = snapshot_key.without_peer();
@@ -271,9 +283,13 @@ pub(super) fn prefetched_bin_source(
     else {
         return PrefetchedBin::ReadFromDisk;
     };
+    let precalculated_bins = lookup.package_bins
+        .and_then(|bins| bins.get(&metadata_key))
+        .map(Arc::clone);
     PrefetchedBin::Source(
         PackageBinSource::new(modules_dir.join(name), Arc::clone(manifest))
-            .with_resolved_location(target.to_path_buf()),
+            .with_resolved_location(target.to_path_buf())
+            .with_precalculated_bins(precalculated_bins),
     )
 }
 fn read_manifest_at(manifest_path: &Path) -> Result<Option<serde_json::Value>, LinkBinsError> {

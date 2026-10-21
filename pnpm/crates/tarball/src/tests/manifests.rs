@@ -131,6 +131,7 @@ fn streaming_extract_rejects_manifest_beyond_prealloc_cap() {
     )
     .expect_err("oversized manifest must be rejected, not buffered");
 
+    assert!(!super::is_transient_error(&err));
     match err {
         TarballError::ReadTarballEntries(io_err) => {
             assert_eq!(io_err.kind(), ErrorKind::InvalidData);
@@ -872,4 +873,79 @@ fn buffered_tar_entry_diagnostics_escape_terminal_controls() {
     assert!(message.contains(r"\u{9b}"));
     assert!(!message.contains('\x1b'));
     assert!(!message.contains('\u{009b}'));
+}
+
+#[test]
+fn tar_requires_build_matches_tarball_extractor_rules() {
+    let plain =
+        tar_with_entries(&[("package/package.json", br#"{"name":"plain","version":"1.0.0"}"#)]);
+    assert_eq!(crate::tar_requires_build(plain.as_slice()), Some(false));
+
+    let script = tar_with_entries(&[(
+        "package/package.json",
+        br#"{"name":"script","version":"1.0.0","scripts":{"postinstall":"node build.js"}}"#,
+    )]);
+    assert_eq!(crate::tar_requires_build(script.as_slice()), Some(true));
+
+    let gyp = tar_with_entries(&[
+        ("package/package.json", br#"{"name":"gyp","version":"1.0.0"}"#),
+        ("package/binding.gyp", b"{}"),
+    ]);
+    assert_eq!(crate::tar_requires_build(gyp.as_slice()), Some(true));
+
+    let broken = tar_with_entries(&[("package/package.json", b"{ broken")]);
+    assert_eq!(crate::tar_requires_build(broken.as_slice()), None);
+
+    let complete = tar_with_entries(&[
+        ("package/package.json", br#"{"name":"plain","version":"1.0.0"}"#),
+        ("package/index.js", b"module.exports = 1;\n"),
+    ]);
+    assert_eq!(
+        crate::inspect_tar(complete.as_slice()),
+        crate::TarInspection {
+            requires_build: Some(false),
+            file_count: Some(2),
+            unpacked_size: Some(54),
+            bins: Some(std::collections::BTreeMap::new()),
+        },
+    );
+    // Truncating at the first entry boundary (1024 bytes: 512-byte header +
+    // 512-byte padded payload) omits the second file and the end-of-archive
+    // zero blocks, so inspection must reject the partial archive.
+    assert_eq!(crate::inspect_tar(&complete[..1024]), crate::TarInspection::default());
+
+    let with_bins = tar_with_entries(&[
+        (
+            "package/package.json",
+            br#"{"name":"@scope/cli-tool","version":"1.0.0","bin":"./bin/cli.js"}"#,
+        ),
+        ("package/bin/cli.js", b"#!/usr/bin/env -S node --no-warnings\nconsole.log('ok');\n"),
+    ]);
+    let expected_bins = std::collections::BTreeMap::from([(
+        "cli-tool".to_string(),
+        pnpm_package_manifest::PackageBin {
+            path: "bin/cli.js".to_string(),
+            prog: Some("node".to_string()),
+            args: " --no-warnings".to_string(),
+        },
+    )]);
+    assert_eq!(crate::inspect_tar(with_bins.as_slice()).bins, Some(expected_bins.clone()));
+
+    let (_keep, store_path) = tempdir_with_leaked_path();
+    let (_, _, eager_bins) = crate::extract::extract_tarball_entries_with_bins(
+        &with_bins,
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect("eager extraction with bins");
+    let (_, _, streamed_bins, _) = crate::extract::stream_extract_gzipped_tarball_with_tar(
+        &gzip_bytes(&with_bins),
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect("streaming extraction with bins");
+    assert_eq!(eager_bins, Some(expected_bins.clone()));
+    assert_eq!(streamed_bins, Some(expected_bins));
 }

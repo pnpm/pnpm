@@ -44,6 +44,7 @@ pub(super) fn relink_dependency_bins(
         selected_snapshots: Some(&consumers),
         packages: inputs.graph.packages,
         package_manifests: &crate::PackageManifests::default(),
+        package_bins: None,
         skipped: inputs.skipped,
         link_options: &options,
     }
@@ -142,8 +143,8 @@ pub(super) fn importer_sources(
     hoisted: &[String],
 ) -> Option<HashMap<PathBuf, pnpm_cmd_shim::PreparedPackageBins>> {
     let entry = plans.existing_directory(directory)?;
-    let entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let plan = entry.plan.as_ref()?;
+    let mut entry = entry.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let plan = entry.plan_or_seeded()?;
     Some(
         direct
             .iter()

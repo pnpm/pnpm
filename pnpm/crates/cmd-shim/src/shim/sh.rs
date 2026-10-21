@@ -334,8 +334,17 @@ fn shim_target_marker(target: &str) -> String {
 #[must_use]
 pub fn is_shim_pointing_at(shim_content: &str, shim_path: &Path, target_path: &Path) -> bool {
     let target = target_path.to_string_lossy().replace('\\', "/");
+    let normalized_target =
+        super::lexical_normalize(target_path).to_string_lossy().replace('\\', "/");
+    let rel_target = relative_target(target_path, shim_path);
     shim_target_markers(shim_content)
-        .any(|marker| marker == target || marker == relative_target(target_path, shim_path))
+        .any(|marker| {
+            marker == target
+                || marker == normalized_target
+                || marker == rel_target
+                || super::lexical_normalize(Path::new(marker)).to_string_lossy().replace('\\', "/")
+                    == normalized_target
+        })
 }
 
 /// The line the header resolves `readlink` through. Taken verbatim from

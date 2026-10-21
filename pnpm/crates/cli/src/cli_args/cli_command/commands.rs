@@ -367,6 +367,7 @@ impl CliCommand {
             self,
             CliCommand::Install(_)
                 | CliCommand::Dedupe(_)
+                | CliCommand::Prune(_)
                 | CliCommand::InstallTest(_)
                 | CliCommand::Import(_)
                 | CliCommand::List(_)

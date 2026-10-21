@@ -260,18 +260,21 @@ impl super::CliNetworkArgs {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
-        if self.https_proxy.is_some() {
+        if let Some(https_proxy) = &self.https_proxy {
             config.cli_settings.insert("httpsProxy".to_string());
+            config.cli.npmrc_tokens.push(("https-proxy".to_string(), https_proxy.clone()));
         }
-        if self.http_proxy.is_some() {
+        if let Some(http_proxy) = &self.http_proxy {
             config.cli_settings.insert("httpProxy".to_string());
+            config.cli.npmrc_tokens.push(("http-proxy".to_string(), http_proxy.clone()));
         }
-        if self.no_proxy.is_some() {
+        if let Some(no_proxy) = &self.no_proxy {
             config.cli_settings.insert("noProxy".to_string());
             config.cli_settings.insert("noproxy".to_string());
+            config.cli.npmrc_tokens.push(("no-proxy".to_string(), no_proxy.clone()));
         }
         if let Some(registry) = self.registry.as_deref() {
-            crate::config_overrides::apply_registry_override(config, registry);
+            config.cli.npmrc_tokens.push(("registry".to_string(), registry.to_string()));
         }
     }
 }

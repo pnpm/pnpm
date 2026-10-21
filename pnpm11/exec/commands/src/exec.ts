@@ -27,7 +27,7 @@ import {
   RESUME_FROM_OPTION_HELP,
   shorthands as runShorthands,
 } from './run.js'
-import { runDepsStatusCheck } from './runDepsStatusCheck.js'
+import { INSTALL_CLI_OPTION_NAMES, runDepsStatusCheck } from './runDepsStatusCheck.js'
 import { taskRunExecutionSettings, TaskRunStateContext } from './taskRunState.js'
 
 export { getExecutionDuration, writeRecursiveSummary }
@@ -42,6 +42,7 @@ export const commandNames = ['exec']
 export function rcOptionsTypes (): Record<string, unknown> {
   return {
     ...pick([
+      ...INSTALL_CLI_OPTION_NAMES,
       'bail',
       'sort',
       'unsafe-perm',

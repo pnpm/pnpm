@@ -14,6 +14,7 @@ pub(super) struct SpecDirs<'a> {
     /// target's `package.json` on disk: a host that hands its project
     /// manifests over in memory need not have written one.
     pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
+    pub(super) canonical_paths: &'a pnpm_fs::CanonicalPaths,
 }
 
 /// Whether the recorded resolution of a local directory dependency's child
@@ -41,7 +42,45 @@ pub(super) fn spec_satisfies_snapshot_dep(
             lockfile_dep,
         ));
     }
+    if is_locked_to_other_source(spec, lockfile_dep) {
+        return Some(false);
+    }
     npm_or_registry_spec_satisfies(dep_name, spec, lockfile_dep)
+}
+
+/// Whether a spec that names one exact source, a tarball URL or a git
+/// commit, asks for a source other than the one the child is locked to. The
+/// lockfile keys such a child by the URL or commit it resolved.
+fn is_locked_to_other_source(spec: &str, lockfile_dep: &pnpm_lockfile::SnapshotDepRef) -> bool {
+    let locked_id = match lockfile_dep.ver_peer().map(pnpm_lockfile::PkgVerPeer::version) {
+        Some(pnpm_lockfile::VersionPart::NonSemver(raw)) => raw.as_str(),
+        _ => "",
+    };
+    if let Some((committish, path)) =
+        pnpm_resolving_git_resolver::git_spec_committish_and_path(spec)
+    {
+        let (locked_source, locked_path) = match locked_id.rsplit_once("path:") {
+            Some((source, path)) => (source.trim_end_matches(['#', '&']), Some(path)),
+            None => (locked_id, None),
+        };
+        // Hosted archive ids end in the commit or in `<sha>.tar.gz` or
+        // `<project>-<sha>.tar.gz` after it.
+        let locked_commit = locked_source
+            .rsplit(['#', '/'])
+            .map(|segment| segment.strip_suffix(".tar.gz").unwrap_or(segment))
+            .find(|segment| is_full_commit(segment))
+            .unwrap_or_default();
+        return committish.is_some_and(|commit| {
+            is_full_commit(&commit)
+                && (path.as_deref() != locked_path || !locked_commit.eq_ignore_ascii_case(&commit))
+        });
+    }
+    pnpm_resolving_tarball_resolver::remote_tarball_id(spec)
+        .is_some_and(|tarball_id| tarball_id.ok().as_deref() != Some(locked_id))
+}
+
+fn is_full_commit(committish: &str) -> bool {
+    committish.len() == 40 && committish.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn resolve_local_spec_path(base_dir: &Path, raw_path: &str) -> PathBuf {

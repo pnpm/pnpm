@@ -115,6 +115,7 @@ importers:
                 packages: None,
                 manifests_by_dir: Box::leak(Box::default()),
                 catalogs: Box::leak(Box::default()),
+                canonical_paths: Box::leak(Box::default()),
             },
             optional_exclusions: super::OptionalDependencyExclusions { ignored, frozen_lockfile },
             parsed_overrides: None,

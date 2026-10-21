@@ -7068,3 +7068,22 @@ test('getConfig() does not fall back to a valid older variable when the canonica
     })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
   })
 })
+
+test('getConfig() reads externalDependencies and autoInstallPeersFromHighestMatch from pnpm-workspace.yaml without warnings', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    autoInstallPeersFromHighestMatch: true,
+    externalDependencies: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+  })
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(warnings).toStrictEqual([])
+  expect(config.autoInstallPeersFromHighestMatch).toBe(true)
+  expect(config.externalDependencies).toStrictEqual(new Set(['@pnpm.e2e/dep-of-pkg-with-1-dep']))
+})

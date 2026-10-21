@@ -1,6 +1,8 @@
 pub mod console;
 pub mod terminal;
 
+pub use pnpm_testing_utils::bin::read_v11_bundle_path;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
@@ -14,7 +16,7 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::WorkspaceState;
 use serde_json::{Map, Value, json};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     ffi::OsStr,
     fmt::Write as _,
     fs,
@@ -24,6 +26,15 @@ use std::{
     time::{Duration, Instant},
 };
 use tempfile::TempDir;
+
+/// Fresh `node <bundle>` invocation anchored in `workspace` with ambient pnpm
+/// config cleared.
+#[must_use]
+pub fn v11_in(bundle: &OsStr, workspace: &Path) -> Command {
+    let mut command = Command::new("node");
+    command.arg(bundle);
+    command.with_current_dir(workspace).without_ambient_pnpm_config()
+}
 
 #[cfg(unix)]
 pub fn write_executable(path: &Path, body: &str) {
@@ -361,6 +372,21 @@ impl WorkspaceFixture {
             .args(args)
             .output()
             .expect("run pacquet")
+    }
+
+    pub fn v11_command_at<Args, Arg>(&self, bundle: &OsStr, cwd: &Path, args: Args) -> Output
+    where
+        Args: IntoIterator<Item = Arg>,
+        Arg: AsRef<OsStr>,
+    {
+        v11_in(bundle, cwd)
+            .env("PNPM_CONFIG_REGISTRY", self.registry.mock_instance.url())
+            .env("XDG_CONFIG_HOME", self.workspace.with_file_name("xdg-config"))
+            .arg("--config.confirm-modules-purge=false")
+            .arg("--reporter=ndjson")
+            .args(args)
+            .output()
+            .expect("run the pnpm v11 bundle")
     }
 
     pub fn run<Args, Arg>(&self, args: Args) -> Vec<Value>
@@ -871,4 +897,191 @@ pub fn copy_sources(from: &Path, to: &Path) {
             fs::copy(entry.path(), &target).expect("copy a source file");
         }
     }
+}
+
+/// Every lockfile under `workspace`, the current ones included.
+#[must_use]
+pub fn workspace_lockfiles(workspace: &Path) -> BTreeMap<String, String> {
+    walk_files(workspace)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name == "pnpm-lock.yaml" || name == "lock.yaml")
+        })
+        .map(|path| {
+            let relative = path.strip_prefix(workspace).expect("under the workspace");
+            let text = fs::read_to_string(&path).expect("read a lockfile");
+            (relative.to_string_lossy().replace('\\', "/"), text)
+        })
+        .collect()
+}
+
+fn normalize_dir_map(map: &mut BTreeMap<String, Vec<String>>) {
+    for dirs in map.values_mut() {
+        for dir in dirs.iter_mut() {
+            *dir = dir.replace('\\', "/");
+        }
+        dirs.sort();
+    }
+}
+
+fn read_normalized_modules_manifest(modules_dir: &Path) -> Modules {
+    let mut manifest = read_modules_manifest::<ModulesHost>(modules_dir)
+        .expect("read .modules.yaml")
+        .expect(".modules.yaml exists");
+    manifest.pruned_at.clear();
+    manifest.package_manager.clear();
+    manifest.store_dir.clear();
+    manifest.virtual_store_dir = pathdiff::diff_paths(&manifest.virtual_store_dir, modules_dir)
+        .unwrap_or_else(|| PathBuf::from(&manifest.virtual_store_dir))
+        .to_string_lossy()
+        .replace('\\', "/");
+    manifest.pending_builds.sort();
+    manifest.skipped.sort();
+    if let Some(injected_deps) = &mut manifest.injected_deps {
+        normalize_dir_map(injected_deps);
+        if injected_deps.is_empty() {
+            manifest.injected_deps = None;
+        }
+    }
+    if manifest.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
+        manifest.allow_builds = None;
+    }
+    if let Some(hoisted_locations) = &mut manifest.hoisted_locations {
+        normalize_dir_map(hoisted_locations);
+    }
+    manifest
+}
+
+/// Every `node_modules/.modules.yaml` under `workspace` as raw file text.
+#[must_use]
+pub fn workspace_raw_modules_manifests(workspace: &Path) -> BTreeMap<String, String> {
+    walk_files(workspace)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name == pnpm_modules_yaml::MODULES_FILENAME)
+        })
+        .map(|path| {
+            let relative = path.strip_prefix(workspace).expect("under the workspace");
+            let text = fs::read_to_string(&path).expect("read .modules.yaml");
+            (relative.to_string_lossy().replace('\\', "/"), text)
+        })
+        .collect()
+}
+
+/// Every `node_modules/.modules.yaml` under `workspace`, normalized so
+/// run-specific timestamps, CLI version strings, and host store paths do not
+/// mask layout differences.
+#[must_use]
+pub fn workspace_modules_manifests(workspace: &Path) -> BTreeMap<String, Modules> {
+    walk_files(workspace)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .is_some_and(|name| name == pnpm_modules_yaml::MODULES_FILENAME)
+        })
+        .map(|path| {
+            let modules_dir = path.parent().expect("modules directory");
+            let relative = path.strip_prefix(workspace).expect("under the workspace");
+            let manifest = read_normalized_modules_manifest(modules_dir);
+            (relative.to_string_lossy().replace('\\', "/"), manifest)
+        })
+        .collect()
+}
+
+/// Resolves dependencies through `node_modules` the way Node.js does, from
+/// each package's real path, and spells the result without absolute paths.
+pub struct TreeView {
+    root: PathBuf,
+    memo: HashMap<PathBuf, String>,
+}
+
+impl TreeView {
+    #[must_use]
+    pub fn new(workspace: &Path) -> Self {
+        let root = fs::canonicalize(workspace).expect("canonicalize workspace");
+        Self { root, memo: HashMap::new() }
+    }
+
+    pub fn project(&mut self, project_dir: &Path, with_dev: bool) -> String {
+        let manifest = read_manifest_or_null(project_dir);
+        let groups: &[&str] = if with_dev {
+            &["dependencies", "optionalDependencies", "devDependencies"]
+        } else {
+            &["dependencies", "optionalDependencies"]
+        };
+        let dependencies = declared_dependencies(&manifest, groups);
+        self.dependencies(project_dir, &dependencies)
+    }
+
+    fn dependencies(&mut self, from: &Path, names: &[String]) -> String {
+        let resolved = names
+            .iter()
+            .map(|name| {
+                let target = resolve_node_modules_package(from, name)
+                    .map(|dir| self.package(&dir))
+                    .unwrap_or_else(|| "<missing>".to_string());
+                format!("{name}={target}")
+            })
+            .collect::<Vec<_>>();
+        format!("{{{}}}", resolved.join(","))
+    }
+
+    fn package(&mut self, dir: &Path) -> String {
+        let real = fs::canonicalize(dir).expect("canonicalize a resolved dependency");
+        if let Some(seen) = self.memo.get(&real) {
+            return seen.clone();
+        }
+        self.memo.insert(real.clone(), "<cycle>".to_string());
+        let manifest = read_manifest_or_null(&real);
+        let label = match real.strip_prefix(&self.root) {
+            Ok(relative)
+                if !relative
+                    .components()
+                    .any(|part| part.as_os_str() == "node_modules") =>
+            {
+                format!("workspace:{}", relative.to_string_lossy().replace('\\', "/"))
+            }
+            _ => format!(
+                "{}@{}",
+                manifest["name"].as_str().unwrap_or_default(),
+                manifest["version"].as_str().unwrap_or_default(),
+            ),
+        };
+        let dependencies =
+            declared_dependencies(&manifest, &["dependencies", "optionalDependencies"]);
+        let described = format!("{label}{}", self.dependencies(&real, &dependencies));
+        self.memo.insert(real, described.clone());
+        described
+    }
+}
+
+fn read_manifest_or_null(dir: &Path) -> Value {
+    fs::read_to_string(dir.join("package.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or(Value::Null)
+}
+
+fn declared_dependencies(manifest: &Value, groups: &[&str]) -> Vec<String> {
+    let mut names = groups
+        .iter()
+        .filter_map(|group| manifest[*group].as_object())
+        .flat_map(|deps| deps.keys().cloned())
+        .collect::<Vec<_>>();
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// Node.js's lookup of `name` from a package at `from`.
+fn resolve_node_modules_package(from: &Path, name: &str) -> Option<PathBuf> {
+    from.ancestors()
+        .filter(|dir| {
+            dir.file_name()
+                .is_none_or(|base| base != "node_modules")
+        })
+        .map(|dir| dir.join("node_modules").join(name))
+        .find(|candidate| candidate.join("package.json").is_file())
 }

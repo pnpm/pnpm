@@ -75,10 +75,12 @@ export async function tryFastLockfileUpdate (
   // Only the committed candidate is worth reporting on: a rewrite the
   // freshness gates reject is followed by the resolution, which reports
   // it itself.
-  warnUnusedPatches(ctx.wantedLockfile, {
-    patchedDependencies: input.checksums.patchedDependencies,
-    allowUnusedPatches: run.opts.allowUnusedPatches,
-  })
+  if (!(run.opts.sharedWorkspaceLockfile === false && run.opts.workspaceDir != null)) {
+    warnUnusedPatches(ctx.wantedLockfile, {
+      patchedDependencies: input.checksums.patchedDependencies,
+      allowUnusedPatches: run.opts.allowUnusedPatches,
+    })
+  }
   return { didFastUpdateOverrides: plan.drift.overrides }
 }
 
@@ -209,7 +211,7 @@ function createComposeOptions (
     ignoredOptionalDependencies: opts.ignoredOptionalDependencies,
     patchedDependencies: {
       patchedDependencies: input.checksums.patchedDependencies,
-      allowUnusedPatches: opts.allowUnusedPatches,
+      allowUnusedPatches: opts.allowUnusedPatches || (opts.sharedWorkspaceLockfile === false && opts.workspaceDir != null),
     },
     settings: {
       changedSettings: input.settings.changedLockfileSettings.filter(isSettingsField),

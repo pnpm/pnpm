@@ -98,6 +98,7 @@ use crate::{
 pub struct DistStats {
     pub unpacked_size: Option<usize>,
     pub file_count: Option<usize>,
+    pub requires_build: Option<bool>,
 }
 
 /// `(package name, version) → dist` work statistics filled by the
@@ -127,6 +128,9 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// `https://npm.pkg.github.com/`). Merged with
     /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`].
     pub registries_by_prefix: HashMap<String, String>,
+    /// Per-registry options (`serverType`, `supportsTimeField`) keyed by URL.
+    pub registry_options_by_url:
+        Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
     /// Override for `Utc::now()` when computing the age cutoff and
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
@@ -325,6 +329,7 @@ pub fn create_npm_resolution_verifier(
             registries: opts.registries,
             named_registry_prefixes,
             registries_by_prefix: opts.registries_by_prefix,
+            registry_options_by_url: opts.registry_options_by_url,
         },
     }
 }

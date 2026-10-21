@@ -16,10 +16,12 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'allowedDeprecatedVersions',
   'audit',
   'auditConfig',
+  'autoInstallPeersFromHighestMatch',
   'catalog',
   'catalogs',
   'configDependencies',
   'enableGlobalVirtualStore',
+  'externalDependencies',
   'httpProxy',
   'httpsProxy',
   'ignoredOptionalDependencies',
@@ -149,10 +151,24 @@ export function isKnownSettingKey (key: string): boolean {
  * this repository, so a line-exclusive setting is known at build time.
  */
 const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
+  addMissingPeerTypes: 'pnpm v12',
+  autoDedupe: 'pnpm v12',
+  bootConfig: 'pnpm v12',
   cargo: 'pnpm v12',
   concurrencyGroups: 'pnpm v12',
   globalShims: 'pnpm v12',
+  macosBackup: 'pnpm v12',
+  nodePackageMap: 'pnpm v12',
+  permissions: 'pnpm v12',
+  pipelineBase: 'pnpm v12',
   pipelines: 'pnpm v12',
+  publishWaitTimeout: 'pnpm v12',
+  python: 'pnpm v12',
+  remoteCache: 'pnpm v12',
+  saveTypes: 'pnpm v12',
+  skills: 'pnpm v12',
+  storeIndexFormat: 'pnpm v12',
+  tools: 'pnpm v12',
 }
 
 const KNOWN_SETTING_KEYS_LIST = [...KNOWN_SETTING_KEYS]
