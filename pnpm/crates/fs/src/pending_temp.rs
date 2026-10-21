@@ -275,8 +275,8 @@ extern "C" fn clean_temp_files(signal: libc::c_int) {
 }
 
 /// Unlink the pending temp files, then end the process as `signal` would
-/// have ended it without a handler. For a signal handler that decides the
-/// process dies.
+/// have ended it without a handler, without dumping pnpm's own core. For a
+/// signal handler or child-status exit that decides the process dies.
 ///
 /// Async-signal-safe. The signal is unblocked first because a handler runs
 /// with its own signal blocked: `raise` would otherwise leave it pending
@@ -285,6 +285,7 @@ extern "C" fn clean_temp_files(signal: libc::c_int) {
 #[cfg(unix)]
 pub fn die_from_signal(signal: libc::c_int) -> ! {
     remove_pending_temp_files();
+    suppress_core_dump();
     // SAFETY: `sigprocmask`, `signal`, `raise` and `_exit` are all
     // async-signal-safe, and the set is a stack local that outlives the
     // call. `raise` does not return once the signal is unblocked and back
@@ -297,6 +298,27 @@ pub fn die_from_signal(signal: libc::c_int) -> ! {
         libc::sigprocmask(libc::SIG_UNBLOCK, &raw const unblocked, ptr::null_mut());
         libc::raise(signal);
         libc::_exit(128 + signal);
+    }
+}
+
+/// A core-dumping signal re-raised here (`SIGABRT`, `SIGSEGV`, `SIGQUIT`,
+/// ...) is a child's status being reported on pnpm's own exit: the child
+/// already had its chance to dump core, and a dump of pnpm would record a
+/// crash of pnpm in `systemd-coredump` or overwrite the child's `core` file
+/// ([pnpm/pnpm#17204](https://github.com/pnpm/pnpm/issues/17204)).
+///
+/// `RLIMIT_CORE` stops file-based dumps across Unix; Linux's `do_coredump`
+/// ignores it when `core_pattern` pipes to a helper such as
+/// `systemd-coredump`, so `PR_SET_DUMPABLE` is cleared there as well.
+#[cfg(unix)]
+fn suppress_core_dump() {
+    // SAFETY: both syscalls only adjust process attributes and take a
+    // stack local that outlives the call.
+    unsafe {
+        let zero = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+        libc::setrlimit(libc::RLIMIT_CORE, &raw const zero);
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
     }
 }
 

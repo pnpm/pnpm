@@ -74,3 +74,65 @@ fn slot_released_during_a_walk_stays_usable() {
     assert!(first.exists(), "released slot must not be unlinked: {first:?}");
     assert!(!second.exists(), "reused slot must be unlinked: {second:?}");
 }
+
+#[cfg(unix)]
+#[test]
+fn die_from_signal_does_not_dump_core() {
+    use std::{
+        env, io,
+        os::unix::process::{CommandExt, ExitStatusExt},
+        path::Path,
+        process::Command,
+    };
+
+    const CHILD_TEMP_ENV: &str = "PNPM_FS_DIE_FROM_SIGNAL_TEMP";
+    if let Some(temp) = env::var_os(CHILD_TEMP_ENV) {
+        let _guard = track_temp_file(Path::new(&temp));
+        super::die_from_signal(libc::SIGABRT);
+    }
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let temp = dir.path().join(".pnpm-lock.yaml.123.2.tmp");
+    fs::write(&temp, "partial lockfile").expect("stage temp file");
+
+    let mut command = Command::new(env::current_exe().expect("test binary path"));
+    command
+        .args(["--exact", "pending_temp::tests::die_from_signal_does_not_dump_core", "--nocapture"])
+        .env(CHILD_TEMP_ENV, &temp);
+    // SAFETY: `getrlimit`, `setrlimit`, and `prctl` are async-signal-safe and
+    // use a stack local that outlives the call. Both attributes survive `exec`.
+    unsafe {
+        let mut inherited_limit: libc::rlimit = std::mem::zeroed();
+        assert_eq!(
+            libc::getrlimit(libc::RLIMIT_CORE, &raw mut inherited_limit),
+            0,
+            "getrlimit(RLIMIT_CORE) failed: {}",
+            io::Error::last_os_error(),
+        );
+        assert_ne!(
+            inherited_limit.rlim_max, 0,
+            "core-dump regression test requires a non-zero RLIMIT_CORE hard limit",
+        );
+        command.pre_exec(|| {
+            let mut limit: libc::rlimit = std::mem::zeroed();
+            if libc::getrlimit(libc::RLIMIT_CORE, &raw mut limit) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            limit.rlim_cur = limit.rlim_max;
+            if libc::setrlimit(libc::RLIMIT_CORE, &raw const limit) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            if libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+
+    let status = command.status().expect("spawn child test process");
+
+    assert!(!temp.exists(), "die_from_signal must unlink pending temp files: {temp:?}");
+    assert_eq!(status.signal(), Some(libc::SIGABRT), "process should die by SIGABRT: {status:?}");
+    assert!(!status.core_dumped(), "die_from_signal must not dump core: {status:?}");
+}
