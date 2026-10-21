@@ -220,6 +220,72 @@ const TAR_SCAN_MAX_METADATA_BYTES: u64 = 64 * 1024;
 /// Ceiling on the `package.json` entry buffered during [`tar_requires_build`].
 const TAR_SCAN_MAX_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
 
+/// Facts derived from a single scan of a `.tar` stream.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct TarInspection {
+    /// Whether the archive contains lifecycle scripts, `binding.gyp`
+    /// (unless `gypfile: false`), or `.hooks/`. `None` when the tar stream
+    /// cannot be read, an entry path fails validation, or `package.json`
+    /// fails to parse as JSON.
+    pub requires_build: Option<bool>,
+    /// Number of regular files in the archive.
+    pub file_count: Option<u64>,
+    /// Total unpacked byte size of regular files in the archive.
+    pub unpacked_size: Option<u64>,
+}
+
+/// Inspect a `.tar` stream in a single pass, recording regular-file counts
+/// and unpacked byte totals alongside the [`tar_requires_build`] verdict.
+pub fn inspect_tar(reader: impl std::io::Read) -> TarInspection {
+    inspect_tar_entries(reader).unwrap_or_default()
+}
+
+struct TarStreamReader<Reader> {
+    inner: Reader,
+    unexpected_eof: bool,
+}
+
+impl<Reader: std::io::Read> std::io::Read for TarStreamReader<Reader> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let len = self.inner.read(buf)?;
+        if len == 0 && !buf.is_empty() {
+            self.unexpected_eof = true;
+        }
+        Ok(len)
+    }
+}
+
+fn inspect_tar_entries(reader: impl std::io::Read) -> Option<TarInspection> {
+    let mut archive = tar::Archive::new(TarStreamReader { inner: reader, unexpected_eof: false });
+    archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
+    let mut triggers = BuildTriggers::default();
+    let mut manifest_parse_failed = false;
+    let mut file_count = 0u64;
+    let mut unpacked_size = 0u64;
+    for entry in archive.entries().ok()? {
+        let mut entry = entry.ok()?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        file_count = file_count.checked_add(1)?;
+        unpacked_size = unpacked_size.checked_add(entry.size())?;
+        let raw_path = entry.path().ok()?;
+        let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
+        triggers.add_file(&cleaned_path);
+        if cleaned_path == "package.json" {
+            manifest_parse_failed = !read_tar_manifest_entry(&mut entry, &mut triggers)?;
+        }
+    }
+    if archive.into_inner().unexpected_eof {
+        return None;
+    }
+    Some(TarInspection {
+        requires_build: (!manifest_parse_failed).then(|| triggers.requires_build()),
+        file_count: Some(file_count),
+        unpacked_size: Some(unpacked_size),
+    })
+}
+
 /// Whether the tar stream read from `reader` carries build triggers:
 /// lifecycle scripts (`preinstall`, `install`, `postinstall`) in its
 /// root `package.json`, a `binding.gyp` (unless `gypfile: false` in
@@ -228,23 +294,7 @@ const TAR_SCAN_MAX_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
 /// Returns `None` when the tar stream cannot be read or an entry path fails
 /// validation.
 pub fn tar_requires_build(reader: impl std::io::Read) -> Option<bool> {
-    let mut archive = tar::Archive::new(reader);
-    archive.set_max_metadata_size(Some(TAR_SCAN_MAX_METADATA_BYTES));
-    let mut triggers = BuildTriggers::default();
-    let mut manifest_parse_failed = false;
-    for entry in archive.entries().ok()? {
-        let mut entry = entry.ok()?;
-        if !entry.header().entry_type().is_file() {
-            continue;
-        }
-        let raw_path = entry.path().ok()?;
-        let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
-        triggers.add_file(&cleaned_path);
-        if cleaned_path == "package.json" {
-            manifest_parse_failed = !read_tar_manifest_entry(&mut entry, &mut triggers)?;
-        }
-    }
-    (!manifest_parse_failed).then(|| triggers.requires_build())
+    inspect_tar(reader).requires_build
 }
 
 fn read_tar_manifest_entry<Reader: std::io::Read>(

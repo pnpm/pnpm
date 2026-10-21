@@ -313,18 +313,28 @@ mod pnpm_default_parity;
 mod tests;
 
 /// Whether the resolution has to read full packument metadata from a given
-/// registry, as [`Config::requires_full_metadata_for_registry_fn`] answers it.
-pub type NeedsFullMetadataFor = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+/// registry (and whether the dependency is optional), as
+/// [`Config::requires_full_metadata_for_registry_fn`] answers it.
+pub type NeedsFullMetadataFn = dyn Fn(&str, bool) -> bool + Send + Sync;
 
-/// Whether a resolution has to read full packument metadata: trust evidence
-/// (`_npmUser`) is never in the abbreviated form, and a time-based resolution
-/// needs `time`, which a registry may or may not carry there.
+/// Shared handle to a [`NeedsFullMetadataFn`].
+pub type NeedsFullMetadataFor = Arc<NeedsFullMetadataFn>;
+
+/// Whether a resolution has to read full packument metadata: optional
+/// dependencies (`libc`) and trust evidence (`_npmUser`, `dist.attestations`)
+/// are omitted from standard npm abbreviated metadata (though included by
+/// `pnpr`), and a time-based resolution needs `time`, which a registry may or
+/// may not carry there.
 fn full_metadata_policy(
     trust_policy: TrustPolicy,
     time_based: bool,
     supports_time_field: bool,
+    optional: bool,
+    server_type: Option<pnpm_lockfile::RegistryServerType>,
 ) -> bool {
-    trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
+    let is_pnpr = server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr);
+    (!is_pnpr && (optional || trust_policy == TrustPolicy::NoDowngrade))
+        || (time_based && !supports_time_field)
 }
 
 /// Reads one field of the remote tier from the environment, under the name

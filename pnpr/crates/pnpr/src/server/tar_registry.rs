@@ -74,7 +74,27 @@ pub(super) fn describe_tars(
     }
 }
 
-/// Overlay `dist.pnpr.requiresBuild` when known, and on a tar registry rewrite
+/// Backfill verified `dist.fileCount` and `dist.unpackedSize` from
+/// `.tar-integrities` onto each version of a hosted packument so pre-upgrade
+/// packuments match the read-path overlay during immutability checks and
+/// packument rewrites.
+pub(super) fn overlay_verified_tar_stats(doc: &mut Value, table: &BTreeMap<String, DerivedTar>) {
+    let Some(versions) = doc.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for version in versions.values_mut() {
+        let Some(dist) = version.get_mut("dist").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let Some(derived) = tgz_integrity_key(dist).and_then(|key| table.get(&key)) else {
+            continue;
+        };
+        apply_derived_tar_stats(dist, derived);
+    }
+}
+
+/// Backfill `dist.fileCount` and `dist.unpackedSize`, overlay
+/// `dist.pnpr.requiresBuild` when known, and on a tar registry rewrite
 /// `dist` to describe its tar: the tar's integrity when it is known, and none
 /// of the fields that name or sign the `.tgz`. A projected revision already
 /// names its tar by digest, so it is kept as projected.
@@ -87,10 +107,7 @@ pub(super) fn describe_tar(
         return;
     };
     let derived = tgz_integrity_key(dist).and_then(|key| table.get(&key));
-    dist.remove("pnpr");
-    if let Some(requires_build) = derived.and_then(|entry| entry.requires_build) {
-        dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));
-    }
+    apply_derived_tar_metadata(dist, derived);
     if !tar_registry || dist.contains_key("revision") {
         return;
     }
@@ -105,6 +122,29 @@ pub(super) fn describe_tar(
         None => {
             dist.remove("integrity");
         }
+    }
+}
+
+fn apply_derived_tar_metadata(
+    dist: &mut serde_json::Map<String, Value>,
+    derived: Option<&DerivedTar>,
+) {
+    dist.remove("pnpr");
+    let Some(derived) = derived else {
+        return;
+    };
+    apply_derived_tar_stats(dist, derived);
+    if let Some(requires_build) = derived.requires_build {
+        dist.insert("pnpr".to_string(), serde_json::json!({ "requiresBuild": requires_build }));
+    }
+}
+
+fn apply_derived_tar_stats(dist: &mut serde_json::Map<String, Value>, derived: &DerivedTar) {
+    if let Some(file_count) = derived.file_count {
+        dist.insert("fileCount".to_string(), Value::from(file_count));
+    }
+    if let Some(unpacked_size) = derived.unpacked_size {
+        dist.insert("unpackedSize".to_string(), Value::from(unpacked_size));
     }
 }
 

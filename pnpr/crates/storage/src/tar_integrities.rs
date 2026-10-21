@@ -6,18 +6,42 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// The tar integrity and build-trigger verdict derived from one `.tgz`.
+/// The tar integrity, build-trigger verdict, and unpacked file statistics
+/// derived from one `.tgz`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DerivedTar {
     pub tar_integrity: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires_build: Option<bool>,
-    /// `true` once the `.tgz` has been scanned for build triggers, even when
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_count: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unpacked_size: Option<u64>,
+    /// `true` once the `.tgz` has been scanned for tar metadata, even when
     /// `requires_build` is `None` (unparsable `package.json`). `false` only
-    /// for a legacy string entry written before build-trigger scanning existed.
+    /// for a legacy string entry written before tar scanning existed.
     #[serde(skip)]
     pub scanned: bool,
+}
+
+impl DerivedTar {
+    #[must_use]
+    pub fn new(
+        tar_integrity: impl Into<String>,
+        requires_build: Option<bool>,
+        file_count: Option<u64>,
+        unpacked_size: Option<u64>,
+    ) -> Self {
+        let scanned = file_count.is_some() && unpacked_size.is_some();
+        Self {
+            tar_integrity: tar_integrity.into(),
+            requires_build,
+            file_count,
+            unpacked_size,
+            scanned,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -29,6 +53,10 @@ enum StoredDerivedTar {
         tar_integrity: String,
         #[serde(default, rename = "requiresBuild")]
         requires_build: Option<bool>,
+        #[serde(default, rename = "fileCount")]
+        file_count: Option<u64>,
+        #[serde(default, rename = "unpackedSize")]
+        unpacked_size: Option<u64>,
     },
 }
 
@@ -37,11 +65,21 @@ impl<'de> Deserialize<'de> for DerivedTar {
         deserializer: Deserializer,
     ) -> std::result::Result<Self, Deserializer::Error> {
         match StoredDerivedTar::deserialize(deserializer)? {
-            StoredDerivedTar::Legacy(tar_integrity) => {
-                Ok(Self { tar_integrity, requires_build: None, scanned: false })
-            }
-            StoredDerivedTar::Record { tar_integrity, requires_build } => {
-                Ok(Self { tar_integrity, requires_build, scanned: true })
+            StoredDerivedTar::Legacy(tar_integrity) => Ok(Self {
+                tar_integrity,
+                requires_build: None,
+                file_count: None,
+                unpacked_size: None,
+                scanned: false,
+            }),
+            StoredDerivedTar::Record {
+                tar_integrity,
+                requires_build,
+                file_count,
+                unpacked_size,
+            } => {
+                let scanned = file_count.is_some() && unpacked_size.is_some();
+                Ok(Self { tar_integrity, requires_build, file_count, unpacked_size, scanned })
             }
         }
     }
@@ -156,22 +194,18 @@ impl Storage {
         Ok(table)
     }
 
-    /// Record that the `.tgz` with integrity `tgz_integrity` decodes to a tar
-    /// with integrity `tar_integrity` and build-trigger verdict `requires_build`.
+    /// Record the [`DerivedTar`] metadata decoded from `tgz_integrity`.
     /// A record that keeps losing the race to concurrent ones is dropped; the
     /// version's next tar request derives it again.
     pub async fn record_tar_integrity(
         &self,
         name: &CanonicalPackageName,
         tgz_integrity: &str,
-        tar_integrity: &str,
-        requires_build: Option<bool>,
+        derived: DerivedTar,
     ) -> Result<()> {
         if self.tar_integrity_cache
             .get(name)
-            .is_some_and(|table| {
-                is_tar_entry_recorded(&table, tgz_integrity, tar_integrity, requires_build)
-            })
+            .is_some_and(|table| is_tar_entry_recorded(&table, tgz_integrity, &derived))
         {
             return Ok(());
         }
@@ -183,10 +217,10 @@ impl Storage {
                 }
                 None => (BTreeMap::new(), None),
             };
-            if is_tar_entry_recorded(&table, tgz_integrity, tar_integrity, requires_build) {
+            if is_tar_entry_recorded(&table, tgz_integrity, &derived) {
                 return Ok(());
             }
-            insert_tar_entry(&mut table, tgz_integrity, tar_integrity, requires_build);
+            insert_tar_entry(&mut table, tgz_integrity, derived.clone());
             let bytes = serde_json::to_vec(&table)
                 .map_err(|err| RegistryError::Internal {
                     reason: format!("encode tar integrities: {err}"),
@@ -206,32 +240,43 @@ impl Storage {
 fn is_tar_entry_recorded(
     table: &BTreeMap<String, DerivedTar>,
     tgz_integrity: &str,
-    tar_integrity: &str,
-    requires_build: Option<bool>,
+    derived: &DerivedTar,
 ) -> bool {
     table
         .get(tgz_integrity)
         .is_some_and(|known| {
-            known.tar_integrity == tar_integrity
-                && known.scanned
-                && (requires_build.is_none() || known.requires_build == requires_build)
+            known == derived
+                || (known.tar_integrity == derived.tar_integrity
+                    && known.scanned
+                    && (derived.requires_build.is_none()
+                        || known.requires_build == derived.requires_build)
+                    && (derived.file_count.is_none() || known.file_count == derived.file_count)
+                    && (derived.unpacked_size.is_none()
+                        || known.unpacked_size == derived.unpacked_size))
         })
 }
 
 fn insert_tar_entry(
     table: &mut BTreeMap<String, DerivedTar>,
     tgz_integrity: &str,
-    tar_integrity: &str,
-    requires_build: Option<bool>,
+    derived: DerivedTar,
 ) {
-    let merged_requires_build =
-        requires_build.or_else(|| table.get(tgz_integrity).and_then(|known| known.requires_build));
+    let previous = table
+        .get(tgz_integrity)
+        .filter(|known| known.tar_integrity == derived.tar_integrity);
+    let file_count = derived.file_count.or_else(|| previous.and_then(|known| known.file_count));
+    let unpacked_size =
+        derived.unpacked_size.or_else(|| previous.and_then(|known| known.unpacked_size));
     table.insert(
         tgz_integrity.to_string(),
         DerivedTar {
-            tar_integrity: tar_integrity.to_string(),
-            requires_build: merged_requires_build,
-            scanned: true,
+            tar_integrity: derived.tar_integrity,
+            requires_build: derived.requires_build.or_else(|| {
+                previous.and_then(|known| known.requires_build)
+            }),
+            file_count,
+            unpacked_size,
+            scanned: file_count.is_some() && unpacked_size.is_some(),
         },
     );
 }

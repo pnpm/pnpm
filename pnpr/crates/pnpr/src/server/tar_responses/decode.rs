@@ -33,9 +33,11 @@ pub(in super::super) fn tar_decode_limit(unpacked_size: Option<u64>) -> u64 {
     })
 }
 
-/// Compute the integrity and build-trigger verdict of the tar a stored `.tgz`
+/// Compute the integrity and tar metadata of the tar a stored `.tgz`
 /// decodes to. `None` when the `.tgz` is not a sequence of gzip members.
-pub(in super::super) fn tar_integrity_of(tgz: impl Read) -> Option<(Integrity, Option<bool>)> {
+pub(in super::super) fn tar_integrity_of(
+    tgz: impl Read,
+) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     tar_integrity_within(tgz, MAX_DECODED_TAR_BYTES)
 }
 
@@ -55,7 +57,7 @@ pub(in super::super) fn tar_resource_integrity(
 pub(in super::super) fn tar_integrity_within(
     tgz: impl Read,
     limit: u64,
-) -> Option<(Integrity, Option<bool>)> {
+) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     hash_within(flate2::read::MultiGzDecoder::new(tgz), limit)
 }
 
@@ -86,18 +88,18 @@ impl<Reader: Read> Read for HashingTarReader<Reader> {
     }
 }
 
-fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, Option<bool>)> {
+fn hash_within(tar: impl Read, limit: u64) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     let mut reader = HashingTarReader {
         decoder: tar.take(limit.saturating_add(1)),
         decoded: 0,
         hasher: IntegrityOpts::new().algorithm(Algorithm::Sha512),
         failed: false,
     };
-    let requires_build = pnpm_tarball::tar_requires_build(&mut reader);
+    let inspection = pnpm_tarball::inspect_tar(&mut reader);
     if reader.failed || !drain_tar(&mut reader) || reader.decoded > limit {
         return None;
     }
-    Some((reader.hasher.result(), requires_build))
+    Some((reader.hasher.result(), inspection))
 }
 
 fn drain_tar(reader: &mut impl Read) -> bool {
@@ -116,8 +118,8 @@ pub(super) struct DerivedFrom {
     /// The `.tgz` integrity the compressed bytes still have to match. A
     /// mismatch fails the response and evicts the stale copy.
     pub(super) check: Option<Integrity>,
-    /// Whether to hash the tar for `on_complete`: the version has an
-    /// integrity to key it by, and its tar's is not recorded yet.
+    /// Whether to hash and inspect the tar for `on_complete`: the version has
+    /// an integrity to key it by, and its derived tar metadata is not recorded yet.
     pub(super) hash: bool,
     pub(super) copy: Option<TarCopy>,
     pub(super) stale: StaleTgz,
@@ -128,13 +130,13 @@ pub(super) struct DerivedFrom {
 /// Decode a gzip body as it streams, copying the decoded bytes into
 /// `derived.copy`. Once every member decoded and the compressed bytes matched
 /// `derived.check`, submit the copy and, if `derived.hash`, call
-/// `on_complete` with the integrity and build-trigger verdict of the decoded
+/// `on_complete` with the integrity and tar metadata of the decoded
 /// bytes. A body that fails to decode ends the response with an error.
 pub(super) fn gunzip_body(
     body: Body,
     derived: DerivedFrom,
     decodes: Arc<Semaphore>,
-    on_complete: impl FnOnce(Integrity, Option<bool>) + Send + 'static,
+    on_complete: impl FnOnce(Integrity, pnpm_tarball::TarInspection) + Send + 'static,
 ) -> Body {
     const CHANNEL_CHUNKS: usize = 16;
     let (compressed_tx, compressed_rx) = mpsc::channel::<io::Result<Bytes>>(CHANNEL_CHUNKS);
@@ -166,7 +168,7 @@ fn derive_from_decode(
     compressed_rx: mpsc::Receiver<io::Result<Bytes>>,
     tar_tx: &mpsc::Sender<io::Result<Bytes>>,
     derived: DerivedFrom,
-    on_complete: impl FnOnce(Integrity, Option<bool>),
+    on_complete: impl FnOnce(Integrity, pnpm_tarball::TarInspection),
 ) {
     let DerivedFrom { check, hash, mut copy, stale, limit } = derived;
     let mut compressed = CheckedReader {
@@ -175,8 +177,7 @@ fn derive_from_decode(
     };
     let decoder = flate2::read::MultiGzDecoder::new(&mut compressed).take(limit.saturating_add(1));
     let mut hasher = hash.then(|| IntegrityOpts::new().algorithm(Algorithm::Sha512));
-    let Some(requires_build) =
-        decode_into(decoder, tar_tx, &mut copy, hasher.as_mut(), hash, limit)
+    let Some(inspection) = decode_into(decoder, tar_tx, &mut copy, hasher.as_mut(), hash, limit)
     else {
         return;
     };
@@ -188,7 +189,7 @@ fn derive_from_decode(
         copy.submit();
     }
     if let Some(hasher) = hasher {
-        on_complete(hasher.result(), requires_build);
+        on_complete(hasher.result(), inspection);
     }
 }
 
@@ -210,9 +211,9 @@ fn decode_into(
     out: &mpsc::Sender<io::Result<Bytes>>,
     copy: &mut Option<TarCopy>,
     hasher: Option<&mut IntegrityOpts>,
-    scan_requires_build: bool,
+    scan_tar: bool,
     limit: u64,
-) -> Option<Option<bool>> {
+) -> Option<pnpm_tarball::TarInspection> {
     let mut stream = DecodeStream {
         decoder,
         out,
@@ -223,10 +224,13 @@ fn decode_into(
         current: Bytes::new(),
         failed: false,
     };
-    let requires_build =
-        scan_requires_build.then(|| pnpm_tarball::tar_requires_build(&mut stream)).flatten();
+    let inspection = if scan_tar {
+        pnpm_tarball::inspect_tar(&mut stream)
+    } else {
+        pnpm_tarball::TarInspection::default()
+    };
     while !stream.failed && stream.pump_chunk().is_some() {}
-    (!stream.failed).then_some(requires_build)
+    (!stream.failed).then_some(inspection)
 }
 
 struct DecodeStream<'a, Reader> {

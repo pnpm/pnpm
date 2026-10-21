@@ -80,8 +80,8 @@ pub fn registry_server_type(
 }
 
 /// Whether `registry`'s abbreviated metadata carries the `time` field, per its
-/// own declaration. [`None`] when it does not declare one, which leaves the
-/// answer to the `registrySupportsTimeField` setting.
+/// own declaration or its declared `serverType: pnpr`. [`None`] when neither
+/// applies, which leaves the answer to the `registrySupportsTimeField` setting.
 ///
 /// Keyed like [`registry_server_type`], which is why the query is normalized
 /// the same way.
@@ -95,11 +95,13 @@ pub fn registry_supports_time_field(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options_by_url
+    let options = registry_options_by_url
         .get(key.as_ref())
         .copied()
-        .unwrap_or_default()
-        .supports_time_field
+        .unwrap_or_default();
+    options.supports_time_field.or_else(|| {
+        (options.server_type == Some(RegistryServerType::Pnpr)).then_some(true)
+    })
 }
 
 /// A declared server type wins; otherwise the built-in layout of a known

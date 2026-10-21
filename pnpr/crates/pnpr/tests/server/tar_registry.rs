@@ -72,8 +72,9 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
 
     let packument = body_json(get(&app, "/npm/~zstd/@acme%2Fwidget", None).await.into_body()).await;
     let dist = &packument["versions"]["1.0.0"]["dist"];
-    dbg!(dist);
     assert_eq!(dist["integrity"], sha512_integrity(&tar));
+    assert_eq!(dist["fileCount"], serde_json::json!(1));
+    assert_eq!(dist["unpackedSize"], serde_json::json!(41));
     assert_eq!(dist["pnpr"]["requiresBuild"], serde_json::json!(false));
     for omitted in ["tarball", "shasum", "signatures"] {
         assert!(dist.get(omitted).is_none(), "a tar registry omits dist.{omitted}");
@@ -97,6 +98,8 @@ async fn a_tar_registry_describes_and_serves_the_tar_of_a_hosted_tgz() {
     assert_eq!(body_bytes(tgz_response.into_body()).await.as_slice(), tgz.as_slice());
     let packument = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(&tgz));
+    assert_eq!(packument["versions"]["1.0.0"]["dist"]["fileCount"], serde_json::json!(1));
+    assert_eq!(packument["versions"]["1.0.0"]["dist"]["unpackedSize"], serde_json::json!(41));
     assert_eq!(
         packument["versions"]["1.0.0"]["dist"]["pnpr"]["requiresBuild"],
         serde_json::json!(false),
@@ -641,6 +644,8 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
                 "dist": {
                     "tarball": "http://example.test/npm/@acme/native/-/native-1.0.0.tgz",
                     "integrity": sha512_integrity(&tgz),
+                    "fileCount": 999,
+                    "unpackedSize": 999_999,
                     "pnpr": { "requiresBuild": false, "spoof": 1 },
                 },
             },
@@ -667,10 +672,10 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
     assert_eq!(publish.status(), StatusCode::CREATED);
 
     let packument = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
-    assert_eq!(
-        packument["versions"]["1.0.0"]["dist"]["pnpr"],
-        serde_json::json!({ "requiresBuild": true }),
-    );
+    let dist = &packument["versions"]["1.0.0"]["dist"];
+    assert_eq!(dist["fileCount"], serde_json::json!(2));
+    assert_eq!(dist["unpackedSize"], serde_json::json!(43));
+    assert_eq!(dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
 
     // Round-tripping the served packument (which carries `dist.pnpr`) through
     // the partial-unpublish `PUT /:pkg/-rev/:rev` endpoint must strip
@@ -688,9 +693,52 @@ async fn spoofed_dist_pnpr_is_stripped_and_replaced_by_tar_verified_requires_bui
         .unwrap();
     assert_eq!(rewrite.status(), StatusCode::CREATED);
 
+    let mut omitted = packument.clone();
+    let omitted_dist = omitted["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+    omitted_dist.remove("fileCount");
+    omitted_dist.remove("unpackedSize");
+    let rewrite_omitted = app
+        .clone()
+        .oneshot(
+            Request::put("/npm/~acme/@acme%2Fnative/-rev/2-0")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(omitted.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rewrite_omitted.status(), StatusCode::CREATED);
+
     let after = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
-    assert_eq!(
-        after["versions"]["1.0.0"]["dist"]["pnpr"],
-        serde_json::json!({ "requiresBuild": true }),
-    );
+    let after_dist = &after["versions"]["1.0.0"]["dist"];
+    assert_eq!(after_dist["fileCount"], serde_json::json!(2));
+    assert_eq!(after_dist["unpackedSize"], serde_json::json!(43));
+    assert_eq!(after_dist["pnpr"], serde_json::json!({ "requiresBuild": true }));
+
+    // Simulate a legacy hosted packument on disk that was published before
+    // `fileCount`/`unpackedSize` were persisted in `package.json`, while
+    // `.tar-integrities` has the verified values: round-tripping `GET /:pkg`
+    // into `PUT /:pkg/-rev/:rev` must still succeed.
+    let legacy_path = pnpr_storage::layout::local_document_path(tmp.path(), "acme", "@acme/native");
+    let mut legacy_doc: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&legacy_path).unwrap()).unwrap();
+    let legacy_dist = legacy_doc["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+    legacy_dist.remove("fileCount");
+    legacy_dist.remove("unpackedSize");
+    std::fs::write(&legacy_path, serde_json::to_vec_pretty(&legacy_doc).unwrap()).unwrap();
+
+    let served_legacy = body_json(get(&app, "/npm/@acme%2Fnative", None).await.into_body()).await;
+    let rewrite_legacy = app
+        .clone()
+        .oneshot(
+            Request::put("/npm/~acme/@acme%2Fnative/-rev/3-0")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(served_legacy.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rewrite_legacy.status(), StatusCode::CREATED);
 }

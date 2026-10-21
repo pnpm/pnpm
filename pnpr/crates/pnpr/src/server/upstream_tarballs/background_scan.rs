@@ -256,7 +256,7 @@ fn verified_tar_integrity_within(
     cached_path: &Path,
     tgz_integrity: Integrity,
     decode_limit: u64,
-) -> Option<(Integrity, Option<bool>)> {
+) -> Option<(Integrity, pnpm_tarball::TarInspection)> {
     let file = std::fs::File::open(cached_path).ok()?;
     let mut verified = VerifiedTgzReader {
         inner: BufReader::new(file),
@@ -302,15 +302,15 @@ async fn record_cached_tgz_tar_integrity(
     .ok()
     .flatten();
     drop(permit);
-    if let Some((tar_integrity, requires_build)) = derived
-        && let Err(err) = storage.record_tar_integrity(
-            &name,
-            &tgz_key,
-            &tar_integrity.to_string(),
-            requires_build,
-        )
-        .await
-    {
-        tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
+    if let Some((tar_integrity, inspection)) = derived {
+        let derived = pnpr_storage::DerivedTar::new(
+            tar_integrity.to_string(),
+            inspection.requires_build,
+            inspection.file_count,
+            inspection.unpacked_size,
+        );
+        if let Err(err) = storage.record_tar_integrity(&name, &tgz_key, derived).await {
+            tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
+        }
     }
 }

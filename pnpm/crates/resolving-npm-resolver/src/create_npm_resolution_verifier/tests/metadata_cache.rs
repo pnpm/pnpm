@@ -214,3 +214,105 @@ async fn policy_checks_read_the_shared_packument_without_hydrating_it() {
         assert!(!shared.versions.is_hydrated(version), "{version} was hydrated");
     }
 }
+
+#[tokio::test]
+async fn pnpr_registry_reuses_abbreviated_cache_entry_for_trust_check() {
+    let registry = "http://nonexistent.example.invalid/";
+    let mut packument = stable_trust_packument("acme");
+    packument["modified"] = serde_json::json!("2025-02-01T00:00:00.000Z");
+    let shared: Arc<Package> = Arc::new(serde_json::from_value(packument).expect("package parses"));
+    let cache = InMemoryPackageMetaCache::default();
+    cache.set(format!("{registry}\x00acme"), Arc::clone(&shared));
+    let mut opts = default_opts(registry);
+    opts.metadata.meta_cache = Some(Arc::new(cache));
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry.to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+}
+
+#[tokio::test]
+async fn pnpr_registry_frozen_lockfile_fetches_abbreviated_metadata_for_age_and_trust() {
+    let mut server = mockito::Server::new_async().await;
+    let mut packument = stable_trust_packument("acme");
+    // `modified` is newer than the cutoff so the age check must read per-version `time`
+    // from the abbreviated response rather than passing on `modified` alone.
+    packument["modified"] = serde_json::json!("2025-11-30T23:00:00.000Z");
+    let abbrev_mock = server
+        .mock("GET", "/acme")
+        .match_header(
+            "accept",
+            "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
+        )
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let full_mock = server
+        .mock("GET", "/acme")
+        .match_header("accept", "application/json; q=1.0, */*")
+        .with_status(500)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let mut opts = default_opts(&registry);
+    opts.release_age.minimum_minutes = Some(60 * 24);
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.now = Some(now_at("2025-12-01T00:00:00Z"));
+    opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry,
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+    abbrev_mock.assert_async().await;
+    full_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn pnpr_registry_offline_falls_back_to_full_mirror_when_abbreviated_mirror_is_missing() {
+    let registry = "http://nonexistent.example.invalid/";
+    let cache_dir = TempDir::new().expect("tempdir");
+    let packument: Package =
+        serde_json::from_value(stable_trust_packument("acme")).expect("package parses");
+    persist_meta_to_mirror(cache_dir.path(), crate::mirror::FULL_META_DIR, registry, &packument)
+        .expect("persist full mirror");
+
+    let mut opts = default_opts(registry);
+    opts.metadata.cache_dir = Some(cache_dir.path().to_path_buf());
+    opts.metadata.offline = true;
+    opts.trust.policy = Some(TrustPolicy::NoDowngrade);
+    opts.registry_options_by_url = Some(std::collections::BTreeMap::from([(
+        registry.to_string(),
+        pnpm_lockfile::RegistryOptions {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..Default::default()
+        },
+    )]));
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "acme".parse().expect("parse");
+
+    let result = verifier.verify(&registry_resolution(), ctx(&name, "1.1.0")).await;
+
+    assert_eq!(result, ResolutionVerification::Ok);
+}

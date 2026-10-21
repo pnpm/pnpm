@@ -92,6 +92,7 @@ pub fn build_resolution_verifiers(
     let opts = CreateNpmResolutionVerifierOptions {
         registries,
         registries_by_prefix,
+        registry_options_by_url: Some(config.registry_options_by_url.clone()),
         now: None,
         release_age: pnpm_resolving_npm_resolver::VerificationReleaseAgeOptions {
             minimum_minutes: config.resolved_minimum_release_age(),

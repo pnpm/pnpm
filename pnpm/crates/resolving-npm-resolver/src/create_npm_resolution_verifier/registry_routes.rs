@@ -16,9 +16,26 @@ pub(super) struct VerificationRegistryRoutes {
     /// routing registry-qualified lockfile keys, which carry no tarball
     /// URL for the prefix list to match.
     pub(super) registries_by_prefix: HashMap<String, String>,
+    pub(super) registry_options_by_url:
+        Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
 }
 
 impl VerificationRegistryRoutes {
+    pub(super) fn supports_time_field(&self, registry: &str, default: bool) -> bool {
+        self.registry_options_by_url
+            .as_ref()
+            .and_then(|options| pnpm_lockfile::registry_supports_time_field(options, registry))
+            .unwrap_or(default)
+    }
+
+    pub(super) fn is_pnpr_registry(&self, registry: &str) -> bool {
+        self.registry_options_by_url
+            .as_ref()
+            .is_some_and(|options| {
+                pnpm_lockfile::registry_server_type(options, registry)
+                    == Some(pnpm_lockfile::RegistryServerType::Pnpr)
+            })
+    }
     /// The URL a registry-qualified entry routes to.
     ///
     /// Registry-qualified entries name their registry in the dep path, so

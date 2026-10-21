@@ -126,7 +126,9 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     let ci_endpoint =
         format!("http://{}/-/pnpr/v0/compiler-cache/acme", ci_listener.local_addr().unwrap());
     let ci_app = app(config.clone(), "ci", false);
-    let ci_server = tokio::spawn(async move { axum::serve(ci_listener, ci_app).await.unwrap() });
+    let ci_server = tokio::spawn(async move {
+        axum::serve(ci_listener, ci_app).await.unwrap();
+    });
     let ci_project = directory.path().join("checkout");
     project(&ci_project);
     let ci = CompilerSession::start(ci_endpoint, false).await;
@@ -156,7 +158,9 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     let dev_endpoint =
         format!("http://{}/-/pnpr/v0/compiler-cache/acme", dev_listener.local_addr().unwrap());
     let dev_app = app(config, "developer", false);
-    let dev_server = tokio::spawn(async move { axum::serve(dev_listener, dev_app).await.unwrap() });
+    let dev_server = tokio::spawn(async move {
+        axum::serve(dev_listener, dev_app).await.unwrap();
+    });
     let dev_project = directory.path().join("checkout");
     project(&dev_project);
     let developer = CompilerSession::start(dev_endpoint, true).await;

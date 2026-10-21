@@ -894,4 +894,21 @@ fn tar_requires_build_matches_tarball_extractor_rules() {
 
     let broken = tar_with_entries(&[("package/package.json", b"{ broken")]);
     assert_eq!(crate::tar_requires_build(broken.as_slice()), None);
+
+    let complete = tar_with_entries(&[
+        ("package/package.json", br#"{"name":"plain","version":"1.0.0"}"#),
+        ("package/index.js", b"module.exports = 1;\n"),
+    ]);
+    assert_eq!(
+        crate::inspect_tar(complete.as_slice()),
+        crate::TarInspection {
+            requires_build: Some(false),
+            file_count: Some(2),
+            unpacked_size: Some(54),
+        },
+    );
+    // Truncating at the first entry boundary (1024 bytes: 512-byte header +
+    // 512-byte padded payload) omits the second file and the end-of-archive
+    // zero blocks, so inspection must reject the partial archive.
+    assert_eq!(crate::inspect_tar(&complete[..1024]), crate::TarInspection::default());
 }

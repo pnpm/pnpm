@@ -258,7 +258,7 @@ toml = { version = "1.1.5" }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12"] }
 url = { version = "2.5.8" }
 walkdir = { version = "2.5.0" }
-webpki-root-certs = { version = "1.0.7" }
+webpki-root-certs = { version = "1.0.10" }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_Threading"] }
 yaml_serde = { version = "0.10.4" }
 yamlpatch = { version = "1.25.2" }
