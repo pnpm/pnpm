@@ -807,14 +807,30 @@ fn enable_core_dumps(command: &mut Command) {
     // SAFETY: `getrlimit`, `setrlimit`, and `prctl` are async-signal-safe and
     // use a stack local that outlives the call. Both attributes survive `exec`.
     unsafe {
+        let mut inherited_limit: libc::rlimit = std::mem::zeroed();
+        assert_eq!(
+            libc::getrlimit(libc::RLIMIT_CORE, &raw mut inherited_limit),
+            0,
+            "getrlimit(RLIMIT_CORE) failed: {}",
+            io::Error::last_os_error(),
+        );
+        assert_ne!(
+            inherited_limit.rlim_max, 0,
+            "core-dump regression test requires a non-zero RLIMIT_CORE hard limit",
+        );
         command.pre_exec(|| {
             let mut limit: libc::rlimit = std::mem::zeroed();
-            if libc::getrlimit(libc::RLIMIT_CORE, &raw mut limit) == 0 {
-                limit.rlim_cur = limit.rlim_max;
-                libc::setrlimit(libc::RLIMIT_CORE, &raw const limit);
+            if libc::getrlimit(libc::RLIMIT_CORE, &raw mut limit) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            limit.rlim_cur = limit.rlim_max;
+            if libc::setrlimit(libc::RLIMIT_CORE, &raw const limit) != 0 {
+                return Err(io::Error::last_os_error());
             }
             #[cfg(any(target_os = "linux", target_os = "android"))]
-            libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0);
+            if libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0) != 0 {
+                return Err(io::Error::last_os_error());
+            }
             Ok(())
         });
     }
