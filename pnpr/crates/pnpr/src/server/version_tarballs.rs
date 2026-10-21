@@ -307,7 +307,7 @@ impl VersionRequest<'_> {
                 .and_then(|table| {
                     table
                         .get(key)
-                        .map(|derived| (derived.scanned, derived.unpacked_size))
+                        .map(|derived| (derived.is_fully_scanned(), derived.unpacked_size))
                 })
                 .unwrap_or((false, None)),
             None => (false, None),

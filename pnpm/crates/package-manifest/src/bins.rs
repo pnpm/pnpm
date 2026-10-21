@@ -173,8 +173,13 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
     let Some(rest) = input.strip_prefix("/usr/bin/env") else {
         return (input, false);
     };
+    if !rest.is_empty() && !rest.starts_with([' ', '\t']) {
+        return (input, false);
+    }
     let trimmed = rest.trim_start();
-    if let Some(after_dash_s) = trimmed.strip_prefix("-S") {
+    if let Some(after_dash_s) = trimmed.strip_prefix("-S")
+        && (after_dash_s.is_empty() || after_dash_s.starts_with([' ', '\t']))
+    {
         return (after_dash_s, true);
     }
     (trimmed, true)
@@ -274,15 +279,37 @@ pub fn resolve_package_bins(
     manifest: &Value,
     archive_files: &BTreeMap<String, Option<ScriptRuntime>>,
 ) -> Option<BTreeMap<String, PackageBin>> {
-    let bin_paths = resolve_package_bin_paths(
+    resolve_package_bins_with(
         manifest,
         |path| archive_files.contains_key(path),
         archive_files.keys().map(String::as_str),
-    )?;
+        |path| {
+            archive_files
+                .get(path)
+                .cloned()
+                .flatten()
+        },
+    )
+}
+
+/// Precalculate the package's resolved bins and shebang/extension runtimes
+/// using caller-supplied file-presence, directory-walk, and shebang-lookup
+/// callbacks.
+#[must_use]
+pub fn resolve_package_bins_with<'files>(
+    manifest: &Value,
+    has_file: impl Fn(&str) -> bool,
+    file_paths: impl IntoIterator<Item = &'files str>,
+    shebang_for: impl Fn(&str) -> Option<ScriptRuntime>,
+) -> Option<BTreeMap<String, PackageBin>> {
+    if !manifest_declares_bins(manifest) {
+        return Some(BTreeMap::new());
+    }
+    let bin_paths = resolve_package_bin_paths(manifest, has_file, file_paths)?;
     let mut bins = BTreeMap::new();
     for (bin_name, normalized) in bin_paths {
-        let shebang = archive_files.get(&normalized)?;
-        let runtime = infer_script_runtime_from_shebang(Path::new(&normalized), shebang.clone());
+        let shebang = shebang_for(&normalized);
+        let runtime = infer_script_runtime_from_shebang(Path::new(&normalized), shebang);
         let pkg_bin = PackageBin::from_path_and_runtime(normalized, runtime);
         if !pkg_bin.is_valid() {
             return None;
@@ -292,25 +319,63 @@ pub fn resolve_package_bins(
     Some(bins)
 }
 
-/// Verify that precalculated `bins` match the command names and normalized
-/// file paths declared by `manifest` and present in `files`.
+/// Precalculate the package's resolved bins and shebang/extension runtimes
+/// from its `package.json` and `{relative_path -> cas_path}` map by reading
+/// up to the first 512 bytes of each resolved bin target from disk.
 #[must_use]
-pub fn verify_package_bins<FileValue, Hasher: std::hash::BuildHasher>(
+pub fn resolve_package_bins_from_cas_paths<Hasher: std::hash::BuildHasher>(
+    manifest: &Value,
+    cas_paths: &std::collections::HashMap<String, std::path::PathBuf, Hasher>,
+) -> Option<BTreeMap<String, PackageBin>> {
+    if !manifest_declares_bins(manifest) {
+        return Some(BTreeMap::new());
+    }
+    let bin_paths = resolve_package_bin_paths(
+        manifest,
+        |path| cas_paths.contains_key(path),
+        cas_paths.keys().map(String::as_str),
+    )?;
+    let mut bins = BTreeMap::new();
+    let mut head = [0u8; 512];
+    for (bin_name, normalized) in bin_paths {
+        let cas_path = cas_paths.get(&normalized)?;
+        let filled = read_file_head(cas_path, &mut head)?;
+        let runtime = infer_script_runtime_from_head(Path::new(&normalized), &head[..filled]);
+        let pkg_bin = PackageBin::from_path_and_runtime(normalized, runtime);
+        if !pkg_bin.is_valid() {
+            return None;
+        }
+        bins.insert(bin_name, pkg_bin);
+    }
+    Some(bins)
+}
+
+fn read_file_head(path: &Path, buf: &mut [u8]) -> Option<usize> {
+    use std::io::Read as _;
+
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut filled = 0;
+    while filled < buf.len() {
+        match file.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => return None,
+        }
+    }
+    Some(filled)
+}
+
+/// Verify that precalculated `bins` match the command names, normalized
+/// file paths, and shebang/extension runtimes declared by `manifest` and
+/// the CAS files in `cas_paths`.
+#[must_use]
+pub fn verify_package_bins<Hasher: std::hash::BuildHasher>(
     bins: &BTreeMap<String, PackageBin>,
     manifest: &Value,
-    files: &std::collections::HashMap<String, FileValue, Hasher>,
+    cas_paths: &std::collections::HashMap<String, std::path::PathBuf, Hasher>,
 ) -> bool {
-    let Some(expected) = resolve_package_bin_paths(
-        manifest,
-        |path| files.contains_key(path),
-        files.keys().map(String::as_str),
-    ) else {
-        return false;
-    };
-    bins.len() == expected.len()
-        && bins
-            .iter()
-            .all(|(name, bin)| bin.is_valid() && expected.get(name) == Some(&bin.path))
+    resolve_package_bins_from_cas_paths(manifest, cas_paths).as_ref() == Some(bins)
 }
 
 fn resolve_package_bin_paths<'files>(

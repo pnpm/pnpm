@@ -1,7 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use pnpm_package_manifest::{
-    PackageBin, ScriptRuntime, parse_shebang_from_bytes, resolve_package_bins,
+    PackageBin, ScriptRuntime, manifest_declares_bins, parse_shebang_from_bytes,
+    resolve_package_bins_with,
 };
 
 use super::{
@@ -272,6 +273,11 @@ const TAR_SCAN_MAX_METADATA_BYTES: u64 = 64 * 1024;
 /// Ceiling on the `package.json` entry buffered during [`tar_requires_build`].
 const TAR_SCAN_MAX_MANIFEST_BYTES: u64 = 4 * 1024 * 1024;
 
+/// Maximum number of regular-file paths retained while precalculating bins in
+/// [`inspect_tar`]. Archives above this cap skip bin precalculation so
+/// concurrent tar scans stay memory-bounded.
+const TAR_SCAN_MAX_BIN_FILES: usize = 16_384;
+
 /// Facts derived from a single scan of a `.tar` stream.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct TarInspection {
@@ -312,13 +318,87 @@ impl<Reader: std::io::Read> std::io::Read for TarStreamReader<Reader> {
 }
 
 #[derive(Default)]
+struct TarBinScan {
+    archive_files: BTreeSet<String>,
+    shebangs: HashMap<String, ScriptRuntime>,
+    skipped: bool,
+    overflowed: bool,
+}
+
+impl TarBinScan {
+    fn on_manifest(&mut self, manifest: Option<&serde_json::Value>, requires_build: bool) {
+        if self.skipped {
+            self.overflowed = true;
+        }
+        if manifest.is_some_and(manifest_declares_bins) && !requires_build {
+            self.record("package.json".to_string(), None);
+        } else {
+            self.skip();
+        }
+    }
+
+    fn on_file<Reader: std::io::Read>(
+        &mut self,
+        cleaned_path: String,
+        entry: &mut tar::Entry<'_, Reader>,
+        requires_build: bool,
+    ) -> Option<()> {
+        if requires_build {
+            self.skip();
+        } else if !self.skipped {
+            let shebang = read_tar_entry_shebang(entry)?;
+            self.record(cleaned_path, shebang);
+        }
+        Some(())
+    }
+
+    fn record(&mut self, cleaned_path: String, shebang: Option<ScriptRuntime>) {
+        if self.archive_files.len() >= TAR_SCAN_MAX_BIN_FILES
+            && !self.archive_files.contains(&cleaned_path)
+        {
+            self.overflowed = true;
+            self.skip();
+            return;
+        }
+        if let Some(runtime) = shebang {
+            self.shebangs.insert(cleaned_path.clone(), runtime);
+        } else {
+            self.shebangs.remove(&cleaned_path);
+        }
+        self.archive_files.insert(cleaned_path);
+    }
+
+    fn skip(&mut self) {
+        self.skipped = true;
+        self.archive_files.clear();
+        self.shebangs.clear();
+    }
+
+    fn finish(self, manifest: Option<&serde_json::Value>) -> BTreeMap<String, PackageBin> {
+        if self.overflowed {
+            return BTreeMap::new();
+        }
+        manifest
+            .and_then(|parsed| {
+                resolve_package_bins_with(
+                    parsed,
+                    |path| self.archive_files.contains(path),
+                    self.archive_files.iter().map(String::as_str),
+                    |path| self.shebangs.get(path).cloned(),
+                )
+            })
+            .unwrap_or_default()
+    }
+}
+
+#[derive(Default)]
 struct TarScanState {
     triggers: BuildTriggers,
     manifest: Option<serde_json::Value>,
     manifest_parse_failed: bool,
     file_count: u64,
     unpacked_size: u64,
-    archive_files: BTreeMap<String, Option<ScriptRuntime>>,
+    bins: TarBinScan,
 }
 
 impl TarScanState {
@@ -332,29 +412,20 @@ impl TarScanState {
         let cleaned_path = super::clean_archive_entry_path(&raw_path.to_string_lossy()).ok()?;
         self.triggers.add_file(&cleaned_path);
         if cleaned_path == "package.json" {
-            if let Some(parsed) = read_tar_manifest_entry(entry, &mut self.triggers)? {
-                self.manifest_parse_failed = false;
-                self.manifest = Some(parsed);
-            } else {
-                self.manifest_parse_failed = true;
-                self.manifest = None;
-            }
-            self.archive_files.insert(cleaned_path, None);
+            self.manifest = read_tar_manifest_entry(entry, &mut self.triggers)?;
+            self.manifest_parse_failed = self.manifest.is_none();
+            self.bins.on_manifest(self.manifest.as_ref(), self.triggers.requires_build());
+            Some(())
         } else {
-            let shebang = read_tar_entry_shebang(entry)?;
-            self.archive_files.insert(cleaned_path, shebang);
+            let requires_build = self.manifest.is_some() && self.triggers.requires_build();
+            self.bins.on_file(cleaned_path, entry, requires_build)
         }
-        Some(())
     }
 
     fn finish(self) -> TarInspection {
         let requires_build = (!self.manifest_parse_failed).then(|| self.triggers.requires_build());
-        let bins = (requires_build == Some(false)).then(|| {
-            self.manifest
-                .as_ref()
-                .and_then(|parsed| resolve_package_bins(parsed, &self.archive_files))
-                .unwrap_or_default()
-        });
+        let bins =
+            (requires_build == Some(false)).then(|| self.bins.finish(self.manifest.as_ref()));
         TarInspection {
             requires_build,
             file_count: Some(self.file_count),
@@ -416,17 +487,7 @@ fn read_tar_manifest_entry<Reader: std::io::Read>(
 fn read_tar_entry_shebang<Reader: std::io::Read>(
     entry: &mut tar::Entry<'_, Reader>,
 ) -> Option<Option<ScriptRuntime>> {
-    use std::io::Read as _;
-
     let mut head = [0u8; 512];
-    let mut filled = 0;
-    while filled < head.len() {
-        match entry.read(&mut head[filled..]) {
-            Ok(0) => break,
-            Ok(n) => filled += n,
-            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(_) => return None,
-        }
-    }
+    let filled = super::streaming::read_prefix(entry, &mut head).ok()?;
     Some(parse_shebang_from_bytes(&head[..filled]))
 }

@@ -36,6 +36,7 @@ enum CachedRow {
         cas_paths: HashMap<String, PathBuf>,
         manifest: Option<serde_json::Value>,
         requires_build: bool,
+        bins: Option<Arc<BTreeMap<String, PackageBin>>>,
         mismatch: Option<PkgContentMismatch>,
     },
 }
@@ -110,6 +111,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
             cas_paths,
             manifest,
             requires_build,
+            bins,
             mismatch,
         } => {
             if let Some(mismatch) = mismatch {
@@ -125,7 +127,7 @@ fn cached_row_paths<Reporter: crate::Reporter>(
                 files: cas_paths,
                 manifest,
                 requires_build: Some(requires_build),
-                bins: None,
+                bins,
             }))
         }
     }
@@ -183,7 +185,19 @@ fn cached_row(
         manifest.as_ref(),
         &verify_result.files_map,
     );
-    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, requires_build, mismatch }
+    let bins = resolve_cached_row_bins(requires_build, manifest.as_ref(), &verify_result.files_map);
+    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, requires_build, bins, mismatch }
+}
+
+fn resolve_cached_row_bins(
+    requires_build: bool,
+    manifest: Option<&serde_json::Value>,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Option<Arc<BTreeMap<String, PackageBin>>> {
+    if requires_build {
+        return None;
+    }
+    pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest?, cas_paths).map(Arc::new)
 }
 
 /// The row for `cache_key`, or `None` for a miss.

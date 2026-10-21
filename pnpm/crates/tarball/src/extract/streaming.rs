@@ -395,7 +395,7 @@ pub(super) struct StreamingExtract<'a> {
     pub(super) batch_bytes: usize,
     pub(super) manifest: Option<serde_json::Value>,
     pub(super) triggers: BuildTriggers,
-    pub(super) archive_files: BTreeMap<String, Option<ScriptRuntime>>,
+    pub(super) shebangs: HashMap<String, ScriptRuntime>,
 }
 
 pub(super) fn truncated_entry_error() -> TarballError {

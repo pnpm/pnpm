@@ -288,13 +288,12 @@ async fn record_cached_tgz_tar_integrity(
         .acquire()
         .await
         .expect("the background scan semaphore is never closed");
-    if storage
+    let existing = storage
         .read_tar_integrities(&name)
         .await
-        .is_ok_and(|table| {
-            table.get(&tgz_key).is_some_and(pnpr_storage::DerivedTar::is_fully_scanned)
-        })
-    {
+        .ok()
+        .and_then(|table| table.get(&tgz_key).cloned());
+    if existing.as_ref().is_some_and(pnpr_storage::DerivedTar::is_fully_scanned) {
         return;
     }
     let derived = tokio::task::spawn_blocking(move || {
@@ -304,16 +303,24 @@ async fn record_cached_tgz_tar_integrity(
     .ok()
     .flatten();
     drop(permit);
-    if let Some((tar_integrity, inspection)) = derived {
-        let derived = pnpr_storage::DerivedTar::new(
-            tar_integrity.to_string(),
-            inspection.requires_build,
-            inspection.file_count,
-            inspection.unpacked_size,
-        )
-        .with_bins(inspection.bins);
-        if let Err(err) = storage.record_tar_integrity(&name, &tgz_key, derived).await {
-            tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
+    let derived = match (derived, existing) {
+        (Some((tar_integrity, inspection)), _) => Some(
+            pnpr_storage::DerivedTar::new(
+                tar_integrity.to_string(),
+                inspection.requires_build,
+                inspection.file_count,
+                inspection.unpacked_size,
+            )
+            .with_bins(inspection.bins),
+        ),
+        (None, Some(existing)) if existing.scanned && existing.bins.is_none() => {
+            Some(existing.with_bins(Some(std::collections::BTreeMap::new())))
         }
+        (None, _) => None,
+    };
+    if let Some(derived) = derived
+        && let Err(err) = storage.record_tar_integrity(&name, &tgz_key, derived).await
+    {
+        tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
     }
 }

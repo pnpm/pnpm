@@ -289,16 +289,41 @@ impl IndexRows {
         if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);
         }
-        if self.requires_build_by_snapshot.get(snapshot_key) == Some(&false)
-            && let Some(bins) = super::lookup_known_bins(rebuilds.known_bins, snapshot_key)
-            && let (Some(manifest), Some(cas_paths)) =
-                (prefetch.manifests.get(cache_key), prefetch.cas_paths.get(cache_key))
-            && pnpm_package_manifest::verify_package_bins(bins, manifest, cas_paths)
+        self.absorb_bins(snapshot_key, cache_key, prefetch, rebuilds, seed_known_requires_build);
+    }
+
+    fn absorb_bins(
+        &mut self,
+        snapshot_key: &PackageKey,
+        cache_key: &str,
+        prefetch: &PrefetchResult,
+        rebuilds: &Rebuilds<'_>,
+        seed_known_requires_build: bool,
+    ) {
+        if self.requires_build_by_snapshot.get(snapshot_key) != Some(&false)
+            || (!seed_known_requires_build && rebuilds.known_bins.is_none())
         {
-            self.package_bins
-                .entry(snapshot_key.without_peer())
-                .or_insert_with(|| std::sync::Arc::clone(bins));
+            return;
         }
+        let peer_stripped = snapshot_key.without_peer();
+        if self.package_bins.contains_key(&peer_stripped) {
+            return;
+        }
+        let (Some(manifest), Some(cas_paths)) =
+            (prefetch.manifests.get(cache_key), prefetch.cas_paths.get(cache_key))
+        else {
+            return;
+        };
+        let Some(resolved) =
+            pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest, cas_paths)
+        else {
+            return;
+        };
+        let verified = match super::lookup_known_bins(rebuilds.known_bins, snapshot_key) {
+            Some(known) if known.as_ref() == &resolved => std::sync::Arc::clone(known),
+            Some(_) | None => std::sync::Arc::new(resolved),
+        };
+        self.package_bins.insert(peer_stripped, verified);
     }
 
     /// The warm entry of a survivor whose cache key the prefetch found.

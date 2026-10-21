@@ -1,8 +1,12 @@
 use std::collections::{BTreeMap, HashMap};
 
 use serde_json::json;
+use tempfile::tempdir;
 
-use super::{PackageBin, parse_shebang_from_bytes, resolve_package_bins, verify_package_bins};
+use super::{
+    PackageBin, normalize_package_relative_path, parse_shebang_from_bytes, resolve_package_bins,
+    verify_package_bins,
+};
 
 #[test]
 fn resolves_string_bin_and_shebang_runtime() {
@@ -76,25 +80,43 @@ fn returns_none_when_declared_bin_target_is_missing_from_archive() {
 
 #[test]
 fn returns_none_when_bin_path_escapes_package_root() {
-    let manifest = json!({
-        "name": "escape-target",
-        "version": "1.0.0",
-        "bin": "../outside.js",
-    });
-    let archive_files = BTreeMap::new();
-    assert_eq!(resolve_package_bins(&manifest, &archive_files), None);
+    for raw in ["../outside.js", r"..\outside.js", r"C:\outside.js", r"bin\cli.js", "/abs/cli.js"] {
+        assert_eq!(normalize_package_relative_path(raw), None, "expected {raw:?} to be rejected");
+        let manifest = json!({
+            "name": "escape-target",
+            "version": "1.0.0",
+            "bin": raw,
+        });
+        let archive_files = BTreeMap::new();
+        assert_eq!(resolve_package_bins(&manifest, &archive_files), None);
+    }
+}
+
+#[test]
+fn shebang_env_prefix_requires_word_boundary() {
+    let runtime =
+        parse_shebang_from_bytes(b"#!/usr/bin/envsubst --flag\n").expect("shebang should parse");
+    assert_eq!(runtime.prog.as_deref(), Some("/usr/bin/envsubst"));
+    assert_eq!(runtime.args, " --flag");
 }
 
 #[test]
 fn verify_package_bins_checks_manifest_and_file_set() {
+    let dir = tempdir().expect("tempdir");
+    let pkg_path = dir.path().join("pkg.json");
+    let cli_path = dir.path().join("cli.js");
+    std::fs::write(&pkg_path, br#"{"name":"cli-tool"}"#).expect("write pkg");
+    std::fs::write(&cli_path, b"#!/usr/bin/env -S node --no-warnings\nconsole.log(1);\n")
+        .expect("write cli");
+
     let manifest = json!({
         "name": "cli-tool",
         "version": "1.0.0",
         "bin": { "cli": "./bin/cli.js" },
     });
     let files = HashMap::from([
-        ("package.json".to_string(), "cas/pkg"),
-        ("bin/cli.js".to_string(), "cas/cli"),
+        ("package.json".to_string(), pkg_path),
+        ("bin/cli.js".to_string(), cli_path),
     ]);
     let matching = BTreeMap::from([(
         "cli".to_string(),
@@ -105,6 +127,26 @@ fn verify_package_bins_checks_manifest_and_file_set() {
         },
     )]);
     assert!(verify_package_bins(&matching, &manifest, &files));
+
+    let wrong_prog = BTreeMap::from([(
+        "cli".to_string(),
+        PackageBin {
+            path: "bin/cli.js".to_string(),
+            prog: Some("sh".to_string()),
+            args: " --no-warnings".to_string(),
+        },
+    )]);
+    assert!(!verify_package_bins(&wrong_prog, &manifest, &files));
+
+    let wrong_args = BTreeMap::from([(
+        "cli".to_string(),
+        PackageBin {
+            path: "bin/cli.js".to_string(),
+            prog: Some("node".to_string()),
+            args: " --inspect".to_string(),
+        },
+    )]);
+    assert!(!verify_package_bins(&wrong_args, &manifest, &files));
 
     let wrong_path = BTreeMap::from([(
         "cli".to_string(),
@@ -122,7 +164,7 @@ fn verify_package_bins_checks_manifest_and_file_set() {
             PackageBin {
                 path: "bin/cli.js".to_string(),
                 prog: Some("node".to_string()),
-                args: String::new(),
+                args: " --no-warnings".to_string(),
             },
         ),
         (
@@ -130,7 +172,7 @@ fn verify_package_bins_checks_manifest_and_file_set() {
             PackageBin {
                 path: "bin/cli.js".to_string(),
                 prog: Some("node".to_string()),
-                args: String::new(),
+                args: " --no-warnings".to_string(),
             },
         ),
     ]);

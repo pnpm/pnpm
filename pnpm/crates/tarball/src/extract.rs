@@ -7,8 +7,8 @@ pub(crate) use gzip::{
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, decompress_gzip, extract_gzipped_tarball_with_tar,
     is_eager_decode_limit_exceeded,
 };
-pub(crate) use limits::TarBudget;
 pub use limits::{ArchiveLimit, DEFAULT_MAX_TARBALL_UNPACKED_SIZE, TarLimits};
+pub(crate) use limits::{TarBudget, archive_entry_segments, clean_archive_entry_path};
 pub use manifest::{TarInspection, inspect_tar, read_buffered_tar_entry, tar_requires_build};
 pub(crate) use manifest::{
     apply_append_manifest, apply_placeholder_manifest, normalize_bundled_manifest,
@@ -28,8 +28,8 @@ use super::{
 };
 use pnpm_fs::file_mode;
 use pnpm_package_manifest::{
-    BuildTriggers, PackageBin, ScriptRuntime, manifest_declares_bins, parse_manifest_bytes,
-    parse_shebang_from_bytes, resolve_package_bins,
+    BuildTriggers, PackageBin, ScriptRuntime, parse_manifest_bytes, parse_shebang_from_bytes,
+    resolve_package_bins_with,
 };
 use pnpm_store_dir::{
     CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
@@ -231,17 +231,22 @@ fn resolve_pending_bins(
     pending: &[PendingFile<'_>],
 ) -> Option<BTreeMap<String, PackageBin>> {
     let parsed = manifest?;
-    if !manifest_declares_bins(parsed) {
-        return Some(BTreeMap::new());
-    }
-    let archive_files = pending
-        .iter()
-        .map(|file| {
+    resolve_package_bins_with(
+        parsed,
+        |path| {
+            pending
+                .iter()
+                .any(|file| file.cleaned_path == path)
+        },
+        pending.iter().map(|file| file.cleaned_path.as_str()),
+        |path| {
+            let file = pending
+                .iter()
+                .rfind(|file| file.cleaned_path == path)?;
             let head = &file.data[..file.data.len().min(512)];
-            (file.cleaned_path.clone(), parse_shebang_from_bytes(head))
-        })
-        .collect();
-    resolve_package_bins(parsed, &archive_files)
+            parse_shebang_from_bytes(head)
+        },
+    )
 }
 
 /// Hash and write a slice of pending files into the content-addressed
@@ -312,50 +317,6 @@ fn assemble_extract_output(
     (cas_paths, pkg_files_idx)
 }
 
-/// Validate and clean one archive entry path: reject traversal, drop
-/// the top-level package directory (`package/`), and join the remaining
-/// segments with forward slashes.
-///
-/// Rejected rather than normalized so a tampered tarball is visible
-/// instead of silently landing outside the store.
-///
-/// An entry that is only one segment long keeps that segment. Such an
-/// entry sits at the archive root — beside `package/`, or in a flat
-/// archive with no wrapping directory at all — so there is no
-/// top-level directory on it to drop, and pnpm keys it by its own name
-/// (`parseString` in `parseTarball.ts` advances past the first
-/// separator, which a single segment has none of). Dropping the segment
-/// instead would leave nothing to key the file by, and rejecting the
-/// entry would fail an archive that every other installer accepts. A
-/// lone `.` is the exception: it names the archive root rather than
-/// anything inside it, so there is no file for a key to address.
-///
-/// Joined by hand rather than with `PathBuf`, whose native separator
-/// would desynchronize these keys from pnpm's always-forward-slashed
-/// path layer and the `index.db` both implementations share. Callers
-/// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
-/// to U+FFFD per component.
-pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
-    let Some(mut parts) = archive_entry_segments(raw) else {
-        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "tar entry path rejected (non-normal component, possible directory traversal): {raw:?}",
-            ),
-        )));
-    };
-    if parts.as_slice() == ["."] {
-        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
-        )));
-    }
-    if parts.len() > 1 {
-        parts.remove(0);
-    }
-    Ok(parts.join("/"))
-}
-
 impl<'a> StreamingExtract<'a> {
     fn new(store_dir: &'a StoreDir) -> Self {
         StreamingExtract {
@@ -365,7 +326,15 @@ impl<'a> StreamingExtract<'a> {
             batch_bytes: 0,
             manifest: None,
             triggers: BuildTriggers::default(),
-            archive_files: BTreeMap::new(),
+            shebangs: HashMap::new(),
+        }
+    }
+
+    fn record_shebang(&mut self, cleaned_path: &str, head: &[u8]) {
+        if let Some(runtime) = parse_shebang_from_bytes(head) {
+            self.shebangs.insert(cleaned_path.to_string(), runtime);
+        } else if !self.shebangs.is_empty() {
+            self.shebangs.remove(cleaned_path);
         }
     }
 
@@ -402,10 +371,9 @@ impl<'a> StreamingExtract<'a> {
         }
         if meta.cleaned_path == "package.json" {
             self.manifest = capture_bundled_manifest(&data, &mut self.triggers);
-            self.archive_files.insert(meta.cleaned_path.clone(), None);
         } else {
             let head = &data[..data.len().min(512)];
-            self.archive_files.insert(meta.cleaned_path.clone(), parse_shebang_from_bytes(head));
+            self.record_shebang(&meta.cleaned_path, head);
         }
         self.batch_bytes += data.len();
         self.batch.push(PendingFile {
@@ -428,7 +396,7 @@ impl<'a> StreamingExtract<'a> {
     ) -> Result<(), TarballError> {
         let mut head = [0u8; 512];
         let head_len = streaming::read_prefix(entry, &mut head)?;
-        let shebang = parse_shebang_from_bytes(&head[..head_len]);
+        self.record_shebang(&meta.cleaned_path, &head[..head_len]);
         // `Some(size)` makes the store writer reject a short stream
         // before anything is committed to a content-addressed path, so a
         // truncated archive leaves no orphan blob behind.
@@ -442,7 +410,6 @@ impl<'a> StreamingExtract<'a> {
                 WriteCasFileFromReaderError::Read(error) => TarballError::ReadTarballEntries(error),
                 WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
             })?;
-        self.archive_files.insert(meta.cleaned_path.clone(), shebang);
         self.written.push((
             meta.cleaned_path,
             file_path,
@@ -462,44 +429,20 @@ impl<'a> StreamingExtract<'a> {
 
     fn finish(mut self) -> Result<ExtractedEntries, TarballError> {
         self.flush()?;
-        let bins = self.manifest
-            .as_ref()
-            .and_then(|parsed| resolve_package_bins(parsed, &self.archive_files));
         let (files, index) =
             assemble_extract_output(self.written, self.manifest, self.triggers.requires_build());
+        let bins = index.manifest
+            .as_ref()
+            .and_then(|parsed| {
+                resolve_package_bins_with(
+                    parsed,
+                    |path| files.contains_key(path),
+                    files.keys().map(String::as_str),
+                    |path| self.shebangs.get(path).cloned(),
+                )
+            });
         Ok((files, index, bins))
     }
-}
-
-/// Split a published archive entry's path into its segments, rejecting
-/// anything that escapes the archive root.
-///
-/// `\` is treated as a separator, as pnpm does before it validates
-/// (`parseTarball.ts`). Without that, a Windows-built entry keeps its
-/// backslashes verbatim on Unix — where they are ordinary filename
-/// characters — and the resulting key travels through the `index.db`
-/// both implementations share to a reader that *does* treat them as
-/// separators.
-///
-/// A leading `.` is preserved because npm's `tar` counts it as the
-/// component removed by `strip: 1`. Other `.` components are ignored.
-///
-/// `None` for an absolute path or one climbing past the root.
-pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<&str>> {
-    if raw.starts_with(['/', '\\']) {
-        return None;
-    }
-    let mut segments = Vec::new();
-    for (index, segment) in raw.split(['/', '\\']).enumerate() {
-        match segment {
-            "" => {}
-            "." if index == 0 => segments.push(segment),
-            "." => {}
-            ".." => return None,
-            other => segments.push(other),
-        }
-    }
-    (!segments.is_empty()).then_some(segments)
 }
 
 mod limits;
