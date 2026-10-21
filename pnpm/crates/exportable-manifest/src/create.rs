@@ -3,10 +3,11 @@
 //!
 //! The pipeline:
 //!
-//! 1. **Obfuscation.** Strip pnpm-internal fields. With
-//!    `skip_manifest_obfuscation` only `pnpm` is dropped; otherwise
-//!    `scripts`, `packageManager`, and `pnpm` are dropped and the
-//!    surviving `scripts` map loses its publish-lifecycle entries.
+//! 1. **Obfuscation.** Strip pnpm-internal fields, keeping only
+//!    `pnpm.config`. With `skip_manifest_obfuscation` only the rest of
+//!    `pnpm` is dropped; otherwise `scripts`, `packageManager`, and the
+//!    rest of `pnpm` are dropped and the surviving `scripts` map loses
+//!    its publish-lifecycle entries.
 //! 2. **Dependency rewriting.** Each `dependencies` /
 //!    `devDependencies` / `optionalDependencies` / `peerDependencies`
 //!    value runs through the catalog → workspace → jsr replacers in
@@ -89,7 +90,8 @@ pub struct CreateExportableManifestOptions<'a> {
     /// `<dir>/node_modules` when `None`.
     pub modules_dir: Option<&'a Path>,
     /// Keep `packageManager` and publish-lifecycle scripts in the
-    /// packed manifest; only the `pnpm` field is stripped.
+    /// packed manifest. `pnpm` fields other than `pnpm.config` are
+    /// still stripped.
     pub skip_manifest_obfuscation: bool,
     /// Embed the project's README into the manifest's `readme` field
     /// when one is present and the manifest doesn't already declare
@@ -170,7 +172,7 @@ pub fn create_exportable_manifest(
 }
 
 fn publication_fields(original: &Map<String, Value>, skip_obfuscation: bool) -> Map<String, Value> {
-    if skip_obfuscation {
+    let mut publish = if skip_obfuscation {
         omit_keys(original, &["pnpm"])
     } else {
         let mut publish = omit_keys(original, &["scripts", "packageManager", "pnpm"]);
@@ -181,7 +183,19 @@ fn publication_fields(original: &Map<String, Value>, skip_obfuscation: bool) -> 
             );
         }
         publish
+    };
+    // A config dependency declares its settings file in `pnpm.config`, which
+    // consumers read from the installed `package.json`.
+    if let Some(config) = original
+        .get("pnpm")
+        .and_then(Value::as_object)
+        .and_then(|pnpm| pnpm.get("config"))
+    {
+        let mut pnpm = Map::new();
+        pnpm.insert("config".to_string(), config.clone());
+        publish.insert("pnpm".to_string(), Value::Object(pnpm));
     }
+    publish
 }
 
 /// Whether a dependency map's specifiers carry the regular-dependency

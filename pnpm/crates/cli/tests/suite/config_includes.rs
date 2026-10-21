@@ -220,3 +220,70 @@ fn a_config_dependency_defining_an_undelegated_setting_fails_the_install() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn a_config_dependency_packed_with_pnpm_pack_keeps_its_config_entry() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let policy_dir = root.path().join("policy");
+    write(
+        &policy_dir,
+        "package.json",
+        &serde_json::json!({
+            "name": "@acme/pnpm-policy",
+            "version": "1.0.0",
+            "pnpm": {
+                "config": "./config.yaml",
+                "overrides": { "ignored": "1.0.0" },
+            },
+            "files": ["config.yaml"],
+        })
+        .to_string(),
+    );
+    write(&policy_dir, "config.yaml", "nodeLinker: hoisted\n");
+
+    pnpm_at(&policy_dir)
+        .with_arg("pack")
+        .assert()
+        .success();
+
+    let tarball_bytes = fs::read(policy_dir.join("acme-pnpm-policy-1.0.0.tgz"))
+        .expect("read packed config dependency tarball");
+    let integrity = ssri::Integrity::from(tarball_bytes.as_slice());
+    let mut server = mockito::Server::new();
+    let tarball_path = "/@acme/pnpm-policy/-/pnpm-policy-1.0.0.tgz";
+    let mock = server
+        .mock("GET", tarball_path)
+        .with_status(200)
+        .with_body(tarball_bytes)
+        .expect(1)
+        .create();
+    let registry = format!("{}/", server.url());
+    write(&workspace, ".npmrc", &format!("registry={registry}\n"));
+    write(&workspace, "package.json", "{}");
+    write(
+        &workspace,
+        "pnpm-workspace.yaml",
+        &format!(
+            "configDependencies:\n  '@acme/pnpm-policy':\n    integrity: 1.0.0+{integrity}\n    tarball: {}{tarball_path}\ninclude:\n  '@acme/pnpm-policy': [nodeLinker]\n",
+            server.url(),
+        ),
+    );
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    mock.assert();
+    assert_eq!(recorded_node_linker(&workspace), Some(NodeLinker::Hoisted));
+    let installed_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(workspace.join(
+            "node_modules/.pnpm-config/@acme/pnpm-policy/package.json",
+        ))
+        .expect("read installed config dependency package.json"),
+    )
+    .expect("parse installed config dependency package.json");
+    assert_eq!(installed_manifest["pnpm"], serde_json::json!({ "config": "./config.yaml" }));
+
+    drop(root);
+}
