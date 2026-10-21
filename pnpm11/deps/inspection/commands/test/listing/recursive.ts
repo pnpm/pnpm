@@ -698,4 +698,21 @@ test('recursive why preserves distinct unnamed projects with dedicated lockfiles
 └── the root project (dependencies)
 
 Found 1 version of is-positive`)
+
+  const parseableLongOutput = await why.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    long: true,
+    parseable: true,
+    recursive: true,
+    selectedProjectsGraph,
+  }, ['is-positive'])
+
+  const project1DepPath = fs.realpathSync(path.resolve('packages/project-1/node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))
+  const project2DepPath = fs.realpathSync(path.resolve('packages/project-2/node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive'))
+  expect(parseableLongOutput).toBe([
+    `the root project > ${project1DepPath}:is-positive@1.0.0`,
+    `the root project > ${project2DepPath}:is-positive@1.0.0`,
+  ].join('\n'))
 })
