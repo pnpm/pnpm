@@ -1,10 +1,10 @@
-use pnpm_lockfile::{Lockfile, extract_env_document};
-use std::collections::HashMap;
+use pnpm_lockfile::{Lockfile, extract_env_document, extract_main_document};
 
-/// Whether two lockfile snapshots, each given as its text and its parsed
-/// main document, differ only in the `deprecated` notices of their packages.
-/// The registry can deprecate a version after it was locked, so a refreshed
-/// notice is not a change for `--check` to fail on.
+/// Whether the rewritten lockfile `next_text` is `previous` with only the
+/// `deprecated` notices of its packages replaced by those of `next`. The
+/// registry can deprecate a version after it was locked, so a refreshed
+/// notice is not a change for `--check` to fail on. Every other byte must
+/// match, so a rewrite that also reformats the lockfile still fails.
 pub(super) fn differs_only_in_deprecations(
     (previous_text, previous): (Option<&str>, Option<&Lockfile>),
     (next_text, next): (Option<&str>, Option<&Lockfile>),
@@ -15,13 +15,27 @@ pub(super) fn differs_only_in_deprecations(
         return false;
     };
     extract_env_document(previous_text) == extract_env_document(next_text)
-        && without_deprecations(previous) == without_deprecations(next)
+        && is_serialized_as(previous, previous_text)
+        && with_deprecations_of(previous, next)
+            .is_some_and(|patched| is_serialized_as(&patched, next_text))
 }
 
-fn without_deprecations(lockfile: &Lockfile) -> Lockfile {
-    let mut lockfile = lockfile.clone();
-    for metadata in lockfile.packages.iter_mut().flat_map(HashMap::values_mut) {
-        metadata.deprecated = None;
-    }
+/// Whether `text` holds `lockfile` exactly as pnpm writes it.
+fn is_serialized_as(lockfile: &Lockfile, text: &str) -> bool {
     lockfile
+        .to_yaml_string()
+        .is_ok_and(|yaml| yaml == extract_main_document(text))
+}
+
+/// `lockfile` with each package's `deprecated` notice taken from `source`,
+/// or `None` when `source` lacks one of its packages.
+fn with_deprecations_of(lockfile: &Lockfile, source: &Lockfile) -> Option<Lockfile> {
+    let mut lockfile = lockfile.clone();
+    if let Some(packages) = lockfile.packages.as_mut() {
+        let source_packages = source.packages.as_ref()?;
+        for (key, metadata) in packages {
+            metadata.deprecated.clone_from(&source_packages.get(key)?.deprecated);
+        }
+    }
+    Some(lockfile)
 }
