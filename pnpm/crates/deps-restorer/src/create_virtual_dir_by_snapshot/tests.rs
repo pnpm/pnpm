@@ -218,10 +218,10 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
 }
 
 /// A slot whose files a lifecycle script or a patch will still write must
-/// not share inodes with its source, so it ignores `packageImportMethod`.
-/// Every other slot keeps the configured method.
+/// not share inodes with its source, so it ignores `packageImportMethod`
+/// unless that is `copy`. Every other slot keeps the configured method.
 #[test]
-fn needs_build_slots_ignore_the_configured_import_method() {
+fn needs_build_slots_never_share_inodes_with_their_source() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
@@ -305,8 +305,8 @@ fn needs_build_slots_ignore_the_configured_import_method() {
         reported_import_method(PackageImportMethod::Copy, true, false),
         WireImportMethod::Copy,
     );
-    // A package that will be built imports with `clone-or-copy` instead,
-    // whatever the configured method is.
+    // A package that will be built imports with `clone-or-copy` instead of a
+    // method that could share inodes with its source.
     assert_eq!(
         reported_import_method(PackageImportMethod::Hardlink, false, true),
         WireImportMethod::Clone,
@@ -314,6 +314,15 @@ fn needs_build_slots_ignore_the_configured_import_method() {
     assert_eq!(
         reported_import_method(PackageImportMethod::Hardlink, true, true),
         WireImportMethod::Clone,
+    );
+    // An explicit `copy` already gives the build private files, so it is kept.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Copy, false, true),
+        WireImportMethod::Copy,
+    );
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Copy, true, true),
+        WireImportMethod::Copy,
     );
     // Under the default method, a `file:` package that nothing will build is
     // hard-linked, so an in-place edit of its source reaches the slot.

@@ -186,6 +186,8 @@ cloning; on macOS and Windows it tries cloning before hardlinking.
 * **copy** - copy packages from the store
 * **clone** - clone (AKA copy-on-write or reference link) packages from the store
 
+A package that a lifecycle script or a patch will still write must not share files with the store, so pnpm imports it with `clone-or-copy` when this setting is `auto`, `hardlink`, or `clone`. With `copy`, such a package is copied like every other package.
+
 Cloning is the best way to write packages to node_modules. It is the fastest way and safest way. When cloning is used, you may edit files in your node_modules and they will not be modified in the central content-addressable store.
 
 Unfortunately, not all file systems support cloning. We recommend using a copy-on-write (CoW) file system (for instance, Btrfs instead of Ext4 on Linux) for the best experience with pnpm.

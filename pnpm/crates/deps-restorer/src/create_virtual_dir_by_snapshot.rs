@@ -438,14 +438,19 @@ fn remove_obsolete_children<'a>(
 /// carries those writes back into the workspace directory of an injected
 /// package, or into the content-addressable store for a registry package.
 /// `clone-or-copy` gives the build private inodes and still lets a reflink
-/// avoid a byte-for-byte copy. pnpm v11 applies the same override to
+/// avoid a byte-for-byte copy. An explicit `copy` already gives private
+/// inodes, so it is kept. pnpm v11 applies the same override to
 /// `willBeBuilt` packages in `createPackageImporter`.
 #[must_use]
 pub fn effective_import_method(
     configured: PackageImportMethod,
     needs_build: bool,
 ) -> PackageImportMethod {
-    if needs_build { PackageImportMethod::CloneOrCopy } else { configured }
+    if needs_build && configured != PackageImportMethod::Copy {
+        PackageImportMethod::CloneOrCopy
+    } else {
+        configured
+    }
 }
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value
