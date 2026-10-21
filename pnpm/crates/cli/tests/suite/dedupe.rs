@@ -15,6 +15,29 @@ fn pacquet_at(workspace: &Path) -> Command {
         .without_ambient_pnpm_config()
 }
 
+fn add_registry_deprecation(storage: &Path, package: &str, version: &str) {
+    WalkDir::new(storage)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .find_map(|entry| {
+            let contents = fs::read(entry.path()).ok()?;
+            let mut packument: serde_json::Value = serde_json::from_slice(&contents).ok()?;
+            if packument.get("name")?.as_str()? != package {
+                return None;
+            }
+            let versions = packument.get_mut("versions")?.as_object_mut()?;
+            let package_version = versions.get_mut(version)?.as_object_mut()?;
+            package_version.insert(
+                "deprecated".to_string(),
+                serde_json::json!("This package is deprecated."),
+            );
+            fs::write(entry.path(), serde_json::to_vec(&packument).ok()?).ok()?;
+            Some(())
+        })
+        .expect("find registry package metadata");
+}
+
 #[test]
 fn dedupe_preserves_auto_installed_peer_with_a_newer_major_in_another_importer() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -203,8 +226,9 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
         workspace,
         npmrc_info,
         ..
-    } = CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { cache_dir, mock_instance, .. } = npmrc_info;
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    mock_instance.remove_version_field("@pnpm.e2e/deprecated", "1.0.0", "deprecated");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -223,31 +247,12 @@ fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-    assert!(lockfile.contains("deprecated: This package is deprecated."));
-    let lockfile_without_deprecation = format!(
-        "{}\n",
-        lockfile
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("deprecated:"))
-            .collect::<Vec<_>>()
-            .join("\n"),
+    assert!(!lockfile.contains("deprecated: This package is deprecated."));
+    add_registry_deprecation(
+        &root.path().join("registry-storage"),
+        "@pnpm.e2e/deprecated",
+        "1.0.0",
     );
-    fs::write(&lockfile_path, lockfile_without_deprecation).expect("remove deprecation metadata");
-
-    let (mirror_path, mirror) = WalkDir::new(&cache_dir)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
-        .find_map(|entry| {
-            let mirror = fs::read_to_string(entry.path()).ok()?;
-            mirror
-                .contains("@pnpm.e2e/deprecated")
-                .then(|| (entry.into_path(), mirror))
-        })
-        .expect("find cached package metadata");
-    let stale_mirror = mirror.replace(r#""deprecated":"#, r#""deprecatx":"#);
-    assert_ne!(mirror, stale_mirror);
-    fs::write(mirror_path, stale_mirror).expect("make cached metadata stale");
 
     pacquet_at(&workspace)
         .with_args(["dedupe", "--lockfile-only"])
