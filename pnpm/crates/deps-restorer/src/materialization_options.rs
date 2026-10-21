@@ -45,9 +45,10 @@ impl<'a> PackageImportOptions<'a> {
         }
     }
 
-    /// The method a package's files are actually materialized with: `clone-or-copy`
-    /// when a build or patch will still write them, or when the source is a
-    /// mutable local directory this install must not share inodes with;
+    /// The method a package's files are actually materialized with: `clone-or-copy`,
+    /// or `copy` when that is [`Self::method`], when a build or patch will still
+    /// write them, or when the source is a mutable local directory this install
+    /// must not share inodes with;
     /// `hardlink` for any other mutable local directory under the `auto`
     /// method, so an in-place edit of the source reaches the injected copy,
     /// as pnpm v11's directory fetcher asks for; [`Self::method`] otherwise.
@@ -92,8 +93,8 @@ pub struct SlotImportSource<'a> {
     pub build_marker: Option<&'a Path>,
     /// Whether a lifecycle script or a patch will still write this slot's
     /// files after the import. Such a slot must not share inodes with its
-    /// source, so it ignores [`PackageImportOptions::method`] and imports
-    /// with `clone-or-copy`. See
+    /// source, so it imports with `clone-or-copy` unless
+    /// [`PackageImportOptions::method`] is `copy`. See
     /// [`fn@crate::create_virtual_dir_by_snapshot::effective_import_method`].
     pub needs_build: bool,
 }
