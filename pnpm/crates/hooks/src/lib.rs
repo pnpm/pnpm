@@ -25,7 +25,7 @@ use tokio::sync::{mpsc, oneshot};
 pub(crate) const LOAD_PNPMFILE: &str = include_str!("load_pnpmfile.cjs");
 
 /// A pnpmfile hook that pnpm accepts in a pnpmfile but never runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IgnoredHook {
     FilterLog,
     ImportPackage,

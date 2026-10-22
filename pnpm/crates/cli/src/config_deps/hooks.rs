@@ -9,7 +9,7 @@ use super::{
 };
 use miette::WrapErr;
 use pnpm_hooks::IgnoredHook;
-use std::collections::BTreeSet;
+use pnpm_network::redact_and_sanitize;
 
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
 /// application order (see [`finder::find_pnpmfiles`]). Every hook applies
@@ -123,7 +123,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
-    let mut ignored_hooks = BTreeSet::new();
+    let mut ignored_hooks = Vec::new();
     for (pnpmfile, hook) in pnpmfiles.iter().zip(&hooks) {
         let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
         current = hook
@@ -131,9 +131,9 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             .await
             .map_err(|err| miette::miette!("{err}"))
             .wrap_err_with(|| format!("running updateConfig hook from {}", pnpmfile.display()))?;
-        ignored_hooks.extend(hook.ignored_hooks().await);
+        ignored_hooks.push((pnpmfile.as_path(), hook.ignored_hooks().await));
     }
-    warn_ignored_hooks::<Reporter>(ignored_hooks, &prefix);
+    warn_ignored_hooks::<Reporter>(&ignored_hooks, &prefix);
 
     adopt_hook_catalogs(config, &current)?;
 
@@ -141,24 +141,36 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     Ok(hooks)
 }
 
-fn warn_ignored_hooks<Reporter: self::Reporter>(hooks: BTreeSet<IgnoredHook>, prefix: &str) {
-    for hook in hooks {
+fn warn_ignored_hooks<Reporter: self::Reporter>(
+    defined_by_pnpmfile: &[(&Path, Vec<IgnoredHook>)],
+    prefix: &str,
+) {
+    for hook in IgnoredHook::ALL {
+        let pnpmfiles: Vec<String> = defined_by_pnpmfile
+            .iter()
+            .filter(|(_, hooks)| hooks.contains(&hook))
+            .map(|(pnpmfile, _)| redact_and_sanitize(&pnpmfile.to_string_lossy()))
+            .collect();
+        if pnpmfiles.is_empty() {
+            continue;
+        }
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Warn,
-            message: ignored_hook_warning(hook).to_string(),
+            message: ignored_hook_warning(hook, &pnpmfiles.join(", ")),
             prefix: prefix.to_string(),
         }));
     }
 }
 
-fn ignored_hook_warning(hook: IgnoredHook) -> &'static str {
+fn ignored_hook_warning(hook: IgnoredHook, pnpmfiles: &str) -> String {
     match hook {
         IgnoredHook::FilterLog => {
             "The pnpmfile filterLog hook is deprecated and is not supported by pnpm v12. Remove it from the pnpmfile."
+                .to_string()
         }
-        IgnoredHook::ImportPackage => {
-            "The pnpmfile importPackage hook is not supported by pnpm v12 and is ignored. Use the packageImportMethod setting to choose how packages are written to node_modules."
-        }
+        IgnoredHook::ImportPackage => format!(
+            "The pnpmfile importPackage hook (defined in {pnpmfiles}) is ignored. Use the packageImportMethod setting to choose how packages are written to node_modules.",
+        ),
     }
 }
 

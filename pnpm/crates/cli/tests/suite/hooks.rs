@@ -42,11 +42,8 @@ fn import_package_is_ignored_with_a_warning() {
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert_eq!(
-        stdout.matches("importPackage hook is not supported").count(),
-        1,
-        "STDOUT:\n{stdout}",
-    );
+    assert_eq!(stdout.matches("importPackage hook").count(), 1, "STDOUT:\n{stdout}");
+    assert!(stdout.contains(".pnpmfile.cjs) is ignored"), "STDOUT:\n{stdout}");
     assert!(stdout.contains("packageImportMethod"), "STDOUT:\n{stdout}");
 
     drop(root);
@@ -67,7 +64,8 @@ fn a_pnpmfile_without_ignored_hooks_prints_no_ignored_hook_warning() {
         .assert()
         .success();
     let stdout = String::from_utf8_lossy(&output.get_output().stdout);
-    assert!(!stdout.contains("hook is not supported"), "STDOUT:\n{stdout}");
+    assert!(!stdout.contains("importPackage"), "STDOUT:\n{stdout}");
+    assert!(!stdout.contains("filterLog"), "STDOUT:\n{stdout}");
 
     drop(root);
 }
