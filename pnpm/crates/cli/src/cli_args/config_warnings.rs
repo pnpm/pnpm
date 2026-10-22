@@ -59,12 +59,11 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     if config.registry_options_by_url.is_empty() {
         return None;
     }
-    // An entry routed through the bare `@` scope sets `config.registry` and
-    // is stored under no scope, so the default registry is a configured
-    // registry in its own right.
-    let configured: BTreeSet<&str> = std::iter::once(config.registry.as_str())
-        .chain(config.registries_by_scope.values().map(String::as_str))
-        .chain(config.registries_by_prefix.values().map(String::as_str))
+    let registries_by_scope = config.resolved_registries();
+    let configured: BTreeSet<&str> = registries_by_scope
+        .values()
+        .chain(config.registries_by_prefix.values())
+        .map(String::as_str)
         .chain(BUILTIN_REGISTRIES_BY_PREFIX.iter().map(|(_, url)| *url))
         .collect();
     let unmatched = config.registry_options_by_url

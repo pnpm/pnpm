@@ -7,12 +7,16 @@ use pnpm_config::{Config, ProjectConfig};
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pretty_assertions::assert_eq;
 
+/// `registries` are keyed by scope; a `default` entry is the default
+/// registry, which a registry override records under both fields.
 fn config_with(registries: &[(&str, &str)], registry_options_by_url: &[&str]) -> Config {
     let mut config = Config::new();
-    config.registries_by_scope = registries
-        .iter()
-        .map(|(scope, url)| ((*scope).to_string(), (*url).to_string()))
-        .collect();
+    for (scope, url) in registries {
+        if *scope == "default" {
+            config.registry = (*url).to_string();
+        }
+        config.registries_by_scope.insert((*scope).to_string(), (*url).to_string());
+    }
     config.registry_options_by_url = registry_options_by_url
         .iter()
         .map(|registry| {
@@ -59,6 +63,7 @@ fn no_warning_for_a_builtin_named_registry() {
 fn no_warning_for_an_entry_routed_only_through_the_default_scope() {
     let mut config = config_with(&[], &["https://pnpr.example.com/npm/"]);
     config.registry = "https://pnpr.example.com/npm/".to_string();
+    assert!(config.registries_by_scope.is_empty());
     assert_eq!(unmatched_registry_options_warning(&config), None);
 }
 
