@@ -16,7 +16,7 @@ If you use BuildKit cache mounts, keep the pnpm store cache scoped to mutually t
 
 ## Official pnpm base image
 
-An official pnpm base image is published to GitHub Container Registry as [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm). It is based on `debian:stable-slim` and contains only the pnpm [standalone binary]. Node.js is **not** bundled. This lets you pick the Node.js version yourself (inside your Dockerfile or at runtime) instead of being locked to whatever Node version a base image ships with.
+An official pnpm base image is published to GitHub Container Registry as [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm). It is based on `debian:stable-slim` and contains the pnpm [standalone binary], the `node-gyp` it bundles, and the few system libraries pnpm needs. Node.js is **not** bundled. This lets you pick the Node.js version yourself (inside your Dockerfile or at runtime) instead of being locked to whatever Node version a base image ships with.
 
 [standalone binary]: ./installation.md#using-a-standalone-script
 
@@ -59,6 +59,8 @@ Let pnpm install Node.js automatically from [`devEngines.runtime`](./package_jso
   }
 }
 ```
+
+`pnpm install` downloads the runtime that `devEngines.runtime` declares, so the image needs no `pnpm runtime set`.
 
 This example assumes the project has a `pnpm-workspace.yaml`. If it does not,
 use `COPY package.json pnpm-lock.yaml ./` for the first copy step.
@@ -226,25 +228,28 @@ docker build . --target app2 --tag app2:latest
 
 On CI or CD environments, the BuildKit cache mounts might not be available, because the VM or container is ephemeral and only normal docker cache will work.
 
-So an alternative is to use a typical Dockerfile with layers that are built incrementally, for this scenario, `pnpm fetch` is the best option, as it only needs the `pnpm-lock.yaml` file and the layer cache will only be lost when you change the dependencies.
+So an alternative is to use a typical Dockerfile with layers that are built incrementally, for this scenario, `pnpm fetch` is the best option, as it only needs `pnpm-lock.yaml` and `pnpm-workspace.yaml`, and the layer cache will only be lost when you change the dependencies.
+
+`pnpm fetch` only fills the virtual store. A `pnpm install --offline` after copying the sources links the dependencies into `node_modules`.
 
 ```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12 AS base
 
 RUN pnpm runtime set node 24 -g
 
-FROM base AS prod
-
 WORKDIR /app
-COPY pnpm-lock.yaml /app/
-RUN pnpm fetch --prod
+COPY pnpm-lock.yaml pnpm-workspace.yaml /app/
+RUN pnpm fetch
 
+FROM base AS build
 COPY . /app
+RUN pnpm install --offline --frozen-lockfile
 RUN pnpm run build
 
 FROM base
-COPY --from=prod /app/node_modules /app/node_modules
-COPY --from=prod /app/dist /app/dist
+COPY . /app
+RUN pnpm install --offline --frozen-lockfile --prod
+COPY --from=build /app/dist /app/dist
 EXPOSE 8000
 CMD [ "pnpm", "start" ]
 ```

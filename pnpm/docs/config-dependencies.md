@@ -17,7 +17,7 @@ Removing a package from `configDependencies` removes its installed link and unus
 
 ## How to add a config dependency
 
-Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [boot document](./lockfile.md)).
+Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [boot document](./lockfile.md)). pnpm installs each config dependency to `node_modules/.pnpm-config/<name>`.
 
 For example, running `pnpm add --config my-configs` will add this entry to your `pnpm-workspace.yaml`:
 
@@ -50,7 +50,7 @@ A config dependency may ship platform-specific binaries via `optionalDependencie
 
 The boot document records all platform variants regardless of host platform, so the lockfile stays portable across machines.
 
-Each entry in `optionalDependencies` must be declared with an **exact** version (e.g. `"1.2.3"`). Ranges (`"^1.0.0"`, `"~1.0.0"`) and tags (`"latest"`) are rejected. This keeps config-dep installs reproducible: the resolved subdep can't drift between machines for a parent that's pinned by integrity.
+Each entry in `optionalDependencies` must be declared with an **exact** version (e.g. `"1.2.3"`). Ranges (`"^1.0.0"`, `"~1.0.0"`) and tags (`"latest"`) fail with `ERR_PNPM_CONFIG_DEP_OPTIONAL_NOT_EXACT`. This keeps config-dep installs reproducible: the resolved subdep can't drift between machines for a parent that's pinned by integrity.
 
 ## Usage
 
@@ -61,7 +61,7 @@ Config dependencies are installed **before** hooks from your [`.pnpmfile.mjs`] a
 Example:
 
 ```js title=".pnpmfile.mjs"
-import { readPackage } from '.pnpm-config/my-hooks'
+import { readPackage } from './node_modules/.pnpm-config/my-hooks/index.mjs'
 
 export const hooks = {
   readPackage

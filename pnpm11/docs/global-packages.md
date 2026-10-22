@@ -54,6 +54,8 @@ pnpm add -g eslint,prettier
 
 Here `eslint` and `prettier` form a single install group. Removing either with `pnpm remove -g` removes the whole group.
 
+`pnpm add -g <pkg>` replaces every existing group that contains `<pkg>`. After `pnpm add -g eslint`, the `eslint,prettier` group is gone, and so are `prettier` and its bins. To keep the group, add it again as a whole (`pnpm add -g eslint,prettier`), or use `pnpm update -g`.
+
 The two forms can be mixed. For example:
 
 ```sh
@@ -86,7 +88,7 @@ The contents of `{pnpmHomeDir}/global/v11/` look like:
 - The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies (the entries at the root of its `node_modules/`) are symlinks into that store, so the actual package contents are shared rather than copied per group.
 - Bin shims live in `{pnpmHomeDir}/bin/` and point through the appropriate install group's `node_modules`.
 
-When a package is removed or its install group is replaced, the hash symlink is updated and orphaned target directories are eventually cleaned up by `pnpm store prune`.
+When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g`.
 
 ## Listing global packages
 

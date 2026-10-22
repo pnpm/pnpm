@@ -54,6 +54,7 @@ You may use the `catalog:` protocol in the next fields:
   * `optionalDependencies`
 * `pnpm-workspace.yaml`
     * `overrides`
+* [`pnx`](./cli/pnx.md) specifiers, such as `pnx shx@catalog:`
 
 The `catalog:` protocol allows an optional name after the colon (ex: `catalog:name`) to specify which catalog should be used. When a name is omitted, the default catalog is used.
 
@@ -79,7 +80,7 @@ Catalogs are defined in the `pnpm-workspace.yaml` file. There are two ways to de
 If you have an existing workspace that you want to migrate to using catalogs, you can use the following [codemod](https://go.codemod.com/pnpm-catalog):
 
 ```sh
-pnpx codemod pnpm/catalog
+pnx codemod pnpm/catalog
 ```
 
 :::
@@ -95,6 +96,8 @@ catalog:
 ```
 
 These version ranges can be referenced through `catalog:default`. For the default catalog only, a special `catalog:` shorthand can also be used. Think of `catalog:` as a shorthand that expands to `catalog:default`.
+
+The default catalog can also be written as `catalogs.default`. Defining both `catalog` and `catalogs.default` fails with "The 'default' catalog was defined multiple times".
 
 ### Named catalogs
 
@@ -158,7 +161,7 @@ pnpm expands the `catalog:` reference to `workspace:^` and then links the worksp
 
 Added in: v12.6.0
 
-Catalog entries can use the `file:` and `link:` protocols ([#8642](https://github.com/pnpm/pnpm/issues/8642)). A relative path or bare path in an entry is measured from the directory holding `pnpm-workspace.yaml`:
+Catalog entries can use the `file:` and `link:` protocols ([#8642](https://github.com/pnpm/pnpm/issues/8642)). A relative path in an entry, such as `file:./tarballs/foo.tgz`, is measured from the directory holding `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 catalog:
@@ -175,6 +178,15 @@ catalog:
   }
 }
 ```
+
+## Adding dependencies to a catalog
+
+[`pnpm add --save-catalog`](./cli/add.md#--save-catalog) writes the new dependency's range to the default catalog and `catalog:` to `package.json`. [`--save-catalog-name`](./cli/add.md#--save-catalog-name-catalog_name) picks a named catalog. [`catalogMode`](#catalogmode) controls whether `pnpm add` adds to the default catalog without the flag.
+
+## Errors
+
+* `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`: the catalog has no entry for the dependency.
+* `ERR_PNPM_CATALOG_ENTRY_INVALID_RECURSIVE_DEFINITION`: a catalog entry is itself a `catalog:` reference.
 
 ## Publishing
 

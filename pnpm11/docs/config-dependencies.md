@@ -46,7 +46,7 @@ Config dependencies are installed **before** hooks from your [`.pnpmfile.mjs`] a
 Example:
 
 ```js title=".pnpmfile.mjs"
-import { readPackage } from '.pnpm-config/my-hooks'
+import { readPackage } from './node_modules/.pnpm-config/my-hooks/index.mjs'
 
 export const hooks = {
   readPackage

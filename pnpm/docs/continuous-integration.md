@@ -46,22 +46,19 @@ show it for each one.
 
 :::note
 
-Earlier versions of this page used Corepack. Corepack installs a JavaScript shim
-in place of pnpm, so every `pnpm` call starts Node.js to run the shim before pnpm
-itself starts. That cost is paid on each invocation, and CI jobs make many of them.
-Installing pnpm itself avoids that entirely.
+Do not use Corepack. It runs pnpm through a Node.js shim on every call.
 
 :::
 
 :::note
 
-In all the provided configuration files the store is cached. However, this is not required, and it is not guaranteed that caching the store will make installation faster. So feel free to not cache the pnpm store in your job.
+Most of the provided configuration files cache the store. However, this is not required, and it is not guaranteed that caching the store will make installation faster. So feel free to not cache the pnpm store in your job.
 
 :::
 
 :::tip Cache the metadata cache too
 
-Since v11.22.0, [`pnpm cache path`](./cli/cache-path.md) prints the directory pnpm
+[`pnpm cache path`](./cli/cache-path.md) prints the directory pnpm
 uses for its metadata cache, so a job can cache it without mirroring pnpm's own
 path resolution. That directory also holds the lockfile verification log, which
 lets a job skip re-checking an unchanged lockfile against the configured
@@ -78,7 +75,7 @@ Only cache pnpm's store and cache directories in locations writable by trusted j
 
 :::tip Lockfile behavior in CI
 
-When pnpm detects that it is running in CI, it switches to frozen-lockfile mode automatically. Since v11, pnpm also fails on incompatible lockfiles in CI. If the lockfile was written by a newer pnpm major version, the install will error out instead of silently rewriting it. Upgrade your CI pnpm version to match the one used to generate the lockfile.
+When pnpm detects that it is running in CI, it switches to frozen-lockfile mode automatically. Pass `--no-frozen-lockfile` to opt out, and set the [`ci`](./settings/other.md#ci) setting to force or disable CI detection. [`pnpm ci`](./cli/ci.md) runs `pnpm clean` and then a frozen install. pnpm also fails on incompatible lockfiles in CI. If the lockfile was written by a newer pnpm major version, the install will error out instead of silently rewriting it. Upgrade your CI pnpm version to match the one used to generate the lockfile.
 
 :::
 
@@ -119,11 +116,11 @@ steps:
         || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh; } \
         && sh /tmp/pnpm-install.sh
       echo "##vso[task.prependpath]$PNPM_HOME/bin"
-      "$PNPM_HOME/bin/pnpm" config set store-dir "$pnpm_config_cache"
+      "$PNPM_HOME/bin/pnpm" config set store-dir "$PNPM_STORE_PATH"
     displayName: "Setup pnpm"
     env:
       PNPM_HOME: $(Pipeline.Workspace)/.pnpm
-      pnpm_config_cache: $(Pipeline.Workspace)/.pnpm-store
+      PNPM_STORE_PATH: $(Pipeline.Workspace)/.pnpm-store
 
   - bash: |
       pnpm install
@@ -176,8 +173,6 @@ jobs:
   build: # this can be any name you choose
     docker:
       - image: node:24
-    resource_class: large
-    parallelism: 10
     environment:
       PNPM_HOME: /root/.local/share/pnpm
 
@@ -272,14 +267,13 @@ build:
 
 ## Jenkins
 
-You can use pnpm for installing and caching your dependencies:
+You can use pnpm for installing your dependencies:
 
 ```groovy title="Jenkinsfile"
 pipeline {
     agent {
         docker {
             image 'node:lts-bookworm-slim'
-            args '-p 3000:3000'
         }
     }
     environment {

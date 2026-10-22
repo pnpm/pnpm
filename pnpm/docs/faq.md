@@ -25,7 +25,7 @@ For more on this subject:
 
 Short answer: Yes.
 Long answer: Using symbolic linking on Windows can sometimes be problematic,
-however, pnpm has a workaround. For Windows, if the [Developer Mode](https://learn.microsoft.com/windows/advanced-settings/developer-mode) is off, we use [junctions] instead.
+however, pnpm has a workaround. When pnpm cannot create symlinks on Windows (no [Developer Mode](https://learn.microsoft.com/windows/advanced-settings/developer-mode) or admin rights), it uses [junctions] instead.
 
 [junctions]: https://docs.microsoft.com/en-us/windows/win32/fileio/hard-links-and-junctions
 
@@ -78,7 +78,7 @@ pnpm functions differently in the 2 cases below:
 
 ### Store path is specified
 
-If the store path is specified via [the store config](configuring.md), then copying
+If the store path is specified via [`storeDir`](./settings/store.md#storedir), then copying
 occurs between the store and any projects that are on a different disk.
 
 If you run `pnpm install` on disk `A`, then the pnpm store must be on disk `A`.
@@ -91,9 +91,10 @@ inhibits the storage and performance benefits of pnpm.
 If the store path is not set, then multiple stores are created (one per drive or
 filesystem).
 
-If installation is run on disk `A`, the store will be created on `A`
-`.pnpm-store` under the filesystem root. If later the installation is run on
-disk `B`, an independent store will be created on `B` at `.pnpm-store`. The
+pnpm uses `<pnpm home>/store` when the project can hardlink into it. Otherwise
+it uses `.pnpm-store` at the root of the project's filesystem (the mount point),
+or `<project>/node_modules/.pnpm-store` as a last resort. If later the installation is run on
+disk `B`, an independent store will be created on `B`. The
 projects would still maintain the benefits of pnpm, but each drive may have
 redundant packages.
 
@@ -169,8 +170,11 @@ export const hooks = {
 }
 ```
 
-After creating a `.pnpmfile.mjs`, delete `pnpm-lock.yaml` only - there is no need
-to delete `node_modules`, as pnpm hooks only affect module resolution. Then,
-rebuild the dependencies & it should be working.
+After creating a `.pnpmfile.mjs`, run `pnpm install`. pnpm detects the changed
+pnpmfile and resolves the dependencies again. There is no need to delete
+`pnpm-lock.yaml` or `node_modules`.
+
+[`packageExtensions`](./settings/dependency-resolution.md#packageextensions) adds
+a missing dependency without a pnpmfile.
 
 [Webpack Dashboard]: https://github.com/pnpm/pnpm/issues/1043

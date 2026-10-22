@@ -148,6 +148,9 @@ settings:
 
 ## Why the boot document comes first {#why-the-env-document-comes-first}
 
+The boot document is also called the env document, as in the
+`ERR_PNPM_ENV_LOCKFILE_CORRUPTED` error.
+
 pnpm has to know which pnpm version to switch to, and which plugins to load,
 before it can do anything else, including before it has any reason to parse a
 dependency graph that may be several megabytes. Keeping that information in a
@@ -166,15 +169,11 @@ The boot document is written when either of these applies:
   `packageManager` field. Setting [`pmOnFail`] to `ignore` turns it off. pnpm
   then doesn't enforce the pinned version, so it has nothing to record.
 
-Two-document lockfiles have existed since config dependencies were introduced.
-They became common in pnpm 12, which records the resolved package manager
-version by default.
-
-Since v11.23.0, a frozen install no longer rewrites this block. When the pinned
+A frozen install does not rewrite this block. When the pinned
 pnpm version is missing from the lockfile or no longer matches it,
 `pnpm install --frozen-lockfile` fails with
 `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`, so a manifest whose pin was
-bumped without regenerating the lockfile no longer passes CI. Run
+bumped without regenerating the lockfile does not pass CI. Run
 `pnpm install` without `--frozen-lockfile` and commit the result.
 
 ## Scanning for vulnerabilities

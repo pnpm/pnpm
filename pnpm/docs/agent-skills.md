@@ -26,7 +26,7 @@ pnpm only looks one level deep, at `skills/<name>/SKILL.md`. A package can consi
 
 A skill is instructions that an agent follows in every session, and it may include scripts the agent runs. So pnpm links nothing until you approve the package.
 
-During install, pnpm looks for skills in the direct dependencies of every project. The packages whose skills await approval are listed after the install:
+During install, pnpm looks for skills in the direct dependencies of every project. Only the dependency groups the install includes count, so `pnpm install --prod` skips the skills of `devDependencies`. The packages whose skills await approval are listed after the install:
 
 ```
 Agent skills awaiting approval: drizzle-kit.
@@ -43,11 +43,11 @@ permissions:
 
 An approval covers every skill of the package, in every later version. A git or tarball dependency is approved by its exact source or, for git, by its repository, with the same keys as [`allowBuilds`](./settings/build.md#allowbuilds).
 
-If a package resolves to several versions in a workspace, the highest version decides which skills are linked.
+If a package resolves to several versions in a workspace, the highest version decides which skills are linked. If the highest version ships no skills, none are linked, even when an older version does.
 
 ## Where skills are linked
 
-By default, pnpm links into the agent skill directories that already exist in the workspace root, such as `.claude/skills` or `.cursor/skills`. When the agent running pnpm identifies itself through an environment variable, its directory is created if it is missing:
+By default, pnpm links into the agent skill directories that already exist in the workspace root: every `.<name>/skills` directory, such as `.claude/skills`, `.cursor/skills`, or `.agents/skills`. When the agent running pnpm identifies itself through an environment variable, its directory is created if it is missing:
 
 | Variable | Directory |
 |---|---|
@@ -61,7 +61,7 @@ By default, pnpm links into the agent skill directories that already exist in th
 
 To choose the directories yourself, set [`skills.dirs`](./settings/build.md#skillsdirs). An empty list turns agent skills off.
 
-Each skill is linked as `pnpm-<package>-<skill>`. A scoped package name has its `/` replaced by `+`, so the `auth` skill of `@acme/kit` is linked as `pnpm-@acme+kit-auth`. pnpm adds a `pnpm-*` rule to a `.gitignore` in each directory, because the links point into `node_modules`.
+Each skill is linked as `pnpm-<package>-<skill>`. A scoped package name has its `/` replaced by `+`, so the `auth` skill of `@acme/kit` is linked as `pnpm-@acme+kit-auth`. A tarball or local directory dependency is linked under the alias the project gives it, not its package name. pnpm adds a `pnpm-*` rule to a `.gitignore` in each directory, because the links point into `node_modules`.
 
 pnpm removes a link once the package is removed, the approval is revoked, or the package no longer ships the skill. It never replaces or removes an entry it did not create, and fails if one is in the way.
 

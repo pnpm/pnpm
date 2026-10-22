@@ -29,6 +29,8 @@ This lets a team protect `pnpm-workspace.yaml` and the files that hold security 
 
 An included file cannot define `include`.
 
+A source that breaks these rules fails with `ERR_PNPM_INVALID_WORKSPACE_INCLUDE`. This covers a bad or missing path, `'*'` delegated to a config dependency, a config dependency missing from `configDependencies`, and an `include` inside an included file.
+
 ### Relative paths
 
 A relative path in an included file is relative to that file, the way a relative path in `pnpm-workspace.yaml` is relative to the workspace root. This covers settings that hold paths, such as `patchedDependencies`, `patchesDir`, `pnpmfile`, `packages`, `storeDir`, and a `scriptShell` that contains a slash. It also covers `file:`, `link:`, and `./` paths in catalogs and `overrides`, and `workspace:` paths in `overrides`. Absolute paths, and paths that start with `~` or an environment variable, are kept as written.
@@ -113,7 +115,7 @@ minimumReleaseAge: 1440
 trustPolicy: no-downgrade
 ```
 
-The file must stay inside the package. The package may define only the settings `include` delegates to it, so a new version cannot take over another setting. Some settings cannot be delegated to a config dependency. These include `configDependencies`, `pnpmfile`, `globalPnpmfile`, `bootConfig`, `packages`, `scriptShell`, and settings that hold paths, such as `patchedDependencies`, `storeDir`, and `lockfileDir`. No source can be delegated `include`.
+The file must stay inside the package. A missing or unreadable `pnpm.config` fails with `ERR_PNPM_INVALID_CONFIG_DEPENDENCY_ENTRY`. The package may define only the settings `include` delegates to it, so a new version cannot take over another setting. Some settings cannot be delegated to a config dependency. These include `configDependencies`, `pnpmfile`, `globalPnpmfile`, `bootConfig`, `packages`, `scriptShell`, and settings that hold paths, such as `patchedDependencies`, `storeDir`, and `lockfileDir`. No source can be delegated `include`.
 
 Commands that install config dependencies fail when the settings of an included config dependency cannot be loaded. `pnpm config get` and `pnpm config list` still work before the first install, and warn that settings owned by a config dependency that is not installed are missing.
 

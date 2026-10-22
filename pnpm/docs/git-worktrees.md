@@ -66,7 +66,7 @@ Each worktree is a full checkout with its own files, but they all share the same
 
 ### 3. Enable the global virtual store
 
-Add `virtualStoreType: global` to the `pnpm-workspace.yaml` in your repository (before v11.23.0 this setting was spelled `enableGlobalVirtualStore: true`):
+Add `virtualStoreType: global` to the `pnpm-workspace.yaml` in your repository:
 
 ```yaml title="pnpm-workspace.yaml"
 packages:
@@ -110,33 +110,6 @@ This means:
 - **Near-zero per-worktree overhead**: the local `node_modules` contains only symlinks to the shared global virtual store. Unlike pnpm's default behavior, which hardlinks files from the content-addressable store into a local `node_modules/.pnpm` directory, the global virtual store means no files are copied or hardlinked into the worktree at all.
 - **Instant installs for new worktrees**: packages are already in the global store.
 - **No conflicts**: each worktree has its own `node_modules` tree, so agents can install different dependency versions on different branches without interference.
-
-## Example: the pnpm monorepo itself
-
-The [pnpm repository](https://github.com/pnpm/pnpm) uses this exact setup with a bare git repo and a global virtual store. It includes helper scripts to make worktree management easier:
-
-**`pnpm worktree:new <branch-name|pr-number>`**: creates a new worktree and sets it up:
-
-```sh
-# Create a worktree for a branch (creates it from main if it doesn't exist)
-pnpm worktree:new feat/my-feature
-
-# Create a worktree for a GitHub PR (fetches the PR ref automatically)
-pnpm worktree:new 10834
-```
-
-The script handles a few things beyond plain `git worktree add`:
-- PR numbers are fetched via `git fetch origin pull/<number>/head` so they work for forks too.
-- Branch names with slashes (e.g. `feat/my-feature`) are converted to dashes for the directory name (e.g. `feat-my-feature`).
-- The `.claude` directory is symlinked from the bare repo's git common directory into the new worktree, so all worktrees share the same Claude Code settings and approved commands.
-
-There's also a shell helper [`shell/wt.sh`](https://github.com/pnpm/pnpm/blob/main/shell/wt.sh) that wraps the script and `cd`s into the new worktree:
-
-```sh
-# Source it in your shell config, then:
-wt feat/my-feature
-wt 10834
-```
 
 ## Tips
 

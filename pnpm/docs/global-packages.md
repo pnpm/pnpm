@@ -3,7 +3,7 @@ id: global-packages
 title: Global Packages
 ---
 
-Global packages are CLI tools and utilities installed system-wide with `pnpm add -g`. In pnpm v11, global package management was redesigned for better isolation and reliability.
+Global packages are CLI tools and utilities installed system-wide with `pnpm add -g`.
 
 ## Installing global packages
 
@@ -54,6 +54,8 @@ pnpm add -g eslint,prettier
 
 Here `eslint` and `prettier` form a single install group. Removing either with `pnpm remove -g` removes the whole group.
 
+`pnpm add -g <pkg>` replaces every existing group that contains `<pkg>`. After `pnpm add -g eslint`, the `eslint,prettier` group is gone, and so are `prettier` and its bins. To keep the group, add it again as a whole (`pnpm add -g eslint,prettier`), or use `pnpm update -g`.
+
 The two forms can be mixed. For example:
 
 ```sh
@@ -86,7 +88,7 @@ The contents of `{pnpmHomeDir}/global/v11/` look like:
 - The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies (the entries at the root of its `node_modules/`) are symlinks into that store, so the actual package contents are shared rather than copied per group.
 - Bin shims live in `{pnpmHomeDir}/bin/` and point through the appropriate install group's `node_modules`.
 
-When a package is removed or its install group is replaced, the hash symlink is updated and orphaned target directories are eventually cleaned up by `pnpm store prune`.
+When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g` or `pnpm update -g`.
 
 ## Listing global packages
 
@@ -113,6 +115,8 @@ If `--depth>0` is requested but the request can't be narrowed to a single instal
 | `pnpm remove -g <pkg>` | Remove a globally installed package (if it was bundled into an install group, the whole group is removed) |
 | `pnpm update -g [pkg]` | Update global packages (re-installs a package into a new isolated directory when its resolved dependency graph changed) |
 | `pnpm list -g` | List all globally installed packages |
+| `pnpm outdated -g` | Check global packages for newer versions |
+| `pnpm approve-builds -g` | Approve the build scripts of global packages |
 
 :::note
 
@@ -120,11 +124,19 @@ If `--depth>0` is requested but the request can't be narrowed to a single instal
 
 :::
 
+These cannot be installed globally:
+
+* pnpm itself. `pnpm add -g pnpm` fails with `ERR_PNPM_GLOBAL_PNPM_INSTALL`. Use [`pnpm self-update`](./cli/self-update.md).
+* A package with a bin that a [`pnpm shim`](./cli/shim.md) already provides. It fails with `ERR_PNPM_GLOBAL_BIN_CONFLICT`.
+* `crate:` and Python dependencies.
+
+`pnpm add -g rust` installs a [Rust toolchain](./cargo.md#rust-toolchain), not the npm package named `rust`.
+
 ## Binaries location
 
 Globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` (i.e., `$PNPM_HOME/bin/`). This keeps the `PNPM_HOME` directory clean. Internal directories like `global/` and `store/` don't pollute shell autocompletion when `PNPM_HOME` is on PATH.
 
-After upgrading to pnpm v11, run [`pnpm setup`](./cli/setup.md) to update your shell configuration so that `$PNPM_HOME/bin` is on your PATH.
+Run [`pnpm setup`](./cli/setup.md) to update your shell configuration so that `$PNPM_HOME/bin` is on your PATH.
 
 You can check the current global bin directory with:
 
@@ -211,6 +223,8 @@ This section describes the default `auto` policy. Under `auto`:
   Do you trust this project? [y/N]
   ```
 
+* A **package manager pin** that resolves from the npm registry, such as `yarn@1` or `npm`, is verified against npm's signature, so it runs without asking. Bun and Yarn 6 release archives ask once, like everything else.
+
 Answers are remembered in a machine-local registry, keyed to the project directory *and* to a fingerprint of the exact binary. If the binary or the providing package changes, pnpm asks again rather than reusing the old approval.
 
 In CI and any non-interactive session, the question cannot be asked, so the global version runs and nothing is recorded.
@@ -221,7 +235,7 @@ There is one more guard that applies regardless of policy: the project's command
 
 ### Which packages participate
 
-Only the runtimes participate by default. Since v12.0.0-rc.6, installing a package manager globally (`pnpm add -g yarn`) also adds an entry for it, so it follows a project's pin the way a globally installed Node.js already follows `devEngines.runtime`. An entry you set yourself, including `false`, is left as you set it.
+Only the runtimes participate by default. The Rust toolchain shims (`cargo`, `rustc`, and the other Rust tools) that `pnpm add -g rust` or `pnpm shim add rust` creates also follow the project's [toolchain file](./cargo.md#rust-toolchain). Since v12.0.0-rc.6, installing a package manager globally (`pnpm add -g yarn`) also adds an entry for it, so it follows a project's pin the way a globally installed Node.js already follows `devEngines.runtime`. An entry you set yourself, including `false`, is left as you set it.
 
 Enable others with [`globalShims`](./settings/other.md#globalshims), keyed by the providing package's name:
 
@@ -275,7 +289,7 @@ You can also pre-approve builds using the `--allow-build` flag:
 pnpm add -g --allow-build=esbuild esbuild
 ```
 
-Since v11.24.0, [`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
+[`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
 lets you decide after the fact instead. It collects the packages awaiting approval from every
 install group, asks about them once, and writes one `allowBuilds` policy into the
 `pnpm-workspace.yaml` of the global packages directory, then rebuilds only the
