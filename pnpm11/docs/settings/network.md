@@ -60,7 +60,7 @@ registry.
 
 ### maxsockets
 
-* Default: **50**
+* Default: **networkConcurrency x 3** if [`networkConcurrency`](#networkconcurrency) is set, otherwise **50**
 * Type: **Number**
 
 The maximum number of connections to use per origin (protocol/host/port combination).

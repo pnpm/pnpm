@@ -34,7 +34,7 @@ Since v11.5.3, env variables are **not** expanded in settings of `pnpm-workspace
 
 :::note
 
-Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `scope`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
+Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Since v11.25.0, `scope` is ignored there too. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
 
 :::
 

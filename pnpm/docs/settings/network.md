@@ -66,8 +66,8 @@ registry.
 * Type: **Number**
 
 The maximum number of connections to use per origin (protocol/host/port combination).
-When unset, pnpm sets no per-origin limit, and only
-[`networkConcurrency`](#networkconcurrency) bounds the connections.
+When unset, connections through a proxy are limited to 50 per origin, and direct
+connections are bounded only by [`networkConcurrency`](#networkconcurrency). Set `0` to remove the limit for proxied connections too.
 
 `maxSockets` is accepted as an alias. Both spellings are read from
 `pnpm-workspace.yaml`, the global configuration file, the environment, and the
