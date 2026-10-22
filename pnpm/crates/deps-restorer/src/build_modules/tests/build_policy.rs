@@ -80,16 +80,25 @@ fn explicit_deny_outranks_dangerously_allow_all_builds() {
     assert_eq!(policy.check("pinned@2.0.0"), Some(true));
     assert_eq!(policy.check("other-package@1.0.0"), Some(true));
 }
-/// Wildcards in `allowBuilds` keys are accepted by the parser
-/// (they land as literal strings in the expanded set) but the
-/// `HashSet::contains` lookup means they never match a real
-/// package name. Use `dangerouslyAllowAllBuilds` for blanket
-/// allow.
 #[test]
-fn wildcard_name_in_allow_builds_does_not_match_real_package() {
-    let policy = policy_from_specs([("is-*", true)], false);
-    assert_eq!(policy.check("is-odd@1.0.0"), None);
-    assert_eq!(policy.check("is-positive@1.0.0"), None);
+fn scoped_wildcard_name_in_allow_builds_matches_and_denials_win() {
+    let policy = policy_from_specs(
+        [
+            ("@parcel/*", true),
+            ("@parcel/blocked", false),
+            ("@other/*", false),
+            ("core-js@.*", false),
+            ("@parcel/watcher@.*", false),
+        ],
+        false,
+    );
+    assert_eq!(policy.check("@parcel/other@2.0.0"), Some(true));
+    assert_eq!(policy.check("@parcel/blocked@1.0.0"), Some(false));
+    assert_eq!(policy.check("@other/blocked@1.0.0"), Some(false));
+    assert_eq!(policy.check("@other/allowed@1.0.0"), Some(false));
+    assert_eq!(policy.check("core-js@3.0.0"), Some(false));
+    assert_eq!(policy.check("@parcel/watcher@3.0.0"), Some(false));
+    assert_eq!(policy.check("core-js-pure@3.0.0"), None);
 }
 #[test]
 fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
