@@ -2,14 +2,14 @@
 # Puts the Node.js binaries that pkg embeds into pkg-fetch's cache, taken from
 # a pkg-fetch CI run instead of a pkg-fetch release.
 #
-# pkg-fetch's run that built Node.js 24.22.1 never uploaded its binaries to the
-# release page, so pkg cannot download them. The binaries survive as that run's
-# artifacts. The pkg-fetch patch in __patches__ maps node24 to 24.22.1 and pins
-# each binary's sha256. pkg-fetch accepts a cached binary only if its hash is
-# pinned, and this script checks the hashes first, so a mismatch fails here
-# instead of sending pkg-fetch into a build of Node.js from source.
+# No pkg-fetch release carries Node.js 24.22.1, so pkg cannot download it. The
+# binaries exist as artifacts of the pkg-fetch run below. The pkg-fetch patch in
+# __patches__ maps node24 to 24.22.1 and pins each binary's sha256. pkg-fetch
+# accepts a cached binary only if its hash is pinned, and this script checks the
+# hashes first, so a mismatch fails here instead of sending pkg-fetch into a
+# build of Node.js from source.
 #
-# Delete this script, its workflow steps, and the pkg-fetch patch once a
+# TODO: delete this script, its workflow steps, and the pkg-fetch patch once a
 # pkg-fetch release maps node24 to 24.22.1 or later.
 
 set -euo pipefail
