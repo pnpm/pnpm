@@ -78,7 +78,7 @@ Use the `pnpr verify` subcommand to audit hosted documents against physical stor
 # Full checksum verification (verifies SHA-1 and sha512 integrity hashes)
 pnpr verify
 
-# Fast presence check (verifies all packument versions point to existing blobs)
+# Check that every packument version points to an existing blob, without comparing hashes
 pnpr verify --skip-hashes
 
 # Prune unreferenced/orphaned blobs left behind by interrupted uploads

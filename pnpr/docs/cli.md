@@ -75,7 +75,7 @@ Audits hosted package documents (`package.json`) against stored blobs. Inspects 
 # Full checksum verification (SHA-1 and Subresource Integrity)
 pnpr verify
 
-# Fast presence check without recomputing hashes
+# Check that every blob exists, without comparing hashes
 pnpr verify --skip-hashes
 
 # Prune unreferenced blobs left behind by interrupted operations (older than 24h)
@@ -241,7 +241,9 @@ RUST_LOG=debug pnpr
 The config `log.level` accepts `trace`, `debug`, `http`, `info`, `warn`, and
 `error`. `info` (the default) and `http` both log one access record per request,
 and `warn` and `error` drop them. To keep access records while quieting the
-rest, set `RUST_LOG=warn,pnpr::access=info`.
+rest, set
+`RUST_LOG=warn,pnpr::access=info,pnpr::audit=info`. A `RUST_LOG` value that
+omits `pnpr::audit=info` drops the audit records below `warn`.
 
 ## Examples
 

@@ -900,9 +900,9 @@ s3:
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 ```
 
-`${ENV_VAR:-default}` and `${ENV_VAR-default}` supply a value for an unset
-variable. An unset variable without a default becomes an empty string, and
-pnpr logs a warning.
+`${ENV_VAR-default}` supplies `default` when `ENV_VAR` is unset, and
+`${ENV_VAR:-default}` also when it is empty. An unset or empty variable without
+a default becomes an empty string, and pnpr logs a warning.
 
 Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
 `secrets.cache`, `secrets.oci`, `s3.secretAccessKey`, `auth.scim.token`,

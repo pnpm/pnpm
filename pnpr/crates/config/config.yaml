@@ -29,7 +29,7 @@ storage: ./storage
 #  prefix: packages
 #  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
 #  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
-#  forcePathStyle: true   # the default; false selects virtual-hosted addressing
+#  forcePathStyle: true   # the default unless AWS_VIRTUAL_HOSTED_STYLE_REQUEST=true; false selects virtual-hosted addressing
 #  allowHttp: false
 
 # Shared database backend for auth records (users and tokens).
