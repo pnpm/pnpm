@@ -615,11 +615,12 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
     );
 }
 
-#[cfg(unix)]
-#[test]
-fn save_writes_through_a_symlink_chain_when_allowed() {
-    use std::os::unix::fs::{PermissionsExt, symlink};
-
+/// Saves through `work/pnpm-lock.yaml` -> `staging/pnpm-lock.yaml` ->
+/// `source/pnpm-lock.yaml`, the first link relative, and returns the target.
+fn save_through_a_symlink_chain(
+    symlink: impl Fn(&Path, &Path) -> std::io::Result<()>,
+    prepare_target: impl FnOnce(&Path),
+) -> (tempfile::TempDir, std::path::PathBuf) {
     let dir = tempdir().unwrap();
     let source = dir.path().join("source");
     let staging = dir.path().join("staging");
@@ -629,15 +630,36 @@ fn save_writes_through_a_symlink_chain_when_allowed() {
     }
     let target = source.join(Lockfile::FILE_NAME);
     std::fs::write(&target, "lockfileVersion: '9.0'\n").unwrap();
-    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o640)).unwrap();
-    symlink(&target, staging.join(Lockfile::FILE_NAME)).unwrap();
+    prepare_target(&target);
+    symlink(&target, &staging.join(Lockfile::FILE_NAME)).unwrap();
     let path = work.join(Lockfile::FILE_NAME);
-    symlink(Path::new("../staging").join(Lockfile::FILE_NAME), &path).unwrap();
+    symlink(&Path::new("..").join("staging").join(Lockfile::FILE_NAME), &path).unwrap();
 
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
     lockfile.save_to_path(&path, SymlinkedLockfile::WriteThrough).unwrap();
 
     assert_eq!(std::fs::read_to_string(&target).unwrap(), lockfile.to_yaml_string().unwrap());
+    for link in [&path, &staging.join(Lockfile::FILE_NAME)] {
+        assert!(std::fs::symlink_metadata(link).unwrap().is_symlink(), "{link:?}");
+    }
+    for dir in [&source, &staging, &work] {
+        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 1, "stray temp file in {dir:?}");
+    }
+    (dir, target)
+}
+
+#[cfg(unix)]
+#[test]
+fn save_writes_through_a_symlink_chain_when_allowed() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (_dir, target) = save_through_a_symlink_chain(
+        |original, link| std::os::unix::fs::symlink(original, link),
+        |target| {
+            std::fs::set_permissions(target, std::fs::Permissions::from_mode(0o640)).unwrap();
+        },
+    );
+
     assert_eq!(
         std::fs::metadata(&target)
             .unwrap()
@@ -646,12 +668,15 @@ fn save_writes_through_a_symlink_chain_when_allowed() {
             & 0o777,
         0o640,
     );
-    for link in [&path, &staging.join(Lockfile::FILE_NAME)] {
-        assert!(std::fs::symlink_metadata(link).unwrap().is_symlink(), "{link:?}");
-    }
-    for dir in [&source, &staging, &work] {
-        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 1, "stray temp file in {dir:?}");
-    }
+}
+
+#[cfg(windows)]
+#[test]
+fn save_writes_through_a_symlink_chain_when_allowed() {
+    save_through_a_symlink_chain(
+        |original, link| std::os::windows::fs::symlink_file(original, link),
+        |_| {},
+    );
 }
 
 #[cfg(unix)]
