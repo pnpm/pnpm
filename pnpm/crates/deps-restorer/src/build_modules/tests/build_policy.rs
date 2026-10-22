@@ -100,6 +100,13 @@ fn scoped_wildcard_name_in_allow_builds_matches_and_denials_win() {
     assert_eq!(policy.check("@parcel/watcher@3.0.0"), Some(false));
     assert_eq!(policy.check("core-js-pure@3.0.0"), None);
 }
+
+#[test]
+fn unscoped_slash_wildcard_name_in_allow_builds_matches() {
+    let policy = policy_from_specs([("*/foo", true)], false);
+    assert_eq!(policy.check("@parcel/foo@1.0.0"), Some(true));
+}
+
 #[test]
 fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     let mut config = Config::new();
