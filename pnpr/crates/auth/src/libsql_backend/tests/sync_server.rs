@@ -56,40 +56,50 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
         axum::serve(listener, app).await.unwrap();
     });
 
-    let settings = LibsqlSettings {
-        url: format!("http://{address}"),
-        auth_token: None,
-        replica_path: Some(
-            directory
-                .path()
-                .join("replicas")
-                .join("auth.db"),
-        ),
-        sync_interval_secs: None,
-    };
-    let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
+    for (index, sync_interval_secs) in [None, Some(0)].into_iter().enumerate() {
+        let settings = LibsqlSettings {
+            url: format!("http://{address}"),
+            auth_token: None,
+            replica_path: Some(
+                directory
+                    .path()
+                    .join(format!("replica{index}"))
+                    .join("auth.db"),
+            ),
+            sync_interval_secs,
+        };
+        let pipelines_before_connect = primary.pipelines.load(Ordering::SeqCst);
+        let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
 
-    assert_eq!(primary.exports.load(Ordering::SeqCst), 1, "bootstrapped from the primary's export");
-    let pipelines_after_connect = primary.pipelines.load(Ordering::SeqCst);
-    assert!(pipelines_after_connect > 0, "schema setup writes go to the primary");
+        assert_eq!(
+            primary.exports.load(Ordering::SeqCst),
+            index + 1,
+            "bootstrapped from the primary's export",
+        );
+        let pipelines_after_connect = primary.pipelines.load(Ordering::SeqCst);
+        assert!(
+            pipelines_after_connect > pipelines_before_connect,
+            "schema setup writes go to the primary",
+        );
 
-    let owner = replica.lookup(&token).await.unwrap();
-    assert_eq!(owner.as_deref(), Some("alice"));
-    let hash = replica.stored_hash("alice").await.unwrap();
-    assert!(hash.is_some());
-    assert_eq!(
-        primary.pipelines.load(Ordering::SeqCst),
-        pipelines_after_connect,
-        "reads are served from the local replica",
-    );
+        let owner = replica.lookup(&token).await.unwrap();
+        assert_eq!(owner.as_deref(), Some("alice"));
+        let hash = replica.stored_hash("alice").await.unwrap();
+        assert!(hash.is_some());
+        assert_eq!(
+            primary.pipelines.load(Ordering::SeqCst),
+            pipelines_after_connect,
+            "reads are served from the local replica",
+        );
 
-    let issued = replica.issue("alice").await.unwrap();
-    assert!(
-        primary.pipelines.load(Ordering::SeqCst) > pipelines_after_connect,
-        "writes go to the primary",
-    );
-    let owner = primary.backend.lookup(&issued).await.unwrap();
-    assert_eq!(owner.as_deref(), Some("alice"));
+        let issued = replica.issue("alice").await.unwrap();
+        assert!(
+            primary.pipelines.load(Ordering::SeqCst) > pipelines_after_connect,
+            "writes go to the primary",
+        );
+        let owner = primary.backend.lookup(&issued).await.unwrap();
+        assert_eq!(owner.as_deref(), Some("alice"));
+    }
     server.abort();
 }
 
