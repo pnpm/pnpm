@@ -14,7 +14,7 @@ use model::{
     move_dependency, outcome_of,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_resolver_base::ResolveOptions;
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions};
 use proptest::{prelude::*, test_runner::RngSeed};
 
 use super::StubResolver;
@@ -74,7 +74,7 @@ fn importer_opts(id: &str, settings: Settings) -> ResolveImporterOptions {
             modules_dir: None,
         },
         resolution: crate::ImporterResolutionInputs {
-            hoist_preferences: crate::HoistPreferences::default(),
+            all_preferred_versions: Arc::new(PreferredVersions::new()),
             override_bare_specifier: None,
             patched_dependencies: None,
             pick_lowest_direct: false,

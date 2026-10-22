@@ -73,32 +73,18 @@ pub struct PeerLinkOptions {
     pub modules_dir: Option<std::path::PathBuf>,
 }
 
-/// The versions the peer-hoist pickers bias toward, so a version a sibling
-/// already brought is reused instead of adding a second instance. Versions
-/// resolved into the settled tree are derived once, workspace-wide, on the
-/// tree context and merged with these buckets per lookup (these win) — see
-/// `TreeCtx::preferred_versions_for_names`.
-#[derive(Debug, Default, Clone)]
-pub struct HoistPreferences {
-    /// The lockfile + manifest seed. Pass the result of
+pub struct ImporterResolutionInputs {
+    /// Seed for the preferred-versions tie-break table: the lockfile +
+    /// manifest entries the peer-hoist pickers bias toward, so a
+    /// version a sibling already brought is reused instead of adding a
+    /// second instance. Versions resolved into the settled tree are
+    /// derived once, workspace-wide, on the tree context and merged
+    /// with these seed buckets per lookup (seed entries win) — see
+    /// `TreeCtx::preferred_versions_for_names`. Pass the result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
     /// lockfile + manifest seeding is available.
     pub all_preferred_versions: Arc<PreferredVersions>,
-    /// Workspace manifest specifiers that `all_preferred_versions` leaves
-    /// out, so an auto-installed peer follows the version another project
-    /// declares. Empty when `all_preferred_versions` already holds them.
-    pub manifest_specifiers: Arc<PreferredVersions>,
-}
-
-impl HoistPreferences {
-    pub(crate) fn seeds(&self) -> [&PreferredVersions; 2] {
-        [&self.all_preferred_versions, &self.manifest_specifiers]
-    }
-}
-
-pub struct ImporterResolutionInputs {
-    pub hoist_preferences: HoistPreferences,
     /// Applies `overrides` to auto-installed peers. See
     /// [`crate::DependencyOverrider`].
     pub override_bare_specifier: Option<Arc<DependencyOverrider>>,
@@ -159,7 +145,7 @@ impl std::fmt::Debug for ResolveImporterOptions {
             )
             .field("dedupe_peers", &self.peers.dedupe_peers)
             .field("dedupe_peer_dependents", &self.peers.dedupe_peer_dependents)
-            .field("hoist_preferences", &self.resolution.hoist_preferences)
+            .field("all_preferred_versions", &self.resolution.all_preferred_versions)
             .field(
                 "override_bare_specifier",
                 &self.resolution.override_bare_specifier.as_ref().map(|_| "<overrider>"),
@@ -182,7 +168,7 @@ impl std::fmt::Debug for ResolveImporterOptions {
 }
 
 pub(crate) struct HoistSettings {
-    pub(crate) hoist_preferences: HoistPreferences,
+    pub(crate) all_preferred_versions: Arc<PreferredVersions>,
     pub(crate) override_bare_specifier: Option<Arc<DependencyOverrider>>,
     pub(crate) project_dir: std::path::PathBuf,
     pub(crate) peers_suffix_max_length: usize,
@@ -211,7 +197,7 @@ impl ResolveImporterOptions {
             )
             .with_catalogs(self.resolution.catalogs, self.resolution.catalogs_dir.clone());
         let settings = HoistSettings {
-            hoist_preferences: self.resolution.hoist_preferences,
+            all_preferred_versions: self.resolution.all_preferred_versions,
             override_bare_specifier: self.resolution.override_bare_specifier,
             project_dir,
             peers_suffix_max_length: self.peers_suffix_max_length,

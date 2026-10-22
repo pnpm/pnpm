@@ -21,9 +21,7 @@ use pnpm_reporter::LogLevel;
 use pnpm_resolving_deps_resolver::{
     DependencyOverrider, ResolveImporterError, ResolveImporterOptions,
 };
-use pnpm_resolving_resolver_base::{
-    PreferredVersions, ResolveOptions, Resolver, VersionSelectorType,
-};
+use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
     collections::{BTreeMap, HashMap},
     path::Path,
@@ -219,16 +217,14 @@ impl ImporterInputs<'_> {
 
     fn importer_base_opts(
         &self,
-        manifest: &PackageManifest,
+        importer_id: &str,
         project_dir: std::path::PathBuf,
         preferred_versions: &Arc<PreferredVersions>,
     ) -> ResolveOptions {
         let mut base_opts =
             self.shared_resolve_options.build(project_dir, Arc::clone(preferred_versions));
-        if self.versions.manifest_specifiers.is_some() {
-            base_opts.version.preferred_versions_overlay =
-                own_exact_versions(manifest, self.catalogs);
-        }
+        base_opts.version.preferred_versions_overlay =
+            self.versions.own_exact_versions_of(importer_id);
         base_opts
     }
 
@@ -245,7 +241,7 @@ impl ImporterInputs<'_> {
             .to_path_buf();
         let modules_dir = Some(project_dir.join(modules_basename));
         ResolveImporterOptions {
-            base_opts: self.importer_base_opts(importer.manifest, project_dir, preferred_versions),
+            base_opts: self.importer_base_opts(&importer.id, project_dir, preferred_versions),
             peers_suffix_max_length: self.peers_suffix_max_length(),
             peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
                 auto_install_peers: self.config.auto_install_peers,
@@ -261,7 +257,7 @@ impl ImporterInputs<'_> {
                 lockfile_dir: Some(self.lockfile_dir.to_path_buf()),
             },
             resolution: pnpm_resolving_deps_resolver::ImporterResolutionInputs {
-                hoist_preferences: self.versions.hoist_preferences(preferred_versions),
+                all_preferred_versions: Arc::clone(preferred_versions),
                 override_bare_specifier: self.override_bare_specifier.clone(),
                 patched_dependencies: self.patched_dependencies.clone(),
                 // `resolve_workspace` computes the workspace-wide
@@ -276,34 +272,6 @@ impl ImporterInputs<'_> {
             hooks: self.hooks.clone(),
         }
     }
-}
-
-/// The exact versions `manifest` declares, as the preference layer its own
-/// dependencies resolve under when other projects' specifiers do not steer them.
-fn own_exact_versions(
-    manifest: &PackageManifest,
-    catalogs: &Catalogs,
-) -> Option<Arc<pnpm_resolving_resolver_base::PreferredVersionsOverlay>> {
-    let entries =
-        pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests(
-            None,
-            pnpm_lockfile_preferred_versions::DirectSpecs {
-                manifests: &[manifest],
-                catalogs,
-                names: pnpm_lockfile_preferred_versions::SeededNames::All,
-            },
-        )
-        .into_iter()
-        .filter_map(|(name, selectors)| {
-            let versions: Vec<String> = selectors
-                .into_iter()
-                .filter(|(_, entry)| entry.selector_type() == VersionSelectorType::Version)
-                .map(|(version, _)| version)
-                .collect();
-            (!versions.is_empty()).then_some((name, versions))
-        })
-        .collect();
-    pnpm_resolving_resolver_base::PreferredVersionsOverlay::manifest_specifiers(entries)
 }
 
 impl WorkspaceWalk {

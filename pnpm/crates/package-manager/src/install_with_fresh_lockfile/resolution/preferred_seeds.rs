@@ -1,11 +1,17 @@
 use super::{ResolutionContext, resolve};
+use crate::install_with_fresh_lockfile::resolution_inputs::OwnExactVersions;
+use pipe_trait::Pipe;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile_preferred_versions::{
     DirectSpecs, SeededNames, get_preferred_versions_from_lockfile_and_manifests,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::Reporter;
 use pnpm_resolving_deps_resolver::UpdateTargets;
-use pnpm_resolving_resolver_base::PreferredVersions;
+use pnpm_resolving_resolver_base::{
+    PreferredVersions, PreferredVersionsOverlay, VersionSelectorType,
+};
+use rayon::prelude::*;
 use std::{
     collections::{BTreeMap, HashSet},
     sync::Arc,
@@ -49,27 +55,23 @@ impl<Reporter: self::Reporter + 'static> ResolutionContext<'_, Reporter> {
             )
     }
 
-    /// The manifest specifiers of every project, for the peer hoister, when
+    /// Each project's own exact specifiers, when
     /// [`Self::dedupes_across_projects`] keeps them out of the seed.
-    pub(super) fn manifest_specifiers(
+    pub(super) fn own_exact_versions(
         &self,
         importer_manifests: &BTreeMap<String, &PackageManifest>,
-    ) -> Option<Arc<PreferredVersions>> {
+    ) -> Option<OwnExactVersions> {
         if self.dedupes_across_projects() {
             return None;
         }
-        let manifests: Vec<&PackageManifest> = importer_manifests
-            .values()
-            .copied()
-            .collect();
-        Some(Arc::new(get_preferred_versions_from_lockfile_and_manifests(
-            None,
-            DirectSpecs {
-                manifests: &manifests,
-                catalogs: &self.owned.projects.catalogs,
-                names: SeededNames::All,
-            },
-        )))
+        let catalogs = &self.owned.projects.catalogs;
+        importer_manifests
+            .par_iter()
+            .filter_map(|(id, manifest)| {
+                Some((id.clone(), exact_versions_layer(manifest, catalogs)?))
+            })
+            .collect::<OwnExactVersions>()
+            .pipe(Some)
     }
 }
 
@@ -79,4 +81,23 @@ fn workspace_peer_names(manifests: &[&PackageManifest]) -> HashSet<String> {
         .flat_map(|manifest| manifest.dependencies([DependencyGroup::Peer]))
         .map(|(name, _)| name.to_string())
         .collect()
+}
+
+fn exact_versions_layer(
+    manifest: &PackageManifest,
+    catalogs: &Catalogs,
+) -> Option<Arc<PreferredVersionsOverlay>> {
+    let direct = DirectSpecs { manifests: &[manifest], catalogs, names: SeededNames::All };
+    let entries = get_preferred_versions_from_lockfile_and_manifests(None, direct)
+        .into_iter()
+        .filter_map(|(name, selectors)| {
+            let versions: Vec<String> = selectors
+                .into_iter()
+                .filter(|(_, entry)| entry.selector_type() == VersionSelectorType::Version)
+                .map(|(version, _)| version)
+                .collect();
+            (!versions.is_empty()).then_some((name, versions))
+        })
+        .collect();
+    PreferredVersionsOverlay::manifest_specifiers(entries)
 }

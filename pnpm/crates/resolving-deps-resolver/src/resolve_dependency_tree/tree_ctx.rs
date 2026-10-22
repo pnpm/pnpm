@@ -496,10 +496,9 @@ impl TreeCtx {
         self.workspace.snapshot_reachable_from(direct)
     }
 
-    /// The preferred-version buckets for `names`: the caller's seeds
-    /// (earlier seeds win per selector) merged with every version this run
-    /// has resolved into the settled reachable tree (seed entries win per
-    /// selector) — see
+    /// The preferred-version buckets for `names`: the caller's seed
+    /// entries merged with every version this run has resolved into the
+    /// settled reachable tree (seed entries win per selector) — see
     /// [`WorkspaceTreeCtx::run_preferred_versions`]. The peer-hoist
     /// pickers look up only their missing-peer names, so this
     /// materializes a handful of buckets instead of a per-importer copy
@@ -508,20 +507,16 @@ impl TreeCtx {
     /// the specifier used to install a missing peer.
     pub(crate) fn preferred_versions_for_names<'name>(
         &self,
-        seeds: [&pnpm_resolving_resolver_base::PreferredVersions; 2],
+        seed: &pnpm_resolving_resolver_base::PreferredVersions,
         names: impl Iterator<Item = &'name str>,
     ) -> pnpm_resolving_resolver_base::PreferredVersions {
         let run = self.workspace.run_preferred_versions();
         let mut out = pnpm_resolving_resolver_base::PreferredVersions::new();
         for name in names {
-            let mut bucket = pnpm_resolving_resolver_base::VersionSelectors::default();
-            for (selector, entry) in seeds
-                .iter()
-                .filter_map(|seed| seed.get(name))
-                .flatten()
-            {
-                bucket.entry(selector.clone()).or_insert_with(|| entry.clone());
-            }
+            let mut bucket = seed
+                .get(name)
+                .cloned()
+                .unwrap_or_default();
             bucket.retain(|_, entry| entry.selector_type() == VersionSelectorType::Version);
             for (selector, entry) in run.versions
                 .get(name)

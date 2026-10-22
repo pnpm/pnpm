@@ -3,7 +3,7 @@ use pnpm_config::{Config, NeedsFullMetadataFor};
 use pnpm_lockfile::Lockfile;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_npm_resolver::InMemoryPackageMetaCache;
-use pnpm_resolving_resolver_base::PreferredVersions;
+use pnpm_resolving_resolver_base::{PreferredVersions, PreferredVersionsOverlay};
 use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
@@ -22,13 +22,16 @@ pub(crate) struct WorkspaceLifecycleHooks {
     pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
 }
 
+/// Each importer's root preference layer of the exact versions its manifest
+/// declares, keyed by importer id.
+pub(crate) type OwnExactVersions = BTreeMap<String, Arc<PreferredVersionsOverlay>>;
+
 pub(crate) struct ImporterVersionSeeds<'a> {
     pub shared: &'a Arc<PreferredVersions>,
     pub by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
-    /// Every project's manifest specifiers when the seeds leave them out,
-    /// so each project resolves from its own. See
-    /// [`pnpm_resolving_deps_resolver::HoistPreferences::manifest_specifiers`].
-    pub manifest_specifiers: Option<&'a Arc<PreferredVersions>>,
+    /// Each importer's own exact specifiers, when the seeds leave out other
+    /// projects' specifiers. `None` when those steer every project.
+    pub own_exact_versions: Option<&'a OwnExactVersions>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest: bool,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
@@ -108,14 +111,8 @@ impl<'a> ImporterVersionSeeds<'a> {
         self.by_importer.get(id).unwrap_or(self.shared)
     }
 
-    pub(super) fn hoist_preferences(
-        &self,
-        seed: &Arc<PreferredVersions>,
-    ) -> pnpm_resolving_deps_resolver::HoistPreferences {
-        pnpm_resolving_deps_resolver::HoistPreferences {
-            all_preferred_versions: Arc::clone(seed),
-            manifest_specifiers: self.manifest_specifiers.map_or_else(Arc::default, Arc::clone),
-        }
+    pub(super) fn own_exact_versions_of(&self, id: &str) -> Option<Arc<PreferredVersionsOverlay>> {
+        self.own_exact_versions?.get(id).map(Arc::clone)
     }
 }
 

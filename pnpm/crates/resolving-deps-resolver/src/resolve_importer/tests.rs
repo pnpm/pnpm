@@ -241,7 +241,7 @@ fn default_opts() -> ResolveImporterOptions {
             modules_dir: None,
         },
         resolution: crate::ImporterResolutionInputs {
-            hoist_preferences: crate::HoistPreferences::default(),
+            all_preferred_versions: Arc::new(PreferredVersions::new()),
             override_bare_specifier: None,
             patched_dependencies: None,
             pick_lowest_direct: false,

@@ -36,8 +36,8 @@ use pnpm_resolving_deps_resolver::{
     WorkspaceResolveOptions, resolve_workspace,
 };
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PkgResolutionId, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, WantedDependency,
+    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 
 const PACKAGES_PER_LAYER: usize = 20;
@@ -260,7 +260,7 @@ fn importer_options(importer: &WorkspaceImporter<'_>) -> ResolveImporterOptions 
             modules_dir: Some(PathBuf::from("/workspace/node_modules")),
         },
         resolution: pnpm_resolving_deps_resolver::ImporterResolutionInputs {
-            hoist_preferences: pnpm_resolving_deps_resolver::HoistPreferences::default(),
+            all_preferred_versions: Arc::new(PreferredVersions::new()),
             override_bare_specifier: None,
             patched_dependencies: None,
             pick_lowest_direct: false,

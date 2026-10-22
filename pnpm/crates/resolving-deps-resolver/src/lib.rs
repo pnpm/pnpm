@@ -85,9 +85,9 @@ pub use resolve_dependency_tree::{
     real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
-    HoistPreferences, ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks,
-    PeerLinkOptions, ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
-    resolve_importer, resolve_importer_with_workspace,
+    ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
+    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,
+    resolve_importer_with_workspace,
 };
 pub use resolve_peers::{
     HoistMissingScope, ImporterPeerInput, PeerResolutionScope, ResolvePeersOptions,

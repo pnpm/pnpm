@@ -327,7 +327,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             String,
             Arc<pnpm_resolving_resolver_base::PreferredVersions>,
         >,
-        manifest_specifiers: Option<&'b Arc<pnpm_resolving_resolver_base::PreferredVersions>>,
+        own_exact_versions: Option<
+            &'b crate::install_with_fresh_lockfile::resolution_inputs::OwnExactVersions,
+        >,
     ) -> resolve::ImporterInputs<'b> {
         resolve::ImporterInputs {
             hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
@@ -338,7 +340,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             versions: crate::install_with_fresh_lockfile::resolution_inputs::ImporterVersionSeeds {
                 shared: preferred_versions_seed,
                 by_importer: preferred_versions_seeds_by_importer,
-                manifest_specifiers,
+                own_exact_versions,
                 pick_lowest: self.setup.policy.pick_lowest_direct,
                 published_by: self.setup.policy.published_by,
             },
