@@ -66,6 +66,9 @@ pub struct LibsqlAuth {
     registration_lock: tokio::sync::Mutex<()>,
     /// Deadline for each request-path auth read.
     timeout: Duration,
+    /// Whether the pool's database is an embedded replica, which
+    /// [`Self::sync_replica`] then brings up to date after a write.
+    replica: bool,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -119,7 +122,7 @@ impl LibsqlAuth {
         };
         let max_connections =
             settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS);
-        Self::from_database(db, max_users, max_connections).await
+        Self::with_replica(db, max_users, max_connections, settings.replica_path.is_some()).await
     }
 
     /// Open the embedded replica at `path`, creating its directory the way
@@ -136,8 +139,10 @@ impl LibsqlAuth {
             tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
         }
         let auth_token = settings.auth_token.clone().unwrap_or_default();
+        // Writes are synced back by `sync_replica` instead.
         let mut builder = Builder::new_remote_replica(path, settings.url.clone(), auth_token)
-            .connector(connector);
+            .connector(connector)
+            .read_your_writes(false);
         let interval =
             settings.sync_interval_secs.unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
         if interval > 0 {
@@ -153,23 +158,40 @@ impl LibsqlAuth {
         Ok(db)
     }
 
-    /// Build the backend from an already-open [`Database`]. Shared by
-    /// [`Self::connect`] and the local-database test setup.
+    /// [`Self::with_replica`] for the local-database test setup.
+    #[cfg(test)]
     async fn from_database(
         db: Database,
         max_users: MaxUsers,
         max_connections: u32,
     ) -> Result<Self> {
-        let pool = ConnectionPool::new(db, max_connections as usize);
-        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&pool.connect()?)).await?;
-        Ok(Self {
-            pool,
+        Self::with_replica(db, max_users, max_connections, false).await
+    }
+
+    /// Build the backend from an already-open [`Database`], an embedded
+    /// replica when `replica` is set, and ensure the `users` and `tokens`
+    /// tables exist.
+    async fn with_replica(
+        db: Database,
+        max_users: MaxUsers,
+        max_connections: u32,
+        replica: bool,
+    ) -> Result<Self> {
+        let auth = Self {
+            pool: ConnectionPool::new(db, max_connections as usize),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
             registration_lock: tokio::sync::Mutex::new(()),
             timeout: DEFAULT_AUTH_TIMEOUT,
-        })
+            replica,
+        };
+        with_auth_timeout(
+            DEFAULT_STARTUP_TIMEOUT,
+            init_schema(&auth.pool.connect()?, || auth.sync_replica()),
+        )
+        .await?;
+        Ok(auth)
     }
 
     /// The bcrypt hash stored for `username`, or `None` when no such
@@ -219,6 +241,18 @@ impl LibsqlAuth {
         )
         .await
     }
+
+    /// Pull the primary's latest frames into the replica, so a write this
+    /// backend just delegated is visible to its own reads. libsql's
+    /// read-your-writes would pull on the connection that wrote and reset
+    /// its pager afterwards, which corrupts a read in flight on it;
+    /// [`Database::sync`] pulls on a connection of its own instead.
+    async fn sync_replica(&self) -> Result<()> {
+        if !self.replica {
+            return Ok(());
+        }
+        with_auth_timeout::<_, LibsqlError>(self.timeout, self.pool.sync()).await
+    }
 }
 
 #[async_trait]
@@ -229,7 +263,13 @@ impl UserBackend for LibsqlAuth {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         let hash = tokio::sync::OnceCell::new();
-        retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash)).await
+        let outcome =
+            retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash))
+                .await?;
+        if matches!(outcome.0, UpsertOutcome::Created) {
+            self.sync_replica().await?;
+        }
+        Ok(outcome)
     }
 
     async fn list_users(&self) -> Result<Vec<String>> {
@@ -241,15 +281,21 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
-        self.insert_user_for_admin(username, password).await
+        let created = self.insert_user_for_admin(username, password).await?;
+        self.sync_replica().await?;
+        Ok(created)
     }
 
     async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
-        self.update_password(username, password).await
+        let change = self.update_password(username, password).await?;
+        self.sync_replica().await?;
+        Ok(change)
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
-        self.remove_user(username).await
+        let removal = self.remove_user(username).await?;
+        self.sync_replica().await?;
+        Ok(removal)
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -425,6 +471,7 @@ impl LibsqlAuth {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        self.sync_replica().await?;
         let Some(stored) = self.stored_hash(username).await? else {
             return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         };
@@ -449,6 +496,7 @@ impl LibsqlAuth {
                 .await
             })
             .await?;
+            self.sync_replica().await?;
         }
         Ok((outcome, user))
     }

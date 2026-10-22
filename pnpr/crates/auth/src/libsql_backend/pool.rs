@@ -65,6 +65,13 @@ impl ConnectionPool {
     pub(super) fn connect(&self) -> Result<Connection, LibsqlError> {
         self.db.connect()
     }
+
+    /// Pull the primary's latest frames into the embedded replica, on a
+    /// connection of the pull's own.
+    pub(super) async fn sync(&self) -> Result<(), LibsqlError> {
+        self.db.sync().await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -41,8 +41,9 @@ pub struct LibsqlSettings {
     /// How often (seconds) the embedded replica pulls from the primary.
     /// Only meaningful with `replicaPath`; bounds how stale a read can
     /// be — most importantly, token-revocation lag. `0` disables
-    /// background sync (the replica then only reflects its own writes
-    /// plus the initial sync at startup). Defaults to
+    /// background sync (the replica then reflects the initial sync at
+    /// startup and its own account and token changes; a token's last-used
+    /// time waits for the next sync). Defaults to
     /// [`LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS`].
     pub sync_interval_secs: Option<u64>,
     /// Most auth database operations running at once, each on its own
