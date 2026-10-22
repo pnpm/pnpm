@@ -30,7 +30,7 @@ fn prune_is_noop_without_links_dir() {
     let store = tempdir().unwrap();
     let store_dir = StoreDir::new(store.path().to_path_buf());
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("missing links/ must be a silent no-op");
 }
 
@@ -44,7 +44,7 @@ fn prune_keeps_everything_when_no_projects() {
     let store_dir = StoreDir::new(store.path().to_path_buf());
     let slot = make_slot(&store_dir.links(), "@", "left-pad", "1.0.0", "deadbeef");
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
     assert!(slot.exists(), "no-project prune must leave slots intact");
 }
@@ -59,7 +59,7 @@ fn prune_keeps_everything_when_no_registered_project_uses_the_links() {
     register_project(&store_dir, project.path()).expect("register");
 
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
     assert!(slot.exists());
@@ -102,7 +102,7 @@ fn prune_removes_dead_project_slots_and_keeps_live_slots() {
     assert!(!dead_path.exists());
 
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
 
     assert!(live_slot.exists(), "slot referenced by live project must survive");
@@ -152,7 +152,7 @@ fn prune_keeps_slot_referenced_by_any_surviving_project() {
     assert!(!b_path.exists());
 
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
     assert!(shared_slot.exists(), "shared slot survives when one referencer remains");
 }
@@ -178,7 +178,7 @@ fn prune_removes_orphan_slot_unreferenced_by_any_project() {
     register_project(&store_dir, project.path()).expect("register");
 
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
     assert!(referenced.exists(), "referenced slot survives");
     assert!(!orphan.exists(), "orphan slot must be swept");
@@ -208,7 +208,7 @@ fn prune_marks_transitive_slot_reachable() {
     register_project(&store_dir, project.path()).expect("register");
 
     store_dir
-        .prune(&store_dir.root().join("cache"))
+        .prune(&store_dir.root().join("cache"), &[])
         .expect("prune");
     assert!(foo.exists(), "direct dep slot survives");
     assert!(bar.exists(), "transitive dep slot also survives");
@@ -258,7 +258,7 @@ fn loaded_project_with_nonhidden_local_store_does_not_mark_unused_store_slots() 
         )
         .unwrap();
         store
-            .prune(&store.root().join("cache"))
+            .prune(&store.root().join("cache"), &[])
             .unwrap();
         assert!(live.is_dir());
         assert!(!dead_parent.exists());

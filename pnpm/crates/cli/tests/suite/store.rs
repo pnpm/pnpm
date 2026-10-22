@@ -693,10 +693,31 @@ fn store_prune_removes_the_metadata_cache() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "store prune failed: {stderr}");
     assert!(stderr.contains("Removed all cached metadata files"), "stderr={stderr}");
-    assert!(
-        !npmrc_info.cache_dir.join("v12").exists(),
-        "store prune must remove the metadata cache",
-    );
+    assert!(!metadata_dir.exists(), "store prune must remove the metadata cache");
+}
+
+/// A `cacheDir` that encloses the pnpm home directory must not take the
+/// global packages with the metadata.
+#[test]
+fn store_prune_keeps_the_pnpm_home_inside_the_cache_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "cacheDir: ../cache\n")
+        .expect("write the workspace settings");
+    let cache_dir = root.path().join("cache");
+    let pnpm_home = cache_dir.join("metadata-home");
+    let global_package = pnpm_home.join("global/v11/group/node_modules/pkg");
+    fs::create_dir_all(&global_package).expect("create a global package");
+    let metadata_dir = cache_dir.join("v12/metadata");
+    fs::create_dir_all(&metadata_dir).expect("create the metadata cache");
+
+    pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_args(["store", "prune"])
+        .assert()
+        .success();
+
+    assert!(global_package.exists(), "store prune must keep the pnpm home");
+    assert!(!metadata_dir.exists(), "store prune must remove the metadata cache");
 }
 
 /// The resolver chain claims every protocol pnpm supports, but only an

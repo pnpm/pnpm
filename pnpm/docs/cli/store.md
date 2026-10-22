@@ -54,7 +54,9 @@ Before pruning the store, pnpm deletes the expired entries of the `pnx` cache
 (see [`dlxCacheMaxAge`](../settings/node-modules.md#dlxcachemaxage)), because
 they hold hard links into the store.
 
-`pnpm store prune` also removes the package metadata cache. The next install
+`pnpm store prune` also removes the package metadata cache: the `metadata*`
+directories in the cache directory and in its versioned subdirectories, such as
+`v12/metadata`. Other caches in the cache directory are kept. The next install
 downloads the metadata again.
 
 After pruning, pnpm displays the total size of removed files.
