@@ -6,7 +6,14 @@ use super::{current_umask, read_umask_by_writing_it};
 #[cfg(target_os = "linux")]
 #[test]
 fn the_published_mask_matches_the_one_read_by_writing_it() {
-    assert_eq!(super::published_umask(), Some(read_umask_by_writing_it()));
+    let by_writing = read_umask_by_writing_it();
+    match super::published_umask() {
+        Some(published) => assert_eq!(published, by_writing),
+        // No `procfs` to publish it, so what the read must hold to is the
+        // fallback's answer. Asserted rather than skipped, so the case is
+        // covered on a host that has it and on one that does not.
+        None => assert_eq!(current_umask(), by_writing),
+    }
 }
 
 /// Pins that reading the mask leaves it as it was, which is what keeps a
