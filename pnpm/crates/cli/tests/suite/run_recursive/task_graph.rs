@@ -1,6 +1,7 @@
 use super::{
     CommandExtra, CommandTempCwd, Value, append_line_script, build_appends_run_order,
-    build_writes_marker, fs, json, summary_statuses, write_marker_script, write_workspace,
+    build_writes_marker, fs, json, summary_statuses, wait_for_marker_script, write_marker_script,
+    write_workspace,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -38,7 +39,7 @@ fn task_starts_as_soon_as_its_dependencies_finish() {
                     "scripts": {
                         "build": format!(
                             "{} && {}",
-                            r#"node -e "const fs = require('fs'); const started = Date.now(); (function poll () { if (fs.existsSync('../slow-marker')) process.exit(0); if (Date.now() - started > 30000) process.exit(1); setTimeout(poll, 50) })()""#,
+                            wait_for_marker_script("../slow-marker"),
                             append_line_script("slow", "../order.log"),
                         ),
                     },
@@ -415,7 +416,7 @@ fn explicitly_empty_depends_on_starts_without_waiting() {
                     "scripts": {
                         "lint": format!(
                             "{} && {}",
-                            r#"node -e "const fs = require('fs'); const started = Date.now(); (function poll () { if (fs.existsSync('../lint-marker')) process.exit(0); if (Date.now() - started > 30000) process.exit(1); setTimeout(poll, 50) })()""#,
+                            wait_for_marker_script("../lint-marker"),
                             append_line_script("dependency", "../order.log"),
                         ),
                     },
