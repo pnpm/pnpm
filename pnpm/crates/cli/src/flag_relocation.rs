@@ -47,6 +47,28 @@ pub(crate) fn inline_long_option_name(token: &OsStr) -> Option<&str> {
         .filter(|name| !name.is_empty())
 }
 
+/// The ASCII short-option prefix (without the leading `-`) of a token that
+/// attaches a non-UTF-8 value directly to a value-taking short option, such
+/// as `-C<non-UTF-8>` or `-rC<non-UTF-8>`.
+pub(crate) fn attached_short_option_prefix(
+    token: &OsStr,
+    mut consumes_value: impl FnMut(char) -> Option<bool>,
+) -> Option<&str> {
+    let rest = token.as_encoded_bytes().strip_prefix(b"-")?;
+    if rest.is_empty() || rest.starts_with(b"-") {
+        return None;
+    }
+    for (index, &byte) in rest.iter().enumerate() {
+        if !byte.is_ascii() {
+            return None;
+        }
+        if consumes_value(char::from(byte)).unwrap_or(false) {
+            return std::str::from_utf8(&rest[..=index]).ok();
+        }
+    }
+    None
+}
+
 /// Where [`scan_for_positional`] stopped: at a positional token, or at
 /// the `--` terminator.
 pub(crate) enum PositionalScan {
@@ -82,7 +104,7 @@ pub(crate) fn scan_for_positional(
     loop {
         let raw = argv.get(index)?;
         let Some(token) = raw.to_str() else {
-            if inline_long_option_name(raw).is_some() {
+            if is_non_utf8_option(raw, top_level, subcommand_union) {
                 index += 1;
                 continue;
             }
@@ -96,6 +118,15 @@ pub(crate) fn scan_for_positional(
         };
         index += width;
     }
+}
+
+fn is_non_utf8_option(raw: &OsStr, top_level: &ArgTable, subcommand_union: &ArgTable) -> bool {
+    let consumes = |short| {
+        top_level
+            .short_consumes_value(short)
+            .or_else(|| subcommand_union.short_consumes_value(short))
+    };
+    inline_long_option_name(raw).is_some() || attached_short_option_prefix(raw, consumes).is_some()
 }
 
 /// The number of argv tokens the option `token` occupies, or `None` when
@@ -219,8 +250,7 @@ fn scan_pre_subcommand_token(
 ) -> Option<ScannedToken> {
     let raw = argv.get(index)?;
     let Some(token) = raw.to_str() else {
-        let name = inline_long_option_name(raw)?;
-        return Some(scan_long_option_parts(name, true, top_level, subcommand_table));
+        return scan_non_utf8_option(raw, top_level, subcommand_table);
     };
     if token == "--" {
         return None;
@@ -232,6 +262,23 @@ fn scan_pre_subcommand_token(
         .strip_prefix('-')
         .filter(|rest| !rest.is_empty())?;
     Some(scan_short_cluster(rest, top_level, subcommand_table))
+}
+
+fn scan_non_utf8_option(
+    raw: &OsStr,
+    top_level: &ArgTable,
+    subcommand_table: &ArgTable,
+) -> Option<ScannedToken> {
+    if let Some(name) = inline_long_option_name(raw) {
+        return Some(scan_long_option_parts(name, true, top_level, subcommand_table));
+    }
+    let consumes = |short| {
+        top_level
+            .short_consumes_value(short)
+            .or_else(|| subcommand_table.short_consumes_value(short))
+    };
+    let shorts = attached_short_option_prefix(raw, consumes)?;
+    Some(ScannedToken { width: 1, ..scan_short_cluster(shorts, top_level, subcommand_table) })
 }
 
 fn scan_long_option(rest: &str, top_level: &ArgTable, subcommand_table: &ArgTable) -> ScannedToken {

@@ -124,6 +124,35 @@ fn claims_an_inline_non_utf8_value() {
     assert_eq!(strings(&remaining), vec!["pnpm", "install"]);
 }
 
+#[cfg(unix)]
+#[test]
+fn steps_over_an_attached_non_utf8_short_option_value() {
+    use std::os::unix::ffi::OsStringExt;
+    let mut owned = argv(&["placeholder", "install", "--env-file", ".env"]);
+    owned[1] = OsString::from_vec(b"-C\xFF".to_vec());
+    let (paths, remaining) = scan(&owned);
+    assert_eq!(paths, vec![PathBuf::from(".env")]);
+    assert_eq!(remaining.len(), 3);
+    assert_eq!(remaining[0], "pnpm");
+    assert_eq!(remaining[2], "install");
+}
+
+#[test]
+fn pnpx_alias_with_package_named_like_subcommand_keeps_env_file_for_the_package() {
+    let rewritten = crate::inject_alias_subcommand(
+        Some("pnpx"),
+        vec![
+            OsString::from("pnpx"),
+            OsString::from("add"),
+            OsString::from("--env-file"),
+            OsString::from("x"),
+        ],
+    );
+    let (paths, remaining) = scan(&rewritten);
+    assert!(paths.is_empty());
+    assert_eq!(remaining, rewritten);
+}
+
 #[test]
 fn strip_flags_keeps_everything_else() {
     let stripped =

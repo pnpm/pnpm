@@ -85,6 +85,7 @@ pub fn main() -> ExitCode {
     // `shim_dispatch::ShimLaunch`).
     let argv: Vec<OsString> = std::env::args_os().collect();
     let launch = shim_dispatch::ShimLaunch::detect(&argv);
+    let argv = if launch.is_shim() { argv } else { argv_with_alias_subcommand(argv) };
     // Load `--env-file` variables here, on the main thread before the
     // startup thread below exists: `std::env::set_var` must not run once
     // another thread is alive (see `env_file`). A shim launch is exempt:
@@ -178,13 +179,12 @@ fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Res
         )]
         std::process::exit(exit_code);
     }
-    let argv_with_alias = argv_with_alias_subcommand(argv);
     // `--env-file` is this binary's own option: an older pnpm a command
     // dispatches to would reject the unknown flag, so it never reaches the
     // child — the variables it names travel by environment inheritance
     // instead (see `env_file`). The strip keeps the program name in place
     // so the passthrough boundary still computes.
-    let child_argv = env_file::strip_flags(&argv_with_alias)
+    let child_argv = env_file::strip_flags(&argv)
         .into_iter()
         .skip(1)
         .collect::<Vec<_>>();
@@ -192,7 +192,7 @@ fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Res
     // the command line the prefix stands for; the child argv above keeps
     // it, since a dispatched pnpm has to force the built-in too. See
     // `pm_prefix`.
-    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
+    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // A version spec (`pnpm with 10 <cmd>`) is left for the `with`
     // subcommand to handle.

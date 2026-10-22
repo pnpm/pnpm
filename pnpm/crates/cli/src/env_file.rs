@@ -82,10 +82,10 @@ impl EnvFileError {
 /// Load each file in order, layering its variables into the process
 /// environment. Later files override earlier files, and variables the
 /// environment already defines are left untouched.
-pub fn load(paths: &[PathBuf]) -> miette::Result<()> {
+pub fn load<PathItem: AsRef<Path>>(paths: &[PathItem]) -> miette::Result<()> {
     let mut loaded_keys = HashSet::new();
     for path in paths {
-        load_one(path, &mut loaded_keys)?;
+        load_one(path.as_ref(), &mut loaded_keys)?;
     }
     Ok(())
 }

@@ -10,7 +10,7 @@
 
 use crate::{
     cli_args::grammar,
-    flag_relocation::{ArgTable, inline_long_option_name},
+    flag_relocation::{ArgTable, attached_short_option_prefix, inline_long_option_name},
 };
 use clap::Command;
 use std::{collections::HashSet, ffi::OsString};
@@ -245,7 +245,11 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
     let mut index = from;
     while index < argv.len() {
         let Some(arg) = argv[index].to_str() else {
-            if inline_long_option_name(&argv[index]).is_some() {
+            let is_attached_short = attached_short_option_prefix(&argv[index], |short| {
+                arity.short_consumes_value(short)
+            })
+            .is_some();
+            if inline_long_option_name(&argv[index]).is_some() || is_attached_short {
                 index += 1;
                 continue;
             }
