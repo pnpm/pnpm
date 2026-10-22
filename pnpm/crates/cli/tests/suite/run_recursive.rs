@@ -4,7 +4,9 @@
 //! the same body reaches `sh -c` and `cmd /d /s /c` alike. Only the two
 //! process-group tests stay Unix-only, and they say so where they sit.
 
-use crate::_utils::{CHILD_DEADLINE, append_line_script, wait_for_child, write_marker_script};
+use crate::_utils::{
+    CHILD_DEADLINE, append_line_script, wait_for_child, wait_for_marker_script, write_marker_script,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_cmd_shim::ScriptRuntime;

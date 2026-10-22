@@ -4,6 +4,8 @@ use super::{
     WantedLockfileSelection, deployed_workspace_projects,
     get_preferred_versions_from_lockfile_and_manifests, resolve_bool_override, warn,
 };
+use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
+use pnpm_package_manager::build_resolution_verifiers;
 
 /// The lockfile a shared deploy generates records no
 /// `pnpmfileChecksum`, so the pnpmfile behind these hooks must not
@@ -62,29 +64,75 @@ pub(super) fn source_pnpmfile_hooks(
     .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))
 }
 
-/// Loads source lockfile pins as preferred versions for legacy deploy.
-/// The source install's branch-lockfile selection is preserved, while a
-/// missing or malformed source lockfile falls back to fresh resolution.
-pub(super) fn legacy_deploy_preferred_versions<ReporterT: Reporter>(
-    config: &Config,
-    source_lockfile_dir: &Path,
-) -> Option<PreferredVersions> {
-    if !config.lockfile {
-        return None;
-    }
-    match Lockfile::load_wanted(source_lockfile_dir, &config.wanted_lockfile_selection()) {
-        Ok(Some(lockfile)) => Some(get_preferred_versions_from_lockfile_and_manifests(
-            lockfile.snapshots.as_ref(),
-            DirectSpecs::without_catalogs(&[]),
-        )),
-        Ok(None) => None,
-        Err(error) => {
-            warn::<ReporterT>(
-                source_lockfile_dir,
-                format!("Ignoring broken lockfile at {}: {error}", source_lockfile_dir.display()),
-            );
-            None
+/// The source workspace lockfile whose pins a legacy deploy prefers.
+pub(super) struct LegacyDeploySource {
+    lockfile: Lockfile,
+    path: PathBuf,
+}
+
+impl LegacyDeploySource {
+    /// The source install's branch-lockfile selection is preserved, while a
+    /// missing or malformed source lockfile falls back to fresh resolution.
+    pub(super) fn load<ReporterT: Reporter>(
+        config: &Config,
+        source_lockfile_dir: &Path,
+    ) -> Option<Self> {
+        if !config.lockfile {
+            return None;
         }
+        match Lockfile::load_wanted(source_lockfile_dir, &config.wanted_lockfile_selection()) {
+            Ok(Some(lockfile)) => Some(Self {
+                lockfile,
+                path: source_lockfile_dir.join(config.wanted_lockfile_name()),
+            }),
+            Ok(None) => None,
+            Err(error) => {
+                warn::<ReporterT>(
+                    source_lockfile_dir,
+                    format!(
+                        "Ignoring broken lockfile at {}: {error}",
+                        source_lockfile_dir.display(),
+                    ),
+                );
+                None
+            }
+        }
+    }
+
+    fn preferred_versions(&self) -> PreferredVersions {
+        get_preferred_versions_from_lockfile_and_manifests(
+            self.lockfile.snapshots.as_ref(),
+            DirectSpecs::without_catalogs(&[]),
+        )
+    }
+
+    /// Applies the resolution policies to the source lockfile, as an install
+    /// in the source workspace does. The resolver treats its pins only as
+    /// preferences, so it would otherwise replace a rejected pin silently.
+    async fn verify<ReporterT: Reporter>(&self, state: &State) -> miette::Result<()> {
+        let verifiers = build_resolution_verifiers(
+            state.config,
+            Arc::clone(&state.http_client),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .map_err(miette::Report::new)?;
+        verify_lockfile_resolutions::<ReporterT>(
+            &self.lockfile,
+            &verifiers,
+            &VerifyLockfileResolutionsOptions {
+                concurrency: None,
+                lockfile_path: Some(&self.path),
+                cache_dir: Some(&state.config.cache_dir),
+                replaced: None,
+                repairs_lockfile: false,
+            },
+        )
+        .await
+        .map_err(miette::Report::new)
     }
 }
 
@@ -135,7 +183,7 @@ impl DeployArgs {
         mode: DeployInstallMode,
         frozen_lockfile: bool,
         source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-        preferred_versions_override: Option<PreferredVersions>,
+        legacy_source: Option<LegacyDeploySource>,
     ) -> miette::Result<()> {
         let legacy = matches!(&mode, DeployInstallMode::Legacy);
         let config = self.deploy_install_config(
@@ -151,15 +199,28 @@ impl DeployArgs {
         if legacy {
             state.lockfile = deployed_lockfile(&state, deploy_dir, frozen_lockfile);
         }
+        if let Some(source) = &legacy_source
+            && !self.trust_lockfile(config)
+        {
+            source.verify::<ReporterT>(&state).await?;
+        }
         self.install_deployed_state::<ReporterT>(
             &state,
             deploy_dir,
             legacy,
             frozen_lockfile,
             pnpmfile_hook,
-            preferred_versions_override,
+            legacy_source.as_ref().map(LegacyDeploySource::preferred_versions),
         )
         .await
+    }
+
+    fn trust_lockfile(&self, config: &Config) -> bool {
+        resolve_bool_override(
+            self.install_args.lockfile_updates.trust_lockfile,
+            self.install_args.lockfile_updates.no_trust_lockfile,
+            config.trust_lockfile,
+        )
     }
 
     async fn install_deployed_state<ReporterT: Reporter + 'static>(
@@ -177,11 +238,7 @@ impl DeployArgs {
         let supported_architectures = self.install_args.supported_architectures.apply_to(
             config.supported_architectures.clone(),
         );
-        let trust_lockfile = resolve_bool_override(
-            self.install_args.lockfile_updates.trust_lockfile,
-            self.install_args.lockfile_updates.no_trust_lockfile,
-            config.trust_lockfile,
-        );
+        let trust_lockfile = self.trust_lockfile(config);
         let lockfile_path = config.lockfile.then(|| deploy_dir.join(Lockfile::FILE_NAME));
         let dependency_groups = self.install_args.dependency_options
             .dependency_groups(config.optional)

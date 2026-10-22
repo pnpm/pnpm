@@ -110,17 +110,13 @@ pub(super) fn is_transaction_conflict(error: &LibsqlError) -> bool {
             matches!(code & 0xff, 5 | 6)
         }
         LibsqlError::Hrana(error) => {
-            // libsql does not expose Hrana's structured error type publicly.
             let message = error.to_string();
-            let Some((_, code)) = message.rsplit_once(r#"code: ""#) else {
-                return false;
-            };
-            let Some((code, _)) = code.split_once('"') else {
-                return false;
-            };
-            matches!(code, "SQLITE_BUSY" | "SQLITE_LOCKED")
-                || code.starts_with("SQLITE_BUSY_")
-                || code.starts_with("SQLITE_LOCKED_")
+            hrana_result_code(&message)
+                .is_some_and(|code| {
+                    matches!(code, "SQLITE_BUSY" | "SQLITE_LOCKED")
+                        || code.starts_with("SQLITE_BUSY_")
+                        || code.starts_with("SQLITE_LOCKED_")
+                })
         }
         _ => false,
     }
@@ -128,14 +124,28 @@ pub(super) fn is_transaction_conflict(error: &LibsqlError) -> bool {
 
 pub(super) fn is_unique_violation(err: &LibsqlError) -> bool {
     match err {
-        LibsqlError::SqliteFailure(code, message) => {
+        LibsqlError::SqliteFailure(code, message)
+        | LibsqlError::RemoteSqliteFailure(_, code, message) => {
             *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
         }
-        LibsqlError::RemoteSqliteFailure(_, code, message) => {
-            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
+        LibsqlError::Hrana(error) => {
+            let message = error.to_string();
+            message.contains("UNIQUE constraint failed")
+                || hrana_result_code(&message)
+                    .is_some_and(|code| {
+                        matches!(code, "SQLITE_CONSTRAINT" | "SQLITE_CONSTRAINT_UNIQUE")
+                    })
         }
         _ => false,
     }
+}
+
+/// The `SQLite` result code name a Hrana error carries. libsql does not expose
+/// Hrana's structured error type publicly, so it is read from the message.
+fn hrana_result_code(message: &str) -> Option<&str> {
+    let (_, code) = message.rsplit_once(r#"code: ""#)?;
+    let (code, _) = code.split_once('"')?;
+    Some(code)
 }
 
 pub(super) fn missing_count_row() -> RegistryError {

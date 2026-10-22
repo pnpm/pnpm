@@ -1,8 +1,8 @@
 #[cfg(unix)]
 use super::process_group_probe;
 use super::{
-    CONCURRENCY_PROBE_COMMAND, CommandExtra, CommandTempCwd, fs, json, write_concurrency_probe,
-    write_node_bin, write_workspace,
+    CONCURRENCY_PROBE_COMMAND, CommandExtra, CommandTempCwd, fs, json, wait_for_marker_script,
+    write_concurrency_probe, write_marker_script, write_node_bin, write_workspace,
 };
 #[cfg(unix)]
 use crate::_utils::terminal::Terminal;
@@ -239,7 +239,9 @@ fn parallel_before_run_starts_selected_projects_concurrently() {
                 // same. Only overlapping runs see each other's marker, so
                 // a serialized pair times out and fails.
                 "build": format!(
-                    r#"node -e "const fs = require('fs'); fs.writeFileSync('../{name}.started', ''); const started = Date.now(); (function poll () {{ if (fs.existsSync('../{peer}.started')) process.exit(0); if (Date.now() - started > 30000) process.exit(1); setTimeout(poll, 10) }})()""#
+                    "{} && {}",
+                    write_marker_script(&format!("../{name}.started")),
+                    wait_for_marker_script(&format!("../{peer}.started")),
                 ),
             },
         })
