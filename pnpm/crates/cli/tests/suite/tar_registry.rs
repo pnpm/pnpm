@@ -119,8 +119,9 @@ fn installs_from_a_tar_registry_and_pins_the_tar_hashes() {
     drop((root, npmrc_info));
 }
 
-/// An entry routed only through the bare `@` scope is the default registry,
-/// so the install must not report it as an entry that matches no registry.
+/// An entry routed only through the bare `@` scope is the default registry:
+/// the install resolves through it with the entry's `serverType`, so it must
+/// not be reported as an entry that matches no registry.
 /// <https://github.com/pnpm/tasks/issues/184>
 #[test]
 fn an_entry_routed_through_the_default_scope_is_not_reported_as_unmatched() {
@@ -140,6 +141,9 @@ fn an_entry_routed_through_the_default_scope_is_not_reported_as_unmatched() {
     let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
     println!("{stderr}");
     assert!(!stderr.contains("do not match any configured registry"), "{stderr}");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(!lockfile.contains("tarball:"), "the entry's serverType applied: {lockfile}");
+    assert_pins_tar_hashes(&workspace, &tar_registry);
     drop((root, npmrc_info));
 }
 
