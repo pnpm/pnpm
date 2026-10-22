@@ -16,7 +16,7 @@
 #![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
 
 #[cfg(target_os = "android")]
-pub use advisory_lock::{AdvisoryLock, lock_file};
+pub use advisory_lock::{AdvisoryLock, Blocking, lock_file};
 pub use confined_open::open_directory_beneath;
 #[cfg(all(unix, not(target_os = "linux")))]
 pub use dir_handle::set_mode_at;
