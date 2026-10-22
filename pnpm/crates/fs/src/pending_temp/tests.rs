@@ -137,20 +137,15 @@ fn die_from_signal_does_not_dump_core() {
     assert!(!status.core_dumped(), "die_from_signal must not dump core: {status:?}");
 }
 
-/// Pins that a replaced handler installed with `SA_SIGINFO` is called with
-/// the delivery's details, which is what a program embedding pnpm gets back
-/// when pnpm passes an interrupt on to the handler it found.
+/// Runs in a child process so `earlier` is installed before the `Once`
+/// behind `install_temp_file_cleanup` is spent. A sibling test that tracked
+/// a temp file first would leave this one installing over nothing, and
+/// `raise` would reach `earlier` directly with nothing forwarded. The child
+/// also keeps the altered `SIGTERM` disposition to itself.
 ///
-/// Calling such a handler through `extern "C" fn(c_int)` would leave it
-/// reading its second and third arguments from whatever the registers held,
-/// so the assertion is on the `siginfo_t` the handler received rather than
-/// only on its being reached.
-///
-/// In a child process because the installer runs behind a `Once`. A test
-/// that tracked a temp file first would have spent it, leaving this one to
-/// install `earlier` over nothing: `raise` would then call `earlier`
-/// directly, and the assertions would pass while no forwarding ran at all.
-/// The child also keeps the altered `SIGTERM` disposition to itself.
+/// Asserts on the `siginfo_t` rather than only on `earlier` being reached,
+/// because a wrong signature leaves those arguments holding whatever the
+/// registers did.
 #[cfg(unix)]
 #[test]
 fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
