@@ -486,9 +486,10 @@ impl EnvInstallerContext {
             store: self.store,
             store_index: pnpm_env_installer::ConfigDependencyStoreIndex::default(),
             root_dir,
-
-            frozen_lockfile,
-            symlinked_lockfile: self.symlinked_lockfile,
+            lockfile: pnpm_env_installer::EnvLockfileOptions {
+                frozen: frozen_lockfile,
+                symlinked: self.symlinked_lockfile,
+            },
         }
     }
 }

@@ -31,7 +31,7 @@ const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 /// up to date but are invalid (e.g. resolutions carrying tarball URLs
 /// written by an earlier pnpm) are discarded and re-resolved. Such entries
 /// already record the version the manifest pins — only pnpm's own reading of
-/// them is at stake — so under `opts.frozen_lockfile` the re-resolution
+/// them is at stake — so under `opts.lockfile.frozen` the re-resolution
 /// happens in memory and the lockfile is left untouched, rather than failing
 /// a command the manifest and the lockfile agree on. Entries that do not
 /// record the pinned version are the case `--frozen-lockfile` exists for and
@@ -57,8 +57,8 @@ pub async fn resolve_package_manager_integrities(
     {
         return Ok(env_lockfile);
     }
-    let repair_in_memory = force_resync && opts.frozen_lockfile;
-    if opts.frozen_lockfile && !force_resync {
+    let repair_in_memory = force_resync && opts.lockfile.frozen;
+    if opts.lockfile.frozen && !force_resync {
         return frozen_lockfile_result(env_lockfile, version, package_manager_deps);
     }
 
@@ -81,7 +81,7 @@ pub async fn resolve_package_manager_integrities(
     if repair_in_memory {
         verify_env_lockfile(&env_lockfile)?;
     } else {
-        write_verified_env_lockfile(&env_lockfile, opts.root_dir, opts.symlinked_lockfile)?;
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir, opts.lockfile.symlinked)?;
     }
     Ok(env_lockfile)
 }

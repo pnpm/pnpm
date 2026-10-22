@@ -186,8 +186,10 @@ fn options<'a>(
         store_index: crate::ConfigDependencyStoreIndex::default(),
         root_dir,
 
-        frozen_lockfile: frozen,
-        symlinked_lockfile: pnpm_lockfile::SymlinkedLockfile::Refuse,
+        lockfile: crate::EnvLockfileOptions {
+            frozen,
+            symlinked: pnpm_lockfile::SymlinkedLockfile::Refuse,
+        },
     }
 }
 
