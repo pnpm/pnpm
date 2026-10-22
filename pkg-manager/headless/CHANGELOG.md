@@ -1,5 +1,13 @@
 # @pnpm/headless
 
+## 1010.1.19
+
+### Patch Changes
+
+- 7ced81e: Recompute hoisted dependencies when a frozen install removes packages, so public hoist links are handed over to retained versions [#16861](https://github.com/pnpm/pnpm/issues/16861).
+- Updated dependencies [debbb4c]
+  - @pnpm/modules-cleaner@1001.0.40
+
 ## 1010.1.18
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @pnpm/core
 
+## 1016.4.8
+
+### Patch Changes
+
+- Updated dependencies [7ced81e]
+- Updated dependencies [debbb4c]
+  - @pnpm/headless@1010.1.19
+  - @pnpm/modules-cleaner@1001.0.40
+
 ## 1016.4.7
 
 ### Patch Changes

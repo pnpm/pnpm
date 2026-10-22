@@ -1,5 +1,13 @@
 # pnpm
 
+## 10.34.8
+
+### Patch Changes
+
+- 7ced81e: Recompute hoisted dependencies when a frozen install removes packages, so public hoist links are handed over to retained versions [#16861](https://github.com/pnpm/pnpm/issues/16861).
+- debbb4c: When pnpm removes or replaces a direct dependency, it now finishes removing the dependency's bins before it deletes the dependency's directory. Packages that declare bins through `directories.bin` no longer leave broken shims in `node_modules/.bin` [#16876](https://github.com/pnpm/pnpm/issues/16876).
+- 07becba: The standalone pnpm executables now embed Node.js 24.22.1. They embedded Node.js 20, which has reached end of life and still trusts the certificate authority intermediates that Node.js distrusted in October 2026.
+
 ## 10.34.7
 
 ### Patch Changes
