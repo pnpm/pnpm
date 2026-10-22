@@ -23,3 +23,6 @@ windows-sys = { workspace = true, features = [
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+text-block-macros = { workspace = true }

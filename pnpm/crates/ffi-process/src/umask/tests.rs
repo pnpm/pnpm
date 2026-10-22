@@ -1,4 +1,5 @@
 use super::{current_umask, read_umask_by_writing_it};
+use text_block_macros::text_block_fnl;
 
 /// Pins that the published mask and the one read by writing it agree, so
 /// the Linux fast path cannot answer differently from the fallback every
@@ -28,14 +29,22 @@ fn reading_the_mask_restores_it() {
 #[cfg(target_os = "linux")]
 #[test]
 fn an_octal_umask_line_parses() {
-    let status = "Name:\tpnpm\nUmask:\t0022\nState:\tR (running)\n";
+    let status = text_block_fnl! {
+        "Name:\tpnpm"
+        "Umask:\t0022"
+        "State:\tR (running)"
+    };
     assert_eq!(super::parse_published_umask(status), Some(0o022));
 }
 
 #[cfg(target_os = "linux")]
 #[test]
 fn a_status_without_the_line_parses_as_absent() {
-    assert_eq!(super::parse_published_umask("Name:\tpnpm\nState:\tR (running)\n"), None);
+    let status = text_block_fnl! {
+        "Name:\tpnpm"
+        "State:\tR (running)"
+    };
+    assert_eq!(super::parse_published_umask(status), None);
 }
 
 /// A pre-4.7 kernel prints no `Umask:` line, and a value that is not octal
@@ -44,5 +53,6 @@ fn a_status_without_the_line_parses_as_absent() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_non_octal_umask_line_parses_as_absent() {
-    assert_eq!(super::parse_published_umask("Umask:\trw-r--r--\n"), None);
+    let status = text_block_fnl! { "Umask:\trw-r--r--" };
+    assert_eq!(super::parse_published_umask(status), None);
 }
