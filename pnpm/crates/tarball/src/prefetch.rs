@@ -364,9 +364,9 @@ where
 }
 
 /// A git-hosted row (one that records `requiresPrepare`) with no bundled
-/// manifest derives `requiresBuild` from its files: rows written before
-/// [pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224) stored whether
-/// the package needed `prepare` there.
+/// manifest derives `requiresBuild` from its files and ignores the stored
+/// value, which existing stores may hold wrong
+/// ([pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224)).
 fn resolve_row_requires_build(
     stored: Option<bool>,
     stored_requires_prepare: Option<bool>,
