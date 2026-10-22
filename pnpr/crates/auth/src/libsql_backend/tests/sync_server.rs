@@ -49,10 +49,15 @@ struct Primary {
     /// generation.
     generation: AtomicUsize,
     salt: std::sync::Mutex<Option<[u8; 8]>>,
-    /// Whether `/sync` stops answering, as a primary on a broken network does.
-    sync_stalls: AtomicBool,
+    sync_stall: SyncStall,
+}
+
+/// A `/sync` that stops answering, as a primary on a broken network does.
+#[derive(Default)]
+struct SyncStall {
+    enabled: AtomicBool,
     /// Signalled when a `/sync` request starts stalling.
-    sync_stalled: tokio::sync::Notify,
+    started: tokio::sync::Notify,
 }
 
 /// A primary at `path`, served on a loopback port.
@@ -79,8 +84,7 @@ async fn serve_primary(path: PathBuf) -> (Arc<Primary>, SocketAddr, tokio::task:
         pipelines: AtomicUsize::new(0),
         generation: AtomicUsize::new(1),
         salt: std::sync::Mutex::new(None),
-        sync_stalls: AtomicBool::new(false),
-        sync_stalled: tokio::sync::Notify::new(),
+        sync_stall: SyncStall::default(),
     });
     let app = Router::new()
         .route("/info", get(info))
@@ -261,8 +265,8 @@ async fn a_stalled_replica_sync_does_not_hold_operations_past_their_deadline() {
     .build()
     .await
     .unwrap();
-    primary.sync_stalls.store(true, Ordering::SeqCst);
-    tokio::time::timeout(Duration::from_secs(5), primary.sync_stalled.notified())
+    primary.sync_stall.enabled.store(true, Ordering::SeqCst);
+    tokio::time::timeout(Duration::from_secs(5), primary.sync_stall.started.notified())
         .await
         .expect("a background sync reaches the stalled primary");
 
@@ -270,8 +274,8 @@ async fn a_stalled_replica_sync_does_not_hold_operations_past_their_deadline() {
     let pool = ConnectionPool::new(db, max_connections, Duration::from_millis(300));
     let started = std::time::Instant::now();
     let read = || pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) });
-    let reads = tokio::join!(read(), read(), read(), read(), read());
-    let reads: [_; 5] = reads.into();
+    let (first, second, third, fourth, fifth) = (read(), read(), read(), read(), read());
+    let reads: [_; 5] = tokio::join!(first, second, third, fourth, fifth).into();
     let elapsed = started.elapsed();
     let in_flight = pool.opens_in_flight(max_connections);
     server.abort();
@@ -318,8 +322,8 @@ async fn sync(
     State(primary): State<Arc<Primary>>,
     Path((generation, start, end)): Path<(usize, usize, usize)>,
 ) -> Result<Vec<u8>, (StatusCode, Json<JsonValue>)> {
-    if primary.sync_stalls.load(Ordering::SeqCst) {
-        primary.sync_stalled.notify_one();
+    if primary.sync_stall.enabled.load(Ordering::SeqCst) {
+        primary.sync_stall.started.notify_one();
         tokio::time::sleep(SYNC_STALL).await;
     }
     let (current, wal) = primary.wal_state();
