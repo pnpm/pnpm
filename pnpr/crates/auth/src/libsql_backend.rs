@@ -345,47 +345,52 @@ impl LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let mut can_retry_after_reconcile = true;
         loop {
-            let inserted = self.pool.run(|conn| async move {
-                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-                let Some(tx) = self.claim_cap_slot(tx).await? else {
-                    return Ok(Insert::CapFull);
-                };
-                let inserted = tx.execute(
-                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash],
-                )
-                .await;
-                match inserted {
-                    Ok(_) => {
-                        tx.commit().await?;
-                        Ok(Insert::Created)
-                    }
-                    Err(err) if is_unique_violation(&err) => {
-                        tx.rollback().await?;
-                        Ok(Insert::NameTaken)
-                    }
-                    Err(err) => Err(RegistryError::from(err)),
-                }
-            })
-            .await?;
-            match inserted {
+            match self.try_capped_insert(username, hash).await? {
                 Insert::Created => return Ok((UpsertOutcome::Created, username.to_string())),
                 Insert::NameTaken => return self.login_after_lost_insert(username, password).await,
                 // The counter can overcount after an interrupted write; reconcile it
                 // once before believing the cap is full.
                 Insert::CapFull => {
-                    if std::mem::take(&mut can_retry_after_reconcile)
-                        && self.pool.run(|conn| async move {
-                            reconcile_user_counter_overcount(&conn).await
-                        })
-                        .await?
+                    if !std::mem::take(&mut can_retry_after_reconcile)
+                        || !self.reconcile_user_counter().await?
                     {
-                        continue;
+                        return self.reject_over_cap(username, password).await;
                     }
-                    return self.reject_over_cap(username, password).await;
                 }
             }
         }
+    }
+
+    /// One transaction that claims a counter slot and inserts the user.
+    async fn try_capped_insert(&self, username: &str, hash: &str) -> Result<Insert> {
+        self.pool.run(|conn| async move {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
+            let Some(tx) = self.claim_cap_slot(tx).await? else {
+                return Ok(Insert::CapFull);
+            };
+            let inserted = tx.execute(
+                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                params![username, hash],
+            )
+            .await;
+            match inserted {
+                Ok(_) => {
+                    tx.commit().await?;
+                    Ok(Insert::Created)
+                }
+                Err(err) if is_unique_violation(&err) => {
+                    tx.rollback().await?;
+                    Ok(Insert::NameTaken)
+                }
+                Err(err) => Err(RegistryError::from(err)),
+            }
+        })
+        .await
+    }
+
+    /// Correct a counter that overcounts, reporting whether it did.
+    async fn reconcile_user_counter(&self) -> Result<bool> {
+        self.pool.run(|conn| async move { reconcile_user_counter_overcount(&conn).await }).await
     }
 
     /// Claim a counter slot in `tx`. The transaction comes back when a slot

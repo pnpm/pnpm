@@ -42,32 +42,7 @@ impl TokenBackend for LibsqlAuth {
             scopes: new_token.scopes,
             kind: new_token.kind,
         };
-        let cidr_json = serde_json::to_string(&record.cidr_whitelist)
-            .expect("Vec<String> always serializes to JSON");
-        let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
-        let record_ref = &record;
-        self.pool.run(|conn| async move {
-            let record = record_ref;
-            conn.execute(
-                "INSERT INTO tokens
-                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-                params![
-                    token_hash,
-                    record.username.clone(),
-                    token_timestamp_to_sql(record.created_at),
-                    token_timestamp_to_sql(record.last_used_at),
-                    i64::from(record.readonly),
-                    cidr_json,
-                    record.name.as_deref(),
-                    record.expires_at.map(token_timestamp_to_sql),
-                    scopes_json.as_deref(),
-                    record.kind.as_deref(),
-                ],
-            )
-            .await
-        })
-        .await?;
+        self.insert_token(token_hash, &record).await?;
         Ok((raw, record))
     }
 
@@ -104,15 +79,7 @@ impl TokenBackend for LibsqlAuth {
                 )
                 .await?;
             match rows.next().await? {
-                Some(row) => {
-                    let username: String = row.get(0)?;
-                    let expires_at: Option<i64> = row.get(1)?;
-                    if expires_at.map(token_timestamp_from_sql).is_some_and(|exp| exp <= now) {
-                        Ok(None)
-                    } else {
-                        Ok(Some(username))
-                    }
-                }
+                Some(row) => unexpired_owner(&row, now),
                 None => Ok(None),
             }
         }))
@@ -131,14 +98,7 @@ impl TokenBackend for LibsqlAuth {
             self.pool.run(|conn| async move {
                 let mut rows = conn.query(&query, params![token_hash]).await?;
                 match rows.next().await? {
-                    Some(row) => {
-                        let record = row_to_keyed_record(&row)?.1;
-                        if record.expires_at.is_some_and(|exp| exp <= now) {
-                            Ok(None)
-                        } else {
-                            Ok(Some(record))
-                        }
-                    }
+                    Some(row) => Ok(unexpired(row_to_keyed_record(&row)?.1, now)),
                     None => Ok(None),
                 }
             }),
@@ -191,6 +151,53 @@ impl TokenBackend for LibsqlAuth {
     async fn check_readiness(&self) -> Result<()> {
         self.check_db_readiness().await
     }
+}
+
+impl LibsqlAuth {
+    async fn insert_token(&self, token_hash: String, record: &TokenRecord) -> Result<()> {
+        let cidr_json = serde_json::to_string(&record.cidr_whitelist)
+            .expect("Vec<String> always serializes to JSON");
+        let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
+        self.pool.run(|conn| async move {
+            conn.execute(
+                "INSERT INTO tokens
+                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![
+                    token_hash,
+                    record.username.clone(),
+                    token_timestamp_to_sql(record.created_at),
+                    token_timestamp_to_sql(record.last_used_at),
+                    i64::from(record.readonly),
+                    cidr_json,
+                    record.name.as_deref(),
+                    record.expires_at.map(token_timestamp_to_sql),
+                    scopes_json.as_deref(),
+                    record.kind.as_deref(),
+                ],
+            )
+            .await
+        })
+        .await?;
+        Ok(())
+    }
+}
+
+/// The owner of a token row selecting `username, expires_at`, unless the token
+/// expired by `now`.
+fn unexpired_owner(row: &Row, now: u64) -> Result<Option<String>> {
+    let username: String = row.get(0)?;
+    let expires_at: Option<i64> = row.get(1)?;
+    let expired = expires_at
+        .map(token_timestamp_from_sql)
+        .is_some_and(|exp| exp <= now);
+    Ok((!expired).then_some(username))
+}
+
+/// `record`, unless it expired by `now`.
+fn unexpired(record: TokenRecord, now: u64) -> Option<TokenRecord> {
+    let expired = record.expires_at.is_some_and(|exp| exp <= now);
+    (!expired).then_some(record)
 }
 
 /// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
