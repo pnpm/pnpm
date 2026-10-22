@@ -174,3 +174,46 @@ fn a_block_comment_continuation_opens_nothing() {
         assert!(!opens_unsafe(line), "{line}");
     }
 }
+
+/// Drive [`super::occurrences`] over `source`, written to a scratch file.
+fn occurrences_in(source: &str) -> Vec<super::Occurrence> {
+    let directory =
+        std::env::temp_dir().join(format!("pnpm-unsafe-audit-scan-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("create the scratch directory");
+    let file = directory.join("source.rs");
+    std::fs::write(&file, source).expect("write the scratch source");
+    let found = super::occurrences(&directory, &file);
+    let _ = std::fs::remove_dir_all(&directory);
+    found
+}
+
+/// A string that spans lines holds lines that read as code on their own.
+/// This scan is the policy gate, so one mistaken for an operation fails the
+/// audit over a crate that holds no `unsafe` at all.
+#[test]
+fn an_unsafe_inside_a_multiline_raw_string_opens_nothing() {
+    let found = occurrences_in("fn main() {\n    let sample = r#\"\nunsafe {\n\"#;\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+}
+
+#[test]
+fn an_unsafe_inside_a_multiline_string_opens_nothing() {
+    let found = occurrences_in("fn main() {\n    let sample = \"\nunsafe {\n\";\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+}
+
+#[test]
+fn an_unsafe_inside_a_block_comment_opens_nothing() {
+    let found = occurrences_in("fn main() {\n    /*\n    unsafe { read() }\n    */\n}\n");
+    assert!(found.is_empty(), "{found:?}");
+}
+
+/// The counterpart of the three above: what closed on an earlier line must
+/// not blank the code that follows it, which is the direction that would
+/// let an `unsafe` through.
+#[test]
+fn an_unsafe_after_a_multiline_raw_string_still_opens_one() {
+    let found =
+        occurrences_in("fn main() {\n    let s = r#\"\nnot code\n\"#;\n    unsafe { read() }\n}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+}
