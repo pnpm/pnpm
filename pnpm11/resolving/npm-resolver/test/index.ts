@@ -80,7 +80,7 @@ test('resolveFromNpm()', async () => {
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
@@ -219,7 +219,7 @@ test('resolveFromNpm() does not save mutated meta to the cache', async () => {
   resolveResult!.manifest!.version = '1000'
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.versions['1.0.0'].version).toBe('1.0.0')
 })
@@ -241,7 +241,7 @@ test('resolveFromNpm() should save metadata to a unique file when the package na
   expect(resolveResult!.id).toBe('JSON@1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, `https%3A+registry.npmjs.org/JSON_${createHexHash('JSON')}.jsonl`)) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
@@ -288,7 +288,7 @@ test('dry run', async () => {
   expect(resolveResult!.manifest!.version).toBe('1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   await delay(500)
   expect(fs.existsSync(path.join(cacheDir, resolveResult!.id, '..', 'index.json'))).toBeFalsy()
 })
@@ -1390,7 +1390,7 @@ test('resolve when tarball URL is requested from the registry', async () => {
   expect(resolveResult!.normalizedBareSpecifier).toBe(`${registriesByScope.default}is-positive/-/is-positive-1.0.0.tgz`)
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
@@ -1423,7 +1423,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
   expect(resolveResult!.normalizedBareSpecifier).toBe(`${registriesByScope.default}is-positive/-/is-positive-1.0.0.tgz`)
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()
@@ -2764,7 +2764,7 @@ test('resolveFromNpm() should always return the name of the package that is spec
   expect(resolveResult!.manifest!.version).toBe('3.1.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
-  // so we must delay for a bit in order to read it
+  // so we must delay for a bit to read it
   const meta = await retryLoadJsonFile<any>(path.join(cacheDir, ABBREVIATED_META_DIR, 'https%3A+registry.npmjs.org/is-positive.jsonl')) // eslint-disable-line @typescript-eslint/no-explicit-any -- the test reads arbitrary fields of the cached document
   expect(meta.name).toBeTruthy()
   expect(meta.versions).toBeTruthy()

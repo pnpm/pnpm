@@ -3,13 +3,13 @@ id: auth-backends
 title: Auth backends (shared SQL)
 ---
 
-Auth state — the registered users and their bearer tokens — is per-instance disk
+Auth state (the registered users and their bearer tokens) is per-instance disk
 state. By default users live in an htpasswd file and tokens in a local SQLite
 database (see [`auth`](configuration.md#auth)), so two pnpr replicas don't see
 each other's accounts.
 
 Adding a `backend:` block moves both into one shared SQL database, so several
-stateless replicas share a consistent set of logins and tokens — the auth half
+stateless replicas share a consistent set of logins and tokens. This is the auth half
 of running pnpr horizontally scaled. Only one backend may be selected in a
 config file.
 
@@ -47,7 +47,7 @@ backend:
 
 | Key | Required | Description |
 | --- | --- | --- |
-| `url` | yes | Database URL — `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
+| `url` | yes | Database URL: `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
 | `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. pnpr sends it only over `https://` or `libsql://`, or over `http://` to a loopback host, and refuses to start otherwise. |
 | `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |
 | `syncInterval` | no | How often the embedded replica pulls from the primary. Accepts an interval string (such as `60s` or `1m`) or integer seconds. Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60s`. `syncIntervalSecs` is also accepted. |
@@ -113,9 +113,9 @@ dynamic plugin runtime (such as WebAssembly, Lua, or dynamic C libraries).
 Custom user storage and token management implement the `UserBackend` and
 `TokenBackend` traits defined in `pnpr-auth`:
 
-- **`UserBackend`** — handles user lookup, credential verification (bcrypt
+- **`UserBackend`**: handles user lookup, credential verification (bcrypt
   password hashing), user creation, password updates, and deprovisioning.
-- **`TokenBackend`** — manages bearer token creation, validation, listing, and
+- **`TokenBackend`**: manages bearer token creation, validation, listing, and
   revocation.
 
 Registering custom backends at compile time avoids external scripting runtime

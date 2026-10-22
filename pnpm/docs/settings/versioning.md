@@ -63,14 +63,14 @@ versioning:
     '@example/cli': alpha
 ```
 
-Lane names may contain only alphanumerics and hyphens, and cannot be purely numeric. `main` is reserved and cannot be assigned — remove the entry instead, or use [`pnpm lane main --filter <pkg>`](../cli/lane.md).
+Lane names may contain only alphanumerics and hyphens, and cannot be purely numeric. `main` is reserved and cannot be assigned. Remove the entry instead, or use [`pnpm lane main --filter <pkg>`](../cli/lane.md).
 
 ### versioning.epics
 
 * Default: **[]**
 * Type: **Array&lt;\{ lead: string, packages: string[] \}&gt;**
 
-Ties a group of member packages to a lead package, constraining every member's major version to a band derived from the lead's major: while the lead is on major `M`, members live in `M*100` … `M*100+99`.
+Ties a group of member packages to a lead package, constraining every member's major version to a band derived from the lead's major: while the lead is on major `M`, members live in `M*100` to `M*100+99`.
 
 ```yaml title="pnpm-workspace.yaml"
 versioning:
@@ -81,7 +81,7 @@ versioning:
         - '!./packages/private-*'
 ```
 
-`lead` is a package name or a `./`-prefixed workspace directory. `packages` is matched with pnpm's package selectors — name globs, `./`-prefixed directory globs, and `!`-prefixed negations — evaluated in order, last match wins. A package can belong to at most one epic.
+`lead` is a package name or a `./`-prefixed workspace directory. `packages` is matched with pnpm's package selectors (name globs, `./`-prefixed directory globs, and `!`-prefixed negations), evaluated in order, last match wins. A package can belong to at most one epic.
 
 See [Epics](../versioning.md#epics) for how the band is enforced and re-based.
 

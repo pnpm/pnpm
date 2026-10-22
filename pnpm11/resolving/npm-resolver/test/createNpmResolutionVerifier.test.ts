@@ -174,7 +174,7 @@ test('createNpmResolutionVerifier() flags a trustedPublisher → provenance down
   // 0.0.2 is provenance-only (rank 1, weaker) → downgrade vs 0.0.1.
   // This is exactly the case the resolver-time trustChecks unit tests
   // cover, but routed through the lockfile verifier. The verifier must
-  // not pass simply because 0.0.2 has *some* attestation.
+  // not pass only because 0.0.2 has *some* attestation.
   const meta = {
     name: 'demo',
     'dist-tags': { latest: '0.0.2' },

@@ -1,0 +1,12 @@
+extends: existence
+message: "Remove '%s' and state the fact."
+link: https://developers.google.com/style/word-list#note
+level: error
+ignorecase: true
+tokens:
+  - (?:please )?note that
+  - it(?:'s| is) (?:important|worth) (?:to note|noting|mentioning)
+  - keep in mind that
+  - bear in mind that
+  - needless to say
+  - it goes without saying

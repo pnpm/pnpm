@@ -26,7 +26,7 @@ other code, documentation, or material — you agree that:
    work, or that you otherwise have the right to submit it under these terms,
    and that submitting it does not violate any other party's rights.
 
-If you do not agree to these terms, please do not submit contributions to this
+If you do not agree to these terms, do not submit contributions to this
 directory.
 
 ## Development

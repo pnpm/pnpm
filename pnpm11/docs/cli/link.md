@@ -29,7 +29,7 @@ Links package from `<dir>` directory to `node_modules` of package from where you
 
 :::
 
-## Use Cases
+## Use cases
 
 ### Replace an installed package with a local version of it
 

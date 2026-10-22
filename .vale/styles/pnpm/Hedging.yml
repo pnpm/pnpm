@@ -1,0 +1,13 @@
+extends: existence
+message: "'%s' hedges. State what pnpm does, or leave it out."
+level: error
+ignorecase: true
+tokens:
+  - basically
+  - essentially
+  - arguably
+  - probably
+  - hopefully
+  - should just work
+  - more or less
+  - in most cases,? it should

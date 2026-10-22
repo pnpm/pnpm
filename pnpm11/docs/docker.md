@@ -16,7 +16,7 @@ If you use BuildKit cache mounts, keep the pnpm store cache scoped to mutually t
 
 ## Official pnpm base image
 
-An official pnpm base image is published to GitHub Container Registry as [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm). It is based on `debian:stable-slim` and contains only the pnpm [standalone binary] — Node.js is **not** bundled. This lets you pick the Node.js version yourself (inside your Dockerfile or at runtime) instead of being locked to whatever Node version a base image ships with.
+An official pnpm base image is published to GitHub Container Registry as [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm). It is based on `debian:stable-slim` and contains only the pnpm [standalone binary]. Node.js is **not** bundled. This lets you pick the Node.js version yourself (inside your Dockerfile or at runtime) instead of being locked to whatever Node version a base image ships with.
 
 [standalone binary]: ./installation.md#using-a-standalone-script
 
@@ -75,8 +75,8 @@ The recipes further down this page start from this image and let pnpm install No
 ## Minimizing Docker image size and build time
 
 * Use a small image, e.g. `ghcr.io/pnpm/pnpm` or `node:XX-slim`.
-* Leverage multi-stage if possible and makes sense.
-* Leverage BuildKit cache mounts.
+* Use multi-stage if possible and makes sense.
+* Use BuildKit cache mounts.
 
 The recipes below use the official pnpm image, which already sets `PNPM_HOME=/pnpm` and puts `/pnpm/bin` on `PATH`, so the default store is at `/pnpm/store`.
 

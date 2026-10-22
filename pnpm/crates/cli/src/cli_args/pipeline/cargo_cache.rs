@@ -314,7 +314,7 @@ fn local_packages_in_repo(metadata: &serde_json::Value, repo: &Path) -> io::Resu
 }
 
 /// Add one tracked file's contents to the cache key. A path git lists
-/// but that is gone is simply not an input; anything that is not a
+/// but that is gone is not an input; anything that is not a
 /// regular file is one the hash cannot describe.
 fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> io::Result<()> {
     check_ancestors(repo, Path::new(path))?;

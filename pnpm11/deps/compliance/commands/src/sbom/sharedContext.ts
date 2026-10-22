@@ -187,7 +187,7 @@ async function mapPeerNamesByImporter (
   lockfileImporterIds: string[],
   lockfileDir: string
 ): Promise<Map<string, Set<string>>> {
-  // Prefer the in-memory project graph(s): no extra filesystem reads, and
+  // Prefer the in-memory project graphs: no extra filesystem reads, and
   // reading from both graphs (not only the selected subset) covers the extra
   // workspace packages collectSbomComponents reaches through `link:` deps, so
   // their peers are filtered too in a filtered run.

@@ -11,7 +11,7 @@ export interface ApplyPatchToDirOpts {
 }
 
 export function applyPatchToDir (opts: ApplyPatchToDirOpts): boolean {
-  // Ideally, we would just run "patch" or "git apply".
+  // Ideally, we would run "patch" or "git apply".
   // However, "patch" is not available on Windows and "git apply" is hard to execute on a subdirectory of an existing repository
   assertPatchPathsStayInside(opts)
   const cwd = process.cwd()

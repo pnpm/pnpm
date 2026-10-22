@@ -29,7 +29,7 @@ Creates shims like `cmdShim`, but ignores all creation errors, including a missi
 
 #### Arguments:
 
-- `opts.preserveSymlinks` - _Boolean_ - if true, `--preserve-symlinks` is added to the options passed to NodeJS.
+- `opts.preserveSymlinks` - _Boolean_ - if true, `--preserve-symlinks` is added to the options passed to Node.js.
 - `opts.nodePath` - `string | string[]` - sets the [NODE_PATH](https://nodejs.org/api/cli.html#cli_node_path_path) env variable.
 - `opts.prependToPath` - _String_ - prepends the passed path to PATH before executing the Node.js program.
 - `opts.nodeExecPath` - _String_ - sets the path to the Node.js executable.

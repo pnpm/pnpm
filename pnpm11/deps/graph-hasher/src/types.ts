@@ -7,7 +7,7 @@ export interface DepsGraphNode<NodeId extends string> {
   children: { [alias: string]: NodeId }
   pkgIdWithPatchHash?: PkgIdWithPatchHash
   resolution?: LockfileResolution
-  // The full package ID is a unique fingerprint based on the package’s
+  // The full package ID is a unique fingerprint based on the package's
   // integrity checksum, patch information, and other resolution data.
   fullPkgId?: string
 }

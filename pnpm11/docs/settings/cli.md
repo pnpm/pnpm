@@ -14,10 +14,10 @@ sidebar_label: "CLI & Node.js"
 Controls colors in the output.
 
 * **auto** - output uses colors when the standard output is a terminal or TTY.
-* **always** - ignore the difference between terminals and pipes. You’ll rarely
+* **always** - ignore the difference between terminals and pipes. You'll rarely
   want this; in most scenarios, if you want color codes in your redirected
   output, you can instead pass a `--color` flag to the pnpm command to force it
-  to use color codes. The default setting is almost always what you’ll want.
+  to use color codes. The default setting is almost always what you'll want.
 * **never** - turns off colors. This is the setting used by `--no-color`.
 
 ### loglevel
@@ -80,10 +80,10 @@ Added in: v11.0.0
 
 Overrides the `onFail` behavior of both the `packageManager` field and `devEngines.packageManager` when the running pnpm version does not match the declared one.
 
-* `download` — download and run the declared pnpm version (this is the default and matches the previous `managePackageManagerVersions: true` behavior).
-* `error` — fail the command (equivalent to the previous `packageManagerStrictVersion: true`).
-* `warn` — print a warning but continue (equivalent to the previous `packageManagerStrict: false` or `COREPACK_ENABLE_STRICT=0`).
-* `ignore` — skip the check entirely (equivalent to the previous `managePackageManagerVersions: false`). Useful when version management is handled by an external tool such as asdf, mise, or Volta.
+* `download`: download and run the declared pnpm version (this is the default and matches the previous `managePackageManagerVersions: true` behavior).
+* `error`: fail the command (equivalent to the previous `packageManagerStrictVersion: true`).
+* `warn`: print a warning but continue (equivalent to the previous `packageManagerStrict: false` or `COREPACK_ENABLE_STRICT=0`).
+* `ignore`: skip the check entirely (equivalent to the previous `managePackageManagerVersions: false`). Useful when version management is handled by an external tool such as asdf, mise, or Volta.
 
 A part of the configuration pnpm cannot read does not stop it from switching to the declared pnpm version, which reads the configuration itself. pnpm leaves out the file or setting it cannot read, and every other source still applies, so it switches only when the `pmOnFail` from the environment or a readable file is `download`.
 
@@ -121,7 +121,7 @@ If this is enabled, running `pnpm install`/`pnpm add` from the project's root
 folder will no longer error when `-w`/`--ignore-workspace-root-check` is not
 provided.
 
-## Node.js Settings
+## Node.js settings
 
 ### nodeVersion
 
@@ -146,7 +146,7 @@ Added in: v11.0.0
 * Default: **undefined**
 * Type: **download**, **error**, **warn**, **ignore**
 
-Overrides the `onFail` field of [`devEngines.runtime`](../package_json.md#devenginesruntime) (and `engines.runtime`) in the root project's `package.json`. This is useful when you want a different local behavior than what is written in the manifest — for instance, forcing pnpm to download the declared runtime even when the manifest sets `onFail: "warn"`:
+Overrides the `onFail` field of [`devEngines.runtime`](../package_json.md#devenginesruntime) (and `engines.runtime`) in the root project's `package.json`. This is useful when you want a different local behavior than what is written in the manifest, for instance, forcing pnpm to download the declared runtime even when the manifest sets `onFail: "warn"`:
 
 ```yaml title="pnpm-workspace.yaml"
 runtimeOnFail: download

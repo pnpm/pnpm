@@ -18,10 +18,10 @@ codemod run pnpm-v10-to-v11
 The codemod applies the following automatically:
 
 - **Moves settings out of `package.json#pnpm` into `pnpm-workspace.yaml`**. In v11, pnpm no longer reads configuration from the `pnpm` field in `package.json`.
-- **Splits `.npmrc` into auth/registry vs. everything else**. v11 only reads auth and registry settings from `.npmrc`. Every other setting (`hoist-pattern`, `node-linker`, `save-exact`, …) is moved into `pnpm-workspace.yaml` with a camelCase key. Per-subproject `.npmrc` files land under `packageConfigs["<project-name>"]`.
+- **Splits `.npmrc` into auth/registry vs. everything else**. v11 only reads auth and registry settings from `.npmrc`. Every other setting (`hoist-pattern`, `node-linker`, `save-exact`, and so on) is moved into `pnpm-workspace.yaml` with a camelCase key. Per-subproject `.npmrc` files land under `packageConfigs["<project-name>"]`.
 - **Consolidates build-dependency settings into `allowBuilds`**. `onlyBuiltDependencies`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, and `onlyBuiltDependenciesFile` are merged into a single `allowBuilds` map (`{ name: true | false }`).
 - **Replaces the package-manager strictness settings with `pmOnFail`**. `managePackageManagerVersions`, `packageManagerStrict`, and `packageManagerStrictVersion` are collapsed into one `pmOnFail: download | ignore | warn | error` setting.
-- **Renames** `allowNonAppliedPatches` → `allowUnusedPatches`, and `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the key is renamed; CVE IDs still need to be converted to GHSA IDs manually — see below).
+- **Renames** `allowNonAppliedPatches` → `allowUnusedPatches`, and `auditConfig.ignoreCves` → `auditConfig.ignoreGhsas` (the key is renamed; CVE IDs still need to be converted to GHSA IDs manually; see below).
 - **Converts `useNodeVersion`** into a `devEngines.runtime` entry on the root `package.json`.
 - **Bumps `packageManager`** in `package.json` to the target pnpm v11 version.
 

@@ -593,7 +593,7 @@ Prefer `Arc::clone(&x)` / `Rc::clone(&x)` over `x.clone()` for reference-counted
 Library code should rarely call `std::env::var`, `std::env::var_os`, or `std::env::current_dir` directly. Process state belongs to the running process, not to the operation a function performs, so reaching for it couples the logic to whichever shell invoked pacquet and hides the dependency from the caller. Prefer one of:
 
 - **Take the value as a parameter.** A function that needs a path declares `path: &Path`; one that needs an env-var value takes it as a `&str` argument or an `Option<String>`.
-- **Thread the read through the DI seam.** Declare `Sys: EnvVar` (or `EnvVarOs`, `GetHomeDir`, `GetCurrentDir`, …) and call `Sys::var(name)` / `Sys::var_os(name)` / `Sys::home_dir()` / `Sys::current_dir()`. See [Dependency injection for tests](#dependency-injection-for-tests) for the convention. This is how `Config::current` resolves the home dir and the `NPM_CONFIG_WORKSPACE_DIR` lookup, and how `crates/workspace`'s `find_workspace_dir_from_env_with` resolves its env-var lookup — both let tests drive the read without touching the process environment.
+- **Thread the read through the DI seam.** Declare `Sys: EnvVar` (or `EnvVarOs`, `GetHomeDir`, `GetCurrentDir`, and so on) and call `Sys::var(name)` / `Sys::var_os(name)` / `Sys::home_dir()` / `Sys::current_dir()`. See [Dependency injection for tests](#dependency-injection-for-tests) for the convention. This is how `Config::current` resolves the home dir and the `NPM_CONFIG_WORKSPACE_DIR` lookup, and how `crates/workspace`'s `find_workspace_dir_from_env_with` resolves its env-var lookup — both let tests drive the read without touching the process environment.
 
 The narrow case where a direct call is acceptable is computing the default of a `Config` field that has no caller to take the value from — `default_store_dir`, `default_modules_dir`, and `default_virtual_store_dir` are the canonical examples. Even there, route the lookup through the DI seam: write the helper as `default_store_dir<Sys: EnvVar + GetHomeDir + GetCurrentDir>()` and inline the production composition at the `SmartDefault` site (`#[default(_code = "default_store_dir::<Host>()")]`), so the fake-`Sys` test path and the production `Host` path resolve through the same generic. The other accepted boundary reads are program-entry knobs (`RAYON_NUM_THREADS` in `crates/cli`, `TRACE` in `crates/diagnostics`) and the lifecycle-script env snapshot in `crates/executor` and `crates/git-fetcher`, which has to forward the parent environment to spawned children verbatim. If new library code seems to need `env::var` / `env::current_dir` for any other reason, the answer is almost always a `&Path` (or equivalent) parameter, not a process-state read.
 
@@ -658,7 +658,7 @@ The rest of this section is the convention that applies *when DI is the right to
 
 5. **Capability traits on the implementor.** `impl FsReadToString for Host` lives on the provider, not on the data type. The data types stay free of test-shim conditional impls; the seam is the provider.
 
-6. **Domain-neutral provider, domain-scoped traits.** The generic is `Sys`, the production type is `Host` (or whatever your crate exports as its provider), and the trait names carry the domain prefix (`Fs*`, `Env*`, `Clock`, `GetHostName`, …). A reader of `Sys: FsReadToString + Clock + EnvVar` knows immediately which side effects the function reaches for.
+6. **Domain-neutral provider, domain-scoped traits.** The generic is `Sys`, the production type is `Host` (or whatever your crate exports as its provider), and the trait names carry the domain prefix (`Fs*`, `Env*`, `Clock`, `GetHostName`, and so on). A reader of `Sys: FsReadToString + Clock + EnvVar` knows immediately which side effects the function reaches for.
 
 7. **Explicit turbofish in production.** Production call sites name the provider:
 
@@ -670,7 +670,7 @@ The rest of this section is the convention that applies *when DI is the right to
 
    The turbofish makes the production choice visible at the call site instead of relying on type inference; if a future caller wants to swap in a different provider (a test driver, a dry-run shim), the spot to change is obvious.
 
-8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, …). Higher-level guarantees — atomic write, retry loops, walk-with-options — become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
+8. **Capabilities are primitives, not algorithms.** Each trait names a leaf-level effect that maps to a single `std` function (`read_to_string`, `create_dir_all`, `write`, `var`, and so on). Higher-level guarantees — atomic write, retry loops, walk-with-options — become free functions composed on top of those primitives, not new trait methods. That keeps the fake surface dead-simple: a fake declares one method per capability, never a knob-laden builder.
 
 #### Worked example: `modules-yaml`
 

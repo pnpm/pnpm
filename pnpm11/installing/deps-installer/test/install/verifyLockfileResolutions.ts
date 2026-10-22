@@ -620,7 +620,7 @@ test('rejects a registry-style depPath backed by an empty variations resolution'
 })
 
 test('rejects a registry-style depPath backed by a non-http(s) tarball URL', async () => {
-  // The npm verifier skips non-http(s) tarballs, so a file: artifact under a
+  // The npm verifier skips non-HTTP and non-HTTPS tarballs, so a file: artifact under a
   // semver key would be trusted with no tarball-URL binding to catch it.
   for (const tarball of ['file:///tmp/evil.tgz', 'ftp://example.com/evil.tgz']) {
     const lockfile = makeLockfile({

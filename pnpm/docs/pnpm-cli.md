@@ -139,4 +139,4 @@ These environment variables may influence what directories pnpm will use for sto
 * `XDG_DATA_HOME`
 * `XDG_STATE_HOME`
 
-You can search the docs to find the settings that leverage these environment variables.
+You can search the docs to find the settings that use these environment variables.

@@ -258,7 +258,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&ranges, &context).is_none());
 
-    // A direct http(s) tarball dependency pointing at an off-allowlist host is
+    // A direct HTTP or HTTPS tarball dependency pointing at an off-allowlist host is
     // rejected before the tarball resolver issues a HEAD/GET.
     let tarball_dep = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),
@@ -284,7 +284,7 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&scp_dep, &context).is_some());
 
-    // Every git transport is gated by origin, not just http(s)/git/ssh — and
+    // Every git transport is gated by origin, not just HTTP, HTTPS, git, and ssh — and
     // `file://` (a server-local read) nerf-darts to no host and is rejected.
     for spec in [
         "git+rsync://169.254.169.254/repo",

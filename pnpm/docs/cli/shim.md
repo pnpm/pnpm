@@ -9,7 +9,7 @@ Manage project-aware command shims.
 
 A shim created by this command has no global installation behind it. It exists only to let the project you are standing in decide what runs: `pnpm shim add yarn` links a `yarn` command that runs whatever version the current project pins, and provisions that version on demand. On a machine that has only pnpm, that is what makes `yarn` work inside a Yarn project.
 
-Creating a shim is always deliberate — nothing writes one as a side effect of [`pnpm setup`](./setup.md) or an install, because a shim shadows whatever the rest of your `PATH` resolved before it.
+Creating a shim is always deliberate. Nothing writes one as a side effect of [`pnpm setup`](./setup.md) or an install, because a shim shadows whatever the rest of your `PATH` resolved before it.
 
 ## Commands
 
@@ -25,9 +25,9 @@ Links a shim for every bin of each package into the global bin directory (`pnpm 
 pnpm shim add yarn
 ```
 
-The [package managers pnpm provisions](../package-managers.md) — `npm`, `yarn`, `bun` — need no lookup: their bins are known up front, aliases included (`yarn` and `yarnpkg`, `npm` and `npx`). Since v12.11.0, `pnpm shim add rust` adds shims for the tools of a [Rust toolchain](../cargo.md#rust-toolchain): `cargo`, `cargo-clippy`, `cargo-fmt`, `clippy-driver`, `rustc`, `rustdoc`, and `rustfmt`. For any other package, the bins are read from the package's published manifest; a package that publishes no bin fails with `ERR_PNPM_SHIM_NO_BINS`.
+The [package managers pnpm provisions](../package-managers.md) (`npm`, `yarn`, `bun`) need no lookup: their bins are known up front, aliases included (`yarn` and `yarnpkg`, `npm` and `npx`). Since v12.11.0, `pnpm shim add rust` adds shims for the tools of a [Rust toolchain](../cargo.md#rust-toolchain): `cargo`, `cargo-clippy`, `cargo-fmt`, `clippy-driver`, `rustc`, `rustdoc`, and `rustfmt`. For any other package, the bins are read from the package's published manifest; a package that publishes no bin fails with `ERR_PNPM_SHIM_NO_BINS`.
 
-A bin that is already in the global bin directory belongs to something else — a globally installed package, or another package's shim — so the command refuses with `ERR_PNPM_SHIM_BIN_CONFLICT` rather than taking a working command away.
+A bin that is already in the global bin directory belongs to something else (a globally installed package, or another package's shim), so the command refuses with `ERR_PNPM_SHIM_BIN_CONFLICT` rather than taking a working command away.
 
 Adding a shim while `globalShims: false` is set fails with `ERR_PNPM_SHIMS_DISABLED`: that setting turns every project-aware shim off, so the shim would sit on `PATH` doing nothing.
 
@@ -63,7 +63,7 @@ A shim resolves the project you are standing in, walking up from the current wor
 * For the **Rust tools**, the nearest `rust-toolchain.toml` (or `rust-toolchain`) decides the toolchain, read the way rustup reads it. pnpm installs that toolchain into the store on first use and runs the tool with the toolchain's `bin` directory first on `PATH`. It also sets `RUSTUP_TOOLCHAIN` to the toolchain, so a rustup proxy that Cargo runs, such as `cargo-clippy` in `~/.cargo/bin`, runs the same toolchain. A toolchain is a release the Rust project signed, so it runs without the confirmation prompt. Where no toolchain file applies, the toolchain [`pnpm add -g rust`](./add.md#adding-the-rust-toolchain) installed runs, and without one the next command of the same name on `PATH`, such as rustup's. Where the nearest toolchain file is one pnpm leaves to rustup, the next command on `PATH` runs. So does a command that picks its toolchain the rustup way: a `+<toolchain>` argument, `RUSTUP_TOOLCHAIN`, or a `rustup override set` directory override at or below the toolchain file. A Rust shim switched off, through `globalShims` or `PNPM_SHIM_BYPASS`, also runs the next command on `PATH`.
 * For **any other package**, the project's `node_modules/.bin/<name>` is used.
 
-If nothing in the project provides the command, the globally installed version runs — a shim never makes a command fail merely because dispatch did not apply.
+If nothing in the project provides the command, the globally installed version runs. A shim never makes a command fail merely because dispatch did not apply.
 
 The [trust rules](../global-packages.md#trust) of project-aware global bins apply here too: an npm-published package manager is verified against npm's signature for its exact version and switches without asking, while Bun and Yarn 6 arrive as checksum-pinned platform archives and go through the confirmation prompt. That answer is remembered per project *and* per binary, so moving the project's pin to another version asks again.
 

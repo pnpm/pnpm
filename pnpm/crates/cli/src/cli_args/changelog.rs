@@ -293,7 +293,7 @@ fn registry_for(config: &Config, name: &str) -> String {
 
 /// Reads one entry's contents out of a gzipped tarball buffer. Decompression is
 /// capped (see [`MAX_TARBALL_BYTES`]) by reading at most that many inflated
-/// bytes; a gzip bomb truncates past the cap and simply yields no entry.
+/// bytes; a gzip bomb truncates past the cap and yields no entry.
 /// `tarball` is a `.tgz`, or the plain tar a tar registry serves.
 fn extract_entry(tarball: &[u8], entry_name: &str) -> Option<String> {
     let reader: Box<dyn std::io::Read + '_> = if tarball.starts_with(&[0x1f, 0x8b]) {

@@ -758,7 +758,7 @@ describe('audit', () => {
     // Recomputing the cycle for every ancestor scans ~cycleLength^2 nodes, so doubling cycleLength
     // quadruples the reads; linear work only doubles them. Comparing the growth
     // rate of two sizes — rather than an absolute count — keeps the assertion
-    // robust to constant-factor changes in future refactors.
+    // stable across constant-factor changes in future refactors.
     const countReads = (cycleLength: number): number => {
       let reads = 0
       const importers = {

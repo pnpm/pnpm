@@ -134,9 +134,9 @@ legacyDirFiltering: true
 ```
 
 The setting only applies to the selectors you write. The workspace-root
-selectors pnpm generates for itself — the `!{<workspace-root>}` a recursive
+selectors pnpm generates for itself (the `!{<workspace-root>}` a recursive
 `run` / `exec` / `add` / `test` appends, and the `{<workspace-root>}` that
-`--workspace-root` appends — are always matched as globs, since v11.24.0. Read
+`--workspace-root` appends) are always matched as globs, since v11.24.0. Read
 as subtree matches they named every project below the root, so a recursive
 command under this setting selected nothing at all, and `--workspace-root`
 pulled in the whole workspace instead of the root alone

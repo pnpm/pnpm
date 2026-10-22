@@ -380,7 +380,7 @@ where
     Ok(())
 }
 
-/// Create the shim(s) at a path nothing occupies. The exclusive create
+/// Create the shims at a path nothing occupies. The exclusive create
 /// refuses any pre-existing dirent — a dangling symlink included — so no
 /// removal or content probe is needed first. `Ok(false)` sends the
 /// caller to the general path: the create lost a race, found a dirent

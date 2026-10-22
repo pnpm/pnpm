@@ -21,7 +21,7 @@ pub(super) fn reject_non_object_manifests(projects: &[NodeApiProject]) -> napi::
 
 pub(super) fn reject_unsupported_install_options(options: &InstallOptions) -> napi::Result<()> {
     reject_non_empty_map(options.auth_config.as_ref(), "authConfig")?;
-    // `neverBuiltDependencies` was replaced by `allowBuilds` in pnpm v12:
+    // pnpm v12 takes `allowBuilds` in place of `neverBuiltDependencies`:
     // hosts fold it into explicit `allowBuilds: false` entries themselves.
     reject_non_empty_list(options.never_built_dependencies.as_deref(), "neverBuiltDependencies")?;
     Ok(())

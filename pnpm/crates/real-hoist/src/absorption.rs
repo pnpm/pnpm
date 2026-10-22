@@ -185,7 +185,7 @@ pub(super) fn apply_decision(
 ) -> ChildStep {
     let root = ctx.root;
     // Root's direct children are already at root — no movement happens, and
-    // their ancestor path is simply `[root]`.
+    // their ancestor path is `[root]`.
     if Rc::ptr_eq(node, root) {
         return ChildStep::Descend { path: path_for_children.to_vec(), moved: false };
     }

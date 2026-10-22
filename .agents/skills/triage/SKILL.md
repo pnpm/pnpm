@@ -164,7 +164,7 @@ Use this format:
 - **Issue:** [identifier and title](URL)
 - **State:** `chosen state`
 - **Applied label:** `exact pnpm label`, or `none — posted clarifying questions` for non-bug `Needs info`
-- **Product / parity:** which stack(s) are affected
+- **Product / parity:** which stacks are affected
 - **Rationale:** 2-4 concise sentences
 - **Next step:** One concrete action
 

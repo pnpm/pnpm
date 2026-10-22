@@ -110,7 +110,7 @@ The following are examples of reports we consider **out of scope**:
   URLs) without environment variable expansion.
 
 If you believe a report falls outside these assumptions — for example, a way to
-bypass a trust boundary that pnpm *does* enforce — please include the exact
+bypass a trust boundary that pnpm *does* enforce — include the exact
 privilege the attacker starts with and how pnpm escalates it. When the report is
 about a hardening measure that does not cover some setting, state what the
 attacker gains from that gap beyond what they could already do without it.

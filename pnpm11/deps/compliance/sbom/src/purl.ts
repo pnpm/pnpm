@@ -50,7 +50,7 @@ export function buildPurl (opts: {
  * qualifier exists to prevent.
  *
  * A URL that doesn't parse is returned unchanged: it has no userinfo to
- * strip, and `registriesByPrefix` values are validated as http(s) URLs when
+ * strip, and `registriesByPrefix` values are validated as HTTP or HTTPS URLs when
  * the resolver is constructed, so this is unreachable in practice.
  */
 function sanitizeRegistryUrl (url: string): string {

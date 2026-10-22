@@ -104,7 +104,7 @@ export interface RegistryDeclaration extends RegistryOptions {
  * Mixed into an options type (`RegistryContext & { ... }`) rather than spelled
  * out field by field, so that a new per-registry setting reaches every
  * consumer by being added here. Forward it with `pickRegistryContext` for the
- * same reason: dropping a field is silent — the tarball URL is simply rebuilt
+ * same reason: dropping a field is silent — the tarball URL is rebuilt
  * in the wrong layout — so neither end should be written out by hand.
  */
 export interface RegistryContext {

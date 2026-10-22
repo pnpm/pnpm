@@ -1,0 +1,52 @@
+name: Prose
+
+on:
+  pull_request:
+    paths:
+      - '**.md'
+      - '**.rs'
+      - '**.ts'
+      - '.vale.ini'
+      - '.vale/**'
+      - '.github/scripts/lint-prose.mjs'
+      - '.github/workflows/prose.yml'
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prose-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  VALE_VERSION: 3.24.0
+  VALE_SHA256: 867534ddb678abca7f214bc4706ead0922bd5252ffe8035fc227013f66c8b214
+
+jobs:
+  vale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Vale
+        run: |
+          archive="vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/$archive" \
+            "https://github.com/errata-ai/vale/releases/download/v${VALE_VERSION}/$archive"
+          echo "$VALE_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/vale"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/vale" vale
+          echo "$RUNNER_TEMP/vale" >> "$GITHUB_PATH"
+      - name: Fetch the base commit
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git fetch --no-tags --depth=1 origin "$BASE_SHA"
+      - name: Lint prose
+        env:
+          # Changesets are linted only when the pull request adds them.
+          PROSE_BASE: ${{ github.event.pull_request.base.sha || 'HEAD' }}
+        run: node .github/scripts/lint-prose.mjs --output=line

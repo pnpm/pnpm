@@ -90,7 +90,7 @@ pub(crate) fn materialized_shape_matches(
         return true;
     }
     // A transient skip (a failed optional fetch) prunes the current lockfile
-    // further, and its set is not known here. Such a tree simply falls
+    // further, and its set is not known here. Such a tree falls
     // through to materialization, which retries the fetch anyway.
     current
         == &crate::filter_lockfile_for_current(

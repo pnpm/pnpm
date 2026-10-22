@@ -28,7 +28,7 @@ pub enum CacheCommand {
     Path,
     /// Views information from the specified package's cache.
     View { package: String },
-    /// Deletes metadata cache for the specified package(s). Supports patterns.
+    /// Deletes metadata cache for the specified packages. Supports patterns.
     Delete { packages: Vec<String> },
     /// Deletes registry metadata cache directories that this version of pnpm
     /// can no longer read.

@@ -87,7 +87,7 @@ pnpm CLI and doesn't fit in `pnpm/`), put it under
 `pnpr/crates/<short-name>/` and name the package
 `pnpr-<short-name>` in its `Cargo.toml`. The
 `pnpr/crates/*` glob in the root workspace `members` picks it up
-automatically; just add the new crate to `[workspace.dependencies]` at
+automatically; add the new crate to `[workspace.dependencies]` at
 the root with the `pnpr-` prefix so other crates can use
 `{ workspace = true }`.
 

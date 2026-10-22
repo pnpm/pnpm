@@ -139,7 +139,7 @@ fn unified_dependencies(
         let walk = if entry.selection == previous { unwalked } else { entry.versions.clone() };
         // The features of every dependency reaching the line, because one
         // may turn on a weak feature of another's. A version that has none
-        // of them simply activates nothing extra.
+        // of them activates nothing extra.
         for version in versions
             .iter()
             .filter(|version| walk.contains(&version.version))

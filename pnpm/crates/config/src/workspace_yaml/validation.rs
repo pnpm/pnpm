@@ -266,7 +266,7 @@ impl WorkspaceSettings {
     /// Serde keeps no record of the keys it dropped, so collecting them means
     /// re-reading the document — which costs as much as the parse that
     /// produced the settings, on every command, to find nothing in the
-    /// overwhelmingly common case of a file that is simply correct.
+    /// overwhelmingly common case of a file that is correct.
     ///
     /// The top-level keys are the least indented lines of the document, since
     /// everything a key nests under it is indented further; the root mapping

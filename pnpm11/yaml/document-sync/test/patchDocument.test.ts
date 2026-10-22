@@ -169,7 +169,7 @@ items:
     // the "items" map rather than a property on the "b" field. So the newly
     // added "a" field is added below the comment.
     //
-    // This isn't incorrect, but most of the time users probably associate the
+    // This isn't incorrect, but most of the time users likely associate the
     // comment as a part of the immediately succeeding field. Let's encode the
     // behavior as a test for now. The behavior may change in a future version
     // of the yaml library.
@@ -569,7 +569,7 @@ foo:
     //
     //   content.items.push(new yaml.Scalar(3))
     //
-    // Inserting the raw raw value should cause the patch function to throw.
+    // Inserting the raw value should cause the patch function to throw.
     contents.items.push(3)
 
     expect(() => {
@@ -590,7 +590,7 @@ foo:
     //
     //   content.items.push(new yaml.Scalar(3))
     //
-    // Inserting the raw raw value should cause the patch function to throw.
+    // Inserting the raw value should cause the patch function to throw.
     contents.items.push({ qux: 3 })
 
     expect(() => {

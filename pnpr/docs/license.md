@@ -12,8 +12,8 @@ it). Commercial / non-compete licenses are available from
 [Zoltan Kochan](https://github.com/zkochan).
 
 This is the only part of the [pnpm monorepo](https://github.com/pnpm/pnpm) that
-is not MIT licensed. Contributions to `pnpr/` are accepted under separate terms —
-see [`CONTRIBUTING.md`](https://github.com/pnpm/pnpm/blob/main/pnpr/CONTRIBUTING.md).
+is not MIT licensed. Contributions to `pnpr/` are accepted under separate terms.
+See [`CONTRIBUTING.md`](https://github.com/pnpm/pnpm/blob/main/pnpr/CONTRIBUTING.md).
 
 ## Trademark notice
 

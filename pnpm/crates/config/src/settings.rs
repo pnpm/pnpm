@@ -1244,7 +1244,7 @@ pub struct Config {
     #[default = true]
     pub enable_pre_post_scripts: bool,
 
-    /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
+    /// `scriptShell` from `pnpm-workspace.yaml`. The shell that runs
     /// scripts and `pnpm exec`. `None` selects the platform default
     /// (`sh` on POSIX, `cmd.exe` on Windows).
     pub script_shell: Option<String>,

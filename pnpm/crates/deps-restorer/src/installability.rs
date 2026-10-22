@@ -80,7 +80,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     seed.retain_installability_for_optional_snapshots(snapshots);
 
     // Fast path: if no package in the lockfile declares any
-    // installability constraint, every snapshot is trivially
+    // installability constraint, every snapshot is
     // installable. Skip the per-snapshot
     // `without_peer()` / `to_string()` / `check_package` loop
     // entirely. Pacquet has no resolver so the lockfile's packages

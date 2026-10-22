@@ -9,13 +9,13 @@ Execute a shell command in scope of a project.
 
 ## Examples
 
-If you have Jest as a dependency of your project, there is no need to install Jest globally, just run it with `pnpm exec`:
+If you have Jest as a dependency of your project, there is no need to install Jest globally. Run it with `pnpm exec`:
 
 ```sh
 pnpm exec jest
 ```
 
-The `exec` part is actually optional when the command is not in conflict with a builtin pnpm command, so you may also just run:
+The `exec` part is actually optional when the command is not in conflict with a builtin pnpm command, so you may also run:
 
 ```sh
 pnpm jest

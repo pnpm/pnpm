@@ -264,7 +264,7 @@ async function updateTSConfig (
         // If composite is explicitly set to false, we can't add the main
         // tsconfig.json as a project reference. Only composite enabled projects
         // can be referenced by definition. Instead, we have to add all the
-        // project references directly. Note that this check is approximate. The
+        // project references directly. This check is approximate. The
         // main tsconfig.json could inherit another conifg that sets composite
         // to be false.
         //
@@ -279,7 +279,7 @@ async function updateTSConfig (
         }))
 
         // If the main project is composite (the more common case), we can
-        // simply reference that. The main project will have more project
+        // reference that. The main project will have more project
         // references that will apply to the tests too.
         //
         // The project reference allows editor features like Go to Definition

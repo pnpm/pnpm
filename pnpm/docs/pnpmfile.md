@@ -28,11 +28,11 @@ monorepo.
 
 ### `hooks.readPackage(pkg, context): pkg | Promise<pkg>`
 
-Allows you to mutate a dependency's `package.json` after parsing and prior to
+Allows you to mutate a dependency's `package.json` after parsing and before
 resolution. These mutations are not saved to the filesystem, however, they will
 affect what gets resolved in the lockfile and therefore what gets installed.
 
-Note that you will need to delete the `pnpm-lock.yaml` if you have already
+You will need to delete the `pnpm-lock.yaml` if you have already
 resolved the dependency you want to modify.
 
 :::tip
@@ -83,7 +83,7 @@ export const hooks = {
 Removing the `scripts` field from a dependency's manifest via `readPackage` will
 not prevent pnpm from building the dependency. When building a dependency, pnpm
 reads the `package.json` of the package from the package's archive, which is not
-affected by the hook. In order to ignore a package's build, use the
+affected by the hook. To ignore a package's build, use the
 [allowBuilds](settings/build.md#allowbuilds) field.
 
 ### `hooks.updateConfig(config): config | Promise<config>`
@@ -195,7 +195,7 @@ export const hooks = {
 }
 ```
 
-#### Known Limitations
+#### Known limitations
 
 There are none - anything that can be done with the lockfile can be modified via
 this function, and you can even extend the lockfile's functionality.
@@ -321,7 +321,7 @@ See [Finders] for more details.
 
 [Finders]: ./finders.md
 
-## Custom Resolvers and Fetchers
+## Custom resolvers and fetchers
 
 Added in: v11.0.0
 
@@ -334,7 +334,7 @@ module.exports = {
 }
 ```
 
-#### TypeScript Interfaces
+#### TypeScript interfaces
 
 ```typescript
 interface CustomResolver {
@@ -349,11 +349,11 @@ interface CustomFetcher {
 }
 ```
 
-### Custom Resolvers
+### Custom resolvers
 
 Custom resolvers convert package descriptors (e.g., `foo@^1.0.0`) into resolutions that are stored in the lockfile.
 
-#### Resolver Interface
+#### Resolver interface
 
 A custom resolver is an object that can implement any combination of the following methods:
 
@@ -409,11 +409,11 @@ Return `true` to trigger full resolution of all packages, skipping the "Lockfile
 
 :::
 
-### Custom Fetchers
+### Custom fetchers
 
 Custom fetchers completely handle fetching for custom package types, downloading package contents from custom sources and storing them in pnpm's content-addressable file system.
 
-#### Fetcher Interface
+#### Fetcher interface
 
 A custom fetcher is an object that can implement the following methods:
 
@@ -486,9 +486,9 @@ The `{ delegate }` envelope is the only delegation form that works in every pnpm
 
 :::
 
-#### Usage Examples
+#### Usage examples
 
-##### Basic Custom Resolver
+##### Basic custom resolver
 
 This example shows a custom resolver that resolves packages from a custom registry:
 
@@ -521,7 +521,7 @@ module.exports = {
 }
 ```
 
-##### Custom Resolver and Fetcher with `shouldRefreshResolution`
+##### Custom resolver and fetcher with `shouldRefreshResolution`
 
 This example shows a resolver and fetcher working together with a custom resolution type and time-based cache invalidation:
 
@@ -577,7 +577,7 @@ module.exports = {
 }
 ```
 
-##### Basic Custom Fetcher
+##### Basic custom fetcher
 
 This example shows a custom fetcher that fetches certain packages from a different source:
 
@@ -606,7 +606,7 @@ module.exports = {
 }
 ```
 
-##### Custom Resolution Type with Resolver and Fetcher
+##### Custom resolution type with resolver and fetcher
 
 This example shows a custom resolver and fetcher working together with a custom resolution type:
 
@@ -649,17 +649,17 @@ module.exports = {
 }
 ```
 
-#### Priority and Ordering
+#### Priority and ordering
 
 When multiple resolvers are registered, they are checked in order. The first resolver where `canResolve` returns `true` will be used for resolution. The same applies for fetchers: The first fetcher where `canFetch` returns `true` will be used during the fetch phase.
 
 Custom resolvers are tried before pnpm's built-in resolvers (npm, git, tarball, etc.), giving you full control over package resolution.
 
-#### Performance Considerations
+#### Performance considerations
 
 `canResolve()`, `canFetch()`, and `shouldRefreshResolution()` should be cheap checks (ideally synchronous), as they're called for every dependency during resolution.
 
-## Related Configuration
+## Related configuration
 
 ### ignorePnpmfile
 
@@ -675,7 +675,7 @@ want to make sure that no script gets executed during install.
 * Type: **path[]**
 * Example: **['.pnpm/.pnpmfile.mjs']**
 
-The location of the local pnpmfile(s).
+The location of the local pnpmfiles.
 
 ### globalPnpmfile
 

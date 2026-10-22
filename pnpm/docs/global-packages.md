@@ -36,7 +36,7 @@ pnpm add -g typescript
 pnpm add -g prettier
 ```
 
-creates two separate isolated installations — `typescript` and `prettier` each get their own `node_modules` tree and cannot affect each other's dependency resolution.
+creates two separate isolated installations. `typescript` and `prettier` each get their own `node_modules` tree and cannot affect each other's dependency resolution.
 
 Installing multiple **space-separated** packages in a single command also creates a separate isolated install for each one:
 
@@ -44,9 +44,9 @@ Installing multiple **space-separated** packages in a single command also create
 pnpm add -g eslint prettier
 ```
 
-`eslint` and `prettier` each get their own `node_modules` tree and lockfile and can be removed independently — `pnpm remove -g eslint` leaves `prettier` untouched.
+`eslint` and `prettier` each get their own `node_modules` tree and lockfile and can be removed independently. `pnpm remove -g eslint` leaves `prettier` untouched.
 
-To bundle multiple packages into the *same* isolated install — so they share a `node_modules` tree and lockfile, resolve peer dependencies against each other, and are removed together — pass them as a **comma-separated** list:
+To bundle multiple packages into the *same* isolated install (so they share a `node_modules` tree and lockfile, resolve peer dependencies against each other, and are removed together), pass them as a **comma-separated** list:
 
 ```sh
 pnpm add -g eslint,prettier
@@ -82,8 +82,8 @@ The contents of `{pnpmHomeDir}/global/v11/` look like:
 ```
 
 - The `{hash}` entries are symlinks; pnpm scans for them to enumerate active installs.
-- The targets are real directories that act as ordinary pnpm projects — each has its own `package.json` and lockfile.
-- The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies — the entries at the root of its `node_modules/` — are symlinks into that store, so the actual package contents are shared rather than copied per group.
+- The targets are real directories that act as ordinary pnpm projects. Each has its own `package.json` and lockfile.
+- The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies (the entries at the root of its `node_modules/`) are symlinks into that store, so the actual package contents are shared rather than copied per group.
 - Bin shims live in `{pnpmHomeDir}/bin/` and point through the appropriate install group's `node_modules`.
 
 When a package is removed or its install group is replaced, the hash symlink is updated and orphaned target directories are eventually cleaned up by `pnpm store prune`.
@@ -96,7 +96,7 @@ pnpm list -g --json        # machine-readable
 pnpm list -g --parseable   # paths only
 ```
 
-Because each install group has its own lockfile, listing across multiple groups can only reliably aggregate the top-level packages they were installed with — transitive dependency trees from different groups can't be coherently merged. As a result:
+Because each install group has its own lockfile, listing across multiple groups can only reliably aggregate the top-level packages they were installed with. Transitive dependency trees from different groups can't be coherently merged. As a result:
 
 - `pnpm list -g` (default `--depth=0`) always works and shows every globally installed package.
 - `pnpm list -g --depth=<n>` (with `n > 0`) shows the full dependency tree only when:
@@ -122,7 +122,7 @@ If `--depth>0` is requested but the request can't be narrowed to a single instal
 
 ## Binaries location
 
-Globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` (i.e., `$PNPM_HOME/bin/`). This keeps the `PNPM_HOME` directory clean — internal directories like `global/` and `store/` don't pollute shell autocompletion when `PNPM_HOME` is on PATH.
+Globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` (i.e., `$PNPM_HOME/bin/`). This keeps the `PNPM_HOME` directory clean. Internal directories like `global/` and `store/` don't pollute shell autocompletion when `PNPM_HOME` is on PATH.
 
 After upgrading to pnpm v11, run [`pnpm setup`](./cli/setup.md) to update your shell configuration so that `$PNPM_HOME/bin` is on your PATH.
 
@@ -161,19 +161,19 @@ cd ~
 node --version   # your globally installed version
 ```
 
-No shell hooks, `.bashrc` edits, or `use`-style commands are involved — the shims pnpm writes into the global bin directory do the dispatch themselves.
+No shell hooks, `.bashrc` edits, or `use`-style commands are involved. The shims pnpm writes into the global bin directory do the dispatch themselves.
 
 ### How a version is chosen
 
 pnpm walks up from the current working directory to the nearest project that provides the command, then:
 
-* For the **runtimes** (`node`, `deno`, `bun`), only a runtime pin counts — [`devEngines.runtime`](./package_json.md#devenginesruntime), then `engines.runtime`. For `node`, since v12.7.0, a `.node-version` or `.nvmrc` file also counts (see [below](#nvmrc-and-node-version)). The pinned version is downloaded into the [global virtual store](./global-virtual-store.md) on demand and executed directly. The project's `node_modules/.bin` is never consulted for a runtime, so a dependency cannot supply the `node` you run.
+* For the **runtimes** (`node`, `deno`, `bun`), only a runtime pin counts: [`devEngines.runtime`](./package_json.md#devenginesruntime), then `engines.runtime`. For `node`, since v12.7.0, a `.node-version` or `.nvmrc` file also counts (see [below](#nvmrc-and-node-version)). The pinned version is downloaded into the [global virtual store](./global-virtual-store.md) on demand and executed directly. The project's `node_modules/.bin` is never consulted for a runtime, so a dependency cannot supply the `node` you run.
 * For the **[package managers](./package-managers.md)** (`npm`, `yarn`, `bun`), added in v12.0.0-rc.6, the project's `packageManager` or [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin counts, and pnpm provisions that version on demand. The pin outranks a copy of that package manager installed globally, because it is the project's own statement of what installs it.
 * For **any other package**, the project's `node_modules/.bin/<name>` is used.
 
 Directories inside the pnpm home are skipped, since global installs are not projects.
 
-If the project provides nothing, or the lookup is declined, the globally installed version runs — commands never fail merely because dispatch did not apply.
+If the project provides nothing, or the lookup is declined, the globally installed version runs. Commands never fail merely because dispatch did not apply.
 
 ### `.nvmrc` and `.node-version`
 
@@ -203,7 +203,7 @@ A project you `cd` into is not automatically allowed to run its own binaries in 
 This section describes the default `auto` policy. Under `auto`:
 
 * A **stable Node.js release** is verified against the Node.js release team's signatures before it runs, so it switches without asking. (On musl-based systems the matching builds are unsigned, so they fall under the prompt instead.)
-* **Everything else** — Deno, Bun, Node.js prereleases, and any ordinary package you enable — asks once, per project and per candidate:
+* **Everything else** (Deno, Bun, Node.js prereleases, and any ordinary package you enable) asks once, per project and per candidate:
 
   ```text
   The project at "/home/user/projects/app" provides its own "tsc", which will be used
@@ -215,7 +215,7 @@ Answers are remembered in a machine-local registry, keyed to the project directo
 
 In CI and any non-interactive session, the question cannot be asked, so the global version runs and nothing is recorded.
 
-The other two [policies](./settings/other.md#globalshims) change which candidates reach that question. `prompt` sends every candidate through it, including a signature-verified stable Node.js release; answers are still remembered, so it asks once per project and candidate rather than on every run. `always` skips the question entirely and switches straight away — which is also what makes it usable in CI, where a prompt would otherwise fall back to the global version.
+The other two [policies](./settings/other.md#globalshims) change which candidates reach that question. `prompt` sends every candidate through it, including a signature-verified stable Node.js release; answers are still remembered, so it asks once per project and candidate rather than on every run. `always` skips the question entirely and switches straight away, which is also what makes it usable in CI, where a prompt would otherwise fall back to the global version.
 
 There is one more guard that applies regardless of policy: the project's command must come from the **same package** as the global one. A project that ships a lookalike `tsc` from some other package does not match, and your global `tsc` runs.
 
@@ -236,17 +236,17 @@ Because pnpm decides at install time which bins to give dispatching shims, a pac
 pnpm add -g typescript
 ```
 
-Turning a package *off* needs no reinstall — the setting is re-read on every dispatch. The same setting disables dispatch per package, or entirely with `globalShims: false`. For a single command, set `PNPM_SHIM_BYPASS=1`:
+Turning a package *off* needs no reinstall. The setting is re-read on every dispatch. The same setting disables dispatch per package, or entirely with `globalShims: false`. For a single command, set `PNPM_SHIM_BYPASS=1`:
 
 ```sh
 PNPM_SHIM_BYPASS=1 node --version
 ```
 
-A package that is not installed globally at all can still get a dispatching command, with [`pnpm shim add`](./cli/shim.md) — that is what makes `yarn` work inside a Yarn project on a machine that has only pnpm.
+A package that is not installed globally at all can still get a dispatching command, with [`pnpm shim add`](./cli/shim.md). That is what makes `yarn` work inside a Yarn project on a machine that has only pnpm.
 
 :::note
 
-`globalShims` is deliberately not read from a project's `pnpm-workspace.yaml` — only from the global configuration file, the pnpm home directory's own `pnpm-workspace.yaml`, and the environment. See the [setting's documentation](./settings/other.md#globalshims) for details.
+`globalShims` is deliberately not read from a project's `pnpm-workspace.yaml`. It is read only from the global configuration file, the pnpm home directory's own `pnpm-workspace.yaml`, and the environment. See the [setting's documentation](./settings/other.md#globalshims) for details.
 
 :::
 
@@ -278,7 +278,7 @@ pnpm add -g --allow-build=esbuild esbuild
 Since v11.24.0, [`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
 lets you decide after the fact instead. It collects the packages awaiting approval from every
 install group, asks about them once, and writes one `allowBuilds` policy into the
-`pnpm-workspace.yaml` of the global packages directory — then rebuilds only the
+`pnpm-workspace.yaml` of the global packages directory, then rebuilds only the
 groups that contain something you approved:
 
 ```sh

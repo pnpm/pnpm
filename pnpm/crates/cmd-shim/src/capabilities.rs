@@ -34,7 +34,7 @@ pub trait FsReadHead {
     fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize>;
 }
 
-/// Read the entire contents of a file into a `Vec<u8>`. Used to read
+/// Read the entire contents of a file into a `Vec<u8>`. Reads
 /// `package.json` files when collecting bin sources.
 pub trait FsReadFile {
     fn read_file(path: &Path) -> io::Result<Vec<u8>>;

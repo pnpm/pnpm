@@ -14,7 +14,7 @@ They can be declared in [.pnpmfile.mjs] and used with [pnpm list] and [pnpm why]
 
 ## Defining finder functions
 
-Finder functions are declared in your project’s [.pnpmfile.mjs] file under the finders export.
+Finder functions are declared in your project's [.pnpmfile.mjs] file under the finders export.
 Each function receives a context object and must return either:
 
 * `true` → include this dependency in the results,

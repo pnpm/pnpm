@@ -58,7 +58,7 @@ pnpm_config_save_exact=true pnpm add foo
 ```
 
 If you need pnpm to work across multiple hard drives or filesystems,
-please read [the FAQ].
+read [the FAQ].
 
 See the [`config` command] for more information on managing configuration.
 

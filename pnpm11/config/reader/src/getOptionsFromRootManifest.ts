@@ -171,7 +171,7 @@ const TASK_SETTING_FIELDS = ['concurrency', 'dependsOn']
 /**
  * The field of {@link TASK_SETTING_FIELDS} that {@link field} misspells, if
  * any. `pnpm-workspace.yaml` is one format across pnpm 11 and 12, so a field
- * this version does not read may simply be one only pnpm 12 acts on, and
+ * this version does not read may be one only pnpm 12 acts on, and
  * rejecting every such field would make a pnpm 12 workspace unreadable here.
  * A field differing from one of ours only in case is the exception: no pnpm
  * version declares two settings that close, so it is a typo.

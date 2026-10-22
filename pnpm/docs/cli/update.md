@@ -26,7 +26,7 @@ Besides moving `pnpm-lock.yaml` to the newly resolved versions, `pnpm update` wr
 * In `package.json`, the range is moved onto the resolved version while the operator the dependency already declared is kept, so `^1.1.0` stays a caret range.
 * A dependency declared through the [`catalog:` protocol](../catalogs.md) is not rewritten in `package.json`. The catalog entry it points at is updated instead, in `pnpm-workspace.yaml`.
 * A dependency declared through the [`jsr:` protocol](../package-sources.md) keeps its `jsr:` prefix, and its range moves like an npm range.
-* A dependency declared through a dist-tag, such as `"foo": "latest"`, keeps tracking the tag. The tag stays in `package.json` and only the lockfile moves to the version behind it — with `--latest` as well.
+* A dependency declared through a dist-tag, such as `"foo": "latest"`, keeps tracking the tag. The tag stays in `package.json` and only the lockfile moves to the version behind it, with `--latest` as well.
 * Since v12.12.0, a [config dependency](../config-dependencies.md#how-to-update-config-dependencies) is updated too, and its new range is written to `pnpm-workspace.yaml`.
 * Since v11.27.1 and v12.6.0, a dependency whose specifier comes from a [`packageExtensions`](../settings/dependency-resolution.md#packageextensions) entry, a [`readPackage`](../pnpmfile.md#hooks) hook, or an [`override`](../settings/dependency-resolution.md#overrides) is not written to `package.json`. The lockfile keeps that specifier. `pnpm update` and `pnpm audit --fix=update` still move it inside the range.
 
@@ -37,8 +37,8 @@ Pass [`--no-save`](#--no-save) to update the lockfile only and leave the declare
 Since v12.0.0, [`--patches`](#--patches) does something different
 from all of this: it changes no version and no declared range, refreshing only
 which registry artifact each locked version resolves to. That still rewrites
-lockfile metadata — the `integrity`, the `revision`, and the package snapshot
-around them — because artifact revisions may declare different dependencies. See
+lockfile metadata (the `integrity`, the `revision`, and the package snapshot
+around them), because artifact revisions may declare different dependencies. See
 [Registry revisions](../registry-revisions.md).
 
 ## Updating to a specific version
@@ -83,7 +83,7 @@ Local actions are followed rather than looked up: a `./`-relative reference, and
 since v12.3.0 GitHub's self-repository spelling
 (`uses: $/.github/actions/setup`), resolve inside the repository.
 
-Checking for updates runs `git ls-remote` against every referenced repository. Actions whose refs cannot be read — for example, an action in a private repository — are skipped with a warning. If the actions are hosted on a different GitHub server (such as a GitHub Enterprise Server), set [`update.githubActionsServer`](../settings/dependency-resolution.md#updategithubactionsserver) (added in v11.17.0).
+Checking for updates runs `git ls-remote` against every referenced repository. Actions whose refs cannot be read (for example, an action in a private repository) are skipped with a warning. If the actions are hosted on a different GitHub server (such as a GitHub Enterprise Server), set [`update.githubActionsServer`](../settings/dependency-resolution.md#updategithubactionsserver) (added in v11.17.0).
 
 ## Options
 
@@ -116,13 +116,13 @@ Refresh [registry revisions](../registry-revisions.md) without changing any
 package version: for every locked registry package, pnpm resolves current
 metadata for the same `name@version`, and adopts the artifact the registry
 selects now if that changed. Versions and declared ranges are left alone, but the
-lockfile entry is rewritten as a whole — `integrity`, `revision`, and the package
-snapshot around them — since revisions may declare different dependencies.
+lockfile entry is rewritten as a whole (`integrity`, `revision`, and the package
+snapshot around them), since revisions may declare different dependencies.
 
 Cannot be combined with package selectors, `--latest`, `--interactive`, or
 `--global` (`ERR_PNPM_PATCHES_WITH_SELECTOR`). Each of those narrows or redirects
-what an update targets — a subset of packages, the newest versions, an
-interactive choice, the global installation — and `--patches` is defined as
+what an update targets (a subset of packages, the newest versions, an
+interactive choice, the global installation), and `--patches` is defined as
 covering every locked package of the current project at its current version.
 
 ### --pnpr-server &lt;url\>
@@ -175,7 +175,7 @@ Don't update the ranges in `package.json`.
 
 Added in: v11.16.0
 
-After the update completes, write a [change intent](../versioning.md) — a changesets-compatible `.changeset/*.md` file — declaring a `patch` bump for every workspace package whose `dependencies` or `optionalDependencies` were changed by the update, and a `major` bump when its `peerDependencies` changed. Packages that consume an updated catalog entry via the `catalog:` protocol are included. Private packages, packages without a name, and packages listed in the `ignore` array of `.changeset/config.json` are skipped. If `.changeset/config.json` does not exist, a warning is printed and no changeset is generated.
+After the update completes, write a [change intent](../versioning.md) (a changesets-compatible `.changeset/*.md` file) declaring a `patch` bump for every workspace package whose `dependencies` or `optionalDependencies` were changed by the update, and a `major` bump when its `peerDependencies` changed. Packages that consume an updated catalog entry via the `catalog:` protocol are included. Private packages, packages without a name, and packages listed in the `ignore` array of `.changeset/config.json` are skipped. If `.changeset/config.json` does not exist, a warning is printed and no changeset is generated.
 
 Set [`update.changeset`](../settings/dependency-resolution.md#updatechangeset) to `true` in `pnpm-workspace.yaml` to enable this behavior by default, and use `--no-changeset` to override the setting for one update.
 

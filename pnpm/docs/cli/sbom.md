@@ -30,7 +30,7 @@ pnpm sbom --sbom-format cyclonedx --exclude-peers
 
 Inside a workspace, `pnpm sbom` supports filtering. When a single workspace package is selected, the root component in the SBOM uses that package's metadata.
 
-Since v11.20.0, a component resolved from a [named registry](../settings/dependency-resolution.md#namedregistries) carries the purl `repository_url` qualifier (for example `pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.work.example.com%2F`), so the same name and version served by two registries does not collapse onto one component. Credentials that a `namedRegistries` URL may embed — userinfo or a query string — are stripped from the qualifier, while the origin and path are kept, since two registries can differ only by path.
+Since v11.20.0, a component resolved from a [named registry](../settings/dependency-resolution.md#namedregistries) carries the purl `repository_url` qualifier (for example `pkg:npm/foo@1.0.0?repository_url=https%3A%2F%2Fnpm.work.example.com%2F`), so the same name and version served by two registries does not collapse onto one component. Credentials that a `namedRegistries` URL may embed (userinfo or a query string) are stripped from the qualifier, while the origin and path are kept, since two registries can differ only by path.
 
 CycloneDX output marks components reachable only through `devDependencies` with `scope: "excluded"` and the `cdx:npm:package:development` property. Runtime components, including installed optional dependencies, use the default required scope.
 

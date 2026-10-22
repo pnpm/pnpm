@@ -18,7 +18,7 @@ pub struct FrozenInstallDrivers<'a> {
 
     /// Install-scoped shared in-flight tarball cache, threaded down to
     /// [`crate::CreateVirtualStore`]'s cold-batch downloads. `Some` on
-    /// the pnpr client path so the materialization reuses the
+    /// the pnpr client path so the materialization reuses
     /// the package manager's `TarballPrefetcher` background downloads instead of
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.

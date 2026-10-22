@@ -57,7 +57,7 @@ pub(super) fn reject_off_allowlist_fetches(
 
 /// Every spec of the request that could name a fetch target: direct-URL
 /// dependency specs, catalog and package-extension entries, and input-lockfile
-/// tarball URLs. They reach the network only when they carry an http(s)/git
+/// tarball URLs. They reach the network only when they carry an HTTP, HTTPS, or git
 /// URL, which the caller decides.
 fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps]) -> Vec<&'a str> {
     let mut url_specs: Vec<&str> = Vec::new();

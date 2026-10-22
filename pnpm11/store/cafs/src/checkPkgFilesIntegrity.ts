@@ -75,7 +75,7 @@ export function checkPkgFilesIntegrity (
 ): VerifyResult {
   // It might make sense to use this cache for all files in the store
   // but there's a smaller chance that the same file will be checked twice
-  // so it's probably not worth the memory (this assumption should be verified)
+  // so it's likely not worth the memory (this assumption should be verified)
   const verifiedFilesCache = new Set<string>()
   const _checkFilesIntegrity: CheckFilesIntegrity = checkFilesIntegrity.bind(null, verifiedFilesCache, storeDir, pkgIndex.algo)
   const filesMap: FilesMap = new Map()

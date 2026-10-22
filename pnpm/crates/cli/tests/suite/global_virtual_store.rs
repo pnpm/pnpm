@@ -744,7 +744,7 @@ fn repeat_installs_reuse_the_slots_of_circular_dependencies() {
 /// under the importer's `node_modules` and Node's upward walk finds the
 /// importer's own copy of the peer. A GVS slot lives in the shared
 /// store where no such walk exists, so without the link the peer is
-/// simply missing from the package that declared it.
+/// missing from the package that declared it.
 #[test]
 fn link_dep_in_a_slot_is_symlinked_to_its_target() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =

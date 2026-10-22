@@ -427,7 +427,7 @@ test('resolveFromGit() gitlab tarball uses /-/archive/ URL without encoded slash
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
   expect(resolveResult).toStrictEqual({
@@ -441,7 +441,7 @@ test.skip('resolveFromGit() gitlab with commit', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with no commit', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver' })
   const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
@@ -456,7 +456,7 @@ test.skip('resolveFromGit() gitlab with no commit', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with branch', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#master' })
   const result = await lsRemote(['--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
@@ -471,7 +471,7 @@ test.skip('resolveFromGit() gitlab with branch', async () => {
   })
 })
 
-// This test stopped working. Probably an environmental issue.
+// This test stopped working. The cause looks environmental.
 test.skip('resolveFromGit() gitlab with tag', async () => {
   const resolveResult = await resolveFromGit({ bareSpecifier: 'gitlab:pnpm/git-resolver#0.3.4' })
   expect(resolveResult).toStrictEqual({

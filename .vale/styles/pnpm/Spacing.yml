@@ -1,0 +1,7 @@
+extends: existence
+message: "Use one space between sentences and no space before '%s'."
+level: error
+nonword: true
+tokens:
+  - '[a-z][.?!] {2,}[A-Z]'
+  - '\w [,;:.?!](?:\s|$)'

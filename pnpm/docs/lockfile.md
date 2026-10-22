@@ -16,7 +16,7 @@ Both documents declare the same `lockfileVersion`. That field describes the
 schema of the entries inside a document, not how many documents the file
 contains, so it does not change when the boot document appears.
 
-This page is for tools that read `pnpm-lock.yaml` — vulnerability scanners,
+This page is for tools that read `pnpm-lock.yaml`: vulnerability scanners,
 SBOM generators, dependency graph builders, and dependency update bots. If you
 only use pnpm, you don't need to care about any of this.
 
@@ -63,16 +63,16 @@ snapshots:
 
 That depends on what your tool is for:
 
-- **The project's dependency graph** — dependency update bots, graph builders,
+- **The project's dependency graph**: dependency update bots, graph builders,
   anything that asks "what does this project depend on": the **last** document.
-- **Everything the lockfile installs** — vulnerability scanners and SBOM
+- **Everything the lockfile installs**: vulnerability scanners and SBOM
   generators: **every** document. Config dependencies are real npm packages,
   installed into `node_modules/.pnpm-config`, and they appear only in the boot
   document.
 
 Either way, load the file with a multi-document API. A single-document one
 (`load()` in js-yaml, `yaml.safe_load` in Python, `yaml.Unmarshal` into one
-value in Go) either raises an error or silently gives you the first document —
+value in Go) either raises an error or silently gives you the first document,
 which, in a two-document lockfile, is the boot document.
 
 ### The project's dependency graph
@@ -149,7 +149,7 @@ settings:
 ## Why the boot document comes first {#why-the-env-document-comes-first}
 
 pnpm has to know which pnpm version to switch to, and which plugins to load,
-before it can do anything else — including before it has any reason to parse a
+before it can do anything else, including before it has any reason to parse a
 dependency graph that may be several megabytes. Keeping that information in a
 small leading document means every command reads a few kilobytes rather than
 the whole file.
@@ -163,7 +163,7 @@ The boot document is written when either of these applies:
 - pnpm records the pnpm version it resolved for the project, under
   `packageManagerDependencies`. This happens when the project declares
   [`devEngines.packageManager`], or pins pnpm 12 or newer through the legacy
-  `packageManager` field. Setting [`pmOnFail`] to `ignore` turns it off — pnpm
+  `packageManager` field. Setting [`pmOnFail`] to `ignore` turns it off. pnpm
   then doesn't enforce the pinned version, so it has nothing to record.
 
 Two-document lockfiles have existed since config dependencies were introduced.
@@ -182,7 +182,7 @@ bumped without regenerating the lockfile no longer passes CI. Run
 :::caution
 
 A tool that reads only the first document of a two-document lockfile does not
-fail loudly. The boot document is a structurally valid lockfile — it just
+fail loudly. The boot document is a structurally valid lockfile. It just
 describes an importer with no `dependencies`. Such a tool reports that the
 project has no dependencies, and therefore no vulnerabilities, and a CI gate
 built on it passes.

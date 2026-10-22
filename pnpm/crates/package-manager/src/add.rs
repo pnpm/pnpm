@@ -305,7 +305,7 @@ pub struct AddOptions<'a> {
 pub struct AddResources<DependencyGroupList> {
     pub tarball_mem_cache: std::sync::Arc<MemCache>,
     pub http_client_arc: std::sync::Arc<ThrottledClient>,
-    /// The manifest group(s) the added packages are saved into. `None`
+    /// The manifest groups the added packages are saved into. `None`
     /// means pnpm's default: an already-declared package is updated in
     /// the group it occupies (`guessDependencyType` — checked in
     /// `optionalDependencies`, `dependencies`, `devDependencies`,

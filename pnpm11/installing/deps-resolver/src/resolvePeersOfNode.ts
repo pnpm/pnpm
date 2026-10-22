@@ -305,7 +305,7 @@ export async function resolvePeersOfChildren<Pkg extends PartialResolvedPackage>
 
 // Partition children based on whether they're repeated in parentPkgs.
 // This impacts the efficiency of graph traversal and prevents potential out-of-memory errors.
-// We check repeated first as the peers resolution of those probably are cached already.
+// We check repeated first as the peers resolution of those are likely cached already.
 function getChildNodeIdsInResolutionOrder (children: ChildrenMap, parentPkgs: ParentRefs): NodeId[] {
   const [repeated, notRepeated] = partition(([alias]) => parentPkgs[alias] != null, Object.entries(children))
   return Array.from(new Set([...repeated, ...notRepeated].map(([, nodeId]) => nodeId)))

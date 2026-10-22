@@ -108,6 +108,6 @@ allowUnusedPatches: true
 
 :::note
 
-In v11, patch application failures always throw an error — the `ignorePatchFailures` setting has been removed. When multiple patches in a group are applied, a failure in one does not prevent the rest from being attempted; all patch errors are reported together at the end.
+In v11, patch application failures always throw an error. The `ignorePatchFailures` setting has been removed. When multiple patches in a group are applied, a failure in one does not prevent the rest from being attempted; all patch errors are reported together at the end.
 
 :::

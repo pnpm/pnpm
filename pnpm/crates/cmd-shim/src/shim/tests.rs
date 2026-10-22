@@ -572,7 +572,7 @@ fn read_head_filled_real_fs_short_file_returns_partial() {
 }
 
 /// Pinning this with a fake is the only way to verify the loop
-/// without a pseudo-fs to test against: real filesystems essentially
+/// without a pseudo-fs to test against: real filesystems almost
 /// never return short reads at offset 0.
 #[test]
 fn read_head_filled_accumulates_short_reads_from_fake() {

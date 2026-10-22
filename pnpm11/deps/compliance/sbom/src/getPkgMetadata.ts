@@ -126,7 +126,7 @@ function absoluteUrl (raw: string): string | undefined {
 }
 
 // `bugs` may be a URL string, a bare email, or `{ url, email }`. Only a
-// well-formed http(s) URL becomes the CycloneDX issue-tracker reference.
+// well-formed HTTP or HTTPS URL becomes the CycloneDX issue-tracker reference.
 // Exported so the command's root-package handling uses the same rule.
 export function bugsUrlFromField (field: unknown): string | undefined {
   const raw = urlFieldValue(field)

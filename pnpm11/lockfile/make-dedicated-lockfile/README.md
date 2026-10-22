@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@pnpm/lockfile.make-dedicated-lockfile.svg)](https://npmx.dev/package/@pnpm/lockfile.make-dedicated-lockfile)
 
-**This package is deprecated. Please use the [pnpm deploy] command instead.**
+**This package is deprecated. Use the [pnpm deploy] command instead.**
 
 [pnpm deploy]: https://pnpm.io/cli/deploy
 

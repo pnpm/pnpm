@@ -5,7 +5,7 @@ title: Registries
 
 Added in: v11.23.0
 
-The [`registries`](./settings/dependency-resolution.md#registries) setting in `pnpm-workspace.yaml` declares each registry a project installs from — once, keyed by the registry's URL. Everything pnpm knows about a registry lives in its entry: the scopes routed to it, the bare-specifier prefix it answers to, and what the server behind it is like.
+The [`registries`](./settings/dependency-resolution.md#registries) setting in `pnpm-workspace.yaml` declares each registry a project installs from, once, keyed by the registry's URL. Everything pnpm knows about a registry lives in its entry: the scopes routed to it, the bare-specifier prefix it answers to, and what the server behind it is like.
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
@@ -29,13 +29,13 @@ An entry may carry:
 | [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm` or `artifactory`.        |
 | [`supportsTimeField`](#supportstimefield) | `boolean`  | Whether the server's abbreviated metadata carries the `time` field.  |
 
-Any other field is rejected. In particular, credentials (`_authToken`, `_auth`, `_password`, `username`, `tokenHelper`) and TLS material (`ca`, `cafile`, `cert`, `certfile`, `key`, `keyfile`) are refused rather than silently ignored — `pnpm-workspace.yaml` is committed to the repository, so they belong in [`.npmrc`](./npmrc.md) (e.g. `//npm.corp.example.com/:_authToken=...`). A URL key that embeds `user:pass@` credentials is refused for the same reason.
+Any other field is rejected. In particular, credentials (`_authToken`, `_auth`, `_password`, `username`, `tokenHelper`) and TLS material (`ca`, `cafile`, `cert`, `certfile`, `key`, `keyfile`) are refused rather than silently ignored. `pnpm-workspace.yaml` is committed to the repository, so they belong in [`.npmrc`](./npmrc.md) (e.g. `//npm.corp.example.com/:_authToken=...`). A URL key that embeds `user:pass@` credentials is refused for the same reason.
 
 ## Routing packages to a registry
 
 ### scopes
 
-The scopes whose packages resolve from this registry, `@`-prefixed. A bare `"@"` routes the scope-less default registry — the same registry the `registry` setting names:
+The scopes whose packages resolve from this registry, `@`-prefixed. A bare `"@"` routes the scope-less default registry, the same registry the `registry` setting names:
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
@@ -69,7 +69,7 @@ Prefixes declared here follow the same rules as the deprecated [`namedRegistries
 
 ### serverType
 
-Registries do not all lay out tarball URLs the way the npm registry does. pnpm omits a tarball URL from `pnpm-lock.yaml` when it can rebuild the URL from the package's name, version, and registry — the lockfile then carries no host-specific URL for that package, and renaming or moving the registry does not churn the lockfile. Whether pnpm can rebuild a URL depends on the server, and `serverType` is where you declare it. It has three states:
+Registries do not all lay out tarball URLs the way the npm registry does. pnpm omits a tarball URL from `pnpm-lock.yaml` when it can rebuild the URL from the package's name, version, and registry. The lockfile then carries no host-specific URL for that package, and renaming or moving the registry does not churn the lockfile. Whether pnpm can rebuild a URL depends on the server, and `serverType` is where you declare it. It has three states:
 
 | `serverType`  | Meaning                                                                                                                                                                                                                                                                       |
 |---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -91,23 +91,23 @@ Values for common servers:
 | Server                                                | `serverType`                                                                                                              |
 |-------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
 | JFrog Artifactory                                     | `artifactory`                                                                                                              |
-| GitLab package registry                               | `artifactory` — it uses the same layout, repeating the scope in the filename.                                              |
+| GitLab package registry                               | `artifactory`. It uses the same layout, repeating the scope in the filename.                                              |
 | A faithful mirror or caching proxy of the npm registry | `npm`                                                                                                                      |
-| Verdaccio, Sonatype Nexus, Azure Artifacts            | None needed — they serve the exact canonical npm layout, which the strict default already reconstructs.                    |
-| GitHub Packages                                       | None — its download URLs contain a content digest that cannot be derived from the package's identity, so they are kept in the lockfile. |
-| GitHub Enterprise Server                              | None — it serves a scoped package only from the percent-encoded path, which the strict default keeps in the lockfile and requests verbatim.  |
+| Verdaccio, Sonatype Nexus, Azure Artifacts            | None needed. They serve the exact canonical npm layout, which the strict default already reconstructs.                    |
+| GitHub Packages                                       | None. Its download URLs contain a content digest that cannot be derived from the package's identity, so they are kept in the lockfile. |
+| GitHub Enterprise Server                              | None. It serves a scoped package only from the percent-encoded path, which the strict default keeps in the lockfile and requests verbatim.  |
 
 The layout is declared, never inferred: a virtual repository can serve both layouts at once, depending on whether each package was synced from an upstream or published locally, so there is no registry-level signal pnpm could sniff. Declaring it also keeps a wrong value a fixable misconfiguration instead of a silent breakage.
 
 :::caution
 
-`serverType` is a claim about the server that only its operator can make, and the lockfile depends on it: an omitted tarball URL is rebuilt using the declared layout on every install, including `--frozen-lockfile` installs. Declare a layout the server actually serves, and expect a one-time lockfile diff after declaring one — URLs that pnpm can now rebuild disappear from the lockfile on the next install that writes it.
+`serverType` is a claim about the server that only its operator can make, and the lockfile depends on it: an omitted tarball URL is rebuilt using the declared layout on every install, including `--frozen-lockfile` installs. Declare a layout the server actually serves, and expect a one-time lockfile diff after declaring one. URLs that pnpm can now rebuild disappear from the lockfile on the next install that writes it.
 
 :::
 
 ### supportsTimeField
 
-Whether this registry's abbreviated metadata carries the `time` field. `registry.npmjs.org`'s does not, which is why the default is `false` and why time-based resolution features such as [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) fall back to the far larger full metadata documents. A registry that does carry it — Verdaccio v5.15.1+ and several proxies — is worth declaring:
+Whether this registry's abbreviated metadata carries the `time` field. `registry.npmjs.org`'s does not, which is why the default is `false` and why time-based resolution features such as [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) fall back to the far larger full metadata documents. A registry that does carry it (Verdaccio v5.15.1+ and several proxies) is worth declaring:
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
@@ -122,9 +122,9 @@ This is the per-registry form of the [`registrySupportsTimeField`](./settings/ot
 
 The setting belongs in `pnpm-workspace.yaml` rather than `.npmrc` or the global config because the lockfile depends on it: one developer omitting tarball URLs that another reconstructs differently would break a frozen install.
 
-The [global configuration file](./cli/config.md) (`config.yaml`) may declare the *routes* — `scopes` and `prefix` — so that a scope or an alias like `work:` applies to every project on the machine. The server descriptions (`serverType` and `supportsTimeField`) are read only from `pnpm-workspace.yaml`, for the reason above.
+The [global configuration file](./cli/config.md) (`config.yaml`) may declare the *routes* (`scopes` and `prefix`) so that a scope or an alias like `work:` applies to every project on the machine. The server descriptions (`serverType` and `supportsTimeField`) are read only from `pnpm-workspace.yaml`, for the reason above.
 
-An entry that declares no routes describes a registry configured elsewhere — for example, the default registry set in `.npmrc`. Such an entry only takes effect when its URL is one the project actually resolves from; pnpm warns about entries that match no configured registry, since they would otherwise sit there inert (a stale URL, a scope that moved).
+An entry that declares no routes describes a registry configured elsewhere. For example, the default registry set in `.npmrc`. Such an entry only takes effect when its URL is one the project actually resolves from; pnpm warns about entries that match no configured registry, since they would otherwise sit there inert (a stale URL, a scope that moved).
 
 Environment variables are **not** expanded in the URL keys of this setting, for the same reason they are not expanded in other [registry URLs in `pnpm-workspace.yaml`](./settings.md): the file is committed, and expanding env variables into a request destination could leak secrets to an attacker-controlled host. A key containing a `${...}` placeholder is ignored.
 
@@ -138,6 +138,6 @@ registries:
   "@acme": https://npm.corp.example.com/
 ```
 
-This shape is still accepted and behaves as before. The two shapes cannot be mixed in one map — an entry whose value is a string is a scope route, and a scope route keyed by a URL is an error.
+This shape is still accepted and behaves as before. The two shapes cannot be mixed in one map. An entry whose value is a string is a scope route, and a scope route keyed by a URL is an error.
 
 The [`namedRegistries`](./settings/dependency-resolution.md#namedregistries) setting is deprecated in favor of `prefix`. It is still read, but only for prefixes that `registries` does not declare; when both declare prefixes, pnpm warns.

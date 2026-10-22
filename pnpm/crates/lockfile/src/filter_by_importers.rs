@@ -12,7 +12,7 @@
 //! importers' direct dependencies, follows each snapshot's `dependencies`
 //! (and `optionalDependencies`, unless they were excluded), and treats
 //! `skipped` keys as already visited so nothing behind them is retained.
-//! `link:` references resolve to no snapshot key and simply end that
+//! `link:` references resolve to no snapshot key and end that
 //! branch — they are workspace edges, not entries in the package graph.
 
 use std::collections::{HashMap, HashSet, VecDeque};

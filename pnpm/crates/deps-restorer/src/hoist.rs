@@ -71,7 +71,7 @@ pub struct HoistGraphNode {
 ///
 /// Skips snapshots whose metadata key isn't in `packages` — same
 /// degraded behaviour as [`crate::deps_graph::build_deps_graph`]; the
-/// hoist pass simply won't see the missing snapshot.
+/// hoist pass won't see the missing snapshot.
 ///
 #[must_use]
 pub fn build_hoist_graph(

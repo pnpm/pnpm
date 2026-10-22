@@ -210,7 +210,7 @@ function matchDirectUpdateTargets (
     }
   }
   // At `--depth 0` an indirect dependency is never traversed, so a selector
-  // that names one is simply out of scope rather than a version pnpm has
+  // that names one is out of scope rather than a version pnpm has
   // nowhere to record. `--latest` rejects every versioned selector on its
   // own, direct or not, and has to report that first.
   if (!opts.latest && (opts.depth ?? Infinity) > 0) {

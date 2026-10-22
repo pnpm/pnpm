@@ -51,7 +51,7 @@ One package can have different sets of dependencies on one machine.
 
 In project **A** `foo@1.0.0` can have a dependency resolved to `bar@1.0.0`, but
 in project **B** the same dependency of `foo` might resolve to `bar@1.1.0`; so,
-pnpm hard links `foo@1.0.0` to every project where it is used, in order to
+pnpm hard links `foo@1.0.0` to every project where it is used, to
 create different sets of dependencies for it.
 
 Direct symlinking to the global store would work with Node's
@@ -63,7 +63,7 @@ this decision was made, see [this issue][eps-issue].
 
 ## Does pnpm work across different subvolumes in one Btrfs partition?
 
-While Btrfs does not allow cross-device hardlinks between different subvolumes in a single partition, it does permit reflinks. As a result, pnpm utilizes reflinks to share data between these subvolumes.
+While Btrfs does not allow cross-device hardlinks between different subvolumes in a single partition, it does permit reflinks. As a result, pnpm uses reflinks to share data between these subvolumes.
 
 ## Does pnpm work across multiple drives or filesystems?
 
@@ -92,7 +92,7 @@ If the store path is not set, then multiple stores are created (one per drive or
 filesystem).
 
 If installation is run on disk `A`, the store will be created on `A`
-`.pnpm-store` under the filesystem root.  If later the installation is run on
+`.pnpm-store` under the filesystem root. If later the installation is run on
 disk `B`, an independent store will be created on `B` at `.pnpm-store`. The
 projects would still maintain the benefits of pnpm, but each drive may have
 redundant packages.

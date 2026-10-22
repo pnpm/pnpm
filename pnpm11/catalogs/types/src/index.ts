@@ -12,7 +12,7 @@ export interface Catalogs {
    *   1. Users can specify a top-level "catalog" field or,
    *   2. An explicitly named "default" catalog under the "catalogs" map.
    *
-   * This field contains either definition. Note that it's an error to define
+   * This field contains either definition. It's an error to define
    * the default catalog using both options. The parser will fail when reading
    * the workspace manifest.
    */

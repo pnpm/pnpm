@@ -402,8 +402,8 @@ function isRegistryShapedTarballResolution (gitHosted: unknown, tarball: unknown
   if (gitHosted != null && (typeof gitHosted !== 'boolean' || gitHosted)) return false
   // A registry resolution reconstructs its tarball URL from name+version, so
   // an absent/empty `tarball` is registry-shaped. When a URL is present it
-  // must be an http(s) registry artifact: the npm verifier's tarball-URL
-  // binding skips non-http(s) schemes (file:, etc.), so a `file:` tarball
+  // must be an HTTP or HTTPS registry artifact: the npm verifier's tarball-URL
+  // binding skips schemes other than HTTP and HTTPS (file:, etc.), so a `file:` tarball
   // under a name@semver key would otherwise be trusted with no safety net.
   if (typeof tarball !== 'string' || tarball === '') return true
   return /^https?:\/\//i.test(tarball) && !isGitHostedTarballUrl(tarball)

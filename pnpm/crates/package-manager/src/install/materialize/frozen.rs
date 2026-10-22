@@ -143,7 +143,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             // Surface a verification failure as the same top-level
             // `LockfileVerification` variant the eager paths use, rather
             // than nesting it under `FrozenLockfile` — the concurrent gate
-            // is the same gate, just run alongside the fetch.
+            // is the same gate, run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
     }

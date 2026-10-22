@@ -324,7 +324,7 @@ impl Registries {
             }
             // Validation guarantees every source is a defined concrete
             // registry; a non-concrete entry here can only mean the graph was
-            // built without validation, and it simply never matches.
+            // built without validation, and it never matches.
             Registry::Router { sources } => sources
                 .iter()
                 .filter_map(|source| self.entries.get_key_value(source))
@@ -454,7 +454,7 @@ impl Registries {
             Registry::Router { sources } => {
                 // A router with no sources can never serve any package —
                 // every request through it is a 404. That's only ever a
-                // config mistake (a hosted/upstream registry was probably
+                // config mistake (a hosted/upstream registry was likely
                 // intended), so reject it.
                 if sources.is_empty() {
                     return Err(RegistryConfigError::EmptyRouter { router: name.to_string() });

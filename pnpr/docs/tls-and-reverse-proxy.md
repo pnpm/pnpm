@@ -18,7 +18,7 @@ Fronting pnpr with a reverse proxy or load balancer provides:
 - **TLS termination**: Automates certificate issuance and renewal via Let's Encrypt or your organization's PKI, and negotiates modern HTTP protocols (HTTP/2 and HTTP/3).
 - **Connection buffering**: Buffers slow client connections and streams large package tarballs and container image layers without exhausting application worker threads.
 - **DDoS and edge protection**: Applies connection limits, request filtering, and web application firewall (WAF) policies before traffic reaches the registry.
-- **Zero-downtime rolling updates**: Cooperates with pnpr's graceful shutdown signals and readiness probes to route traffic seamlessly between instances during restarts or version upgrades.
+- **Zero-downtime rolling updates**: Cooperates with pnpr's graceful shutdown signals and readiness probes to route traffic between instances during restarts or version upgrades.
 
 ## Configuring pnpr for reverse proxies
 

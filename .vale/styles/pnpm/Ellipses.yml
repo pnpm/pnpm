@@ -1,0 +1,8 @@
+extends: existence
+message: "Remove the ellipsis. Finish the sentence or the list."
+link: https://developers.google.com/style/ellipses
+level: error
+nonword: true
+tokens:
+  - '(?<=[A-Za-z])\.\.\.(?=\s|$)'
+  - '…'

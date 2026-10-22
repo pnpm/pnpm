@@ -295,7 +295,7 @@ pub(super) fn packument_bytes_response(
 /// an upper bound on the publish time, and truncating would understate
 /// it by up to 999ms — exactly the window a release-age check guards.
 /// `None` when the document carries no parsable `time.modified`; the
-/// header is simply omitted then.
+/// header is omitted then.
 pub(super) fn packument_last_modified(doc: &Value) -> Option<String> {
     let modified = doc
         .get("time")?

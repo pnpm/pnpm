@@ -190,7 +190,7 @@ fn build_dep_node(
 }
 
 /// `dep_key`'s entry in the `snapshots:` map. A missing entry is an error
-/// unless the dependency is optional, in which case there is simply nothing
+/// unless the dependency is optional, in which case there is nothing
 /// to hoist.
 fn lookup_snapshot<'a>(
     dep_key: &PkgNameVerPeer,
