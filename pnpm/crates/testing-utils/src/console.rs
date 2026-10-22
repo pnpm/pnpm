@@ -50,7 +50,9 @@ impl PrivateConsole {
 
     /// Send `event` to the process group `group` leads, or to the whole
     /// console when `group` is `None`.
-    #[expect(clippy::unused_self, reason = "the event goes to the console this value attached")]
+    ///
+    /// Takes `&self` though it reads nothing from it: the event goes to the
+    /// console this value attached.
     pub fn send(&self, event: ConsoleEvent, group: Option<u32>) {
         let event = match event {
             ConsoleEvent::CtrlC => CTRL_C_EVENT,
