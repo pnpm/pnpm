@@ -3,26 +3,20 @@ use super::{
     aliasless::{AliaslessDependency, resolve_aliasless_specifier},
     manifest::apply_catalog_decision,
     registry::{pick_latest_range, resolve_explicit_registry_spec},
+    workspace_specifier::workspace_save_specifier,
 };
 use crate::{
     CatalogModeDep, decide_catalog_outcome,
     runtime_specifier::{node_runtime_version_spec, runtime_save_specifier},
 };
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{Config, SaveWorkspaceProtocol, Tool};
+use pnpm_config::Tool;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_package_name::is_valid_dependency_alias;
-use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::LogEvent;
 use pnpm_resolving_git_resolver::{HostedGit, HostedOpts};
 use pnpm_resolving_jsr_specifier_parser::{JsrSpec, parse_jsr_specifier};
-use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, calc_specifier_for_workspace_dep, can_drop_workspace_protocol,
-    parse_bare_specifier, pick_matching_local_version_or_null, pick_registry_for_package,
-};
-use pnpm_resolving_resolver_base::WorkspacePackages;
-use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 
 pub(super) struct ResolvedAddedDependency {
@@ -233,6 +227,16 @@ pub(super) async fn bare_save_specifier(
             .unwrap_or_else(|| package_selector.to_string())
             .into());
     }
+    registry_save_specifier(package_name, explicit_spec, prev_specifier, manifest, inputs).await
+}
+/// [`bare_save_specifier`] for a plain registry selector.
+async fn registry_save_specifier(
+    package_name: &str,
+    explicit_spec: Option<&str>,
+    prev_specifier: Option<&str>,
+    manifest: &PackageManifest,
+    inputs: &AddResolveInputs<'_, '_>,
+) -> Result<SaveSpecifier, AddError> {
     match (explicit_spec, prev_specifier) {
         (Some(spec), prev) => Ok(
             match resolve_explicit_registry_spec(package_name, spec, prev, manifest, inputs).await?
@@ -294,114 +298,6 @@ pub(super) async fn resolve_node_runtime_specifier(
         .resolve_save_specifier(version_spec, prev_specifier)
         .await
         .map_err(AddError::ResolveRuntimeSpec)
-}
-/// Index the workspace projects by name and version, or `None` when
-/// there is no workspace or it cannot be enumerated.
-///
-/// A failure to walk the workspace is not this function's problem to
-/// report — the install that follows the manifest write surfaces it with
-/// far more context — so it degrades to "no workspace packages", which
-/// only costs the pinned form its version.
-pub(super) fn workspace_packages_for_add(config: &Config) -> Option<WorkspacePackages> {
-    let workspace_dir = config.workspace_dir.as_ref()?;
-    let manifest = pnpm_workspace::read_workspace_manifest(workspace_dir).ok()??;
-    let projects = pnpm_workspace::find_workspace_projects(
-        workspace_dir,
-        &pnpm_workspace::FindWorkspaceProjectsOpts {
-            patterns: Some(pnpm_workspace::workspace_package_patterns(&manifest)),
-            ignored_directories: config.managed_directories(),
-        },
-    )
-    .ok()?;
-    crate::install::build_workspace_packages_map(Some(&projects))
-}
-/// The `workspace:` specifier to save for `package_name`, or `None`
-/// when this add isn't a workspace dependency.
-///
-/// A relative `workspace:./pkg` is left alone: it names a directory, not
-/// a range, so there is no operator to roll.
-pub(super) fn workspace_save_specifier(
-    package_name: &str,
-    explicit_spec: Option<&str>,
-    prev_specifier: Option<&str>,
-    config: &Config,
-    range_spec_style: RangeSpecStyle,
-    workspace_packages: Option<&WorkspacePackages>,
-) -> Option<String> {
-    let (target_name, resolved_version) = match explicit_spec.and_then(WorkspaceSpec::parse) {
-        Some(spec) => explicit_workspace_target(spec, package_name, workspace_packages)?,
-        None => implicit_workspace_target(package_name, explicit_spec, config, workspace_packages)?,
-    };
-    let workspace_specifier = calc_specifier_for_workspace_dep(
-        DeclaredSpecifiers { prev: prev_specifier, bare: explicit_spec },
-        Some(package_name),
-        &target_name,
-        resolved_version.as_deref(),
-        config.save_workspace_protocol,
-        range_spec_style,
-        false,
-    );
-    if config.save_workspace_protocol == SaveWorkspaceProtocol::Off
-        && !explicit_spec.is_some_and(|specifier| specifier.starts_with("workspace:"))
-        && resolved_version.as_deref().is_none_or(can_drop_workspace_protocol)
-    {
-        return workspace_specifier.strip_prefix("workspace:").map(str::to_string);
-    }
-    Some(workspace_specifier)
-}
-/// The workspace package a `workspace:` specifier names. A path form
-/// (`workspace:./pkg`) names no package here.
-pub(super) fn explicit_workspace_target(
-    spec: WorkspaceSpec,
-    package_name: &str,
-    workspace_packages: Option<&WorkspacePackages>,
-) -> Option<(String, Option<String>)> {
-    if spec.version.starts_with('.') {
-        return None;
-    }
-    let target_name = spec.alias.unwrap_or_else(|| package_name.to_string());
-    let resolved_version = workspace_packages
-        .and_then(|packages| packages.get(&target_name))
-        .and_then(|versions| {
-            let available: Vec<String> = versions.keys().cloned().collect();
-            // Not `spec.version`: the pinned form records the local
-            // package's own version, which wins over the range the
-            // user typed.
-            resolve_workspace_range("*", &available)
-        });
-    Some((target_name, resolved_version))
-}
-/// The workspace package a plain registry request resolves to locally, when
-/// `linkWorkspacePackages` lets it.
-pub(super) fn implicit_workspace_target(
-    package_name: &str,
-    explicit_spec: Option<&str>,
-    config: &Config,
-    workspace_packages: Option<&WorkspacePackages>,
-) -> Option<(String, Option<String>)> {
-    if !config.link_workspace_packages.enabled_at_depth(0) {
-        return None;
-    }
-    if explicit_spec.is_some_and(|specifier| specifier.starts_with("npm:")) {
-        return None;
-    }
-    let registries: std::collections::HashMap<String, String> = config
-        .resolved_registries()
-        .into_iter()
-        .collect();
-    let registry = pick_registry_for_package(&registries, package_name, explicit_spec);
-    let parsed = parse_bare_specifier(
-        explicit_spec.unwrap_or("latest"),
-        Some(package_name),
-        "latest",
-        &registry,
-    )?;
-    if parsed.name != package_name || parsed.normalized_bare_specifier.is_some() {
-        return None;
-    }
-    let versions = workspace_packages?.get(package_name)?;
-    let resolved_version = pick_matching_local_version_or_null(versions, &parsed)?;
-    Some((package_name.to_string(), Some(resolved_version)))
 }
 /// A `pacquet add` argument that spells its package name *inside* a
 /// dependency protocol, so the manifest key cannot be read off the front of

@@ -276,17 +276,26 @@ pub(super) async fn prepare_manifest<Reporter: self::Reporter>(
             )
             .map_err(AddError::AddDependencyToManifest)?;
     }
-    let mut updated_catalogs = Catalogs::new();
-    let mut picked_versions = Vec::new();
-    for dependency in resolved_dependencies.into_iter().chain(types_dependencies) {
-        merge_catalogs(&mut updated_catalogs, &dependency.updated_catalogs);
-        if let Some(version) = dependency.picked_version
-            && dependency.manifest_specifier != version
-        {
-            picked_versions.push(PickedVersion { name: dependency.package_name, version });
+    Ok(PreparedManifest::collect(resolved_dependencies.into_iter().chain(types_dependencies)))
+}
+impl PreparedManifest {
+    /// An exact saved specifier already names the picked version, so it needs
+    /// no seed.
+    fn collect(
+        dependencies: impl IntoIterator<Item = super::specifier::ResolvedAddedDependency>,
+    ) -> Self {
+        let mut updated_catalogs = Catalogs::new();
+        let mut picked_versions = Vec::new();
+        for dependency in dependencies {
+            merge_catalogs(&mut updated_catalogs, &dependency.updated_catalogs);
+            if let Some(version) = dependency.picked_version
+                && dependency.manifest_specifier != version
+            {
+                picked_versions.push(PickedVersion { name: dependency.package_name, version });
+            }
         }
+        Self { updated_catalogs, picked_versions }
     }
-    Ok(PreparedManifest { updated_catalogs, picked_versions })
 }
 async fn resolve_dependencies<'s, Reporter: self::Reporter>(
     manifest: &PackageManifest,
