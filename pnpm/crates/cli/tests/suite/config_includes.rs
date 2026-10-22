@@ -265,7 +265,7 @@ fn a_config_dependency_packed_with_pnpm_pack_keeps_its_config_entry() {
         &workspace,
         "pnpm-workspace.yaml",
         &format!(
-            "configDependencies:\n  '@acme/pnpm-policy':\n    integrity: 1.0.0+{integrity}\n    tarball: {}{tarball_path}\ninclude:\n  '@acme/pnpm-policy': [nodeLinker]\n",
+            "storeDir: ../store\ncacheDir: ../cache\nconfigDependencies:\n  '@acme/pnpm-policy':\n    integrity: 1.0.0+{integrity}\n    tarball: {}{tarball_path}\ninclude:\n  '@acme/pnpm-policy': [nodeLinker]\n",
             server.url(),
         ),
     );

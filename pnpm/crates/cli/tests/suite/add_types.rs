@@ -476,7 +476,7 @@ fn bulk_add_fetches_only_required_metadata_formats() {
                 .with_header("content-type", "application/json")
                 .with_header("etag", METADATA_ETAG)
                 .with_body(packument.to_string())
-                .expect(1 + usize::from(types_package))
+                .expect(1)
                 .create(),
         );
     }
