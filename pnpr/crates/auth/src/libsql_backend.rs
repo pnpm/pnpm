@@ -160,11 +160,6 @@ impl LibsqlAuth {
         max_users: MaxUsers,
         max_connections: u32,
     ) -> Result<Self> {
-        if max_connections == 0 {
-            return Err(RegistryError::InvalidConfig {
-                reason: "backend.libsql.maxConnections must be greater than 0".to_string(),
-            });
-        }
         let pool = ConnectionPool::new(db, max_connections as usize);
         with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&pool.connect()?)).await?;
         Ok(Self {

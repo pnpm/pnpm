@@ -404,6 +404,11 @@ pub(super) fn build_libsql_settings(
         }
         None => None,
     };
+    if file.max_connections == Some(0) {
+        return Err(RegistryError::InvalidConfig {
+            reason: "backend.libsql.maxConnections must be greater than 0".to_string(),
+        });
+    }
     Ok(LibsqlSettings {
         url: file.url,
         auth_token: file.auth_token,
