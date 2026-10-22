@@ -69,7 +69,7 @@ backend:
 
 The trade-off is read freshness: an embedded replica reflects another replica's
 writes (a token issued or revoked elsewhere) only after the next background
-sync, so a lower `syncInterval` means less revocation lag. Omit
+sync, so a lower positive `syncInterval` means less revocation lag. Omit
 `replicaPath` to always read the primary directly.
 
 ## PostgreSQL
@@ -101,8 +101,9 @@ backend:
 | `timeout` | no | Request-path auth database deadline. Defaults to `30s`. |
 | `startupTimeout` | no | Startup connection and schema setup deadline. Defaults to `5m`. |
 
-When the `backend:` block is absent, auth stays on local disk and the
-`auth.htpasswd` / `auth.tokens` settings apply. With a `backend:` block,
+When the `backend:` block is absent, the `auth.htpasswd` / `auth.tokens`
+settings apply. Without `auth.htpasswd.file`, accounts and tokens
+[live in memory](configuration.md#auth). With a `backend:` block,
 `auth.htpasswd.file` and `auth.tokens.file` are ignored, and only the
 `auth.htpasswd.max_users` registration cap is read. Omitted
 `max_users` and `max_users: -1` both disable self-registration; set a
