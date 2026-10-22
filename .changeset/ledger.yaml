@@ -1515,6 +1515,10 @@
   dir: pnpm11/pnpm/artifacts/exe
   intents:
     - shim-helpers-without-default-path
+"@pnpm/exe@11.28.8":
+  dir: pnpm11/pnpm/artifacts/exe
+  intents:
+    - exe-embed-node-26-12-1
 "@pnpm/exec.commands@1100.3.5":
   dir: pnpm11/exec/commands
   intents:
@@ -8488,3 +8492,7 @@ pnpm@11.28.7:
     - verify-deps-missing-project-lockfile
     - version-past-unreadable-config
     - why-shared-workspace-lockfile-false
+pnpm@11.28.8:
+  dir: pnpm11/pnpm
+  intents:
+    - exe-embed-node-26-12-1
