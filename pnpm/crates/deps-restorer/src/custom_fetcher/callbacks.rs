@@ -6,7 +6,7 @@ use crate::{InstallPackageBySnapshotError, install_package_by_snapshot::walk_dir
 use miette::Diagnostic;
 use pnpm_fs::lexical_normalize;
 use pnpm_hooks::{CustomFetcher, FetcherCallback, FetcherMethod};
-use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{FetchErrorDetails, FetchedTarball, IngestTarballToStore};
 use serde_json::Value;
@@ -31,9 +31,19 @@ pub(super) struct Verified {
     pub(super) directories: Vec<WalkedDirectory>,
 }
 
-pub(super) struct WalkedDirectory {
-    pub(super) directory: String,
-    pub(super) files_map: HashMap<String, PathBuf>,
+/// A directory the `fetchers.directory` callback walked, with the install
+/// pass's options.
+pub(crate) struct WalkedDirectory {
+    pub(crate) directory: String,
+    pub(crate) files_map: HashMap<String, PathBuf>,
+    /// See [`crate::SlotImportSource::source_exists`].
+    pub(crate) exists: bool,
+}
+
+impl WalkedDirectory {
+    pub(crate) fn resolution(&self) -> LockfileResolution {
+        LockfileResolution::Directory(DirectoryResolution { directory: self.directory.clone() })
+    }
 }
 
 /// Run the hook's fetch to completion, servicing the native-fetch
@@ -134,16 +144,15 @@ fn walk_callback_directory(
             "ERR_PNPM_TARBALL_INTEGRITY",
         ));
     }
-    let Ok(LockfileResolution::Directory(resolution)) =
-        serde_json::from_value(callback.resolution.clone())
-    else {
+    // Like the TypeScript directory fetcher, read `directory` alone: a hook
+    // often spreads its own resolution, which carries other fields.
+    let Some(relative) = callback.resolution.get("directory").and_then(Value::as_str) else {
         return Err(callback_error(
-            "native directory callback received a resolution that is not a directory",
+            "native directory callback received a resolution without a directory",
             "ERR_PNPM_INVALID_FETCHER_RESOLUTION",
         ));
     };
-    let directory =
-        lexical_normalize(&callback_lockfile_dir(native, callback).join(&resolution.directory));
+    let directory = lexical_normalize(&callback_lockfile_dir(native, callback).join(relative));
     let output = walk_directory(&directory, native.include_only_package_files)
         .map_err(|error| FetchErrorDetails {
             message: error.to_string(),
@@ -160,6 +169,7 @@ fn walk_callback_directory(
     walked.push(WalkedDirectory {
         directory: directory.to_string_lossy().into_owned(),
         files_map: output.files_map,
+        exists: output.exists,
     });
     Ok(result)
 }
