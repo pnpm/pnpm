@@ -382,6 +382,76 @@ fn readd_with_a_new_specifier_keeps_the_picked_version() {
     drop((root, npmrc_info)); // cleanup
 }
 
+/// The `tag` setting names the dist-tag a version-less `add` resolves.
+#[test]
+fn add_without_a_version_resolves_the_configured_tag() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    npmrc_info.set_dist_tag(name, "100.0.0", "dev");
+    append_workspace_setting(&workspace, "tag: dev");
+
+    pacquet_in(&workspace)
+        .with_args(["add", name, "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, name), "^100.0.0");
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn add_without_a_version_resolves_the_tag_from_a_config_override() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    npmrc_info.set_dist_tag(name, "100.0.0", "dev");
+
+    pacquet_in(&workspace)
+        .with_args(["add", name, "--lockfile-only", "--config.tag=dev"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, name), "^100.0.0");
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// An `npm:` alias with no version resolves the `tag` setting too.
+#[test]
+fn install_resolves_a_versionless_npm_alias_to_the_configured_tag() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    npmrc_info.set_dist_tag(name, "100.0.0", "dev");
+    append_workspace_setting(&workspace, "tag: dev");
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "alias": format!("npm:{name}") } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(locked_version(&workspace, "alias"), format!("{name}@100.0.0"));
+    drop((root, npmrc_info)); // cleanup
+}
+
+fn append_workspace_setting(workspace: &std::path::Path, line: &str) {
+    let path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = std::fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str(line);
+    yaml.push('\n');
+    std::fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+}
+
 fn pacquet_in(workspace: &std::path::Path) -> std::process::Command {
     std::process::Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")

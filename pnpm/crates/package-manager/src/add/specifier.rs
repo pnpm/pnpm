@@ -190,7 +190,8 @@ pub(super) fn declared_specifier(manifest: &PackageManifest, package_name: &str)
 ///   `catalog:` reference — naming no version asks for whatever the
 ///   workspace agreed on, which is the entry, not the `latest` range
 ///   it happens to resolve to today;
-/// - any other brand-new dependency fetches and pins the `latest` range.
+/// - any other brand-new dependency fetches and pins the range of the
+///   configured `tag`, `latest` by default.
 pub(super) async fn bare_save_specifier(
     package_selector: &str,
     selector: &AddSelector,
@@ -238,23 +239,43 @@ async fn registry_save_specifier(
     inputs: &AddResolveInputs<'_, '_>,
 ) -> Result<SaveSpecifier, AddError> {
     match (explicit_spec, prev_specifier) {
-        (Some(spec), prev) => Ok(
-            match resolve_explicit_registry_spec(package_name, spec, prev, manifest, inputs).await?
-            {
-                Some(picked) => {
-                    SaveSpecifier { specifier: picked.range, picked_version: Some(picked.version) }
-                }
-                None => normalized_save_specifier(spec).into(),
-            },
-        ),
+        (Some(spec), prev) => {
+            explicit_registry_save_specifier(package_name, spec, prev, manifest, inputs).await
+        }
         (None, Some(prev)) => Ok(prev.to_string().into()),
         (None, None) => match cataloged_specifier(package_name, inputs) {
             Some(specifier) => Ok(specifier.into()),
-            None => {
-                pick_latest_range(package_name, manifest, inputs).await.map(SaveSpecifier::from)
-            }
+            None => match inputs.add.config.default_tag() {
+                // The default tag keeps the shared picker every plain add uses.
+                "latest" => {
+                    pick_latest_range(package_name, manifest, inputs).await.map(SaveSpecifier::from)
+                }
+                tag => {
+                    explicit_registry_save_specifier(package_name, tag, None, manifest, inputs)
+                        .await
+                }
+            },
         },
     }
+}
+/// [`registry_save_specifier`] for a registry selector that names `spec`.
+async fn explicit_registry_save_specifier(
+    package_name: &str,
+    spec: &str,
+    prev_specifier: Option<&str>,
+    manifest: &PackageManifest,
+    inputs: &AddResolveInputs<'_, '_>,
+) -> Result<SaveSpecifier, AddError> {
+    Ok(
+        match resolve_explicit_registry_spec(package_name, spec, prev_specifier, manifest, inputs)
+            .await?
+        {
+            Some(picked) => {
+                SaveSpecifier { specifier: picked.range, picked_version: Some(picked.version) }
+            }
+            None => normalized_save_specifier(spec).into(),
+        },
+    )
 }
 /// What [`bare_save_specifier`] records, and the version it resolved an
 /// explicit registry specifier to.
@@ -383,7 +404,8 @@ pub(super) async fn resolve_jsr_save_specifier(
 ) -> Result<Option<String>, AddError> {
     let inputs =
         AddResolveInputs { add: super::AddOptions { save_types: false, ..inputs.add }, ..*inputs };
-    let version_selector = spec.version_selector.as_deref().unwrap_or("latest");
+    let version_selector =
+        spec.version_selector.as_deref().unwrap_or_else(|| inputs.add.config.default_tag());
     let range = resolve_explicit_registry_spec(
         &spec.npm_pkg_name,
         version_selector,

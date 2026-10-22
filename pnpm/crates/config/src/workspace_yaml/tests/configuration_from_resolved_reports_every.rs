@@ -33,6 +33,7 @@ fn from_resolved_reports_every_setting() {
         save_prefix: Some("~".to_string()),
         tag_version_prefix: "release-".to_string(),
         save_catalog_name: Some("default".to_string()),
+        tag: Some("next".to_string()),
         pipeline_base: Some("origin/main".to_string()),
         remote_cache: Some(Box::default()),
         init_author_name: Some("Example".to_string()),

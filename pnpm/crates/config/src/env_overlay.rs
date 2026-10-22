@@ -415,6 +415,7 @@ impl WorkspaceSettings {
         enum_field!(settings, reader, resolution_mode, "RESOLUTION_MODE", ResolutionMode);
         enum_field!(settings, reader, catalog_mode, "CATALOG_MODE", CatalogMode);
         string_field!(settings, reader, save_catalog_name, "SAVE_CATALOG_NAME");
+        string_field!(settings, reader, tag, "TAG");
         if let Some(save_prefix) = reader.value_allow_empty("SAVE_PREFIX") {
             settings.save_prefix = Some(save_prefix);
         }

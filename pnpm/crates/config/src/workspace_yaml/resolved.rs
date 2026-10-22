@@ -185,6 +185,7 @@ impl WorkspaceSettings {
             pm_on_fail: config.pm_on_fail,
             versioning: Some(config.versioning.clone()),
             save_catalog_name: config.save_catalog_name.clone(),
+            tag: config.tag.clone(),
             save_prefix: config.save_prefix.clone(),
             tag_version_prefix: Some(config.tag_version_prefix.clone()),
             pipeline_base: config.pipeline_base.clone(),
