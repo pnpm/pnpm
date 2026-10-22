@@ -1,5 +1,11 @@
 # @pnpm/modules-cleaner
 
+## 1001.0.40
+
+### Patch Changes
+
+- debbb4c: When pnpm removes or replaces a direct dependency, it now finishes removing the dependency's bins before it deletes the dependency's directory. Packages that declare bins through `directories.bin` no longer leave broken shims in `node_modules/.bin` [#16876](https://github.com/pnpm/pnpm/issues/16876).
+
 ## 1001.0.39
 
 ### Patch Changes
