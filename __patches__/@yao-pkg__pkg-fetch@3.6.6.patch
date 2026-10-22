@@ -1,0 +1,30 @@
+diff --git a/lib-es5/expected-shas.json b/lib-es5/expected-shas.json
+index 427487674261c6b0cd99040f90a7a551786eec43..fe6ee7b272c766311e552aea312bc7c9c28a8d54 100644
+--- a/lib-es5/expected-shas.json
++++ b/lib-es5/expected-shas.json
+@@ -64,6 +64,14 @@
+     "node-v24.20.0-macos-x64": "fa08239efc0276351d153f10dea554ff3ef6317bb68e8077af098af73980d496",
+     "node-v24.20.0-win-arm64": "5f42c51b2c8fd641f89196fab33ce3f5d7470192973b9c141336877d40388c66",
+     "node-v24.20.0-win-x64": "a71b32eeff62d1fbddcd7ee63e9898580fe2e1d749db6734c3a6314b43890ed1",
++    "node-v24.22.1-linux-arm64": "916852a4ee1a7403da8213a439adcb34ade6e0fb82a5225d2b7959b7bcfb9511",
++    "node-v24.22.1-linux-x64": "c0a4715edd09277f0e66c780dc16eb40be7c14e823e074e0218dd6c27fdac4c3",
++    "node-v24.22.1-linuxstatic-arm64": "f581e7e51b16d9bb1b421065f0dae61d0634db9b200629746f1ea4a3fcd96d48",
++    "node-v24.22.1-linuxstatic-x64": "6abbc01b38ac5f39f368b9b6d6e11d6937d357666895d70c3304088c77e2d92c",
++    "node-v24.22.1-macos-arm64": "4059ddff5148bc567d3893e29328a08800bb3adf6b6d1ebb3fbaba768425d5dd",
++    "node-v24.22.1-macos-x64": "b609a23dfecc192cc59d77e8f46ec000fef4af7e039061c4e9b262be0acffaa1",
++    "node-v24.22.1-win-arm64": "6eb9a69e26d980fc1f6a36bb589632da151d5856e245bd55d7eb00f31f6799d1",
++    "node-v24.22.1-win-x64": "82b8ca1e6d6925ba08520c45c98d2599ee0e5bbc3c1d7c494f3caec0eaed2cd8",
+     "node-v26.8.1-alpine-arm64": "0d33bb1567a76753ce14b84de993fe6fb4d3e1c8cda5ed24f54cdb3141c2f3fb",
+     "node-v26.8.1-alpine-x64": "8601168eca52d162d31f8685f4a1a16bb67f7070c6cba93e910c36fa16636c8c",
+     "node-v26.8.1-linux-arm64": "e1096940746d1927ae4f2da767cffd6c731f0e5257abff190cf6453b771fb2f8",
+diff --git a/patches/patches.json b/patches/patches.json
+index cc13a7553af2eda7528714680ed797bea6c1415c..a5081729c14d63b02425837cac7bec52cb1d60f7 100644
+--- a/patches/patches.json
++++ b/patches/patches.json
+@@ -1,5 +1,6 @@
+ {
+   "v26.8.1": ["node.v26.8.1.cpp.patch"],
++  "v24.22.1": ["node.v24.22.1.cpp.patch"],
+   "v24.20.0": ["node.v24.20.0.cpp.patch"],
+   "v22.23.2": ["node.v22.23.2.cpp.patch"],
+   "v20.20.2": ["node.v20.20.2.cpp.patch"],

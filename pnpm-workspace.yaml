@@ -451,6 +451,7 @@ packageExtensions:
 
 patchedDependencies:
   '@yao-pkg/pkg': __patches__/pkg.patch
+  '@yao-pkg/pkg-fetch@3.6.6': __patches__/@yao-pkg__pkg-fetch@3.6.6.patch
   graceful-fs@4.2.11: __patches__/graceful-fs@4.2.11.patch
   mdast-util-to-string@2.0.0: __patches__/mdast-util-to-string@2.0.0.patch
   normalize-package-data@7.0.1: __patches__/normalize-package-data@7.0.1.patch
