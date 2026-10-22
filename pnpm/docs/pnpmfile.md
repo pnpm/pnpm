@@ -411,9 +411,10 @@ Fetches package files and returns metadata about the fetched package.
 - `fetchers` - Object containing pnpm's standard fetchers for delegation:
   - `remoteTarball` - Fetcher for remote tarballs
   - `localTarball` - Fetcher for local tarballs
-  - `gitHostedTarball` - Fetcher for GitHub/GitLab/Bitbucket tarballs
-  - `directory` - Fetcher for local directories
-  - `git` - Fetcher for git repositories
+  - `gitHostedTarball` - Fetcher for GitHub/GitLab/Bitbucket tarballs. Not available yet in pnpm 12.
+  - `directory` - Fetcher for local directories. It rejects with `ERR_PNPM_TARBALL_INTEGRITY` if the lockfile pins an archive integrity for the package.
+  - `git` - Fetcher for git repositories. Not available yet in pnpm 12.
+  - `binary` - Fetcher for runtime archives, such as Node.js. Not available yet in pnpm 12.
 
 **Returns:** either a fetch result, or a [delegation envelope](#delegating-to-the-built-in-fetchers).
 
@@ -449,7 +450,7 @@ The delegated resolution must be a complete, fetchable shape (for example `{ tar
 
 :::tip Prefer the envelope for portability
 
-The `{ delegate }` envelope is the only delegation form that works in every pnpm version. From [pnpm 12](/blog/releases/12.0), `cafs` and `fetchers` arrive as `null`, so a fetcher that should run on pnpm 11 and 12 must return the envelope rather than calling `fetchers.*`.
+The `{ delegate }` envelope works for every resolution in every pnpm version. In [pnpm 12](/blog/releases/12.0), `cafs` is a handle to pass to the built-in fetchers, with the store's `storeDir` and a `tempDir()` method. `fetchers` provides `localTarball`, `remoteTarball`, and `directory`. A fetcher that calls `fetchers.gitHostedTarball`, `fetchers.git`, or `fetchers.binary` must return the envelope on pnpm 12.
 
 :::
 

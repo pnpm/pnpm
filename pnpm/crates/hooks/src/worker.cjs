@@ -147,6 +147,8 @@ async function handle(req) {
             callBuiltin('localTarball', handle, resolution, options),
           remoteTarball: (handle, resolution, options) =>
             callBuiltin('remoteTarball', handle, resolution, options),
+          directory: (handle, resolution, options) =>
+            callBuiltin('directory', handle, resolution, options),
         });
       }
       const res = await fetcher[req.method](...args);

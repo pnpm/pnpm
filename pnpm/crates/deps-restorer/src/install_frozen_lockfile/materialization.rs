@@ -132,7 +132,8 @@ impl<'a> InstallFrozenLockfile<'a> {
             let progress_reported = SharedReportedProgressKeys::default();
 
             let custom_fetcher_session =
-                load_custom_fetcher_session(install.drivers.pnpmfile_hook).await?;
+                load_custom_fetcher_session(install.drivers.pnpmfile_hook, install.drivers.config)
+                    .await?;
             // Timed from here: a pnpmfile's fetcher setup is hook work, not
             // materialization, and the integrated benchmark reads this phase.
             let phase_start = std::time::Instant::now();
