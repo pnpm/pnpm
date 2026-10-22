@@ -13,7 +13,7 @@ pub use create::{
 };
 pub use replace::{
     CannotResolveReason, CannotResolveWorkspaceProtocolError, ReplaceWorkspaceProtocolError,
-    WorkspacePackageManifest, replace_workspace_protocol,
+    WorkspacePackageManifest, WorkspacePackageManifests, replace_workspace_protocol,
     replace_workspace_protocol_peer_dependency,
 };
 pub use transform::TransformError;

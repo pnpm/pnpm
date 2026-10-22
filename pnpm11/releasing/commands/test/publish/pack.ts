@@ -5,6 +5,7 @@ import path from 'node:path'
 import { beforeAll, describe, expect, jest, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { pack } from '@pnpm/releasing.commands'
+import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import chalk from 'chalk'
 import * as tar from 'tar'
@@ -1838,3 +1839,95 @@ test('pack: preserves internal symlinks in package tarball and excludes external
   }
 })
 
+
+describe('pack: workspace dependencies on packages that publish through a named-registry prefix', () => {
+  const WORK_REGISTRY = 'https://npm.work.example.com/'
+  const OTHER_REGISTRY = 'https://npm.other.example.com/'
+
+  /**
+   * Siblings reaching WORK_REGISTRY by every route `pnpm publish` honors (the
+   * `@work` scope, `publishConfig.registry`, `publishConfig["@other:registry"]`),
+   * `pkg-c` publishing to the default registry, `pkg-f` publishing the manifest
+   * of its `dist` directory, which names another registry, and `pkg-main`
+   * depending on them with every `workspace:` form. Returns the workspace dir.
+   */
+  function prepareWorkspace (): string {
+    preparePackages([
+      { location: 'a', package: { name: '@work/a', version: '1.0.0' } },
+      { name: 'pkg-b', version: '2.0.0', publishConfig: { registry: WORK_REGISTRY } },
+      { name: 'pkg-c', version: '3.0.0' },
+      { location: 'd', package: { name: '@other/d', version: '4.0.0', publishConfig: { '@other:registry': WORK_REGISTRY } } },
+      { name: 'pkg-e', version: '5.0.0', publishConfig: { registry: WORK_REGISTRY } },
+      { name: 'pkg-f', version: '6.0.0', publishConfig: { registry: WORK_REGISTRY, directory: 'dist' } },
+      {
+        name: 'pkg-main',
+        version: '0.1.0',
+        dependencies: {
+          '@work/a': 'workspace:*',
+          'pkg-b': 'workspace:^',
+          'alias-b': 'workspace:pkg-b@~',
+          'pkg-c': 'workspace:*',
+          'pkg-f': 'workspace:*',
+        },
+        devDependencies: { '@other/d': 'workspace:~' },
+        optionalDependencies: { 'pkg-e': 'catalog:' },
+        peerDependencies: { '@work/a': 'workspace:^' },
+      },
+    ])
+    const workspaceDir = process.cwd()
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['*'] })
+    fs.mkdirSync('pkg-f/dist')
+    fs.writeFileSync('pkg-f/dist/package.json', JSON.stringify({
+      name: 'pkg-f',
+      version: '6.0.0',
+      publishConfig: { registry: OTHER_REGISTRY },
+    }), 'utf8')
+    return workspaceDir
+  }
+
+  async function packMain (workspaceDir: string, registriesByPrefix?: Record<string, string>): Promise<ProjectManifest> {
+    await pack.handler({
+      ...DEFAULT_OPTS,
+      argv: { original: [] },
+      dir: path.join(workspaceDir, 'pkg-main'),
+      workspaceDir,
+      extraBinPaths: [],
+      registriesByScope: { default: 'https://registry.npmjs.org/', '@work': WORK_REGISTRY },
+      registriesByPrefix,
+      catalogs: { default: { 'pkg-e': 'workspace:5.0.0' } },
+      packDestination: workspaceDir,
+    })
+    await tar.x({ file: path.join(workspaceDir, 'pkg-main-0.1.0.tgz'), cwd: workspaceDir })
+    return JSON.parse(fs.readFileSync(path.join(workspaceDir, 'package/package.json'), 'utf8'))
+  }
+
+  test('carries the prefix declared for the registry the target publishes to', async () => {
+    const manifest = await packMain(prepareWorkspace(), { work: 'https://NPM.Work.Example.com' })
+
+    expect(manifest.dependencies).toStrictEqual({
+      '@work/a': 'work:1.0.0',
+      'pkg-b': 'work:^2.0.0',
+      'alias-b': 'work:pkg-b@~2.0.0',
+      'pkg-c': '3.0.0',
+      'pkg-f': '6.0.0',
+    })
+    expect(manifest.devDependencies).toStrictEqual({ '@other/d': 'work:~4.0.0' })
+    expect(manifest.optionalDependencies).toStrictEqual({ 'pkg-e': 'work:5.0.0' })
+    expect(manifest.peerDependencies).toStrictEqual({ '@work/a': '^1.0.0' })
+  })
+
+  test('stays plain when no prefix is declared for the registry', async () => {
+    const manifest = await packMain(prepareWorkspace())
+
+    expect(manifest.dependencies).toStrictEqual({
+      '@work/a': '1.0.0',
+      'pkg-b': '^2.0.0',
+      'alias-b': 'npm:pkg-b@~2.0.0',
+      'pkg-c': '3.0.0',
+      'pkg-f': '6.0.0',
+    })
+    expect(manifest.devDependencies).toStrictEqual({ '@other/d': '~4.0.0' })
+    expect(manifest.optionalDependencies).toStrictEqual({ 'pkg-e': '5.0.0' })
+    expect(manifest.peerDependencies).toStrictEqual({ '@work/a': '^1.0.0' })
+  })
+})

@@ -21,7 +21,7 @@
 
 use crate::{
     replace::{
-        ReplaceWorkspaceProtocolError, WorkspacePackageManifest, replace_workspace_protocol,
+        ReplaceWorkspaceProtocolError, WorkspacePackageManifests, replace_workspace_protocol,
         replace_workspace_protocol_peer_dependency,
     },
     transform::{TransformError, transform},
@@ -37,7 +37,6 @@ use pnpm_package_manifest::{ReadmeKind, decode_readme, is_preferred_readme, read
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use serde_json::{Map, Value};
 use std::{
-    collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -97,8 +96,10 @@ pub struct CreateExportableManifestOptions<'a> {
     /// when one is present and the manifest doesn't already declare
     /// `readme`.
     pub embed_readme: bool,
-    /// Workspace packages lookup used when a dependency is not in `node_modules`.
-    pub workspace_packages: Option<&'a HashMap<String, WorkspacePackageManifest>>,
+    /// Workspace packages by name: the version of a `workspace:` dependency
+    /// that is not installed in `node_modules`, and the registry prefix the
+    /// rewritten specifier carries.
+    pub workspace_packages: Option<&'a WorkspacePackageManifests>,
 }
 
 /// Failures from [`create_exportable_manifest`].

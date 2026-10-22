@@ -6,13 +6,12 @@ use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host as PackHost, PackOptions, PackedArchives, WorkspacePackageManifest, pack_archives,
+    Host as PackHost, PackOptions, PackedArchives, WorkspacePackageManifests, pack_archives,
 };
 use pnpm_publish::{PackedVariant, StagedReference, VariantArchive};
 use pnpm_reporter::Reporter;
 use serde_json::Value;
 use std::{
-    collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -112,7 +111,7 @@ fn read_tarball(path: &str) -> miette::Result<Vec<u8>> {
 }
 
 /// The workspace's packages by name, shared across a recursive publish.
-pub(super) type WorkspacePackages = Arc<HashMap<String, WorkspacePackageManifest>>;
+pub(super) type WorkspacePackages = Arc<WorkspacePackageManifests>;
 
 impl PublishArgs {
     /// Pack the project into `pack_destination` for publishing (never a dry

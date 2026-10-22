@@ -795,3 +795,110 @@ test('the missing version hint uses the workspace package name for an alias', as
     hint: 'Add a "version" field to the package.json of "pkg-b".',
   })
 })
+
+/** Workspace projects publishing through the `work` prefix. */
+const PREFIXED_WORKSPACE_PACKAGES = [
+  { manifest: { name: 'dep-a', version: '1.2.3' }, rootDir: '/root/a', registryPrefix: 'work' },
+  { manifest: { name: 'dep-b', version: '2.3.4' }, rootDir: '/root/b', registryPrefix: 'work' },
+]
+
+/** Two projects of one name, each publishing through its own registry. */
+const TWO_VERSIONS_OF_DUP = [
+  { manifest: { name: 'dup', version: '1.0.0' }, rootDir: '/root/dup-1', registryPrefix: 'old' },
+  { manifest: { name: 'dup', version: '2.0.0' }, rootDir: '/root/dup-2', registryPrefix: 'work' },
+]
+
+test('a workspace dependency carries the registry prefix of its target', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-main',
+    version: '1.0.0',
+    dependencies: {
+      'dep-a': 'workspace:*',
+      'caret-a': 'workspace:dep-a@^',
+      'tilde-a': 'workspace:dep-a@~',
+      'exact-a': 'workspace:dep-a@1.2.3',
+      'dep-b': 'workspace:2.3.4',
+      'range-b': 'workspace:dep-b@^2.0.0',
+    },
+    optionalDependencies: {
+      'optional-a': 'catalog:',
+    },
+    peerDependencies: {
+      'dep-a': 'workspace:^',
+      'dep-b': '^1.0.0 || workspace:~',
+    },
+  }, {
+    catalogs: { default: { 'optional-a': 'workspace:dep-a@^' } },
+    workspacePackages: PREFIXED_WORKSPACE_PACKAGES,
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    'dep-a': 'work:1.2.3',
+    'caret-a': 'work:dep-a@^1.2.3',
+    'tilde-a': 'work:dep-a@~1.2.3',
+    'exact-a': 'work:dep-a@1.2.3',
+    'dep-b': 'work:2.3.4',
+    'range-b': 'work:dep-b@^2.0.0',
+  })
+  expect(exported.optionalDependencies).toStrictEqual({
+    'optional-a': 'work:dep-a@^1.2.3',
+  })
+  // A peer range is matched with semver by the consumer, which a prefix is no part of.
+  expect(exported.peerDependencies).toStrictEqual({
+    'dep-a': '^1.2.3',
+    'dep-b': '^1.0.0 || ~2.3.4',
+  })
+})
+
+test('an installed workspace dependency carries the prefix of the project at its version', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-prefixed-dep-'))
+  const depDir = path.join(projectDir, 'node_modules', 'dup')
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({ name: 'dup', version: '2.0.0' }))
+
+  const exported = await createExportableManifest(projectDir, {
+    name: 'pkg-main',
+    version: '1.0.0',
+    dependencies: { dup: 'workspace:^' },
+  }, {
+    catalogs: {},
+    workspacePackages: TWO_VERSIONS_OF_DUP,
+  })
+
+  expect(exported.dependencies).toStrictEqual({ dup: 'work:^2.0.0' })
+})
+
+test('an explicit version takes the prefix of the project at that version', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-main',
+    version: '1.0.0',
+    dependencies: {
+      dup: 'workspace:1.0.0',
+      'dup-two': 'workspace:dup@2.0.0',
+      // A range names neither project, so no registry is guessed.
+      'dup-range': 'workspace:dup@^1.0.0',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: TWO_VERSIONS_OF_DUP,
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    dup: 'old:1.0.0',
+    'dup-two': 'work:dup@2.0.0',
+    'dup-range': 'npm:dup@^1.0.0',
+  })
+})
+
+test('an uninstalled workspace dependency falls back on the first project with a version', async () => {
+  const exported = await createExportableManifest('/nonexistent-project-dir', {
+    name: 'pkg-main',
+    version: '1.0.0',
+    dependencies: { dup: 'workspace:*' },
+  }, {
+    catalogs: {},
+    workspacePackages: TWO_VERSIONS_OF_DUP,
+  })
+
+  expect(exported.dependencies).toStrictEqual({ dup: 'old:1.0.0' })
+})
