@@ -144,7 +144,7 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
             "name": "compatible-root",
             "version": "1.0.0",
             "devEngines": {
-                "runtime": { "name": "node", "version": ">=1.0.0" },
+                "runtime": { "name": "node", "version": "1.0.0" },
             },
         })
         .to_string(),
@@ -158,7 +158,7 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
             "version": "1.0.0",
             "engines": { "node": node_version },
             "devEngines": {
-                "runtime": { "name": "node", "version": ">=1.0.0" },
+                "runtime": { "name": "node", "version": "1.0.0" },
             },
         })
         .to_string(),
