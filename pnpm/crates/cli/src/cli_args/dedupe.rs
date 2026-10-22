@@ -83,7 +83,6 @@ impl DedupeArgs {
             base_install.lockfile_policy.prefer_frozen = Some(false);
             base_install.lockfile_policy.excludes =
                 if self.check { PolicyExcludes::Skip } else { PolicyExcludes::Persist };
-            base_install.execution.skip_runtimes = false;
             base_install.execution.lockfile_only = self.lockfile_only || self.check;
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;

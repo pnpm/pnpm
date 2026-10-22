@@ -508,8 +508,8 @@ pub struct Config {
     /// `deno@runtime:`, `bun@runtime:`) are skipped at install
     /// time — their archives aren't fetched, their slots aren't
     /// materialized, and their bins aren't linked. The rest of
-    /// the install proceeds normally. The `skipRuntimes` option,
-    /// exposed via the `--no-runtime` CLI flag.
+    /// the install proceeds normally. Set by `runtime: false` and the
+    /// `--no-runtime` CLI flag.
     ///
     /// Defaults to `false`. CI scenarios that
     /// pre-provision the runtime (or want to install one runtime

@@ -147,6 +147,7 @@ impl WorkspaceSettings {
             engine_strict: Some(config.engine_strict),
             force_ignores_platform: Some(config.force_ignores_platform),
             node_version: config.node_version.clone(),
+            runtime: Some(!config.skip_runtimes),
             runtime_on_fail: config.runtime_on_fail,
             node_download_mirrors: Some(config.node_download_mirrors.clone()),
             scripts_prepend_node_path: Some(config.scripts_prepend_node_path),

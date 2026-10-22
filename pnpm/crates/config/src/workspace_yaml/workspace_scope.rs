@@ -106,6 +106,7 @@ impl WorkspaceSettings {
         self.merge_git_branch_lockfiles_branch_pattern = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
+        self.runtime = None;
     }
 
     pub(super) fn clear_workspace_resolution_fields(&mut self) {

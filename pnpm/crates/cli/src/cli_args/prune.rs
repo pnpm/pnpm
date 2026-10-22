@@ -65,7 +65,6 @@ impl PruneArgs {
             let mut base_install = state.install(dependency_groups);
             base_install.lockfile_policy.trust = state.config.trust_lockfile;
             base_install.lockfile_policy.disable_optimistic_repeat = true;
-            base_install.execution.skip_runtimes = false;
             base_install.context.lockfile_path = Some(&lockfile_path);
             base_install
         }
