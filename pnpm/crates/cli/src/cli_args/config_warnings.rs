@@ -59,7 +59,8 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     if config.registry_options_by_url.is_empty() {
         return None;
     }
-    let configured: BTreeSet<&str> = config.registries_by_scope
+    let registries_by_scope = config.resolved_registries();
+    let configured: BTreeSet<&str> = registries_by_scope
         .values()
         .chain(config.registries_by_prefix.values())
         .map(String::as_str)
