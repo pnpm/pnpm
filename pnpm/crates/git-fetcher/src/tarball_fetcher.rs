@@ -112,6 +112,7 @@ impl GitHostedTarballFetcher<'_> {
                     self.store.index_writer,
                     &key,
                     synthesize_files_index(&self.cas_paths)?,
+                    &self.cas_paths,
                     prepared.should_be_built,
                 );
             }
@@ -141,6 +142,7 @@ impl GitHostedTarballFetcher<'_> {
             self.store.index_writer,
             &files_index_file,
             files_index,
+            &cas_paths,
             prepared.should_be_built,
         );
 

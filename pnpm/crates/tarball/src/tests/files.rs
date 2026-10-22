@@ -303,6 +303,59 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
     drop(store_dir);
 }
 
+/// Rows written before [pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224)
+/// stored whether `prepare` was needed in `requiresBuild`.
+#[tokio::test]
+async fn prefetch_cas_paths_derives_requires_build_of_git_rows_without_a_manifest() {
+    async fn prefetched_requires_build(
+        bundled_manifest: Option<serde_json::Value>,
+    ) -> Option<bool> {
+        let (store_dir, store_path) = tempdir_with_leaked_path();
+        let package_json = br#"{"name":"fake","scripts":{"install":"node build.js"}}"#;
+        let (_, hash) = store_path.write_cas_file(package_json, false).unwrap();
+        let files = HashMap::from([(
+            "package.json".to_string(),
+            CafsFileInfo {
+                digest: format!("{hash:x}"),
+                mode: 0o644,
+                size: package_json.len() as u64,
+                checked_at: None,
+            },
+        )]);
+        let index_key = "git+file:///tmp/repo.git#abc123\tbuilt".to_string();
+        let entry = PackageFilesIndex {
+            manifest: bundled_manifest,
+            requires_build: Some(false),
+            requires_prepare: Some(false),
+            algo: "sha512".to_string(),
+            files,
+            side_effects: None,
+            remote_side_effects_quarantine: None,
+            tar_integrity: None,
+        };
+        StoreIndex::open_in(store_path)
+            .unwrap()
+            .set(&index_key, &entry)
+            .unwrap();
+        let prefetched = prefetch_cas_paths(
+            StoreIndex::shared_readonly_in(store_path),
+            store_path,
+            vec![index_key.clone()],
+            PrefetchIntegrityCheck::Eager,
+            SharedVerifiedFilesCache::default(),
+        )
+        .await;
+        drop(store_dir);
+        prefetched.requires_build.get(&index_key).copied()
+    }
+
+    assert_eq!(prefetched_requires_build(None).await, Some(true));
+    assert_eq!(
+        prefetched_requires_build(Some(serde_json::json!({ "name": "fake" }))).await,
+        Some(false),
+    );
+}
+
 #[tokio::test]
 async fn prefetch_cas_paths_rereads_gypfile_for_rows_that_predate_it() {
     async fn prefetched_requires_build(package_json: &[u8]) -> Option<bool> {

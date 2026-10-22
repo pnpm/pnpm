@@ -159,6 +159,7 @@ fn cached_row(
     }
 
     let stored_requires_build = entry.requires_build;
+    let stored_requires_prepare = entry.requires_prepare;
     let manifest = entry.manifest.take();
     let verify_result = if verify_store_integrity {
         pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
@@ -182,6 +183,7 @@ fn cached_row(
     }
     let requires_build = super::resolve_row_requires_build(
         stored_requires_build,
+        stored_requires_prepare,
         manifest.as_ref(),
         &verify_result.files_map,
     );

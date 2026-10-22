@@ -165,7 +165,7 @@ fn type_git_dependency_reuses_side_effects_on_warm_install() {
     let repo = GitRepoFixture::init(root.path(), "git-side-effects");
     let lifecycle_log = root.path().join("git-side-effects-builds.log");
     let script = format!(
-        r"require('fs').appendFileSync({}, 'built\n')",
+        r"const fs = require('fs'); fs.appendFileSync({}, 'built\n'); fs.writeFileSync('built.txt', '')",
         serde_json::to_string(&lifecycle_log).expect("serialize lifecycle log path"),
     );
     repo.write_file(
@@ -199,6 +199,10 @@ fn type_git_dependency_reuses_side_effects_on_warm_install() {
         fs::read_to_string(&lifecycle_log).expect("read warm-install lifecycle log"),
         builds_after_cold_install,
         "the warm install must materialize cached side effects without rerunning postinstall",
+    );
+    assert!(
+        workspace.join("node_modules/git-side-effects/built.txt").exists(),
+        "the warm install did not restore the cached build output",
     );
 
     drop((root, npmrc_info));
