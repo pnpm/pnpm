@@ -20,8 +20,8 @@ use super::{
 pub struct AllowBuildPolicy {
     expanded_allowed: HashSet<String>,
     expanded_disallowed: HashSet<String>,
-    allowed_dep_paths: HashSet<String>,
-    disallowed_dep_paths: HashSet<String>,
+    name_patterns: NamePatternPolicies,
+    dep_paths: DepPathPolicies,
     allowed_git_repos: HashSet<String>,
     disallowed_git_repos: HashSet<String>,
     dangerously_allow_all: bool,
@@ -42,8 +42,8 @@ impl AllowBuildPolicy {
         Self {
             expanded_allowed,
             expanded_disallowed,
-            allowed_dep_paths: HashSet::new(),
-            disallowed_dep_paths: HashSet::new(),
+            name_patterns: NamePatternPolicies::default(),
+            dep_paths: DepPathPolicies::default(),
             allowed_git_repos: HashSet::new(),
             disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
@@ -62,8 +62,11 @@ impl AllowBuildPolicy {
         Self {
             expanded_allowed,
             expanded_disallowed,
-            allowed_dep_paths,
-            disallowed_dep_paths,
+            name_patterns: NamePatternPolicies::default(),
+            dep_paths: DepPathPolicies {
+                allowed: allowed_dep_paths,
+                disallowed: disallowed_dep_paths,
+            },
             allowed_git_repos: HashSet::new(),
             disallowed_git_repos: HashSet::new(),
             dangerously_allow_all,
@@ -97,14 +100,27 @@ impl AllowBuildPolicy {
             let keys = if value { &mut allowed } else { &mut disallowed };
             keys.add(spec);
         }
-        Ok(Self::new_with_dep_paths(
-            expand_package_version_specs(allowed.specs)?,
-            expand_package_version_specs(disallowed.specs)?,
+        let patterns = NamePatternPolicies::from_specs(&allowed.specs, &disallowed.specs)?;
+        let mut policy = Self::new_with_dep_paths(
+            expand_package_version_specs(
+                allowed.specs
+                    .iter()
+                    .copied()
+                    .filter(|spec| !spec.contains('*')),
+            )?,
+            expand_package_version_specs(
+                disallowed.specs
+                    .iter()
+                    .copied()
+                    .filter(|spec| !spec.contains('*')),
+            )?,
             allowed.dep_paths,
             disallowed.dep_paths,
             dangerously_allow_all,
         )
-        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos))
+        .with_git_repo_rules(allowed.git_repos, disallowed.git_repos);
+        policy.name_patterns = patterns;
+        Ok(policy)
     }
 
     /// Add the `sideEffectsCache.exclude` rules [`Self::caches_build`]
@@ -176,7 +192,7 @@ impl AllowBuildPolicy {
         if self.dangerously_allow_all {
             return Some(true);
         }
-        if self.allowed_dep_paths.contains(&normalized_dep_path)
+        if self.dep_paths.allowed.contains(&normalized_dep_path)
             || git_repo_key.is_some_and(|key| self.allowed_git_repos.contains(key))
         {
             return Some(true);
@@ -189,7 +205,11 @@ impl AllowBuildPolicy {
         if node_semver::Version::parse(&version).is_err() {
             return None;
         }
-        if self.expanded_allowed.contains(&name) || self.expanded_allowed.contains(&name_at_version)
+        if self.expanded_allowed.contains(&name)
+            || self.expanded_allowed.contains(&name_at_version)
+            || self.name_patterns.allowed
+                .as_ref()
+                .is_some_and(|patterns| patterns.covers_every_version(&name))
         {
             return Some(true);
         }
@@ -198,9 +218,10 @@ impl AllowBuildPolicy {
     }
 
     fn has_denials(&self) -> bool {
-        !(self.disallowed_dep_paths.is_empty()
+        !(self.dep_paths.disallowed.is_empty()
             && self.disallowed_git_repos.is_empty()
-            && self.expanded_disallowed.is_empty())
+            && self.expanded_disallowed.is_empty()
+            && self.name_patterns.disallowed.is_none())
     }
 
     /// A denial by dep path, git repo, or package name outranks every
@@ -212,10 +233,13 @@ impl AllowBuildPolicy {
         named: (&str, &str),
     ) -> bool {
         let (name, name_at_version) = named;
-        self.disallowed_dep_paths.contains(normalized_dep_path)
+        self.dep_paths.disallowed.contains(normalized_dep_path)
             || git_repo_key.is_some_and(|key| self.disallowed_git_repos.contains(key))
             || self.expanded_disallowed.contains(name)
             || self.expanded_disallowed.contains(name_at_version)
+            || self.name_patterns.disallowed
+                .as_ref()
+                .is_some_and(|patterns| patterns.covers_every_version(name))
     }
 }
 
@@ -297,6 +321,42 @@ impl<'c> BuildKeys<'c> {
             self.specs.push(spec);
         }
     }
+}
+
+#[derive(Debug, Default)]
+struct NamePatternPolicies {
+    allowed: Option<PackageVersionPolicy>,
+    disallowed: Option<PackageVersionPolicy>,
+}
+
+impl NamePatternPolicies {
+    fn from_specs(allowed: &[&str], disallowed: &[&str]) -> Result<Self, VersionPolicyError> {
+        Ok(Self {
+            allowed: compile_name_patterns(allowed)?,
+            disallowed: compile_name_patterns(disallowed)?,
+        })
+    }
+}
+
+fn compile_name_patterns(
+    specs: &[&str],
+) -> Result<Option<PackageVersionPolicy>, VersionPolicyError> {
+    let patterns: Vec<_> = specs
+        .iter()
+        .filter(|spec| spec.contains('*'))
+        .map(|&spec| {
+            spec.strip_suffix("@.*")
+                .unwrap_or(spec)
+                .to_string()
+        })
+        .collect();
+    if patterns.is_empty() { Ok(None) } else { create_package_version_policy(patterns).map(Some) }
+}
+
+#[derive(Debug, Default)]
+struct DepPathPolicies {
+    allowed: HashSet<String>,
+    disallowed: HashSet<String>,
 }
 
 /// Whether `dep_path` is a package installed from a git repository, by
