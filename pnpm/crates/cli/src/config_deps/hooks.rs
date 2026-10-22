@@ -8,6 +8,8 @@ use super::{
     install_config_deps, is_known_setting_key, resolve_configured_state_dir,
 };
 use miette::WrapErr;
+use pnpm_hooks::IgnoredHook;
+use std::collections::BTreeSet;
 
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
 /// application order (see [`finder::find_pnpmfiles`]). Every hook applies
@@ -121,7 +123,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
-    let mut has_filter_log = false;
+    let mut ignored_hooks = BTreeSet::new();
     for (pnpmfile, hook) in pnpmfiles.iter().zip(&hooks) {
         let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
         current = hook
@@ -129,21 +131,35 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             .await
             .map_err(|err| miette::miette!("{err}"))
             .wrap_err_with(|| format!("running updateConfig hook from {}", pnpmfile.display()))?;
-        has_filter_log |= hook.has_filter_log().await;
+        ignored_hooks.extend(hook.ignored_hooks().await);
     }
-    if has_filter_log {
-        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-            level: LogLevel::Warn,
-            message: "The pnpmfile filterLog hook is deprecated and is not supported by pnpm v12. Remove it from the pnpmfile."
-                .to_string(),
-            prefix: prefix.clone(),
-        }));
-    }
+    warn_ignored_hooks::<Reporter>(ignored_hooks, &prefix);
 
     adopt_hook_catalogs(config, &current)?;
 
     apply_hook_delta(config, &input, &current, &base_dir)?;
     Ok(hooks)
+}
+
+fn warn_ignored_hooks<Reporter: self::Reporter>(hooks: BTreeSet<IgnoredHook>, prefix: &str) {
+    for hook in hooks {
+        Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
+            message: ignored_hook_warning(hook).to_string(),
+            prefix: prefix.to_string(),
+        }));
+    }
+}
+
+fn ignored_hook_warning(hook: IgnoredHook) -> &'static str {
+    match hook {
+        IgnoredHook::FilterLog => {
+            "The pnpmfile filterLog hook is deprecated and is not supported by pnpm v12. Remove it from the pnpmfile."
+        }
+        IgnoredHook::ImportPackage => {
+            "The pnpmfile importPackage hook is not supported by pnpm v12 and is ignored. Use the packageImportMethod setting to choose how packages are written to node_modules."
+        }
+    }
 }
 
 /// The directory relative hook-output paths resolve against: the workspace

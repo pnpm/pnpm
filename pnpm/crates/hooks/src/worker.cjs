@@ -42,8 +42,9 @@ async function handle(req) {
   await ensureLoaded();
   if (loadErr !== null) { send({ err: loadErr }); return; }
   if (req.query === 'hasHooks') { send({ ok: mod != null && mod.hooks != null }); return; }
-  if (req.query === 'hasFilterLog') {
-    send({ ok: mod != null && mod.hooks != null && typeof mod.hooks.filterLog === 'function' });
+  if (req.query === 'definedHooks') {
+    const hooks = mod != null && mod.hooks != null ? mod.hooks : {};
+    send({ ok: req.names.filter((name) => typeof hooks[name] === 'function') });
     return;
   }
   if (req.query === 'hasReadPackage') {

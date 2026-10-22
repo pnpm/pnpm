@@ -27,6 +27,51 @@ fn filter_log_is_ignored_with_a_warning() {
     drop(root);
 }
 
+#[test]
+fn import_package_is_ignored_with_a_warning() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { importPackage: async () => 'hardlink' } }",
+    )
+    .expect("write importPackage hook");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert_eq!(
+        stdout.matches("importPackage hook is not supported").count(),
+        1,
+        "STDOUT:\n{stdout}",
+    );
+    assert!(stdout.contains("packageImportMethod"), "STDOUT:\n{stdout}");
+
+    drop(root);
+}
+
+#[test]
+fn a_pnpmfile_without_ignored_hooks_prints_no_ignored_hook_warning() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { readPackage: (pkg) => pkg } }",
+    )
+    .expect("write readPackage hook");
+
+    let output = pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(!stdout.contains("hook is not supported"), "STDOUT:\n{stdout}");
+
+    drop(root);
+}
+
 /// The `pnpmfile` setting names the file, and Node decides its module format
 /// from the nearest `package.json`: the same `.js` pnpmfile is an ES module
 /// under `"type": "module"` and a script under `"type": "commonjs"`. Each

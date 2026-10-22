@@ -33,8 +33,8 @@ use std::{path::Path, sync::Arc};
 use async_trait::async_trait;
 use napi::{Status, bindgen_prelude::FnArgs, threadsafe_function::ThreadsafeFunction};
 use pnpm_hooks::{
-    CustomFetcher, CustomResolver, HookContext, HookError, PnpmfileHooks, PreResolutionHookContext,
-    PreResolutionHookLogger, ReadPackageResult,
+    CustomFetcher, CustomResolver, HookContext, HookError, IgnoredHook, PnpmfileHooks,
+    PreResolutionHookContext, PreResolutionHookLogger, ReadPackageResult,
 };
 use serde_json::Value;
 
@@ -350,8 +350,8 @@ impl PnpmfileHooks for ChecksummedHooks {
         self.hooks.filter_log(log, ctx).await
     }
 
-    async fn has_filter_log(&self) -> bool {
-        self.hooks.has_filter_log().await
+    async fn ignored_hooks(&self) -> Vec<IgnoredHook> {
+        self.hooks.ignored_hooks().await
     }
 
     async fn has_read_package(&self) -> Result<bool, HookError> {
