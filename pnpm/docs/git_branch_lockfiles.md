@@ -27,8 +27,9 @@ be `pnpm-lock.feature-1.yaml`. You can commit it to the Git, and merge all git b
 
 :::note
 
-Every character in the branch name other than letters, digits, `_`, `.`, and `-` is converted to `!`,
+Every character in the branch name other than ASCII letters, digits, `_`, `.`, and `-` is converted to `!`,
 and the name is lowercased. So the lockfile of the `Feature/1` branch is `pnpm-lock.feature!1.yaml`.
+A character outside the Basic Multilingual Plane, such as an emoji, becomes `!!`.
 
 :::
 

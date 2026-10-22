@@ -132,8 +132,8 @@ pnpm --filter "...@babel/*{components/**}[origin/master]" <cmd>
 `{<dir>}` is matched as a glob pattern: `{packages/*}` selects the projects one
 level below `packages/`, and it takes a `**` to reach deeper. Set
 `legacyDirFiltering` to `true` in `pnpm-workspace.yaml` to restore the older
-behavior, where the selector named a directory and matched **every** project
-below it, but not a project in the directory itself:
+behavior, where the selector named a directory and matched **every** project in
+the subtree below it:
 
 ```yaml title="pnpm-workspace.yaml"
 legacyDirFiltering: true

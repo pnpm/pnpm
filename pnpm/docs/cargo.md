@@ -105,7 +105,7 @@ settings from the workspace Git configuration and `GIT_ALLOW_PROTOCOL`. pnpm ref
 
 ## Building the standard library
 
-When `.cargo/config.toml` sets `unstable.build-std`, pnpm also vendors the dependencies of the standard library. It reads them from the toolchain's `rust-src` component, so the toolchain needs that component. With a toolchain file that pnpm installs, list `rust-src` in `components`.
+When `.cargo/config.toml` sets `unstable.build-std` to a non-empty list, pnpm also vendors the dependencies of the standard library. It reads them from the toolchain's `rust-src` component, so the toolchain needs that component. With a toolchain file that pnpm installs, list `rust-src` in `components`.
 
 ## Faster resolution through pnpr
 

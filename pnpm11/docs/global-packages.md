@@ -88,7 +88,7 @@ The contents of `{pnpmHomeDir}/global/v11/` look like:
 - The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies (the entries at the root of its `node_modules/`) are symlinks into that store, so the actual package contents are shared rather than copied per group.
 - Bin shims live in `{pnpmHomeDir}/bin/` and point through the appropriate install group's `node_modules`.
 
-When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g` or `pnpm update -g`.
+When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g`, `pnpm update -g`, or `pnpm self-update`.
 
 ## Listing global packages
 

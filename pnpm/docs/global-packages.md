@@ -88,7 +88,7 @@ The contents of `{pnpmHomeDir}/global/v11/` look like:
 - The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies (the entries at the root of its `node_modules/`) are symlinks into that store, so the actual package contents are shared rather than copied per group.
 - Bin shims live in `{pnpmHomeDir}/bin/` and point through the appropriate install group's `node_modules`.
 
-When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g` or `pnpm update -g`.
+When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g`, `pnpm update -g`, or `pnpm self-update`.
 
 ## Listing global packages
 
@@ -235,7 +235,7 @@ There is one more guard that applies regardless of policy: the project's command
 
 ### Which packages participate
 
-Only the runtimes participate by default. The Rust toolchain shims (`cargo`, `rustc`, and the other Rust tools) that `pnpm add -g rust` or `pnpm shim add rust` creates also follow the project's [toolchain file](./cargo.md#rust-toolchain). Since v12.0.0-rc.6, installing a package manager globally (`pnpm add -g yarn`) also adds an entry for it, so it follows a project's pin the way a globally installed Node.js already follows `devEngines.runtime`. An entry you set yourself, including `false`, is left as you set it.
+Runtimes, Rust toolchain shims, and globally installed package managers participate by default. The Rust toolchain shims (`cargo`, `rustc`, and the other Rust tools) that `pnpm add -g rust` or `pnpm shim add rust` creates follow the project's [toolchain file](./cargo.md#rust-toolchain). Since v12.0.0-rc.6, installing a package manager globally (`pnpm add -g yarn`) also adds an entry for it, so it follows a project's pin the way a globally installed Node.js already follows `devEngines.runtime`. An entry you set yourself, including `false`, is left as you set it.
 
 Enable others with [`globalShims`](./settings/other.md#globalshims), keyed by the providing package's name:
 

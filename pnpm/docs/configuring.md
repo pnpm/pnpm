@@ -36,7 +36,7 @@ Not every setting may be set in the global `config.yaml`. Settings that apply to
 
 To share project-only settings across several projects, publish them as a [config dependency](./config-dependencies.md) and add it to each project.
 
-Global registry credentials go in `auth.ini` in the same directory. See [Auth file locations](./npmrc.md#auth-file-locations).
+`pnpm login` saves registry tokens in this `config.yaml`. Other global auth and certificate settings go in `auth.ini` in the same directory. See [Auth file locations](./npmrc.md#auth-file-locations).
 
 ## Environment variables
 

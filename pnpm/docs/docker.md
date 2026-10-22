@@ -228,7 +228,7 @@ docker build . --target app2 --tag app2:latest
 
 On CI or CD environments, the BuildKit cache mounts might not be available, because the VM or container is ephemeral and only normal docker cache will work.
 
-So an alternative is to use a typical Dockerfile with layers that are built incrementally, for this scenario, `pnpm fetch` is the best option, as it only needs the lockfile and the project settings, and the layer cache will only be lost when you change the dependencies.
+So an alternative is to use a typical Dockerfile with layers that are built incrementally, for this scenario, `pnpm fetch` is the best option, as it only needs the lockfile and the project settings, and the layer cache will only be lost when you change the lockfile or the project settings.
 
 `pnpm fetch` only fills the virtual store. A `pnpm install --offline` after copying the sources links the dependencies into `node_modules`. The build stage installs every dependency, and a separate stage installs only the production dependencies, so the final image does not carry the dev dependencies.
 
