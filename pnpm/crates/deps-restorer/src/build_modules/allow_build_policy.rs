@@ -315,7 +315,7 @@ impl<'c> BuildKeys<'c> {
     fn add(&mut self, spec: &'c str) {
         if is_git_repo_allow_build_key(spec) {
             self.git_repos.insert(spec.to_owned());
-        } else if is_dep_path_allow_build_key(spec) {
+        } else if !spec.contains('*') && is_dep_path_allow_build_key(spec) {
             self.dep_paths.insert(normalize_build_dep_path(spec));
         } else {
             self.specs.push(spec);
