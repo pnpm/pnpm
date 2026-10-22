@@ -148,17 +148,9 @@ async fn oci_bearer_updates_parent_token_last_used_at() {
     let oci_res: Value = serde_json::from_slice(&body_bytes(res.into_body()).await).unwrap();
     let oci_token = oci_res["token"].as_str().unwrap();
 
-    let parent_minted = tokens
-        .lookup_record(&raw_parent)
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(parent_minted.last_used_at > 0);
+    let aged = crate::tokens::age_last_use(&tokens, &raw_parent).await;
 
-    // Sleep past the second boundary so any subsequent update will advance last_used_at.
-    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
-
-    // An unauthorized request (not permitted by scope) is rejected and does not update last_used_at.
+    // A request the scope does not permit is rejected before it counts as a use.
     let req = Request::get("/v2/_catalog")
         .header(header::AUTHORIZATION, format!("Bearer {oci_token}"))
         .body(Body::empty())
@@ -171,9 +163,8 @@ async fn oci_bearer_updates_parent_token_last_used_at() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(parent_mid.last_used_at, parent_minted.last_used_at);
+    assert_eq!(parent_mid.last_used_at, aged);
 
-    // An authorized request (permitted by scope and parent) updates last_used_at.
     let req = Request::get("/v2/acme/app/manifests/latest")
         .header(header::AUTHORIZATION, format!("Bearer {oci_token}"))
         .body(Body::empty())
@@ -181,10 +172,5 @@ async fn oci_bearer_updates_parent_token_last_used_at() {
     let res = app.clone().oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 
-    let parent_after = tokens
-        .lookup_record(&raw_parent)
-        .await
-        .unwrap()
-        .unwrap();
-    assert!(parent_after.last_used_at > parent_minted.last_used_at);
+    crate::tokens::wait_for_last_use_after(&tokens, &raw_parent, aged).await;
 }

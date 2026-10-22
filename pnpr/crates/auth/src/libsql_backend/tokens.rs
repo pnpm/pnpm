@@ -52,9 +52,9 @@ impl TokenBackend for LibsqlAuth {
 
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
         let sql_now = token_timestamp_to_sql(now);
-        // Not synced back into a replica: this runs on authenticated
-        // requests, and the background sync carries the timestamp. It runs
-        // under the read deadline: losing a timestamp to it is harmless.
+        // Not synced back into a replica: the background sync carries the
+        // timestamp. It runs under the read deadline: losing a timestamp to
+        // it is harmless.
         self.pool.read(|conn| async move {
             conn.execute(
                 "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",

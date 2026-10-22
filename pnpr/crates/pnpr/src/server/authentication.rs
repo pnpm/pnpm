@@ -204,11 +204,7 @@ async fn bearer_token_identity(
         Ok(Some(record)) => {
             check_token_restrictions(&record, method, path, client_ip)
                 .map_err(axum::response::IntoResponse::into_response)?;
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let _ = state.inner.identity.auth.tokens.touch_key(parent, now).await;
+            state.inner.identity.last_used.record(parent, record.last_used_at);
             Ok(Some(Identity::user(record.username)))
         }
         Ok(None) => Err(super::oci::tokens::rejected(state, path, method)),
@@ -269,10 +265,8 @@ async fn resolve_caller(
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(0, |d| d.as_secs());
-            let _ = state.inner.identity.auth.tokens.touch(&raw_token, now).await;
+            let key = super::ecosystem::sha256_hex(raw_token.as_bytes());
+            state.inner.identity.last_used.record(&key, record.last_used_at);
             return Ok(Identity::user(record.username));
         }
     }
