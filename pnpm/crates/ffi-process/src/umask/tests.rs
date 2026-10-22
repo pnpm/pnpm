@@ -1,4 +1,5 @@
 use super::{current_umask, read_umask_by_writing_it};
+#[cfg(target_os = "linux")]
 use text_block_macros::text_block_fnl;
 
 /// Pins that the published mask and the one read by writing it agree, so
