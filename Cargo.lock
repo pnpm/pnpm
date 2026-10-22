@@ -3304,6 +3304,8 @@ dependencies = [
  "bincode",
  "bitflags 2.11.1",
  "bytes",
+ "chrono",
+ "crc32fast",
  "fallible-iterator 0.3.0",
  "futures",
  "http 0.2.12",

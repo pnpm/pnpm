@@ -6,6 +6,8 @@ use super::{
 };
 use crate::token_store::sha256_hex;
 
+mod sync_server;
+
 /// In-memory libsql database, exercising the same driver and SQL the
 /// networked backend uses without a server.
 async fn local_backend(max_users: MaxUsers) -> LibsqlAuth {

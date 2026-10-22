@@ -62,8 +62,9 @@ backend:
   libsql:
     url: ${PNPR_LIBSQL_URL}
     authToken: ${PNPR_LIBSQL_TOKEN}
-    # No replicaPath: Turso Cloud does not serve the protocol the embedded
-    # replica uses, so every token lookup is a remote query.
+    # Token lookups read a local replica of the Turso database. The replica
+    # lives on the container's ephemeral disk and is rebuilt on each start.
+    replicaPath: /pnpr/cache/auth-replica.db
 
 secret: ${PNPR_SECRET}
 

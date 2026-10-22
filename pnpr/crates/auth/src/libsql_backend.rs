@@ -83,9 +83,13 @@ impl LibsqlAuth {
     /// With `replicaPath` set, the database is an embedded replica: an
     /// initial sync runs at build time and libsql keeps it current in
     /// the background (every `syncIntervalSecs`), so reads hit the local
-    /// file. Without it, every read is a remote query against the
-    /// primary — always fresh, but a network round-trip on the auth hot
-    /// path.
+    /// file. libsql probes the primary for its newer sync protocol, the
+    /// only one Turso Cloud serves, and falls back to the replication
+    /// protocol of a self-hosted `sqld`. Connecting over the newer
+    /// protocol blocks in place, so the caller must run on tokio's
+    /// multi-thread runtime. Without `replicaPath`, every read is a
+    /// remote query against the primary — always fresh, but a network
+    /// round-trip on the auth hot path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
         if settings.auth_token.is_some()
             && is_plain_http(&settings.url)
