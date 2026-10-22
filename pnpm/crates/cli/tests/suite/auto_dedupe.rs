@@ -649,3 +649,42 @@ fn filtered_downgrade_reaches_other_projects_on_the_next_install() {
     assert_eq!(installed("high"), "100.0.0");
     drop((root, npmrc_info));
 }
+
+#[test]
+fn another_projects_range_steers_a_direct_dependency_only_when_deduping() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_settings(&workspace, "packages:\n  - pinned\n  - open\n").unwrap();
+    write_project(&workspace, "pinned", "100.0.0");
+    write_project(&workspace, "open", "*");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+
+    pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile = read_lockfile(&lockfile_path);
+    assert_eq!(importer_version(&lockfile, "pinned", DEP), "100.0.0");
+    assert_eq!(importer_version(&lockfile, "open", DEP), "101.0.0");
+
+    pnpm_at(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+    assert_eq!(importer_version(&read_lockfile(&lockfile_path), "open", DEP), "100.0.0");
+
+    fs::remove_file(&lockfile_path).unwrap();
+    pnpm_at(&workspace)
+        .with_args(["install", "--auto-dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+    assert_eq!(importer_version(&read_lockfile(&lockfile_path), "open", DEP), "100.0.0");
+
+    pnpm_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    assert_eq!(importer_version(&read_lockfile(&lockfile_path), "open", DEP), "100.0.0");
+    drop((root, mock_instance));
+}

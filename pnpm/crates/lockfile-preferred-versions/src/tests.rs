@@ -9,7 +9,7 @@ use pnpm_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 
 use super::{
-    DirectSpecs, get_preferred_versions_from_lockfile_and_manifests,
+    DirectSpecs, SeededNames, get_preferred_versions_from_lockfile_and_manifests,
     get_preferred_versions_from_lockfile_and_manifests_excluding,
 };
 
@@ -114,7 +114,7 @@ fn catalog_specs_seed_the_catalog_entry_they_name() {
 
     let preferred = get_preferred_versions_from_lockfile_and_manifests(
         None,
-        DirectSpecs { manifests: &[&manifest], catalogs: &catalogs },
+        DirectSpecs { manifests: &[&manifest], catalogs: &catalogs, names: SeededNames::All },
     );
 
     let from_default = &preferred["from-default"];

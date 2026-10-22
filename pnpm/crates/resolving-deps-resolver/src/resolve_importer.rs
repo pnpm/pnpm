@@ -25,8 +25,8 @@
 
 pub(crate) use missing_peers::intersect_ranges;
 pub use options::{
-    ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks, PeerLinkOptions,
-    ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
+    HoistPreferences, ImporterPeerOptions, ImporterResolutionInputs, ManifestTransformHooks,
+    PeerLinkOptions, ResolveImporterError, ResolveImporterOptions, ResolveImporterResult,
 };
 
 mod direct_seeds;
@@ -66,7 +66,7 @@ use crate::{
     resolved_tree::ResolvedTree,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, safe_read_package_json_from_dir};
-use pnpm_resolving_resolver_base::{PreferredVersions, Resolver};
+use pnpm_resolving_resolver_base::Resolver;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::{BTreeMap, BTreeSet},

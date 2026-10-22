@@ -1,6 +1,6 @@
 use super::{
     Arc, BTreeMap, DependencyOverrider, DirectDep, DirectSeeds, HashMap, HashSet, HoistSettings,
-    ImporterHoistState, LockedPeers, MissingPeer, PreferredVersions, TreeCtx, WorkspaceRootDep,
+    ImporterHoistState, LockedPeers, MissingPeer, TreeCtx, WorkspaceRootDep,
 };
 
 pub(super) struct ImporterHoistPolicy {
@@ -68,12 +68,10 @@ pub(super) struct ImporterHoistDependencies {
 }
 
 pub(super) struct ImporterHoistSelection {
-    /// The lockfile + manifest preferred-versions seed. The hoist
-    /// pickers merge it per lookup with the workspace-wide
-    /// run-resolved versions — see
-    /// [`TreeCtx::preferred_versions_for_names`] — instead of
+    /// Merged per lookup with the workspace-wide run-resolved versions —
+    /// see [`TreeCtx::preferred_versions_for_names`] — instead of
     /// maintaining a per-importer copy of the whole run history.
-    pub(super) preferred_versions: Arc<PreferredVersions>,
+    pub(super) preferences: crate::HoistPreferences,
     pub(super) locked_versions: Arc<HashMap<String, HashSet<String>>>,
     pub(super) override_bare_specifier: Option<Arc<DependencyOverrider>>,
 }
@@ -107,7 +105,7 @@ impl super::ImporterHoistState {
                 all_missing_optional_peers: BTreeMap::new(),
             },
             selection: ImporterHoistSelection {
-                preferred_versions: settings.all_preferred_versions,
+                preferences: settings.hoist_preferences,
                 locked_versions: locked.versions,
                 override_bare_specifier: settings.override_bare_specifier,
             },

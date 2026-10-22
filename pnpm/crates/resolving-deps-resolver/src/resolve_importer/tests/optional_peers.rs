@@ -579,7 +579,10 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
             ..default_opts().peers
         },
         resolution: crate::ImporterResolutionInputs {
-            all_preferred_versions: Arc::new(seeded_preferred_versions()),
+            hoist_preferences: crate::HoistPreferences {
+                all_preferred_versions: Arc::new(seeded_preferred_versions()),
+                ..Default::default()
+            },
             ..default_opts().resolution
         },
         ..default_opts()
@@ -607,7 +610,10 @@ async fn both_hoist_settings_off_leaves_the_optional_peer_missing() {
             ..default_opts().peers
         },
         resolution: crate::ImporterResolutionInputs {
-            all_preferred_versions: Arc::new(seeded_preferred_versions()),
+            hoist_preferences: crate::HoistPreferences {
+                all_preferred_versions: Arc::new(seeded_preferred_versions()),
+                ..Default::default()
+            },
             ..default_opts().resolution
         },
         ..default_opts()

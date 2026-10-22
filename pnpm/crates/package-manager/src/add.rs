@@ -407,6 +407,7 @@ impl AddResolveInputs<'_, '_> {
                 pnpm_lockfile_preferred_versions::DirectSpecs {
                     manifests: &[manifest],
                     catalogs: self.catalogs,
+                    names: pnpm_lockfile_preferred_versions::SeededNames::All,
                 },
             )
         })

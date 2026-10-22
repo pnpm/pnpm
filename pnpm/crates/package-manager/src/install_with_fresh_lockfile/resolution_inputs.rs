@@ -25,6 +25,10 @@ pub(crate) struct WorkspaceLifecycleHooks {
 pub(crate) struct ImporterVersionSeeds<'a> {
     pub shared: &'a Arc<PreferredVersions>,
     pub by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
+    /// Every project's manifest specifiers when the seeds leave them out,
+    /// so each project resolves from its own. See
+    /// [`pnpm_resolving_deps_resolver::HoistPreferences::manifest_specifiers`].
+    pub manifest_specifiers: Option<&'a Arc<PreferredVersions>>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest: bool,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
@@ -102,6 +106,16 @@ pub(crate) struct ReuseLockfileInputs<'a> {
 impl<'a> ImporterVersionSeeds<'a> {
     pub(super) fn for_importer(&self, id: &str) -> &'a Arc<PreferredVersions> {
         self.by_importer.get(id).unwrap_or(self.shared)
+    }
+
+    pub(super) fn hoist_preferences(
+        &self,
+        seed: &Arc<PreferredVersions>,
+    ) -> pnpm_resolving_deps_resolver::HoistPreferences {
+        pnpm_resolving_deps_resolver::HoistPreferences {
+            all_preferred_versions: Arc::clone(seed),
+            manifest_specifiers: self.manifest_specifiers.map_or_else(Arc::default, Arc::clone),
+        }
     }
 }
 

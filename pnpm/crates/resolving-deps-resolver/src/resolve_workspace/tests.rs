@@ -37,7 +37,7 @@ use chrono::{DateTime, Utc};
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, RegistryContext};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, LinkWorkspacePackages, NoMatchingVersionError, PkgResolutionId, PreferredVersions,
+    LatestQuery, LinkWorkspacePackages, NoMatchingVersionError, PkgResolutionId,
     RegistryResponseError, RegistryResponseErrorOptions, ResolveError, ResolveFuture,
     ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
@@ -256,7 +256,7 @@ fn importer_opts(
             modules_dir: None,
         },
         resolution: crate::ImporterResolutionInputs {
-            all_preferred_versions: Arc::new(PreferredVersions::new()),
+            hoist_preferences: crate::HoistPreferences::default(),
             override_bare_specifier: None,
             patched_dependencies: None,
             pick_lowest_direct: false,

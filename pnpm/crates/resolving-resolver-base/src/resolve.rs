@@ -149,7 +149,17 @@ impl VersionSelectorEntry {
 pub struct PreferredVersionsOverlay {
     entries: BTreeMap<String, Vec<String>>,
     parent: Option<Arc<PreferredVersionsOverlay>>,
-    is_direct_deps: bool,
+    kind: OverlayLayerKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverlayLayerKind {
+    Resolved,
+    DirectDeps,
+    /// The exact versions an importer's manifest declares. Unlike the
+    /// resolved levels, its weight adds to theirs, the way a manifest entry
+    /// in [`VersionSelectionOptions::preferred_versions`] does.
+    ManifestSpecifiers,
 }
 
 impl PreferredVersionsOverlay {
@@ -160,7 +170,7 @@ impl PreferredVersionsOverlay {
         parent: Option<Arc<PreferredVersionsOverlay>>,
         entries: BTreeMap<String, Vec<String>>,
     ) -> Option<Arc<PreferredVersionsOverlay>> {
-        Self::layer_with_direct(parent, entries, false)
+        Self::layer_of_kind(parent, entries, OverlayLayerKind::Resolved)
     }
 
     /// Layer `entries` over `parent` as direct dependencies of an importer.
@@ -169,19 +179,26 @@ impl PreferredVersionsOverlay {
         parent: Option<Arc<PreferredVersionsOverlay>>,
         entries: BTreeMap<String, Vec<String>>,
     ) -> Option<Arc<PreferredVersionsOverlay>> {
-        Self::layer_with_direct(parent, entries, true)
+        Self::layer_of_kind(parent, entries, OverlayLayerKind::DirectDeps)
     }
 
+    /// A root layer of the exact versions an importer's manifest declares.
     #[must_use]
-    pub fn layer_with_direct(
+    pub fn manifest_specifiers(
+        entries: BTreeMap<String, Vec<String>>,
+    ) -> Option<Arc<PreferredVersionsOverlay>> {
+        Self::layer_of_kind(None, entries, OverlayLayerKind::ManifestSpecifiers)
+    }
+
+    fn layer_of_kind(
         parent: Option<Arc<PreferredVersionsOverlay>>,
         entries: BTreeMap<String, Vec<String>>,
-        is_direct_deps: bool,
+        kind: OverlayLayerKind,
     ) -> Option<Arc<PreferredVersionsOverlay>> {
         if entries.is_empty() {
             return parent;
         }
-        Some(Arc::new(PreferredVersionsOverlay { entries, parent, is_direct_deps }))
+        Some(Arc::new(PreferredVersionsOverlay { entries, parent, kind }))
     }
 
     /// Every version the chain prefers for `name`, nearest level
@@ -205,21 +222,34 @@ impl PreferredVersionsOverlay {
     /// Every version the chain prefers for `name`, nearest level first,
     /// tagged with [`DIRECT_DEP_SELECTOR_WEIGHT`] for the importer direct-dependency level
     /// or `1` for descendant levels. Duplicate versions across levels retain the maximum weight.
+    /// A manifest-specifiers layer adds [`DIRECT_DEP_SELECTOR_WEIGHT`] on top.
     #[must_use]
     pub fn weighted_versions_for(&self, name: &str) -> Vec<(&str, u32)> {
         let mut versions: Vec<(&str, u32)> = Vec::new();
+        let mut declared: Vec<&str> = Vec::new();
         let mut layer = Some(self);
         while let Some(current) = layer {
-            let is_direct = current.is_direct_deps;
             layer = current.parent.as_deref();
             let Some(found) = current.entries.get(name) else { continue };
-            let weight = if is_direct {
-                DIRECT_DEP_SELECTOR_WEIGHT
-            } else {
-                RESOLVED_VERSION_SELECTOR_WEIGHT
+            let weight = match current.kind {
+                OverlayLayerKind::Resolved => RESOLVED_VERSION_SELECTOR_WEIGHT,
+                OverlayLayerKind::DirectDeps => DIRECT_DEP_SELECTOR_WEIGHT,
+                OverlayLayerKind::ManifestSpecifiers => {
+                    declared.extend(found.iter().map(String::as_str));
+                    continue;
+                }
             };
             for version in found {
                 record_weighted_version(&mut versions, version.as_str(), weight);
+            }
+        }
+        for version in declared {
+            match versions
+                .iter_mut()
+                .find(|(v, _)| *v == version)
+            {
+                Some((_, weight)) => *weight += DIRECT_DEP_SELECTOR_WEIGHT,
+                None => versions.push((version, DIRECT_DEP_SELECTOR_WEIGHT)),
             }
         }
         versions

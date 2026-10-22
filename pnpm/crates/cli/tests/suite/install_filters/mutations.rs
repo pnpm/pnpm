@@ -263,8 +263,18 @@ fn filtered_compatible_update_does_not_cross_importer_cache_boundaries() {
 }
 
 #[test]
-fn filtered_compatible_update_keeps_workspace_manifest_preferences() {
+fn filtered_compatible_update_keeps_workspace_manifest_preferences_when_deduping() {
+    assert_filtered_compatible_update("autoDedupe: true\n", "100.0.0");
+}
+
+#[test]
+fn filtered_compatible_update_ignores_another_projects_manifest_without_dedupe() {
+    assert_filtered_compatible_update("", "100.1.0");
+}
+
+fn assert_filtered_compatible_update(settings: &str, expected: &str) {
     let fixture = WorkspaceFixture::new();
+    fixture.append_workspace_yaml(settings);
     let selected = fixture.project(
         "selected",
         "selected",
@@ -282,7 +292,7 @@ fn filtered_compatible_update_keeps_workspace_manifest_preferences() {
     fixture.run(["--filter", "selected", "update", DEP, "--lockfile-only"]);
     let lockfile = fixture.wanted();
 
-    assert_eq!(importer_version(&lockfile, "packages/selected", DEP), "100.0.0");
+    assert_eq!(importer_version(&lockfile, "packages/selected", DEP), expected);
     assert_eq!(importer_version(&lockfile, "packages/unselected", DEP), "100.0.0");
     assert_eq!(
         fs::read(unselected.join("package.json")).expect("read manifest"),

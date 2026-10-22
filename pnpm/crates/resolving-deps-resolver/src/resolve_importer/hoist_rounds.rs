@@ -189,7 +189,7 @@ impl ImporterHoistState {
             .collect();
         let names = || missing_as_pairs.iter().map(|(name, _)| name.as_str());
         let hoist_preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
+            self.ctx.preferred_versions_for_names(self.selection.preferences.seeds(), names());
         let resolved_versions = self.ctx.run_resolved_versions(names());
         let hoisted = hoist_peers(
             &HoistPeersOptions {
@@ -340,7 +340,7 @@ impl ImporterHoistState {
     fn hoistable_optional_peers(&self) -> BTreeMap<String, String> {
         let names = || self.dependencies.all_missing_optional_peers.keys().map(String::as_str);
         let hoist_preferred =
-            self.ctx.preferred_versions_for_names(&self.selection.preferred_versions, names());
+            self.ctx.preferred_versions_for_names(self.selection.preferences.seeds(), names());
         let preferred_tiers =
             self.ctx.optional_peer_version_tiers(&self.selection.locked_versions, names());
         let provided_peer_versions = self.hoisted_provider_peer_versions();
