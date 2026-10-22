@@ -31,6 +31,10 @@ pub(super) struct ConnectionPool {
     db: Arc<Database>,
     idle: Mutex<Vec<Connection>>,
     slots: Semaphore,
+    /// Connection opens in flight. An open the deadline gave up on keeps its
+    /// permit until it returns, so a stalled database cannot pile up blocked
+    /// threads beyond the pool's size.
+    opens: Arc<Semaphore>,
     timeout: Duration,
 }
 
@@ -42,6 +46,7 @@ impl ConnectionPool {
             db: Arc::new(db),
             idle: Mutex::new(Vec::new()),
             slots: Semaphore::new(max_connections),
+            opens: Arc::new(Semaphore::new(max_connections)),
             timeout,
         }
     }
@@ -95,9 +100,17 @@ impl ConnectionPool {
         if let Some(conn) = pooled {
             return Ok((slot, conn));
         }
+        let open = Arc::clone(&self.opens)
+            .acquire_owned()
+            .await
+            .expect("the pool never closes its semaphore");
         let db = Arc::clone(&self.db);
-        let conn = tokio::task::spawn_blocking(move || db.connect()).await
-            .expect("opening a libsql connection panicked")?;
+        let conn = tokio::task::spawn_blocking(move || {
+            let _open = open;
+            db.connect()
+        })
+        .await
+        .expect("opening a libsql connection panicked")?;
         Ok((slot, conn))
     }
 
@@ -119,6 +132,12 @@ impl ConnectionPool {
                 .push(conn);
         }
         result
+    }
+
+    /// How many connection opens are still running.
+    #[cfg(test)]
+    pub(super) fn opens_in_flight(&self, max_connections: usize) -> usize {
+        max_connections - self.opens.available_permits()
     }
 
     /// An unpooled connection, for setup that runs before any operation.
