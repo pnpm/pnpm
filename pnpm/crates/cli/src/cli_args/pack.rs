@@ -22,7 +22,7 @@ use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, WorkspacePackageManifest, api,
+    Host, PackError, PackOptions, PackOutputLocks, PackResultJson, WorkspacePackageManifests, api,
     format_pack_output, pack_output_path, to_pack_result_json,
 };
 use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
@@ -117,7 +117,7 @@ struct PackSharedContext {
     out: Option<String>,
     pack_destination: Option<String>,
     before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+    workspace_packages: Option<Arc<WorkspacePackageManifests>>,
 }
 
 impl PackArgs {
