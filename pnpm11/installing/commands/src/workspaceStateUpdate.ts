@@ -58,12 +58,18 @@ export async function recursiveInstallThenUpdateWorkspaceState (
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
+  // The install replaces `storeDir` in `opts` with the resolved store, and
+  // the state must record the configured value that the next check reads.
+  const configuredStoreDir = opts.storeDir
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (recursiveResult.installedProjectDirs.length > 0 && shouldSaveWorkspaceState(opts)) {
     const filteredInstall = isFilteredInstall(allProjects, recursiveResult.installedProjectDirs)
     await updateWorkspaceState({
       allProjects,
-      settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
+      settings: {
+        ...withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
+        storeDir: configuredStoreDir,
+      },
       workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
       pnpmfiles: opts.pnpmfile,
       filteredInstall,

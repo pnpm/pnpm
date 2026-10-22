@@ -2,6 +2,7 @@
 
 mod agent_skills;
 mod equivalence;
+mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
     allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
@@ -101,6 +102,7 @@ impl SettingsComparison<'_> {
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
             .or_else(|| self.agent_skills_drift())
+            .or_else(|| self.store_location_drift())
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -378,7 +380,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
         workspace_package_patterns: config.workspace_package_patterns.clone(),
-        ..agent_skills_settings(config)
+        ..store_location::store_location_settings(config, agent_skills_settings(config))
     }
 }
 

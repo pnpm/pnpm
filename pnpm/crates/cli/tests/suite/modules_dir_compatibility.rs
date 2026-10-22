@@ -39,16 +39,11 @@ fn add_remove_and_update_refuse_a_modules_dir_linked_from_another_store() {
         );
     }
 
-    // The workspace state does not record `storeDir`, so the optimistic
-    // repeat install would report the project up to date.
-    pacquet_in(&workspace)
-        .with_args(["install", "--config.optimistic-repeat-install=false"])
-        .assert()
-        .success();
-    assert!(workspace.join("node_modules/is-positive").exists());
-    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
-        .expect("read .modules.yaml");
-    assert!(modules_yaml.contains(r#"/other-store/v11""#), "{modules_yaml}");
+    install_records(&workspace, r#"/other-store/v11""#);
+    let workspace_state =
+        fs::read_to_string(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+            .expect("read the workspace state");
+    assert!(workspace_state.contains(r#""storeDir": "../other-store""#), "{workspace_state}");
 
     drop((root, mock_instance));
 }
@@ -71,6 +66,8 @@ fn add_refuses_a_modules_dir_linked_from_another_virtual_store() {
     );
     assert!(workspace.join("node_modules/is-positive").exists(), "add purged node_modules");
 
+    install_records(&workspace, r#""virtualStoreDir": ".vs""#);
+
     drop((root, mock_instance));
 }
 
@@ -89,7 +86,11 @@ fn add_refuses_a_modules_dir_with_another_layout_version() {
 
     assert_report_contains(
         &run_failing(&workspace, &["add", "is-negative@1.0.0"]),
-        &["ERR_PNPM_MODULES_BREAKING_CHANGE"],
+        &[
+            "ERR_PNPM_MODULES_BREAKING_CHANGE",
+            "The current version of pnpm is not compatible with the available node_modules structure",
+            "Run pnpm install to recreate node_modules.",
+        ],
     );
     assert!(workspace.join("node_modules/is-positive").exists(), "add purged node_modules");
 
@@ -101,6 +102,19 @@ fn install_is_positive(workspace: &Path) {
         .with_args(["add", "is-positive@1.0.0"])
         .assert()
         .success();
+}
+
+/// `pnpm install` recreates the modules directory, whose `.modules.yaml`
+/// then holds `expected`.
+fn install_records(workspace: &Path, expected: &str) {
+    pacquet_in(workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/is-positive").exists());
+    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
+        .expect("read .modules.yaml");
+    assert!(modules_yaml.contains(expected), "expected {expected:?} in {modules_yaml}");
 }
 
 fn run_failing(workspace: &Path, args: &[&str]) -> String {

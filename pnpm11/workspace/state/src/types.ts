@@ -105,6 +105,10 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'preferWorkspacePackages',
   'production',
   'publicHoistPattern',
+  // `node_modules` is linked from the store and virtual store it was
+  // installed with, so a change to either must reach the install, which
+  // recreates it.
+  'storeDir',
   // A `supportedArchitectures` change alters which platform-specific
   // optional dependencies are installed without touching the lockfile,
   // so it must invalidate the up-to-date fast path.
@@ -112,6 +116,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'trustPolicy',
   'trustPolicyExclude',
   'trustPolicyIgnoreAfter',
+  'virtualStoreDir',
   'workspacePackagePatterns',
 ] as const satisfies ReadonlyArray<keyof Config>
 

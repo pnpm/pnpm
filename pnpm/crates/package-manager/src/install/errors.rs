@@ -90,9 +90,12 @@ pub enum InstallError {
     VirtualStoreDirMaxLengthDiff,
 
     #[display(
-        r#"The node_modules structure at "{modules_dir}" is not compatible with the current pnpm version. Run "pnpm install --force" to recreate node_modules."#
+        "The current version of pnpm is not compatible with the available node_modules structure"
     )]
-    #[diagnostic(code(ERR_PNPM_MODULES_BREAKING_CHANGE))]
+    #[diagnostic(
+        code(ERR_PNPM_MODULES_BREAKING_CHANGE),
+        help("node_modules path: {modules_dir}\n\nRun pnpm install to recreate node_modules.")
+    )]
     ModulesBreakingChange {
         #[error(not(source))]
         modules_dir: String,
