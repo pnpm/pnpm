@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-pnpm now runs the install scripts of a git-hosted dependency each time it links the dependency from the store into a new location. This includes a new global virtual store slot and a fresh `node_modules`. Before, only the first install that fetched the dependency built it, and later ones linked it without building it. This also fixes dependencies that are already in the store [#17224](https://github.com/pnpm/pnpm/issues/17224).
+pnpm now builds a git-hosted dependency in every new location it links the dependency into, such as a new global virtual store slot or a fresh `node_modules`. When the side-effects cache holds the build output, pnpm restores it from there. Before, only the install that fetched the dependency built it. This also fixes dependencies that are already in the store [#17224](https://github.com/pnpm/pnpm/issues/17224).
