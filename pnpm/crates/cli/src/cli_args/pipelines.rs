@@ -99,14 +99,12 @@ pub(crate) enum InstallFamilyPlan {
 
 #[derive(Clone, Copy)]
 enum RuntimePolicy {
-    Always,
     Config(bool),
 }
 
 impl RuntimePolicy {
     fn use_manifest(self, config: &Config) -> bool {
         match self {
-            Self::Always => true,
             Self::Config(no_runtime) => !(config.skip_runtimes || no_runtime),
         }
     }

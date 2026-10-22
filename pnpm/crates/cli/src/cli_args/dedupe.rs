@@ -48,6 +48,10 @@ pub struct DedupeArgs {
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    /// Don't install runtime dependencies (`node`, `deno`, `bun`). Their
+    /// archives aren't fetched and their bins aren't linked.
+    #[clap(long = "no-runtime")]
+    pub no_runtime: bool,
     #[clap(flatten)]
     pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
     #[clap(flatten)]

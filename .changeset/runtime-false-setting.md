@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-`pnpm install` now reads the `runtime` setting. Setting `runtime: false` in `pnpm-workspace.yaml`, `pnpm_config_runtime=false` in the environment, or `--config.runtime=false` skips installing the Node.js, Bun, and Deno runtimes from `devEngines.runtime` and `engines.runtime`, as `--no-runtime` does.
+The `runtime` setting is now read. Setting `runtime: false` in `pnpm-workspace.yaml`, `pnpm_config_runtime=false`, or `--config.runtime=false` stops `pnpm install`, `pnpm add`, `pnpm dedupe`, and the other installing commands from installing the runtimes in `devEngines.runtime` and `engines.runtime`. `pnpm dedupe` now also accepts `--no-runtime`.

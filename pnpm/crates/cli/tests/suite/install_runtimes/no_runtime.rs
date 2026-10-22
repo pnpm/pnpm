@@ -133,6 +133,80 @@ fn update_config_sees_runtime_only_when_set() {
 }
 
 #[test]
+fn dedupe_and_prune_follow_the_runtime_setting() {
+    let cases: [(&str, &[&str]); 3] = [
+        ("runtime: false\n", &["dedupe"]),
+        ("runtime: false\n", &["prune"]),
+        ("", &["dedupe", "--no-runtime"]),
+    ];
+    for (yaml, args) in cases {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) = locked_runtime_project(&root, &mut server, yaml);
+
+        command(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{args:?}");
+        assert!(!fixture.archive_mock.matched(), "{args:?}");
+    }
+}
+
+#[test]
+fn update_config_hook_cannot_undo_no_runtime() {
+    for command_name in ["install", "dedupe"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) = locked_runtime_project(&root, &mut server, "");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { updateConfig (config) { config.runtime = true; return config } } }",
+        )
+        .unwrap();
+
+        command(&workspace)
+            .with_args([command_name, "--no-runtime"])
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{command_name}");
+        assert!(!fixture.archive_mock.matched(), "{command_name}");
+    }
+}
+
+#[test]
+fn update_config_hook_can_skip_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, fixture) = locked_runtime_project(&root, &mut server, "");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.runtime = false; return config } } }",
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules/node").exists());
+    assert!(!fixture.archive_mock.matched());
+}
+
+/// A workspace whose `devEngines.runtime` is locked to a mocked Node.js 24.0.0.
+fn locked_runtime_project(
+    root: &tempfile::TempDir,
+    server: &mut mockito::Server,
+    extra_yaml: &str,
+) -> (std::path::PathBuf, RuntimeFixture) {
+    let workspace = prepare_workspace(root, extra_yaml);
+    let fixture = runtime_fixture(server, "node", "24.0.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, fixture.version, Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    (workspace, fixture)
+}
+
+#[test]
 fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();

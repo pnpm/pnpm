@@ -35,6 +35,10 @@ Use only packages already in the store. A package missing from the store fails t
 
 Prefer cached packages and metadata over the network, even past their freshness window.
 
+### `--no-runtime`
+
+Skip installing runtime entries, such as Node.js downloaded via [`devEngines.runtime`](../package_json.md#devenginesruntime). Works like [`pnpm install --no-runtime`](./install.md#--no-runtime).
+
 ### `--filter <package_selector>`
 
 Restrict the command to the selected projects. [Read more about filtering.](../filtering.md)
