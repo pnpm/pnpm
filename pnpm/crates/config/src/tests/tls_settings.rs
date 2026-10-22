@@ -72,6 +72,26 @@ fn global_config_yaml_supplies_tls_settings_below_the_workspace_yaml() {
 }
 
 #[test]
+fn global_config_yaml_tls_settings_override_project_npmrc() {
+    fake_env!(load_with_fake_env);
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "strict-ssl=true\nlocal-address=127.0.0.3\n");
+    let xdg = tempdir().expect("config tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create global config dir");
+    write_file(
+        &config_dir.join("config.yaml"),
+        &format!("strictSsl: false\nlocalAddress: {LOCAL_ADDRESS}\n"),
+    );
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.tls.strict_ssl, Some(false));
+    assert_eq!(config.tls.local_address, local_address(LOCAL_ADDRESS));
+}
+
+#[test]
 fn pnpm_config_env_tls_settings_override_the_workspace_yaml() {
     fake_env!(load_with_fake_env);
     let project = tempdir().expect("project tempdir");
