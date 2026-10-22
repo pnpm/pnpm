@@ -32,7 +32,7 @@ Controls whether dependency and download progress lines are printed during insta
 ### loglevel
 
 * Default: **info**
-* Type: **debug**, **info**, **warn**, **error**
+* Type: **debug**, **info**, **warn**, **error**, **silent**
 
 Any logs at or higher than the given level will be shown.
 You can instead pass `--silent` to turn off all output logs.
@@ -91,8 +91,6 @@ The location of the npm binary that pnpm uses for some actions, like publishing.
 
 ### pmOnFail
 
-Added in: v11.0.0
-
 * Default: **download**
 * Type: **download**, **error**, **warn**, **ignore**
 
@@ -130,15 +128,6 @@ Migration:
 
 See also [`pnpm with`](../cli/with.md) for running pnpm at a specific version without changing this setting.
 
-### ignoreWorkspaceRootCheck
-
-* Default: **false**
-* Type: **Boolean**
-
-If this is enabled, running `pnpm install`/`pnpm add` from the project's root
-folder will no longer error when `-w`/`--ignore-workspace-root-check` is not
-provided.
-
 ## Node.js settings
 
 ### nodeVersion
@@ -158,8 +147,6 @@ engineStrict: true
 This way, even if someone is using Node.js v22, they will not be able to install a new dependency that doesn't support Node.js v12.22.0.
 
 ### runtimeOnFail
-
-Added in: v11.0.0
 
 * Default: **undefined**
 * Type: **download**, **error**, **warn**, **ignore**
@@ -203,12 +190,14 @@ tools:
 
 ### nodeDownloadMirrors
 
-For pnpm v12.5.0, prefer [`tools.node`](#tools) for machine-level mirrors. `nodeDownloadMirrors` remains supported for compatibility; `pnpm pack-app` uses only `tools.node`.
-
-Added in: v11.0.0
-
 * Default: **undefined**
 * Type: **Record&lt;string, string&gt;**
+
+:::note
+
+Since v12.5.0, prefer [`tools.node`](#tools) for machine-level mirrors. `nodeDownloadMirrors` remains supported for compatibility. `pnpm pack-app` uses only `tools.node`.
+
+:::
 
 Configure custom Node.js download mirrors in `pnpm-workspace.yaml`. The keys are release channels (`release`, `rc`, `nightly`, `v8-canary`, etc.) and the values are base URLs.
 

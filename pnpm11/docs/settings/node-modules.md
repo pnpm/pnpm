@@ -222,7 +222,7 @@ In the central virtual store, each package is hard linked into a directory whose
 
 > This should not be confused with the global content-addressable store. The actual package files are still hard linked from the content-addressable store, but instead of being linked directly into `node_modules/.pnpm`, they are linked into the global virtual store.
 
-Using a global virtual store can speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI, this setting is automatically disabled.
+Using a global virtual store can speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI and this setting is not set, the global virtual store is off.
 
 :::important
 

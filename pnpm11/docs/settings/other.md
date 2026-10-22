@@ -81,8 +81,7 @@ This setting cannot be set in `pnpm-workspace.yaml` at the project level; set it
 * Default:
   * If the **$XDG_STATE_HOME** env variable is set, then **$XDG_STATE_HOME/pnpm**
   * On Windows: **~/AppData/Local/pnpm-state**
-  * On macOS: **~/.pnpm-state**
-  * On Linux: **~/.local/state/pnpm**
+  * On macOS and Linux: **~/.local/state/pnpm**
 * Type: **path**
 
 The directory where pnpm creates the `pnpm-state.json` file that is currently used only by the update checker.

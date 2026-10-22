@@ -4,8 +4,6 @@ title: "Versioning Settings"
 sidebar_label: "Versioning"
 ---
 
-Added in: v11.13.0
-
 These settings configure pnpm's native workspace release management, driven by [`pnpm change`](../cli/change.md) and the bare [`pnpm version -r`](../cli/version.md#recursive-releases). See [Release management](../versioning.md) for the workflow they belong to.
 
 Where two workspace projects publish the same name, a project may be referenced by its `./`-prefixed workspace-relative directory instead of its name in `versioning.fixed`, `versioning.ignore`, and the keys of `versioning.lanes`.

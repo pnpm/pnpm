@@ -24,7 +24,7 @@ Defines what linker should be used for installing Node packages. The existing sc
 Configuration sources replace the whole `nodeLinker` value. A higher-priority scalar or an object without `excluded` clears exclusions from lower-priority sources. The environment variable `PNPM_CONFIG_NODE_LINKER` and `--config.node-linker` accept the object as JSON.
 
 * **isolated** - dependencies are symlinked from a virtual store at `node_modules/.pnpm`.
-* **hoisted** - a flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or Yarn Classic. One of Yarn's libraries is used for hoisting, when this setting is used. Legitimate reasons to use this setting:
+* **hoisted** - a flat `node_modules` without symlinks is created. Same as the `node_modules` created by npm or Yarn Classic. pnpm hoists with Yarn's hoisting algorithm. Legitimate reasons to use this setting:
   1. Your tooling doesn't work well with symlinks.
   1. Your project is deployed to a serverless hosting provider. Some serverless providers (for instance, AWS Lambda) don't support symlinks. An alternative solution for this problem is to bundle your application before deployment.
   1. If you want to publish your package with [`"bundledDependencies"`].
@@ -94,15 +94,11 @@ nodePackageMap:
 
 ### nodeExperimentalPackageMap
 
-Added in: v11.8.0
-
 Deprecated since v12.13.0: use [`nodePackageMap.mode`](#nodepackagemapmode) instead. `nodeExperimentalPackageMap: true` is the same as `mode: load`, and `false` is the same as `mode: off`. When both are set in the same place, `nodePackageMap` takes precedence.
 
 CLI and environment configuration use the kebab-case name `node-experimental-package-map`.
 
 ### nodePackageMapType
-
-Added in: v11.8.0
 
 Deprecated since v12.13.0: use [`nodePackageMap.type`](#nodepackagemaptype-1) instead. When both are set in the same place, `nodePackageMap` takes precedence.
 
@@ -163,8 +159,6 @@ hoisted dependencies in its own `node_modules/.pnpm`.
 Sets the maximum allowed length of directory names inside the virtual store directory (`node_modules/.pnpm`). You may set this to a lower number if you encounter long path issues on Windows.
 
 ### virtualStoreOnly
-
-Added in: v11.0.0
 
 * Default: **false**
 * Type: **Boolean**
@@ -314,8 +308,6 @@ After executing a dlx command, pnpm keeps a cache that omits the installation st
 
 ### virtualStoreType
 
-Added in: v11.23.0
-
 * Default: **project**
 * Type: **project**, **global**
 
@@ -333,36 +325,32 @@ The setting is independent of [`nodeLinker`](#nodelinker): `isolated` and `pnp` 
 
 ### enableGlobalVirtualStore
 
-Added in: v10.12.1
-
 * Default: **false**
 * Type: **Boolean**
 
 :::note
 
-Since v11.23.0, [`virtualStoreType`](#virtualstoretype) is the canonical spelling of this setting: `enableGlobalVirtualStore: true` is `virtualStoreType: global`. Both work, and `virtualStoreType` wins when a project sets both.
+[`virtualStoreType`](#virtualstoretype) is the canonical spelling of this setting: `enableGlobalVirtualStore: true` is `virtualStoreType: global`. Both work, and `virtualStoreType` wins when a project sets both.
 
 :::
 
 :::note
 
-Global installs (`pnpm add -g`) and `pnpm dlx` use the global virtual store by default.
+Global installs (`pnpm add -g`) use the global virtual store by default. `pnpm dlx` does not: each entry of the dlx cache keeps its own virtual store.
 
 :::
 
-When enabled, `node_modules` contains only symlinks to a central virtual store, rather than to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (use `pnpm store path` to find `<store-path>`). Set [`virtualStoreDir`](#virtualstoredir) to place it elsewhere.
+When enabled with `nodeLinker: isolated`, `node_modules` contains only symlinks to a central virtual store, rather than to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (use `pnpm store path` to find `<store-path>`). Set [`globalVirtualStoreDir`](#globalvirtualstoredir) or [`virtualStoreDir`](#virtualstoredir) to place it elsewhere.
 
 In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. As a result, all projects on the system can symlink their dependencies from this shared location on disk. This approach is conceptually similar to how [NixOS manages packages], using dependency graph hashes to create isolated and shareable package directories in the Nix store.
 
 > This should not be confused with the global content-addressable store. The actual package files are still hard linked from the content-addressable store, but instead of being linked directly into `node_modules/.pnpm`, they are linked into the global virtual store.
 
-Using a global virtual store can speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI, this setting is automatically disabled.
+Using a global virtual store can speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation.
 
 :::important
 
-To support hoisted dependencies when using a global virtual store, pnpm relies on the `NODE_PATH` environment variable. This allows Node.js to resolve packages from the hoisted `node_modules` directory. Node.js does not respect `NODE_PATH` for ESM imports, though, so before v11.23.0 a dependency that imports a package **not declared in its own `package.json`** (which is considered bad practice) failed to resolve under ESM.
-
-Since v11.23.0, every process pnpm spawns for the project (`pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs) receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. Such imports now resolve for CommonJS and ESM alike, without the `@pnpm/plugin-esm-node-path` config dependency that used to be needed ([#9618](https://github.com/pnpm/pnpm/issues/9618)).
+To support hoisted dependencies when using a global virtual store, pnpm relies on the `NODE_PATH` environment variable. This allows Node.js to resolve packages from the hoisted `node_modules` directory. Node.js does not respect `NODE_PATH` for ESM imports, so every process pnpm spawns for the project (`pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs) receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. A dependency that imports a package **not declared in its own `package.json`** (which is considered bad practice) resolves for CommonJS and ESM alike.
 
 Two things fall outside that: a `node` process you start yourself rather than through pnpm, and a project that sets [`extendNodePath`](./other.md#extendnodepath) to `false`, which turns the whole `NODE_PATH` mechanism off and takes the resolve hook with it. Use [packageExtensions] to declare the missing dependencies if you need them to resolve in either case.
 
@@ -370,6 +358,13 @@ Two things fall outside that: a `node` process you start yourself rather than th
 
 [packageExtensions]: ./dependency-resolution.md#packageextensions
 [NixOS manages packages]: https://nixos.org/guides/how-nix-works/
+
+### globalVirtualStoreDir
+
+* Default: `<store-path>/links`
+* Type: **path**
+
+The location of the [global virtual store](#enableglobalvirtualstore). It takes precedence over [`virtualStoreDir`](#virtualstoredir). When it is unset and the global virtual store is on, an explicitly set `virtualStoreDir` places the global virtual store.
 
 ## Dependency hoisting settings
 
@@ -492,8 +487,6 @@ root of `node_modules`, you can set this to `true` to hoist them for you.
 
 ### hoistingLimits
 
-Added in: v11.5.0
-
 * Default: **none**
 * Type: **none**, **workspaces**, **dependencies**
 
@@ -502,3 +495,15 @@ Controls how far dependencies are hoisted when using `nodeLinker: hoisted`. This
 * **none** - hoist as far as possible (the default).
 * **workspaces** - hoist only as far as each workspace package, preventing dependencies from being hoisted above the workspace package that depends on them.
 * **dependencies** - hoist only up to each workspace package's direct dependencies, preventing transitive dependencies from being hoisted into the workspace package's `node_modules`.
+
+### externalDependencies
+
+* Default: **[]**
+* Type: **string[]**
+
+Names of dependencies that another tool links into the root `node_modules`. With `nodeLinker: hoisted`, pnpm does not place a dependency whose alias is listed here at the top level, and leaves that slot to the other tool. This setting has no effect with other linkers.
+
+```yaml title="pnpm-workspace.yaml"
+externalDependencies:
+  - bit-bin
+```

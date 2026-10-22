@@ -112,15 +112,6 @@ Migration:
 
 See also [`pnpm with`](../cli/with.md) for running pnpm at a specific version without changing this setting.
 
-### ignoreWorkspaceRootCheck
-
-* Default: **false**
-* Type: **Boolean**
-
-If this is enabled, running `pnpm install`/`pnpm add` from the project's root
-folder will no longer error when `-w`/`--ignore-workspace-root-check` is not
-provided.
-
 ## Node.js settings
 
 ### nodeVersion
