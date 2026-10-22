@@ -182,8 +182,9 @@ fn normalize_scope(scope: Option<&str>) -> Option<String> {
 /// Record the granted `token` in `auth.ini`, and bring the global
 /// `config.yaml` in line with it (see [`config_yaml::login_fields`]).
 ///
-/// Both files are read and edited before either is written, so a document
-/// that cannot be edited fails the login without leaving its token behind.
+/// Both files are read and edited before either is written, and `auth.ini` is
+/// restored when the `config.yaml` write fails, so a failed login leaves no
+/// token behind.
 fn record_login<Sys: FsReadToString + FsWrite>(
     opts: &LoginOptions<'_>,
     registry: &str,
@@ -191,39 +192,46 @@ fn record_login<Sys: FsReadToString + FsWrite>(
 ) -> Result<(), LoginError> {
     let scope = normalize_scope(opts.scope);
     let auth_ini_path = opts.config_dir.join("auth.ini");
-    let auth_ini = auth_ini_with_token::<Sys>(&auth_ini_path, registry, scope.as_deref(), token)?;
+    let (original_auth_ini, auth_ini) =
+        auth_ini_with_token::<Sys>(&auth_ini_path, registry, scope.as_deref(), token)?;
     let config_path = opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
     let config_yaml = config_yaml_after_login::<Sys>(&config_path, registry, scope.as_deref())?;
 
     Sys::write(&auth_ini_path, auth_ini.as_bytes())
-        .map_err(|error| LoginError::WriteAuthIni { path: auth_ini_path, error })?;
+        .map_err(|error| LoginError::WriteAuthIni { path: auth_ini_path.clone(), error })?;
     let Some(text) = config_yaml else {
         return Ok(());
     };
     Sys::write(&config_path, text.as_bytes())
-        .map_err(|error| LoginError::WriteConfigYaml { path: config_path, error })
+        .map_err(|error| {
+            // Best effort: the error the user needs is the `config.yaml` one.
+            let _ = Sys::write(&auth_ini_path, original_auth_ini.as_bytes());
+            LoginError::WriteConfigYaml { path: config_path, error }
+        })
 }
 
-/// `auth.ini` with the `//host/:_authToken` key, or `//host/:<scope>:_authToken`
+/// `auth.ini` as read (empty when missing), and with the `//host/:_authToken` key, or `//host/:<scope>:_authToken`
 /// for a scoped login, set to `token`.
 fn auth_ini_with_token<Sys: FsReadToString>(
     path: &Path,
     registry: &str,
     scope: Option<&str>,
     token: &str,
-) -> Result<String, LoginError> {
-    let mut settings = match Sys::read_to_string(path) {
-        Ok(text) => IniSettings::parse(&text),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => IniSettings::default(),
+) -> Result<(String, String), LoginError> {
+    let original = match Sys::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(LoginError::ReadAuthIni { path: path.to_path_buf(), error }),
     };
+    let mut settings = IniSettings::parse(&original);
     let registry_key = nerf_dart(registry);
     let token_key = match scope {
         Some(scope) => format!("{registry_key}:{scope}:_authToken"),
         None => format!("{registry_key}:_authToken"),
     };
     settings.set(&token_key, token);
-    Ok(settings.serialize())
+    let updated = settings.serialize();
+    Ok((original, updated))
 }
 
 /// The global `config.yaml` after a login, or `None` when the login leaves it

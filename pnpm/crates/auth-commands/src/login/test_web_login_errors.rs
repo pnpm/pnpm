@@ -529,3 +529,37 @@ async fn should_write_nothing_when_config_yaml_cannot_be_parsed() {
     assert!(matches!(err, LoginError::ParseConfigYaml(_)), "got {err:?}");
     assert!(login_writes().is_empty(), "nothing may be written: {:?}", login_writes());
 }
+
+/// A `config.yaml` write that fails after `auth.ini` was written puts
+/// `auth.ini` back, so the failed login leaves no token behind.
+#[tokio::test]
+async fn should_restore_auth_ini_when_the_config_yaml_write_fails() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_fake!(FakeHost, set_ini_read, fail_writes_to, login_writes);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|path| {
+        Ok(if path.ends_with("auth.ini") { "kept=value\n".to_owned() } else { String::new() })
+    }));
+    fail_writes_to("config.yaml");
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+
+    let mut options = opts(&registry, Path::new("/mock/config"));
+    options.scope = Some("@acme");
+    let err = login::<FakeHost, RecordingReporter>(&client(), options).await.unwrap_err();
+
+    assert!(matches!(err, LoginError::WriteConfigYaml { .. }), "got {err:?}");
+    let writes = login_writes();
+    let (path, text) = writes.last().expect("auth.ini was written");
+    assert!(path.ends_with("auth.ini"), "got {writes:?}");
+    assert_eq!(text, "kept=value\n");
+}

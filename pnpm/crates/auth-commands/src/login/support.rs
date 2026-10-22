@@ -48,6 +48,7 @@ macro_rules! login_fake {
         thread_local! {
             static INI_READ: RefCell<Option<ReadScript>> = const { RefCell::new(None) };
             static INI_WRITES: RefCell<Vec<(PathBuf, String)>> = const { RefCell::new(Vec::new()) };
+            static WRITE_FAILURE: RefCell<Option<&'static str>> = const { RefCell::new(None) };
         }
 
         impl $crate::login::PromptInput for $fake {
@@ -75,6 +76,12 @@ macro_rules! login_fake {
 
         impl $crate::logout::FsWrite for $fake {
             fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+                let fails = WRITE_FAILURE.with(|failure| {
+                    failure.borrow().is_some_and(|file_name| path.ends_with(file_name))
+                });
+                if fails {
+                    return Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"));
+                }
                 let text = String::from_utf8(bytes.to_vec()).expect("login writes UTF-8");
                 INI_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
                 Ok(())
@@ -86,6 +93,7 @@ macro_rules! login_fake {
             *PROMPT_PASSWORD.lock().expect("password script mutex") = None;
             INI_READ.with(|cell| *cell.borrow_mut() = None);
             INI_WRITES.with(|writes| writes.borrow_mut().clear());
+            WRITE_FAILURE.with(|failure| *failure.borrow_mut() = None);
         }
 
         $( login_fake!(@helper $helper); )*
@@ -106,6 +114,11 @@ macro_rules! login_fake {
             INI_READ.with(|cell| *cell.borrow_mut() = Some(script));
         }
     };
+    (@helper fail_writes_to) => {
+        fn fail_writes_to(file_name: &'static str) {
+            WRITE_FAILURE.with(|failure| *failure.borrow_mut() = Some(file_name));
+        }
+    };
     (@helper login_writes) => {
         fn login_writes() -> Vec<(PathBuf, String)> {
             INI_WRITES.with(|writes| writes.borrow().clone())
@@ -115,7 +128,8 @@ macro_rules! login_fake {
         compile_error!(concat!(
             "unknown `login_fake!` helper `",
             stringify!($unknown),
-            "`; expected one of: set_prompt_input, set_prompt_password, set_ini_read, login_writes",
+            "`; expected one of: set_prompt_input, set_prompt_password, set_ini_read, fail_writes_to, \
+             login_writes",
         ));
     };
 }
