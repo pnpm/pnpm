@@ -104,7 +104,6 @@ and the public URL pnpr writes into tarball links:
   "containers": [
     {
       "name": "pnpr-container",
-      "class_name": "PnprContainer",
       "image": "./Dockerfile",
       "max_instances": 1,
       "instance_type": "standard-1"
