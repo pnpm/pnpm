@@ -137,25 +137,20 @@ fn die_from_signal_does_not_dump_core() {
     assert!(!status.core_dumped(), "die_from_signal must not dump core: {status:?}");
 }
 
-/// Runs in a child process so `earlier` is installed before the `Once`
-/// behind `install_temp_file_cleanup` is spent. A sibling test that tracked
-/// a temp file first would leave this one installing over nothing, and
-/// `raise` would reach `earlier` directly with nothing forwarded. The child
-/// also keeps the altered `SIGTERM` disposition to itself.
+/// The child half of
+/// [`a_replaced_siginfo_handler_is_passed_the_signal_details`], which
+/// spawns it.
 ///
-/// Asserts on the `siginfo_t` rather than only on `earlier` being reached,
-/// because a wrong signature leaves those arguments holding whatever the
-/// registers did.
+/// Ignored so that no ordinary run reaches it, because it holds only in a
+/// process of its own: it installs `earlier` before the `Once` behind
+/// `install_temp_file_cleanup` is spent, which a sibling test that tracked
+/// a temp file first would have spent already, and it leaves `SIGTERM`
+/// pointing at pnpm's handler afterwards.
 #[cfg(unix)]
 #[test]
-fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
-    use std::{
-        env,
-        process::Command,
-        sync::atomic::{AtomicBool, AtomicI32, Ordering},
-    };
-
-    const CHILD_MARKER: &str = "PNPM_FS_SIGINFO_FORWARDING_CHILD";
+#[ignore = "spawned by a_replaced_siginfo_handler_is_passed_the_signal_details"]
+fn forwards_a_delivery_to_the_handler_it_replaced() {
+    use std::sync::atomic::{AtomicBool, AtomicI32};
 
     static REACHED_WITH: AtomicI32 = AtomicI32::new(0);
     static DETAILS_MATCHED: AtomicBool = AtomicBool::new(false);
@@ -173,47 +168,62 @@ fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
         DETAILS_MATCHED.store(matched, Ordering::Release);
     }
 
-    if env::var_os(CHILD_MARKER).is_some() {
-        // SAFETY: an all-zero `sigaction` is a valid one to build on, and the
-        // pointer is to a fully initialized stack local that outlives the
-        // call. A null `oldact` discards the disposition being replaced.
-        unsafe {
-            let mut action: libc::sigaction = std::mem::zeroed();
-            action.sa_flags = libc::SA_SIGINFO;
-            action.sa_sigaction = earlier as *const () as usize;
-            libc::sigemptyset(&raw mut action.sa_mask);
-            assert_eq!(libc::sigaction(libc::SIGTERM, &raw const action, std::ptr::null_mut()), 0);
-        }
-
-        // pnpm's handler goes on top, so `earlier` is the disposition it
-        // records and the one it passes the signal on to.
-        super::install_temp_file_cleanup();
-
-        // SAFETY: `raise` delivers to this thread, where the disposition is
-        // pnpm's handler over `earlier`, so neither ends the process and the
-        // call returns.
-        assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
-
-        assert_eq!(
-            REACHED_WITH.load(Ordering::Acquire),
-            libc::SIGTERM,
-            "the signal was not passed on to the handler pnpm replaced",
-        );
-        assert!(
-            DETAILS_MATCHED.load(Ordering::Acquire),
-            "the replaced handler was called without the delivery's `siginfo_t`",
-        );
-        return;
+    // SAFETY: an all-zero `sigaction` is a valid one to build on, and the
+    // pointer is to a fully initialized stack local that outlives the call.
+    // A null `oldact` discards the disposition being replaced.
+    unsafe {
+        let mut action: libc::sigaction = std::mem::zeroed();
+        action.sa_flags = libc::SA_SIGINFO;
+        action.sa_sigaction = earlier as *const () as usize;
+        libc::sigemptyset(&raw mut action.sa_mask);
+        assert_eq!(libc::sigaction(libc::SIGTERM, &raw const action, std::ptr::null_mut()), 0);
     }
 
-    let status = Command::new(env::current_exe().expect("test binary path"))
-        .args([
-            "--exact",
-            "pending_temp::tests::a_replaced_siginfo_handler_is_passed_the_signal_details",
-            "--nocapture",
-        ])
-        .env(CHILD_MARKER, "1")
-        .status()
+    // pnpm's handler goes on top, so `earlier` is the disposition it records
+    // and the one it passes the signal on to.
+    super::install_temp_file_cleanup();
+
+    // SAFETY: `raise` delivers to this thread, where the disposition is
+    // pnpm's handler over `earlier`, so neither ends the process and the
+    // call returns.
+    assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+
+    assert_eq!(
+        REACHED_WITH.load(Ordering::Acquire),
+        libc::SIGTERM,
+        "the signal was not passed on to the handler pnpm replaced",
+    );
+    assert!(
+        DETAILS_MATCHED.load(Ordering::Acquire),
+        "the replaced handler was called without the delivery's `siginfo_t`",
+    );
+}
+
+/// Asserts on the `siginfo_t` the replaced handler received rather than
+/// only on its being reached, because a wrong signature leaves those
+/// arguments holding whatever the registers did.
+///
+/// The forwarding itself is
+/// [`forwards_a_delivery_to_the_handler_it_replaced`], run as a child
+/// process for the reasons given there.
+#[cfg(unix)]
+#[test]
+fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
+    use std::{env, process::Command};
+
+    const CHILD: &str = "pending_temp::tests::forwards_a_delivery_to_the_handler_it_replaced";
+
+    let output = Command::new(env::current_exe().expect("test binary path"))
+        .args(["--exact", CHILD, "--ignored", "--nocapture"])
+        .output()
         .expect("spawn child test process");
-    assert!(status.success(), "the child's forwarding assertions failed: {status:?}");
+    let report = String::from_utf8_lossy(&output.stdout);
+
+    assert!(output.status.success(), "{CHILD} failed:\n{report}");
+    // `--exact` names the child in a string, so a rename would leave the
+    // child running no test at all and still exiting zero.
+    assert!(
+        report.contains("1 passed"),
+        "{CHILD} matched no test, so it has been renamed or gated out:\n{report}",
+    );
 }
