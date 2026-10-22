@@ -1,11 +1,24 @@
 //! The forwarding of a delivery to the handler pnpm replaced.
 //!
-//! One test in a file of its own, which is what gives it a process of its
-//! own. It has to install its handler before the `Once` behind
-//! [`pnpm_fs::install_temp_file_cleanup`] is spent, which a sibling that
-//! tracked a temp file first would have spent already, and it leaves
-//! `SIGTERM` pointing at pnpm's handler afterwards. A second test in this
-//! file would take both of those away.
+//! # This file must hold exactly one test
+//!
+//! A pristine process is this test's condition, not a convenience. A file
+//! under `tests/` is its own binary, so the test below gets a process where
+//! the `Once` behind [`pnpm_fs::install_temp_file_cleanup`] is unspent. That
+//! is what lets it install `earlier` *underneath* pnpm's handler, so pnpm's
+//! handler records `earlier` as the disposition it replaced and has
+//! something to forward to. The altered `SIGTERM` then dies with the
+//! process.
+//!
+//! Anything else added here that tracks a temp file or installs the cleanup
+//! spends that `Once` first. pnpm's handler is then already in place,
+//! `earlier` goes on top of it instead of underneath, and `raise` reaches
+//! `earlier` directly: every assertion below still passes while no
+//! forwarding has run at all. A second test here does not break this one
+//! loudly, it hollows it out.
+//!
+//! So the test asserts the disposition it starts from rather than trusting
+//! it, and that assertion is the thing to read if it ever fails.
 
 #![cfg(unix)]
 
@@ -32,6 +45,21 @@ extern "C" fn earlier(
 /// holding whatever the registers did.
 #[test]
 fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
+    // SAFETY: a null `act` makes this a read, and `oldact` points at a fully
+    // initialized stack local that outlives the call.
+    let standing = unsafe {
+        let mut current: libc::sigaction = std::mem::zeroed();
+        assert_eq!(libc::sigaction(libc::SIGTERM, std::ptr::null(), &raw mut current), 0);
+        current.sa_sigaction
+    };
+    assert_eq!(
+        standing,
+        libc::SIG_DFL,
+        "SIGTERM already carries a handler, so the `Once` behind \
+         install_temp_file_cleanup is spent and this test would assert \
+         nothing: see the comment at the top of this file",
+    );
+
     // SAFETY: an all-zero `sigaction` is a valid one to build on, and the
     // pointer is to a fully initialized stack local that outlives the call.
     // A null `oldact` discards the disposition being replaced.
@@ -62,3 +90,7 @@ fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
         "the replaced handler was called without the delivery's `siginfo_t`",
     );
 }
+
+// Do not add a test below this line. The comment at the top of the file says
+// why: a second test in this binary spends the `Once` and leaves the test
+// above passing without forwarding anything.
