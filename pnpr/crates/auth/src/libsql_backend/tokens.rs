@@ -1,6 +1,4 @@
-use super::{
-    LibsqlAuth, RegistryError, Result, Row, TokenBackend, TokenRecord, params, with_auth_timeout,
-};
+use super::{LibsqlAuth, RegistryError, Result, Row, TokenBackend, TokenRecord, params};
 use crate::{
     NewToken,
     token_store::{mint_token, sha256_hex, unix_seconds},
@@ -55,25 +53,23 @@ impl TokenBackend for LibsqlAuth {
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
         let sql_now = token_timestamp_to_sql(now);
         // Not synced back into a replica: this runs on authenticated
-        // requests, and the background sync carries the timestamp.
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                conn.execute(
-                    "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
-                    params![sql_now, key],
-                )
-                .await?;
-                Ok(())
-            }),
-        )
+        // requests, and the background sync carries the timestamp. It runs
+        // under the read deadline: losing a timestamp to it is harmless.
+        self.pool.read(|conn| async move {
+            conn.execute(
+                "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
+                params![sql_now, key],
+            )
+            .await?;
+            Ok(())
+        })
         .await
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds();
-        with_auth_timeout::<_, RegistryError>(self.timeout, self.pool.run(|conn| async move {
+        self.pool.read(|conn| async move {
             let mut rows = conn
                 .query(
                     "SELECT t.username, t.expires_at FROM tokens t JOIN users u ON u.username = t.username
@@ -85,7 +81,7 @@ impl TokenBackend for LibsqlAuth {
                 Some(row) => unexpired_owner(&row, now),
                 None => Ok(None),
             }
-        }))
+        })
         .await
     }
 
@@ -96,47 +92,38 @@ impl TokenBackend for LibsqlAuth {
              WHERE t.token_hash = ?1",
         );
         let now = unix_seconds();
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows = conn.query(&query, params![token_hash]).await?;
-                match rows.next().await? {
-                    Some(row) => Ok(unexpired(row_to_keyed_record(&row)?.1, now)),
-                    None => Ok(None),
-                }
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows = conn.query(&query, params![token_hash]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(unexpired(row_to_keyed_record(&row)?.1, now)),
+                None => Ok(None),
+            }
+        })
         .await
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows = conn.query(&query, params![key]).await?;
-                match rows.next().await? {
-                    Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                    None => Ok(None),
-                }
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows = conn.query(&query, params![key]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+                None => Ok(None),
+            }
+        })
         .await
     }
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows = conn.query(&query, params![username]).await?;
-                let mut out = Vec::new();
-                while let Some(row) = rows.next().await? {
-                    out.push(row_to_keyed_record(&row)?);
-                }
-                Ok(out)
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows = conn.query(&query, params![username]).await?;
+            let mut out = Vec::new();
+            while let Some(row) = rows.next().await? {
+                out.push(row_to_keyed_record(&row)?);
+            }
+            Ok(out)
+        })
         .await
     }
 
@@ -144,8 +131,9 @@ impl TokenBackend for LibsqlAuth {
         let Some(record) = self.find_by_key(key).await? else {
             return Ok(None);
         };
-        self.pool.run(|conn| async move {
-            conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await
+        self.pool.write(|conn| async move {
+            conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
+            Ok(())
         })
         .await?;
         self.sync_replica().await?;
@@ -153,8 +141,8 @@ impl TokenBackend for LibsqlAuth {
     }
 
     async fn revoke_all_for_user(&self, username: &str) -> Result<usize> {
-        let removed = self.pool.run(|conn| async move {
-            conn.execute("DELETE FROM tokens WHERE username = ?1", params![username]).await
+        let removed = self.pool.write(|conn| async move {
+            Ok(conn.execute("DELETE FROM tokens WHERE username = ?1", params![username]).await?)
         })
         .await?;
         // Another instance may have revoked the tokens this replica still
@@ -175,7 +163,7 @@ impl LibsqlAuth {
         let cidr_json = serde_json::to_string(&record.cidr_whitelist)
             .expect("Vec<String> always serializes to JSON");
         let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
-        self.pool.run(|conn| async move {
+        self.pool.write(|conn| async move {
             conn.execute(
                 "INSERT INTO tokens
                      (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
@@ -193,10 +181,10 @@ impl LibsqlAuth {
                     record.kind.as_deref(),
                 ],
             )
-            .await
+            .await?;
+            Ok(())
         })
-        .await?;
-        Ok(())
+        .await
     }
 
     /// Whether the embedded replica still lists a token of `username`;
@@ -205,17 +193,12 @@ impl LibsqlAuth {
         if !self.is_replica {
             return Ok(false);
         }
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows = conn.query(
-                    "SELECT 1 FROM tokens WHERE username = ?1 LIMIT 1",
-                    params![username],
-                )
-                .await?;
-                Ok(rows.next().await?.is_some())
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows =
+                conn.query("SELECT 1 FROM tokens WHERE username = ?1 LIMIT 1", params![username])
+                    .await?;
+            Ok(rows.next().await?.is_some())
+        })
         .await
     }
 }
