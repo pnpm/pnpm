@@ -1128,6 +1128,8 @@ fn deploy_does_not_run_prepare_scripts() {
 
 mod legacy;
 
+mod legacy_lockfile_verification;
+
 mod package_manager;
 
 mod peers;
