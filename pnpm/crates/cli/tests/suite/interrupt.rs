@@ -159,6 +159,32 @@ fn run_ends_with_the_signal_that_killed_the_script() {
     drop(root);
 }
 
+#[test]
+fn exec_ends_with_a_core_dump_signal_without_dumping_core_for_pnpm() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"test","version":"0.0.0"}"#)
+        .expect("write package.json");
+
+    let mut command = pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "exec",
+        "sh",
+        "-c",
+        "ulimit -c 0; kill -s ABRT $$",
+    ]);
+    pnpm_testing_utils::spawn::enable_core_dumps(&mut command);
+    let mut process = spawn_without_terminal(command);
+    let status = wait_for_shutdown(&mut process);
+
+    assert_eq!(status.signal(), Some(libc::SIGABRT), "pnpm should end the way the command did");
+    assert!(
+        !status.core_dumped(),
+        "pnpm re-raised the child's SIGABRT, so pnpm itself must not dump core: {status:?}",
+    );
+
+    drop(root);
+}
+
 /// `Ctrl+C` interrupts the terminal's whole foreground group, so the
 /// script has the signal by the time pnpm does. pnpm passes nothing on,
 /// and the script counts one interrupt rather than two

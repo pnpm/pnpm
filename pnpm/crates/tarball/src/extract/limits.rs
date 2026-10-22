@@ -271,6 +271,28 @@ pub(crate) fn check_trailer(rest: impl Read) -> Result<(), TarballError> {
     Ok(())
 }
 
+/// Error attached to [`TarballError::ReadTarballEntries`] when
+/// [`clean_archive_entry_path`] rejects a tar entry path.
+#[derive(Debug, derive_more::Display, derive_more::Error)]
+pub(crate) enum RejectedEntryPathError {
+    #[display(
+        "tar entry path rejected (non-normal component, possible directory traversal): {raw:?}"
+    )]
+    NonNormalComponent {
+        #[error(not(source))]
+        raw: String,
+    },
+    #[display("tar entry path names the archive root itself, not a file in it: {raw:?}")]
+    ArchiveRoot {
+        #[error(not(source))]
+        raw: String,
+    },
+}
+
+fn rejected_entry_path_error(error: RejectedEntryPathError) -> TarballError {
+    TarballError::ReadTarballEntries(io::Error::new(io::ErrorKind::InvalidData, error))
+}
+
 /// Validate and clean one archive entry path: reject traversal, drop
 /// the top-level package directory (`package/`), and join the remaining
 /// segments with forward slashes.
@@ -296,18 +318,14 @@ pub(crate) fn check_trailer(rest: impl Read) -> Result<(), TarballError> {
 /// to U+FFFD per component.
 pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
     let Some(mut parts) = archive_entry_segments(raw) else {
-        return Err(TarballError::ReadTarballEntries(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "tar entry path rejected (non-normal component, possible directory traversal): {raw:?}",
-            ),
-        )));
+        return Err(rejected_entry_path_error(RejectedEntryPathError::NonNormalComponent {
+            raw: raw.to_string(),
+        }));
     };
     if parts.as_slice() == ["."] {
-        return Err(TarballError::ReadTarballEntries(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
-        )));
+        return Err(rejected_entry_path_error(RejectedEntryPathError::ArchiveRoot {
+            raw: raw.to_string(),
+        }));
     }
     if parts.len() > 1 {
         parts.remove(0);

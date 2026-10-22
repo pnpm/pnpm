@@ -55,9 +55,10 @@ It is named `pnpm-ffi-<surface>`, and it must:
 
 ### Test-support crates: the harnesses tests run under
 
-A fixture that has to open a pseudo-terminal, allocate a console, or drop a
-thread's privileges is abstracting a foreign surface for the same reason a
-`pnpm-ffi-*` crate is, and under the same rules. It lives in
+A fixture that has to reach a foreign surface to set up a scenario, a
+pseudo-terminal or a forked child's resource limits for example, is
+abstracting that surface for the same reason a `pnpm-ffi-*` crate is, and
+under the same rules. It lives in
 [`pnpm-testing-utils`](./pnpm/crates/testing-utils) rather than in the test
 target that needs it, so that a test target is a consumer like any other.
 

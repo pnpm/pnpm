@@ -229,7 +229,14 @@ fn finish_resource(
             Ok(_) => Err(drain),
         },
     };
-    let integrity = resource.verification.finish(integrity, tar, resource.package_url);
+    let integrity = match resource.verification.finish(integrity, tar, resource.package_url) {
+        Err(TarballError::IncompleteTar { .. }) if extracted.is_err() => {
+            return ExtractedResource::failed(extracted.expect_err(
+                "guarded by extracted.is_err()",
+            ));
+        }
+        other => other,
+    };
     ExtractedResource { integrity, extracted }
 }
 

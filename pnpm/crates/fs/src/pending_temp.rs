@@ -130,13 +130,20 @@ fn signal_number(interrupt: pnpm_ffi_signal::Interrupt) -> i32 {
 }
 
 /// Unlink the pending temp files, then end the process as `signal` would
-/// have ended it without a handler. For a signal handler that decides the
-/// process dies.
+/// have ended it without a handler, without dumping pnpm's own core. For a
+/// signal handler or child-status exit that decides the process dies.
 ///
 /// Async-signal-safe.
 #[cfg(unix)]
 pub fn die_from_signal(signal: i32) -> ! {
     remove_pending_temp_files();
+    // A core-dumping signal re-raised here (`SIGABRT`, `SIGSEGV`,
+    // `SIGQUIT`, ...) is a child's status being reported as pnpm's own
+    // exit. The child already had its chance to dump core, and a dump here
+    // would record a crash of pnpm in `systemd-coredump` or overwrite the
+    // child's own `core` file
+    // ([pnpm/pnpm#17204](https://github.com/pnpm/pnpm/issues/17204)).
+    pnpm_ffi_process::suppress_core_dump();
     pnpm_ffi_signal::die_from(signal)
 }
 

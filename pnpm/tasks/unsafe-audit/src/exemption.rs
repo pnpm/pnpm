@@ -102,7 +102,7 @@ const EXEMPT: &[Exemption] = &[
     Exemption {
         crate_name: "pnpm-testing-utils",
         tier: Tier::TestSupport,
-        reason: "the pseudo-terminal, console and privilege harnesses tests spawn under",
+        reason: "the process and terminal harnesses tests spawn under",
     },
 ];
 

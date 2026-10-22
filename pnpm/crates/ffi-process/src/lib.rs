@@ -11,6 +11,8 @@
 //! it sound.
 
 #[cfg(unix)]
+pub use core_dump::suppress_core_dump;
+#[cfg(unix)]
 pub use credentials::effective_user_id;
 #[cfg(all(unix, not(target_os = "cygwin")))]
 pub use credentials::real_user_id;
@@ -34,6 +36,8 @@ pub use process_list::{has_children, runs_image};
 #[cfg(unix)]
 pub use umask::current_umask;
 
+#[cfg(unix)]
+mod core_dump;
 #[cfg(unix)]
 mod credentials;
 #[cfg(target_vendor = "apple")]

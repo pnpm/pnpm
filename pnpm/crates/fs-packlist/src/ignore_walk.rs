@@ -69,6 +69,9 @@ fn root_rules(pkg_dir: &Path, options: PackageRules<'_>) -> io::Result<files_fie
             .iter()
             .map(|path| IgnoreRule::reinclude_path(path)),
     );
+    if let Some(config_path) = crate::pnpm_config_path(options.manifest) {
+        matcher.named_files.insert(config_path);
+    }
     if options.include_alternate_manifests {
         matcher.rules.extend(["!/package.yaml", "!/package.json5"].map(
             IgnoreRule::parse_ascii_case,

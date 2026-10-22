@@ -432,6 +432,7 @@ pub struct ResolutionRefreshOptions {
     /// [`Self::current_pkg`] as it is.
     pub repick_current_version: bool,
     pub update: UpdateBehavior,
+    pub refresh_metadata: bool,
     /// True only when this specific package matches the user's update
     /// target (e.g. `pnpm up <name>`). Unlike `update`, this is false for
     /// unrelated packages that get re-resolved as a side effect of an
@@ -451,12 +452,12 @@ pub struct ResolutionRefreshOptions {
 }
 
 impl ResolutionRefreshOptions {
-    /// Whether the resolution must see versions published since the
-    /// metadata mirror was written: an update is running, or this package
-    /// is its target.
+    /// Whether the resolution must revalidate cached metadata against the
+    /// registry: an update or deduplication is running, or this package is
+    /// its target.
     #[must_use]
     pub fn refreshes_metadata(&self) -> bool {
-        self.update != UpdateBehavior::Off || self.update_requested
+        self.update != UpdateBehavior::Off || self.update_requested || self.refresh_metadata
     }
 
     /// The locked runtime a runtime resolver returns as it is: a

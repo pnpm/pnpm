@@ -73,3 +73,31 @@ fn a_slot_released_during_a_cleanup_stays_usable() {
     assert!(!first.exists(), "a registered temp file is unlinked: {first:?}");
     assert!(!second.exists(), "the reused slot is unlinked: {second:?}");
 }
+
+#[cfg(unix)]
+#[test]
+fn die_from_signal_does_not_dump_core() {
+    use std::{env, os::unix::process::ExitStatusExt, path::Path, process::Command};
+
+    const CHILD_TEMP_ENV: &str = "PNPM_FS_DIE_FROM_SIGNAL_TEMP";
+    if let Some(temp) = env::var_os(CHILD_TEMP_ENV) {
+        let _guard = track_temp_file(Path::new(&temp));
+        super::die_from_signal(libc::SIGABRT);
+    }
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let temp = dir.path().join(".pnpm-lock.yaml.123.2.tmp");
+    fs::write(&temp, "partial lockfile").expect("stage temp file");
+
+    let mut command = Command::new(env::current_exe().expect("test binary path"));
+    command
+        .args(["--exact", "pending_temp::tests::die_from_signal_does_not_dump_core", "--nocapture"])
+        .env(CHILD_TEMP_ENV, &temp);
+    pnpm_testing_utils::spawn::enable_core_dumps(&mut command);
+
+    let status = command.status().expect("spawn child test process");
+
+    assert!(!temp.exists(), "die_from_signal must unlink pending temp files: {temp:?}");
+    assert_eq!(status.signal(), Some(libc::SIGABRT), "process should die by SIGABRT: {status:?}");
+    assert!(!status.core_dumped(), "die_from_signal must not dump core: {status:?}");
+}

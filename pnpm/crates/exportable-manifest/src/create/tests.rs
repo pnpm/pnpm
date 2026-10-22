@@ -89,6 +89,32 @@ fn skip_obfuscation_keeps_scripts_and_package_manager() {
 }
 
 #[test]
+fn pnpm_config_is_preserved_while_other_pnpm_fields_are_stripped() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let manifest = json!({
+        "name": "@acme/pnpm-policy",
+        "version": "1.0.0",
+        "pnpm": {
+            "config": "./config.yaml",
+            "overrides": { "foo": "1.0.0" },
+        },
+    });
+    for skip_manifest_obfuscation in [false, true] {
+        let opts = CreateExportableManifestOptions {
+            catalogs: &catalogs,
+            workspace_dir: None,
+            modules_dir: None,
+            skip_manifest_obfuscation,
+            embed_readme: false,
+            workspace_packages: None,
+        };
+        let out = build(dir.path(), &manifest, &opts);
+        assert_eq!(out["pnpm"], json!({ "config": "./config.yaml" }));
+    }
+}
+
+#[test]
 fn workspace_protocol_dependency_is_rewritten_to_installed_version() {
     let dir = tempdir().unwrap();
     install_dep(dir.path(), "bar", "2.3.4");

@@ -161,26 +161,26 @@ pub(crate) fn is_transient_error(err: &TarballError) -> bool {
         TarballError::FetchTarball(network) => !is_permanent_error(&network.error),
         TarballError::ReadLocalTarball { .. } => false,
         TarballError::WriteCasFile(write) => !is_storage_full(write),
-        TarballError::ReadTarballEntries(io) if is_oversized_manifest_error(io) => false,
+        TarballError::ReadTarballEntries(io) if is_permanent_tar_entry_error(io) => false,
         // A route policy does not change between attempts, and neither does
         // what a server sends that pnpm refuses to decode.
         TarballError::OffAllowlist { .. }
         | TarballError::UnsupportedContentEncoding { .. }
         | TarballError::ContentDecode { .. }
         | TarballError::UnrecognizedArchive
-        | TarballError::ArchiveLimit(_) => false,
+        | TarballError::ArchiveLimit(_)
+        | TarballError::PathTraversal { .. } => false,
         _ => true,
     }
 }
 
-fn is_oversized_manifest_error(error: &std::io::Error) -> bool {
+fn is_permanent_tar_entry_error(error: &std::io::Error) -> bool {
     error
         .get_ref()
-        .is_some_and(
-            <dyn std::error::Error + Send + Sync + 'static>::is::<
-                crate::extract::OversizedManifestError,
-            >,
-        )
+        .is_some_and(|inner| {
+            inner.is::<crate::extract::OversizedManifestError>()
+                || inner.is::<crate::extract::RejectedEntryPathError>()
+        })
 }
 
 fn is_storage_full(error: &(dyn std::error::Error + 'static)) -> bool {
