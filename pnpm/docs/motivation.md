@@ -17,8 +17,9 @@ version has a change in only one of those files, `pnpm update` will only add 1
 new file to the store, instead of cloning the entire dependency just for the
 singular change.
 1. All the files are saved in a single place on the disk. When packages are
-installed, their files are hard-linked from that single place, consuming no
-additional disk space. This allows you to share dependencies of the same version
+installed, their files are hard-linked or cloned (copy-on-write) from that single
+place, consuming no additional disk space. See
+[`packageImportMethod`](./settings/node-modules.md#packageimportmethod). This allows you to share dependencies of the same version
 across projects.
 
 As a result, you save a lot of space on your disk proportional to the number of
@@ -34,7 +35,7 @@ pnpm performs installation in three stages:
 
 ![An illustration of the pnpm install process. Packages are resolved, fetched, and hard linked as soon as possible.](/img/installation-stages-of-pnpm.svg)
 
-This approach is faster than the traditional three-stage installation process of resolving, fetching, and writing all dependencies to `node_modules`.
+Each package moves to the next stage as soon as it is ready, without waiting for the other packages. This is faster than the traditional three-stage installation process, which resolves all dependencies, then fetches all of them, then writes all of them to `node_modules`.
 
 ![An illustration of how package managers like Yarn Classic or npm install dependencies.](/img/installation-stages-of-other-pms.svg)
 

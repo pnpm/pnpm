@@ -268,7 +268,7 @@ Like the token settings, these go in `.npmrc` or `auth.ini`.
 
 ### ca
 
-* Default: **The npm CA certificate**
+* Default: **null** (the system trust store)
 * Type: **String, Array or null**
 
 The certificate authority (CA) certificate to trust for TLS connections to the
@@ -285,7 +285,9 @@ ca[]="..."
 ca[]="..."
 ```
 
-Set it to `null` to trust only the well-known CAs.
+A `ca` or `cafile` replaces the default trusted CAs. When it is `null`, pnpm
+trusts the CAs in the operating system's trust store. If pnpm cannot load the
+system trust store, it trusts the Mozilla CA set built into pnpm.
 
 See also [`strictSsl`](./settings/network.md#strictssl).
 
@@ -296,6 +298,12 @@ See also [`strictSsl`](./settings/network.md#strictssl).
 
 The path to a file with one or more CA certificates. Use it instead of `ca` to
 keep the certificates in a file.
+
+### NODE_EXTRA_CA_CERTS
+
+The path to a PEM file with extra CA certificates, set as an environment
+variable. pnpm trusts them in addition to the system trust store and to `ca`
+or `cafile`. pnpm ignores a missing or unreadable file.
 
 ### &lt;URL&gt;&#58;ca
 

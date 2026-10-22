@@ -11,13 +11,6 @@ Since v11.16.0, [`pnpm update --changeset`](./cli/update.md#--changeset) can als
 
 :::
 
-:::note
-
-At the time of writing this documentation, the latest pnpm version was
-v10.4.1. The latest [Changesets](https://github.com/changesets/changesets) version was v2.28.0.
-
-:::
-
 ## Setup
 
 To setup changesets on a pnpm workspace, install changesets as a dev dependency
@@ -87,12 +80,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm and Node.js
-        uses: pnpm/setup@v2
+        uses: pnpm/setup@c9883cc79df532ad1a7b81bf9ab944ceb090d65c # v2.0.0
         with:
-          runtime: node@20
+          runtime: node@24
           cache: true
 
       - name: Create and publish versions

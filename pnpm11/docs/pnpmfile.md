@@ -32,8 +32,8 @@ Allows you to mutate a dependency's `package.json` after parsing and before
 resolution. These mutations are not saved to the filesystem, however, they will
 affect what gets resolved in the lockfile and therefore what gets installed.
 
-You will need to delete the `pnpm-lock.yaml` if you have already
-resolved the dependency you want to modify.
+pnpm records a checksum of the pnpmfile in the lockfile. When the pnpmfile
+changes, pnpm resolves the dependencies again.
 
 :::tip
 

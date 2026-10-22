@@ -7,8 +7,16 @@ pnpm has built-in support for monorepositories (AKA multi-package repositories,
 multi-project repositories, or monolithic repositories). You can create a
 workspace to unite multiple projects inside a single repository.
 
+## Declaring a workspace
+
 A workspace must have a [`pnpm-workspace.yaml`] file in its
-root.
+root. Its [`packages`](./settings.md#packages) field lists the directories of
+the workspace's projects:
+
+```yaml title="pnpm-workspace.yaml"
+packages:
+  - packages/*
+```
 
 [`pnpm-workspace.yaml`]: settings.md
 
@@ -138,9 +146,11 @@ semver offers.
 
 ## Release workflow
 
-Versioning packages inside a workspace is a complex task and pnpm currently does
-not provide a built-in solution for it. However, there are 2 well tested tools
-that handle versioning and support pnpm:
+pnpm versions and releases workspace packages with
+[`pnpm change`](./cli/change.md) and `pnpm version -r`. See
+[Release management](./versioning.md).
+
+These external tools also handle versioning and support pnpm:
 - [changesets](https://github.com/changesets/changesets)
 - [Rush](https://rushjs.io)
 
@@ -242,14 +252,12 @@ When this setting is enabled, [dependencies that are injected](package_json.md#d
 
 ### syncInjectedDepsAfterScripts
 
-Added in: v10.5.0
-
 * Default: **undefined**
 * Type: **String[]**
 
 Injected workspace dependencies are collections of hardlinks, which don't add or remove the files when their sources change. This causes problems in packages that need to be built (such as in TypeScript projects).
 
-This setting is a list of script names. When any of these scripts are executed in a workspace package, the injected dependencies inside `node_modules` will also be synchronized.
+This setting is a list of script names. When any of these scripts are executed in a workspace package, the injected dependencies inside `node_modules` will also be synchronized. While a listed script runs, pnpm also refreshes the injected copies as separate files, so a watcher on the injected package sees each write. This makes the setting useful with watch-mode builds.
 
 ### preferWorkspacePackages
 
@@ -280,10 +288,9 @@ Advantages of this option:
 
 :::note
 
-Even though all the dependencies will be hard linked into the root
-`node_modules`, packages will have access only to those dependencies
-that are declared in their `package.json`, so pnpm's strictness is preserved.
-This is a result of the aforementioned symbolic linking.
+Even though all the dependencies are placed in the root virtual store
+(`node_modules/.pnpm`), each project gets symlinks only to the dependencies
+declared in its `package.json`, so pnpm's strictness is preserved.
 
 :::
 

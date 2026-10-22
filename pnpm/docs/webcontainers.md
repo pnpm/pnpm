@@ -26,8 +26,15 @@ Corepack and the `packageManager` field install the regular `pnpm` package,
 so they cannot select this distribution. Projects that pin a different
 package-manager version receive `ERR_PNPM_UNSUPPORTED_RUNTIME` when switching
 would require installing a native distribution.
-To keep using the installed WebAssembly distribution for such a project, disable
-automatic version switching for the command:
+To keep using the installed WebAssembly distribution for such a project, set
+[`pmOnFail`](./settings/cli.md#pmonfail) to `ignore`:
+
+```yaml title="pnpm-workspace.yaml"
+pmOnFail: ignore
+```
+
+To disable automatic version switching for one command instead, set
+`npm_config_manage_package_manager_versions=false`:
 
 ```sh
 npm_config_manage_package_manager_versions=false pnpm install

@@ -17,4 +17,7 @@ the global store, so it will not make any requests to the registry. This is
 recommended **ONLY** for environments where external access to the registry is
 unavailable for whatever reason.
 
+To fill the store from the lockfile alone, before the project's files are
+copied, run [`pnpm fetch`](./cli/fetch.md).
+
 [store location option]: settings/store.md#storedir

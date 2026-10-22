@@ -30,8 +30,6 @@ You may also install packages by:
 
 ### JSR registry
 
-Added in: v10.9.0
-
 To install packages from the [JSR](https://jsr.io/) registry, use the `jsr:` protocol prefix:
 
 ```sh
@@ -74,8 +72,6 @@ pnx yarn@tool:4 --version
 
 ### Named registries
 
-Added in: v11.1.0
-
 A [named registry](./settings/dependency-resolution.md#namedregistries) alias resolves a package against a specific registry, regardless of the default one:
 
 ```sh
@@ -84,7 +80,7 @@ pnpm add gh:@my-org/private-pkg
 pnpm add npmjs:left-pad
 ```
 
-`gh:` (GitHub Packages) and, since v11.20.0, `npmjs:` (the public npm registry) work without configuration. Any other alias must be mapped under [`namedRegistries`](./settings/dependency-resolution.md#namedregistries) in `pnpm-workspace.yaml` or, since v11.11.0, in the [global configuration file](./cli/config.md) (`config.yaml`).
+`gh:` (GitHub Packages) and `npmjs:` (the public npm registry) work without configuration. Any other alias must be mapped under [`namedRegistries`](./settings/dependency-resolution.md#namedregistries) in `pnpm-workspace.yaml` or in the [global configuration file](./cli/config.md) (`config.yaml`).
 
 ### Workspace
 
@@ -111,8 +107,13 @@ pnpm add ./package.tar.gz
 pnpm add ./some-directory
 ```
 
-When you install from a directory, a symlink will be created in the current
-project's `node_modules`, so it is the same as running `pnpm link`.
+`pnpm add ./some-directory` records the dependency with the `link:` protocol.
+pnpm creates a symlink in the current project's `node_modules`, so it is the
+same as running `pnpm link`.
+
+To install a directory as a package instead, use the `file:` protocol, for
+example `pnpm add file:./some-directory`. pnpm copies the directory into the
+virtual store and installs its dependencies.
 
 ## Exotic sources
 
@@ -248,8 +249,6 @@ Each resolves through the host's canonical HTTPS URL, and the lockfile records o
 
 pnpm never records an SSH URL for these hosts. Which transport a given machine uses to reach the host is that machine's Git configuration, not a property of the project.
 
-pnpm 11 keeps the specifier's transport as part of the recorded URL, but since v11.21.0 it records an SSH URL only when the specifier itself asks for one (`git+ssh://` or `git@host:...`): a shorthand like `owner/repo` resolves and records over HTTPS, so a lockfile written on a machine with SSH keys still installs on a CI runner without them. An SSH URL recorded by an older pnpm can be re-recorded over HTTPS with `pnpm update <package>`.
-
 ##### Using SSH for private repositories
 
 Configure the rewrite in Git itself, on the machine:
@@ -266,7 +265,7 @@ A URL that does not point at a known host (a self-hosted GitLab, Gitea, or any i
 
 :::info
 
-In pnpm v11 and earlier, resolution probed the network to decide between HTTPS and SSH. That could record whichever transport happened to work on the machine that ran the install, most often an `ssh://` URL that then failed on CI runners without SSH keys. pnpm v12 removes the probing. Existing lockfile entries are left untouched; the rules above apply when an entry is added or re-resolved.
+Existing lockfile entries are left untouched. The rules above apply when an entry is added or re-resolved, and `pnpm update <package>` re-records an SSH URL over HTTPS.
 
 :::
 
@@ -274,9 +273,4 @@ In pnpm v11 and earlier, resolution probed the network to decide between HTTPS a
 
 Added in: v12.0.0-rc.6 (pnpm v12 only)
 
-A Git-hosted dependency that ships sources rather than a built package has to be prepared (its dependencies installed and its build script run) before it can be installed. pnpm prepares it with the package manager the dependency itself asks for, instead of assuming the host has the right one:
-
-* the dependency's own `packageManager` / [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin wins, since that is what its authors test against;
-* failing a pin, the lockfile it ships names the package manager. A `yarn.lock` also names *which* Yarn line: Yarn Berry stamps `__metadata:` into every lockfile it writes and neither line can read the other's, so a Classic lockfile is no longer installed by Berry.
-
-pnpm [provides that package manager](./package-managers.md) when the dependency pinned a version, or when the host cannot satisfy what the dependency needs. A repository built with Yarn therefore installs on a machine that has only pnpm, while a host that already has a suitable package manager (under every name the build may invoke) keeps using its own.
+A Git-hosted dependency that ships sources rather than a built package has to be prepared (its dependencies installed and its build script run) before it can be installed. pnpm prepares it with the package manager the dependency asks for. See [Preparing a git-hosted dependency](./package-managers.md#preparing-a-git-hosted-dependency).

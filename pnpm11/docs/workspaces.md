@@ -113,9 +113,11 @@ semver offers.
 
 ## Release workflow
 
-Versioning packages inside a workspace is a complex task and pnpm currently does
-not provide a built-in solution for it. However, there are 2 well tested tools
-that handle versioning and support pnpm:
+pnpm versions and releases workspace packages with
+[`pnpm change`](./cli/change.md) and `pnpm version -r`. See
+[Release management](./versioning.md).
+
+These external tools also handle versioning and support pnpm:
 - [changesets](https://github.com/changesets/changesets)
 - [Rush](https://rushjs.io)
 

@@ -18,4 +18,5 @@ you can add the following `preinstall` script to your `package.json`:
 Now, whenever someone runs `npm install` or `yarn`, they'll get an
 error instead and installation will not proceed.
 
-If you use npm v7, use `npx -y` instead.
+pnpm skips this script when it is exactly `npx only-allow pnpm`, so it does
+not slow down `pnpm install`.

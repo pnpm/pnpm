@@ -9,7 +9,7 @@ pnpm v11 introduced several breaking changes to how configuration is read and wh
 
 ```sh
 cd /path/to/your/project
-pnpx codemod run pnpm-v10-to-v11
+pnx codemod run pnpm-v10-to-v11
 # or
 pnpm add --global codemod
 codemod run pnpm-v10-to-v11
@@ -37,6 +37,6 @@ The following changes are not automatable and need human attention:
 - **`pnpm link <pkg-name>`** no longer resolves packages from the global store. Use a relative or absolute path (`pnpm link ./foo`).
 - **`pnpm install -g`** (with no arguments) is no longer supported. Use `pnpm add -g <pkg>` instead.
 - **`pnpm server`** has been removed with no replacement.
-- **Script names shadow built-in commands**. If your `package.json` defines a script named `clean`, `setup`, `deploy`, or `rebuild`, `pnpm <name>` now runs the script instead of the built-in command. Use [`pnpm pm <name>`](./cli/pm.md) to force the built-in.
+- **Script names shadow built-in commands**. If your `package.json` defines a script with the name of certain built-in commands, such as `clean` or `deploy`, `pnpm <name>` now runs the script instead of the built-in command. See [Built-in command and script name conflicts](./scripts.md#built-in-command-and-script-name-conflicts) for the full list.
 
 For the full list of breaking changes, see the [v11 changelog](https://github.com/pnpm/pnpm/releases/tag/v11.0.0).

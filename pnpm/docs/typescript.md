@@ -11,7 +11,13 @@ You should not use TypeScript with [`preserveSymlinks`](https://www.typescriptla
 
 ## Workspace usage
 
-You might sometimes have issues if you have different versions of a `@types/` dependency in a workspace. These issues happen when a package requires these types without having the type dependency in dependencies. For instance, if you have `antd` in your dependencies, which relies on `@types/react`, you might get a compilation error if there are multiple versions of `@types/react` in your workspace. This is actually an issue on `antd`'s end because it should've added `@types/react` to `peerDependencies`. Luckily, you can fix this by extending `antd` with the missing peer dependency. You can do this either by adding this to your `pnpm-workspace.yaml`:
+You might sometimes have issues if you have different versions of a `@types/` dependency in a workspace. These issues happen when a package requires these types without having the type dependency in dependencies. For instance, if you have `antd` in your dependencies, which relies on `@types/react`, you might get a compilation error if there are multiple versions of `@types/react` in your workspace. This is actually an issue on `antd`'s end because it should've added `@types/react` to `peerDependencies`. Luckily, you can fix this with the [`addMissingPeerTypes`](./settings/peer-dependencies.md#addmissingpeertypes) setting. It makes the matching `@types` package an optional peer of every package that peer-depends on a library:
+
+```yaml title="pnpm-workspace.yaml"
+addMissingPeerTypes: true
+```
+
+You can also extend `antd` with the missing peer dependency by adding this to your `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 packageExtensions:
