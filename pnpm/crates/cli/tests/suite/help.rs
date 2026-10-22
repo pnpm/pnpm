@@ -26,6 +26,8 @@ fn help_all_lists_every_command() {
     }
     assert_eq!(help_stdout(&["help", "--all"]), help);
     assert_eq!(help_stdout(&["help", "-a"]), help);
+    assert_eq!(help_stdout(&["help", "--all=true"]), help);
+    assert_eq!(help_stdout(&["help", "--no-all"]), help);
 }
 
 #[test]
