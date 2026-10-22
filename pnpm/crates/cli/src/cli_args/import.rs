@@ -110,7 +110,10 @@ fn back_up_lockfile(
     match symlinked {
         // Copied, so the link still resolves for the writers that save
         // through it during the import.
-        SymlinkedLockfile::WriteThrough => std::fs::copy(lockfile_path, backup_path).map(drop),
+        SymlinkedLockfile::WriteThrough => pnpm_fs::copy_permissions(lockfile_path)
+            .and_then(|permissions| {
+                pnpm_fs::copy_file_exclusive(lockfile_path, backup_path, &permissions, |_| Ok(()))
+            }),
         SymlinkedLockfile::Refuse => std::fs::rename(lockfile_path, backup_path),
     }
     .into_diagnostic()
