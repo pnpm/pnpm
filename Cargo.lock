@@ -5240,6 +5240,7 @@ dependencies = [
  "same-file",
  "sha2",
  "tempfile",
+ "text-block-macros",
  "tracing",
  "windows-sys 0.61.2",
 ]

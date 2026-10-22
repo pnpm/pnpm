@@ -1,5 +1,6 @@
 use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_cas_file_path, is_executable};
 use std::path::Path;
+use text_block_macros::text_block_fnl;
 
 #[test]
 fn exec_constants_pin_pnpm_layout() {
@@ -540,14 +541,22 @@ fn the_published_mask_matches_the_one_read_by_writing_it() {
 #[cfg(target_os = "linux")]
 #[test]
 fn an_octal_umask_line_parses() {
-    let status = "Name:\tpnpm\nUmask:\t0022\nState:\tR (running)\n";
+    let status = text_block_fnl! {
+        "Name:\tpnpm"
+        "Umask:\t0022"
+        "State:\tR (running)"
+    };
     assert_eq!(super::parse_published_umask(status), Some(0o022));
 }
 
 #[cfg(target_os = "linux")]
 #[test]
 fn a_status_without_the_line_parses_as_absent() {
-    assert_eq!(super::parse_published_umask("Name:\tpnpm\nState:\tR (running)\n"), None);
+    let status = text_block_fnl! {
+        "Name:\tpnpm"
+        "State:\tR (running)"
+    };
+    assert_eq!(super::parse_published_umask(status), None);
 }
 
 /// A pre-4.7 kernel prints no `Umask:` line, and a value that is not octal
@@ -556,5 +565,6 @@ fn a_status_without_the_line_parses_as_absent() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_non_octal_umask_line_parses_as_absent() {
-    assert_eq!(super::parse_published_umask("Umask:\trw-r--r--\n"), None);
+    let status = text_block_fnl! { "Umask:\trw-r--r--" };
+    assert_eq!(super::parse_published_umask(status), None);
 }
