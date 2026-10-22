@@ -298,6 +298,8 @@ impl WorkspaceSettings {
         json_field!(settings, reader, fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         json_field!(settings, reader, max_tarball_unpacked_size, "MAX_TARBALL_UNPACKED_SIZE");
         string_field!(settings, reader, user_agent, "USER_AGENT");
+        json_field!(settings, reader, strict_ssl, "STRICT_SSL");
+        string_field!(settings, reader, local_address, "LOCAL_ADDRESS");
     }
 
     fn read_scripts_env(&mut self, reader: &StringReader<'_>) {

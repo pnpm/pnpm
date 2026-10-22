@@ -4,7 +4,8 @@
 //! [`TlsConfig`] holds the resolved `(ca, client_identity_pem, strict_ssl,
 //! local_address)` quadruple. Built by `pnpm-config` from the
 //! `.npmrc` keys `ca`, `cafile`, `cert`, `key`, `strict-ssl`, and
-//! `local-address`. Lives in `pnpm-network` for the same reason
+//! `local-address`, and from the `strictSsl` and `localAddress`
+//! settings. Lives in `pnpm-network` for the same reason
 //! [`crate::ProxyConfig`] does.
 //!
 //! Parity policy: pnpm performs no PEM parsing in user-space (PEM
