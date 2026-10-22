@@ -73,8 +73,7 @@ secret: ${PNPR_SECRET}
 
 auth:
   htpasswd:
-    # Accounts live in the Turso database. Self-registration stays off.
-    max_users: -1
+    max_users: 3
 
 registries:
   local:
@@ -94,9 +93,6 @@ registries:
 
 defaultRegistry: main
 ```
-
-Create accounts from your machine with [`pnpr add-user`](cli.md#add-user), using
-a config whose `backend.libsql` points at the same Turso database.
 
 The Wrangler config declares the container, the Durable Object that owns it,
 and the public URL pnpr writes into tarball links:
