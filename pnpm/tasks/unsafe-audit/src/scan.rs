@@ -291,10 +291,10 @@ fn occurrences(root: &Path, source: &Path) -> Vec<Occurrence> {
     let lines: Vec<&str> = text.lines().collect();
     // Carried rather than chained: a string or comment opened on one line
     // decides how the next one reads, which a per-line filter cannot see.
-    let mut carry = Carry::Code;
+    let mut carry = lexical::Carry::Code;
     let mut found = Vec::new();
     for (index, line) in lines.iter().enumerate() {
-        let (code, next) = blank_quoted(line, carry);
+        let (code, next) = lexical::blank_quoted(line, carry);
         carry = next;
         if opens_unsafe(&code) {
             found.push(Occurrence {
@@ -307,146 +307,6 @@ fn occurrences(root: &Path, source: &Path) -> Vec<Occurrence> {
         }
     }
     found
-}
-
-/// What a line begins inside, for the constructs that span lines.
-#[derive(Clone, Copy)]
-enum Carry {
-    Code,
-    BlockComment(usize),
-    /// A raw string, holding the number of `#` its close needs.
-    RawText(usize),
-    Text,
-}
-
-/// Blank what a line quotes or comments out, keeping what it executes.
-///
-/// A `/*`, a `"` or an `r#"` left open at the end of a line decides how the
-/// lines below it read, so the carry threads through the file. Delimiters
-/// stay and only the contents become spaces, so a line that closes one
-/// construct and then opens an `unsafe` still reports it.
-fn blank_quoted(line: &str, carry: Carry) -> (String, Carry) {
-    let chars: Vec<char> = line.chars().collect();
-    let mut out = String::with_capacity(line.len());
-    let mut carry = carry;
-    let mut index = 0;
-    while index < chars.len() {
-        match carry {
-            Carry::Code => {
-                if chars[index] == '/' && chars.get(index + 1) == Some(&'/') {
-                    out.extend(std::iter::repeat_n(' ', chars.len() - index));
-                    index = chars.len();
-                } else if chars[index] == '/' && chars.get(index + 1) == Some(&'*') {
-                    out.push_str("/*");
-                    index += 2;
-                    carry = Carry::BlockComment(1);
-                } else if let Some((width, hashes)) = raw_text_opener(&chars, index) {
-                    out.extend(&chars[index..index + width]);
-                    index += width;
-                    carry = Carry::RawText(hashes);
-                } else if chars[index] == '"' {
-                    out.push('"');
-                    index += 1;
-                    carry = Carry::Text;
-                } else if let Some(width) = character_literal_width(&chars, index) {
-                    out.extend(&chars[index..index + width]);
-                    index += width;
-                } else {
-                    out.push(chars[index]);
-                    index += 1;
-                }
-            }
-            Carry::BlockComment(depth) => {
-                if chars[index] == '/' && chars.get(index + 1) == Some(&'*') {
-                    out.push_str("  ");
-                    index += 2;
-                    carry = Carry::BlockComment(depth + 1);
-                } else if chars[index] == '*' && chars.get(index + 1) == Some(&'/') {
-                    out.push_str("  ");
-                    index += 2;
-                    carry = if depth == 1 { Carry::Code } else { Carry::BlockComment(depth - 1) };
-                } else {
-                    out.push(' ');
-                    index += 1;
-                }
-            }
-            Carry::Text => {
-                if chars[index] == '\\' && index + 1 < chars.len() {
-                    out.push_str("  ");
-                    index += 2;
-                } else if chars[index] == '"' {
-                    out.push('"');
-                    index += 1;
-                    carry = Carry::Code;
-                } else {
-                    out.push(' ');
-                    index += 1;
-                }
-            }
-            Carry::RawText(hashes) => {
-                if closes_raw_text(&chars, index, hashes) {
-                    out.push('"');
-                    out.extend(std::iter::repeat_n('#', hashes));
-                    index += 1 + hashes;
-                    carry = Carry::Code;
-                } else {
-                    out.push(' ');
-                    index += 1;
-                }
-            }
-        }
-    }
-    (out, carry)
-}
-
-/// The opener of a raw string at `index`, as its width and its `#` count.
-///
-/// `b` first is the byte-string form. A preceding word character means the
-/// `r` belongs to an identifier rather than to a literal.
-fn raw_text_opener(chars: &[char], index: usize) -> Option<(usize, usize)> {
-    if index > 0 && (chars[index - 1].is_alphanumeric() || chars[index - 1] == '_') {
-        return None;
-    }
-    let mut cursor = index;
-    if chars.get(cursor) == Some(&'b') {
-        cursor += 1;
-    }
-    if chars.get(cursor) != Some(&'r') {
-        return None;
-    }
-    cursor += 1;
-    let hashes = chars[cursor..]
-        .iter()
-        .take_while(|character| **character == '#')
-        .count();
-    cursor += hashes;
-    (chars.get(cursor) == Some(&'"')).then_some((cursor + 1 - index, hashes))
-}
-
-/// Whether the raw string closes at `index`: a quote and then `hashes` of them.
-fn closes_raw_text(chars: &[char], index: usize, hashes: usize) -> bool {
-    chars[index] == '"'
-        && chars[index + 1..]
-            .iter()
-            .take(hashes)
-            .filter(|character| **character == '#')
-            .count()
-            == hashes
-}
-
-/// The width of a character literal at `index`, or `None` for a lifetime,
-/// whose quote opens nothing and so must not be read as one.
-fn character_literal_width(chars: &[char], index: usize) -> Option<usize> {
-    if chars.get(index) != Some(&'\'') {
-        return None;
-    }
-    if chars.get(index + 1) == Some(&'\\') {
-        let close = chars[index + 2..]
-            .iter()
-            .position(|character| *character == '\'')?;
-        return Some(index + 2 + close + 1 - index);
-    }
-    (chars.get(index + 2) == Some(&'\'')).then_some(3)
 }
 
 /// Whether a line opens an `unsafe` block, function, implementation or
@@ -598,6 +458,8 @@ fn relative(root: &Path, path: &Path) -> PathBuf {
         .unwrap_or(path)
         .to_path_buf()
 }
+
+mod lexical;
 
 #[cfg(test)]
 mod tests;
