@@ -366,6 +366,7 @@ struct EnvInstallerContext {
     resolver: NpmResolver<InMemoryPackageMetaCache>,
     network: EnvironmentNetwork,
     store: pnpm_env_installer::ConfigDependencyStore,
+    symlinked_lockfile: pnpm_lockfile::SymlinkedLockfile,
 }
 
 impl EnvInstallerContext {
@@ -451,6 +452,7 @@ impl EnvInstallerContext {
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 package_import_method: config.package_import_method,
             },
+            symlinked_lockfile: config.symlinked_lockfile(),
         })
     }
 
@@ -486,6 +488,7 @@ impl EnvInstallerContext {
             root_dir,
 
             frozen_lockfile,
+            symlinked_lockfile: self.symlinked_lockfile,
         }
     }
 }

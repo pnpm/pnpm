@@ -296,6 +296,7 @@ pub struct WorkspaceSettings {
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
+    pub allow_symlinked_lockfile: Option<bool>,
     pub registry: Option<String>,
     pub scope: Option<String>,
     /// The registries the project declares. Keyed by registry URL, with the

@@ -81,7 +81,7 @@ pub async fn resolve_package_manager_integrities(
     if repair_in_memory {
         verify_env_lockfile(&env_lockfile)?;
     } else {
-        write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir, opts.symlinked_lockfile)?;
     }
     Ok(env_lockfile)
 }

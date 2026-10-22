@@ -152,6 +152,7 @@ export function isKnownSettingKey (key: string): boolean {
  */
 const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   addMissingPeerTypes: 'pnpm v12',
+  allowSymlinkedLockfile: 'pnpm v12',
   autoDedupe: 'pnpm v12',
   bootConfig: 'pnpm v12',
   cargo: 'pnpm v12',

@@ -142,7 +142,9 @@ fn missing_workspace_importer_is_not_accepted_by_frozen_install() {
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-a").expect("pkg-a importer exists");
-    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-a importer");
+    lockfile
+        .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("save lockfile without pkg-a importer");
 
     let output = pacquet_at(&workspace)
         .with_args(["install", "--frozen-lockfile"])
@@ -179,7 +181,9 @@ fn frozen_install_accepts_missing_dependency_free_workspace_importer() {
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-b").expect("pkg-b importer exists");
-    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-b importer");
+    lockfile
+        .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("save lockfile without pkg-b importer");
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(workspace.join("pkg-a/node_modules")).expect("remove pkg-a node_modules");
 
@@ -212,7 +216,9 @@ fn normal_install_accepts_missing_dependency_free_workspace_importer() {
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-b").expect("pkg-b importer exists");
-    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-b importer");
+    lockfile
+        .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("save lockfile without pkg-b importer");
 
     pacquet_at(&workspace)
         .with_arg("install")
@@ -256,7 +262,9 @@ fn normal_install_accepts_missing_importer_with_only_ignored_optional_dependenci
         serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
             .expect("parse pnpm-lock.yaml");
     lockfile.importers.remove("pkg-a").expect("pkg-a importer exists");
-    lockfile.save_to_path(&lockfile_path).expect("save lockfile without pkg-a importer");
+    lockfile
+        .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("save lockfile without pkg-a importer");
 
     pacquet_at(&workspace)
         .with_arg("install")

@@ -3,6 +3,7 @@ use super::{HashSet, OnceLock, npm_config_type_keys};
 /// Keys from `pnpmTypes` that are valid in a global config file
 /// (`pnpmConfigFileKeys` in `configFileKey.ts`).
 const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
+    "allow-symlinked-lockfile",
     "bail",
     "ci",
     "color",

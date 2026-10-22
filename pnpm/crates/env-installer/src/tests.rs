@@ -187,6 +187,7 @@ fn options<'a>(
         root_dir,
 
         frozen_lockfile: frozen,
+        symlinked_lockfile: pnpm_lockfile::SymlinkedLockfile::Refuse,
     }
 }
 

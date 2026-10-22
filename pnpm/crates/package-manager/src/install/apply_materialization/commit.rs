@@ -333,7 +333,10 @@ pub(super) fn save_relinked_wanted_lockfile(
         && let Some(updated) = save.loaded_wanted_lockfile
     {
         updated
-            .save_to_path(&save.workspace_root.join(config.wanted_lockfile_name()))
+            .save_to_path(
+                &save.workspace_root.join(config.wanted_lockfile_name()),
+                config.symlinked_lockfile(),
+            )
             .map_err(InstallError::SaveWantedLockfile)?;
     }
     Ok(())

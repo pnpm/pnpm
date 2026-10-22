@@ -228,6 +228,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
 * [excludeLinksFromLockfile](./settings/store.md#excludelinksfromlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)
+* [allowSymlinkedLockfile](./settings/store.md#allowsymlinkedlockfile)
 * [lockfile.includeResolutionSettings](./settings/store.md#lockfileincluderesolutionsettings)
 * [lockfile.integrityTarget](./settings/store.md#lockfileintegritytarget)
 * [gitBranchLockfile](./settings/store.md#gitbranchlockfile)

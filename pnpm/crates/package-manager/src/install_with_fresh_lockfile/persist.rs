@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{HoistedDependencies, SkippedSnapshots};
 use pnpm_config::Config;
-use pnpm_lockfile::Lockfile;
+use pnpm_lockfile::{Lockfile, SymlinkedLockfile};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_resolver_base::ResolutionVerifier;
@@ -67,7 +67,8 @@ pub(super) async fn persist_fresh_lockfile(
     let (hook, log) = after_all_resolved;
     let target = lockfile_dir.join(config.wanted_lockfile_name());
     let can_record_lockfile_verification =
-        save_wanted_lockfile(&built_lockfile, &target, hook, log).await?;
+        save_wanted_lockfile(&built_lockfile, &target, config.symlinked_lockfile(), hook, log)
+            .await?;
     Ok(PersistedLockfile { lockfile: Some(built_lockfile), can_record_lockfile_verification })
 }
 /// Importers whose linked workspace dependency declares
@@ -217,6 +218,7 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
             let can_record_lockfile_verification = save_wanted_lockfile(
                 &opts.built_lockfile,
                 &opts.write.dir.join(opts.write.config.wanted_lockfile_name()),
+                opts.write.config.symlinked_lockfile(),
                 opts.write.hook,
                 opts.write.log,
             )
@@ -255,12 +257,13 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
 pub(super) async fn save_wanted_lockfile(
     built_lockfile: &Lockfile,
     target: &Path,
+    symlinked: SymlinkedLockfile,
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     log: Option<pnpm_hooks::LogFn>,
 ) -> Result<bool, InstallWithFreshLockfileError> {
     let Some(hook) = hook else {
         built_lockfile
-            .save_to_path(target)
+            .save_to_path(target, symlinked)
             .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
         return Ok(true);
     };
@@ -276,9 +279,9 @@ pub(super) async fn save_wanted_lockfile(
     // `Null` means the pnpmfile has no `afterAllResolved` hook, so write the
     // typed lockfile unchanged.
     if result.is_null() {
-        built_lockfile.save_to_path(target)
+        built_lockfile.save_to_path(target, symlinked)
     } else {
-        pnpm_lockfile::save_value_to_path(&result, target)
+        pnpm_lockfile::save_value_to_path(&result, target, symlinked)
     }
     .map_err(InstallWithFreshLockfileError::SaveWantedLockfile)?;
     Ok(result.is_null())
