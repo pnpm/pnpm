@@ -58,7 +58,7 @@ pnpm add npmjs:left-pad
 
 ### Workspace
 
-Note that when adding dependencies and working within a [workspace], packages
+When adding dependencies and working within a [workspace], packages
 will be installed from the configured sources, depending on whether or not
 [`linkWorkspacePackages`] is set, and use of the
 [`workspace: range protocol`].

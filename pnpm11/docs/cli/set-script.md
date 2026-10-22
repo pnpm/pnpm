@@ -39,4 +39,4 @@ The above is equivalent to manually editing `package.json`:
 
 ## See also
 
-- [`pnpm pkg set`](./pkg.md#set) — set arbitrary fields in `package.json`, including individual scripts via `scripts.<name>=<command>`.
+- [`pnpm pkg set`](./pkg.md#set): set arbitrary fields in `package.json`, including individual scripts via `scripts.<name>=<command>`.

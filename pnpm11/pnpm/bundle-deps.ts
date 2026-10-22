@@ -21,7 +21,7 @@ import { execSync } from 'node:child_process'
 // This is used to include certain dependencies like node-gyp out of the box
 // when installing pnpm.
 //
-// Note that most pnpm dependencies are baked into the large pnpm.mjs file by
+// Most pnpm dependencies are baked into the large pnpm.mjs file by
 // esbuild. This script handles other dependencies the pnpm bundle config
 // declares as "external" and resolved at runtime.
 //

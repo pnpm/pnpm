@@ -143,7 +143,7 @@ so pnpm reports which entries it ignored instead of applying them silently.
 
 Every setting is listed below, grouped by topic. Follow a setting to read its documentation, or open the full reference of a group.
 
-### Dependency Resolution
+### Dependency resolution
 
 [Full reference →](./settings/dependency-resolution.md)
 
@@ -176,7 +176,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [namedRegistries](./settings/dependency-resolution.md#namedregistries)
 * [pnprServer](./settings/dependency-resolution.md#pnprserver)
 
-### Node-Modules Settings
+### `node_modules` settings {#node-modules-settings}
 
 [Full reference →](./settings/node-modules.md#node-modules-settings)
 
@@ -198,7 +198,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [virtualStoreType](./settings/node-modules.md#virtualstoretype)
 * [enableGlobalVirtualStore](./settings/node-modules.md#enableglobalvirtualstore)
 
-### Dependency Hoisting Settings
+### Dependency hoisting settings
 
 [Full reference →](./settings/node-modules.md#dependency-hoisting-settings)
 
@@ -209,7 +209,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [shamefullyHoist](./settings/node-modules.md#shamefullyhoist)
 * [hoistingLimits](./settings/node-modules.md#hoistinglimits)
 
-### Store Settings
+### Store settings
 
 [Full reference →](./settings/store.md#store-settings)
 
@@ -220,7 +220,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [frozenStore](./settings/store.md#frozenstore)
 * [storeIndexFormat](./settings/store.md#storeindexformat)
 
-### Lockfile Settings
+### Lockfile settings
 
 [Full reference →](./settings/store.md#lockfile-settings)
 
@@ -234,7 +234,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [mergeGitBranchLockfilesBranchPattern](./settings/store.md#mergegitbranchlockfilesbranchpattern)
 * [peersSuffixMaxLength](./settings/store.md#peerssuffixmaxlength)
 
-### Network Settings
+### Network settings
 
 [Full reference →](./settings/network.md#network-settings)
 
@@ -245,7 +245,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [maxsockets](./settings/network.md#maxsockets)
 * [strictSsl](./settings/network.md#strictssl)
 
-### Request Settings
+### Request settings
 
 [Full reference →](./settings/network.md#request-settings)
 
@@ -259,7 +259,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [fetchWarnTimeoutMs](./settings/network.md#fetchwarntimeoutms)
 * [fetchMinSpeedKiBps](./settings/network.md#fetchminspeedkibps)
 
-### Peer Dependency Settings
+### Peer dependency settings
 
 [Full reference →](./settings/peer-dependencies.md)
 
@@ -290,7 +290,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [pmOnFail](./settings/cli.md#pmonfail)
 * [ignoreWorkspaceRootCheck](./settings/cli.md#ignoreworkspacerootcheck)
 
-### Node.js Settings
+### Node.js settings
 
 [Full reference →](./settings/cli.md#nodejs-settings)
 
@@ -299,7 +299,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [nodeDownloadMirrors](./settings/cli.md#nodedownloadmirrors)
 * [tools](./settings/cli.md#tools)
 
-### Build Settings
+### Build settings
 
 [Full reference →](./settings/build.md)
 
@@ -319,7 +319,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [skills.dirs](./settings/build.md#skillsdirs)
 * [dangerouslyAllowAllBuilds](./settings/build.md#dangerouslyallowallbuilds)
 
-### Versioning Settings
+### Versioning settings
 
 [Full reference →](./settings/versioning.md)
 
@@ -330,7 +330,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [versioning.epics](./settings/versioning.md#versioningepics)
 * [versioning.changelog.storage](./settings/versioning.md#versioningchangelogstorage)
 
-### Other Settings
+### Other settings
 
 [Full reference →](./settings/other.md)
 
@@ -362,7 +362,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [ci](./settings/other.md#ci)
 * [catalogPrune](./settings/other.md#catalogprune)
 
-### Workspace Settings
+### Workspace settings
 
 These settings are configured in `pnpm-workspace.yaml` as well, but are documented together with the workspace feature they belong to.
 

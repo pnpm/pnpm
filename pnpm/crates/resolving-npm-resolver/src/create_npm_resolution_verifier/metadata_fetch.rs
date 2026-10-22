@@ -86,7 +86,7 @@ impl NpmResolutionVerifier {
     /// is a strict superset of the abbreviated shape, and `clear_meta`
     /// keeps every field the projection reads. Private-scoped entries
     /// carry a descriptor prefix the verifier can't reproduce; those
-    /// simply miss and fall through to the verifier's own fetch chain.
+    /// miss and fall through to the verifier's own fetch chain.
     pub(super) fn read_shared_meta(&self, registry: &str, name: &PkgName) -> Option<Arc<Package>> {
         let cache = self.metadata.meta_cache.as_ref()?;
         let name_str = name.to_string();

@@ -429,7 +429,7 @@ pub(super) fn is_osv_checkable_resolution(resolution: &LockfileResolution) -> bo
     }
 }
 
-/// Whether a tarball URL uses an http(s) scheme — the only schemes a
+/// Whether a tarball URL uses an HTTP or HTTPS scheme — the only schemes a
 /// registry artifact is served over. Case-insensitive (so a tampered
 /// uppercase scheme can't slip past) without allocating a lowercased copy.
 fn is_http_tarball_url(url: &str) -> bool {

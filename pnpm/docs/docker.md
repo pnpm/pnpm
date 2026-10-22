@@ -16,7 +16,7 @@ If you use BuildKit cache mounts, keep the pnpm store cache scoped to mutually t
 
 ## Official pnpm base image
 
-An official pnpm base image is published to GitHub Container Registry as [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm). It is based on `debian:stable-slim` and contains only the pnpm [standalone binary] — Node.js is **not** bundled. This lets you pick the Node.js version yourself (inside your Dockerfile or at runtime) instead of being locked to whatever Node version a base image ships with.
+An official pnpm base image is published to GitHub Container Registry as [`ghcr.io/pnpm/pnpm`](https://github.com/pnpm/pnpm/pkgs/container/pnpm). It is based on `debian:stable-slim` and contains only the pnpm [standalone binary]. Node.js is **not** bundled. This lets you pick the Node.js version yourself (inside your Dockerfile or at runtime) instead of being locked to whatever Node version a base image ships with.
 
 [standalone binary]: ./installation.md#using-a-standalone-script
 
@@ -89,14 +89,14 @@ The recipes further down this page start from this image and let pnpm install No
 ## Minimizing Docker image size and build time
 
 * Use a small image, e.g. `ghcr.io/pnpm/pnpm` or `node:XX-slim`.
-* Leverage multi-stage if possible and makes sense.
-* Leverage BuildKit cache mounts.
+* Use multi-stage if possible and makes sense.
+* Use BuildKit cache mounts.
 
 The recipes below use the official pnpm image, which already sets `PNPM_HOME=/pnpm` and puts `/pnpm/bin` on `PATH`, so the default store is at `/pnpm/store`.
 
 :::caution
 
-Baking a warm store into an image layer — running an install during the build so later containers have nothing to download — does not make linking free. A hardlink to a file in a lower image layer succeeds, but overlayfs copies that file into the container's writable layer first, so an install copies most of the store out of the image while reporting that it hardlinked. [`packageImportMethod: copy`](./settings/node-modules.md#a-store-baked-into-a-container-image-layer) is usually faster in that setup, and measurably so on ext4. A BuildKit cache mount does not have this problem, because the store is a mount rather than a layer.
+Baking a warm store into an image layer (running an install during the build so later containers have nothing to download) does not make linking free. A hardlink to a file in a lower image layer succeeds, but overlayfs copies that file into the container's writable layer first, so an install copies most of the store out of the image while reporting that it hardlinked. [`packageImportMethod: copy`](./settings/node-modules.md#a-store-baked-into-a-container-image-layer) is usually faster in that setup, and measurably so on ext4. A BuildKit cache mount does not have this problem, because the store is a mount rather than a layer.
 
 :::
 

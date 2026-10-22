@@ -59,7 +59,7 @@ See [Aliases](../aliases.md) for more examples.
 
 Added in: v12.0.0-rc.6 (pnpm v12 only)
 
-Naming a [package manager](../package-managers.md) — `npm`, `yarn` or `bun` — records which one the project uses instead of installing the npm package that shares the name:
+Naming a [package manager](../package-managers.md) (`npm`, `yarn` or `bun`) records which one the project uses instead of installing the npm package that shares the name:
 
 ```sh
 pnpm add yarn@4
@@ -69,7 +69,7 @@ writes `"packageManager": "yarn@4.18.0"`, and every other package manager is rec
 
 Globally, `pnpm add -g yarn` installs the current Yarn line rather than the Classic-only `yarn` package, and `pnpm add -g node@22` installs that Node.js release rather than a wrapper that downloads one.
 
-A specifier that locates a package rather than asking for a released version — `pnpm add yarn@npm:yarn@1.22.22`, `pnpm add yarn@yarnpkg/berry` — installs what it names, as an ordinary dependency.
+A specifier that locates a package rather than asking for a released version, such as `pnpm add yarn@npm:yarn@1.22.22` or `pnpm add yarn@yarnpkg/berry`, installs what it names, as an ordinary dependency.
 
 ## Adding the Rust toolchain
 

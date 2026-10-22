@@ -18,7 +18,7 @@ pnpm derives this directory from the platform and the `cacheDir` setting, so a C
   run: echo "PNPM_CACHE_DIR=$(pnpm cache path)" >> $GITHUB_ENV
 ```
 
-Besides registry metadata and the [`pnpm dlx`](./pnx.md) cache, that directory holds the lockfile verification log — the record of which lockfile passed which [supply-chain policies](../supply-chain-security.md). Restoring it lets a job skip re-verifying a lockfile the log already covers under the policies currently configured — the dominant cost of an install in CI once the store is warm. Since v11.22.0, [`pnpm store prune`](./store.md#prune) no longer deletes that log.
+Besides registry metadata and the [`pnpm dlx`](./pnx.md) cache, that directory holds the lockfile verification log: the record of which lockfile passed which [supply-chain policies](../supply-chain-security.md). Restoring it lets a job skip re-verifying a lockfile the log already covers under the policies currently configured. That check is the dominant cost of an install in CI once the store is warm. Since v11.22.0, [`pnpm store prune`](./store.md#prune) no longer deletes that log.
 
 :::important
 

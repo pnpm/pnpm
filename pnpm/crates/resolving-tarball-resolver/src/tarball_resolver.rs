@@ -255,7 +255,7 @@ impl TarballResolver {
         ))
     }
 
-    /// Build the `ResolveResult` for a claimed http(s) tarball.
+    /// Build the `ResolveResult` for a claimed HTTP or HTTPS tarball.
     /// `name_ver` stays `None` (URL-id semantics: the depPath is
     /// `name@<url>`, derived downstream from the manifest name);
     /// `integrity` and `manifest` are filled once the tarball is
@@ -292,7 +292,7 @@ impl TarballResolver {
 }
 
 /// URL tarballs lock to the exact URL — no concept of "latest". When
-/// the wanted dep names an http(s) URL, claim it so the dispatcher
+/// the wanted dep names an HTTP or HTTPS URL, claim it so the dispatcher
 /// stops; the caller still surfaces a ref-mismatch report if the
 /// lockfile points at a different URL than before.
 fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {

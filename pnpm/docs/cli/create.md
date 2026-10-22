@@ -21,4 +21,4 @@ A list of package names that are allowed to run postinstall scripts during insta
 
 ## Security and trust policies
 
-Since v11.0.0, `pnpm create` honors the project-level security and trust policy settings — [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) (and its `Exclude`/`Strict` companions) and [`trustPolicy`](../settings/dependency-resolution.md#trustpolicy) (and its `Exclude`/`IgnoreAfter` companions) — when resolving and fetching the starter kit.
+Since v11.0.0, `pnpm create` honors the project-level security and trust policy settings when resolving and fetching the starter kit. These include [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage), `minimumReleaseAgeExclude`, `minimumReleaseAgeStrict`, [`trustPolicy`](../settings/dependency-resolution.md#trustpolicy), `trustPolicyExclude`, and `trustPolicyIgnoreAfter`.

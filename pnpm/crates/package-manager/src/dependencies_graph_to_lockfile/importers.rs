@@ -361,7 +361,7 @@ pub(super) fn real_name(result: &ResolveResult) -> Option<String> {
     // `name_ver` is unset for resolutions that learn the canonical name
     // from the fetched manifest. Read it for the shapes whose `name@`
     // prefix is stripped off the importer entry:
-    // - a remote (non-registry) http(s) tarball direct dep
+    // - a remote (non-registry) HTTP or HTTPS tarball direct dep
     //   (`<name>@<tarball-url>` -> `version: <url>`), which a git-hosted
     //   dep's host archive URL also is,
     // - a runtime dep (`<name>@runtime:<ver>`, a Variations resolution ->

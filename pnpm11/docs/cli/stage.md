@@ -5,7 +5,7 @@ title: pnpm stage
 
 Added in: v11.3.0
 
-Stages packages for publishing using npm's [staged publishing](https://docs.npmjs.com/staged-publishing) workflow. Staged versions are not resolved by `pnpm install` until they are explicitly approved, letting you defer proof-of-presence (2FA) to a later point in time — useful for verifying release artifacts, smoke-testing CI, or coordinating multi-package releases.
+Stages packages for publishing using npm's [staged publishing](https://docs.npmjs.com/staged-publishing) workflow. Staged versions are not resolved by `pnpm install` until they are explicitly approved, letting you defer proof-of-presence (2FA) to a later point in time. This is useful for verifying release artifacts, smoke-testing CI, or coordinating multi-package releases.
 
 ```sh
 pnpm stage <subcommand> [options]

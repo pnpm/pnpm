@@ -27,7 +27,7 @@ Additionally, the [trustPolicyIgnoreAfter] setting allows you to ignore trust ch
 
 ### Use a lockfile
 
-It goes without saying that you should always lock your dependencies with a lockfile. Commit your lockfile to your repository to avoid unexpected updates.
+Always lock your dependencies with a lockfile. Commit your lockfile to your repository to avoid unexpected updates.
 
 If you scan `pnpm-lock.yaml` with a vulnerability scanner or an SBOM generator, check that it handles the [two-document lockfile](lockfile.md): a tool that reads only the first document reports that the project has no dependencies, and no vulnerabilities, without failing.
 

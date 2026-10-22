@@ -9,4 +9,4 @@ This command is experimental
 
 :::
 
-Deletes metadata cache for the specified package(s). Supports patterns.
+Deletes metadata cache for the specified packages. Supports patterns.

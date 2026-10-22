@@ -325,7 +325,7 @@ async function fetchPackageFromRemote (
 
   // Tarballs are requested first because they are bigger than metadata files.
   // However, when one line is left available, allow it to be picked up by a metadata request.
-  // This is done in order to avoid situations when tarballs are downloaded in chunks
+  // This is done to avoid situations when tarballs are downloaded in chunks
   // As many tarballs should be downloaded simultaneously as possible.
   const priority = (++ctx.requestsQueue.counter % ctx.requestsQueue.concurrency === 0 ? -1 : 1) * 1000
 

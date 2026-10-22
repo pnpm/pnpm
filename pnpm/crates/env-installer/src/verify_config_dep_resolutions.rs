@@ -61,7 +61,7 @@ async fn verify_with_registry(
 }
 
 /// Config dependencies install only from an npm registry: a registry
-/// resolution, or an http(s) tarball that is not a git-hosted archive.
+/// resolution, or an HTTP or HTTPS tarball that is not a git-hosted archive.
 fn assert_registry_resolution(
     key: &PackageKey,
     resolution: &LockfileResolution,

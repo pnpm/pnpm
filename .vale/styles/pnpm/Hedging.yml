@@ -1,0 +1,12 @@
+extends: existence
+message: "Remove '%s' or name the condition behind the claim."
+level: error
+ignorecase: true
+tokens:
+  - basically
+  - essentially
+  - arguably
+  - hopefully
+  - should just work
+  - more or less
+  - in most cases,? it should

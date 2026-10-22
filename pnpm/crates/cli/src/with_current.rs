@@ -84,7 +84,7 @@ fn command_index(argv: &[OsString]) -> Option<usize> {
     while index < argv.len() {
         let Some(token) = argv[index].to_str() else {
             // A non-UTF-8 token can't be a known option or `with`; treat it
-            // as the subcommand position (it simply won't match `with`).
+            // as the subcommand position (it won't match `with`).
             return Some(index);
         };
         if token == "--" {

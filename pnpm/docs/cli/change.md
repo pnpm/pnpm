@@ -87,7 +87,7 @@ Unlike `pnpm change status`, which reports the release the pending intents produ
 
 ### --bump &lt;type&gt;
 
-The bump type for the named packages: `none`, `patch`, `minor`, or `major`. `none` records an explicit decline — the change needs no release.
+The bump type for the named packages: `none`, `patch`, `minor`, or `major`. `none` records an explicit decline: the change needs no release.
 
 ### --summary &lt;text&gt;
 

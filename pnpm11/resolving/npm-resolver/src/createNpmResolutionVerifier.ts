@@ -444,7 +444,7 @@ async function runAgeCheck (
 ): Promise<ResolutionViolation | undefined> {
   // A transport failure (auth/network/5xx) propagates the registry's own fetch
   // error (e.g. ERR_PNPM_FETCH_403); the gate aborts the install with it rather
-  // than folding it into a policy violation. A successful fetch that simply
+  // than folding it into a policy violation. A successful fetch that
   // lacks a publish timestamp for this version is handled below.
   const published = await fetchPublishedAt(context, pin.registry, pin.name, pin.version)
   if (!published) return reportMissingPublishTime(context, pin, opts.ignoreMissingTimeField)

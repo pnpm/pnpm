@@ -4,7 +4,7 @@ title: "Node-Modules & Hoisting Settings"
 sidebar_label: "node_modules & hoisting"
 ---
 
-## Node-Modules Settings
+## `node_modules` settings {#node-modules-settings}
 
 ### modulesDir
 
@@ -206,8 +206,8 @@ A reflink materializes a new inode and copies extent bookkeeping inside the
 filesystem's metadata trees, where a hardlink is one directory entry. On btrfs
 that difference roughly halves the time an install spends materializing
 `node_modules` from a warm store, which is why pnpm reaches for the hardlink
-first there. ext4 is unaffected — it never supported cloning, so `auto` already
-hardlinked — and macOS keeps clone-first, since APFS `clonefile` is that
+first there. ext4 is unaffected. It never supported cloning, so `auto` already
+hardlinked. macOS keeps clone-first, since APFS `clonefile` is that
 platform's cheap primitive.
 
 If you edit files inside `node_modules`, ask for `clone` explicitly. Under a
@@ -220,9 +220,9 @@ changes every project that links the same package.
 slowly. Two setups produce links that succeed and are expensive, and on both
 `packageImportMethod: copy` can be considerably faster.
 
-Neither is a reason to reach for `copy` generally. On an ordinary install —
-store and `node_modules` on the same everyday filesystem, no image layer in
-between — copying is the slowest option and the one that uses the most space.
+Neither is a reason to reach for `copy` generally. On an ordinary install
+(store and `node_modules` on the same everyday filesystem, no image layer in
+between), copying is the slowest option and the one that uses the most space.
 Measure both on the machine in question.
 
 #### A store baked into a container image layer
@@ -231,7 +231,7 @@ Container runtimes assemble an image from stacked layers, usually with
 overlayfs. A hardlink to a file that lives in a lower layer *succeeds* there,
 but the file is copied into the writable upper layer first. An image that
 ships a pre-populated pnpm store leaves that store in a lower layer, so the
-first link to any store file copies that file up — and pnpm's "Packages are
+first link to any store file copies that file up. pnpm's "Packages are
 hard linked from the content-addressable store" line stays accurate while the
 install copies most of the store out anyway.
 
@@ -252,18 +252,18 @@ only the phase that writes `node_modules`. Rootless podman on the kernel
 
 Backing that overlay with btrfs is what keeps the gap small: a copy-up there
 can share extents rather than duplicate them. On ext4 every copy-up is a full
-data copy, and the gap widens — one project's CI, running this shape on an
+data copy, and the gap widens. One project's CI, running this shape on an
 ext4 boot disk, went from 38s to 16s by switching to `copy`.
 
-Note that the `EXDEV` fallback below does not help here. A cross-layer
-hardlink does not fail — it copies up and reports success — so `auto` has no
+The `EXDEV` fallback below does not help here. A cross-layer
+hardlink does not fail. It copies up and reports success, so `auto` has no
 failure to step down on.
 
 #### Network and virtualized filesystems
 
 The same "succeeds, but slowly" shape appears when the store and
 `node_modules` sit on the same filesystem and that filesystem services every
-metadata operation over a round trip — a network share (NFS, SMB, Amazon EFS)
+metadata operation over a round trip: a network share (NFS, SMB, Amazon EFS)
 or a directory shared from a host into a VM or container (virtiofs,
 gRPC-FUSE, 9p). Cloning, where the platform tries it first, fails there and
 steps down; hardlinking then succeeds, so `auto` stays on it and the install
@@ -272,8 +272,8 @@ Copying reads and writes whole files instead of performing per-file metadata
 operations the filesystem has to service remotely.
 
 This only arises when both live on that filesystem. A store on a genuinely
-different filesystem from `node_modules` cannot be hardlinked from at all —
-the attempt fails with `EXDEV` — so `auto` already falls back to copying on
+different filesystem from `node_modules` cannot be hardlinked from at all.
+The attempt fails with `EXDEV`, so `auto` already falls back to copying on
 its own.
 
 #### How many files macOS writes at once
@@ -319,7 +319,7 @@ Added in: v11.23.0
 * Default: **project**
 * Type: **project**, **global**
 
-Names where the virtual store lives — one store per project, or one store per machine.
+Names where the virtual store lives: one store per project, or one store per machine.
 
 ```yaml title="pnpm-workspace.yaml"
 virtualStoreType: global
@@ -354,15 +354,15 @@ When enabled, `node_modules` contains only symlinks to a central virtual store, 
 
 In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. As a result, all projects on the system can symlink their dependencies from this shared location on disk. This approach is conceptually similar to how [NixOS manages packages], using dependency graph hashes to create isolated and shareable package directories in the Nix store.
 
-> This should not be confused with the global content-addressable store. The actual package files are still hard linked from the content-addressable store—but instead of being linked directly into `node_modules/.pnpm`, they are linked into the global virtual store.
+> This should not be confused with the global content-addressable store. The actual package files are still hard linked from the content-addressable store, but instead of being linked directly into `node_modules/.pnpm`, they are linked into the global virtual store.
 
-Using a global virtual store can significantly speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI, this setting is automatically disabled.
+Using a global virtual store can speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI, this setting is automatically disabled.
 
 :::important
 
 To support hoisted dependencies when using a global virtual store, pnpm relies on the `NODE_PATH` environment variable. This allows Node.js to resolve packages from the hoisted `node_modules` directory. Node.js does not respect `NODE_PATH` for ESM imports, though, so before v11.23.0 a dependency that imports a package **not declared in its own `package.json`** (which is considered bad practice) failed to resolve under ESM.
 
-Since v11.23.0, every process pnpm spawns for the project — `pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs — receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. Such imports now resolve for CommonJS and ESM alike, without the `@pnpm/plugin-esm-node-path` config dependency that used to be needed ([#9618](https://github.com/pnpm/pnpm/issues/9618)).
+Since v11.23.0, every process pnpm spawns for the project (`pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs) receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. Such imports now resolve for CommonJS and ESM alike, without the `@pnpm/plugin-esm-node-path` config dependency that used to be needed ([#9618](https://github.com/pnpm/pnpm/issues/9618)).
 
 Two things fall outside that: a `node` process you start yourself rather than through pnpm, and a project that sets [`extendNodePath`](./other.md#extendnodepath) to `false`, which turns the whole `NODE_PATH` mechanism off and takes the resolve hook with it. Use [packageExtensions] to declare the missing dependencies if you need them to resolve in either case.
 
@@ -371,7 +371,7 @@ Two things fall outside that: a `node` process you start yourself rather than th
 [packageExtensions]: ./dependency-resolution.md#packageextensions
 [NixOS manages packages]: https://nixos.org/guides/how-nix-works/
 
-## Dependency Hoisting Settings
+## Dependency hoisting settings
 
 ### hoist
 

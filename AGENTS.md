@@ -196,7 +196,7 @@ You can confirm the hooks are active with `git config core.hooksPath` (it should
 
 GitHub turns any `#NNN` into a link to issue/PR `NNN` of *this* repo, which is almost never what a bare reference means. This is a frequent AI mistake, in these forms:
 
--   Using `#1`, `#2`, `#3`, … to enumerate items in a list. GitHub instead links them to unrelated issues `#1`, `#2`, `#3` of this repo. **Fix:** don't use `#` for enumeration — write `item 1`, `(1)`, `1.`, or rephrase.
+-   Using `#1`, `#2`, `#3`, and so on to enumerate items in a list. GitHub instead links them to unrelated issues `#1`, `#2`, `#3` of this repo. **Fix:** don't use `#` for enumeration — write `item 1`, `(1)`, `1.`, or rephrase.
 -   Referring to issue `#NNN` of a *different* repository. GitHub instead links it to issue `NNN` of this repo. **Fix:** use qualified syntax `owner/repo#NNN` or an absolute URL `https://github.com/owner/repo/issues/NNN`.
 
 For references to issues/PRs in **this** repo, also use the qualified form `pnpm/pnpm#NNN` or the absolute URL `https://github.com/pnpm/pnpm/issues/NNN`. Qualified syntax and absolute URLs are always unambiguous, so this rule is applied to every `#NNN` without exception.
@@ -253,8 +253,15 @@ A changeset is a release note. Someone skimming the changelog for the one entry 
 - **One idea per sentence.** Split any sentence a reader would have to read twice. Do not chain several changes with colons, semicolons, or a parenthetical. A performance changeset says what got faster and for whom, not which caches and hash functions changed.
 - **End with the issue link, not with the old behavior.** If the reader needs the old behavior to recognize the bug, describe it in its own past-tense sentence. Do not append "instead of ..." or "rather than ..." to every sentence.
 - **Plain punctuation.** No em dashes or en dashes. End the sentence or use a comma. A colon only introduces a list or an example. No bold or italics for emphasis. Straight quotes.
+<!-- The rules below quote the words the prose linter rejects. -->
+<!-- vale pnpm.Substitutions = NO -->
+<!-- vale pnpm.Puffery = NO -->
+<!-- vale pnpm.NoteThat = NO -->
 - **Plain words.** "Use", not "leverage". "Many", not "numerous". "If", not "in the event that". Name the actor when it matters: "pnpm now reads the file", not "the file is now read". Replace "significantly faster" with the number, or drop the adverb.
 - **No reasoning.** A changeset states what pnpm does now. Design justification, "so that ..." chains, "note that", and hedging go in the commit body or the PR description.
+<!-- vale pnpm.Substitutions = YES -->
+<!-- vale pnpm.Puffery = YES -->
+<!-- vale pnpm.NoteThat = YES -->
 
 Before committing, reread the entry and ask what makes it read as generated. The usual answers are an em dash, an "instead of" tail, and a colon-joined list of internals.
 
@@ -292,7 +299,7 @@ The Rust products are released through the same native flow. Their npm wrapper p
 
 pnpm v12 and its NAPI addon release as stable versions on the main lane. pnpr releases on the `alpha` prerelease lane configured in `pnpm-workspace.yaml`; `pnpm lane main --filter …` graduates it to a stable version.
 
-Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript v11 CLI package. A changeset for a pnpm v12 feature or v12-only bug fix targets `pacquet` and omits `"pnpm"`. A shared bug fix that lands in both versions may use one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s) only when the same release-note text applies to both.
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript v11 CLI package. A changeset for a pnpm v12 feature or v12-only bug fix targets `pacquet` and omits `"pnpm"`. A shared bug fix that lands in both versions may use one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrappers only when the same release-note text applies to both.
 
 Use `pacquet` as the changeset package name, but use `pnpm` in its release-note prose and command examples (`pnpm add`, not `pacquet add`). The published Rust CLI's executable is `pnpm`; `pacquet` is only its in-repo package identifier.
 
@@ -355,6 +362,14 @@ User-facing text names only what the user can reach: their project, their config
 
 -   A review does not increase verbosity. For a nitpick, prefer removal over addition.
 -   A fix for a nitpick follows the same rule: remove rather than add.
+
+### Prose linting
+
+[Vale](https://vale.sh) enforces the rules above with the style in [`.vale/styles/pnpm`](./.vale/styles/pnpm). [`.vale.ini`](./.vale.ini) sets which rules apply to which files. `pnpm lint:prose` runs it on the Markdown, the comments in Rust and TypeScript, and the changesets added since `origin/main`. Only errors fail the run. Pass `--minAlertLevel=warning` to also see the warnings.
+
+Vale flags patterns, not meaning. After a prose rewrite, check whether the opening answers the reader's question, conditions are easy to find, and punctuation makes the sentence easier to read. If behavior is uncertain, name the condition or source of uncertainty instead of removing it.
+
+Fix an alert by rewriting the sentence. Turn a rule off with a `<!-- vale <rule> = NO -->` comment only where the text quotes the words the rule rejects.
 
 ## Code Style (TypeScript only)
 

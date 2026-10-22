@@ -10,7 +10,7 @@ import { renderParseable } from '../lib/renderParseable.js'
 import { renderTree } from '../lib/renderTree.js'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
-const PROD_DEP_CLR = (text: string) => text // just use the default color
+const PROD_DEP_CLR = (text: string) => text // use the default color
 const OPTIONAL_DEP_CLR = chalk.blue
 const NOT_SAVED_DEP_CLR = chalk.red
 const VERSION_CLR = chalk.gray

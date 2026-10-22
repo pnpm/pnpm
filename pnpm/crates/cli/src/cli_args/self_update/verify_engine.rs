@@ -332,7 +332,7 @@ fn classify_signature_failures(
     }
     // The primary registry had no usable signature (a mirror commonly serves
     // none) and the fallback could not be consulted — nothing suspicious was
-    // observed, the signature was simply unobtainable.
+    // observed, the signature was unobtainable.
     failure(
         format!(
             "{}; the fallback registry ({}) could not be consulted either: {}",

@@ -241,7 +241,7 @@ pub(super) fn render_top_level_sequence(
 /// Upsert a `key:` entry whose value is a block sequence (`items`) into the
 /// existing top-level mapping `block_name`, creating or replacing the entry
 /// in the position the reorder pass would choose. The mapping at
-/// `block_name` must already exist. Used to write `auditConfig.ignoreGhsas`.
+/// `block_name` must already exist. Writes `auditConfig.ignoreGhsas`.
 pub(super) fn upsert_sequence_entry(
     text: &str,
     block_name: &str,

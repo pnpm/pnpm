@@ -544,7 +544,7 @@ fn install_surfaces_catalog_misconfiguration() {
 /// A well-formed range that the registry publishes nothing for is
 /// `ERR_PNPM_NO_MATCHING_VERSION`, not the chain's
 /// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` — the specifier is
-/// supported, the version simply doesn't exist (pnpm/pnpm#13319). The
+/// supported, the version doesn't exist (pnpm/pnpm#13319). The
 /// report also names the latest published release and how to list the
 /// rest, the way the TypeScript CLI does.
 #[test]

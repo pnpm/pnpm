@@ -1,0 +1,7 @@
+extends: occurrence
+message: "Split this sentence. It has more than 30 words."
+link: https://developers.google.com/style/sentence-length
+level: warning
+scope: sentence
+max: 30
+token: \b(\w+)\b

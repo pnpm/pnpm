@@ -71,7 +71,7 @@ fn bulk_advisories_omits_non_affected_versions() {
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
-    // Version 1.2.0 is fixed, version 0.9.0 is prior to introduction
+    // Version 1.2.0 is fixed, version 0.9.0 is before introduction
     let mut query = HashMap::new();
     query.insert("vulnerable".to_string(), vec!["0.9.0".to_string(), "1.2.0".to_string()]);
 

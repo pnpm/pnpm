@@ -27,7 +27,7 @@ Using PowerShell:
 $env:PNPM_VERSION="latest-11"; Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression
 ```
 
-On Windows, Microsoft Defender can significantly slow down installation of packages. You can add pnpm to Microsoft Defender's list
+On Windows, Microsoft Defender can slow down installation of packages. You can add pnpm to Microsoft Defender's list
 of excluded folders in a PowerShell window with administrator rights by executing:
 
 ```powershell
@@ -54,7 +54,7 @@ wget -qO- https://get.pnpm.io/install.sh | env PNPM_VERSION=latest-11 sh -
 
 :::info Linux runtime requirements
 
-The install script picks a glibc or musl build based on your system's libc. A separate musl build is provided for Alpine and other musl-based distros on x64. The glibc build requires glibc 2.27 or newer plus `libatomic.so.1` — both are present on most full distros but may be missing from minimal container images. If you see `error while loading shared libraries: libatomic.so.1`, install it with your distro's package manager:
+The install script picks a glibc or musl build based on your system's libc. A separate musl build is provided for Alpine and other musl-based distros on x64. The glibc build requires glibc 2.27 or newer plus `libatomic.so.1`. Both are present on most full distros but may be missing from minimal container images. If you see `error while loading shared libraries: libatomic.so.1`, install it with your distro's package manager:
 
 - Debian/Ubuntu: `apt-get install -y libatomic1`
 - Fedora/RHEL: `dnf install -y libatomic`
@@ -80,7 +80,7 @@ wget -qO- https://get.pnpm.io/install.sh | env PNPM_VERSION=latest-11 ENV="$HOME
 
 ### Installing a specific version
 
-Prior to running the install script, you may optionally set an env variable `PNPM_VERSION` to install a specific version of pnpm:
+Before running the install script, you may optionally set an env variable `PNPM_VERSION` to install a specific version of pnpm:
 
 ```sh
 curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=<version> sh -

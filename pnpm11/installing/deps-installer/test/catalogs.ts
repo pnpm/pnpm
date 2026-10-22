@@ -191,7 +191,7 @@ test('importer with different peers uses correct peer', async () => {
       name: 'project2',
       dependencies: {
         '@pnpm.e2e/has-foo100-peer': 'catalog:',
-        // Note that this peer is intentionally different than the one above
+        // This peer is intentionally different than the one above
         // for project 1. (100.1.0 instead of 100.0.0).
         //
         // We want to ensure project2 resolves to the same catalog version for
@@ -893,9 +893,9 @@ test('catalog entry using npm alias can be reused', async () => {
 // pnpm-lock.yaml. This should happen even if the dependency is still defined in
 // a catalog under pnpm-workspace.yaml.
 //
-// Note that this behavior may not be desirable in all cases. If someone removes
+// This behavior may not be desirable in all cases. If someone removes
 // the last usage of a catalog entry, and another person adds it back later,
-// that dependency will be re-resolved to a newer version. This is probably
+// that dependency will be re-resolved to a newer version. This is likely
 // desirable most of the time, but there could be a good argument to cache the
 // older unused resolution. For now we'll remove the unused entries since that's
 // what would happen anyway if catalogs aren't used.
@@ -950,8 +950,8 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
       'is-negative': { specifier: 'catalog:', version: '1.0.0' },
     })
     // Only "is-negative" should be in the catalogs section of the lockfile
-    // since all packages in the workspace no longer use is-positive. Note that
-    // this should be the case even if pnpm-workspace.yaml still has
+    // since all packages in the workspace no longer use is-positive. This
+    // should be the case even if pnpm-workspace.yaml still has
     // "is-positive" configured.
     expect(lockfile.catalogs?.default).toStrictEqual({
       'is-negative': { specifier: '=1.0.0', version: '1.0.0' },

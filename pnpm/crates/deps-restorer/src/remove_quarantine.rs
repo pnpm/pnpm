@@ -96,7 +96,7 @@ fn remove_quarantine_from_chunk(file_paths: &[&Path]) {
     match output {
         Ok(output) if output.status.success() => {}
         Ok(output) => {
-            // `xattr -d` exits non-zero when a file simply has no quarantine
+            // `xattr -d` exits non-zero when a file has no quarantine
             // xattr ("No such xattr"), the common case, and reports "No such
             // file" for entries the importer legitimately dropped or renamed.
             // Surface only errors that are not of those kinds.

@@ -117,7 +117,7 @@ fn json_string_array(values: &[String]) -> String {
 ///
 /// `current_os`, `current_cpu`, and `current_libc` are passed in
 /// rather than read from the environment so this function stays
-/// trivially testable.
+/// testable.
 pub fn check_platform(
     package_id: &str,
     wanted: WantedPlatformRef<'_>,

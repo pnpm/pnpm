@@ -356,7 +356,7 @@ pub(super) fn authorize(
         return Ok(());
     }
     // Denied: an anonymous caller gets a chance to authenticate (401);
-    // an authenticated caller simply isn't in the allowed set (403).
+    // an authenticated caller isn't in the allowed set (403).
     match identity {
         Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })

@@ -41,14 +41,14 @@ Two things make this convenient in CI:
 
 The script installs into `PNPM_HOME` and appends to a shell profile, which a CI
 job never reloads. Declare `PNPM_HOME` and put `$PNPM_HOME/bin` on `PATH`
-yourself, using whatever mechanism the platform provides — the examples below
+yourself, using whatever mechanism the platform provides. The examples below
 show it for each one.
 
 :::note
 
 Earlier versions of this page used Corepack. Corepack installs a JavaScript shim
 in place of pnpm, so every `pnpm` call starts Node.js to run the shim before pnpm
-itself starts — a cost paid on each invocation, and CI jobs make many of them.
+itself starts. That cost is paid on each invocation, and CI jobs make many of them.
 Installing pnpm itself avoids that entirely.
 
 :::
@@ -65,7 +65,7 @@ Since v11.22.0, [`pnpm cache path`](./cli/cache-path.md) prints the directory pn
 uses for its metadata cache, so a job can cache it without mirroring pnpm's own
 path resolution. That directory also holds the lockfile verification log, which
 lets a job skip re-checking an unchanged lockfile against the configured
-[supply-chain policies](./supply-chain-security.md) — the dominant cost of an
+[supply-chain policies](./supply-chain-security.md), the dominant cost of an
 install in CI once the store is warm.
 
 :::
@@ -78,7 +78,7 @@ Only cache pnpm's store and cache directories in locations writable by trusted j
 
 :::tip Lockfile behavior in CI
 
-When pnpm detects that it is running in CI, it switches to frozen-lockfile mode automatically. Since v11, pnpm also fails on incompatible lockfiles in CI — if the lockfile was written by a newer pnpm major version, the install will error out instead of silently rewriting it. Upgrade your CI pnpm version to match the one used to generate the lockfile.
+When pnpm detects that it is running in CI, it switches to frozen-lockfile mode automatically. Since v11, pnpm also fails on incompatible lockfiles in CI. If the lockfile was written by a newer pnpm major version, the install will error out instead of silently rewriting it. Upgrade your CI pnpm version to match the one used to generate the lockfile.
 
 :::
 

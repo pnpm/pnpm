@@ -11,7 +11,7 @@
 //! the suffix once so the per-edge work is the suffix math alone.
 //!
 //! The anchor is a *fast path*: it disarms itself for any input where
-//! the relative-space result is not trivially the same as the
+//! the relative-space result is not guaranteed to be the same as the
 //! absolute-space one — a dot-carrying anchor, a driveless-yet-rooted
 //! Windows anchor, an importer outside the lockfile root — and each
 //! rendering falls back to the caller's absolute-space math the same

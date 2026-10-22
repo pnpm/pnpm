@@ -1,0 +1,11 @@
+extends: existence
+message: "A release note states what pnpm does now. Move '%s' and the reasoning after it to the commit body."
+link: https://github.com/pnpm/pnpm/blob/main/AGENTS.md#changeset-style
+level: warning
+ignorecase: true
+tokens:
+  - so that
+  - this ensures
+  - this means that
+  - which ensures
+  - in order to

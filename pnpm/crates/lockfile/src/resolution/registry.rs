@@ -126,7 +126,7 @@ fn effective_server_type(opts: TarballUrlOptions<'_>) -> Option<RegistryServerTy
 ///
 /// Threaded as one value rather than as three parameters so a consumer cannot
 /// be handed the routing without the settings — dropping the settings is
-/// silent, the tarball URL is simply rebuilt in the wrong layout — and so a
+/// silent, the tarball URL is rebuilt in the wrong layout — and so a
 /// new per-registry setting reaches every consumer by being added here.
 ///
 /// The counterpart of the TypeScript CLI's [`RegistryContext`].

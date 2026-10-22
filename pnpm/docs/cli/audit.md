@@ -55,7 +55,7 @@ This can also be set via [`audit.level`](#auditlevel) in `pnpm-workspace.yaml`.
 
 ### --fix
 
-Add overrides to the `pnpm-workspace.yaml` file in order to force non-vulnerable versions of the dependencies.
+Add overrides to the `pnpm-workspace.yaml` file to force non-vulnerable versions of the dependencies.
 
 Use `--fix=update` (added in v11.0.0) to fix vulnerabilities by updating the vulnerable packages in the lockfile instead of adding overrides.
 

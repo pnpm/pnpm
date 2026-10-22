@@ -11,7 +11,7 @@ dependency graph, including peer dependencies. This is useful for enforcing all 
 version of a dependency, backporting a fix, replacing a dependency with a fork, or
 removing an unused dependency.
 
-Note that the overrides field can only be set at the root of the project.
+The overrides field can only be set at the root of the project.
 
 An example of the `overrides` field:
 
@@ -53,14 +53,14 @@ This feature is especially useful with `optionalDependencies`, where most option
 
 Added in: v11.13.0
 
-A selector with an **empty range** — `"pkg@"` — is a convergence override. Unlike a regular override, which rewrites every matching edge unconditionally, a convergence override rewrites a dependency edge only when its version satisfies the range that edge declares:
+A selector with an **empty range**, `"pkg@"`, is a convergence override. Unlike a regular override, which rewrites every matching edge unconditionally, a convergence override rewrites a dependency edge only when its version satisfies the range that edge declares:
 
 ```yaml title="pnpm-workspace.yaml"
 overrides:
   "form-data@": 4.0.6
 ```
 
-With the above, a dependency that declares `form-data: "^4.0.5"` is pinned to `4.0.6`, while one that declares `^3.0.0` keeps its own resolution. This lets compatible consumers converge on a single version — now and for any dependent added in the future — without forcing an incompatible version on the rest of the graph.
+With the above, a dependency that declares `form-data: "^4.0.5"` is pinned to `4.0.6`, while one that declares `^3.0.0` keeps its own resolution. This lets compatible consumers converge on a single version, now and for any dependent added in the future, without forcing an incompatible version on the rest of the graph.
 
 Rules:
 
@@ -460,7 +460,7 @@ Added in: v11.3.0
 
 When `true`, `pnpm install` skips the supply-chain verification pass that re-applies [`minimumReleaseAge`](#minimumreleaseage) and [`trustPolicy`](#trustpolicy) to every entry in the loaded lockfile. The install treats the lockfile as already trusted.
 
-Useful in environments where the lockfile is effectively part of the trusted base — closed-source projects where every commit comes from a trusted author. A poisoned lockfile (one a contributor authored under a weaker policy than CI enforces) can slip through, so leave this `false` whenever outside collaborators can edit the lockfile.
+Useful in environments where the lockfile is effectively part of the trusted base: closed-source projects where every commit comes from a trusted author. A poisoned lockfile (one a contributor authored under a weaker policy than CI enforces) can slip through, so leave this `false` whenever outside collaborators can edit the lockfile.
 
 On large workspaces the verification pass holds per-package registry metadata in memory for the duration of the install; disabling it cuts memory usage at the cost of the supply-chain check. Most projects with the default `frozenLockfile` CI workflow do not need to set this.
 
@@ -511,7 +511,7 @@ pnpm normalizes `https://registry.npmjs.com/` to `https://registry.npmjs.org/`. 
 
 For URL-scoped environment credentials, an explicit `registry.npmjs.org` entry takes precedence over a `registry.npmjs.com` entry.
 
-Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml` — see [where the setting may live](../registries.md#where-the-setting-may-live).
+Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml`. See [where the setting may live](../registries.md#where-the-setting-may-live).
 
 ### namedRegistries
 
@@ -522,7 +522,7 @@ Added in: v11.1.0
 
 :::note
 
-Deprecated since v11.23.0: declare a `prefix` in [`registries`](#registries) instead — see the [Registries](../registries.md) page. `namedRegistries` is still read, but only for prefixes that `registries` does not declare; when both settings declare prefixes, pnpm warns. Everything below about aliases — the built-in ones, reserved names, and the lockfile keys — applies to `prefix`-declared aliases the same way.
+Deprecated since v11.23.0: declare a `prefix` in [`registries`](#registries) instead. See the [Registries](../registries.md) page. `namedRegistries` is still read, but only for prefixes that `registries` does not declare; when both settings declare prefixes, pnpm warns. Everything below about aliases (the built-in ones, reserved names, and the lockfile keys) applies to `prefix`-declared aliases the same way.
 
 :::
 
@@ -549,7 +549,7 @@ Two aliases work without any configuration:
 | `gh:`    | `https://npm.pkg.github.com/` | The [GitHub Packages npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry). |
 | `npmjs:` | `https://registry.npmjs.org/` | The public npm registry. Added in v11.20.0.                                                                                                   |
 
-Entries you define under `namedRegistries` are merged on top of these, so either one can be overridden — GitHub Enterprise Server users point `gh` at their own host, and an organization that mirrors or proxies npmjs should point `npmjs` at the mirror:
+Entries you define under `namedRegistries` are merged on top of these, so either one can be overridden. GitHub Enterprise Server users point `gh` at their own host, and an organization that mirrors or proxies npmjs should point `npmjs` at the mirror:
 
 ```yaml title="pnpm-workspace.yaml"
 namedRegistries:
@@ -567,9 +567,9 @@ namedRegistries:
 }
 ```
 
-The `npm:` prefix cannot do this — it is the [alias protocol](../aliases.md) (`npm:<name>@<range>`) and resolves through whatever `registry` points at.
+The `npm:` prefix cannot do this. It is the [alias protocol](../aliases.md) (`npm:<name>@<range>`) and resolves through whatever `registry` points at.
 
-The built-in URLs are also the prefixes that a tarball URL recorded in the lockfile is matched against when pnpm verifies a package. If you proxy npmjs and do not override the alias, an entry whose tarball URL is on `registry.npmjs.org` is verified against the public registry rather than against your mirror. This only affects lockfiles that record such a URL — a canonical URL for your configured registry is omitted from the lockfile — and only when a tarball-URL, [`minimumReleaseAge`](#minimumreleaseage), or [`trustPolicy`](#trustpolicy) check runs.
+The built-in URLs are also the prefixes that a tarball URL recorded in the lockfile is matched against when pnpm verifies a package. If you proxy npmjs and do not override the alias, an entry whose tarball URL is on `registry.npmjs.org` is verified against the public registry rather than against your mirror. This only affects lockfiles that record such a URL (a canonical URL for your configured registry is omitted from the lockfile), and only when a tarball-URL, [`minimumReleaseAge`](#minimumreleaseage), or [`trustPolicy`](#trustpolicy) check runs.
 
 #### Reserved alias names
 
@@ -587,19 +587,19 @@ packages:
 
 Before v11.20.0, packages were keyed by `name@version` alone, so the same name and version served by two registries collapsed onto a single entry and whichever resolved first decided the tarball that every consumer got. That is a package-substitution risk: a package you expect from your private registry could be installed from another registry that publishes the same name and version, with nothing in the lockfile to reveal it. Registry-qualified keys give each registry its own entry and pin which one a dependency came from.
 
-The lockfile format version is unchanged, and qualified keys appear only for packages resolved from a named registry — including the built-in `gh:` and `npmjs:` aliases, which need no `namedRegistries` entry. A project that installs nothing through an alias sees no difference, and older pnpm versions keep reading the file.
+The lockfile format version is unchanged, and qualified keys appear only for packages resolved from a named registry, including the built-in `gh:` and `npmjs:` aliases, which need no `namedRegistries` entry. A project that installs nothing through an alias sees no difference, and older pnpm versions keep reading the file.
 
 :::caution
 
-If any dependency is installed through an alias, your first non-frozen install on v11.20.0 or newer re-keys those entries, which shows up as a lockfile diff. Commit it — that diff is the fix being applied. Review it too: an entry that moves to a registry you did not expect is worth investigating.
+If any dependency is installed through an alias, your first non-frozen install on v11.20.0 or newer re-keys those entries, which shows up as a lockfile diff. Commit it. That diff is the fix being applied. Review it too: an entry that moves to a registry you did not expect is worth investigating.
 
 Have everyone working on the project move to v11.20.0 or newer first. An older pnpm reads the re-keyed lockfile fine, and frozen installs are unaffected, but it does not produce registry-qualified keys itself: any install that updates the lockfile writes those entries back to the old shape, and the next install on a current pnpm re-qualifies them. The lockfile then flips back and forth, and while it is in the old shape the project is exposed again. Because the lockfile format version is deliberately unchanged, pnpm cannot detect this and warn you.
 
-There is no setting to keep the old behavior — the old shape is the vulnerability.
+There is no setting to keep the old behavior. The old shape is the vulnerability.
 
 :::
 
-Every non-built-in alias that the lockfile references must stay declared — through `prefix` in [`registries`](#registries) or through `namedRegistries`. Reading an entry whose alias is gone fails with `ERR_PNPM_MISSING_NAMED_REGISTRY` rather than falling back to the default registry, since that would fetch a different package. Renaming an alias re-resolves the packages that used it.
+Every non-built-in alias that the lockfile references must stay declared, through `prefix` in [`registries`](#registries) or through `namedRegistries`. Reading an entry whose alias is gone fails with `ERR_PNPM_MISSING_NAMED_REGISTRY` rather than falling back to the default registry, since that would fetch a different package. Renaming an alias re-resolves the packages that used it.
 
 Tarball URLs that follow the standard registry layout are no longer written to the lockfile for named-registry packages; they are recomputed from the alias's declared URL on demand.
 
@@ -637,7 +637,7 @@ Deduplication covers the whole workspace. A filtered command such as `pnpm --fil
 autoDedupe: true
 ```
 
-Frozen installs (`--frozen-lockfile`) leave the lockfile unchanged — deduplication only runs when the lockfile is being written.
+Frozen installs (`--frozen-lockfile`) leave the lockfile unchanged. Deduplication only runs when the lockfile is being written.
 
 To let installs on other machines reuse a deduplicated lockfile, set [`lockfile.includeResolutionSettings`](./store.md#lockfileincluderesolutionsettings).
 

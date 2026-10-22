@@ -325,7 +325,7 @@ async function pickExactVersionFromMirror (session: MirrorSession): Promise<Pick
   const { ctx, spec } = session.request
   const diskMeta = await loadSessionDiskMeta(session)
   // use the cached meta only if it has the required package version
-  // otherwise it is probably out of date
+  // otherwise it is likely out of date
   if (
     diskMeta == null ||
     !canServeCachedMeta(ctx, diskMeta) ||

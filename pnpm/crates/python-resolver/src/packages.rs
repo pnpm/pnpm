@@ -182,7 +182,7 @@ pub struct Offered {
 /// A resolution that reaches for a distribution it has no candidate of
 /// fails with an empty version set, which says nothing about whether the
 /// distribution exists, whether it publishes anything for this machine,
-/// or whether the project simply asked for a version nobody released.
+/// or whether the project asked for a version nobody released.
 /// This is what tells those apart.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Excluded {

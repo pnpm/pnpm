@@ -299,7 +299,7 @@ async fn serve_staged_list(
             continue;
         }
         // The listing shows only what the caller could publish (and thus
-        // approve); records outside their rights are simply not theirs to see.
+        // approve); records outside their rights are not theirs to see.
         if authorize_staged(state, identity, &record).await.is_err() {
             continue;
         }

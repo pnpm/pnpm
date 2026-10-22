@@ -57,7 +57,7 @@ pnpm env use --global argon
 
 ### add
 
-Installs the specified version(s) of Node.js without activating them as the current version.
+Installs the specified versions of Node.js without activating them as the current version.
 
 Example:
 
@@ -67,7 +67,7 @@ pnpm env add --global lts 18 20.0.1
 
 ### remove, rm
 
-Removes the specified version(s) of Node.js.
+Removes the specified versions of Node.js.
 
 Usage example:
 

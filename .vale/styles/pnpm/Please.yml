@@ -1,0 +1,7 @@
+extends: existence
+message: "Remove 'please'. State the instruction."
+link: https://developers.google.com/style/tone#politeness-and-use-of-please
+level: error
+ignorecase: true
+tokens:
+  - please

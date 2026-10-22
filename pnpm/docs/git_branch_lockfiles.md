@@ -41,7 +41,7 @@ To merge all git branch lockfiles, just specify `--merge-git-branch-lockfiles` t
 After that, all git branch lockfiles will be merged into one `pnpm-lock.yaml`
 
 
-### Branch Matching
+### Branch matching
 
 pnpm allows you to specify `--merge-git-branch-lockfiles` by matching the current branch name.
 

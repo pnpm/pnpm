@@ -44,7 +44,7 @@ declare module 'strip-comments-strings' {
   export interface CodeItem {
     // What feature of the code has been found:
     type: string
-    // The indices of the feature in the original code string:
+    // The indices of the feature in the input code string:
     index: number
     indexEnd: number
     // The test of the feature

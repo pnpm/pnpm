@@ -10,8 +10,8 @@ Manage the configuration files.
 pnpm settings are split across two kinds of configuration files:
 
 * **Legacy and npm-compatible registry/authentication settings** live in INI
-  files — the global `rc` file, `auth.ini`, and local `.npmrc` files.
-* **pnpm settings** live in YAML files — the global `config.yaml` and the
+  files: the global `rc` file, `auth.ini`, and local `.npmrc` files.
+* **pnpm settings** live in YAML files: the global `config.yaml` and the
   per-project `pnpm-workspace.yaml`. The global file may also hold the
   structured [`_auth`](../npmrc.md#_auth) and [`registries`](../registries.md)
   values that pnpm 12.1 and newer writes during `pnpm login`.
@@ -63,7 +63,7 @@ pnpm config set --location=project --json catalog '{ "react": "19" }'
 
 The `set` command does not accept a property path.
 
-`pnpm config set` refuses to write a setting to a project's `pnpm-workspace.yaml` that pnpm does not read from there — `configDir`, `pnpmHomeDir`, `stateDir`, and the other settings that name machine-level state. Since v12.1.0, this includes `scope`, which controls the machine-wide default for `pnpm login`. The command fails with `ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING`, naming where the setting belongs when it belongs somewhere. `pnpm config delete` still clears such a key from a file that already carries it.
+`pnpm config set` refuses to write a setting to a project's `pnpm-workspace.yaml` that pnpm does not read from there, such as `configDir`, `pnpmHomeDir`, `stateDir`, and the other settings that name machine-level state. Since v12.1.0, this includes `scope`, which controls the machine-wide default for `pnpm login`. The command fails with `ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING`, naming where the setting belongs when it belongs somewhere. `pnpm config delete` still clears such a key from a file that already carries it.
 
 ### get &lt;key>
 

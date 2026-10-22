@@ -22,7 +22,7 @@ use url::Url;
 ///
 /// Distinct from `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`, which means
 /// no resolver understood the specifier's shape. A well-formed range that
-/// simply matches nothing belongs here (<https://github.com/pnpm/pnpm/issues/13319>).
+/// matches nothing belongs here (<https://github.com/pnpm/pnpm/issues/13319>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("No matching version found for {dep} while fetching it from {registry}")]
 #[diagnostic(code(ERR_PNPM_NO_MATCHING_VERSION), help("{published_versions}"))]

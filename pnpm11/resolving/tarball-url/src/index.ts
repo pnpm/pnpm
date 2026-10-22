@@ -107,7 +107,7 @@ function getScopelessName (name: string): string {
   return name.split('/')[1]
 }
 
-// Strips only a leading http(s) scheme so URLs are compared protocol-insensitively
+// Strips only a leading HTTP or HTTPS scheme so URLs are compared protocol-insensitively
 // without truncating on a later `://` in the path or query.
 function removeProtocol (url: string): string {
   return url.replace(/^https?:\/\//i, '')

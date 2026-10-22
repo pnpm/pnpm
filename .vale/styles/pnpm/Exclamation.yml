@@ -1,0 +1,8 @@
+extends: existence
+message: "Remove the exclamation mark."
+link: https://developers.google.com/style/exclamation-points
+level: error
+nonword: true
+scope: sentence
+tokens:
+  - '\w!(?:\s|$)'

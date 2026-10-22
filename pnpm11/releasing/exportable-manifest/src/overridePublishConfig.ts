@@ -24,7 +24,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'es2015',
   'unpkg',
   'umd:main',
-  // These are useful to hide in order to avoid warnings during local development
+  // These are useful to hide to avoid warnings during local development
   'os',
   'cpu',
   'libc',

@@ -46,7 +46,7 @@ describe('RegistryResponseError hint', () => {
   })
 
   test('stays linear under adversarial input', () => {
-    // The previous implementation used a regex with super-linear backtracking.
+    // Guards against a regex with super-linear backtracking.
     // 10k repetitions of "1" should still complete promptly.
     const pkgName = '1'.repeat(10_000)
     const start = Date.now()

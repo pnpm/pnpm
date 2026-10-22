@@ -3,7 +3,7 @@ id: global-virtual-store
 title: Global Virtual Store
 ---
 
-By default, pnpm creates a `.pnpm` directory inside each project's `node_modules` — this is the "virtual store". It contains hardlinks to files in the [content-addressable store](./settings/store.md#storedir). Every project gets its own projection of this virtual store — pnpm hardlinks files from the content-addressable store into the `.pnpm` directory structure. The actual file contents exist only once on disk, but the directory structure is recreated for each project so that Node.js's module resolution algorithm can find the right dependencies for each package.
+By default, pnpm creates a `.pnpm` directory inside each project's `node_modules`. This is the "virtual store". It contains hardlinks to files in the [content-addressable store](./settings/store.md#storedir). Every project gets its own projection of this virtual store: pnpm hardlinks files from the content-addressable store into the `.pnpm` directory structure. The actual file contents exist only once on disk, but the directory structure is recreated for each project so that Node.js's module resolution algorithm can find the right dependencies for each package.
 
 The **global virtual store** (`virtualStoreType: global`, spelled `enableGlobalVirtualStore: true` before v11.23.0) changes this. Instead of each project having its own virtual store in `node_modules/.pnpm`, pnpm maintains a single shared virtual store (located at `<store-path>/links/`, run `pnpm store path` to find `<store-path>`, or at [`virtualStoreDir`](./settings/node-modules.md#virtualstoredir) when it is set). Each project's `node_modules` contains only symlinks pointing into this shared location.
 
@@ -41,7 +41,7 @@ project-b/
     └── lodash → <global-store>/links/@/lodash/4.17.21/<hash>/node_modules/lodash  ← same target
 ```
 
-Both projects symlink directly to the same location in the global virtual store. No packages are linked into a per-project `.pnpm` directory: each project's `node_modules/.pnpm` holds only its current lockfile and hidden hoisted dependencies. The global virtual store itself contains the hardlinks to the content-addressable store — but that happens only once per dependency graph (more on that below), not per project.
+Both projects symlink directly to the same location in the global virtual store. No packages are linked into a per-project `.pnpm` directory: each project's `node_modules/.pnpm` holds only its current lockfile and hidden hoisted dependencies. The global virtual store itself contains the hardlinks to the content-addressable store, but that happens only once per dependency graph (more on that below), not per project.
 
 ## How package identity works
 
@@ -49,7 +49,7 @@ In the global virtual store, each package directory is named by the hash of its 
 
 ## When to use it
 
-The global virtual store is most useful when you have multiple checkouts of the same project on disk — for example, when using [git worktrees for multi-agent development](./git-worktrees.md). In that scenario, each worktree gets a nearly free `node_modules` because all the real package content already exists in the shared store.
+The global virtual store is most useful when you have multiple checkouts of the same project on disk. For example, when using [git worktrees for multi-agent development](./git-worktrees.md). In that scenario, each worktree gets a nearly free `node_modules` because all the real package content already exists in the shared store.
 
 It also speeds up installations across unrelated projects on the same machine, since any package version that's already been installed by any project is available instantly.
 
@@ -57,7 +57,7 @@ It also speeds up installations across unrelated projects on the same machine, s
 
 - **CI environments**: In CI, caches are typically absent, so there's no warm global store to benefit from. The global virtual store is generally not useful in CI.
 - **Shared trust domain**: The global virtual store and the content-addressable store are shared writable state. Use them only for projects, users, and jobs that trust each other, and protect the store path with filesystem permissions.
-- **ESM hoisting**: pnpm uses the `NODE_PATH` environment variable to support hoisted dependencies with the global virtual store, and Node.js does not respect `NODE_PATH` for ESM imports. Since v11.23.0, every process pnpm spawns for the project — `pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs — also gets a `NODE_OPTIONS` `--import` flag registering a resolve hook that restores those lookups, so a dependency importing a package it does not declare resolves under ESM too ([#9618](https://github.com/pnpm/pnpm/issues/9618)). A `node` process started outside pnpm does not get that environment, and setting [`extendNodePath`](./settings/other.md#extendnodepath) to `false` turns the whole `NODE_PATH` mechanism off, resolve hook included; declare the missing dependencies with [packageExtensions](./settings/dependency-resolution.md#packageextensions) if you need them to resolve in either case.
+- **ESM hoisting**: pnpm uses the `NODE_PATH` environment variable to support hoisted dependencies with the global virtual store, and Node.js does not respect `NODE_PATH` for ESM imports. Since v11.23.0, every process pnpm spawns for the project (`pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs) also gets a `NODE_OPTIONS` `--import` flag registering a resolve hook that restores those lookups, so a dependency importing a package it does not declare resolves under ESM too ([#9618](https://github.com/pnpm/pnpm/issues/9618)). A `node` process started outside pnpm does not get that environment, and setting [`extendNodePath`](./settings/other.md#extendnodepath) to `false` turns the whole `NODE_PATH` mechanism off, resolve hook included; declare the missing dependencies with [packageExtensions](./settings/dependency-resolution.md#packageextensions) if you need them to resolve in either case.
 
 :::note
 

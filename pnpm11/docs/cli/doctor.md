@@ -34,7 +34,7 @@ Reports the running pnpm and Node.js versions.
 
 ### Install method
 
-Reports how pnpm was installed — as the `pnpm` package or the `@pnpm/exe` standalone build — and warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
+Reports how pnpm was installed (as the `pnpm` package or the `@pnpm/exe` standalone build) and warns when pnpm is being run by Corepack, which manages the pnpm version itself and makes `pnpm self-update` unavailable.
 
 ### Global bin directory
 
@@ -50,7 +50,7 @@ Checks that the [store directory](../settings/store.md#storedir) is writable. Sk
 
 ### Filesystem
 
-Probes which link strategies work from the store's volume: reflink (copy-on-write), hardlink, and symlink. This is what determines how packages land in `node_modules` and how fast an install is — a reflink or hardlink is near-free, a plain copy is not.
+Probes which link strategies work from the store's volume: reflink (copy-on-write), hardlink, and symlink. This is what determines how packages land in `node_modules` and how fast an install is. A reflink or hardlink is near-free, a plain copy is not.
 
 If neither reflink nor hardlink works, the check warns that installs will fall back to copying, and suggests putting the store on the same filesystem as your projects.
 

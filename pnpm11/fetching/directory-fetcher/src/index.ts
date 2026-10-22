@@ -125,7 +125,7 @@ function isOutside (root: string, realPath: string): boolean {
 export async function fetchFromDir (dir: string, opts: FetchFromDirOptions): Promise<FetchResult> {
   const packageImportMethod = opts.localDirPackageImportMethod ?? 'hardlink'
   const { filesMap, filesStats } = await listFilesFromDir(dir, opts)
-  // In a regular pnpm workspace it will probably never happen that a dependency has no package.json file.
+  // In a regular pnpm workspace a dependency is not expected to lack a package.json file.
   // Safe read was added to support the Bit workspace in which the components have no package.json files.
   // Related PR in Bit: https://github.com/teambit/bit/pull/5251
   const manifest = await safeReadProjectManifestOnly(dir) as DependencyManifest ?? undefined

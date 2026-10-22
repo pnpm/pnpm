@@ -45,7 +45,7 @@ export interface FrozenInstallArgs {
  *      pnpm-lock.yaml file. In other words, the pnpm-lock.yaml file is
  *      known to be "up-to-date".
  *
- * A frozen install is significantly faster since the pnpm-lock.yaml file
+ * A frozen install is faster since the pnpm-lock.yaml file
  * can treated as immutable, skipping expensive lookups to acquire new
  * dependencies. For this reason, a frozen install should be performed even
  * if --frozen-lockfile wasn't explicitly specified.

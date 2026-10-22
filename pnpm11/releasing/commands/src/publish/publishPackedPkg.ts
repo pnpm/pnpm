@@ -320,7 +320,7 @@ export async function fetchTokenAndProvenanceByOidc (
 ): Promise<OidcTokenProvenanceResult | undefined> {
   const idToken = await getIdTokenUnlessSkipped(registry, options)
   if (!idToken) {
-    // OIDC is simply not applicable here — either we're outside of CI, or we're in a CI
+    // OIDC is not applicable here — either we're outside of CI, or we're in a CI
     // that doesn't natively drive OIDC and the user hasn't forwarded a token via
     // `NPM_ID_TOKEN`. This is the common case for local publishes, so it must stay
     // silent — only configuration *errors* in a supported CI environment surface as

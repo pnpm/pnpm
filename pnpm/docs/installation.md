@@ -7,7 +7,7 @@ title: Installation
 
 pnpm 12 is a native executable and does not require Node.js after it is installed. Installing it through npm requires Node.js 22.13 or newer.
 
-pnpm 12 is the current release line — the `latest` tag on npm points at it, so the commands below install pnpm 12 without naming a version.
+pnpm 12 is the current release line. The `latest` tag on npm points at it, so the commands below install pnpm 12 without naming a version.
 
 ### Supported platforms
 
@@ -56,7 +56,7 @@ Using PowerShell:
 Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression
 ```
 
-On Windows, Microsoft Defender can significantly slow down installation of packages. You can add pnpm to Microsoft Defender's list
+On Windows, Microsoft Defender can slow down installation of packages. You can add pnpm to Microsoft Defender's list
 of excluded folders in a PowerShell window with administrator rights by executing:
 
 ```powershell
@@ -94,7 +94,7 @@ wget -qO- https://get.pnpm.io/install.sh | env ENV="$HOME/.dashrc" SHELL="$(whic
 
 ### Installing a specific version
 
-Prior to running the install script, you may optionally set an env variable `PNPM_VERSION` to install a specific version of pnpm:
+Before running the install script, you may optionally set an env variable `PNPM_VERSION` to install a specific version of pnpm:
 
 ```sh
 curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=<version> sh -

@@ -5,7 +5,7 @@ import type { CatalogSnapshots, LockfileObject, ProjectSnapshot } from '@pnpm/lo
 import { catalogResolutionIsStale } from '@pnpm/lockfile.verification'
 import { isEmpty, map as mapValues } from 'ramda'
 
-// If the specifier is new, the old resolution probably does not satisfy it anymore.
+// If the specifier is new, the old resolution may not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
 export function forgetResolutionsOfPrevWantedDeps (
   wantedDeps: WantedDependency[],

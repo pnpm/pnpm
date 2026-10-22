@@ -50,8 +50,8 @@ removed from consideration and quarantined for that pnpr server. The quarantine
 is persisted in the store, so the same bad variant is not retried on every
 install; another server remains an independent channel.
 
-Any failure along that path — an unreachable server, an unverifiable signature,
-an incompatible platform, a digest mismatch — falls back to the ordinary local
+Any failure along that path (an unreachable server, an unverifiable signature,
+an incompatible platform, a digest mismatch) falls back to the ordinary local
 build. The feature can make an install faster; it can never make it fail.
 
 ## Enabling it on the server
@@ -117,8 +117,8 @@ listed there *and* has `requiresBuild: true`, *and* passes
 [`allowBuilds`](/settings/build#allowbuilds), *and* has a verified source
 integrity. `--ignore-scripts` returns without making a request at all.
 
-The trust material — `trustedKeys`, `privateKey`, and everything else that
-describes the act of signing — is refused in `pnpm-workspace.yaml` with
+The trust material (`trustedKeys`, `privateKey`, and everything else that
+describes the act of signing) is refused in `pnpm-workspace.yaml` with
 `ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST`. The repository being installed is
 not a trust root: if it could name the signing key, a cloned repository could
 turn the machine's key into a signing oracle. Those fields come from the [global
@@ -138,7 +138,7 @@ both still work, so a machine configured before the rename keeps its trust
 material.
 
 Every field of the section is also settable from the environment, which wins
-over both files — the shape a CI runner wants for material it must not commit:
+over both files. This is the shape a CI runner wants for material it must not commit:
 
 | Environment variable | Setting |
 | --- | --- |
@@ -188,7 +188,7 @@ input key and one set of compatibility constraints admit one artifact, so
 publishing a different build over an existing one answers `409 Conflict` while
 republishing the identical one succeeds unchanged. A consumer that resolved an
 artifact once is therefore never handed different bytes for it later, and no
-publishing credential can replace one — releasing a claimed slot is an operator
+publishing credential can replace one. Releasing a claimed slot is an operator
 action against the server's storage.
 
 Immutability covers every consumer a variant can reach, not only an exactly
@@ -200,7 +200,7 @@ coexist: different operating systems, architectures, or Node.js majors have no
 consumer in common.
 
 Publication does not switch restoring off: a builder still looks the artifact up
-first, and a hit skips the build the same way it does anywhere else — which
+first, and a hit skips the build the same way it does anywhere else, which
 leaves nothing new to sign, since only an actual local build produces a diff to
 publish. So a builder republishes exactly when it had to build, and to force one,
 give it something the cache cannot answer (a package or platform with no stored
@@ -232,8 +232,8 @@ pnpm:v1:win32-<architecture>-node<major>-windows<major>.<minor>.<build>
 
 `architecture` is `x64` or `arm64`, and every numeric component is a canonical
 unsigned decimal. A consumer generates the tags for its own glibc version down
-to minor zero, most recent floor first — glibc 2.3 advertises `glibc2.3`,
-`glibc2.2`, `glibc2.1`, `glibc2.0` — and matching is exact against that ordered
+to minor zero, most recent floor first (glibc 2.3 advertises `glibc2.3`,
+`glibc2.2`, `glibc2.1`, `glibc2.0`), and matching is exact against that ordered
 set, so an artifact built against a 2.1 floor serves a 2.3 consumer.
 
 A macOS consumer advertises its product-version major and minor, and a Windows
@@ -253,7 +253,7 @@ The base64 `payload` of a signed envelope is the exact UTF-8 JSON covered by the
 bytes. Signing opaque bytes avoids having to agree on JSON canonicalization
 between the Rust and TypeScript implementations. Signatures are canonical ASN.1
 DER; verification keys are P-256 `SubjectPublicKeyInfo` DER; `keyId` is an
-opaque case-sensitive UTF-8 string of 1–256 bytes with no control characters.
+opaque case-sensitive UTF-8 string of 1 to 256 bytes with no control characters.
 
 The envelope's own digest is SHA-256 over these fields, in this order, regardless
 of how the outer JSON object was ordered:

@@ -142,7 +142,7 @@ When pnpm 12 is declared via the legacy `packageManager` field and [`pmOnFail`](
 
 :::
 
-Since v12.0.0-rc.6, the field can also name [another package manager](./package-managers.md) — `npm`, `yarn` or `bun` — which is what `pnpm add npm@11` writes. For those, nothing is recorded in `pnpm-lock.yaml`: `packageManagerDependencies` holds pnpm's own pin, and another package manager is pinned in an environment lockfile of its own under the pnpm home.
+Since v12.0.0-rc.6, the field can also name [another package manager](./package-managers.md) (`npm`, `yarn` or `bun`), which is what `pnpm add npm@11` writes. For those, nothing is recorded in `pnpm-lock.yaml`: `packageManagerDependencies` holds pnpm's own pin, and another package manager is pinned in an environment lockfile of its own under the pnpm home.
 
 To override the `onFail` behavior without editing the manifest, see the [`pmOnFail`](./settings/cli.md#pmonfail) setting.
 
@@ -154,7 +154,7 @@ Additional meta information used for dependencies declared inside `dependencies`
 
 If this is set to `true` for a dependency that is a local workspace package, that package will be installed by creating a hard linked copy in the virtual store (`node_modules/.pnpm`).
 
-If this is set to `false` or not set, then the dependency will instead be installed by creating a `node_modules` symlink that points to the package's source directory in the workspace.  This is the default, as it is faster and ensures that any modifications to the dependency will be immediately visible to its consumers.
+If this is set to `false` or not set, then the dependency will instead be installed by creating a `node_modules` symlink that points to the package's source directory in the workspace. This is the default, as it is faster and ensures that any modifications to the dependency will be immediately visible to its consumers.
 
 For example, suppose the following `package.json` is a local workspace package:
 
@@ -207,7 +207,7 @@ Whereas the `package.json` of `form` could be configured as follows:
 
 With these changes, we say that `button` is an "injected dependency" of `card` and `form`.  When `button` imports `react`, it will resolve to `react@16` in the context of `card`, but resolve to `react@17` in the context of `form`.
 
-Because injected dependencies produce copies of their workspace source directory, these copies must be updated somehow whenever the code is modified; otherwise, the new state will not be reflected for consumers. When building multiple projects with a command such as `pnpm --recursive run build`, this update must occur after each injected package is rebuilt but before its consumers are rebuilt. For simple use cases, it can be accomplished by invoking `pnpm install` again, perhaps using a `package.json` lifecycle script such as `"prepare": "pnpm run build"` to rebuild that one project.  Third party tools such as [pnpm-sync](https://www.npmjs.com/package/pnpm-sync-lib) and [pnpm-sync-dependencies-meta-injected](https://www.npmjs.com/package/pnpm-sync-dependencies-meta-injected) provide a more robust and efficient solution for updating injected dependencies, as well as watch mode support.
+Because injected dependencies produce copies of their workspace source directory, these copies must be updated somehow whenever the code is modified; otherwise, the new state will not be reflected for consumers. When building multiple projects with a command such as `pnpm --recursive run build`, this update must occur after each injected package is rebuilt but before its consumers are rebuilt. For simple use cases, it can be accomplished by invoking `pnpm install` again, perhaps using a `package.json` lifecycle script such as `"prepare": "pnpm run build"` to rebuild that one project. Third party tools such as [pnpm-sync](https://www.npmjs.com/package/pnpm-sync-lib) and [pnpm-sync-dependencies-meta-injected](https://www.npmjs.com/package/pnpm-sync-dependencies-meta-injected) provide a more efficient solution for updating injected dependencies, as well as watch mode support.
 
 ## peerDependencies
 
@@ -228,7 +228,7 @@ Since v11.14.0, a peer dependency may also be declared with a specifier that car
 
 Accepted forms are a [named-registry](./settings/dependency-resolution.md#namedregistries) spec (`<registry>:<version>`), an `npm:` alias, and a `file:`, git, or URL spec.
 
-Such a specifier is matched against the semver range it carries — `work:5.x.x` is checked as `5.x.x` and `npm:other-lib@^5` as `^5`. A specifier that carries no version, such as `file:../lib-c`, is matched against `*`, so any version satisfies it. Meanwhile the original specifier is what selects the package when [`autoInstallPeers`](./settings/peer-dependencies.md#autoinstallpeers) installs a missing peer, so the peer is fetched from the aliased name, registry, or source you named.
+Such a specifier is matched against the semver range it carries: `work:5.x.x` is checked as `5.x.x` and `npm:other-lib@^5` as `^5`. A specifier that carries no version, such as `file:../lib-c`, is matched against `*`, so any version satisfies it. Meanwhile the original specifier is what selects the package when [`autoInstallPeers`](./settings/peer-dependencies.md#autoinstallpeers) installs a missing peer, so the peer is fetched from the aliased name, registry, or source you named.
 
 Bare `name@version` values are still rejected with `ERR_PNPM_INVALID_PEER_DEPENDENCY_SPECIFICATION`, as they are almost always a mistake:
 
@@ -268,7 +268,7 @@ For example:
 }
 ```
 
-Note that even though `bar` was not specified in `peerDependencies`, it is
+Even though `bar` was not specified in `peerDependencies`, it is
 marked as optional. pnpm will therefore assume that any version of bar is fine.
 However, `foo` is optional, but only to the required version specification.
 
@@ -405,7 +405,7 @@ Publishes the package under a different name than the one its manifest carries i
 }
 ```
 
-Only the published artifact is renamed — dependents, `pnpm-lock.yaml`, and release tooling keep addressing the project by its manifest name. The new name reaches the packed manifest, the tarball filename, and everything that addresses the package at the registry: the already-published check of `pnpm publish -r`, its registry selection, and the release-planning probes of `pnpm change status` and `pnpm version -r`.
+Only the published artifact is renamed. Dependents, `pnpm-lock.yaml`, and release tooling keep addressing the project by its manifest name. The new name reaches the packed manifest, the tarball filename, and everything that addresses the package at the registry: the already-published check of `pnpm publish -r`, its registry selection, and the release-planning probes of `pnpm change status` and `pnpm version -r`.
 
 ### publishConfig.executableFiles
 

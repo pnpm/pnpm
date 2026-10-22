@@ -52,7 +52,7 @@ function removeQuarantineFromChunk (filePaths: string[]): void {
       stdio: ['ignore', 'ignore', 'pipe'],
     })
   } catch (err: unknown) {
-    // `xattr -d` exits non-zero when a file simply has no quarantine xattr to
+    // `xattr -d` exits non-zero when a file has no quarantine xattr to
     // remove ("No such xattr"), which is the common, expected case. It also
     // reports "No such file" for entries the importer legitimately dropped or
     // renamed (e.g. case-insensitive filename conflicts). Surface only errors

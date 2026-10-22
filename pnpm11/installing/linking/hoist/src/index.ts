@@ -304,7 +304,7 @@ async function symlinkHoistedDependencies<NodeId extends string> (
   await Promise.all(Array.from(hoistedDependenciesByNodeId.entries(), async ([hoistedDepNodeId, pkgAliases]) => {
     const node = opts.graph[hoistedDepNodeId]
     if (node == null) {
-      // This dependency is probably a skipped optional dependency.
+      // This dependency is likely a skipped optional dependency.
       hoistLogger.debug({ hoistFailedFor: hoistedDepNodeId })
       return
     }

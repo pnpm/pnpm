@@ -88,7 +88,7 @@ pnpm add npmjs:left-pad
 
 ### Workspace
 
-Note that when adding dependencies and working within a [workspace], packages
+When adding dependencies and working within a [workspace], packages
 will be installed from the configured sources, depending on whether or not
 [`linkWorkspacePackages`] is set, and use of the
 [`workspace: range protocol`].
@@ -134,7 +134,7 @@ pnpm add https://github.com/indexzero/forever/tarball/v0.5.6
 pnpm add <git remote url>
 ```
 
-Installs the package from the Git repository at the given URL. Depending on the repository, pnpm either downloads a source archive from the Git host or clones the repository with Git — see [how Git dependencies are resolved](#how-git-dependencies-are-resolved).
+Installs the package from the Git repository at the given URL. Depending on the repository, pnpm either downloads a source archive from the Git host or clones the repository with Git. See [how Git dependencies are resolved](#how-git-dependencies-are-resolved).
 
 You may install packages from Git by:
 
@@ -258,15 +258,15 @@ Configure the rewrite in Git itself, on the machine:
 git config --global url."git@github.com:".insteadOf https://github.com/
 ```
 
-pnpm shells out to `git`, so the rewrite applies to all of pnpm's Git operations automatically. The same holds on CI: give the runner an SSH key and this rewrite, or an HTTPS credential helper — the lockfile is identical either way.
+pnpm shells out to `git`, so the rewrite applies to all of pnpm's Git operations automatically. The same holds on CI: give the runner an SSH key and this rewrite, or an HTTPS credential helper. The lockfile is identical either way.
 
 ##### Repositories on other hosts
 
-A URL that does not point at a known host (a self-hosted GitLab, Gitea, or any internal Git server) is kept exactly as written, transport included — for those, the URL *is* the identity. URLs with credentials embedded in them are also kept verbatim, and never resolve to a host archive.
+A URL that does not point at a known host (a self-hosted GitLab, Gitea, or any internal Git server) is kept exactly as written, transport included. For those, the URL *is* the identity. URLs with credentials embedded in them are also kept verbatim, and never resolve to a host archive.
 
 :::info
 
-In pnpm v11 and earlier, resolution probed the network to decide between HTTPS and SSH. That could record whichever transport happened to work on the machine that ran the install — most often an `ssh://` URL that then failed on CI runners without SSH keys. pnpm v12 removes the probing. Existing lockfile entries are left untouched; the rules above apply when an entry is added or re-resolved.
+In pnpm v11 and earlier, resolution probed the network to decide between HTTPS and SSH. That could record whichever transport happened to work on the machine that ran the install, most often an `ssh://` URL that then failed on CI runners without SSH keys. pnpm v12 removes the probing. Existing lockfile entries are left untouched; the rules above apply when an entry is added or re-resolved.
 
 :::
 
@@ -274,9 +274,9 @@ In pnpm v11 and earlier, resolution probed the network to decide between HTTPS a
 
 Added in: v12.0.0-rc.6 (pnpm v12 only)
 
-A Git-hosted dependency that ships sources rather than a built package has to be prepared — its dependencies installed and its build script run — before it can be installed. pnpm prepares it with the package manager the dependency itself asks for, instead of assuming the host has the right one:
+A Git-hosted dependency that ships sources rather than a built package has to be prepared (its dependencies installed and its build script run) before it can be installed. pnpm prepares it with the package manager the dependency itself asks for, instead of assuming the host has the right one:
 
-* the dependency's own `packageManager` / [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin wins — that is what its authors test against;
+* the dependency's own `packageManager` / [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin wins, since that is what its authors test against;
 * failing a pin, the lockfile it ships names the package manager. A `yarn.lock` also names *which* Yarn line: Yarn Berry stamps `__metadata:` into every lockfile it writes and neither line can read the other's, so a Classic lockfile is no longer installed by Berry.
 
-pnpm [provides that package manager](./package-managers.md) when the dependency pinned a version, or when the host cannot satisfy what the dependency needs. A repository built with Yarn therefore installs on a machine that has only pnpm, while a host that already has a suitable package manager — under every name the build may invoke — keeps using its own.
+pnpm [provides that package manager](./package-managers.md) when the dependency pinned a version, or when the host cannot satisfy what the dependency needs. A repository built with Yarn therefore installs on a machine that has only pnpm, while a host that already has a suitable package manager (under every name the build may invoke) keeps using its own.

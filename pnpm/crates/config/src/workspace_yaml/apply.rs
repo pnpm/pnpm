@@ -174,7 +174,7 @@ impl WorkspaceSettings {
         }
         // Last of the path-valued settings: pinning the lockfile dir
         // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
-        // must see whatever this layer just set.
+        // must see whatever this layer set.
         if let Some(v) = self.lockfile_dir.take() {
             config.pin_lockfile_dir(&resolve(base_dir, &v));
         }

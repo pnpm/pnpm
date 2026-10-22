@@ -89,7 +89,7 @@ Added in: v12.0.0-rc.2
 * Default: **\{ node: auto, deno: auto, bun: auto \}**
 * Type: **Boolean**, **Object**
 
-Controls which globally installed packages get [project-aware shims](../global-packages.md#project-aware-global-bins) — global commands that run the version the current project asks for instead of the globally installed one.
+Controls which globally installed packages get [project-aware shims](../global-packages.md#project-aware-global-bins): global commands that run the version the current project asks for instead of the globally installed one.
 
 The setting is a map from **package name** to policy. The key is the name of the package that *provides* the command, not the command itself, so an entry for `typescript` covers its `tsc` bin.
 
@@ -109,19 +109,19 @@ The supported policies are:
 | `always` | Always switch, never ask. Usable in CI, where a prompt would fall back to the global version. |
 | `false` | Disable the project-aware shim for this package. |
 
-Since v12.0.0-rc.6, two commands write entries here for you: [`pnpm shim add <pkg>`](../cli/shim.md) records the package it links a shim for, and installing a [package manager](../package-managers.md) globally (`pnpm add -g yarn`) records that package manager so it follows a project's pin. Neither overwrites an entry you set yourself — including `false`, and including a `globalShims: false` that turns every shim off.
+Since v12.0.0-rc.6, two commands write entries here for you: [`pnpm shim add <pkg>`](../cli/shim.md) records the package it links a shim for, and installing a [package manager](../package-managers.md) globally (`pnpm add -g yarn`) records that package manager so it follows a project's pin. Neither overwrites an entry you set yourself, including `false`, and including a `globalShims: false` that turns every shim off.
 
-Layers merge key by key over the built-in defaults, so a single entry can change one package without restating the rest — `globalShims: { bun: false }` leaves `node` and `deno` at `auto`.
+Layers merge key by key over the built-in defaults, so a single entry can change one package without restating the rest. `globalShims: { bun: false }` leaves `node` and `deno` at `auto`.
 
 The scalar shorthands replace the whole map instead of merging: `globalShims: false` disables every project-aware shim, and `globalShims: true` resets to the defaults.
 
 :::warning
 
-This setting is only read from locations a project cannot write to: the [global configuration file](../cli/config.md), a `pnpm-workspace.yaml` in the pnpm home directory itself, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment variable (a JSON value), applied in that order. A project's own `pnpm-workspace.yaml` is ignored — otherwise a repository could grant itself the right to run its own binaries in place of your global ones.
+This setting is only read from locations a project cannot write to: the [global configuration file](../cli/config.md), a `pnpm-workspace.yaml` in the pnpm home directory itself, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment variable (a JSON value), applied in that order. A project's own `pnpm-workspace.yaml` is ignored. Otherwise a repository could grant itself the right to run its own binaries in place of your global ones.
 
 :::
 
-Disabling a package, or changing its policy, takes effect on the very next command — the setting is re-read on each dispatch, so no reinstall is needed.
+Disabling a package, or changing its policy, takes effect on the very next command. The setting is re-read on each dispatch, so no reinstall is needed.
 
 Newly *enabling* a package is the exception. pnpm decides at install time which bins to write dispatching shims for, so a package that was already installed globally while it was disabled needs to be reinstalled to pick up the change:
 
@@ -267,16 +267,16 @@ pnpm's [isolated `node_modules` layout] means that a package can only access its
 own declared dependencies. However, when a CLI tool runs via a command shim, some
 libraries (notably [`import-local`], used by jest, eslint, and others) resolve
 modules from the **current working directory** rather than from the binary's own
-location. Since the working directory is the project root — not the package inside
-the virtual store — the standard `node_modules` resolution from the CWD won't
+location. Since the working directory is the project root, not the package inside
+the virtual store, the standard `node_modules` resolution from the CWD won't
 find the binary's transitive dependencies.
 
 To bridge this gap, pnpm includes two types of paths in `NODE_PATH`:
 
 1. **The package's own dependencies directory** (e.g.,
-   `.pnpm/pkg@version/node_modules`) — this allows CWD-based resolution to find
+   `.pnpm/pkg@version/node_modules`). This allows CWD-based resolution to find
    the correct versions of the package's sibling dependencies.
-2. **The hoisted `node_modules` directory** (e.g., `.pnpm/node_modules`) — this
+2. **The hoisted `node_modules` directory** (e.g., `.pnpm/node_modules`). This
    is the directory where hoisted packages are placed when [`hoistPattern`] is
    set. Node.js cannot discover this directory through its standard resolution
    algorithm, so it must be provided via `NODE_PATH`.

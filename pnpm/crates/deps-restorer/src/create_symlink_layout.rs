@@ -29,7 +29,7 @@ pub fn create_symlink_layout(
     virtual_node_modules_dir: &Path,
 ) -> Result<(), SymlinkPackageError> {
     // Serial iteration: the symlink work per snapshot is small (a
-    // handful of entries), so fanning out to rayon here would just add
+    // handful of entries), so fanning out to rayon here would only add
     // task-scheduling overhead without a wider work queue to amortise
     // it against. This stage runs single-threaded on a `spawn_blocking`
     // worker (see `CreateVirtualStore::run`).
@@ -51,7 +51,7 @@ pub fn create_symlink_layout(
             // lockfile. The importer's own copy is installed by the
             // symlink-direct-dependencies stage, but a snapshot that
             // depends on one still needs the link inside *its* slot —
-            // without it the dependency is simply absent, and Node only
+            // without it the dependency is absent, and Node only
             // finds it when the slot happens to sit under the importer's
             // `node_modules` and the upward walk reaches the importer's
             // copy. Under the global virtual store the slot lives in the

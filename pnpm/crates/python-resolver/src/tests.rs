@@ -1048,7 +1048,7 @@ fn a_source_distribution_filename_is_read_against_the_distribution_it_is_publish
 
 /// Item 5 of pnpm/pnpm#14945: an empty version set says nothing about
 /// whether the distribution exists, publishes anything installable, or
-/// simply has no version the project asked for.
+/// has no version the project asked for.
 #[test]
 fn a_resolution_failure_says_why_a_distribution_offered_nothing() {
     let target = target();

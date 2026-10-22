@@ -21,7 +21,7 @@ Each target produces an executable under `<output-dir>/<target>/` (default `dist
 
 ## Requirements
 
-* The host must run Node.js v25.5+ to perform the SEA injection. If the running Node.js is older (or does not match the embedded runtime version — SEA blobs are not compatible across minor releases), pnpm downloads a matching builder automatically.
+* The host must run Node.js v25.5+ to perform the SEA injection. If the running Node.js is older (or does not match the embedded runtime version, since SEA blobs are not compatible across minor releases), pnpm downloads a matching builder automatically.
 * Cross-compiling macOS targets from Linux requires [`ldid`](https://github.com/ProcursusTeam/ldid) on `$PATH`. Windows hosts cannot ad-hoc sign macOS outputs; build macOS targets on macOS or Linux.
 
 ## Supported targets
@@ -40,15 +40,15 @@ The `-musl` suffix is only valid for `linux` targets. The `<os>` segment matches
 
 `darwin-x64` outputs segfault at startup on Intel Macs because of an upstream Node.js bug in the `--build-sea` injection step. LIEF's Mach-O surgery for x64 leaves `LC_DYLD_CHAINED_FIXUPS` chain entries pointing at stale targets after the SEA segment is inserted; dyld then dereferences a raw chain-encoded value as a pointer and the binary crashes in `__cxx_global_var_init` before any user code runs. This is reproducible with the canonical `node --build-sea` + `codesign --sign -` flow with no pnpm involvement.
 
-The Node.js team has opted not to fix this on the grounds that x64 macOS is being phased out. Signature-related workarounds do not help — the corruption happens in the injection step, *before* signing, so swapping `ldid` for `codesign` (or vice versa) makes no difference. Re-signing produces a valid signature over already-broken bytes.
+The Node.js team has opted not to fix this on the grounds that x64 macOS is being phased out. Signature-related workarounds do not help. The corruption happens in the injection step, *before* signing, so swapping `ldid` for `codesign` (or vice versa) makes no difference. Re-signing produces a valid signature over already-broken bytes.
 
 Tracking:
 
-* [nodejs/node#62893](https://github.com/nodejs/node/issues/62893) — minimal `node --build-sea` repro
-* [nodejs/node#59553](https://github.com/nodejs/node/issues/59553) — long-running SEA test failures on macOS x64 with the same root cause
-* [nodejs/node#60250](https://github.com/nodejs/node/pull/60250) — Node.js skipping the SEA tests on x64 macOS rather than fixing them
+* [nodejs/node#62893](https://github.com/nodejs/node/issues/62893): minimal `node --build-sea` repro
+* [nodejs/node#59553](https://github.com/nodejs/node/issues/59553): long-running SEA test failures on macOS x64 with the same root cause
+* [nodejs/node#60250](https://github.com/nodejs/node/pull/60250): Node.js skipping the SEA tests on x64 macOS rather than fixing them
 
-If you need to ship a CLI that runs on Intel Macs, build the `darwin-x64` artifact with a non-SEA tool such as [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) (which appends to the binary tail rather than mutating Mach-O sections). Note that Rosetta is *not* an escape hatch — it only translates x64 → arm64 (for Apple Silicon Macs running Intel binaries), not the other direction, so Intel Macs cannot run a `darwin-arm64` build.
+If you need to ship a CLI that runs on Intel Macs, build the `darwin-x64` artifact with a non-SEA tool such as [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) (which appends to the binary tail rather than mutating Mach-O sections). Rosetta is *not* an escape hatch. It only translates x64 → arm64 (for Apple Silicon Macs running Intel binaries), not the other direction, so Intel Macs cannot run a `darwin-arm64` build.
 
 ## Examples
 

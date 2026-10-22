@@ -28,7 +28,7 @@ import { realpathMissing } from 'realpath-missing'
 import { readLockfiles } from './readLockfiles.js'
 
 /**
- * Note that some fields are affected by modules directory state. Such fields should be used for
+ * Some fields are affected by modules directory state. Such fields should be used for
  * mutating the modules directory only or in a manner that does not influence dependency resolution.
  */
 export interface PnpmContext {

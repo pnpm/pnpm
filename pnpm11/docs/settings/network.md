@@ -4,7 +4,7 @@ title: "Network & Request Settings"
 sidebar_label: "Network & requests"
 ---
 
-## Network Settings
+## Network settings
 
 ### httpsProxy
 
@@ -24,7 +24,7 @@ httpsProxy: "https://use%21r:pas%2As@my.proxy:1234/foo"
 
 Do not encode the colon (`:`) between the username and password.
 
-Since v11.20.0, an empty value reads as unset instead of failing the install with `ERR_PNPM_INVALID_PROXY`, so a shell that exports `HTTPS_PROXY=` simply disables the proxy. Setting the value to `false` or `null` in `pnpm-workspace.yaml` or the `.npmrc` also turns proxying off. On the command line, `false` and `null` are ordinary host names, since a flag carries its value verbatim.
+Since v11.20.0, an empty value reads as unset instead of failing the install with `ERR_PNPM_INVALID_PROXY`, so a shell that exports `HTTPS_PROXY=` disables the proxy. Setting the value to `false` or `null` in `pnpm-workspace.yaml` or the `.npmrc` also turns proxying off. On the command line, `false` and `null` are ordinary host names, since a flag carries its value verbatim.
 
 ### httpProxy
 
@@ -65,7 +65,7 @@ The maximum number of connections to use per origin (protocol/host/port combinat
 
 `maxSockets` is accepted as an alias. Both spellings are read from
 `pnpm-workspace.yaml`, the global configuration file, the environment, and the
-command line, in that increasing order of precedence — so a value passed on the
+command line, in that increasing order of precedence, so a value passed on the
 command line wins even when the two sides spelled the setting differently.
 
 ### strictSsl
@@ -76,7 +76,7 @@ command line wins even when the two sides spelled the setting differently.
 Whether or not to do SSL key validation when making requests to the registry via
 HTTPS.
 
-## Request Settings
+## Request settings
 
 ### gitShallowHosts
 

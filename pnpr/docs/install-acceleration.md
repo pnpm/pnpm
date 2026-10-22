@@ -15,7 +15,7 @@ dependencies) is **resolution**, not downloading tarballs. To resolve a
 dependency graph, pnpm has to walk it: fetch a package's metadata (its
 "packument"), read its dependency ranges, fetch the packuments for those, and so
 on, level by level. Each level depends on the answers from the previous one, so
-the requests can't all be parallelized — the total time is roughly the
+the requests can't all be parallelized. The total time is roughly the
 **depth of the graph × the round-trip latency** to the registry. From a laptop
 or a CI runner that sits far from the registry, that round-trip depth dominates
 the install.
@@ -32,20 +32,20 @@ pnpr collapses that depth:
   pays one round-trip for resolution instead of one per graph level.
 
 Crucially, pnpr only does the resolution. The tarballs are still fetched by the
-client, **directly from the registries in parallel** — exactly like a normal
+client, **directly from the registries in parallel**, like a normal
 install, which a single connection through the server could never match. The
 accelerated path removes the latency-bound resolution waterfall without turning
 tarball downloads into a single server-mediated stream.
 
 When the project already has an up-to-date lockfile, there's nothing to resolve,
-so this path doesn't apply — the speedup is for cold installs and dependency
+so this path doesn't apply. The speedup is for cold installs and dependency
 changes.
 
 ## How it works
 
 1. pnpm sends `POST /-/pnpr/v0/resolve` with the project's dependencies,
    registry settings, policy settings, and the existing lockfile when one is
-   available. Client upstream credentials are never sent — private registries
+   available. Client upstream credentials are never sent. Private registries
    are reached through the server's own credentials (see
    [below](#private-registries)). A lockfile-repair request first reads
    `GET /-/pnpr` to check that the server supports repair. An ordinary resolve
@@ -107,12 +107,12 @@ See [pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230) and
 
 ## Which registries the server will touch {#allowlist}
 
-The resolver only fetches from origins the operator has configured — a
+The resolver only fetches from origins the operator has configured: a
 **default-deny allowlist** made of the configured
 [registries](configuration.md#registries-and-defaultregistry), the declared
 [public routes](configuration.md#routes), the built-in official npm registry,
-and pnpr's own origin. A request whose `registry`/`registries` — or whose
-direct `http(s)`/`git` URL dependencies, overrides, or lockfile tarball URLs —
+and pnpr's own origin. A request whose `registry`/`registries` (or whose
+direct `http(s)`/`git` URL dependencies, overrides, or lockfile tarball URLs)
 point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
 resolver to make the server fetch from an arbitrary internal address.
@@ -129,7 +129,7 @@ the server, serves a whole team.
 
 Tarball URLs in the resolved lockfile follow the same split:
 
-- A **public** package keeps its upstream URL — the client fetches it directly
+- A **public** package keeps its upstream URL. The client fetches it directly
   from the registry or its CDN, never through pnpr.
 - A **private** package resolved through an access-bearing upstream registry
   is emitted as that registry's `/~<name>/` endpoint URL, so the client
@@ -137,8 +137,8 @@ Tarball URLs in the resolved lockfile follow the same split:
   and serves it from a per-registry private cache).
 
 Because a registry endpoint URL is canonical for a client whose registry
-configuration points at it, lockfile entries stay integrity-only — the
-registry host lives in the client's `.npmrc`, not in the lockfile — and a
+configuration points at it, lockfile entries stay integrity-only (the
+registry host lives in the client's `.npmrc`, not in the lockfile), and a
 project resolves to the same lockfile whether it installs through `/resolve`
 or directly against the registry endpoint.
 
