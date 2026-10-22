@@ -202,7 +202,7 @@ impl LibsqlAuth {
     /// Whether the embedded replica still lists a token of `username`;
     /// `false` without a replica, since the pool then reads the primary.
     async fn replica_holds_tokens(&self, username: &str) -> Result<bool> {
-        if !self.replica {
+        if !self.is_replica {
             return Ok(false);
         }
         with_auth_timeout::<_, RegistryError>(

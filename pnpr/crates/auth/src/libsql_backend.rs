@@ -68,7 +68,7 @@ pub struct LibsqlAuth {
     timeout: Duration,
     /// Whether the pool's database is an embedded replica, which
     /// [`Self::sync_replica`] then brings up to date after a write.
-    replica: bool,
+    is_replica: bool,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -122,7 +122,8 @@ impl LibsqlAuth {
         };
         let max_connections =
             settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS);
-        Self::with_replica(db, max_users, max_connections, settings.replica_path.is_some()).await
+        let is_replica = settings.replica_path.is_some();
+        Self::with_replica(db, max_users, max_connections, is_replica).await
     }
 
     /// Open the embedded replica at `path`, creating its directory the way
@@ -169,13 +170,13 @@ impl LibsqlAuth {
     }
 
     /// Build the backend from an already-open [`Database`], an embedded
-    /// replica when `replica` is set, and ensure the `users` and `tokens`
-    /// tables exist.
+    /// replica when `is_replica` is set, and ensure the `users` and
+    /// `tokens` tables exist.
     async fn with_replica(
         db: Database,
         max_users: MaxUsers,
         max_connections: u32,
-        replica: bool,
+        is_replica: bool,
     ) -> Result<Self> {
         let auth = Self {
             pool: ConnectionPool::new(db, max_connections as usize),
@@ -184,7 +185,7 @@ impl LibsqlAuth {
             max_users,
             registration_lock: tokio::sync::Mutex::new(()),
             timeout: DEFAULT_AUTH_TIMEOUT,
-            replica,
+            is_replica,
         };
         with_auth_timeout(
             DEFAULT_STARTUP_TIMEOUT,
@@ -248,7 +249,7 @@ impl LibsqlAuth {
     /// its pager afterwards, which corrupts a read in flight on it;
     /// [`Database::sync`] pulls on a connection of its own instead.
     async fn sync_replica(&self) -> Result<()> {
-        if !self.replica {
+        if !self.is_replica {
             return Ok(());
         }
         with_auth_timeout::<_, LibsqlError>(self.timeout, self.pool.sync()).await
@@ -281,20 +282,26 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
-        let created = self.insert_user_for_admin(username, password).await?;
-        self.sync_replica().await?;
-        Ok(created)
+        let creation = self.insert_user_for_admin(username, password).await?;
+        if creation == UserCreation::Created {
+            self.sync_replica().await?;
+        }
+        Ok(creation)
     }
 
     async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
         let change = self.update_password(username, password).await?;
-        self.sync_replica().await?;
+        if change == PasswordChange::Changed {
+            self.sync_replica().await?;
+        }
         Ok(change)
     }
 
     async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
         let removal = self.remove_user(username).await?;
-        self.sync_replica().await?;
+        if removal == UserRemoval::Removed {
+            self.sync_replica().await?;
+        }
         Ok(removal)
     }
 
