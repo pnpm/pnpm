@@ -494,3 +494,38 @@ async fn should_refuse_a_scope_the_config_reader_would_reject() {
     );
     assert!(login_writes().is_empty(), "nothing may be written for a refused scope");
 }
+
+/// A `config.yaml` the login cannot edit fails it before anything is written,
+/// so no token is left behind for a login that reported an error.
+#[tokio::test]
+async fn should_write_nothing_when_config_yaml_cannot_be_parsed() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_fake!(FakeHost, set_ini_read, login_writes);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|path| {
+        Ok(if path.ends_with("config.yaml") {
+            "_auth: [unclosed\n".to_owned()
+        } else {
+            String::new()
+        })
+    }));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+
+    let err =
+        login::<FakeHost, RecordingReporter>(&client(), opts(&registry, Path::new("/mock/config")))
+            .await
+            .unwrap_err();
+
+    assert!(matches!(err, LoginError::ParseConfigYaml(_)), "got {err:?}");
+    assert!(login_writes().is_empty(), "nothing may be written: {:?}", login_writes());
+}

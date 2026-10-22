@@ -17,9 +17,11 @@
 //! registry whose path contains `=` would key its token under a truncated
 //! name.
 //!
+//! A single-quoted value is unwrapped on read, as the config reader does, so
+//! rewriting the file leaves such a token meaning what it meant.
+//!
 //! The `ini` package additionally backslash-escapes inline `;` / `#` (which
-//! it reads as comment starts) and unwraps single-quoted values. That is
-//! deliberately omitted here: the opaque bearer tokens this file holds are
+//! it reads as comment starts). That is deliberately omitted here: the opaque bearer tokens this file holds are
 //! `[A-Za-z0-9+/=._-]` and never contain `;`, `#`, or quotes, and pacquet
 //! only skips comments at line start, so such values round-trip regardless.
 
@@ -109,14 +111,15 @@ impl IniSettings {
 ///
 /// - contains `=`, CR, or LF (a registry-controlled token with an embedded
 ///   newline would otherwise plant extra `auth.ini` entries);
-/// - is already `"`-wrapped, so [`decode_value`] would strip its quotes;
+/// - is already `"`- or `'`-wrapped, so [`decode_value`] would strip its quotes;
 /// - has leading/trailing whitespace, which [`parse`](IniSettings::parse) trims;
 /// - starts with `[`, which reads as a section header.
 fn encode_value(value: &str) -> Cow<'_, str> {
     let needs_quoting = value.contains(['=', '\r', '\n'])
         || value.starts_with('[')
         || value != value.trim()
-        || (value.len() > 1 && value.starts_with('"') && value.ends_with('"'));
+        || is_wrapped_in(value, '"')
+        || is_wrapped_in(value, '\'');
     if needs_quoting {
         serde_json::to_string(value).expect("serializing a string never fails").into()
     } else {
@@ -125,14 +128,20 @@ fn encode_value(value: &str) -> Cow<'_, str> {
 }
 
 /// Reverse of [`encode_value`]: a JSON-quoted value is decoded to its literal
-/// contents; anything else is taken verbatim. Mirrors the `ini` package's
-/// quoted-value handling on read.
+/// contents, a single-quoted one is unwrapped, and anything else is taken
+/// verbatim. Mirrors the config reader.
 fn decode_value(value: &str) -> String {
-    if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+    if is_wrapped_in(value, '"') {
         serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned())
+    } else if is_wrapped_in(value, '\'') {
+        value[1..value.len() - 1].to_owned()
     } else {
         value.to_owned()
     }
+}
+
+fn is_wrapped_in(value: &str, quote: char) -> bool {
+    value.len() > 1 && value.starts_with(quote) && value.ends_with(quote)
 }
 
 /// Split a stored line into its still-encoded key and value halves. A

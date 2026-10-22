@@ -2,7 +2,7 @@
 //!
 //! A login's token goes to `auth.ini`, but the route `--scope` asks for goes
 //! to `registries`, the setting that declares which registry a scope resolves
-//! from. Earlier versions kept tokens under `_auth` here too. `_auth` outranks
+//! from. `_auth` can hold a token for the same registry and outranks
 //! `auth.ini`, so a login drops the entry its new token replaces, and a logout
 //! drops the one it revokes.
 //!
