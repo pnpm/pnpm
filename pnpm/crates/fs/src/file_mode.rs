@@ -8,6 +8,9 @@ mod directory;
 #[cfg(unix)]
 use directory::is_unchangeable;
 
+#[cfg(target_os = "linux")]
+use pipe_trait::Pipe;
+
 use std::{io, path::Path};
 
 /// Bit mask to filter executable bits (`--x--x--x`).
@@ -45,26 +48,77 @@ pub fn store_inode_mode_is_linkable(mode: u32, desired: u32) -> bool {
 }
 
 /// The process's current umask, read once: the CLI never changes it, and
-/// the import hot path would otherwise pay two `umask(2)` syscalls per
-/// file.
+/// the import hot path would otherwise pay the read per file.
 #[cfg(unix)]
 #[must_use]
 pub fn current_umask() -> u32 {
-    static UMASK: std::sync::LazyLock<u32> = std::sync::LazyLock::new(|| {
-        // SAFETY: `umask` is always safe to call. Reading the mask requires
-        // setting it, so both calls are made back to back with nothing in
-        // between but the other `umask` call, and this runs once per process
-        // behind a `LazyLock` initializer. A file another thread creates in
-        // that window gets the unmasked creation mode, which carries no
-        // executable bit and does not match any desired mode, so the import
-        // tiers copy it instead of linking it.
-        let mask = unsafe { libc::umask(0) };
-        // SAFETY: Restores the mask the call above read, making the read
-        // invisible to every other thread.
-        unsafe { libc::umask(mask) };
-        widen_mode(mask)
-    });
+    static UMASK: std::sync::LazyLock<u32> = std::sync::LazyLock::new(read_umask);
     *UMASK
+}
+
+/// The mask, read without writing it wherever the target publishes it.
+///
+/// POSIX offers no way to read the mask without writing it: `umask(2)`
+/// returns the value it replaced, so a reader has to set one and put the
+/// old one back. That window is process-wide, and a file another thread
+/// creates inside it is created unmasked, with wider permissions than the
+/// user asked for. Linux publishes the mask, and is read that way first so
+/// the window never opens.
+#[cfg(unix)]
+fn read_umask() -> u32 {
+    #[cfg(target_os = "linux")]
+    if let Some(mask) = published_umask() {
+        return mask;
+    }
+    read_umask_by_writing_it()
+}
+
+/// The mask as Linux publishes it, in the `Umask:` line of
+/// `/proc/thread-self/status`.
+///
+/// `thread-self` rather than `self` so that the line read is the calling
+/// thread's, which is the mask the fallback below would have reported.
+/// The two name the same mask unless a thread has unshared its filesystem
+/// information, which pnpm never does.
+///
+/// `None` where `procfs` is not mounted, on a kernel before 3.17, which
+/// has no `thread-self`, or before 4.7, which does not print the line.
+#[cfg(target_os = "linux")]
+fn published_umask() -> Option<u32> {
+    "/proc/thread-self/status"
+        .pipe(std::fs::read_to_string)
+        .ok()?
+        .pipe_as_ref(parse_published_umask)
+}
+
+/// Separate from [`published_umask`] so a test can drive it without a
+/// `procfs` whose contents it cannot choose.
+#[cfg(target_os = "linux")]
+fn parse_published_umask(status: &str) -> Option<u32> {
+    let field = status
+        .lines()
+        .find_map(|line| line.strip_prefix("Umask:"))?;
+    u32::from_str_radix(field.trim(), 8).ok()
+}
+
+/// Set the mask to `0` to learn what it was, then put it back.
+///
+/// The fallback for a target that does not publish the mask, and the whole
+/// of the implementation on one that has no `procfs`. Both calls are made
+/// with nothing between them, so the unmasked window is as short as two
+/// syscalls.
+#[cfg(unix)]
+fn read_umask_by_writing_it() -> u32 {
+    // SAFETY: `umask` takes its argument by value, writes no memory, and
+    // cannot fail. The pair leaves the process's mask as it found it: the
+    // first call reports the mask it replaced, and the second restores
+    // exactly that value.
+    let mask = unsafe {
+        let previous = libc::umask(0);
+        libc::umask(previous);
+        previous
+    };
+    widen_mode(mask)
 }
 
 /// `libc::umask` speaks `mode_t`, a `u16` on macOS and a `u32` on Linux.
