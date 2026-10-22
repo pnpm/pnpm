@@ -1,7 +1,6 @@
 use super::{
     DEFAULT_BCRYPT_COST, LibsqlAuth, PasswordChange, Result, UserCreation, UserRemoval,
     hash_bcrypt, is_unique_violation, params, retry_database_conflicts, validate_username,
-    with_auth_timeout,
 };
 use pnpr_error::RegistryError;
 
@@ -13,18 +12,14 @@ const COUNT_ONE_LESS: &str =
 
 impl LibsqlAuth {
     pub(super) async fn list_usernames(&self) -> Result<Vec<String>> {
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows =
-                    conn.query("SELECT username FROM users ORDER BY username", ()).await?;
-                let mut names = Vec::new();
-                while let Some(row) = rows.next().await? {
-                    names.push(row.get::<String>(0)?);
-                }
-                Ok(names)
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows = conn.query("SELECT username FROM users ORDER BY username", ()).await?;
+            let mut names = Vec::new();
+            while let Some(row) = rows.next().await? {
+                names.push(row.get::<String>(0)?);
+            }
+            Ok(names)
+        })
         .await
     }
 
@@ -37,7 +32,7 @@ impl LibsqlAuth {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let hash = hash.as_str();
         retry_database_conflicts(|| {
-            self.pool.run(|conn| async move {
+            self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 let inserted = tx.execute(
                     "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
@@ -69,7 +64,7 @@ impl LibsqlAuth {
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         let hash = hash.as_str();
         let updated = retry_database_conflicts(|| {
-            self.pool.run(|conn| async move {
+            self.pool.write(|conn| async move {
                 Ok::<_, RegistryError>(
                     conn.execute(
                         "UPDATE users SET bcrypt_hash = ?2 WHERE username = ?1",
@@ -85,7 +80,7 @@ impl LibsqlAuth {
 
     pub(super) async fn remove_user(&self, username: &str) -> Result<UserRemoval> {
         retry_database_conflicts(|| {
-            self.pool.run(|conn| async move {
+            self.pool.write(|conn| async move {
                 let tx = conn.transaction().await?;
                 let removed =
                     tx.execute("DELETE FROM users WHERE username = ?1", params![username]).await?;

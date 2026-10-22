@@ -45,7 +45,7 @@ use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
 use std::{path::Path, sync::atomic::AtomicU64, time::Duration};
 
-/// Deadline for request-path auth reads, beyond which a stalled endpoint
+/// Deadline for each auth database operation, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
 const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -64,8 +64,6 @@ pub struct LibsqlAuth {
     counter: AtomicU64,
     max_users: MaxUsers,
     registration_lock: tokio::sync::Mutex<()>,
-    /// Deadline for each request-path auth read.
-    timeout: Duration,
     /// Whether the pool's database is an embedded replica, which
     /// [`Self::sync_replica`] then brings up to date after a write.
     is_replica: bool,
@@ -179,12 +177,11 @@ impl LibsqlAuth {
         is_replica: bool,
     ) -> Result<Self> {
         let auth = Self {
-            pool: ConnectionPool::new(db, max_connections as usize),
+            pool: ConnectionPool::new(db, max_connections as usize, DEFAULT_AUTH_TIMEOUT),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
             registration_lock: tokio::sync::Mutex::new(()),
-            timeout: DEFAULT_AUTH_TIMEOUT,
             is_replica,
         };
         with_auth_timeout(
@@ -198,48 +195,37 @@ impl LibsqlAuth {
     /// The bcrypt hash stored for `username`, or `None` when no such
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows = conn.query(
-                    "SELECT bcrypt_hash FROM users WHERE username = ?1",
-                    params![username],
-                )
-                .await?;
-                match rows.next().await? {
-                    Some(row) => Ok(Some(row.get::<String>(0)?)),
-                    None => Ok(None),
-                }
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows =
+                conn.query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
+                    .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
         .await
     }
 
     /// Current number of registered users — read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
-        with_auth_timeout::<_, RegistryError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
-                let Some(row) = rows.next().await? else {
-                    return Err(missing_count_row());
-                };
-                let count: i64 = row.get(0)?;
-                Ok(count.max(0) as u64)
-            }),
-        )
+        self.pool.read(|conn| async move {
+            let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let Some(row) = rows.next().await? else {
+                return Err(missing_count_row());
+            };
+            let count: i64 = row.get(0)?;
+            Ok(count.max(0) as u64)
+        })
         .await
     }
 
     async fn check_db_readiness(&self) -> Result<()> {
-        with_auth_timeout::<_, LibsqlError>(
-            self.timeout,
-            self.pool.run(|conn| async move {
-                conn.query("SELECT 1;", ()).await?;
-                Ok(())
-            }),
-        )
+        self.pool.read(|conn| async move {
+            conn.query("SELECT 1;", ()).await?;
+            Ok(())
+        })
         .await
     }
 
@@ -252,7 +238,7 @@ impl LibsqlAuth {
         if !self.is_replica {
             return Ok(());
         }
-        with_auth_timeout::<_, LibsqlError>(self.timeout, self.pool.sync()).await
+        self.pool.sync().await
     }
 }
 
@@ -363,7 +349,7 @@ impl LibsqlAuth {
         password: &str,
         hash: &str,
     ) -> Result<(UpsertOutcome, String)> {
-        let inserted = self.pool.run(|conn| async move {
+        let inserted = self.pool.write(|conn| async move {
             let inserted = conn.execute(
                 "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
                 params![username, hash],
@@ -411,7 +397,7 @@ impl LibsqlAuth {
 
     /// One transaction that claims a counter slot and inserts the user.
     async fn try_capped_insert(&self, username: &str, hash: &str) -> Result<Insert> {
-        self.pool.run(|conn| async move {
+        self.pool.write(|conn| async move {
             let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
             let Some(tx) = self.claim_cap_slot(tx).await? else {
                 return Ok(Insert::CapFull);
@@ -438,7 +424,7 @@ impl LibsqlAuth {
 
     /// Correct a counter that overcounts, reporting whether it did.
     async fn reconcile_user_counter(&self) -> Result<bool> {
-        self.pool.run(|conn| async move { reconcile_user_counter_overcount(&conn).await }).await
+        self.pool.write(|conn| async move { reconcile_user_counter_overcount(&conn).await }).await
     }
 
     /// Claim a counter slot in `tx`. The transaction comes back when a slot
@@ -495,12 +481,13 @@ impl LibsqlAuth {
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-            self.pool.run(|conn| async move {
+            self.pool.write(|conn| async move {
                 conn.execute(
                     "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
                     params![new_hash, username, stored],
                 )
-                .await
+                .await?;
+                Ok(())
             })
             .await?;
             self.sync_replica().await?;

@@ -6,7 +6,9 @@
 //! routes that serves the frames of its own WAL.
 
 use super::{
-    Builder, LibsqlAuth, MaxUsers, TokenBackend, UpsertOutcome, UserBackend, is_unique_violation,
+    super::{connector::LibsqlConnector, pool::ConnectionPool},
+    Builder, LibsqlAuth, MaxUsers, RegistryError, TokenBackend, UpsertOutcome, UserBackend,
+    is_unique_violation,
 };
 use axum::{
     Json, Router,
@@ -22,7 +24,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -44,6 +46,8 @@ struct Primary {
     /// generation.
     generation: AtomicUsize,
     salt: std::sync::Mutex<Option<[u8; 8]>>,
+    /// Whether `/sync` stops answering, as a primary on a broken network does.
+    sync_stalls: AtomicBool,
 }
 
 /// A primary at `path`, served on a loopback port.
@@ -70,6 +74,7 @@ async fn serve_primary(path: PathBuf) -> (Arc<Primary>, SocketAddr, tokio::task:
         pipelines: AtomicUsize::new(0),
         generation: AtomicUsize::new(1),
         salt: std::sync::Mutex::new(None),
+        sync_stalls: AtomicBool::new(false),
     });
     let app = Router::new()
         .route("/info", get(info))
@@ -231,6 +236,36 @@ async fn bulk_revocation_refreshes_a_replica_whose_tokens_went_elsewhere() {
 }
 
 /// Poll `replica` for `token` until it is visible or the wait runs out.
+/// Opening a replica connection waits for a background sync in progress. A
+/// stalled sync must not hold an operation past its deadline.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_stalled_replica_sync_does_not_hold_an_operation_past_its_deadline() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let url = format!("http://{address}");
+    let db = Builder::new_remote_replica(
+        directory.path().join("replica.db"),
+        url.clone(),
+        String::new(),
+    )
+    .connector(LibsqlConnector::for_url(&url, false).unwrap())
+    .read_your_writes(false)
+    .sync_interval(Duration::from_millis(200))
+    .build()
+    .await
+    .unwrap();
+    primary.sync_stalls.store(true, Ordering::SeqCst);
+    tokio::time::sleep(Duration::from_millis(600)).await;
+
+    let pool = ConnectionPool::new(db, 1, Duration::from_millis(300));
+    let started = std::time::Instant::now();
+    let read = pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await;
+    let elapsed = started.elapsed();
+    server.abort();
+    assert!(matches!(read, Err(RegistryError::AuthDatabaseTimeout)), "{read:?}");
+    assert!(elapsed < Duration::from_secs(1), "{elapsed:?}");
+}
+
 async fn wait_for_token(replica: &LibsqlAuth, token: &str) -> Option<String> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
     loop {
@@ -267,6 +302,9 @@ async fn sync(
     State(primary): State<Arc<Primary>>,
     Path((generation, start, end)): Path<(usize, usize, usize)>,
 ) -> Result<Vec<u8>, (StatusCode, Json<JsonValue>)> {
+    if primary.sync_stalls.load(Ordering::SeqCst) {
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
     let (current, wal) = primary.wal_state();
     let frames = if generation == current { wal_frames(&wal, start, end) } else { None };
     frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": current }))))

@@ -1,4 +1,4 @@
-use super::ConnectionPool;
+use super::{ConnectionPool, RegistryError};
 use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use libsql::{Builder, Database};
 use serde_json::{Value, json};
@@ -30,14 +30,46 @@ async fn a_connection_cut_off_mid_request_stays_broken() {
 #[tokio::test]
 async fn the_pool_replaces_a_connection_cut_off_mid_request() {
     let (db, server) = baton_checking_database().await;
-    let pool = ConnectionPool::new(db, 1);
-    pool.run(|conn| async move { conn.query("SELECT 1", ()).await }).await
+    let pool = ConnectionPool::new(db, 1, Duration::from_secs(30));
+    pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await
         .unwrap();
-    assert!(cut_off(pool.run(|conn| async move { conn.query("SELECT 'slow'", ()).await })).await);
+    let slow = pool.read(|conn| async move { Ok(conn.query("SELECT 'slow'", ()).await?) });
+    assert!(cut_off(slow).await);
 
-    let after = pool.run(|conn| async move { conn.query("SELECT 1", ()).await }).await;
+    let after = pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await;
     server.abort();
     after.unwrap();
+}
+
+/// A database that stops answering a read cannot keep the pool's connections:
+/// the read fails at the deadline and the next operation gets a connection.
+#[tokio::test]
+async fn a_stalled_read_times_out_and_frees_its_connection() {
+    let (db, server) = baton_checking_database().await;
+    let pool = ConnectionPool::new(db, 1, Duration::from_millis(200));
+    let stalled = pool.read(|conn| async move { Ok(conn.query("SELECT 'slow'", ()).await?) }).await;
+    assert!(matches!(stalled, Err(RegistryError::AuthDatabaseTimeout)), "{stalled:?}");
+
+    let after = pool.read(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await;
+    server.abort();
+    after.unwrap();
+}
+
+/// A write is never cancelled once sent, so its outcome is never unknown. Only
+/// its wait for a connection is bounded.
+#[tokio::test]
+async fn a_write_outlives_the_deadline_but_its_wait_for_a_connection_does_not() {
+    let (db, server) = baton_checking_database().await;
+    let pool = ConnectionPool::new(db, 1, Duration::from_millis(200));
+    let slow = pool.write(|conn| async move { Ok(conn.query("SELECT 'slow'", ()).await?) });
+    let queued = async {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        pool.write(|conn| async move { Ok(conn.query("SELECT 1", ()).await?) }).await
+    };
+    let (slow, queued) = tokio::join!(slow, queued);
+    server.abort();
+    slow.unwrap();
+    assert!(matches!(queued, Err(RegistryError::AuthDatabaseTimeout)), "{queued:?}");
 }
 
 /// Whether `operation` was still waiting for its response when it was dropped.
