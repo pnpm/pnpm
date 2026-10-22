@@ -222,10 +222,12 @@ pub(super) struct PreparedManifest {
     pub(super) updated_catalogs: Catalogs,
     pub(super) picked_versions: Vec<PickedVersion>,
 }
-/// The version an explicit registry specifier for `name` resolved to.
+/// The version an explicit registry specifier for `name` resolved to, and
+/// the specifier the manifest saves for it.
 pub(super) struct PickedVersion {
     pub(super) name: String,
     pub(super) version: String,
+    pub(super) specifier: String,
 }
 /// Resolve every selector against `catalogs` concurrently, then apply them
 /// to `manifest`.
@@ -291,7 +293,11 @@ impl PreparedManifest {
             if let Some(version) = dependency.picked_version
                 && dependency.manifest_specifier != version
             {
-                picked_versions.push(PickedVersion { name: dependency.package_name, version });
+                picked_versions.push(PickedVersion {
+                    name: dependency.package_name,
+                    version,
+                    specifier: dependency.manifest_specifier,
+                });
             }
         }
         Self { updated_catalogs, picked_versions }

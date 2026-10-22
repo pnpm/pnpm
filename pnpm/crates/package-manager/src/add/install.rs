@@ -81,13 +81,12 @@ pub(super) fn selected_add_seed(
             &LockedVersions::of(add.lockfile.document, add.config, &projects[index].root_dir),
             (&mut names, &mut preferred),
         );
-        if names.is_empty() {
-            continue;
+        if !names.is_empty() {
+            seed_policies.insert(
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
+            );
         }
-        seed_policies.insert(
-            pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
-            ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
-        );
         for (name, selectors) in preferred {
             preferred_versions_override
                 .entry(name)
@@ -99,25 +98,30 @@ pub(super) fn selected_add_seed(
 }
 /// Prefer the version an explicit specifier picked, since the saved range can
 /// admit newer ones, and withhold the pin the importer holds at another
-/// version. A version the lockfile already settles needs no seed, so the
-/// install can keep its fast path.
+/// version. A pick the fast lockfile update cannot move off needs no seed, so
+/// the install can keep that fast path: the importer keeps its pin and its
+/// specifier, or the lockfile holds no other version to retarget to.
 pub(super) fn seed_picked_versions(
     picked_versions: &[PickedVersion],
     locked: &LockedVersions<'_>,
     seed: (&mut HashSet<String>, &mut PreferredVersions),
 ) {
     let (dropped_pins, preferred) = seed;
-    for PickedVersion { name, version } in picked_versions {
+    for PickedVersion { name, version, specifier } in picked_versions {
         let direct = locked.direct(name);
-        let settled = match direct.as_deref() {
-            Some(direct) => direct == version,
-            None => locked.only_version_of(name, version),
+        let pinned_elsewhere = direct
+            .as_ref()
+            .is_some_and(|(locked, _)| locked != version);
+        let settled = match &direct {
+            Some((locked, _)) if locked != version => false,
+            Some((_, locked_specifier)) if locked_specifier == specifier => true,
+            _ => locked.only_version_of(name, version),
         };
         if settled {
             continue;
         }
         crate::install_with_fresh_lockfile::prefer_requested_version(preferred, name, version);
-        if direct.is_some() {
+        if pinned_elsewhere {
             dropped_pins.insert(name.clone());
         }
     }
@@ -141,15 +145,17 @@ impl<'l> LockedVersions<'l> {
         Self { lockfile, importer }
     }
 
-    /// The version the importer locks `name` at as a direct dependency.
-    fn direct(&self, name: &str) -> Option<String> {
-        self.importer?
+    /// The version and specifier the importer locks `name` at as a direct
+    /// dependency.
+    fn direct(&self, name: &str) -> Option<(String, &'l str)> {
+        let (_, dependency) = self.importer?
             .dependencies_by_groups(crate::DIRECT_GROUPS)
-            .find(|(alias, _)| alias.to_string() == name)?
-            .1
-            .version
-            .as_regular()
-            .map(|locked| locked.version().to_string())
+            .find(|(alias, _)| alias.to_string() == name)?;
+        let version = dependency.version
+            .as_regular()?
+            .version()
+            .to_string();
+        Some((version, dependency.specifier.as_str()))
     }
 
     /// Whether `version` is the one version of `name` the lockfile holds, which

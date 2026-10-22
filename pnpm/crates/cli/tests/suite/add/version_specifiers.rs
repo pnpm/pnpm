@@ -300,6 +300,85 @@ fn add_locks_the_picked_version_over_a_transitive_lock() {
     drop((root, npmrc_info)); // cleanup
 }
 
+#[test]
+fn filtered_add_locks_the_picked_version_over_a_transitive_lock() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let settings = std::fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    std::fs::write(&workspace_yaml, format!("{settings}\npackages:\n  - app\n"))
+        .expect("write pnpm-workspace.yaml");
+    std::fs::write(workspace.join("package.json"), r#"{ "name": "root" }"#)
+        .expect("write root package.json");
+    let app = workspace.join("app");
+    std::fs::create_dir(&app).expect("create app");
+    std::fs::write(
+        app.join("package.json"),
+        serde_json::json!({ "name": "app", "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" } })
+            .to_string(),
+    )
+    .expect("write app/package.json");
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter",
+            "app",
+            "add",
+            &format!("{name}@>=100.0.0 <100.1.0"),
+            "--lockfile-only",
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&app, name), "^100.0.0");
+    let lockfile = crate::_utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(crate::_utils::importer_version(&lockfile, "app", name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// The direct edge already locks the picked `100.0.0`, but the add changes
+/// its specifier, which the fast lockfile update would retarget to the
+/// transitive `100.1.0`.
+#[test]
+fn readd_with_a_new_specifier_keeps_the_picked_version() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0", (name): ">=100.0.0 <100.1.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .with_arg("--lockfile-only")
+        .assert()
+        .success();
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+
+    pacquet_in(&workspace)
+        .with_args(["add", &format!("{name}@<100.1.0"), "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, name), "^100.0.0");
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
 fn pacquet_in(workspace: &std::path::Path) -> std::process::Command {
     std::process::Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
