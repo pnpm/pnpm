@@ -20,6 +20,7 @@ dunce = { workspace = true }
 getrandom = { workspace = true }
 miette = { workspace = true }
 pathdiff = { workspace = true }
+pipe-trait = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 reflink-copy = { workspace = true }
 tempfile = { workspace = true }

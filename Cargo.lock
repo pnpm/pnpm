@@ -5234,6 +5234,7 @@ dependencies = [
  "libc",
  "miette 7.6.0",
  "pathdiff",
+ "pipe-trait",
  "pnpm-crypto-hash",
  "pnpm-wasm-host",
  "reflink-copy",

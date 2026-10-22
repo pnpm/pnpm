@@ -8,6 +8,9 @@ mod directory;
 #[cfg(unix)]
 use directory::is_unchangeable;
 
+#[cfg(target_os = "linux")]
+use pipe_trait::Pipe;
+
 use std::{io, path::Path};
 
 /// Bit mask to filter executable bits (`--x--x--x`).
@@ -82,7 +85,10 @@ fn read_umask() -> u32 {
 /// has no `thread-self`, or before 4.7, which does not print the line.
 #[cfg(target_os = "linux")]
 fn published_umask() -> Option<u32> {
-    parse_published_umask(&std::fs::read_to_string("/proc/thread-self/status").ok()?)
+    "/proc/thread-self/status"
+        .pipe(std::fs::read_to_string)
+        .ok()?
+        .pipe_as_ref(parse_published_umask)
 }
 
 /// Separate from [`published_umask`] so a test can drive it without a
