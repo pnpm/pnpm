@@ -217,7 +217,7 @@ struct Workspace {
     lints: WorkspaceLints,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Default, Deserialize)]
 struct WorkspaceLints {
     #[serde(default)]
     rust: std::collections::BTreeMap<String, toml::Value>,

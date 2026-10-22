@@ -66,59 +66,83 @@ impl std::fmt::Display for Occurrence {
 
 impl std::fmt::Display for Finding {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}", self.statement())?;
+        match self.remedy() {
+            Some(remedy) => write!(formatter, "\n    {remedy}"),
+            None => Ok(()),
+        }
+    }
+}
+
+impl Finding {
+    /// What the departure is.
+    fn statement(&self) -> String {
         match self {
-            Self::UnsafeInConsumer { crate_name, occurrence } => write!(
-                formatter,
+            Self::UnsafeInConsumer { crate_name, occurrence } => format!(
                 "{crate_name} is not exempt from the unsafe policy, but holds `unsafe` at \
-                 {occurrence}\n    Move the call into the abstraction crate that owns the \
-                 surface, or add a new one for a surface that has no owner yet.",
-            ),
-            Self::UnsafeCodeNotLinted { level: Some(level) } => write!(
-                formatter,
-                "the workspace manifest lints `unsafe_code` at `{level}`, which does not hold \
-                 a crate to the policy.\n    `[workspace.lints.rust]` needs at least \
-                 `unsafe_code = \"warn\"`; CI's `--deny warnings` makes it an error.",
-            ),
-            Self::UnsafeCodeNotLinted { level: None } => write!(
-                formatter,
-                "the workspace manifest does not lint `unsafe_code`, so nothing stops an \
-                 `unsafe` compiling.\n    `[workspace.lints.rust]` needs \
-                 `unsafe_code = \"warn\"`; CI's `--deny warnings` makes it an error.",
-            ),
-            Self::NotInheritingWorkspaceLints { crate_name } => write!(
-                formatter,
-                "{crate_name} does not take the workspace lint table, so the `unsafe_code` \
-                 lint does not reach it.\n    Its manifest needs a `[lints]` table with \
-                 `workspace = true`.",
-            ),
-            Self::MissingOptOut { crate_name, root } => write!(
-                formatter,
-                "{crate_name} is exempt from the unsafe policy, so {} needs an \
-                 `allow(unsafe_code)` inner attribute.\n    Without it the `unsafe` the \
-                 crate exists to hold is a warning, and CI's `--deny warnings` an error.",
-                root.display(),
-            ),
-            Self::UnsanctionedOptOut { crate_name, root } => write!(
-                formatter,
-                "{crate_name} is not exempt from the unsafe policy, but {} opts out of the \
-                 `unsafe_code` lint.\n    Drop the attribute, or add the crate to `exempt()` \
-                 if the policy really does let it hold `unsafe`.",
-                root.display(),
-            ),
-            Self::StaleExemption { crate_name } => write!(
-                formatter,
-                "{crate_name} is exempt from the unsafe policy but holds no `unsafe`.\n    \
-                 Drop its entry from `exempt()`, and the opt-out from its crate root.",
-            ),
-            Self::ForeignAbiOutsideSysCrate { crate_name, occurrence } => write!(
-                formatter,
-                "{crate_name} is not a `-sys` crate, but declares a foreign ABI at {occurrence}",
-            ),
-            Self::MissingSafetyComment { crate_name, occurrence } => write!(
-                formatter,
-                "{crate_name} has an `unsafe` with no `// SAFETY:` comment above it, at \
                  {occurrence}",
             ),
+            Self::UnsafeCodeNotLinted { level: Some(level) } => format!(
+                "the workspace manifest lints `unsafe_code` at `{level}`, which does not hold \
+                 a crate to the policy.",
+            ),
+            Self::UnsafeCodeNotLinted { level: None } => {
+                "the workspace manifest does not lint `unsafe_code`, so nothing stops an \
+                 `unsafe` compiling."
+                    .to_owned()
+            }
+            Self::NotInheritingWorkspaceLints { crate_name } => format!(
+                "{crate_name} does not take the workspace lint table, so the `unsafe_code` \
+                 lint does not reach it.",
+            ),
+            Self::MissingOptOut { crate_name, root } => format!(
+                "{crate_name} is exempt from the unsafe policy, so {} needs an \
+                 `allow(unsafe_code)` inner attribute.",
+                root.display(),
+            ),
+            Self::UnsanctionedOptOut { crate_name, root } => format!(
+                "{crate_name} is not exempt from the unsafe policy, but {} opts out of the \
+                 `unsafe_code` lint.",
+                root.display(),
+            ),
+            Self::StaleExemption { crate_name } => {
+                format!("{crate_name} is exempt from the unsafe policy but holds no `unsafe`.")
+            }
+            Self::ForeignAbiOutsideSysCrate { crate_name, occurrence } => format!(
+                "{crate_name} is not a `-sys` crate, but declares a foreign ABI at {occurrence}",
+            ),
+            Self::MissingSafetyComment { crate_name, occurrence } => format!(
+                "{crate_name} has an `unsafe` with no `// SAFETY:` comment above it, at {occurrence}",
+            ),
+        }
+    }
+
+    /// What to do about it, where the statement does not already say.
+    fn remedy(&self) -> Option<&'static str> {
+        match self {
+            Self::UnsafeInConsumer { .. } => Some(
+                "Move the call into the abstraction crate that owns the surface, or add a new \
+                 one for a surface that has no owner yet.",
+            ),
+            Self::UnsafeCodeNotLinted { .. } => Some(
+                "`[workspace.lints.rust]` needs at least `unsafe_code = \"warn\"`; CI's \
+                 `--deny warnings` makes it an error.",
+            ),
+            Self::NotInheritingWorkspaceLints { .. } => {
+                Some("Its manifest needs a `[lints]` table with `workspace = true`.")
+            }
+            Self::MissingOptOut { .. } => Some(
+                "Without it the `unsafe` the crate exists to hold is a warning, and CI's \
+                 `--deny warnings` an error.",
+            ),
+            Self::UnsanctionedOptOut { .. } => Some(
+                "Drop the attribute, or add the crate to `exempt()` if the policy really does \
+                 let it hold `unsafe`.",
+            ),
+            Self::StaleExemption { .. } => {
+                Some("Drop its entry from `exempt()`, and the opt-out from its crate root.")
+            }
+            Self::ForeignAbiOutsideSysCrate { .. } | Self::MissingSafetyComment { .. } => None,
         }
     }
 }
