@@ -8,10 +8,12 @@
 //! `node --env-file` and `dotenv-cli` wrappers do for pnpm today, without
 //! requiring the wrapper.
 //!
-//! The flag is repeatable and the files are processed in order. The first
-//! value naming a variable wins, and a variable already present in the
-//! environment is never overridden. A leading UTF-8 byte-order mark is
-//! tolerated. A missing or malformed file fails the
+//! The flag is repeatable and the files are processed in order. Later files
+//! override variables defined in earlier files (matching `node --env-file`),
+//! and a variable already present in the environment is never overridden.
+//! Relative paths resolve against the invocation working directory, before
+//! `--dir` or `--workspace-root` is applied. A leading UTF-8 byte-order mark
+//! is tolerated. A missing or malformed file fails the
 //! command loudly rather than running with a partial environment. Parse
 //! errors name the file but never echo its contents: env files routinely
 //! hold secrets that must not leak into stderr and CI logs.
@@ -32,7 +34,8 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
-    ffi::OsString,
+    collections::HashSet,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
 
@@ -52,28 +55,20 @@ pub enum EnvFileError {
 }
 
 impl EnvFileError {
-    fn load(path: &Path, error: dotenvy::Error) -> Self {
-        match error {
-            // `fs::read` yields raw bytes and never fails with
-            // `InvalidData`, so this is `read_line` rejecting non-UTF-8:
-            // the file is readable but malformed, hence a redacted parse
-            // error rather than a read error.
-            dotenvy::Error::Io(source) if source.kind() == std::io::ErrorKind::InvalidData => {
-                Self::Parse {
-                    path: path.to_owned(),
-                    message: "file contains invalid UTF-8".to_string(),
-                }
-            }
-            dotenvy::Error::Io(source) => Self::Read { path: path.to_owned(), source },
+    fn load(path: &Path, error: &dotenvy::Error) -> Self {
+        let message = match error {
             // dotenvy reports the offending line; only its position is
             // repeated here, so a malformed line cannot leak a secret into
             // stderr and CI logs.
-            dotenvy::Error::LineParse(_, index) => Self::Parse {
-                path: path.to_owned(),
-                message: format!("invalid dotenv entry (error at index {index})"),
-            },
-            error => Self::Parse { path: path.to_owned(), message: error.to_string() },
-        }
+            dotenvy::Error::LineParse(_, index) => {
+                format!("invalid dotenv entry (error at index {index})")
+            }
+            // `from_read_iter` reads an in-memory slice, so the only other
+            // error `read_line` can raise is `InvalidData` on non-UTF-8
+            // bytes.
+            _ => "file contains invalid UTF-8".to_string(),
+        };
+        Self::Parse { path: path.to_owned(), message }
     }
 
     /// A key or value with an embedded NUL byte, which `std::env::set_var`
@@ -85,11 +80,12 @@ impl EnvFileError {
 }
 
 /// Load each file in order, layering its variables into the process
-/// environment. The first file naming a variable wins, and variables the
+/// environment. Later files override earlier files, and variables the
 /// environment already defines are left untouched.
 pub fn load(paths: &[PathBuf]) -> miette::Result<()> {
+    let mut loaded_keys = HashSet::new();
     for path in paths {
-        load_one(path)?;
+        load_one(path, &mut loaded_keys)?;
     }
     Ok(())
 }
@@ -118,19 +114,21 @@ pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
 /// leading U+FEFF and fail to parse (or misname the variable).
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
-fn load_one(path: &Path) -> miette::Result<()> {
+fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()> {
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
     for pair in dotenvy::from_read_iter(stripped) {
-        let (key, value) = pair.map_err(|error| EnvFileError::load(path, error))?;
+        let (key, value) = pair.map_err(|error| EnvFileError::load(path, &error))?;
         // `set_var` panics on a NUL byte in either half; `var_os` would
         // report a NUL key as merely absent, so the guard below cannot be
         // relied on to catch it.
         if key.contains('\0') || value.contains('\0') {
             return Err(EnvFileError::nul(path).into());
         }
-        if std::env::var_os(&key).is_none() {
+        let id = env_key_id(&key);
+        if std::env::var_os(&key).is_none() || loaded_keys.contains(&id) {
+            loaded_keys.insert(id);
             // SAFETY: `load` runs on the main thread before `run_on_big_stack`
             // spawns the startup thread, so no other thread exists that
             // could access the environment concurrently.
@@ -140,6 +138,12 @@ fn load_one(path: &Path) -> miette::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Normalize a dotenv variable name for set membership. Windows environment
+/// variable names are case-insensitive and `dotenvy` keys are ASCII.
+fn env_key_id(key: &str) -> String {
+    if cfg!(windows) { key.to_ascii_uppercase() } else { key.to_owned() }
 }
 
 /// The pure core of [`load_from_argv`] and [`strip_flags`]: the `--env-file`
@@ -197,11 +201,10 @@ fn claim_env_file(
     index: usize,
     passthrough: Option<usize>,
 ) -> Option<(PathBuf, usize)> {
-    let text = argv[index].to_str()?;
-    if let Some(path) = text.strip_prefix("--env-file=") {
-        return Some((PathBuf::from(path), 1));
+    if let Some(path) = strip_env_file_prefix(&argv[index]) {
+        return Some((path, 1));
     }
-    if text != "--env-file" {
+    if argv[index].to_str() != Some("--env-file") {
         return None;
     }
     let value = argv
@@ -211,6 +214,37 @@ fn claim_env_file(
         return None;
     }
     Some((PathBuf::from(value), 2))
+}
+
+/// Strip `--env-file=` from `token`, preserving non-UTF-8 path bytes the
+/// way clap does when splitting `--<name>=<value>`.
+fn strip_env_file_prefix(token: &OsStr) -> Option<PathBuf> {
+    if let Some(text) = token.to_str() {
+        return text.strip_prefix("--env-file=").map(PathBuf::from);
+    }
+    #[cfg(any(unix, target_os = "wasi"))]
+    {
+        #[cfg(unix)]
+        use std::os::unix::ffi::OsStrExt as _;
+        #[cfg(target_os = "wasi")]
+        use std::os::wasi::ffi::OsStrExt as _;
+        token
+            .as_bytes()
+            .strip_prefix(b"--env-file=")
+            .map(|bytes| PathBuf::from(OsStr::from_bytes(bytes)))
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::{OsStrExt as _, OsStringExt as _};
+        let wide: Vec<u16> = token.encode_wide().collect();
+        let prefix: Vec<u16> = "--env-file=".encode_utf16().collect();
+        wide.strip_prefix(prefix.as_slice())
+            .map(|rest| PathBuf::from(OsString::from_wide(rest)))
+    }
+    #[cfg(not(any(unix, target_os = "wasi", windows)))]
+    {
+        None
+    }
 }
 
 /// Whether `next` can be a bare `--env-file` value: anything but another

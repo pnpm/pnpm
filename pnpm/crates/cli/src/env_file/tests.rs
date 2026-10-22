@@ -110,6 +110,20 @@ fn claims_a_non_utf8_value() {
     assert_eq!(strings(&remaining), vec!["pnpm", "install"]);
 }
 
+#[cfg(unix)]
+#[test]
+fn claims_an_inline_non_utf8_value() {
+    use std::os::unix::ffi::OsStringExt;
+    let path_bytes = vec![0x66, 0x6F, 0xFF];
+    let mut flag_bytes = b"--env-file=".to_vec();
+    flag_bytes.extend_from_slice(&path_bytes);
+    let mut owned = argv(&["placeholder", "install"]);
+    owned[1] = OsString::from_vec(flag_bytes);
+    let (paths, remaining) = scan(&owned);
+    assert_eq!(paths, vec![PathBuf::from(OsString::from_vec(path_bytes))]);
+    assert_eq!(strings(&remaining), vec!["pnpm", "install"]);
+}
+
 #[test]
 fn strip_flags_keeps_everything_else() {
     let stripped =

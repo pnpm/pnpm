@@ -87,12 +87,13 @@ pnpm --env-file .env run build
 pnpm --env-file .env --env-file .env.local install
 ```
 
-The first file naming a variable wins, and variables already in the
-environment are never overridden. The loaded variables are visible to config
-resolution (`PNPM_CONFIG_<KEY>` overrides and `${VAR}` tokens in user-level
-[`.npmrc`](./npmrc.md) files, so registry tokens can live in the env file
-instead of the shell), to lifecycle scripts, and to any pnpm the command
-dispatches to.
+Later files override variables defined in earlier files, and variables
+already in the environment are never overridden. Relative paths resolve
+against the working directory where `pnpm` was invoked. The loaded variables
+are visible to config resolution (`PNPM_CONFIG_<KEY>` overrides and `${VAR}`
+tokens in user-level [`.npmrc`](./npmrc.md) files, so registry tokens can
+live in the env file instead of the shell), to lifecycle scripts, and to any
+pnpm the command dispatches to.
 
 Values support `$VAR` / `${VAR}` substitution from the environment and
 earlier entries, and `export ` prefixes, following dotenv conventions;

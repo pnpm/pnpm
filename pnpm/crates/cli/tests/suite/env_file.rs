@@ -2,7 +2,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{fs, process::Command};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
@@ -48,13 +51,17 @@ fn script_sees_env_file_variables() {
     drop(root);
 }
 
-/// Repeatable: the first file naming a variable wins.
+/// Repeatable: later files override variables defined in earlier files,
+/// matching `node --env-file`.
 #[test]
-fn first_env_file_wins() {
+fn later_env_file_overrides_earlier_env_file() {
     let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace);
-    fs::write(workspace.join("first.env"), "PACQUET_ENV_FILE_SCRIPT=first\n")
-        .expect("write first.env");
+    fs::write(
+        workspace.join("first.env"),
+        "PACQUET_ENV_FILE_SCRIPT=first\nPACQUET_ENV_FILE_EXPORTED=kept-from-first\n",
+    )
+    .expect("write first.env");
     fs::write(workspace.join("second.env"), "PACQUET_ENV_FILE_SCRIPT=second\n")
         .expect("write second.env");
 
@@ -64,7 +71,10 @@ fn first_env_file_wins() {
         .expect("run pacquet with layered --env-file");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "command must exit 0, got: {output:?}");
-    assert!(stdout.contains("first|"), "first file must win; stdout: {stdout:?}");
+    assert!(
+        stdout.contains("second|kept-from-first|"),
+        "later file must override earlier file; stdout: {stdout:?}",
+    );
 
     drop(root);
 }
@@ -262,4 +272,93 @@ fn npmrc_placeholders_resolve_from_env_file() {
     );
 
     drop(root);
+}
+
+/// Relative `--env-file` paths resolve against the invocation working
+/// directory, before `--dir` is applied.
+#[test]
+fn relative_env_file_resolves_against_invocation_cwd() {
+    let CommandTempCwd { pacquet: _, root, workspace, .. } = CommandTempCwd::init();
+    let subdir = workspace.join("subproject");
+    fs::create_dir_all(&subdir).expect("create subproject dir");
+    write_manifest(&subdir);
+    fs::write(workspace.join(".env"), "PACQUET_ENV_FILE_SCRIPT=from-invocation-cwd\n")
+        .expect("write caller .env");
+    fs::write(subdir.join(".env"), "PACQUET_ENV_FILE_SCRIPT=from-subdir\n")
+        .expect("write subdir .env");
+
+    let output = pacquet_in(&workspace)
+        .with_args(["--dir", "subproject", "--env-file", ".env", "run", "print-env"])
+        .output()
+        .expect("run pacquet with --dir and --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains("from-invocation-cwd|"),
+        "env file must resolve against the invocation cwd; stdout: {stdout:?}",
+    );
+
+    drop(root);
+}
+
+/// Dispatching to a pinned older pnpm forwards the loaded variables through
+/// the environment and strips `--env-file` from the child argv so the older
+/// pnpm does not see the flag.
+#[test]
+fn dispatched_pinned_pnpm_inherits_env_file_and_strips_flag() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let manifest = serde_json::json!({
+        "name": "test",
+        "version": "0.0.0",
+        "devEngines": {
+            "packageManager": {
+                "name": "pnpm",
+                "version": "9.3.0",
+                "onFail": "download",
+            },
+        },
+        "scripts": {
+            "print-env": r#"node -e "process.stdout.write([process.env.npm_config_user_agent, process.env.PACQUET_ENV_FILE_SCRIPT, process.env.npm_config_env_file || 'stripped'].join('|'))""#,
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::write(
+        workspace.join(".env"),
+        format!(
+            "PNPM_CONFIG_REGISTRY={}\nPACQUET_ENV_FILE_SCRIPT=from-env-file\n",
+            mock_instance.url(),
+        ),
+    )
+    .expect("write .env");
+
+    let mut command = pacquet.without_ambient_pnpm_config();
+    command.env("PNPM_HOME", root.path().join("pnpm-home"));
+    command.env("HOME", root.path());
+    command.env("XDG_CONFIG_HOME", root.path().join("xdg-config"));
+    command.env_remove("COREPACK_ROOT");
+    let output = command
+        .with_current_dir(&workspace)
+        .with_args(["--env-file", ".env", "run", "print-env"])
+        .output()
+        .expect("run pacquet with pinned pnpm and --env-file");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "command must exit 0, got: {output:?}");
+    assert!(
+        stdout.contains("pnpm/9.3.0 "),
+        "pinned pnpm 9.3.0 must run the script; stdout: {stdout:?}",
+    );
+    assert!(
+        stdout.contains("|from-env-file|stripped"),
+        "child pnpm must inherit the env var and not receive --env-file; stdout: {stdout:?}",
+    );
+
+    drop((root, mock_instance));
 }

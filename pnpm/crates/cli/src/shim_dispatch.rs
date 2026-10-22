@@ -46,7 +46,6 @@ use crate::{
 use derive_more::Display;
 use identity::{local_bin_identity, provider_of_target};
 use native_shim::dispatch_legacy_shim;
-use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
 use pnpm_config::{
     Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
     WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
@@ -56,7 +55,7 @@ use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
 use pnpm_rust_toolchain::{ToolchainRequest, rustup_settings_file};
-use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
+use run_program::{exec_program, exec_program_with_bin_dirs, run_global_target, run_held_program};
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use rust_toolchain::{
     RUST_SHIM_PACKAGE, RustSelection, find_rust_candidate, overrides_toolchain, run_global_rust,
@@ -292,81 +291,6 @@ fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -
         ShimPolicy::Auto => is_automatic_runtime(name, version_spec),
         ShimPolicy::Off | ShimPolicy::Prompt => false,
     }
-}
-
-/// Run the global target the way a direct cmd-shim would: a script runs
-/// under the interpreter its shebang names, taken from the bin dir when a
-/// sibling of that name is installed there (so a global tool runs on the
-/// global `node` shim) and from `PATH` otherwise; anything else executes
-/// as it is. A target-less shim has nothing to run and says so.
-fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
-    let target = match shim.target {
-        ShimTarget::Installed(target) => target,
-        // The Rust shims stand in front of the toolchains on `PATH`, so
-        // switched off they give way to those.
-        ShimTarget::Virtual(package) if package == RUST_SHIM_PACKAGE => {
-            return run_next_on_path(shim, args);
-        }
-        ShimTarget::Virtual(package) => {
-            pnpm_diagnostics::eprintln!(
-                r#"ERR_PNPM_SHIM_NO_TARGET  Nothing provides {} in this project. Add {package} to it, or pin it with "packageManager" in package.json."#,
-                shim.name,
-            );
-            return 1;
-        }
-    };
-    match search_script_runtime::<CmdShimHost>(target) {
-        // `.cmd` and `.bat` targets go to `Command::new` directly (see
-        // `exec_program_with_path`) rather than through an explicit `cmd`.
-        Ok(Some(ScriptRuntime {
-            prog: Some(prog),
-            args: shebang_args,
-        })) if prog != "cmd" => {
-            let mut argv = split_shebang_args(&shebang_args);
-            argv.push(target.into());
-            argv.extend_from_slice(args);
-            exec_program(&interpreter_path(shim.bin_dir, &prog), &argv)
-        }
-        Ok(_) => exec_program(target, args),
-        Err(error) => {
-            pnpm_diagnostics::eprintln!("pnpm: failed to read {}: {error}", target.display());
-            126
-        }
-    }
-}
-
-/// Where the shebang's interpreter comes from: the bin dir's own entry
-/// when there is one, else the bare name for a `PATH` lookup. An absolute
-/// interpreter path joins to itself.
-fn interpreter_path(bin_dir: &Path, prog: &str) -> PathBuf {
-    let sibling = bin_dir.join(prog);
-    if sibling.is_file() {
-        return sibling;
-    }
-    if cfg!(windows) {
-        let sibling = bin_dir.join(format!("{prog}.exe"));
-        if sibling.is_file() {
-            return sibling;
-        }
-    }
-    PathBuf::from(prog)
-}
-
-/// The interpreter arguments a shebang carries, split the way the shell
-/// running a cmd-shim would split them. A line the shell could not parse
-/// (an unbalanced quote) falls back to whitespace splitting.
-fn split_shebang_args(shebang_args: &str) -> Vec<OsString> {
-    let words = shell_words::split(shebang_args)
-        .unwrap_or_else(|_| {
-            shebang_args
-                .split_whitespace()
-                .map(str::to_string)
-                .collect()
-        });
-    words
-        .into_iter()
-        .map(OsString::from)
-        .collect()
 }
 
 fn bypass_requested() -> bool {

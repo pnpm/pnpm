@@ -8,7 +8,10 @@
 //! [`ConfigOverrides::extract`]: crate::config_overrides::ConfigOverrides::extract
 //! [`expand_universal_shorthands`]: crate::shorthands::expand_universal_shorthands
 
-use crate::{cli_args::grammar, flag_relocation::ArgTable};
+use crate::{
+    cli_args::grammar,
+    flag_relocation::{ArgTable, inline_long_option_name},
+};
 use clap::Command;
 use std::{collections::HashSet, ffi::OsString};
 
@@ -71,26 +74,20 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
     let arity = union_arity();
     let mut index = 1;
     let mut prefix_allowed = true;
-    while index < argv.len() {
-        // Non-UTF-8 cannot be classified, so treat it as the child's.
-        let Some(arg) = argv[index].to_str() else {
-            return Some(CommandBoundary { index, is_script_shortcut: false });
+    while let Some(positional) = next_positional(argv, index, arity) {
+        let Some(arg) = argv[positional].to_str() else {
+            return Some(CommandBoundary { index: positional, is_script_shortcut: false });
         };
         if arg == "--" {
             // The separator governs from here; see `passthrough_from`.
             return None;
         }
-        if let Some(width) = option_width(arg, next_token(argv, index), arity) {
-            index += width;
-            continue;
-        }
-        // A positional.
         if is_command_prefix(arg, prefix_allowed) {
             prefix_allowed = false;
-            index += 1;
+            index = positional + 1;
             continue;
         }
-        match subcommand_scan(argv, index, (command, arg), arity)? {
+        match subcommand_scan(argv, positional, (command, arg), arity)? {
             SubcommandScan::Boundary(boundary) => return Some(boundary),
             SubcommandScan::PnpmOwned => return None,
             SubcommandScan::Resume(resume_at) => {
@@ -248,6 +245,10 @@ fn next_positional(argv: &[OsString], from: usize, arity: &ArgTable) -> Option<u
     let mut index = from;
     while index < argv.len() {
         let Some(arg) = argv[index].to_str() else {
+            if inline_long_option_name(&argv[index]).is_some() {
+                index += 1;
+                continue;
+            }
             return Some(index);
         };
         if arg == "--" {

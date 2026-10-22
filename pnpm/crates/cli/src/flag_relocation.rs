@@ -31,8 +31,21 @@
 use clap::{Arg, Command};
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsString,
+    ffi::{OsStr, OsString},
 };
+
+/// The long option name before `=` in `--<name>=<value>`, even when
+/// `<value>` is not valid UTF-8. Clap splits the option name from its
+/// `OsStr` value before decoding the name, so pre-clap scans must too.
+pub(crate) fn inline_long_option_name(token: &OsStr) -> Option<&str> {
+    let rest = token.as_encoded_bytes().strip_prefix(b"--")?;
+    let eq = rest
+        .iter()
+        .position(|&byte| byte == b'=')?;
+    std::str::from_utf8(&rest[..eq])
+        .ok()
+        .filter(|name| !name.is_empty())
+}
 
 /// Where [`scan_for_positional`] stopped: at a positional token, or at
 /// the `--` terminator.
@@ -67,7 +80,14 @@ pub(crate) fn scan_for_positional(
     subcommand_union: &ArgTable,
 ) -> Option<PositionalScan> {
     loop {
-        let token = argv.get(index).and_then(|token| token.to_str())?;
+        let raw = argv.get(index)?;
+        let Some(token) = raw.to_str() else {
+            if inline_long_option_name(raw).is_some() {
+                index += 1;
+                continue;
+            }
+            return None;
+        };
         if token == "--" {
             return Some(PositionalScan::Separator(index));
         }
@@ -197,7 +217,11 @@ fn scan_pre_subcommand_token(
     top_level: &ArgTable,
     subcommand_table: &ArgTable,
 ) -> Option<ScannedToken> {
-    let token = argv.get(index)?.to_str()?;
+    let raw = argv.get(index)?;
+    let Some(token) = raw.to_str() else {
+        let name = inline_long_option_name(raw)?;
+        return Some(scan_long_option_parts(name, true, top_level, subcommand_table));
+    };
     if token == "--" {
         return None;
     }
@@ -214,6 +238,15 @@ fn scan_long_option(rest: &str, top_level: &ArgTable, subcommand_table: &ArgTabl
     let (name, has_inline_value) = rest
         .split_once('=')
         .map_or((rest, false), |(name, _)| (name, true));
+    scan_long_option_parts(name, has_inline_value, top_level, subcommand_table)
+}
+
+fn scan_long_option_parts(
+    name: &str,
+    has_inline_value: bool,
+    top_level: &ArgTable,
+    subcommand_table: &ArgTable,
+) -> ScannedToken {
     if let Some(consumes_value) = top_level.long_consumes_value(name) {
         return ScannedToken { width: token_width(consumes_value, has_inline_value), moves: false };
     }

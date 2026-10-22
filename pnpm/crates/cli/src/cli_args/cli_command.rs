@@ -119,9 +119,10 @@ pub struct CliArgs {
     #[clap(short = 'y', long, global = true)]
     pub yes: bool,
     /// Load environment variables from a dotenv-style file before running.
-    /// Repeat to layer more files: the first file naming a variable wins,
-    /// and variables already in the environment are never overridden. The
-    /// loaded variables are visible to config resolution (`PNPM_CONFIG_<KEY>`
+    /// Repeat to layer more files: later files override earlier files, and
+    /// variables already in the environment are never overridden. Relative
+    /// paths resolve against the invocation working directory. The loaded
+    /// variables are visible to config resolution (`PNPM_CONFIG_<KEY>`
     /// overrides and `${VAR}` tokens in user-level `.npmrc` files), to
     /// lifecycle scripts, and to any pnpm the command dispatches to.
     //
