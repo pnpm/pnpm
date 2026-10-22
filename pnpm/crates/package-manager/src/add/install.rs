@@ -6,9 +6,10 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, PolicyExcludes, ProjectMutation, UpdateSeedPolicy,
     included_direct_groups,
 };
+use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, ProjectSnapshot};
+use pnpm_lockfile::{Lockfile, PkgName, PkgVerPeer, ProjectSnapshot};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::PreferredVersions;
@@ -108,14 +109,16 @@ pub(super) fn seed_picked_versions(
 ) {
     let (dropped_pins, preferred) = seed;
     for PickedVersion { name, version, specifier } in picked_versions {
-        let direct = locked.direct(name);
-        let pinned_elsewhere = direct
-            .as_ref()
-            .is_some_and(|(locked, _)| locked != version);
-        let settled = match &direct {
-            Some((locked, _)) if locked != version => false,
+        let (Ok(package), Ok(semver)) = (name.parse::<PkgName>(), version.parse::<Version>())
+        else {
+            continue;
+        };
+        let direct = locked.direct(&package);
+        let pinned_elsewhere = direct.is_some_and(|(locked, _)| locked != Some(&semver));
+        let settled = match direct {
+            Some(_) if pinned_elsewhere => false,
             Some((_, locked_specifier)) if locked_specifier == specifier => true,
-            _ => locked.only_version_of(name, version),
+            _ => locked.only_version_of(&package, &semver),
         };
         if settled {
             continue;
@@ -147,28 +150,25 @@ impl<'l> LockedVersions<'l> {
 
     /// The version and specifier the importer locks `name` at as a direct
     /// dependency.
-    fn direct(&self, name: &str) -> Option<(String, &'l str)> {
+    fn direct(&self, name: &PkgName) -> Option<(Option<&'l Version>, &'l str)> {
         let (_, dependency) = self.importer?
             .dependencies_by_groups(crate::DIRECT_GROUPS)
-            .find(|(alias, _)| alias.to_string() == name)?;
-        let version = dependency.version
-            .as_regular()?
-            .version()
-            .to_string();
+            .find(|(alias, _)| *alias == name)?;
+        let version = dependency.version.as_regular().and_then(PkgVerPeer::version_semver);
         Some((version, dependency.specifier.as_str()))
     }
 
     /// Whether `version` is the one version of `name` the lockfile holds, which
     /// is then what the fast path links a new direct dependency to.
-    fn only_version_of(&self, name: &str, version: &str) -> bool {
+    fn only_version_of(&self, name: &PkgName, version: &Version) -> bool {
         let mut versions = self.lockfile
             .and_then(|lockfile| lockfile.packages.as_ref())
             .into_iter()
             .flatten()
-            .filter(|(key, _)| key.name.to_string() == name)
-            .map(|(key, _)| key.suffix.version().to_string())
+            .filter(|(key, _)| key.name == *name)
+            .map(|(key, _)| key.suffix.version_semver())
             .peekable();
-        versions.peek().is_some() && versions.all(|locked| locked == version)
+        versions.peek().is_some() && versions.all(|locked| locked == Some(version))
     }
 }
 /// What the install resolves from: the importers whose catalog pins are
