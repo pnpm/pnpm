@@ -19,13 +19,17 @@ fn raising_never_lowers_the_limit() {
 /// registry mirror sizes its descriptor pool against.
 #[test]
 fn raising_reaches_the_hard_limit() {
+    const CEILING: u64 = 1 << 20;
     let hard = current_hard_limit();
-    raise_open_file_limit(1 << 20);
+    raise_open_file_limit(CEILING);
     let soft = soft_open_file_limit().expect("the limit is readable");
-    // macOS caps the soft limit below an unlimited hard limit, so the floor
-    // the raise is held to there is the `OPEN_MAX` ceiling it falls back on.
-    let expected = if cfg!(target_os = "macos") { hard.min(10_240) } else { hard };
-    assert!(soft >= expected.min(hard), "soft {soft} did not reach {expected}");
+    let ceiling = usize::try_from(CEILING).expect("the ceiling fits in a usize");
+    // The raise stops at the lower of the hard limit and the ceiling it was
+    // asked for, and macOS caps it again below an unlimited hard limit at
+    // the `OPEN_MAX` it falls back on. A host whose hard limit is unlimited
+    // reports one far above the ceiling, so the ceiling is what it reaches.
+    let expected = if cfg!(target_os = "macos") { hard.min(10_240) } else { hard.min(ceiling) };
+    assert!(soft >= expected, "soft {soft} did not reach {expected}");
 }
 
 fn current_hard_limit() -> usize {
