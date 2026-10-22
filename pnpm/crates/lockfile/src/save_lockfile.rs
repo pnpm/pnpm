@@ -172,7 +172,7 @@ pub enum SymlinkedLockfile {
 
 /// The file a write to the lockfile at `path` replaces: `path` itself, unless
 /// it is a symlink, which `symlinked` either refuses or resolves.
-pub(crate) fn lockfile_write_target(
+pub fn lockfile_write_target(
     path: &Path,
     symlinked: SymlinkedLockfile,
 ) -> io::Result<Cow<'_, Path>> {

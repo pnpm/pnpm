@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, path::Path};
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pnpm_lockfile::{EnvLockfile, Lockfile};
+use pnpm_lockfile::{EnvLockfile, Lockfile, SymlinkedLockfile, lockfile_write_target};
 use pnpm_lockfile_import::{
     YARN_LOCKFILE_NAME, read_foreign_lockfile_versions, to_preferred_versions,
 };
@@ -40,7 +40,8 @@ impl ImportArgs {
         let state = yarn_patches::import_yarn_patches::<Reporter>(state, dir)?;
 
         let lockfile_dir = state.lockfile_dir();
-        let lockfile_path = state.lockfile_path();
+        let symlinked = state.config.symlinked_lockfile();
+        let lockfile_path = replaced_lockfile_path(&state, symlinked)?;
         let env_lockfile = if state.config.wanted_lockfile_name() == Lockfile::FILE_NAME {
             EnvLockfile::read(lockfile_dir)
                 .into_diagnostic()
@@ -55,9 +56,7 @@ impl ImportArgs {
             lockfile_path.with_extension(format!("yaml.{}.import.bak", pnpm_fs::process_id()));
         let lockfile_existed = lockfile_path.exists();
         if lockfile_existed {
-            std::fs::rename(&lockfile_path, &lockfile_backup)
-                .into_diagnostic()
-                .wrap_err("backing up existing pnpm-lock.yaml")?;
+            back_up_lockfile(&lockfile_path, &lockfile_backup, symlinked)?;
         }
         let install_result =
             import_versions::<Reporter>(&state, &lockfile_path, preferred_versions).await;
@@ -65,7 +64,7 @@ impl ImportArgs {
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {
                 env_lockfile
-                    .write(lockfile_dir, state.config.symlinked_lockfile())
+                    .write(lockfile_dir, symlinked)
                     .into_diagnostic()
                     .wrap_err("preserving the env lockfile after import")?;
             }
@@ -85,6 +84,37 @@ impl ImportArgs {
             ));
         }
     }
+}
+
+/// The file the import replaces. Moving a symlinked lockfile aside and writing
+/// a new one replaces the link with a regular file, so writing through the
+/// link replaces its target instead.
+fn replaced_lockfile_path(
+    state: &State,
+    symlinked: SymlinkedLockfile,
+) -> miette::Result<std::path::PathBuf> {
+    match symlinked {
+        SymlinkedLockfile::WriteThrough => lockfile_write_target(&state.lockfile_path(), symlinked)
+            .into_diagnostic()
+            .wrap_err("resolving the symlinked pnpm-lock.yaml")
+            .map(std::borrow::Cow::into_owned),
+        SymlinkedLockfile::Refuse => Ok(state.lockfile_path()),
+    }
+}
+
+fn back_up_lockfile(
+    lockfile_path: &Path,
+    backup_path: &Path,
+    symlinked: SymlinkedLockfile,
+) -> miette::Result<()> {
+    match symlinked {
+        // Copied, so the link still resolves for the writers that save
+        // through it during the import.
+        SymlinkedLockfile::WriteThrough => std::fs::copy(lockfile_path, backup_path).map(drop),
+        SymlinkedLockfile::Refuse => std::fs::rename(lockfile_path, backup_path),
+    }
+    .into_diagnostic()
+    .wrap_err("backing up existing pnpm-lock.yaml")
 }
 
 /// Restores the destination an import replaced. An import that started
