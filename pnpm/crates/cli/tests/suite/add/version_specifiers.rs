@@ -343,7 +343,7 @@ fn filtered_add_locks_the_picked_version_over_a_transitive_lock() {
 
 /// The direct edge already locks the picked `100.0.0`, but the add changes
 /// its specifier, which the fast lockfile update would retarget to the
-/// transitive `100.1.0`.
+/// `100.1.0` the alias locks.
 #[test]
 fn readd_with_a_new_specifier_keeps_the_picked_version() {
     let CommandTempCwd {
@@ -357,7 +357,10 @@ fn readd_with_a_new_specifier_keeps_the_picked_version() {
     std::fs::write(
         workspace.join("package.json"),
         serde_json::json!({
-            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0", (name): ">=100.0.0 <100.1.0" }
+            "dependencies": {
+                (name): ">=100.0.0 <100.1.0",
+                "newer": format!("npm:{name}@100.1.0"),
+            }
         })
         .to_string(),
     )
@@ -370,7 +373,7 @@ fn readd_with_a_new_specifier_keeps_the_picked_version() {
     assert_eq!(locked_version(&workspace, name), "100.0.0");
 
     pacquet_in(&workspace)
-        .with_args(["add", &format!("{name}@<100.1.0"), "--lockfile-only"])
+        .with_args(["add", &format!("{name}@<100.1.0")])
         .assert()
         .success();
 
