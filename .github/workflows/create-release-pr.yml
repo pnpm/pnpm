@@ -131,6 +131,14 @@ jobs:
       if: steps.changes.outputs.changed == 'true'
       run: echo "version=$(node -p "require('./pnpm/package.json').version")" >> "$GITHUB_OUTPUT"
 
+    # The push runs the pre-push hook, whose type-aware lint rules read each
+    # workspace package's compiled declarations. Without them, types from
+    # other packages are `any` and the lint fails where CI, which compiles
+    # first, passes.
+    - name: Compile
+      if: steps.changes.outputs.changed == 'true'
+      run: pnpm run compile-only
+
     - name: Commit and push
       if: steps.changes.outputs.changed == 'true'
       env:
