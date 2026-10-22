@@ -469,7 +469,7 @@ pnpm normalizes `https://registry.npmjs.com/` to `https://registry.npmjs.org/`. 
 
 For URL-scoped environment credentials, an explicit `registry.npmjs.org` entry takes precedence over a `registry.npmjs.com` entry.
 
-This setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml`. See [where the setting may live](../registries.md#where-the-setting-may-live).
+This setting may also be defined in the [global configuration file](../configuring.md#global-configuration) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml`. See [where the setting may live](../registries.md#where-the-setting-may-live).
 
 ### namedRegistries
 
@@ -494,7 +494,7 @@ namedRegistries:
 
 Authentication is picked up from the existing per-URL `.npmrc` entries (e.g. `//npm.pkg.github.com/:_authToken=...`), so no separate auth mechanism is required.
 
-This setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), so an alias like `work:` can be shared across every project on the machine.
+This setting may also be defined in the [global configuration file](../configuring.md#global-configuration) (`config.yaml`), so an alias like `work:` can be shared across every project on the machine.
 
 #### Built-in aliases
 

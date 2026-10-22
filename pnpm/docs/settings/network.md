@@ -24,7 +24,7 @@ httpsProxy: "https://use%21r:pas%2As@my.proxy:1234/foo"
 
 Do not encode the colon (`:`) between the username and password.
 
-An empty value reads as unset, so a shell that exports `HTTPS_PROXY=` disables the proxy. Setting the value to `false` or `null` in `pnpm-workspace.yaml` or the `.npmrc` also turns proxying off. On the command line, `false` and `null` are ordinary host names, since a flag carries its value verbatim.
+An empty value reads as unset, so a shell that exports `HTTPS_PROXY=` disables the proxy. A `false` or `null` value in `pnpm-workspace.yaml` or the `.npmrc` also reads as unset, so pnpm still falls back to `proxy` and the environment. To turn proxying off, set `proxy` to `false`. On the command line, `false` and `null` are ordinary host names, since a flag carries its value verbatim.
 
 ### httpProxy
 

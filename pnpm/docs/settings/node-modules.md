@@ -340,7 +340,7 @@ Global installs (`pnpm add -g`) use the global virtual store by default. `pnpm d
 
 :::
 
-When enabled, `node_modules` contains only symlinks to a central virtual store, rather than to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (use `pnpm store path` to find `<store-path>`). Set [`globalVirtualStoreDir`](#globalvirtualstoredir) or [`virtualStoreDir`](#virtualstoredir) to place it elsewhere.
+When enabled with `nodeLinker: isolated`, `node_modules` contains only symlinks to a central virtual store, rather than to `node_modules/.pnpm`. By default, this central store is located at `<store-path>/links` (use `pnpm store path` to find `<store-path>`). Set [`globalVirtualStoreDir`](#globalvirtualstoredir) or [`virtualStoreDir`](#virtualstoredir) to place it elsewhere.
 
 In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. As a result, all projects on the system can symlink their dependencies from this shared location on disk. This approach is conceptually similar to how [NixOS manages packages], using dependency graph hashes to create isolated and shareable package directories in the Nix store.
 
