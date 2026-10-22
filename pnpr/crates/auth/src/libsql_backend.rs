@@ -19,10 +19,12 @@
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
 mod connector;
+mod pool;
 mod schema;
 mod tokens;
 mod user_admin;
 use connector::{LibsqlConnector, is_plain_http};
+use pool::ConnectionPool;
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
@@ -51,12 +53,10 @@ const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 /// generous than [`DEFAULT_AUTH_TIMEOUT`] for cold remote DDL.
 const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 
-/// Networked-SQLite auth backend. One [`Connection`] serves both record
-/// stores; the [`Database`] handle is held only to keep the connection
-/// alive.
+/// Networked-SQLite auth backend. Both record stores run their operations
+/// on one [`ConnectionPool`].
 pub struct LibsqlAuth {
-    _db: Database,
-    conn: Connection,
+    pool: ConnectionPool,
     /// Per-process secret seeding [`crate::token_store::mint_token`]. Need not match other
     /// replicas: tokens are looked up by their stored hash, never
     /// re-derived, so each replica minting with its own secret is safe.
@@ -117,7 +117,9 @@ impl LibsqlAuth {
             )
             .await?
         };
-        Self::from_database(db, max_users).await
+        let max_connections =
+            settings.max_connections.unwrap_or(LibsqlSettings::DEFAULT_MAX_CONNECTIONS);
+        Self::from_database(db, max_users, max_connections).await
     }
 
     /// Open the embedded replica at `path`, creating its directory the way
@@ -153,12 +155,15 @@ impl LibsqlAuth {
 
     /// Build the backend from an already-open [`Database`]. Shared by
     /// [`Self::connect`] and the local-database test setup.
-    async fn from_database(db: Database, max_users: MaxUsers) -> Result<Self> {
-        let conn = db.connect()?;
-        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&conn)).await?;
+    async fn from_database(
+        db: Database,
+        max_users: MaxUsers,
+        max_connections: u32,
+    ) -> Result<Self> {
+        let pool = ConnectionPool::new(db, max_connections as usize);
+        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&pool.connect()?)).await?;
         Ok(Self {
-            _db: db,
-            conn,
+            pool,
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
@@ -170,39 +175,48 @@ impl LibsqlAuth {
     /// The bcrypt hash stored for `username`, or `None` when no such
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(
-                "SELECT bcrypt_hash FROM users WHERE username = ?1",
-                params![username],
-            )
-            .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
-        })
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                let mut rows = conn.query(
+                    "SELECT bcrypt_hash FROM users WHERE username = ?1",
+                    params![username],
+                )
+                .await?;
+                match rows.next().await? {
+                    Some(row) => Ok(Some(row.get::<String>(0)?)),
+                    None => Ok(None),
+                }
+            }),
+        )
         .await
     }
 
     /// Current number of registered users — read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
-            let Some(row) = rows.next().await? else {
-                return Err(missing_count_row());
-            };
-            let count: i64 = row.get(0)?;
-            Ok(count.max(0) as u64)
-        })
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+                let Some(row) = rows.next().await? else {
+                    return Err(missing_count_row());
+                };
+                let count: i64 = row.get(0)?;
+                Ok(count.max(0) as u64)
+            }),
+        )
         .await
     }
 
     async fn check_db_readiness(&self) -> Result<()> {
-        with_auth_timeout::<_, LibsqlError>(self.timeout, async {
-            self.conn.query("SELECT 1;", ()).await?;
-            Ok(())
-        })
+        with_auth_timeout::<_, LibsqlError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                conn.query("SELECT 1;", ()).await?;
+                Ok(())
+            }),
+        )
         .await
     }
 }
@@ -296,17 +310,23 @@ impl LibsqlAuth {
         password: &str,
         hash: &str,
     ) -> Result<(UpsertOutcome, String)> {
-        let inserted = self.conn.execute(
-            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-            params![username, hash],
-        )
-        .await;
-        match inserted {
-            Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
-            Err(err) if is_unique_violation(&err) => {
-                self.login_after_lost_insert(username, password).await
+        let inserted = self.pool.run(|conn| async move {
+            let inserted = conn.execute(
+                "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                params![username, hash],
+            )
+            .await;
+            match inserted {
+                Ok(_) => Ok(Insert::Created),
+                Err(err) if is_unique_violation(&err) => Ok(Insert::NameTaken),
+                Err(err) => Err(RegistryError::from(err)),
             }
-            Err(err) => Err(err.into()),
+        })
+        .await?;
+        match inserted {
+            Insert::Created => Ok((UpsertOutcome::Created, username.to_string())),
+            Insert::NameTaken => self.login_after_lost_insert(username, password).await,
+            Insert::CapFull => unreachable!("an uncapped insert has no cap"),
         }
     }
 
@@ -320,16 +340,28 @@ impl LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let mut can_retry_after_reconcile = true;
         loop {
-            let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-            // The counter can overcount after an interrupted write; reconcile it
-            // once before believing the cap is full.
-            let Some(tx) = self.claim_cap_slot(tx).await? else {
-                if std::mem::take(&mut can_retry_after_reconcile)
-                    && reconcile_user_counter_overcount(&self.conn).await?
-                {
-                    continue;
+            match self.try_capped_insert(username, hash).await? {
+                Insert::Created => return Ok((UpsertOutcome::Created, username.to_string())),
+                Insert::NameTaken => return self.login_after_lost_insert(username, password).await,
+                // The counter can overcount after an interrupted write; reconcile it
+                // once before believing the cap is full.
+                Insert::CapFull => {
+                    if !std::mem::take(&mut can_retry_after_reconcile)
+                        || !self.reconcile_user_counter().await?
+                    {
+                        return self.reject_over_cap(username, password).await;
+                    }
                 }
-                return self.reject_over_cap(username, password).await;
+            }
+        }
+    }
+
+    /// One transaction that claims a counter slot and inserts the user.
+    async fn try_capped_insert(&self, username: &str, hash: &str) -> Result<Insert> {
+        self.pool.run(|conn| async move {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
+            let Some(tx) = self.claim_cap_slot(tx).await? else {
+                return Ok(Insert::CapFull);
             };
             let inserted = tx.execute(
                 "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
@@ -339,15 +371,21 @@ impl LibsqlAuth {
             match inserted {
                 Ok(_) => {
                     tx.commit().await?;
-                    return Ok((UpsertOutcome::Created, username.to_string()));
+                    Ok(Insert::Created)
                 }
                 Err(err) if is_unique_violation(&err) => {
                     tx.rollback().await?;
-                    return self.login_after_lost_insert(username, password).await;
+                    Ok(Insert::NameTaken)
                 }
-                Err(err) => return Err(err.into()),
+                Err(err) => Err(RegistryError::from(err)),
             }
-        }
+        })
+        .await
+    }
+
+    /// Correct a counter that overcounts, reporting whether it did.
+    async fn reconcile_user_counter(&self) -> Result<bool> {
+        self.pool.run(|conn| async move { reconcile_user_counter_overcount(&conn).await }).await
     }
 
     /// Claim a counter slot in `tx`. The transaction comes back when a slot
@@ -403,14 +441,25 @@ impl LibsqlAuth {
             verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
         if is_sha_hash(&stored) {
             let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-            self.conn.execute(
-                "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
-                params![new_hash, username, stored],
-            )
+            self.pool.run(|conn| async move {
+                conn.execute(
+                    "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
+                    params![new_hash, username, stored],
+                )
+                .await
+            })
             .await?;
         }
         Ok((outcome, user))
     }
+}
+
+/// How a registration's insert ended, decided on its connection and acted on
+/// after the connection is returned.
+enum Insert {
+    Created,
+    NameTaken,
+    CapFull,
 }
 
 #[cfg(test)]

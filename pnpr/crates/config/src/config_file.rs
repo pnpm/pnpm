@@ -420,6 +420,8 @@ pub(super) struct LibsqlFile {
         alias = "sync_interval_secs"
     )]
     pub(super) sync_interval: Option<Interval>,
+    #[serde(default, rename = "maxConnections", alias = "max_connections")]
+    pub(super) max_connections: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]

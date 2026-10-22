@@ -42,11 +42,124 @@ impl TokenBackend for LibsqlAuth {
             scopes: new_token.scopes,
             kind: new_token.kind,
         };
+        self.insert_token(token_hash, &record).await?;
+        Ok((raw, record))
+    }
+
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
+        Ok(raw)
+    }
+
+    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+        let sql_now = token_timestamp_to_sql(now);
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                conn.execute(
+                    "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
+                    params![sql_now, key],
+                )
+                .await?;
+                Ok(())
+            }),
+        )
+        .await
+    }
+
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let now = unix_seconds();
+        with_auth_timeout::<_, RegistryError>(self.timeout, self.pool.run(|conn| async move {
+            let mut rows = conn
+                .query(
+                    "SELECT t.username, t.expires_at FROM tokens t JOIN users u ON u.username = t.username
+                     WHERE t.token_hash = ?1",
+                    params![token_hash],
+                )
+                .await?;
+            match rows.next().await? {
+                Some(row) => unexpired_owner(&row, now),
+                None => Ok(None),
+            }
+        }))
+        .await
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let query = format!(
+            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username
+             WHERE t.token_hash = ?1",
+        );
+        let now = unix_seconds();
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                let mut rows = conn.query(&query, params![token_hash]).await?;
+                match rows.next().await? {
+                    Some(row) => Ok(unexpired(row_to_keyed_record(&row)?.1, now)),
+                    None => Ok(None),
+                }
+            }),
+        )
+        .await
+    }
+
+    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                let mut rows = conn.query(&query, params![key]).await?;
+                match rows.next().await? {
+                    Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+                    None => Ok(None),
+                }
+            }),
+        )
+        .await
+    }
+
+    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                let mut rows = conn.query(&query, params![username]).await?;
+                let mut out = Vec::new();
+                while let Some(row) = rows.next().await? {
+                    out.push(row_to_keyed_record(&row)?);
+                }
+                Ok(out)
+            }),
+        )
+        .await
+    }
+
+    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
+        let Some(record) = self.find_by_key(key).await? else {
+            return Ok(None);
+        };
+        self.pool.run(|conn| async move {
+            conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await
+        })
+        .await?;
+        Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
+    }
+}
+
+impl LibsqlAuth {
+    async fn insert_token(&self, token_hash: String, record: &TokenRecord) -> Result<()> {
         let cidr_json = serde_json::to_string(&record.cidr_whitelist)
             .expect("Vec<String> always serializes to JSON");
         let scopes_json = token_scopes_to_sql(record.scopes.as_deref());
-        self.conn
-            .execute(
+        self.pool.run(|conn| async move {
+            conn.execute(
                 "INSERT INTO tokens
                      (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist, name, expires_at, scopes, kind)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -63,116 +176,28 @@ impl TokenBackend for LibsqlAuth {
                     record.kind.as_deref(),
                 ],
             )
-            .await?;
-        Ok((raw, record))
-    }
-
-    async fn issue(&self, username: &str) -> Result<String> {
-        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
-        Ok(raw)
-    }
-
-    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
-        let sql_now = token_timestamp_to_sql(now);
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            self.conn.execute(
-                "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
-                params![sql_now, key],
-            )
-            .await?;
-            Ok(())
+            .await
         })
-        .await
+        .await?;
+        Ok(())
     }
+}
 
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds();
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self
-                .conn
-                .query(
-                    "SELECT t.username, t.expires_at FROM tokens t JOIN users u ON u.username = t.username
-                     WHERE t.token_hash = ?1",
-                    params![token_hash],
-                )
-                .await?;
-            match rows.next().await? {
-                Some(row) => {
-                    let username: String = row.get(0)?;
-                    let expires_at: Option<i64> = row.get(1)?;
-                    if expires_at.map(token_timestamp_from_sql).is_some_and(|exp| exp <= now) {
-                        Ok(None)
-                    } else {
-                        Ok(Some(username))
-                    }
-                }
-                None => Ok(None),
-            }
-        })
-        .await
-    }
+/// The owner of a token row selecting `username, expires_at`, unless the token
+/// expired by `now`.
+fn unexpired_owner(row: &Row, now: u64) -> Result<Option<String>> {
+    let username: String = row.get(0)?;
+    let expires_at: Option<i64> = row.get(1)?;
+    let expired = expires_at
+        .map(token_timestamp_from_sql)
+        .is_some_and(|exp| exp <= now);
+    Ok((!expired).then_some(username))
+}
 
-    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        let query = format!(
-            "SELECT {OWNED_TOKEN_COLUMNS} FROM tokens t JOIN users u ON u.username = t.username
-             WHERE t.token_hash = ?1",
-        );
-        let now = unix_seconds();
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![token_hash]).await?;
-            match rows.next().await? {
-                Some(row) => {
-                    let record = row_to_keyed_record(&row)?.1;
-                    if record.expires_at.is_some_and(|exp| exp <= now) {
-                        Ok(None)
-                    } else {
-                        Ok(Some(record))
-                    }
-                }
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![key]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![username]).await?;
-            let mut out = Vec::new();
-            while let Some(row) = rows.next().await? {
-                out.push(row_to_keyed_record(&row)?);
-            }
-            Ok(out)
-        })
-        .await
-    }
-
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = self.find_by_key(key).await? else {
-            return Ok(None);
-        };
-        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
-        Ok(Some(record))
-    }
-
-    async fn check_readiness(&self) -> Result<()> {
-        self.check_db_readiness().await
-    }
+/// `record`, unless it expired by `now`.
+fn unexpired(record: TokenRecord, now: u64) -> Option<TokenRecord> {
+    let expired = record.expires_at.is_some_and(|exp| exp <= now);
+    (!expired).then_some(record)
 }
 
 /// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
