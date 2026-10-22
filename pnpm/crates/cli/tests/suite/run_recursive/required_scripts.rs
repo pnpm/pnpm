@@ -84,19 +84,13 @@ fn recursive_run_lists_a_nameless_project_by_its_directory() {
         .chars()
         .filter(|char| !char.is_whitespace() && *char != '│')
         .collect();
-    let nameless_dir = workspace.join("nameless");
-    let canonical_dir = fs::canonicalize(&nameless_dir).expect("canonicalize the project dir");
-    let listed = [nameless_dir, canonical_dir]
-        .iter()
-        .any(|dir| {
-            let dir: String = dir
-                .display()
-                .to_string()
-                .chars()
-                .filter(|char| !char.is_whitespace())
-                .collect();
-            unwrapped.contains(&dir)
-        });
+    // The message spells the temp dir as the OS prints it (on Windows a
+    // long or verbatim form of the same path), so match its last components.
+    let nameless_suffix = Path::new("workspace")
+        .join("nameless")
+        .display()
+        .to_string();
+    let listed = unwrapped.contains(&nameless_suffix);
     assert!(listed, "the nameless project should be listed by its directory, got: {stderr}");
     assert!(unwrapped.contains("project-1"), "project-1 should be listed too, got: {stderr}");
 
