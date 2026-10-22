@@ -608,8 +608,10 @@ pub fn write_marker_script(relative_path: &str) -> String {
 const MARKER_DEADLINE: Duration = Duration::from_mins(2);
 
 /// A package script that waits for `relative_path` to appear, paired with
-/// the [`write_marker_script`] of whichever project it waits on. One pair
-/// proves two scripts overlapped; two pairs prove an ordering.
+/// the [`write_marker_script`] of whichever project it waits on.
+///
+/// The marker outlives its writer, so one wait shows an ordering. Overlap
+/// takes a reciprocal pair, each waiting for the other.
 #[must_use]
 pub fn wait_for_marker_script(relative_path: &str) -> String {
     let deadline = MARKER_DEADLINE.as_millis();
