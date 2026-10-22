@@ -1,5 +1,6 @@
 use super::{EXEC_MASK, EXEC_MODE, cas_path_is_executable, is_cas_file_path, is_executable};
 use std::path::Path;
+#[cfg(target_os = "linux")]
 use text_block_macros::text_block_fnl;
 
 #[test]
