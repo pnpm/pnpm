@@ -29,7 +29,8 @@ The hosted store has the same layout on disk and in a bucket:
 
 A hosted registry declared under an
 [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems) without an
-`org` is stored under `orgs/<ecosystem>~<name>/`.
+`org` uses the org `<ecosystem>~<name>`, stored as `orgs/<ecosystem>!7e<name>/`,
+for example `orgs/npm!7einternal/`.
 
 Every package name, org and file name is one path segment. Lowercase
 letters, digits, `.`, `_` and `-` are kept, and every other byte is written
@@ -84,7 +85,7 @@ s3:
 | `prefix` | no | Key prefix every object is stored under. |
 | `accessKeyId` | no | Access key. Falls back to `AWS_ACCESS_KEY_ID` when unset. |
 | `secretAccessKey` | no | Secret key. Falls back to `AWS_SECRET_ACCESS_KEY` when unset. |
-| `forcePathStyle` | no | Use path-style addressing (`endpoint/bucket/key`) instead of virtual-hosted (`bucket.endpoint/key`). Defaults to `false`. MinIO typically needs `true`; AWS and R2 work with the default. |
+| `forcePathStyle` | no | Boolean. `true` uses path-style addressing (`endpoint/bucket/key`), and `false` uses virtual-hosted addressing (`bucket.endpoint/key`). When omitted, pnpr uses path-style addressing, which AWS, R2, and MinIO accept. |
 | `allowHttp` | no | Boolean. Allow plain-HTTP endpoints, needed for a local MinIO over `http://`. Defaults to `false` (HTTPS only). |
 
 ## Concurrent writers {#concurrent-writers}
@@ -168,7 +169,7 @@ fetch tarballs back through this server rather than the upstream.
 
 ## A local MinIO over plain HTTP
 
-MinIO over `http://` needs `forcePathStyle` and `allowHttp`:
+MinIO over `http://` needs `allowHttp`:
 
 ```yaml title="pnpr.yaml"
 s3:

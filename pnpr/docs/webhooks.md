@@ -39,6 +39,10 @@ When configured with `log.format: json`, pnpr outputs each audit event as a sing
     "tag": "latest",
     "version": "1.2.0",
     "registry": "local",
+    "message": "package dist-tag set"
+  },
+  "span": {
+    "name": "request",
     "request_id": "c8a14b09-1a73-42e1-95be-726ff342f534",
     "client_ip": "192.168.1.50"
   }

@@ -50,7 +50,8 @@ pnpr -c ./pnpr.yaml
 Relative paths in the config, such as `storage`, `cache`,
 `auth.htpasswd.file`, `auth.tokens.file`, `osv.path`, and `ui.dir`, resolve
 against the config file's directory. For the bundled config, they resolve
-against the working directory.
+against the working directory. With `--storage`, the bundled config keeps
+`htpasswd` and `tokens.db` in the storage directory.
 
 ## `storage` and `cache`
 

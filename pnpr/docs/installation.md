@@ -36,8 +36,13 @@ docker run -p 7677:7677 -v pnpr-storage:/pnpr/storage ghcr.io/pnpm/pnpr:<version
   command, `serve --listen 0.0.0.0:7677 --storage /pnpr/storage --cache /pnpr/cache`.
 - `/pnpr/storage` and `/pnpr/cache` are volumes. Only `/pnpr/storage` holds
   data that must survive.
-- The working directory is `/pnpr`, so relative paths in the bundled config
-  resolve there.
+- The default command passes `--storage /pnpr/storage`, so the bundled config
+  keeps `htpasswd` and `tokens.db` in that volume. Pass the same flag when you
+  replace the command, for example to create an account:
+
+  ```sh
+  docker run --rm -it -v pnpr-storage:/pnpr/storage ghcr.io/pnpm/pnpr:<version> add-user alice --storage /pnpr/storage
+  ```
 - The server runs as the non-root `pnpr` user.
 
 ## Verify the installation
