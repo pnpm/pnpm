@@ -10,18 +10,17 @@
 /// Evidence that no thread but the main one exists yet.
 ///
 /// Claim it at the top of `main`, before a runtime, a thread pool, or
-/// anything else that spawns, and spend it on the change the process
-/// needs.
+/// anything else that spawns, and carry it to each change the process
+/// makes during startup.
 ///
-/// What the type carries: it is neither `Send` nor `Sync`, so it cannot
-/// reach a spawned thread, and [`Self::set_var`] takes it by value, so it
-/// is spent at the first call and cannot be kept for a second one. What it
-/// cannot carry is that the claiming thread has spawned nothing between
-/// the claim and the call, because no value can observe that. Keeping the
-/// two adjacent is the caller's part, and moving the witness into the call
-/// makes every later use a compile error.
+/// What the type carries: [`Self::claim`] hands out one per process, and
+/// the type is `Send` but not `Sync`, so the witness travels the startup
+/// path by move and one thread holds it at a time. What it cannot carry is
+/// that the holder has spawned nothing since the claim, because no value
+/// can observe that. Keeping the claim and the changes adjacent is the
+/// caller's part.
 #[must_use = "the witness is the proof that the environment may be changed"]
-pub struct SingleThreaded(std::marker::PhantomData<*const ()>);
+pub struct SingleThreaded(std::marker::PhantomData<std::cell::Cell<()>>);
 
 impl SingleThreaded {
     /// Claim the witness, which only the first caller gets.
@@ -43,14 +42,10 @@ impl SingleThreaded {
 
     /// Set `name` to `value` in the process environment, where every later
     /// read of it will see the new value, this process's children included.
-    ///
-    /// Takes the witness by value, so a process makes one such change and
-    /// cannot hold the proof for a second one after it has spawned.
-    pub fn set_var(self, name: &str, value: &str) {
+    pub fn set_var(&self, name: &str, value: &str) {
         // SAFETY: the race `setenv` has is a concurrent read from another
-        // thread. The witness is neither `Send` nor `Sync`, so this runs on
-        // the thread that claimed it, and the claim is the first in the
-        // process; that the caller spends it before spawning is the
+        // thread. One witness exists and it is not `Sync`, so this runs on
+        // the thread holding it; that nothing else is running yet is the
         // obligation `SingleThreaded` documents.
         unsafe { std::env::set_var(name, value) };
     }

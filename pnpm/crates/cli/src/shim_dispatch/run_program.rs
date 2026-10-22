@@ -2,12 +2,92 @@
 //! with it, or, for a program that runs from a private install, in a
 //! child this process waits for.
 
+use super::{
+    ShimInvocation, ShimTarget,
+    rust_toolchain::{RUST_SHIM_PACKAGE, run_next_on_path},
+};
 use crate::process::Command;
+use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
 use pnpm_store_dir::PrivateInstall;
 use std::{
     ffi::{OsStr, OsString},
     path::{Path, PathBuf},
 };
+
+/// Run the global target the way a direct cmd-shim would: a script runs
+/// under the interpreter its shebang names, taken from the bin dir when a
+/// sibling of that name is installed there (so a global tool runs on the
+/// global `node` shim) and from `PATH` otherwise; anything else executes
+/// as it is. A target-less shim has nothing to run and says so.
+pub(super) fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
+    let target = match shim.target {
+        ShimTarget::Installed(target) => target,
+        // The Rust shims stand in front of the toolchains on `PATH`, so
+        // switched off they give way to those.
+        ShimTarget::Virtual(package) if package == RUST_SHIM_PACKAGE => {
+            return run_next_on_path(shim, args);
+        }
+        ShimTarget::Virtual(package) => {
+            pnpm_diagnostics::eprintln!(
+                r#"ERR_PNPM_SHIM_NO_TARGET  Nothing provides {} in this project. Add {package} to it, or pin it with "packageManager" in package.json."#,
+                shim.name,
+            );
+            return 1;
+        }
+    };
+    match search_script_runtime::<CmdShimHost>(target) {
+        // `.cmd` and `.bat` targets go to `Command::new` directly (see
+        // `exec_program_with_path`) rather than through an explicit `cmd`.
+        Ok(Some(ScriptRuntime {
+            prog: Some(prog),
+            args: shebang_args,
+        })) if prog != "cmd" => {
+            let mut argv = split_shebang_args(&shebang_args);
+            argv.push(target.into());
+            argv.extend_from_slice(args);
+            exec_program(&interpreter_path(shim.bin_dir, &prog), &argv)
+        }
+        Ok(_) => exec_program(target, args),
+        Err(error) => {
+            pnpm_diagnostics::eprintln!("pnpm: failed to read {}: {error}", target.display());
+            126
+        }
+    }
+}
+
+/// Where the shebang's interpreter comes from: the bin dir's own entry
+/// when there is one, else the bare name for a `PATH` lookup. An absolute
+/// interpreter path joins to itself.
+fn interpreter_path(bin_dir: &Path, prog: &str) -> PathBuf {
+    let sibling = bin_dir.join(prog);
+    if sibling.is_file() {
+        return sibling;
+    }
+    if cfg!(windows) {
+        let sibling = bin_dir.join(format!("{prog}.exe"));
+        if sibling.is_file() {
+            return sibling;
+        }
+    }
+    PathBuf::from(prog)
+}
+
+/// The interpreter arguments a shebang carries, split the way the shell
+/// running a cmd-shim would split them. A line the shell could not parse
+/// (an unbalanced quote) falls back to whitespace splitting.
+fn split_shebang_args(shebang_args: &str) -> Vec<OsString> {
+    let words = shell_words::split(shebang_args)
+        .unwrap_or_else(|_| {
+            shebang_args
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
+        });
+    words
+        .into_iter()
+        .map(OsString::from)
+        .collect()
+}
 
 /// Run `program` with `bin_dirs` prepended to `PATH`. A JavaScript
 /// package manager needs the Node.js it was provisioned with to be

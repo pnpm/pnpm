@@ -18,6 +18,7 @@ const READ_AFTER_THE_SWITCH: &[&str] = &[
     "aggregate_output",
     "bail",
     "changed_files_ignore_pattern",
+    "env_file",
     "fail_if_no_match",
     "filter",
     "filter_prod",

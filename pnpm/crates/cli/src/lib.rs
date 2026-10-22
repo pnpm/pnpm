@@ -32,6 +32,7 @@ mod dialoguer_wasm;
 mod ecosystem_add;
 mod ecosystem_install;
 mod engine_pm;
+mod env_file;
 mod executable_link;
 mod fatal_error;
 mod flag_relocation;
@@ -62,6 +63,10 @@ use pnpm_package_manager::configure_rayon_pool;
 use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
+// Carrying the command behind the closure below hides its side effects
+// from `clippy::must_use_candidate`, which then wants this attribute.
+// It is correct anyway: dropping the code would always exit 0.
+#[must_use]
 pub fn main() -> ExitCode {
     #[cfg(target_family = "wasm")]
     if let Err(error) = initialize_wasm_paths() {
@@ -72,10 +77,32 @@ pub fn main() -> ExitCode {
     // reaches a console that understands it; see `virtual_terminal`.
     virtual_terminal::enable();
     stdio_inheritance::disable();
-    enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
-    let result = run_on_big_stack(run_cli);
+    // The launch verdict is resolved once and carried into the command:
+    // re-reading the shim sidecar later could observe a concurrent shim
+    // install or removal and disagree with the gate below (see
+    // `shim_dispatch::ShimLaunch`).
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    let launch = shim_dispatch::ShimLaunch::detect(&argv);
+    let argv = if launch.is_shim() { argv } else { argv_with_alias_subcommand(argv) };
+    // Claimed here, before anything spawns, because the startup path has
+    // to change the environment and only a single-threaded process may.
+    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
+        .expect("the CLI claims the single-threaded witness once, at startup");
+    // Load `--env-file` variables here, before the startup thread below
+    // exists (see `env_file`). A shim launch is exempt: its arguments
+    // belong to the shim target and travel there untouched.
+    if !launch.is_shim()
+        && let Err(error) = env_file::load_from_argv(&argv, &single_threaded)
+    {
+        report_fatal_error(&error);
+        return ExitCode::FAILURE;
+    }
+    // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
+    // define, so it starts only after the load.
+    enable_tracing_by_env();
+    let result = run_on_big_stack(|| run_cli(&launch, &argv, single_threaded));
     match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -142,34 +169,37 @@ fn is_reported_error(error: &miette::Report) -> bool {
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
-fn run_cli() -> miette::Result<()> {
-    // Claimed here, before anything spawns, because `with current` has to
-    // change the environment and only a single-threaded process may.
-    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
-        .expect("the CLI claims the single-threaded witness once, at startup");
-    let argv: Vec<OsString> = std::env::args_os().collect();
+fn run_cli(
+    launch: &shim_dispatch::ShimLaunch,
+    argv: &[OsString],
+    single_threaded: pnpm_ffi_process::SingleThreaded,
+) -> miette::Result<()> {
+    let argv = argv.to_vec();
     // A context-aware global shim is this executable launched under the
     // shim's name, so dispatch runs on the raw argv before any rewriting
     // or clap machinery below: a shim named like an alias must not have
     // the alias subcommand injected into the arguments it forwards.
-    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv) {
+    if let Some(exit_code) = launch.dispatch(&argv) {
         #[expect(
             clippy::exit,
             reason = "the shim dispatcher propagates the dispatched command's exit status"
         )]
         std::process::exit(exit_code);
     }
-    let argv_with_alias = argv_with_alias_subcommand(argv);
-    let child_argv = argv_with_alias
-        .iter()
+    // `--env-file` is this binary's own option: an older pnpm a command
+    // dispatches to would reject the unknown flag, so it never reaches the
+    // child — the variables it names travel by environment inheritance
+    // instead (see `env_file`). The strip keeps the program name in place
+    // so the passthrough boundary still computes.
+    let child_argv = env_file::strip_flags(&argv)
+        .into_iter()
         .skip(1)
-        .cloned()
         .collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps
     // it, since a dispatched pnpm has to force the built-in too. See
     // `pm_prefix`.
-    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
+    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // A version spec (`pnpm with 10 <cmd>`) is left for the `with`
     // subcommand to handle.

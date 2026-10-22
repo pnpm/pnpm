@@ -29,10 +29,14 @@ pub struct MissingWithCurrentCommand;
 /// `pmOnFail=ignore` for the in-process run (and its children) via the
 /// `pnpm_config_pm_on_fail` env var.
 ///
-/// `single_threaded` is what permits that environment change, and so what
-/// pins this call to the stretch of `main` before any thread starts. It is
-/// taken by value, so the caller cannot reach for it again once a runtime
-/// or a pool is up.
+/// `single_threaded` is what permits that environment change, and taking
+/// it by value makes this the last one the startup path can make: the
+/// caller cannot reach for the witness again once a runtime or a pool is
+/// up.
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "dropping the witness here is what ends the startup path's licence to change the environment"
+)]
 pub fn rewrite(
     argv: Vec<OsString>,
     single_threaded: pnpm_ffi_process::SingleThreaded,
