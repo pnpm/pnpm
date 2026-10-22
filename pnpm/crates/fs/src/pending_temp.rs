@@ -53,10 +53,7 @@ const SIGNALS: [libc::c_int; 3] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP];
 static PREVIOUS: [AtomicUsize; SIGNALS.len()] = [const { AtomicUsize::new(0) }; SIGNALS.len()];
 
 /// Whether the matching [`PREVIOUS`] entry was installed with `SA_SIGINFO`,
-/// and so takes three arguments rather than one. The union `sigaction`
-/// stores the two forms in does not say which it holds, and calling one
-/// through the other's signature is undefined, so the flag is read
-/// alongside the pointer and kept with it.
+/// and so takes three arguments rather than one.
 #[cfg(unix)]
 static PREVIOUS_TAKES_SIGINFO: [AtomicBool; SIGNALS.len()] =
     [const { AtomicBool::new(false) }; SIGNALS.len()];
