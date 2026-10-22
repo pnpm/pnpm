@@ -39,6 +39,7 @@ pub enum FetcherMethod {
     TempDir,
     LocalTarball,
     RemoteTarball,
+    Directory,
 }
 
 pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
