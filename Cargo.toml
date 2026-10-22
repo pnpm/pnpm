@@ -176,7 +176,7 @@ icu_provider = { version = "2.2.0" }
 indexmap = { version = "2.14.0", features = ["serde"] }
 insta = { version = "1.47.2", features = ["yaml", "glob", "walkdir"] }
 itertools = { version = "0.15.0" }
-libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication"] }
+libsql = { version = "0.9.30", default-features = false, features = ["core", "remote", "replication", "sync"] }
 futures-util = { version = "0.3.32" }
 flate2 = { version = "1.1.9", default-features = false, features = ["zlib-rs"] }
 gethostname = { version = "1" }

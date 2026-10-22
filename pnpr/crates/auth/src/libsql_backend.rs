@@ -41,7 +41,7 @@ use libsql::{
 use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use std::{sync::atomic::AtomicU64, time::Duration};
+use std::{path::Path, sync::atomic::AtomicU64, time::Duration};
 
 /// Deadline for request-path auth reads, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -83,9 +83,14 @@ impl LibsqlAuth {
     /// With `replicaPath` set, the database is an embedded replica: an
     /// initial sync runs at build time and libsql keeps it current in
     /// the background (every `syncIntervalSecs`), so reads hit the local
-    /// file. Without it, every read is a remote query against the
-    /// primary — always fresh, but a network round-trip on the auth hot
-    /// path.
+    /// file. libsql probes the primary for its newer sync protocol, the
+    /// only one Turso Cloud serves, and falls back to the replication
+    /// protocol of a self-hosted `sqld`. The initial sync is awaited
+    /// under [`DEFAULT_STARTUP_TIMEOUT`] on either protocol. Opening a
+    /// connection over the newer one blocks in place, so the caller must
+    /// run on tokio's multi-thread runtime. Without `replicaPath`, every
+    /// read is a remote query against the primary — always fresh, but a
+    /// network round-trip on the auth hot path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
         if settings.auth_token.is_some()
             && is_plain_http(&settings.url)
@@ -98,33 +103,52 @@ impl LibsqlAuth {
             });
         }
         let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
-        let auth_token = settings.auth_token.clone().unwrap_or_default();
-        let db = match &settings.replica_path {
-            Some(path) => {
-                let mut builder =
-                    Builder::new_remote_replica(path, settings.url.clone(), auth_token)
-                        .connector(connector);
-                let interval = settings.sync_interval_secs.unwrap_or(
-                    LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS,
-                );
-                if interval > 0 {
-                    builder = builder.sync_interval(Duration::from_secs(interval));
-                }
-                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
-            }
-            None => {
-                with_auth_timeout(
-                    DEFAULT_STARTUP_TIMEOUT,
-                    Box::pin(
-                        Builder::new_remote(settings.url.clone(), auth_token)
-                            .connector(connector)
-                            .build(),
-                    ),
-                )
-                .await?
-            }
+        let db = if let Some(path) = &settings.replica_path {
+            Self::open_replica(path, settings, connector).await?
+        } else {
+            let auth_token = settings.auth_token.clone().unwrap_or_default();
+            with_auth_timeout(
+                DEFAULT_STARTUP_TIMEOUT,
+                Box::pin(
+                    Builder::new_remote(settings.url.clone(), auth_token)
+                        .connector(connector)
+                        .build(),
+                ),
+            )
+            .await?
         };
         Self::from_database(db, max_users).await
+    }
+
+    /// Open the embedded replica at `path`, creating its directory the way
+    /// the local stores create theirs.
+    async fn open_replica(
+        path: &Path,
+        settings: &LibsqlSettings,
+        connector: LibsqlConnector,
+    ) -> Result<Database> {
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
+        }
+        let auth_token = settings.auth_token.clone().unwrap_or_default();
+        let mut builder = Builder::new_remote_replica(path, settings.url.clone(), auth_token)
+            .connector(connector);
+        let interval =
+            settings.sync_interval_secs.unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
+        if interval > 0 {
+            builder = builder.sync_interval(Duration::from_secs(interval));
+        }
+        let db = with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?;
+        if interval == 0 {
+            // libsql bootstraps the replica during the build only alongside a
+            // sync interval; otherwise it would do so inside `Database::connect`,
+            // outside the startup deadline.
+            with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(db.sync())).await?;
+        }
+        Ok(db)
     }
 
     /// Build the backend from an already-open [`Database`]. Shared by
