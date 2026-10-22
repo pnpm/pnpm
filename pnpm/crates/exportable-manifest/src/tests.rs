@@ -4,7 +4,7 @@
 //! `tempfile::TempDir` so they exercise `replace_workspace_protocol`
 //! and `replace_workspace_protocol_peer_dependency` in isolation.
 
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
@@ -13,8 +13,9 @@ use tempfile::TempDir;
 
 use super::{
     CannotResolveReason, CannotResolveWorkspaceProtocolError, CreateExportableManifestOptions,
-    ReplaceWorkspaceProtocolError, WorkspacePackageManifest, create_exportable_manifest,
-    replace_workspace_protocol, replace_workspace_protocol_peer_dependency,
+    ReplaceWorkspaceProtocolError, WorkspacePackageManifest, WorkspacePackageManifests,
+    create_exportable_manifest, replace_workspace_protocol,
+    replace_workspace_protocol_peer_dependency,
 };
 
 /// Materialize the install tree the workspace-protocol rewrite case
@@ -184,10 +185,11 @@ fn scoped_peer_workspace_spec_resolves_from_workspace_packages() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "@scope/prettier-config".to_string(),
-        WorkspacePackageManifest {
+        vec![WorkspacePackageManifest {
             name: "@scope/prettier-config".to_string(),
             version: "2.0.0".to_string(),
-        },
+            registry_prefix: None,
+        }],
     );
 
     let res = replace_workspace_protocol_peer_dependency(
@@ -207,10 +209,11 @@ fn workspace_package_without_version_reports_missing_version() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "@scope/eslint-config".to_string(),
-        WorkspacePackageManifest {
+        vec![WorkspacePackageManifest {
             name: "@scope/eslint-config".to_string(),
             version: String::new(),
-        },
+            registry_prefix: None,
+        }],
     );
 
     let err = replace_workspace_protocol_peer_dependency(
@@ -251,7 +254,11 @@ fn missing_version_help_uses_the_workspace_package_name() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "pkg-b".to_string(),
-        WorkspacePackageManifest { name: "pkg-b".to_string(), version: String::new() },
+        vec![WorkspacePackageManifest {
+            name: "pkg-b".to_string(),
+            version: String::new(),
+            registry_prefix: None,
+        }],
     );
 
     let err =
@@ -278,7 +285,11 @@ fn installed_manifest_without_name_keeps_the_missing_name_reason() {
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "pkg-b".to_string(),
-        WorkspacePackageManifest { name: "pkg-b".to_string(), version: String::new() },
+        vec![WorkspacePackageManifest {
+            name: "pkg-b".to_string(),
+            version: String::new(),
+            registry_prefix: None,
+        }],
     );
 
     let err = replace_workspace_protocol("pkg-b", "workspace:*", dir.path(), None, Some(&ws_pkgs))
@@ -359,11 +370,19 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
     let mut ws_pkgs = std::collections::HashMap::new();
     ws_pkgs.insert(
         "dep-a".to_string(),
-        WorkspacePackageManifest { name: "dep-a".to_string(), version: "1.2.3".to_string() },
+        vec![WorkspacePackageManifest {
+            name: "dep-a".to_string(),
+            version: "1.2.3".to_string(),
+            registry_prefix: None,
+        }],
     );
     ws_pkgs.insert(
         "dep-b".to_string(),
-        WorkspacePackageManifest { name: "dep-b".to_string(), version: "2.3.4".to_string() },
+        vec![WorkspacePackageManifest {
+            name: "dep-b".to_string(),
+            version: "2.3.4".to_string(),
+            registry_prefix: None,
+        }],
     );
 
     let res = replace_workspace_protocol("dep-a", "workspace:^", dir.path(), None, Some(&ws_pkgs))
@@ -399,4 +418,131 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
     )
     .expect("resolves peer dep with sentinel");
     assert_eq!(res, "^1.2.3");
+}
+
+fn prefixed(name: &str, version: &str) -> WorkspacePackageManifest {
+    WorkspacePackageManifest {
+        name: name.to_string(),
+        version: version.to_string(),
+        registry_prefix: Some("work".to_string()),
+    }
+}
+
+fn prefixed_workspace() -> WorkspacePackageManifests {
+    HashMap::from([
+        ("dep-a".to_string(), vec![prefixed("dep-a", "1.2.3")]),
+        ("dep-b".to_string(), vec![prefixed("dep-b", "2.3.4")]),
+    ])
+}
+
+/// Two projects of one name, each publishing through its own registry.
+fn two_versions_of_dup() -> WorkspacePackageManifests {
+    let project = |version: &str, prefix: &str| WorkspacePackageManifest {
+        name: "dup".to_string(),
+        version: version.to_string(),
+        registry_prefix: Some(prefix.to_string()),
+    };
+    HashMap::from([("dup".to_string(), vec![project("1.0.0", "old"), project("2.0.0", "work")])])
+}
+
+#[test]
+fn workspace_dep_carries_the_registry_prefix_of_its_target() {
+    let dir = TempDir::new().unwrap();
+    let ws_pkgs = prefixed_workspace();
+    let rewrite = |dep_name: &str, spec: &str| {
+        replace_workspace_protocol(dep_name, spec, dir.path(), None, Some(&ws_pkgs))
+            .expect("replace succeeds")
+    };
+
+    assert_eq!(rewrite("dep-a", "workspace:*"), "work:1.2.3");
+    assert_eq!(rewrite("dep-a", "workspace:^"), "work:^1.2.3");
+    assert_eq!(rewrite("dep-a", "workspace:~"), "work:~1.2.3");
+    assert_eq!(rewrite("dep-a", "workspace:"), "work:1.2.3");
+    assert_eq!(rewrite("dep-a", "workspace:1.2.3"), "work:1.2.3");
+    assert_eq!(rewrite("dep-a", "workspace:^1.0.0"), "work:^1.0.0");
+    assert_eq!(rewrite("alias", "workspace:dep-b@*"), "work:dep-b@2.3.4");
+    assert_eq!(rewrite("alias", "workspace:dep-b@^"), "work:dep-b@^2.3.4");
+    assert_eq!(rewrite("alias", "workspace:dep-b@2.3.4"), "work:dep-b@2.3.4");
+}
+
+/// The installed copy decides the version, the workspace package of its name
+/// the prefix.
+#[test]
+fn installed_workspace_dep_carries_the_prefix_of_the_workspace_package_of_its_name() {
+    let dir = TempDir::new().unwrap();
+    write_dep(&dir.path().join("node_modules/dep-a"), "dep-a", "1.0.0");
+    let ws_pkgs = prefixed_workspace();
+
+    let spec = replace_workspace_protocol("dep-a", "workspace:^", dir.path(), None, Some(&ws_pkgs))
+        .expect("replace succeeds");
+
+    assert_eq!(spec, "work:^1.0.0");
+}
+
+#[test]
+fn explicit_version_of_a_package_outside_the_workspace_stays_plain() {
+    let dir = TempDir::new().unwrap();
+    let ws_pkgs = prefixed_workspace();
+
+    assert_eq!(rewrite("other", "workspace:1.0.0", dir.path()), "1.0.0");
+    assert_eq!(rewrite("alias", "workspace:other@1.0.0", dir.path()), "npm:other@1.0.0");
+    assert_eq!(
+        replace_workspace_protocol("other", "workspace:1.0.0", dir.path(), None, Some(&ws_pkgs))
+            .expect("replace succeeds"),
+        "1.0.0",
+    );
+}
+
+#[test]
+fn peer_ranges_omit_the_registry_prefix() {
+    let dir = TempDir::new().unwrap();
+    let ws_pkgs = prefixed_workspace();
+    let rewrite = |dep_name: &str, spec: &str| {
+        replace_workspace_protocol_peer_dependency(dep_name, spec, dir.path(), None, Some(&ws_pkgs))
+            .expect("replace succeeds")
+    };
+
+    assert_eq!(rewrite("dep-a", "workspace:*"), "1.2.3");
+    assert_eq!(rewrite("dep-a", "workspace:^"), "^1.2.3");
+    assert_eq!(rewrite("dep-a", "^1.0.0 || workspace:~"), "^1.0.0 || ~1.2.3");
+    assert_eq!(rewrite("alias", "workspace:dep-b@^"), "npm:dep-b@*");
+}
+
+#[test]
+fn installed_copy_takes_the_prefix_of_the_project_at_its_version() {
+    let dir = TempDir::new().unwrap();
+    write_dep(&dir.path().join("node_modules/dup"), "dup", "2.0.0");
+    let ws_pkgs = two_versions_of_dup();
+
+    let spec = replace_workspace_protocol("dup", "workspace:^", dir.path(), None, Some(&ws_pkgs))
+        .expect("replace succeeds");
+
+    assert_eq!(spec, "work:^2.0.0");
+}
+
+#[test]
+fn explicit_version_takes_the_prefix_of_the_project_at_that_version() {
+    let dir = TempDir::new().unwrap();
+    let ws_pkgs = two_versions_of_dup();
+    let rewrite = |dep_name: &str, spec: &str| {
+        replace_workspace_protocol(dep_name, spec, dir.path(), None, Some(&ws_pkgs))
+            .expect("replace succeeds")
+    };
+
+    assert_eq!(rewrite("dup", "workspace:2.0.0"), "work:2.0.0");
+    assert_eq!(rewrite("dup", "workspace:1.0.0"), "old:1.0.0");
+    assert_eq!(rewrite("alias", "workspace:dup@1.0.0"), "old:dup@1.0.0");
+    // A range names neither project, so no registry is guessed.
+    assert_eq!(rewrite("dup", "workspace:^1.0.0"), "^1.0.0");
+}
+
+#[test]
+fn uninstalled_dep_falls_back_on_the_first_project_with_a_version() {
+    let dir = TempDir::new().unwrap();
+    let ws_pkgs = two_versions_of_dup();
+
+    let spec = replace_workspace_protocol("dup", "workspace:*", dir.path(), None, Some(&ws_pkgs))
+        .expect("replace succeeds");
+
+    assert_eq!(spec, "old:1.0.0");
 }

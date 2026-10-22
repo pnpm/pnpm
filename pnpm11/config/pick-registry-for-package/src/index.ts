@@ -55,3 +55,37 @@ export function namedRegistryTarballPrefixes (registriesByPrefix: RegistriesByPr
 }
 
 const tarballPrefixesCache = new WeakMap<RegistriesByPrefix, readonly string[]>()
+
+/**
+ * The named-registry prefix the project declares for the registry at
+ * `registryUrl`, or `undefined`. A published manifest qualifies a `workspace:`
+ * dependency with it so the dependency names the registry its consumers
+ * address it by.
+ *
+ * URLs compare with a trailing slash and a lower-case scheme and host. When
+ * several prefixes declare one URL, the first in alphabetical order is
+ * answered. `registriesByPrefix` is the map as the user wrote it, so the
+ * built-in `gh` and `npmjs` prefixes are never answered.
+ */
+export function pickRegistryPrefixForUrl (registriesByPrefix: Record<string, string> | undefined, registryUrl: string): string | undefined {
+  if (registriesByPrefix == null) return undefined
+  const wanted = comparableRegistryUrl(registryUrl)
+  return Object.keys(registriesByPrefix)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .find((prefix) => comparableRegistryUrl(registriesByPrefix[prefix]) === wanted)
+}
+
+/**
+ * `registry` with a trailing slash and a lower-case scheme and host, so two
+ * spellings of one registry compare equal. A URL that does not parse compares
+ * as written.
+ */
+function comparableRegistryUrl (registry: string): string {
+  let url: string
+  try {
+    url = new URL(registry).toString()
+  } catch {
+    url = registry
+  }
+  return url.endsWith('/') ? url : `${url}/`
+}

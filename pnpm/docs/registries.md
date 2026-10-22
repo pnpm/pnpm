@@ -64,6 +64,8 @@ pnpm add work:@corp/lib@^2.0.0
 
 Each entry declares at most one prefix, and two entries cannot declare the same one: the prefix is the registry's identity in a lockfile package key (`foo@work:1.0.0`), so a second spelling would key the same package from the same registry twice.
 
+A `workspace:` dependency on a package that publishes to this registry is written with the prefix when the package is packed or published, see [Publishing workspace packages](./workspaces.md#publishing-workspace-packages).
+
 Prefixes declared here follow the same rules as the deprecated [`namedRegistries`](./settings/dependency-resolution.md#namedregistries) setting they replace: the built-in `gh:` and `npmjs:` aliases can be overridden by declaring their prefix on your own URL, [reserved names](./settings/dependency-resolution.md#reserved-alias-names) are rejected, and packages resolved through a prefix get [registry-qualified lockfile keys](./settings/dependency-resolution.md#named-registries-in-the-lockfile).
 
 ## Describing the server

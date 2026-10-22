@@ -1,4 +1,5 @@
 pub mod console;
+pub mod hosted_registry;
 pub mod terminal;
 
 pub use pnpm_testing_utils::bin::read_v11_bundle_path;
