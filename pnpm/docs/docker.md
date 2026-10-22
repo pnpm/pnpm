@@ -228,27 +228,35 @@ docker build . --target app2 --tag app2:latest
 
 On CI or CD environments, the BuildKit cache mounts might not be available, because the VM or container is ephemeral and only normal docker cache will work.
 
-So an alternative is to use a typical Dockerfile with layers that are built incrementally, for this scenario, `pnpm fetch` is the best option, as it only needs `pnpm-lock.yaml` and `pnpm-workspace.yaml`, and the layer cache will only be lost when you change the dependencies.
+So an alternative is to use a typical Dockerfile with layers that are built incrementally, for this scenario, `pnpm fetch` is the best option, as it only needs the lockfile and the project settings, and the layer cache will only be lost when you change the dependencies.
 
-`pnpm fetch` only fills the virtual store. A `pnpm install --offline` after copying the sources links the dependencies into `node_modules`.
+`pnpm fetch` only fills the virtual store. A `pnpm install --offline` after copying the sources links the dependencies into `node_modules`. The build stage installs every dependency, and a separate stage installs only the production dependencies, so the final image does not carry the dev dependencies.
+
+This example assumes the project has a `pnpm-workspace.yaml`. If it does not,
+use `COPY pnpm-lock.yaml /app/` instead. If you patched any package, also copy
+the patches directory before running `pnpm fetch`.
 
 ```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12 AS base
-
 RUN pnpm runtime set node 24 -g
-
 WORKDIR /app
-COPY pnpm-lock.yaml pnpm-workspace.yaml /app/
-RUN pnpm fetch
 
 FROM base AS build
+COPY pnpm-lock.yaml pnpm-workspace.yaml /app/
+RUN pnpm fetch
 COPY . /app
 RUN pnpm install --offline --frozen-lockfile
 RUN pnpm run build
 
-FROM base
+FROM base AS prod-deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml /app/
+RUN pnpm fetch --prod
 COPY . /app
 RUN pnpm install --offline --frozen-lockfile --prod
+
+FROM base
+COPY package.json /app/
+COPY --from=prod-deps /app/node_modules /app/node_modules
 COPY --from=build /app/dist /app/dist
 EXPOSE 8000
 CMD [ "pnpm", "start" ]

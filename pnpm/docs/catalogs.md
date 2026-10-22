@@ -161,7 +161,7 @@ pnpm expands the `catalog:` reference to `workspace:^` and then links the worksp
 
 Added in: v12.6.0
 
-Catalog entries can use the `file:` and `link:` protocols ([#8642](https://github.com/pnpm/pnpm/issues/8642)). A relative path in an entry, such as `file:./tarballs/foo.tgz`, is measured from the directory holding `pnpm-workspace.yaml`:
+Catalog entries can use the `file:` and `link:` protocols ([#8642](https://github.com/pnpm/pnpm/issues/8642)). A relative path in an entry, such as `file:./tarballs/foo.tgz` or a bare `./tarballs/foo.tgz`, is measured from the directory holding `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 catalog:

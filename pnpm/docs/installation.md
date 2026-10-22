@@ -124,13 +124,13 @@ Do you wanna use pnpm on CI servers? See: [Continuous Integration](./continuous-
 
 Here is a list of the supported pnpm versions with respective Node.js version support.
 
-| Node.js    | pnpm 11 | pnpm 12 |
-|------------|---------|---------|
-| Node.js 18 | ❌      | ✔️       |
-| Node.js 20 | ❌      | ✔️       |
-| Node.js 22 | ✔️       | ✔️       |
-| Node.js 24 | ✔️       | ✔️       |
-| Node.js 26 | ✔️       | ✔️       |
+| Node.js    | pnpm 10 | pnpm 11 | pnpm 12 |
+|------------|---------|---------|---------|
+| Node.js 18 | ✔️       | ❌      | ✔️       |
+| Node.js 20 | ✔️       | ❌      | ✔️       |
+| Node.js 22 | ✔️       | ✔️       | ✔️       |
+| Node.js 24 | ✔️       | ✔️       | ✔️       |
+| Node.js 26 | ✔️       | ✔️       | ✔️       |
 
 pnpm 12 only needs Node.js when it is installed from npm; the version installed by the standalone script runs without Node.js.
 
