@@ -2,6 +2,7 @@ pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub(crate) use includes::read_workspace_document;
+pub(crate) use parse_settings::{parse_settings, parse_settings_file};
 pub use permissions::{
     PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
 };
@@ -14,7 +15,6 @@ pub use sections::{
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
     TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
-pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
 
 use crate::{
@@ -416,9 +416,10 @@ mod env;
 
 mod environment_values;
 use environment_values::{
-    Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar, resolvable_placeholders,
-    resolve_placeholders, substitute_json_string, substitute_optional_inner_string,
-    substitute_optional_string, substitute_optional_string_map, substitute_registry_entries,
+    FirstUnresolved, Placeholder, drop_placeholders, has_env_placeholder, no_proxy_scalar,
+    normalize_registry_url, resolvable_placeholders, resolve_placeholders, substitute_json_string,
+    substitute_optional_inner_string, substitute_optional_string, substitute_optional_string_map,
+    substitute_registry_entries,
 };
 
 mod apply;
@@ -426,6 +427,8 @@ mod apply;
 mod resolved;
 
 mod reset;
+
+mod parse_settings;
 
 mod settings;
 

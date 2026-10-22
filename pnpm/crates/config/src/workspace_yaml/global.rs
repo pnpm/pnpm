@@ -2,7 +2,7 @@
 
 use super::{
     ErrorKind, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, Path, SystemEnv,
-    WorkspaceSettings, fs, read_readable_settings, select_settings, settings::parse_settings,
+    WorkspaceSettings, fs, parse_settings, read_readable_settings, select_settings,
 };
 use crate::SettingsRead;
 
@@ -39,7 +39,7 @@ impl WorkspaceSettings {
         } else {
             read(&selected)
         }
-        .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
+        .map_err(|err| err.into_load_error(path.clone()))?;
         settings.validate_sections(settings_read.skips_unreadable())?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);

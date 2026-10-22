@@ -108,7 +108,7 @@ impl Config {
         // `virtualStoreDir` set in the global `config.yaml` still counts as
         // "explicitly set" when the workspace yaml leaves it unset.
         explicit.note(&settings);
-        settings.substitute_env_untrusted::<Sys>();
+        settings.substitute_env_untrusted::<Sys>()?;
         if for_self_update {
             settings.clear_self_update_policy();
         }
@@ -233,11 +233,7 @@ fn read_env_workspace_yaml<Sys: EnvVar>(
         return Ok((env_dir, None));
     };
     let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
-        parse_settings::<Sys>(text)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml {
-                path: path.to_path_buf(),
-                source,
-            })
+        crate::workspace_yaml::parse_settings_file::<Sys>(text, path)
     })?;
     Ok((env_dir, Some(settings)))
 }

@@ -24,7 +24,7 @@ Authorization-related settings are handled via [`.npmrc`](./npmrc.md).
 
 :::
 
-Values in the configuration files may contain env variables using the `${NAME}` syntax. The env variables may also be specified with default values. Using `${NAME-fallback}` will return `fallback` if `NAME` isn't set. `${NAME:-fallback}` will return `fallback` if `NAME` isn't set, or is an empty string. Since v12.7.0, `${NAME?}` expands to an empty string without a warning when `NAME` isn't set, as in npm.
+Values in the configuration files may contain env variables using the `${NAME}` syntax. The env variables may also be specified with default values. Using `${NAME-fallback}` will return `fallback` if `NAME` isn't set. `${NAME:-fallback}` will return `fallback` if `NAME` isn't set, or is an empty string. Since v12.7.0, `${NAME?}` expands to an empty string without a warning when `NAME` isn't set, as in npm. Since v12.10.0, a reference to an unset variable without a fallback fails with [`ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR`](./errors.md#err_pnpm_config_unresolved_env_var).
 
 :::warning
 

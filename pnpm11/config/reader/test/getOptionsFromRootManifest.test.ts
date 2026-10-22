@@ -21,6 +21,20 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
   expect(options.foo).toBe('bar')
 })
 
+test('getOptionsFromPnpmSettings() throws a PnpmError when a string config value has an undefined env variable', () => {
+  // Simulates runtime behavior when pnpm-workspace.yaml or config.yaml has a
+  // string-valued setting referencing an env variable that is not defined.
+  // The TypeScript type doesn't include all valid config keys, so we cast.
+  delete process.env.PNPM_TEST_UNDEFINED_ENV_VAR_82645
+  expect(process.env.PNPM_TEST_UNDEFINED_ENV_VAR_82645).toBeUndefined()
+  const settings = { nodeLinker: '${PNPM_TEST_UNDEFINED_ENV_VAR_82645}' } as unknown as PnpmSettings
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), settings)).toThrow(
+    expect.objectContaining({
+      code: 'ERR_PNPM_CONFIG_UNRESOLVED_ENV_VAR',
+    })
+  )
+})
+
 test.each([
   ['./scripts/shell.sh', path.join('/workspace/root', 'scripts/shell.sh')],
   ['../scripts/shell.sh', path.join('/workspace/root', '../scripts/shell.sh')],
