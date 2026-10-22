@@ -53,7 +53,7 @@ impl ProcessHandle {
         }
         // SAFETY: the handle is non-null and newly opened, so no other
         // owner exists to close it.
-        Some(unsafe { OwnedHandle::from_raw_handle(handle) }).map(Self)
+        Some(Self(unsafe { OwnedHandle::from_raw_handle(handle) }))
     }
 
     /// A handle of the caller's own to the same process.
@@ -89,7 +89,7 @@ impl ProcessHandle {
         }
         // SAFETY: the call reported success, so it wrote a handle that is
         // this call's to own.
-        Some(unsafe { OwnedHandle::from_raw_handle(duplicate) }).map(Self)
+        Some(Self(unsafe { OwnedHandle::from_raw_handle(duplicate) }))
     }
 
     /// End the process, reporting `exit_code` as its exit status.

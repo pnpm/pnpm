@@ -63,5 +63,7 @@ fn load_is_wow64_process2() -> Option<IsWow64Process2> {
     // Windows that exports it, and `GetProcAddress` returned the address of
     // that export rather than of an unrelated symbol because the name it
     // was asked for is that export's.
-    Some(unsafe { std::mem::transmute::<_, IsWow64Process2>(address) })
+    Some(unsafe {
+        std::mem::transmute::<unsafe extern "system" fn() -> isize, IsWow64Process2>(address)
+    })
 }

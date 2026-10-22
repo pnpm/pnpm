@@ -129,6 +129,7 @@ pub fn file_attributes(path: &Path) -> io::Result<FileAttributes> {
 /// Pass `path` in its extended-length (`\\?\`) form to have a path over
 /// `MAX_PATH` accepted; the query does not add the prefix itself, because
 /// which paths may carry it is the caller's to decide.
+#[must_use]
 pub fn short_path(path: &Path) -> Option<PathBuf> {
     use std::os::windows::ffi::OsStringExt as _;
 
@@ -219,6 +220,7 @@ impl Drop for CoTaskMemPath {
 ///
 /// Looking a tool up here rather than on `PATH` is what keeps a directory
 /// a script prepended to `PATH` from supplying it instead.
+#[must_use]
 pub fn system_directory() -> Option<PathBuf> {
     use std::os::windows::ffi::OsStringExt as _;
 
