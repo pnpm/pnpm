@@ -9,7 +9,7 @@ Setup does the following actions:
 
 * creates a home directory for the pnpm CLI
 * adds the pnpm home directory to the `PATH` by updating the shell configuration file
-* copies the pnpm executable to the pnpm home directory
+* when pnpm runs as a standalone executable, installs it as a global package and writes the `pn`, `pnpx`, and `pnx` scripts to `$PNPM_HOME/bin`
 
 If `pnpm setup` cannot tell which shell configuration file to update, for example
 in a container where `SHELL` is not set, it still installs pnpm. It then prints the

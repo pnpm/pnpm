@@ -3,8 +3,6 @@ id: owner
 title: pnpm owner
 ---
 
-Added in: v11.1.0
-
 Aliases: `owners`
 
 Manages package owners on the registry.
@@ -19,7 +17,7 @@ pnpm owner ls <package>
 
 Aliases: `list`
 
-List all owners of a package. This is the default subcommand if no other subcommand is given.
+List all owners of a package. This is the default subcommand if no other subcommand is given, so `pnpm owner <package>` also lists the owners.
 
 ### add
 

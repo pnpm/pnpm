@@ -13,8 +13,8 @@ In a CI environment, installation fails if a lockfile is present but needs an
 update. To allow lockfile updates in CI, run `pnpm install --no-frozen-lockfile`.
 
 Inside a [workspace], `pnpm install` installs all dependencies in all the
-projects. If you want to disable this behavior, set the `recursive-install`
-setting to `false`.
+projects. If you want to disable this behavior, set the
+[`recursiveInstall`](../settings/cli.md#recursiveinstall) setting to `false`.
 
 When a workspace project changes, unchanged direct dependencies in other projects
 keep their locked versions if those versions still satisfy their declared ranges.
@@ -62,9 +62,11 @@ were already installed.
 
 `optionalDependencies` are not installed.
 
-### --no-runtime
+### --optional
 
-Added in: v11.1.0
+Install `optionalDependencies` even when the [`optional`](../settings/dependency-resolution.md#optional) setting excludes them.
+
+### --no-runtime
 
 Skip installing runtime entries (e.g. Node.js downloaded via [`devEngines.runtime`](../package_json.md#devenginesruntime)). The lockfile is left untouched, so frozen installs still validate; only the runtime fetch and bin-linking are skipped.
 
@@ -75,8 +77,6 @@ This can also be set via the `runtime=false` config in `pnpm-workspace.yaml`.
 ## Options
 
 ### --ignore-workspace
-
-Added in: v6.25.0
 
 Install the current project as a standalone project, without discovering a
 `pnpm-workspace.yaml` in a parent directory. The workspace's settings and other
@@ -96,6 +96,10 @@ Since v12.7.0, `--force` no longer installs optional dependencies whose `os`, `c
 If `true`, pnpm will use only packages already available in the store.
 If a package won't be found locally, the installation will fail.
 
+### --no-offline
+
+Allow network requests even when the `offline` setting is `true`.
+
 ### --prefer-offline
 
 * Default: **false**
@@ -103,6 +107,10 @@ If a package won't be found locally, the installation will fail.
 
 If `true`, staleness checks for cached data will be bypassed, but missing data
 will be requested from the server. To force full offline mode, use `--offline`.
+
+### --no-prefer-offline
+
+Don't prefer cached data even when the `preferOffline` setting is `true`.
 
 ### --no-lockfile
 
@@ -115,9 +123,11 @@ Don't read or generate a `pnpm-lock.yaml` file.
 
 When used, only updates `pnpm-lock.yaml` and `package.json`. Nothing gets written to the `node_modules` directory.
 
-### --dry-run
+### --lockfile-dir &lt;dir\>
 
-Added in: v11.8.0
+The directory in which `pnpm-lock.yaml` is created. Several projects can share one lockfile. It cannot be combined with `--global`.
+
+### --dry-run
 
 Run a full dependency resolution and report what a real install would change, without writing anything to disk. No lockfile, manifest, or `node_modules` changes are saved.
 
@@ -131,11 +141,9 @@ Fix broken lockfile entries automatically.
 
 ### --update-checksums
 
-Added in: v11.4.0
-
 Re-resolve every locked package and record the integrity the registry reports now in `pnpm-lock.yaml`. Use it when a registry rewrote its tarballs, or after a registry starts serving [tars](../registries.md#tar-registries).
 
-By default, since v11.4.0, an integrity mismatch is a hard failure: `pnpm install` exits with `ERR_PNPM_TARBALL_INTEGRITY` rather than silently re-resolving from the registry and overwriting the locked integrity. This protects projects that ship a committed lockfile from a compromised registry, proxy, or republished version substituting attacker-controlled content on a clean machine.
+By default, an integrity mismatch is a hard failure: `pnpm install` exits with `ERR_PNPM_TARBALL_INTEGRITY` rather than silently re-resolving from the registry and overwriting the locked integrity. This protects projects that ship a committed lockfile from a compromised registry, proxy, or republished version substituting attacker-controlled content on a clean machine.
 
 `--update-checksums` is the narrowly-scoped opt-in for the legitimate case (e.g. a registry rewrote its tarballs and you've verified the new bytes are correct). A warning still prints when the bypass takes effect so the operation is auditable.
 
@@ -152,18 +160,7 @@ If `true`, pnpm doesn't generate a lockfile and fails to install if the lockfile
 is out of sync with the manifest / an update is needed or no lockfile is
 present.
 
-This setting is `true` by default in [CI environments]. The following code is used to detect CI environments:
-
-```js title="https://github.com/watson/ci-info/blob/44e98cebcdf4403f162195fbcf90b1f69fc6e047/index.js#L54-L61"
-exports.isCI = !!(
-  env.CI || // Travis CI, CircleCI, Cirrus CI, GitLab CI, Appveyor, CodeShip, dsari
-  env.CONTINUOUS_INTEGRATION || // Travis CI, Cirrus CI
-  env.BUILD_NUMBER || // Jenkins, TeamCity
-  env.RUN_ID || // TaskCluster, dsari
-  exports.name ||
-  false
-)
-```
+This setting is `true` by default in [CI environments]. pnpm detects a CI environment with the same rules as the [ci-info](https://github.com/watson/ci-info) package. Set `CI=false` to turn detection off.
 
 [CI environments]: https://github.com/watson/ci-info#supported-ci-tools
 
@@ -171,10 +168,30 @@ exports.isCI = !!(
 
 Allows lockfile updates during installation. This is the inverse of `--frozen-lockfile`.
 
+### --prefer-frozen-lockfile
+
+Use the existing lockfile without re-resolving, even when the manifest might have changed. The inverse is `--no-prefer-frozen-lockfile`, which always re-resolves against the registry. See [`preferFrozenLockfile`](../settings/store.md#preferfrozenlockfile).
+
+### --ignore-manifest-check
+
+Skip the check that `pnpm-lock.yaml` is up to date with `package.json` under `--frozen-lockfile`. Use it only when you just wrote the lockfile yourself.
+
+### --trust-lockfile
+
+Skip verifying the lockfile against supply-chain policies. `--no-trust-lockfile` verifies it even when the configuration trusts it. See [`trustLockfile`](../settings/dependency-resolution.md#trustlockfile).
+
+### --auto-dedupe
+
+Deduplicate compatible dependency versions during installation. `--no-auto-dedupe` turns it off when the configuration turns it on. See [`autoDedupe`](../settings/dependency-resolution.md#autodedupe).
+
 ### --merge-git-branch-lockfiles
 
 Merge all git branch lockfiles.
 [Read more about git branch lockfiles.](../git_branch_lockfiles)
+
+### --merge-git-branch-lockfiles-branch-pattern &lt;glob\>
+
+Merge the git branch lockfiles when the current branch matches the pattern. The option can be repeated. See [`mergeGitBranchLockfilesBranchPattern`](../settings/store.md#mergegitbranchlockfilesbranchpattern).
 
 
 ### --reporter=&lt;name\>
@@ -211,6 +228,48 @@ Creates a flat `node_modules` structure, similar to that of `npm` or `yarn`.
 
 Do not execute any scripts defined in the project `package.json` and its
 dependencies.
+
+### --no-ignore-scripts
+
+Run lifecycle scripts even when the `ignoreScripts` setting is `true`.
+
+### --ignore-pnpmfile
+
+Don't load the hooks in `.pnpmfile.cjs`, including the pnpmfiles of config dependencies.
+
+### --node-linker &lt;linker\>
+
+* Type: **isolated**, **hoisted**, **pnp**
+
+Override the [`nodeLinker`](../settings/node-modules.md#nodelinker) setting for this install.
+
+### --frozen-store
+
+Open the store read-only and skip all store writes, for a store on a read-only filesystem. Use it with `--offline --frozen-lockfile`. `--no-frozen-store` allows store writes when the configuration turns the read-only store on. See [`frozenStore`](../settings/store.md#frozenstore).
+
+### --network-concurrency &lt;number\>
+
+Override the [`networkConcurrency`](../settings/network.md#networkconcurrency) setting.
+
+### --fetch-timeout &lt;ms\>
+
+Override the [`fetchTimeout`](../settings/network.md#fetchtimeout) setting.
+
+### --fetch-warn-timeout-ms &lt;ms\>
+
+Override the [`fetchWarnTimeoutMs`](../settings/network.md#fetchwarntimeoutms) setting.
+
+### --fetch-min-speed-ki-bps &lt;number\>
+
+Override the [`fetchMinSpeedKiBps`](../settings/network.md#fetchminspeedkibps) setting.
+
+### --user-agent &lt;string\>
+
+The `User-Agent` header to send with registry requests.
+
+### --pnpr-server &lt;url\>
+
+Override the [`pnprServer`](../settings/dependency-resolution.md#pnprserver) setting.
 
 ### --allow-build
 

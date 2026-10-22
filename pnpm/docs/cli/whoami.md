@@ -3,8 +3,6 @@ id: whoami
 title: pnpm whoami
 ---
 
-Added in: v11.0.0
-
 Print the username associated with the current registry credentials.
 
 ```sh

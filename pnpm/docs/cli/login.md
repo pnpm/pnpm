@@ -3,8 +3,6 @@ id: login
 title: pnpm login
 ---
 
-Added in: v11.0.0
-
 Aliases: `adduser`
 
 Authenticate with an npm registry.
@@ -15,17 +13,15 @@ pnpm login [--registry <url>] [--scope <scope>]
 
 Supports web-based login with QR code as well as classic username/password authentication.
 
-Since v11.19.0, web-based login no longer requires an interactive terminal: without a TTY, `pnpm login` prints the authentication URL (skipping the QR code and the prompt to open the URL in a browser) and polls the registry until the browser approval completes. Only the classic username/password login still fails with `ERR_PNPM_LOGIN_NON_INTERACTIVE` in a non-interactive terminal.
+Web-based login does not require an interactive terminal. Without a TTY, `pnpm login` prints the authentication URL (skipping the QR code and the prompt to open the URL in a browser) and polls the registry until the browser approval completes. Only the classic username/password login still fails with `ERR_PNPM_LOGIN_NON_INTERACTIVE` in a non-interactive terminal.
 
 Since v12.13.0, web-based login prints the registry's `npm-notice` messages before the authentication URL. Some registries use them to show a verification code that you confirm in the browser.
 
-In pnpm 12.1 and newer, the granted token is written to the global
+Since v12.1.0, the granted token is written to the global
 [`config.yaml`](./config.md), under the structured [`_auth`](../npmrc.md#_auth)
 setting. When `--scope` is present, the same write routes that scope to the
-registry under the global [`registries`](../registries.md) setting. pnpm 11.25
-writes the token and scoped route to
-[`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations); pnpm 12.1 continues
-to read tokens written there.
+registry under the global [`registries`](../registries.md) setting. pnpm still
+reads tokens written to [`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations).
 
 ## Options
 

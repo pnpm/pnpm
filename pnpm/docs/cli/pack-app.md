@@ -3,8 +3,6 @@ id: pack-app
 title: pnpm pack-app
 ---
 
-Added in: v11.0.0
-
 :::warning Experimental
 
 `pnpm pack-app` is experimental. Its flags, `pnpm.app` configuration schema, and output layout may change in future releases.
@@ -21,7 +19,7 @@ Each target produces an executable under `<output-dir>/<target>/` (default `dist
 
 ## Requirements
 
-* The host must run Node.js v25.5+ to perform the SEA injection. If the running Node.js is older (or does not match the embedded runtime version, since SEA blobs are not compatible across minor releases), pnpm downloads a matching builder automatically.
+* The host needs no Node.js. To perform the SEA injection, pnpm downloads a Node.js of the target runtime version for the host platform, because SEA blobs are not compatible across minor releases.
 * Cross-compiling macOS targets from Linux requires [`ldid`](https://github.com/ProcursusTeam/ldid) on `$PATH`. Windows hosts cannot ad-hoc sign macOS outputs; build macOS targets on macOS or Linux.
 
 ## Supported targets
@@ -68,7 +66,7 @@ pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@25.5
 
 ### --entry &lt;path\>
 
-Path to the CJS entry file to embed in the executable. Required unless [`pnpm.app.entry`](#configuration) is set in `package.json`. A bare positional argument is also accepted (e.g. `pnpm pack-app dist/index.cjs`).
+Path to the CJS entry file to embed in the executable. It must be inside the project: absolute paths and `..` are rejected. Required unless [`pnpm.app.entry`](#configuration) is set in `package.json`. A bare positional argument is also accepted (e.g. `pnpm pack-app dist/index.cjs`).
 
 ### --target, -t &lt;triplet\>
 
@@ -76,11 +74,11 @@ Target to build for. May be specified multiple times. See [Supported targets](#s
 
 ### --runtime &lt;spec\>
 
-Runtime to embed in the output executables, as a `<name>@<version>` spec (e.g. `node@25`, `node@25.5.0`). Only `node` is supported today; the `<name>@` prefix leaves room for future runtimes (`bun`, `deno`). The version must be >= v25.5 (the minimum that supports `--build-sea`). Defaults to the running Node.js version.
+Runtime to embed in the output executables, as a `<name>@<version>` spec (e.g. `node@25`, `node@25.5.0`). Only `node` is supported today; the `<name>@` prefix leaves room for future runtimes (`bun`, `deno`). The version must be >= v25.5 (the minimum that supports `--build-sea`). Defaults to `node@25.5.0`.
 
 ### --output-dir, -o &lt;dir\>
 
-Output directory for the built executables. Defaults to `dist-app`.
+Output directory for the built executables. Defaults to `dist-app`. It must be inside the project: absolute paths, `..`, and a symlinked directory that points outside the project are rejected.
 
 ### --output-name &lt;name\>
 

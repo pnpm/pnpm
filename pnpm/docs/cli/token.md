@@ -29,6 +29,8 @@ Aliases: `rm`, `delete`, `remove`
 
 Revoke one or more authentication tokens by their key, ID prefix, or token value.
 
+An ID prefix that matches several tokens fails with `ERR_PNPM_TOKEN_AMBIGUOUS`. One that matches no token fails with `ERR_PNPM_TOKEN_NOT_FOUND`. Without credentials, the command fails with `ERR_PNPM_TOKEN_UNAUTHORIZED`.
+
 ### create
 
 ```sh
@@ -57,7 +59,11 @@ Mark a created token as read-only.
 
 ### --cidr &lt;cidr\>
 
-Restrict a created token to specific CIDR address ranges.
+Restrict a created token to specific CIDR address ranges. Separate several ranges with commas, or repeat the option:
+
+```sh
+pnpm token create --cidr 192.0.2.0/24,198.51.100.0/24
+```
 
 ### --otp &lt;otp\>
 

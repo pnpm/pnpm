@@ -78,8 +78,8 @@ Usage examples:
 
 ```sh
 pnpm --recursive update
-# updates all packages up to 100 subdirectories in depth
-pnpm --recursive update --depth 100
+# updates direct dependencies only
+pnpm --recursive update --depth 0
 # update typescript to the latest version in every package
 pnpm --recursive update typescript@latest
 ```

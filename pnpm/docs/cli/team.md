@@ -3,8 +3,6 @@ id: team
 title: pnpm team
 ---
 
-Added in: v11.13.0
-
 Manages organization teams and team memberships on the registry.
 
 ```sh
@@ -62,13 +60,20 @@ pnpm team ls @myorg:developers
 
 Aliases: `list`. If no subcommand is given and the first argument looks like a scope or team, `ls` is assumed, so `pnpm team @myorg` is equivalent to `pnpm team ls @myorg`.
 
+## Errors
+
+* `ERR_PNPM_TEAM_SUBCOMMAND_REQUIRED`: no subcommand was given, and the first argument is not a scope or team.
+* `ERR_PNPM_TEAM_INVALID_SCOPE`: the spec does not start with `@scope`.
+* `ERR_PNPM_ORG_NOT_FOUND`: the registry does not know the organization.
+* `ERR_PNPM_TEAM_NOT_FOUND`: the registry does not know the team.
+
 ## Options
 
-### --registry &lt;url\&gt;
+### --registry &lt;url\>
 
 The base URL of the npm registry to use for the operation. A registry configured for the organization's scope (via [`registries`](../settings/dependency-resolution.md#registries)) is respected.
 
-### --otp &lt;code\&gt;
+### --otp &lt;code\>
 
 When the registry requires two-factor authentication, this option supplies a one-time password. It applies to `create`, `destroy`, `add`, and `rm`.
 
