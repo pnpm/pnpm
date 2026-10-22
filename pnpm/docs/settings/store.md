@@ -62,20 +62,6 @@ By default, if a file in the store has been modified, the content of this file i
 
 This setting helps detect accidental store corruption. It does not make a store that is writable by untrusted users safe, because an attacker who can write to the store can alter both cached package contents and the metadata used to verify them.
 
-### useRunningStoreServer
-
-:::danger
-
-Deprecated feature
-
-:::
-
-* Default: **false**
-* Type: **Boolean**
-
-Only allows installation with a store server. If no store server is running,
-installation will fail.
-
 ### strictStorePkgContentCheck
 
 * Default: **true**
@@ -84,8 +70,6 @@ installation will fail.
 Some registries allow the exact same content to be published under different package names and/or versions. This breaks the validity checks of packages in the store. To avoid errors when verifying the names and versions of such packages in the store, you may set the `strictStorePkgContentCheck` setting to `false`.
 
 ### frozenStore
-
-Added in: v11.7.0
 
 * Default: **false**
 * Type: **Boolean**
@@ -105,12 +89,6 @@ pnpm install --frozen-store --offline --frozen-lockfile
 The store must already contain everything the install needs, including the build output of any package whose lifecycle scripts are approved (or that has a patch applied). Under the [global virtual store](./node-modules.md#enableglobalvirtualstore), those package directories live inside the store, so if a required build is missing the install fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`. Seed the store with those builds first. If the store is missing its content directory entirely, the install fails fast with `ERR_PNPM_FROZEN_STORE_INCOMPLETE` rather than trying to initialize it.
 
 `frozenStore` is incompatible with `--force` and with a configured pnpr server, since both write into the store. The [side effects cache](./build.md#sideeffectscache) is not written either.
-
-:::note
-
-The read-only store open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0. On older runtimes, `--frozen-store` fails with `ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE`.
-
-:::
 
 ### storeIndexFormat
 
@@ -142,6 +120,17 @@ pnpm v11 reads only `index.db`, so it does not see the packages of a store that 
 
 When set to `false`, pnpm won't read or generate a `pnpm-lock.yaml` file.
 
+### lockfileDir
+
+* Default: the workspace root with a [shared lockfile](../workspaces.md#sharedworkspacelockfile), otherwise the project directory
+* Type: **path**
+
+The directory in which `pnpm-lock.yaml` is created. Several projects may share a
+single lockfile.
+
+The `--lockfile-dir` CLI option sets it for a single command. It cannot be used
+with `--global`.
+
 ### frozenLockfile
 
 * Default:
@@ -164,6 +153,15 @@ When set to `true` and the available `pnpm-lock.yaml` satisfies the
 `package.json` dependencies directive, a headless installation is performed. A
 headless installation skips all dependency resolution as it does not need to
 modify the lockfile.
+
+### excludeLinksFromLockfile
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, dependencies declared with the `link:` protocol are left
+out of `pnpm-lock.yaml`. Dependencies that use the `workspace:` protocol are
+still recorded.
 
 ### lockfileIncludeTarballUrl
 

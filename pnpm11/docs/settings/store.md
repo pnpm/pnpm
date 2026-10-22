@@ -52,20 +52,6 @@ By default, if a file in the store has been modified, the content of this file i
 
 This setting helps detect accidental store corruption. It does not make a store that is writable by untrusted users safe, because an attacker who can write to the store can alter both cached package contents and the metadata used to verify them.
 
-### useRunningStoreServer
-
-:::danger
-
-Deprecated feature
-
-:::
-
-* Default: **false**
-* Type: **Boolean**
-
-Only allows installation with a store server. If no store server is running,
-installation will fail.
-
 ### strictStorePkgContentCheck
 
 * Default: **true**

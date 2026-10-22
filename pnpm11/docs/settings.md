@@ -9,7 +9,7 @@ import SettingsAnchorRedirect from '@site/src/components/SettingsAnchorRedirect'
 
 pnpm gets its configuration from the command line, environment variables, and `pnpm-workspace.yaml`.
 
-Only auth and registry settings are read from `.npmrc` files. All other settings are configured in `pnpm-workspace.yaml` or the [global `config.yaml`](./configuring.md#global-configuration). Some settings are limited to one of them: settings that define the structure of `node_modules` (like `hoistPattern`, `publicHoistPattern`, `nodeLinker`, or `shamefullyHoist`) can only be set in `pnpm-workspace.yaml`, while settings that name machine-level state (like `stateDir` or `pnpmHomeDir`) are not read from `pnpm-workspace.yaml`.
+Only auth, registry, TLS, proxy, and `local-address` settings are read from `.npmrc` files. All other settings are configured in `pnpm-workspace.yaml` or the [global `config.yaml`](./configuring.md#global-configuration). Some settings are limited to one of them: settings that define the structure of `node_modules` (like `hoistPattern`, `publicHoistPattern`, `nodeLinker`, or `shamefullyHoist`) can only be set in `pnpm-workspace.yaml`, while settings that name machine-level state (like `stateDir` or `pnpmHomeDir`) are not read from `pnpm-workspace.yaml`.
 
 The `pnpm config` command can be used to read and edit the contents of the project and global configuration files.
 
@@ -34,7 +34,7 @@ Since v11.5.3, env variables are **not** expanded in settings of `pnpm-workspace
 
 :::note
 
-Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
+Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `scope`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
 
 :::
 
@@ -188,7 +188,6 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 
 * [storeDir](./settings/store.md#storedir)
 * [verifyStoreIntegrity](./settings/store.md#verifystoreintegrity)
-* [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
 * [frozenStore](./settings/store.md#frozenstore)
 
@@ -258,7 +257,6 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [engineStrict](./settings/cli.md#enginestrict)
 * [npmPath](./settings/cli.md#npmpath)
 * [pmOnFail](./settings/cli.md#pmonfail)
-* [ignoreWorkspaceRootCheck](./settings/cli.md#ignoreworkspacerootcheck)
 
 ### Node.js settings
 

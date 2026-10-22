@@ -25,7 +25,14 @@ If there are conflicting version requirements for a peer dependency from differe
 
 #### Conflict resolution
 
-In case of a version conflict, you'll need to evaluate which version of the peer dependency to install yourself, or update the dependencies to align their peer dependency requirements.
+In case of a version conflict, you'll need to evaluate which version of the peer dependency to install yourself, or update the dependencies to align their peer dependency requirements. You can also set [`autoInstallPeersFromHighestMatch`](#autoinstallpeersfromhighestmatch) to `true`.
+
+### autoInstallPeersFromHighestMatch
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, pnpm joins conflicting peer dependency ranges with `||` and installs the highest version that satisfies any of them. For example, if one dependency requires `react@^16.0.0` and another requires `react@^17.0.0`, pnpm installs the highest `react@17`.
 
 ### dedupePeerDependents
 
@@ -50,7 +57,7 @@ project2
     esbuild
 ```
 
-This makes sense because `webpack` is used in two projects, and one of the projects doesn't have `esbuild`, so the two projects cannot share the same instance of `webpack`. However, this is not what most developers expect, especially since in a hoisted `node_modules`, there would only be one instance of `webpack`. Therefore, you may now use the `dedupePeerDependents` setting to deduplicate `webpack` when it has no conflicting peer dependencies (explanation at the end). In this case, if we set `dedupePeerDependents` to `true`, both projects will use the same `webpack` instance, which is the one that has `esbuild` resolved:
+This makes sense because `webpack` is used in two projects, and one of the projects doesn't have `esbuild`, so the two projects cannot share the same instance of `webpack`. However, this is not what most developers expect, especially since in a hoisted `node_modules`, there would only be one instance of `webpack`. Therefore, with the default `dedupePeerDependents: true`, pnpm deduplicates `webpack` when it has no conflicting peer dependencies (explanation at the end). Both projects use the same `webpack` instance, which is the one that has `esbuild` resolved:
 
 ```text
 node_modules
@@ -86,8 +93,6 @@ project2
 In this case, we cannot dedupe `webpack` as `webpack` has `react` in its peer dependencies and `react` is resolved from two different versions in the context of the two projects.
 
 ### dedupePeers
-
-Added in: v10.33.0
 
 * Default: **false**
 * Type: **Boolean**

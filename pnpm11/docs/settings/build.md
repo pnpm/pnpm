@@ -156,8 +156,8 @@ config under whichever spelling it already used.
 * Default: **false** IF running as root, ELSE **true**
 * Type: **Boolean**
 
-Set to true to enable UID/GID switching when running package scripts.
-If set explicitly to false, then installing as a non-root user will fail.
+When set to `false`, lifecycle scripts run with `TMPDIR` set to the
+package's `node_modules/.tmp` directory.
 
 ### nodeOptions
 

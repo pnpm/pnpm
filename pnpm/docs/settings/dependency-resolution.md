@@ -51,8 +51,6 @@ This feature is especially useful with `optionalDependencies`, where most option
 
 #### Convergence overrides
 
-Added in: v11.13.0
-
 A selector with an **empty range**, `"pkg@"`, is a convergence override. Unlike a regular override, which rewrites every matching edge unconditionally, a convergence override rewrites a dependency edge only when its version satisfies the range that edge declares:
 
 ```yaml title="pnpm-workspace.yaml"
@@ -70,12 +68,6 @@ Rules:
 - A regular override always wins over a convergence override for the same edge.
 
 When a full resolution finds that every declared range also admits a newer version, pnpm warns that the override is stale and names the version to converge on instead.
-
-:::note
-
-Before v11.13.0, an empty range in an override selector was undocumented and behaved like a bare (unscoped) override.
-
-:::
 
 #### Overriding peer dependencies
 
@@ -156,8 +148,6 @@ With the above configuration pnpm will not print deprecation warnings about any 
 
 ### update
 
-Added in: v11.16.0
-
 Settings in this section tune the [`pnpm update`](../cli/update.md) and [`pnpm outdated`](../cli/outdated.md) commands.
 
 #### update.ignoreDeps
@@ -174,16 +164,12 @@ Patterns are also supported, so you may ignore any packages from a scope: `@babe
 
 #### update.changeset
 
-Added in: v11.16.0
-
 * Default: **false**
 * Type: **Boolean**
 
 When `true`, `pnpm update` writes a [change intent](../versioning.md) after updating workspace manifests, declaring a `patch` bump for every workspace package whose `dependencies` or `optionalDependencies` were changed by the update and a `major` bump when its `peerDependencies` changed. Same as passing [`--changeset`](../cli/update.md#--changeset); pass `--no-changeset` to override the setting for a single run.
 
 #### update.githubActions
-
-Added in: v11.16.0
 
 * Default: **false**
 * Type: **Boolean**
@@ -192,8 +178,6 @@ When `true`, `pnpm update` and `pnpm outdated` also check the GitHub Actions ref
 
 #### update.githubActionsServer
 
-Added in: v11.17.0
-
 * Default: the `GITHUB_SERVER_URL` environment variable, falling back to **https://github.com**
 * Type: **URL**
 
@@ -201,7 +185,7 @@ The base URL of the GitHub server that hosts the repositories of the GitHub Acti
 
 :::info
 
-Before v11.16.0, `update.ignoreDeps` was named `updateConfig.ignoreDependencies`. The deprecated `updateConfig` setting keeps working until the next major version; when both are set, the `update` section takes precedence and a warning is printed.
+`updateConfig.ignoreDependencies` is the deprecated name of `update.ignoreDeps` and keeps working. When both are set, the `update` section takes precedence and a warning is printed.
 
 :::
 
@@ -302,9 +286,7 @@ dependencies for other platforms on purpose, prefer
 
 ### minimumReleaseAge
 
-Added in: v10.16.0
-
-* Default: **1440** (since v11), **0** (before v11)
+* Default: **1440**
 * Type: **number (minutes)**
 
 To reduce the risk of installing compromised or defective packages, you can delay the installation of newly published versions. In most cases, malicious releases are discovered and removed from the registry within an hour.
@@ -318,8 +300,6 @@ minimumReleaseAge: 1440
 ```
 
 ### minimumReleaseAgeExclude
-
-Added in: v10.16.0
 
 * Default: **undefined**
 * Type: **string[]**
@@ -337,8 +317,6 @@ minimumReleaseAgeExclude:
 
 In this case, all dependencies must be at least a day old, except `webpack` and `react`, which are installed immediately upon release.
 
-Added in: v10.17.0
-
 You may also use patterns. For instance, allow all packages from your org:
 
 ```yaml title="pnpm-workspace.yaml"
@@ -346,8 +324,6 @@ minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - '@myorg/*'
 ```
-
-Added in: v10.19.0
 
 You may also exempt specific versions (or a list of specific versions using a disjunction with `||`). This allows pinning exceptions to mature-time rules:
 
@@ -360,8 +336,6 @@ minimumReleaseAgeExclude:
 
 ### minimumReleaseAgeExcludePrune
 
-Added in: v11.22.0
-
 * Default: **false**
 * Type: **Boolean**
 
@@ -370,8 +344,6 @@ When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, an
 The cleanup is skipped when the install's lockfile does not cover the whole workspace ([`sharedWorkspaceLockfile: false`](../workspaces.md#sharedworkspacelockfile)), since entries another project still needs would look stale. Comments on the entries that are kept survive the rewrite.
 
 ### minimumReleaseAgeIgnoreMissingTime
-
-Added in: v11.0.0
 
 * Default: **true**
 * Type: **Boolean**
@@ -382,13 +354,11 @@ When `true`, pnpm skips the [`minimumReleaseAge`](#minimumreleaseage) check for 
 minimumReleaseAgeIgnoreMissingTime: false
 ```
 
-Since v11.23.0, the setting also governs [`trustPolicy`](#trustpolicy), which reads the same publish dates: `trustPolicy: no-downgrade` skips a package the registry cannot date, with a warning, rather than failing the install with `ERR_PNPM_MISSING_TIME`.
+The setting also governs [`trustPolicy`](#trustpolicy), which reads the same publish dates: `trustPolicy: no-downgrade` skips a package the registry cannot date, with a warning, rather than failing the install with `ERR_PNPM_MISSING_TIME`.
 
 The opt-in covers a registry that cannot date its releases, not a package a registry says it never published: during [lockfile verification](../supply-chain-security.md), a lockfile entry missing from a packument that does date every version it lists remains a hard failure.
 
 ### minimumReleaseAgeStrict
-
-Added in: v11.0.0
 
 * Default: **true** if [`minimumReleaseAge`](#minimumreleaseage) is explicitly configured, **false** otherwise
 * Type: **Boolean**
@@ -403,18 +373,14 @@ minimumReleaseAgeStrict: true
 
 ### trustPolicy
 
-Added in: v10.21.0
-
 * Default: **off**
 * Type: **no-downgrade** | **off**
 
-When set to `no-downgrade`, pnpm will fail if a package's trust level has decreased compared to previous releases. For example, if a package was previously published by a trusted publisher but now only has provenance or no trust evidence, installation will fail. This helps prevent installing potentially compromised versions. Trust checks are based solely on publish date, not semver. A package cannot be installed if any earlier-published version had stronger trust evidence. Starting in v10.24.0, prerelease versions are ignored when evaluating trust evidence for a non-prerelease install, so a trusted prerelease cannot block a stable release that lacks trust evidence.
+When set to `no-downgrade`, pnpm will fail if a package's trust level has decreased compared to previous releases. For example, if a package was previously published by a trusted publisher but now only has provenance or no trust evidence, installation will fail. This helps prevent installing potentially compromised versions. Trust checks are based solely on publish date, not semver. A package cannot be installed if any earlier-published version had stronger trust evidence. Prerelease versions are ignored when evaluating trust evidence for a non-prerelease install, so a trusted prerelease cannot block a stable release that lacks trust evidence.
 
 The check also covers the pnpm version a project pins in `packageManager` or `devEngines.packageManager`. pnpm fails before it switches to that version or records it in the lockfile.
 
 ### trustPolicyExclude
-
-Added in: v10.22.0
 
 * Default: **[]**
 * Type: **string[]**
@@ -432,8 +398,6 @@ trustPolicyExclude:
 ```
 
 ### trustPolicyIgnoreAfter
-
-Added in: v10.27.0
 
 * Default: **undefined**
 * Type: **number (minutes)**
@@ -453,8 +417,6 @@ The cleanup is skipped when the install's lockfile does not cover the whole work
 
 ### trustLockfile
 
-Added in: v11.3.0
-
 * Default: **false**
 * Type: **Boolean**
 
@@ -465,8 +427,6 @@ Useful in environments where the lockfile is effectively part of the trusted bas
 On large workspaces the verification pass holds per-package registry metadata in memory for the duration of the install; disabling it cuts memory usage at the cost of the supply-chain check. Most projects with the default `frozenLockfile` CI workflow do not need to set this.
 
 ### blockExoticSubdeps
-
-Added in: v10.26.0
 
 * Default: **true**
 * Type: **Boolean**
@@ -481,12 +441,10 @@ Exotic sources include:
 
 ### registries
 
-Added in: v11.0.0
-
 * Default: **undefined**
 * Type: **Record&lt;string, RegistryDeclaration&gt;** or **Record&lt;string, string&gt;**
 
-Declares the registries the project installs from. Since v11.23.0, each registry is declared once, keyed by its URL, with everything pnpm knows about it in the entry: the `scopes` routed to it, the bare-specifier `prefix` it answers to, how the server lays out tarball URLs (`serverType`, `supportsTimeField`), and how many requests pnpm keeps in flight to it (`networkConcurrency`). The full description of each field is on the dedicated [Registries](../registries.md) page.
+Declares the registries the project installs from. Each registry is declared once, keyed by its URL, with everything pnpm knows about it in the entry: the `scopes` routed to it, the bare-specifier `prefix` it answers to, how the server lays out tarball URLs (`serverType`, `supportsTimeField`), and how many requests pnpm keeps in flight to it (`networkConcurrency`). The full description of each field is on the dedicated [Registries](../registries.md) page.
 
 ```yaml title="pnpm-workspace.yaml"
 registries:
@@ -511,18 +469,16 @@ pnpm normalizes `https://registry.npmjs.com/` to `https://registry.npmjs.org/`. 
 
 For URL-scoped environment credentials, an explicit `registry.npmjs.org` entry takes precedence over a `registry.npmjs.com` entry.
 
-Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml`. See [where the setting may live](../registries.md#where-the-setting-may-live).
+This setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml`. See [where the setting may live](../registries.md#where-the-setting-may-live).
 
 ### namedRegistries
-
-Added in: v11.1.0
 
 * Default: **undefined**
 * Type: **Record&lt;string, string&gt;**
 
 :::note
 
-Deprecated since v11.23.0: declare a `prefix` in [`registries`](#registries) instead. See the [Registries](../registries.md) page. `namedRegistries` is still read, but only for prefixes that `registries` does not declare; when both settings declare prefixes, pnpm warns. Everything below about aliases (the built-in ones, reserved names, and the lockfile keys) applies to `prefix`-declared aliases the same way.
+Deprecated: declare a `prefix` in [`registries`](#registries) instead. See the [Registries](../registries.md) page. `namedRegistries` is still read, but only for prefixes that `registries` does not declare; when both settings declare prefixes, pnpm warns. Everything below about aliases (the built-in ones, reserved names, and the lockfile keys) applies to `prefix`-declared aliases the same way.
 
 :::
 
@@ -538,7 +494,7 @@ namedRegistries:
 
 Authentication is picked up from the existing per-URL `.npmrc` entries (e.g. `//npm.pkg.github.com/:_authToken=...`), so no separate auth mechanism is required.
 
-Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), so an alias like `work:` can be shared across every project on the machine.
+This setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), so an alias like `work:` can be shared across every project on the machine.
 
 #### Built-in aliases
 
@@ -547,7 +503,7 @@ Two aliases work without any configuration:
 | Alias    | Registry                      | Notes                                                                                                                                         |
 |----------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
 | `gh:`    | `https://npm.pkg.github.com/` | The [GitHub Packages npm registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry). |
-| `npmjs:` | `https://registry.npmjs.org/` | The public npm registry. Added in v11.20.0.                                                                                                   |
+| `npmjs:` | `https://registry.npmjs.org/` | The public npm registry.                                                                                                                      |
 
 Entries you define under `namedRegistries` are merged on top of these, so either one can be overridden. GitHub Enterprise Server users point `gh` at their own host, and an organization that mirrors or proxies npmjs should point `npmjs` at the mirror:
 
@@ -573,11 +529,11 @@ The built-in URLs are also the prefixes that a tarball URL recorded in the lockf
 
 #### Reserved alias names
 
-Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Since v12.13.0, `tool` is reserved for [provisioned tools](../package-sources.md#provisioned-tools). Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
+An alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Since v12.13.0, `tool` is reserved for [provisioned tools](../package-sources.md#provisioned-tools). An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
 
 #### Named registries in the lockfile
 
-Since v11.20.0, a package resolved from a named registry is recorded in `pnpm-lock.yaml` under a registry-qualified key, `<name>@<registryName>:<version>`:
+A package resolved from a named registry is recorded in `pnpm-lock.yaml` under a registry-qualified key, `<name>@<registryName>:<version>`:
 
 ```yaml title="pnpm-lock.yaml"
 packages:
@@ -585,7 +541,7 @@ packages:
     resolution: {integrity: sha512-...}
 ```
 
-Before v11.20.0, packages were keyed by `name@version` alone, so the same name and version served by two registries collapsed onto a single entry and whichever resolved first decided the tarball that every consumer got. That is a package-substitution risk: a package you expect from your private registry could be installed from another registry that publishes the same name and version, with nothing in the lockfile to reveal it. Registry-qualified keys give each registry its own entry and pin which one a dependency came from.
+Keyed by `name@version` alone, the same name and version served by two registries would collapse onto a single entry, and whichever resolved first would decide the tarball that every consumer got. That is a package-substitution risk: a package you expect from your private registry could be installed from another registry that publishes the same name and version, with nothing in the lockfile to reveal it. Registry-qualified keys give each registry its own entry and pin which one a dependency came from.
 
 The lockfile format version is unchanged, and qualified keys appear only for packages resolved from a named registry, including the built-in `gh:` and `npmjs:` aliases, which need no `namedRegistries` entry. A project that installs nothing through an alias sees no difference, and older pnpm versions keep reading the file.
 
@@ -601,14 +557,14 @@ There is no setting to keep the old behavior. The old shape is the vulnerability
 
 Every non-built-in alias that the lockfile references must stay declared, through `prefix` in [`registries`](#registries) or through `namedRegistries`. Reading an entry whose alias is gone fails with `ERR_PNPM_MISSING_NAMED_REGISTRY` rather than falling back to the default registry, since that would fetch a different package. Renaming an alias re-resolves the packages that used it.
 
-Tarball URLs that follow the standard registry layout are no longer written to the lockfile for named-registry packages; they are recomputed from the alias's declared URL on demand.
+Tarball URLs that follow the standard registry layout are not written to the lockfile for named-registry packages; they are recomputed from the alias's declared URL on demand.
 
 ### pnprServer
 
 * Default: **null**
 * Type: **String**
 
-URL of a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server.
+URL of a [pnpr](/pnpr) server. See [Install acceleration](/pnpr/install-acceleration).
 
 When set, `pnpm install` offloads dependency resolution to the remote pnpr server. pnpm sends its workspace manifests and registry configuration to the server, and the server resolves the dependency graph against those registries, streaming back resolved package metadata frames as it walks the graph so pnpm can download tarballs in parallel. Once resolution finishes, the server returns the complete lockfile and pnpm links `node_modules` locally.
 
