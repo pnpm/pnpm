@@ -123,8 +123,11 @@ async fn add_packages<Reporter: self::Reporter>(
     // Both halves honour `frozenStore`, so a read-only store root gains
     // neither an `index.db` write nor its WAL / SHM sidecars.
     let store_index = StoreIndex::open_shared(&config.store_dir, config.frozen_store).await;
-    let (store_index_writer, writer_task) =
-        StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store);
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+        &config.store_dir,
+        config.frozen_store,
+        config.store_index_format,
+    );
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let requester = dir.display().to_string();
 
@@ -213,6 +216,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
     IngestTarballToStore {
         fetching: args.archive_options(),
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: integrity.as_ref(),
             unpacked_size: manifest_unpacked_size(resolved.package.manifest.as_deref()),
             file_count: manifest_file_count(resolved.package.manifest.as_deref()),
@@ -276,6 +280,7 @@ impl<'a> AddOne<'a> {
             auth_headers: &self.config.auth_headers,
             retry_opts: self.config.retry_opts(),
             offline: self.config.offline,
+            tar_limits: self.config.tar_limits(),
         }
     }
 

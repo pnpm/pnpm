@@ -5,12 +5,11 @@ use super::{
 use crate::config_deps;
 
 /// The message refusing an implicit-`latest` update that would downgrade a
-/// project pinned to a newer pnpm than the registry's `latest`. The env
-/// lockfile lives at the workspace root, not necessarily the command's
-/// `--dir`.
+/// project pinned to a newer pnpm than the registry's `latest`. `env_root`
+/// holds the env lockfile that records the pinned version.
 pub(super) async fn project_pin_refusal(
     config: &'static Config,
-    dir: &Path,
+    env_root: &Path,
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
     is_implicit_latest: bool,
@@ -18,9 +17,7 @@ pub(super) async fn project_pin_refusal(
     if !is_implicit_latest || pm.version.as_deref() == Some(target_version) {
         return Ok(None);
     }
-    let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
-    let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
-    else {
+    let Some(current) = read_project_pinned_pnpm_version(env_root, pm.version.as_deref()) else {
         return Ok(None);
     };
     if !version_lt(target_version, &current) {
@@ -118,22 +115,18 @@ fn lagging_latest_message(kind: NoUpgradeKind, current: &str, target: &str) -> S
     }
 }
 
-/// Update the project's `packageManager` / `devEngines.packageManager`
-/// pin to `target_version`. Callers check [`project_pin_refusal`] first.
+/// Update `manifest`'s `packageManager` / `devEngines.packageManager` pin
+/// to `target_version`. Callers check [`project_pin_refusal`] first.
 pub(super) async fn update_project_pin(
     config: &'static Config,
-    dir: &Path,
+    env_root: &Path,
+    mut manifest: PackageManifest,
     pm: &super::super::package_manager::WantedPackageManager,
     target_version: &str,
 ) -> miette::Result<String> {
     if pm.version.as_deref() == Some(target_version) {
         return Ok(format!("The current project is already set to use pnpm v{target_version}"));
     }
-
-    let manifest_path = dir.join("package.json");
-    let mut manifest = PackageManifest::from_path(manifest_path)
-        .map_err(miette::Report::new)
-        .wrap_err("read the project manifest")?;
 
     let has_dev_engines = manifest
         .value()
@@ -142,7 +135,7 @@ pub(super) async fn update_project_pin(
         .is_some();
 
     if has_dev_engines {
-        update_dev_engines_pin(config, dir, pm, &mut manifest, target_version).await?;
+        update_dev_engines_pin(config, env_root, pm, &mut manifest, target_version).await?;
     } else if let Some(object) = manifest.value_mut().as_object_mut() {
         object.insert(
             "packageManager".to_string(),
@@ -302,17 +295,16 @@ pub(super) fn read_project_pinned_pnpm_version(
 
 async fn update_dev_engines_pin(
     config: &'static Config,
-    dir: &Path,
+    env_root: &Path,
     pm: &super::super::package_manager::WantedPackageManager,
     manifest: &mut PackageManifest,
     target_version: &str,
 ) -> miette::Result<()> {
     let pin_specifier = write_dev_engines_pin(manifest, target_version)?;
     if super::super::package_manager::should_persist_package_manager_lockfile(&pm_for_persist(pm)) {
-        let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
         Box::pin(config_deps::sync_package_manager_dependencies(
             config,
-            &root_dir,
+            env_root,
             &pin_specifier,
             target_version,
             false,

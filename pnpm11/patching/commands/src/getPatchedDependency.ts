@@ -3,14 +3,18 @@ import path from 'node:path'
 import { confirm, select } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { isError, PnpmError } from '@pnpm/error'
-import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
+import { type LockfileObject, type PackageSnapshots, readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
 import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
+import type { Project } from '@pnpm/types'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
 
 export type GetPatchedDependencyOptions = {
   lockfileDir: string
+  workspaceDir?: string
+  sharedWorkspaceLockfile?: boolean
+  allProjects?: Array<Pick<Project, 'rootDir' | 'modulesDir'>>
 } & Pick<Config, 'virtualStoreDir' | 'modulesDir'>
 
 export type GetPatchedDependencyResult = ParseWantedDependencyResult & {
@@ -104,12 +108,18 @@ export interface LockfileVersionsList {
 }
 
 export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult, opts: GetPatchedDependencyOptions): Promise<LockfileVersionsList> {
-  const modulesDir = await realpathMissing(path.join(opts.lockfileDir, opts.modulesDir ?? 'node_modules'))
-  const lockfile = await readCurrentLockfile(path.join(modulesDir, '.pnpm'), {
-    ignoreIncompatible: true,
-  }) ?? null
+  const lockfile = await readProjectCurrentLockfile(opts.lockfileDir, opts.modulesDir)
+  const pkgName = dep.alias && dep.bareSpecifier ? dep.alias : (dep.bareSpecifier ?? dep.alias)
 
-  if (!lockfile) {
+  if (lockfile != null) {
+    const result = extractVersionsFromPackages(lockfile.packages ?? {}, dep, pkgName)
+    if (result.preferredVersions.length > 0 || opts.sharedWorkspaceLockfile !== false || !opts.allProjects?.length) {
+      return result
+    }
+  }
+
+  const workspacePackages = await readWorkspaceCurrentPackages(opts, lockfile)
+  if (workspacePackages == null) {
     throw new PnpmError(
       'PATCH_NO_LOCKFILE',
       'The modules directory is not ready for patching',
@@ -119,9 +129,40 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
     )
   }
 
-  const pkgName = dep.alias && dep.bareSpecifier ? dep.alias : (dep.bareSpecifier ?? dep.alias)
+  return extractVersionsFromPackages(workspacePackages, dep, pkgName)
+}
 
-  const versions = Object.entries(lockfile.packages ?? {})
+async function readProjectCurrentLockfile (rootDir: string, modulesDir?: string): Promise<LockfileObject | null> {
+  const resolvedModulesDir = await realpathMissing(path.join(rootDir, modulesDir ?? 'node_modules'))
+  return await readCurrentLockfile(path.join(resolvedModulesDir, '.pnpm'), {
+    ignoreIncompatible: true,
+  }) ?? null
+}
+
+async function readWorkspaceCurrentPackages (
+  opts: GetPatchedDependencyOptions,
+  activeLockfile: LockfileObject | null
+): Promise<PackageSnapshots | null> {
+  if (opts.sharedWorkspaceLockfile !== false || !opts.allProjects?.length) {
+    return activeLockfile ? (activeLockfile.packages ?? {}) : null
+  }
+  const projectLockfiles = await Promise.all(
+    opts.allProjects.map(async (project) => readProjectCurrentLockfile(project.rootDir, project.modulesDir ?? opts.modulesDir))
+  )
+  const foundLockfiles = [
+    ...(activeLockfile ? [activeLockfile] : []),
+    ...projectLockfiles.filter((lf): lf is LockfileObject => lf != null),
+  ]
+  if (foundLockfiles.length === 0) return null
+  return Object.assign({}, ...foundLockfiles.map((lf) => lf.packages))
+}
+
+function extractVersionsFromPackages (
+  packages: PackageSnapshots,
+  dep: ParseWantedDependencyResult,
+  pkgName: string | undefined
+): LockfileVersionsList {
+  const versions = Object.entries(packages)
     .map(([depPath, pkgSnapshot]) => {
       const tarball = (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
       return {

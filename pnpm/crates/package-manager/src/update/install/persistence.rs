@@ -70,6 +70,7 @@ pub(in super::super) fn settle_selected_update<Reporter: self::Reporter>(
             update.config,
             workspace_dir,
             &applied.catalogs,
+            None,
             projects,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
@@ -115,6 +116,7 @@ pub(in super::super) fn settle_update_manifest<Reporter: self::Reporter>(
             config,
             settle.workspace_dir_for_catalogs,
             &applied.catalogs,
+            None,
             manifest,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;

@@ -2,6 +2,7 @@ mod reporting;
 
 mod store;
 
+mod hardlinks;
 mod workspace;
 
 mod runtimes;
@@ -35,37 +36,47 @@ fn cas_map(entries: &[(&str, PathBuf)]) -> HashMap<String, PathBuf> {
         .collect()
 }
 
-const FORCE_KEEP: ImportIndexedDirOpts = ImportIndexedDirOpts {
+const FORCE_KEEP: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: true,
     safe_to_skip: false,
     preserve_symlinks: false,
+    swap_lock: None,
 };
-const FORCE_ONLY: ImportIndexedDirOpts = ImportIndexedDirOpts {
+const FORCE_ONLY: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: false,
     preserve_symlinks: false,
+    swap_lock: None,
 };
-const FORCE_SHARED: ImportIndexedDirOpts = ImportIndexedDirOpts {
+const FORCE_SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: true,
     preserve_symlinks: false,
+    swap_lock: None,
 };
 // The shape the isolated linker uses for a shared slot: no force, since a warm slot is
 // short-circuited by its marker before the import runs.
-const SHARED: ImportIndexedDirOpts = ImportIndexedDirOpts {
+const SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     force: false,
+    reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: true,
     preserve_symlinks: false,
+    swap_lock: None,
 };
 // The shape the isolated linker uses for a shared slot whose build was interrupted.
 #[cfg(unix)]
-const FORCE_SHARED_KEEP: ImportIndexedDirOpts = ImportIndexedDirOpts {
+const FORCE_SHARED_KEEP: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     force: true,
+    reuse_hardlinks: false,
     keep_modules_dir: true,
     safe_to_skip: true,
     preserve_symlinks: false,
+    swap_lock: None,
 };

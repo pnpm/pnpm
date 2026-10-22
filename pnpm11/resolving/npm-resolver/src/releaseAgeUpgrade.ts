@@ -1,7 +1,8 @@
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
 
 import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
-import { condenseMetaForCache, prepareJsonForDisk, saveMetaBestEffort } from './metaMirror.js'
+import { mirrorWrite, releaseAgeUpgradeRequest } from './metadataCachePolicy.js'
+import { condenseMetaForCache, encodeMirror, metaHeadersOf, saveMetaBestEffort } from './metaMirror.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import type { PickPackageFromMetaOptions } from './pickPackageFromMeta.js'
 
@@ -36,17 +37,22 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
     offline?: boolean
     releaseAgeUpgradeCheckedPackuments?: WeakSet<PackageMeta>
   },
-  spec: RegistryPackageSpec,
-  opts: {
-    publishedBy?: Date
-    publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
-    authHeaderValue?: string
-    registry: string
+  { spec, opts, fullMetadata }: {
+    spec: RegistryPackageSpec
+    opts: {
+      publishedBy?: Date
+      publishedByExclude?: PickPackageFromMetaOptions['publishedByExclude']
+      authHeaderValue?: string
+      registry: string
+    }
+    /** A full document has no more complete form to upgrade to. */
+    fullMetadata: boolean
   },
   meta: PackageMeta
 ): Promise<ReleaseAgeUpgrade> {
   if (
     ctx.offline === true ||
+    fullMetadata ||
     !opts.publishedBy ||
     meta.time != null ||
     ctx.releaseAgeUpgradeCheckedPackuments?.has(meta) === true ||
@@ -66,28 +72,26 @@ export async function maybeUpgradeAbbreviatedMetaForReleaseAge (
   // When `modified` is missing or malformed we fall through to the upgrade
   // fetch: prefer correctness (run the maturity check on real `time` data)
   // over saving a network call when our cached freshness signal is unusable.
-  // An ETag and a `Last-Modified` date describe one representation, and `meta`
-  // holds the abbreviated one. A registry that reuses them across both forms
-  // answers 304, leaving the maturity check without per-version publish dates.
   let fullFetchResult: FetchMetadataResult | FetchMetadataNotModifiedResult
   try {
     fullFetchResult = await ctx.fetch(spec.name, {
       authHeaderValue: opts.authHeaderValue,
-      fullMetadata: true,
       registry: opts.registry,
+      ...releaseAgeUpgradeRequest(metaHeadersOf(meta)),
     })
   } catch (err: unknown) {
-    // The registry declined to hand over a body. Since the request carries no
-    // validators, it says so by repeating an unsolicited 304 until the fetcher
+    // The registry declined to hand over a body. To a request without
+    // validators it says so by repeating an unsolicited 304 until the fetcher
     // gives up, which throws instead of reporting `notModified`.
     if (!isNotModifiedWithoutCacheError(err)) throw err
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
   }
   if (fullFetchResult.notModified) {
-    // The registry has no fuller form of this document. An upgrade that cannot
-    // happen must not fail an install that would otherwise succeed: the
-    // maturity check falls back to the warn-or-error gate
+    // The 304 confirms that the full document `meta` holds is current, so the
+    // registry has no more complete form of it. An upgrade that cannot happen
+    // must not fail an install that would otherwise succeed: the maturity
+    // check falls back to the warn-or-error gate
     // `minimumReleaseAgeIgnoreMissingTime` already governs.
     ctx.releaseAgeUpgradeCheckedPackuments?.add(meta)
     return { meta }
@@ -138,19 +142,17 @@ export function upgradeMetaForCache (
 }
 
 // A condensing resolver keeps and mirrors the condensed form — the mirror
-// only has to carry `time` into the next install; otherwise the raw response
-// body is written and the unstripped meta is kept. Either way the abbreviated
-// mirror now holds the full document, so its ETag is recorded as `fullEtag`.
+// only has to carry `time` into the next install; otherwise the unstripped
+// meta is written and kept. The upgrade's response is the full document,
+// mirrored in the abbreviated mirror.
 function persistUpgradedMeta (
   ctx: { fullMetadata?: boolean, filterMetadata?: boolean },
   pkgMirror: string,
   upgradedFrom: FetchMetadataResult
 ): PackageMeta {
   const metaForCache = condenseMetaForCache(ctx, upgradedFrom.meta)
-  const fullEtag = upgradedFrom.etag
-  const jsonForDisk = metaForCache === upgradedFrom.meta
-    ? prepareJsonForDisk(upgradedFrom.meta, undefined, { ...upgradedFrom, fullEtag })
-    : prepareJsonForDisk(metaForCache, undefined, { uncacheable: upgradedFrom.uncacheable, fullEtag })
-  saveMetaBestEffort(pkgMirror, jsonForDisk, upgradedFrom.uncacheable === true)
+  const write = mirrorWrite(upgradedFrom, false)
+  const content = encodeMirror(ctx, upgradedFrom, { meta: metaForCache, etag: write.etag, body: write.body })
+  saveMetaBestEffort(pkgMirror, content, write.body.uncacheable === true)
   return metaForCache
 }

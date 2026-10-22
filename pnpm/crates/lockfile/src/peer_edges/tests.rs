@@ -429,3 +429,24 @@ snapshots:
     );
     assert!(PeerSatisfactionEdges::of_lockfile(&lockfile, ROOT_RULE).is_empty());
 }
+
+/// `abc` keeps `peer-c` as its own optional dependency when nothing in its
+/// scope provides the peer, so its key binds only `peer-a`. That entry is
+/// what installs `peer-c` for `abc`, even when the importer also lists
+/// `peer-c` under another alias.
+#[test]
+fn an_optional_peer_the_key_does_not_bind_is_followed() {
+    let mut lockfile = abc_lockfile(&importer(
+        ".",
+        &[
+            ("dependencies", &[("abc", "1.0.0(peer-a@1.0.0)")]),
+            ("devDependencies", &[("peer-a", "1.0.0"), ("c-alias", "peer-c@1.0.0")]),
+        ],
+    ));
+    let snapshots = lockfile.snapshots.as_mut().expect("snapshots");
+    let abc = snapshots
+        .remove(&key(ABC))
+        .expect("abc snapshot");
+    snapshots.insert(key("abc@1.0.0(peer-a@1.0.0)"), abc);
+    assert_eq!(classified(&lockfile, PeerEdgeOptions::default()), Vec::<String>::new());
+}

@@ -1,17 +1,36 @@
 use super::{
     BTreeMap, Config, ConfigAuditLevel, HashMap, HashSet, InstalledPackages, PackumentPublishInfo,
-    Range, RangeSpecStyle, age_cutoff, caret_range_for_patched, classify_for_update,
-    create_overrides, deprecate, filter_advisories_for_fix, fix_advisory,
-    format_fix_with_update_output, is_range_subset, minimum_release_age_excludes,
+    Range, RangeSpecStyle, advisory_choices, age_cutoff, classify_for_update, create_overrides,
+    deprecate, filter_advisories_for_fix, fix_advisory, format_fix_with_update_output,
+    is_range_subset, minimum_release_age_excludes, patched_range_for_style,
     prune_subsumed_advisories, publish_times, report_fixed_remaining, report_of,
 };
 
 #[test]
-fn caret_range_for_patched_uses_minimum_with_caret() {
-    assert_eq!(caret_range_for_patched(">=2.0.0"), "^2.0.0");
-    assert_eq!(caret_range_for_patched(">=1.2.3"), "^1.2.3");
-    // A non-inferred range is passed through unchanged.
-    assert_eq!(caret_range_for_patched("not-a-range"), "not-a-range");
+fn patched_range_for_style_uses_minimum_with_range_spec_style() {
+    assert_eq!(patched_range_for_style(">=2.0.0", RangeSpecStyle::Major), "^2.0.0");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Major), "^1.2.3");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Minor), "~1.2.3");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Patch), "1.2.3");
+    assert_eq!(patched_range_for_style(">=1.2.3", RangeSpecStyle::Exact), "=1.2.3");
+    assert_eq!(patched_range_for_style("not-a-range", RangeSpecStyle::Major), "not-a-range");
+}
+
+#[test]
+fn advisory_choices_show_the_patched_version_in_the_save_style() {
+    let report = report_of(vec![fix_advisory(
+        1,
+        "vulnerable",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-test-1111-2222",
+    )]);
+    let label = |style| advisory_choices(&report.advisories, style).1.remove(0);
+    assert!(label(RangeSpecStyle::Major).contains("❯ ^2.0.0 "));
+    assert!(label(RangeSpecStyle::Minor).contains("❯ ~2.0.0 "));
+    assert!(label(RangeSpecStyle::Patch).contains("❯ 2.0.0 "));
+    assert!(label(RangeSpecStyle::Exact).contains("❯ =2.0.0 "));
 }
 
 #[test]

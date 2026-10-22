@@ -12,6 +12,7 @@ use axum::{
 use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -32,6 +33,7 @@ fn persistent_config(storage: PathBuf, htpasswd: PathBuf, tokens_db: PathBuf) ->
         oidc: Vec::new(),
         htpasswd: HtpasswdConfig { file: Some(htpasswd), max_users: MaxUsers::Unlimited },
         tokens: TokensConfig { file: Some(tokens_db) },
+        scim: None,
     };
     config
 }
@@ -114,7 +116,7 @@ async fn user_and_token_survive_restart() {
     let response = app
         .clone()
         .oneshot(
-            Request::put("/-/package/anything/dist-tags/latest")
+            Request::put("/npm/-/package/anything/dist-tags/latest")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
@@ -300,6 +302,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
             max_users: MaxUsers::Disabled,
         },
         tokens: TokensConfig { file: Some(auth_dir.path().join("tokens.db")) },
+        scim: None,
     };
     let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
         .await
@@ -310,7 +313,7 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
         .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -323,7 +326,7 @@ async fn missing_max_users_disables_registration_end_to_end() {
         .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let body = body_bytes(response.into_body()).await;
     assert!(
         !body
@@ -355,4 +358,61 @@ async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn sha1_legacy_user_login_upgrades_hash_end_to_end() {
+    let storage = TempDir::new().unwrap();
+    let auth_dir = TempDir::new().unwrap();
+    let htpasswd = auth_dir.path().join("users");
+    // "test" hashed with SHA-1 in Apache/Verdaccio format
+    std::fs::write(&htpasswd, "alice:{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=\n").unwrap();
+
+    let config = persistent_config(
+        storage.path().to_path_buf(),
+        htpasswd.clone(),
+        auth_dir.path().join("tokens.db"),
+    );
+    let auth = AuthState::load(&config.identity.auth, &config.identity.backend)
+        .await
+        .expect("load auth");
+    let app = router_with_auth(config, auth);
+
+    // Legacy SHA user logs in via npm adduser / login endpoint
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["ok"].as_str(), Some("you are authenticated as 'alice'"));
+    let token = body["token"].as_str().expect("token issued");
+    assert!(!token.is_empty());
+
+    // Verify token authenticates whoami
+    let whoami_req = Request::get("/-/whoami")
+        .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let whoami_res = app
+        .clone()
+        .oneshot(whoami_req)
+        .await
+        .unwrap();
+    assert_eq!(whoami_res.status(), StatusCode::OK);
+    let whoami_body = body_json(whoami_res.into_body()).await;
+    assert_eq!(whoami_body["username"], "alice");
+
+    // The htpasswd file has been upgraded from {SHA} to bcrypt
+    let updated_htpasswd = std::fs::read_to_string(&htpasswd).unwrap();
+    assert!(updated_htpasswd.contains("alice:$2y$"));
+    assert!(!updated_htpasswd.contains("{SHA}"));
+
+    // Subsequent login succeeds with the upgraded hash
+    let second_response = app
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "test")))
+        .await
+        .unwrap();
+    assert_eq!(second_response.status(), StatusCode::CREATED);
 }

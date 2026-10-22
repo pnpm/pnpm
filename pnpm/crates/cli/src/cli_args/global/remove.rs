@@ -16,7 +16,19 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
 ) -> miette::Result<()> {
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
     check_bin_dir(&global_bin_dir)?;
-    remove_global_groups::<Reporter>(&global_pkg_dir, &global_bin_dir, params)
+    let (rust_named, params) = super::split_rust_param(params);
+    // Every package named is found before anything is removed, so a typo
+    // in one leaves the others installed.
+    if rust_named && !params.is_empty() {
+        requested_global_groups(&global_pkg_dir, &params)?;
+    }
+    if rust_named && !super::rust::remove_global_rust::<Reporter>(base_config, &global_bin_dir)? {
+        return Err(GlobalError::PkgNotFound { param: super::rust::RUST_PARAM.to_string() }.into());
+    }
+    if params.is_empty() {
+        return Ok(());
+    }
+    remove_global_groups::<Reporter>(&global_pkg_dir, &global_bin_dir, &params)
 }
 
 /// The removal behind [`handle_global_remove`], without its check that the

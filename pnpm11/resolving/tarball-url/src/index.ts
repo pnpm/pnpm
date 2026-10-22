@@ -1,11 +1,7 @@
-import { Buffer } from 'node:buffer'
-
-import { formatIntegrity, parseIntegrity } from '@pnpm/crypto.integrity'
-import { isError } from '@pnpm/error'
+import { PnpmError } from '@pnpm/error'
 import type { RegistryServerType } from '@pnpm/types'
 
 const PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/'
-const SHA512_INTEGRITY_LENGTH = 'sha512-'.length + 88
 
 /**
  * registry.npmjs.org is the one registry whose layout pnpm knows without being
@@ -25,63 +21,15 @@ export interface TarballUrlOptions {
   serverType?: RegistryServerType
 }
 
-export interface IntegrityAddress {
-  algorithm: 'sha512'
-  digest: Buffer
-}
-
-export function isIntegrityAddressedRegistryTarballUrl (
-  tarball: string,
-  integrity: string,
-  registry: string
-): boolean {
-  const expected = getIntegrityAddressedTarballUrl(integrity, registry)
-  if (expected == null) return false
-  try {
-    return new URL(tarball).toString() === expected
-  } catch {
-    return false
-  }
-}
-
-export function getIntegrityAddressedTarballUrl (
-  integrity: unknown,
-  registry: string
-): string | undefined {
-  const parsed = parseIntegrityAddress(integrity)
-  if (parsed == null) return undefined
-  return new URL(
-    `-/tarballs/${parsed.algorithm}/${parsed.digest.toString('base64url')}`,
-    normalizeRegistry(registry)
-  ).toString()
-}
-
-export function parseIntegrityAddress (integrity: unknown): IntegrityAddress | undefined {
-  if (typeof integrity !== 'string' || integrity.length !== SHA512_INTEGRITY_LENGTH) return undefined
-  let parsed: ReturnType<typeof parseIntegrity>
-  try {
-    parsed = parseIntegrity(integrity)
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_INVALID_INTEGRITY') {
-      return undefined
-    }
-    throw err
-  }
-  if (
-    parsed.algorithm !== 'sha512' ||
-    parsed.hexDigest.length !== 128 ||
-    formatIntegrity(parsed.algorithm, parsed.hexDigest) !== integrity
-  ) return undefined
-  return {
-    algorithm: parsed.algorithm,
-    digest: Buffer.from(parsed.hexDigest, 'hex'),
-  }
-}
-
-export function isValidTarballRevision (revision: unknown): revision is number {
-  return typeof revision === 'number' &&
-    Number.isSafeInteger(revision) &&
-    revision > 0
+/**
+ * Registry revisions (`dist.revision` metadata, `+rN` version selectors, and
+ * lockfile `revision` fields) address uncompressed tar resources, which this
+ * pnpm cannot install.
+ */
+export function createRegistryRevisionsUnsupportedError (message: string): PnpmError {
+  return new PnpmError('REGISTRY_REVISIONS_UNSUPPORTED', message, {
+    hint: 'Registry revisions are supported by pnpm v12 and later.',
+  })
 }
 
 /**

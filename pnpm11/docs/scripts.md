@@ -11,7 +11,7 @@ Added in: v11.0.0
 
 Scripts with names starting with `.` are hidden. They cannot be run directly via `pnpm run` and are omitted from the `pnpm run` listing. Hidden scripts can only be called from other scripts.
 
-```json
+```json title="package.json"
 {
   "scripts": {
     ".helper": "echo 'I am hidden'",

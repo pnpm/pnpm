@@ -14,16 +14,13 @@ use std::{
     ffi::OsString,
     fs,
     io::{self, Read},
-    os::unix::process::ExitStatusExt,
+    os::unix::process::{CommandExt, ExitStatusExt},
     path::Path,
     process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
     thread::{self, sleep},
     time::{Duration, Instant},
 };
-
-#[cfg(target_os = "linux")]
-use std::os::unix::process::CommandExt;
 
 /// How long a script is given to shut down before the test gives up. Well
 /// past the second the fixtures take, and short enough to report a stuck
@@ -162,6 +159,32 @@ fn run_ends_with_the_signal_that_killed_the_script() {
     drop(root);
 }
 
+#[test]
+fn exec_ends_with_a_core_dump_signal_without_dumping_core_for_pnpm() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"test","version":"0.0.0"}"#)
+        .expect("write package.json");
+
+    let mut command = pacquet.with_args([
+        "--config.verify-deps-before-run=false",
+        "exec",
+        "sh",
+        "-c",
+        "ulimit -c 0; kill -s ABRT $$",
+    ]);
+    enable_core_dumps(&mut command);
+    let mut process = spawn_without_terminal(command);
+    let status = wait_for_shutdown(&mut process);
+
+    assert_eq!(status.signal(), Some(libc::SIGABRT), "pnpm should end the way the command did");
+    assert!(
+        !status.core_dumped(),
+        "pnpm re-raised the child's SIGABRT, so pnpm itself must not dump core: {status:?}",
+    );
+
+    drop(root);
+}
+
 /// `Ctrl+C` interrupts the terminal's whole foreground group, so the
 /// script has the signal by the time pnpm does. pnpm passes nothing on,
 /// and the script counts one interrupt rather than two
@@ -288,6 +311,54 @@ fn ctrl_c_ends_pnpm_with_the_signal_without_a_lifecycle_failure() {
     assert!(
         !output.contains("ELIFECYCLE"),
         "a script the user interrupted is not a lifecycle failure\n{output}",
+    );
+
+    drop(root);
+}
+
+/// A recursive run the user interrupts ends pnpm with the signal too, and
+/// reports no run failure for the scripts the interrupt ended
+/// ([pnpm/pnpm#16964](https://github.com/pnpm/pnpm/issues/16964)).
+#[test]
+fn ctrl_c_ends_a_parallel_run_with_the_signal_without_a_run_failure() {
+    assert_ctrl_c_ends_recursive_run(&["--filter=./project-*", "--parallel"], &RECURSIVE_PROJECTS);
+}
+
+/// The same for a recursive run that selects one project, whose script
+/// runs in the terminal's foreground group.
+#[test]
+fn ctrl_c_ends_a_filtered_run_with_the_signal_without_a_run_failure() {
+    assert_ctrl_c_ends_recursive_run(&["--filter=project-1"], &RECURSIVE_PROJECTS[..1]);
+}
+
+const RECURSIVE_PROJECTS: [&str; 2] = ["project-1", "project-2"];
+
+fn assert_ctrl_c_ends_recursive_run(selection: &[&str], started: &[&str]) {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &RECURSIVE_PROJECTS, LINGERING_SCRIPT);
+
+    let mut terminal = Terminal::open();
+    let mut process = terminal.spawn_foreground(
+        pacquet
+            .with_args(["--config.verify-deps-before-run=false", "-r"])
+            .with_args(selection)
+            .with_args(["run", "dev"]),
+    );
+    for project in started {
+        wait_for_file(&workspace.join(project).join("started.txt"), &mut process);
+    }
+    terminal.press_ctrl_c();
+    let status = wait_for_shutdown(&mut process);
+    let output = terminal.captured_output();
+
+    assert_eq!(
+        status.signal(),
+        Some(libc::SIGINT),
+        "an interrupted recursive run ends pnpm with SIGINT\n{output}",
+    );
+    assert!(
+        !output.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL") && !output.contains("ELIFECYCLE"),
+        "scripts the user interrupted are not a run failure\n{output}",
     );
 
     drop(root);
@@ -639,6 +710,56 @@ fn a_script_failing_after_a_handled_interrupt_is_still_reported() {
     drop(root);
 }
 
+/// In a recursive run too, a script that fails on its own after an earlier
+/// stage handled the interrupt is a run failure, not an interrupted run.
+#[test]
+fn a_recursive_script_failing_after_a_handled_interrupt_is_still_reported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &RECURSIVE_PROJECTS[..1], LINGERING_SCRIPT);
+    let project = workspace.join(RECURSIVE_PROJECTS[0]);
+    let manifest = json!({
+        "name": RECURSIVE_PROJECTS[0],
+        "version": "0.0.0",
+        "scripts": { "predev": "exec node pre.js", "dev": r#"exec node -e "process.exit(3)""# },
+    });
+    fs::write(project.join("package.json"), manifest.to_string()).expect("write package.json");
+    fs::write(project.join("pre.js"), PRE_SCRIPT).expect("write the pre script");
+
+    let mut process = spawn_without_terminal(
+        pacquet
+            .with_env("PNPM_CONFIG_ENABLE_PRE_POST_SCRIPTS", "true")
+            .with_args([
+                "--config.verify-deps-before-run=false",
+                "-r",
+                "--filter=project-1",
+                "run",
+                "dev",
+            ])
+            .with_stderr(Stdio::piped()),
+    );
+    wait_for_file(&project.join("pre-started.txt"), &mut process);
+    interrupt(&process);
+    let status = wait_for_shutdown(&mut process);
+    let mut output = String::new();
+    process.stderr
+        .take()
+        .expect("stderr is piped")
+        .read_to_string(&mut output)
+        .expect("read stderr");
+
+    assert!(
+        project.join("pre-shut-down.txt").exists(),
+        "the pre script should have handled the interrupt\n{output}",
+    );
+    assert!(
+        output.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"),
+        "a script that fails on its own is still a run failure\n{output}",
+    );
+    assert_eq!(status.code(), Some(1), "the run failed\n{output}");
+
+    drop(root);
+}
+
 /// The `dev` script execs `script`: the shell is out of the picture, and
 /// the relay's target is the script itself.
 fn write_project(dir: &Path, name: &str, script: &str) {
@@ -680,6 +801,39 @@ fn path_with_the_tested_pnpm(pacquet: &Command, root: &Path) -> OsString {
             .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())),
     )
     .expect("join PATH")
+}
+
+fn enable_core_dumps(command: &mut Command) {
+    // SAFETY: `getrlimit`, `setrlimit`, and `prctl` are async-signal-safe and
+    // use a stack local that outlives the call. Both attributes survive `exec`.
+    unsafe {
+        let mut inherited_limit: libc::rlimit = std::mem::zeroed();
+        assert_eq!(
+            libc::getrlimit(libc::RLIMIT_CORE, &raw mut inherited_limit),
+            0,
+            "getrlimit(RLIMIT_CORE) failed: {}",
+            io::Error::last_os_error(),
+        );
+        assert_ne!(
+            inherited_limit.rlim_max, 0,
+            "core-dump regression test requires a non-zero RLIMIT_CORE hard limit",
+        );
+        command.pre_exec(|| {
+            let mut limit: libc::rlimit = std::mem::zeroed();
+            if libc::getrlimit(libc::RLIMIT_CORE, &raw mut limit) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            limit.rlim_cur = limit.rlim_max;
+            if libc::setrlimit(libc::RLIMIT_CORE, &raw const limit) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            if libc::prctl(libc::PR_SET_DUMPABLE, 1, 0, 0, 0) != 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
 }
 
 /// Make the process that `command` starts adopt the orphans among its

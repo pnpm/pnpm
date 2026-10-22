@@ -215,17 +215,6 @@ impl RouteContext {
         }
     }
 
-    #[must_use]
-    pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
-        self.registries.is_only_ecosystem(ecosystem)
-    }
-
-    /// See [`Registries::base_path`].
-    #[must_use]
-    pub fn base_path(&self, ecosystem: Ecosystem) -> String {
-        self.registries.base_path(ecosystem)
-    }
-
     /// Whether the upstream registry's effective per-package access admits
     /// `identity` for `package`. A non-package fetch and an upstream with no
     /// rules entry (a programmatically folded one) gate at the registry
@@ -234,7 +223,7 @@ impl RouteContext {
         let (Some(package), Some(rules)) = (package, self.upstream_rules.get(registry)) else {
             return true;
         };
-        rules.for_package(package).access.allows(identity)
+        rules.access_admits(package, identity)
     }
 
     /// The descriptor package qualifier for a proxied fetch: `Some(package)`
@@ -244,7 +233,7 @@ impl RouteContext {
     /// the common footprint one descriptor per alias.
     fn alias_package_qualifier(&self, alias: &str, package: Option<&str>) -> Option<String> {
         let (package, rules) = (package?, self.upstream_rules.get(alias)?);
-        rules.for_package(package).access_is_explicit.then(|| package.to_string())
+        rules.access_is_explicit(package).then(|| package.to_string())
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a
@@ -306,14 +295,8 @@ impl RouteContext {
         hosted: &str,
         package: Option<&str>,
     ) -> RouteClass {
-        // Spelled out rather than built from `base_path`: this wants a path
-        // segment with a trailing slash, not the `/<ecosystem>` prefix that
-        // URL building uses.
-        let npm_endpoint = if self.registries.is_only_ecosystem(Ecosystem::Npm) {
-            hosted.to_string()
-        } else {
-            format!("{hosted}npm/")
-        };
+        let npm_endpoint =
+            format!("{}{}/", hosted.trim_end_matches('/'), Ecosystem::Npm.base_path());
         if let Some(registry) = addressed_registry_segment(fetch, &npm_endpoint) {
             return self.classify_addressed(identity, registry, package);
         }
@@ -487,7 +470,8 @@ impl RouteContext {
         let Some(rules) = self.hosted_rules.get(registry) else {
             return RouteClass::Public;
         };
-        let access = rules.for_package(package).access;
+        let table = rules.snapshot();
+        let access = table.for_package(package).access;
         if access.allows(&Identity::Anonymous) {
             return RouteClass::Public;
         }
@@ -552,7 +536,7 @@ impl RouteContext {
                 match policy_id.split_once('\0') {
                     Some((registry, package)) => self.hosted_rules
                         .get(registry)
-                        .is_some_and(|rules| rules.for_package(package).access.allows(identity)),
+                        .is_some_and(|rules| rules.access_admits(package, identity)),
                     None => false,
                 }
             }

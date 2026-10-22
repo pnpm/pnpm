@@ -8,7 +8,7 @@ Added in: v0.1.0-alpha.11
 pnpr serves the OCI distribution API, so `docker`, `podman`, and `skopeo` can
 push to and pull from the same server that hosts your packages.
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   images:
     type: hosted
@@ -74,7 +74,7 @@ Blobs are uploaded in one request or in chunks, streamed to disk rather than
 held in memory, and verified against the digest the client promised before
 anything is stored.
 
-```yaml
+```yaml title="pnpr.yaml"
 oci:
   maxBlobBytes: 10737418240   # 10 GiB, the default
   maxManifestBytes: 4194304   # 4 MiB, the default
@@ -167,7 +167,7 @@ store must run this version before online deletion is used.
 
 ## Caching Docker Hub and GHCR
 
-```yaml
+```yaml title="pnpr.yaml"
 registries:
   dockerhub:
     type: upstream

@@ -6,7 +6,7 @@ import { add, update } from '@pnpm/installing.commands'
 import { prepare } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 // `--latest` resolves the `latest` dist-tag, which can point at an older
 // release than the one installed — that is what rolled a self-updated pnpm back

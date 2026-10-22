@@ -16,6 +16,7 @@ use npm::publish_doc;
 use object_store::{ObjectStore, memory::InMemory};
 use pausing_store::PausingStore;
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -68,13 +69,13 @@ impl Replica {
 
     async fn publish(&self, name: &str, version: &str, tarball: &[u8]) -> StatusCode {
         let body = publish_doc(name, version, tarball);
-        self.send("PUT", &format!("/{name}"), Body::from(serde_json::to_vec(&body).unwrap()))
+        self.send("PUT", &format!("/npm/{name}"), Body::from(serde_json::to_vec(&body).unwrap()))
             .await
             .0
     }
 
     async fn packument(&self, name: &str) -> Value {
-        let (status, document) = self.send("GET", &format!("/{name}"), Body::empty()).await;
+        let (status, document) = self.send("GET", &format!("/npm/{name}"), Body::empty()).await;
         assert_eq!(status, StatusCode::OK, "{name} must be served by every replica");
         document
     }
@@ -83,7 +84,7 @@ impl Replica {
         let body = publish_doc(name, version, tarball);
         let (status, payload) = self.send(
             "POST",
-            &format!("/-/stage/package/{name}"),
+            &format!("/npm/-/stage/package/{name}"),
             Body::from(serde_json::to_vec(&body).unwrap()),
         )
         .await;
@@ -95,7 +96,7 @@ impl Replica {
     }
 
     async fn approve(&self, stage_id: &str) -> StatusCode {
-        self.send("POST", &format!("/-/stage/{stage_id}/approve"), Body::empty())
+        self.send("POST", &format!("/npm/-/stage/{stage_id}/approve"), Body::empty())
             .await
             .0
     }
@@ -170,7 +171,7 @@ async fn one_stage_approved_on_two_replicas_publishes_once() {
             .len(),
         1,
     );
-    let (status, listing) = second.send("GET", "/-/stage", Body::empty()).await;
+    let (status, listing) = second.send("GET", "/npm/-/stage", Body::empty()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(listing["total"], 0, "the stage is spent");
 }
@@ -189,11 +190,11 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
     let rejecting = Replica::start(&store).await;
 
     let stage_id = approving.stage("staged-pkg", "1.0.0", b"the tarball").await;
-    objects.pause("package.json".to_string());
+    objects.pause("document.json".to_string());
     let approval = tokio::spawn({
         let app = approving.app.clone();
         let token = approving.token.clone();
-        let path = format!("/-/stage/{stage_id}/approve");
+        let path = format!("/npm/-/stage/{stage_id}/approve");
         async move {
             let request = Request::post(&path)
                 .header("Authorization", format!("Bearer {token}"))
@@ -207,12 +208,12 @@ async fn a_rejection_stops_an_approval_that_has_not_committed() {
 
     objects.started.notified().await;
     let (rejected, _) =
-        rejecting.send("DELETE", &format!("/-/stage/{stage_id}"), Body::empty()).await;
+        rejecting.send("DELETE", &format!("/npm/-/stage/{stage_id}"), Body::empty()).await;
     assert_eq!(rejected, StatusCode::NO_CONTENT);
     objects.resume.notify_one();
 
     assert_ne!(approval.await.unwrap(), StatusCode::CREATED, "the rejection stands");
-    let (status, _) = approving.send("GET", "/staged-pkg", Body::empty()).await;
+    let (status, _) = approving.send("GET", "/npm/staged-pkg", Body::empty()).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "a rejected publish must not be served");
 }
 
@@ -226,10 +227,12 @@ async fn a_dist_tag_written_on_one_replica_is_served_by_the_other() {
     assert_eq!(first.publish("tagged-pkg", "1.0.0", b"one").await, StatusCode::CREATED);
     assert_eq!(second.publish("tagged-pkg", "2.0.0", b"two").await, StatusCode::CREATED);
     let (status, _) =
-        first.send("PUT", "/-/package/tagged-pkg/dist-tags/next", Body::from(r#""2.0.0""#)).await;
+        first.send("PUT", "/npm/-/package/tagged-pkg/dist-tags/next", Body::from(r#""2.0.0""#))
+            .await;
     assert_eq!(status, StatusCode::CREATED);
 
-    let (status, tags) = second.send("GET", "/-/package/tagged-pkg/dist-tags", Body::empty()).await;
+    let (status, tags) =
+        second.send("GET", "/npm/-/package/tagged-pkg/dist-tags", Body::empty()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(tags["next"], "2.0.0");
 }

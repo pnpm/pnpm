@@ -10,7 +10,7 @@ Fetches a package from the registry without installing it as a dependency, hotlo
 For example, to use `create-vue` anywhere to bootstrap a Vue project without
 needing to install it under another project, you can run:
 
-```
+```sh
 pnx create-vue my-app
 ```
 
@@ -18,13 +18,13 @@ This will fetch `create-vue` from the registry and run it with the given argumen
 
 You may also specify which exact version of the package you'd like to use:
 
-```
+```sh
 pnx create-vue@next my-app
 ```
 
 The `catalog:` protocol is also supported, allowing you to use versions defined in your workspace catalogs:
 
-```
+```sh
 pnx shx@catalog:
 ```
 
@@ -36,14 +36,14 @@ The package to install before running the command.
 
 Example:
 
-```
+```sh
 pnx --package=@pnpm/meta-updater meta-updater --help
 pnx --package=@pnpm/meta-updater@0 meta-updater --help
 ```
 
 Multiple packages can be provided for installation:
 
-```
+```sh
 pnx --package=yo --package=generator-webapp yo webapp --skip-install
 ```
 
@@ -55,7 +55,7 @@ A list of package names that are allowed to run postinstall scripts during insta
 
 Example:
 
-```
+```sh
 pnx --allow-build=esbuild my-bundler bundle
 ```
 
@@ -67,7 +67,7 @@ Runs the command inside of a shell. Uses `/bin/sh` on UNIX and `\cmd.exe` on Win
 
 Example:
 
-```
+```sh
 pnx --package cowsay --package lolcatjs -c 'echo "hi pnpm" | cowsay | lolcatjs'
 ```
 

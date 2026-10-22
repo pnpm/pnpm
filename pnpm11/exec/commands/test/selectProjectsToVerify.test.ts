@@ -65,6 +65,21 @@ describe('selectProjectsToVerify', () => {
     expect(await selectProjectsToVerify({ selectedProjectsGraph })).toBe(selectedProjectsGraph)
     expect(await selectProjectsToVerify({})).toBeUndefined()
   })
+
+  test('under dedicated lockfiles with injection, follows link: edges while skipping injected workspace edges', async () => {
+    const allProjectsGraph = createGraph({ a: ['b', 'c'], b: [], c: [] })
+    allProjectsGraph[dirOf('a')].package.manifest.dependencies = {
+      b: 'workspace:*',
+      c: 'link:../c',
+    }
+    expect(await selectNames({
+      filter: ['a'],
+      sharedWorkspaceLockfile: false,
+      injectWorkspacePackages: true,
+      allProjectsGraph,
+      selectedProjectsGraph: pickGraph(allProjectsGraph, ['a']),
+    })).toStrictEqual(['a', 'c'])
+  })
 })
 
 function dirOf (name: string): ProjectRootDir {

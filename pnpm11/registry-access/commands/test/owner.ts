@@ -36,14 +36,17 @@ describe('owner command', () => {
     expect(typeof options).toBe('object')
   })
 
-  it('owner ls: should list owners of a package', async () => {
+  it('owner ls: should list maintainers from package metadata', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
-      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
-    }).reply(200, [
-      { username: 'alice', email: 'alice@example.com' },
-      { username: 'bob', email: 'bob@example.com' },
-    ])
+      path: /^\/@pnpm%2[Ff]test$/,
+      headers: { accept: 'application/json; q=1.0, */*' },
+    }).reply(200, {
+      maintainers: [
+        { name: 'alice', email: 'alice@example.com' },
+        { name: 'bob', email: 'bob@example.com' },
+      ],
+    })
 
     const result = await owner.handler({
       cliOptions: {},
@@ -54,6 +57,56 @@ describe('owner command', () => {
 
     expect(result).toContain('alice <alice@example.com>')
     expect(result).toContain('bob <bob@example.com>')
+  })
+
+  it.each([{}, { maintainers: [] }, { maintainers: null }])('owner ls: should accept metadata without owners: %j', async (metadata) => {
+    getMockAgent().get('https://registry.npmjs.org').intercept({
+      method: 'GET',
+      path: '/test-package',
+    }).reply(200, metadata)
+
+    expect(await owner.handler({}, ['ls', 'test-package'])).toBe('')
+  })
+
+  it('owner ls: should accept maintainers without an email', async () => {
+    getMockAgent().get('https://registry.npmjs.org').intercept({
+      method: 'GET',
+      path: '/test-package',
+    }).reply(200, { maintainers: [{ name: 'alice' }] })
+
+    expect(await owner.handler({}, ['ls', 'test-package'])).toBe('alice')
+  })
+
+  it('owner ls: should preserve scoped registry authentication and path prefixes', async () => {
+    getMockAgent().get('https://registry.example.com').intercept({
+      method: 'GET',
+      path: /^\/npm\/@pnpm%2[Ff]test$/,
+      headers: { authorization: 'Bearer test-token', accept: 'application/json; q=1.0, */*' },
+    }).reply(200, { maintainers: [{ name: 'alice', email: 'alice@example.com' }] })
+
+    const result = await owner.handler({
+      registriesByScope: {
+        default: REGISTRY_URL,
+        '@pnpm': 'https://registry.example.com/npm/',
+      },
+      configByUri: {
+        '//registry.example.com/npm/': { '@': { authToken: 'test-token' } },
+      },
+    }, ['ls', '@pnpm/test'])
+
+    expect(result).toBe('alice <alice@example.com>')
+  })
+
+  it('owner ls: should read metadata larger than 1 MiB', async () => {
+    getMockAgent().get('https://registry.npmjs.org').intercept({
+      method: 'GET',
+      path: '/test-package',
+    }).reply(200, {
+      readme: 'x'.repeat(1024 * 1024),
+      maintainers: [{ name: 'alice', email: 'alice@example.com' }],
+    })
+
+    expect(await owner.handler({}, ['ls', 'test-package'])).toBe('alice <alice@example.com>')
   })
 
   it('owner ls: should throw when no package name provided', async () => {
@@ -70,7 +123,7 @@ describe('owner command', () => {
   it('owner ls: should throw when package not found', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
-      path: /^\/-\/package\/nonexistent-pkg-12345\/owners$/,
+      path: '/nonexistent-pkg-12345',
     }).reply(404, { error: 'Not found' })
 
     await expect(async () => {
@@ -86,7 +139,7 @@ describe('owner command', () => {
   it('owner ls: should throw on 401 (unauthorized)', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
-      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
+      path: /^\/@pnpm%2[Ff]test$/,
     }).reply(401, { error: 'Unauthorized' })
 
     await expect(async () => {
@@ -102,7 +155,7 @@ describe('owner command', () => {
   it('owner ls: should throw on 403 (forbidden)', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
-      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
+      path: /^\/@pnpm%2[Ff]test$/,
     }).reply(403, { error: 'Forbidden' })
 
     await expect(async () => {
@@ -243,17 +296,17 @@ describe('owner command', () => {
   it('owner ls: should default to ls when no subcommand given', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
-      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
-    }).reply(200, [
-      { username: 'alice', email: 'alice@example.com' },
-    ])
+      path: '/test-package',
+    }).reply(200, {
+      maintainers: [{ name: 'alice', email: 'alice@example.com' }],
+    })
 
     const result = await owner.handler({
       cliOptions: {},
       registriesByScope: {
         default: REGISTRY_URL,
       },
-    }, ['@pnpm/test'])
+    }, ['test-package'])
 
     expect(result).toContain('alice <alice@example.com>')
   })
@@ -261,10 +314,10 @@ describe('owner command', () => {
   it('owner: should accept "list" as alias for ls', async () => {
     getMockAgent().get('https://registry.npmjs.org').intercept({
       method: 'GET',
-      path: /^\/-\/package\/@pnpm%2[Ff]test\/owners$/,
-    }).reply(200, [
-      { username: 'alice', email: 'alice@example.com' },
-    ])
+      path: /^\/@pnpm%2[Ff]test$/,
+    }).reply(200, {
+      maintainers: [{ name: 'alice', email: 'alice@example.com' }],
+    })
 
     const result = await owner.handler({
       cliOptions: {},

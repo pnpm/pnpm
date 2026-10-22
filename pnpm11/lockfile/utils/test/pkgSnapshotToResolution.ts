@@ -4,7 +4,7 @@ import { pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
 const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
 const LEGACY_GIT_TARBALL = 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567'
-const REVISION_INTEGRITY = `sha512-${'A'.repeat(86)}==`
+const SHA512_INTEGRITY = `sha512-${'A'.repeat(86)}==`
 
 test('pkgSnapshotToResolution() fails closed on a non-string tarball', () => {
   // A tampered lockfile (YAML) could carry a non-string `tarball` that `new URL()` would
@@ -162,82 +162,33 @@ test('pkgSnapshotToResolution() rejects an alias that only exists on Object.prot
   }
 })
 
-test('pkgSnapshotToResolution() hydrates a resolution with a revision from the effective registry', () => {
-  expect(pkgSnapshotToResolution('@scope/foo@1.0.0', {
-    resolution: {
-      integrity: REVISION_INTEGRITY,
-      revision: 2,
-    },
-  }, {
-    registriesByScope: {
-      default: 'https://registry.npmjs.org/',
-      '@scope': 'https://registry.example/~main',
-    },
-  })).toEqual({
-    integrity: REVISION_INTEGRITY,
-    revision: 2,
-    tarball: `https://registry.example/~main/-/tarballs/sha512/${'A'.repeat(86)}`,
-  })
-})
-
 test('pkgSnapshotToResolution() hydrates an integrity-only resolution from the canonical URL', () => {
   expect(pkgSnapshotToResolution('foo@1.0.0', {
     resolution: {
-      integrity: REVISION_INTEGRITY,
+      integrity: SHA512_INTEGRITY,
     },
   }, {
     registriesByScope: { default: 'https://registry.npmjs.org/' },
   })).toEqual({
-    integrity: REVISION_INTEGRITY,
+    integrity: SHA512_INTEGRITY,
     tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
   })
 })
 
-test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '1', '01'])(
-  'pkgSnapshotToResolution() rejects malformed revision %s',
-  (revision) => {
-    expect(() => pkgSnapshotToResolution('foo@1.0.0', {
-      resolution: {
-        integrity: REVISION_INTEGRITY,
-        revision,
-      } as never,
-    }, {
-      registriesByScope: { default: 'https://registry.npmjs.org/' },
-    })).toThrow(expect.objectContaining({
-      code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
-    }))
-  }
-)
-
-test.each([{}, [], 1, true])(
-  'pkgSnapshotToResolution() rejects non-string revision integrity %#',
-  (integrity) => {
-    expect(() => pkgSnapshotToResolution('foo@1.0.0', {
-      resolution: {
-        integrity,
-        revision: 2,
-      } as never,
-    }, {
-      registriesByScope: { default: 'https://registry.npmjs.org/' },
-    })).toThrow(expect.objectContaining({
-      code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
-    }))
-  }
-)
-
 test.each([
+  {},
+  { tarball: `https://registry.npmjs.org/-/tarballs/sha512/${'A'.repeat(86)}` },
   { tarball: 'file:../foo.tgz' },
-  { tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc', gitHosted: true },
-])('pkgSnapshotToResolution() rejects a revision on a non-registry tarball', (resolution) => {
+])('pkgSnapshotToResolution() rejects a lockfile entry that pins a registry revision %#', (resolution) => {
   expect(() => pkgSnapshotToResolution('foo@1.0.0', {
     resolution: {
       ...resolution,
-      integrity: REVISION_INTEGRITY,
-      revision: 1,
-    },
+      integrity: SHA512_INTEGRITY,
+      revision: 0,
+    } as never,
   }, {
     registriesByScope: { default: 'https://registry.npmjs.org/' },
   })).toThrow(expect.objectContaining({
-    code: 'ERR_PNPM_INVALID_TARBALL_REVISION',
+    code: 'ERR_PNPM_REGISTRY_REVISIONS_UNSUPPORTED',
   }))
 })

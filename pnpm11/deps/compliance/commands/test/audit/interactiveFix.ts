@@ -9,7 +9,7 @@ import chalk from 'chalk'
 import { loadJsonFile } from 'load-json-file'
 import { readYamlFileSync } from 'read-yaml-file'
 
-import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, MOCK_REGISTRY, MOCK_REGISTRY_OPTS } from './utils/options.js'
+import { AUDIT_REGISTRY, AUDIT_REGISTRY_OPTS, MOCK_REGISTRY_AUDIT_PATH, MOCK_REGISTRY_OPTS, MOCK_REGISTRY_ORIGIN } from './utils/options.js'
 import * as responses from './utils/responses/index.js'
 
 jest.unstable_mockModule('@inquirer/prompts', () => {
@@ -90,8 +90,8 @@ test('audit --fix=update -i does not open the interactive update prompt', async 
   expect(originalLockfile?.packages?.[unchangedPkgId]).toBeDefined()
 
   getMockAgent().enableNetConnect(/localhost/)
-  getMockAgent().get(MOCK_REGISTRY)
-    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+  getMockAgent().get(MOCK_REGISTRY_ORIGIN)
+    .intercept({ path: MOCK_REGISTRY_AUDIT_PATH, method: 'POST' })
     .reply(200, mockResponse)
 
   mockCheckbox.mockResolvedValueOnce(['@pnpm.e2e/pkg-with-1-dep@<100.1.0'])
@@ -208,4 +208,65 @@ test('audit --fix -i with auditLevel filters before showing prompt', async () =>
     .map((choice) => choice instanceof Separator ? choice.separator : String(choice))
   expect(separatorNames.filter((name: string) => name.includes('critical') || name.includes('high') || name.includes('moderate') || name.includes('low'))).toHaveLength(1)
   expect(separatorNames.some((name: string) => name.includes('critical'))).toBe(true)
+})
+
+test('audit --fix -i respects saveExact when formatting choices and overrides', async () => {
+  const tmp = testFixtures.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  mockCheckbox.mockResolvedValue(['axios@<1.15.0'])
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    interactive: true,
+    saveExact: true,
+  })
+
+  expect(exitCode).toBe(0)
+
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  const choices = callArgs.choices as Array<{ name?: string; value?: string }>
+  const axiosChoice = choices.find((choice) => choice.value === 'axios@<1.15.0')
+  expect(axiosChoice?.name).toMatch(/\b1\.15\.0\b/)
+  expect(axiosChoice?.name).not.toContain('^1.15.0')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('1.15.0')
+})
+
+test('audit --fix -i respects savePrefix when formatting choices and overrides', async () => {
+  const tmp = testFixtures.prepare('has-vulnerabilities')
+
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, responses.ALL_VULN_RESP)
+
+  mockCheckbox.mockResolvedValue(['axios@<1.15.0'])
+
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'moderate',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: true,
+    interactive: true,
+    savePrefix: '~',
+  })
+
+  expect(exitCode).toBe(0)
+
+  const callArgs = mockCheckbox.mock.calls[0][0]
+  const choices = callArgs.choices as Array<{ name?: string; value?: string }>
+  const axiosChoice = choices.find((choice) => choice.value === 'axios@<1.15.0')
+  expect(axiosChoice?.name).toContain('~1.15.0')
+
+  const manifest = readYamlFileSync<{ overrides?: Record<string, string> }>(path.join(tmp, 'pnpm-workspace.yaml'))
+  expect(manifest.overrides?.['axios@<1.15.0']).toBe('~1.15.0')
 })

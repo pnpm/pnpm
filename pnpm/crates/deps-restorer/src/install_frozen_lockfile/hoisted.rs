@@ -10,14 +10,16 @@ pub use hoist_plan::{
 mod direct_links;
 mod hoist_plan;
 mod package_root_links;
+mod stale_links;
 mod workspace_links;
 
+use stale_links::{unlink_prior_workspace_hoists, unlink_stale_direct_links};
 use workspace_links::link_hoisted_workspace_dependencies;
 
 use super::{
     AtomicU8, BTreeMap, BTreeSet, Config, DependencyGroup, Diagnostic, Display, Error, HashMap,
-    HoistedDepGraphError, IncludedDependencies, LinkHoistedModulesError, LinkHoistedModulesOpts,
-    Lockfile, LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
+    HoistedDepGraphError, LinkHoistedModulesError, LinkHoistedModulesOpts, Lockfile,
+    LockfileToHoistedDepGraphOptions, NodeLinker, PackageKey, Path, PathBuf, Reporter,
     SkippedSnapshots, SymlinkDirectDependenciesError, SymlinkPackageError, create_matcher,
     lockfile_to_hoisted_dep_graph,
 };
@@ -80,6 +82,7 @@ pub struct HoistedLinkerInputs<'a> {
 /// instead of imported file by file.
 pub struct HoistedMaterialization<'a> {
     pub logged_methods: &'a AtomicU8,
+    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
     pub requester: &'a str,
     /// Prefetched build flags gate reuse of canonical package directories.
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
@@ -98,7 +101,7 @@ pub enum HoistedLinkerError {
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
     #[diagnostic(transparent)]
-    PruneWorkspaceHoists(#[error(source)] crate::PruneDirectDepsError),
+    PruneStaleLinks(#[error(source)] crate::PruneDirectDepsError),
     #[diagnostic(transparent)]
     HoistSymlink(#[error(source)] SymlinkPackageError),
     #[diagnostic(transparent)]
@@ -124,15 +127,16 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     inputs: &HoistedLinkerInputs<'_>,
     skipped: &mut SkippedSnapshots,
 ) -> Result<HoistedLinkerOutput, HoistedLinkerError> {
-    let lockfile = included_lockfile(inputs);
+    let lockfile = inputs.graph.lockfile;
     let build_present = inputs.prior.build_present_packages;
     let unbuilt = inputs.prior.unbuilt_builds;
-    let walked = walk_hoisted_graph(inputs, &lockfile, skipped)?;
+    let walked = walk_hoisted_graph(inputs, lockfile, skipped)?;
     unlink_prior_workspace_hoists(inputs)?;
+    unlink_stale_direct_links(inputs)?;
     let (mut bins, hoisted_dependencies) =
-        link_hoisted::<Reporter>(inputs, &lockfile, &walked, skipped)?;
+        link_hoisted::<Reporter>(inputs, lockfile, &walked, skipped)?;
     let changed_dirs = package_root_links::link_hoisted_package_root_links(
-        &lockfile,
+        lockfile,
         walked.graph.values(),
         inputs.projects.dependency_groups.contains(&DependencyGroup::Optional),
     )?;
@@ -146,7 +150,11 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     let pkg_roots = pkg_roots_by_key(
         walked.graph
             .values()
-            .filter(|node| build_present || !node.present || recorded_unbuilt(unbuilt, node)),
+            .filter(|node| {
+                build_present
+                    || !node.present
+                    || crate::build_scope::records_unbuilt(unbuilt, node.package.dep_path.as_str())
+            }),
     );
     // Several nodes can share one snapshot (a package nested under more
     // than one consumer); the roots map has already collapsed them, so
@@ -163,26 +171,6 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         hoisted_bin_sources: bins.sources,
         hoisted_dependencies,
     })
-}
-
-/// The hoist tree seeds from every importer dep map, so groups the user
-/// excluded (`--prod`, `--dev`, `--no-optional`) must be cleared from
-/// the lockfile before the walk — otherwise their whole subgraph
-/// materializes as real directories. Mirrors pnpm, which hands its
-/// hoisted walker an include-filtered lockfile.
-fn included_lockfile<'l>(inputs: &HoistedLinkerInputs<'l>) -> std::borrow::Cow<'l, Lockfile> {
-    let included = IncludedDependencies {
-        dependencies: inputs.projects.dependency_groups.contains(&DependencyGroup::Prod),
-        dev_dependencies: inputs.projects.dependency_groups.contains(&DependencyGroup::Dev),
-        optional_dependencies: inputs.projects.dependency_groups.contains(
-            &DependencyGroup::Optional,
-        ),
-    };
-    if included.dependencies && included.dev_dependencies && included.optional_dependencies {
-        std::borrow::Cow::Borrowed(inputs.graph.lockfile)
-    } else {
-        std::borrow::Cow::Owned(exclude_importer_groups(inputs.graph.lockfile, included))
-    }
 }
 
 /// Walker installability inputs come straight from the optional
@@ -299,6 +287,7 @@ fn link_hoisted<Reporter: self::Reporter>(
                 config,
                 inputs.materialization.logged_methods,
                 inputs.materialization.requester,
+                inputs.materialization.swap_lock,
             ),
             graph: &walked.graph,
             prev_graph: walked.prev_graph.as_ref(),
@@ -359,25 +348,6 @@ fn link_post_hierarchy<Reporter: self::Reporter>(
     Ok(hoisted_dependencies)
 }
 
-/// Runs before the linker writes the tree, so no package is imported at
-/// a path that is still a project's link.
-fn unlink_prior_workspace_hoists(
-    inputs: &HoistedLinkerInputs<'_>,
-) -> Result<(), HoistedLinkerError> {
-    let modules_dir = &inputs.config.modules_dir;
-    crate::prune_stale_modules::prune_workspace_hoists(
-        &crate::prune_stale_modules::WorkspaceHoistDirs {
-            workspace_root: inputs.projects.walker_lockfile_dir,
-            private: modules_dir,
-            public: modules_dir,
-        },
-        inputs.prior.current_lockfile.unwrap_or(inputs.graph.lockfile),
-        inputs.prior.hoisted_dependencies,
-        None,
-    )
-    .map_err(HoistedLinkerError::PruneWorkspaceHoists)
-}
-
 /// `hoist-workspace-packages` under this linker: every package lives in
 /// the root `node_modules`, so a project either hoist pattern selects is
 /// linked there.
@@ -392,7 +362,7 @@ fn link_hoisted_workspace_packages(
     }
     let workspace_packages = workspace_packages_for_hoist(
         inputs.projects.walker_lockfile_dir,
-        inputs.projects.manifests,
+        inputs.projects.package_map_manifests,
     );
     let root_links = root_dependency_aliases(inputs);
     let hoists = crate::hoist_workspace_packages_to_root(
@@ -426,7 +396,11 @@ fn root_dependency_aliases(inputs: &HoistedLinkerInputs<'_>) -> Vec<String> {
         .get(Lockfile::ROOT_IMPORTER_KEY)
         .into_iter()
         .flat_map(|root| {
-            root.dependencies_by_groups(inputs.projects.dependency_groups.iter().copied())
+            root.dependencies_by_groups([
+                DependencyGroup::Prod,
+                DependencyGroup::Dev,
+                DependencyGroup::Optional,
+            ])
         })
         .map(|(alias, _)| alias.to_string())
         .collect()
@@ -482,15 +456,6 @@ fn update_hoisted_package_map(
     Ok(())
 }
 
-/// Whether the previous install recorded `node` as not built.
-/// `ignoredBuilds` and `pendingBuilds` hold `name@version` keys; the dep
-/// path is checked too for the entries written with a peer suffix.
-fn recorded_unbuilt(unbuilt: &crate::UnbuiltBuilds, node: &crate::DependenciesGraphNode) -> bool {
-    !unbuilt.is_empty()
-        && (unbuilt.contains(&format!("{}@{}", node.package.name, node.package.version))
-            || unbuilt.contains(node.package.dep_path.as_str()))
-}
-
 /// Map snapshot key → every recorded directory, in walker order. The
 /// walker emits multiple [`crate::DependenciesGraphNode`]s with the
 /// same `dep_path` when the package nests under a sibling (version
@@ -511,27 +476,4 @@ fn pkg_roots_by_key<'n>(
         }
     }
     roots
-}
-
-/// Clone the lockfile with every importer's excluded dep groups
-/// cleared, so seeds for the hoist tree come only from the included
-/// groups. Snapshots that thereby become unreachable are simply never
-/// visited by the hoister, so the snapshot/package maps stay as-is.
-pub(crate) fn exclude_importer_groups(
-    lockfile: &Lockfile,
-    included: IncludedDependencies,
-) -> Lockfile {
-    let mut filtered = lockfile.clone();
-    for importer in filtered.importers.values_mut() {
-        if !included.dependencies {
-            importer.dependencies = None;
-        }
-        if !included.dev_dependencies {
-            importer.dev_dependencies = None;
-        }
-        if !included.optional_dependencies {
-            importer.optional_dependencies = None;
-        }
-    }
-    filtered
 }

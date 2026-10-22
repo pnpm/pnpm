@@ -18,6 +18,17 @@ export class BadShellSectionError extends PnpmError {
 
 export type AddingPosition = 'start' | 'end'
 
+/**
+ * Which existing `PATH` entry makes the rendered block skip adding the dir.
+ *
+ * - `positioned`: the dir is already at the adding position. A login shell can
+ *   reorder an inherited `PATH` before the rc file runs (macOS `path_helper`),
+ *   so the dir being present elsewhere is not enough for `start`.
+ * - `anywhere`: the dir is anywhere in `PATH`. Earlier pnpm versions rendered
+ *   this guard, so a block rendered with it is replaced without `overwrite`.
+ */
+type PathGuard = 'positioned' | 'anywhere'
+
 export interface AddDirToPosixEnvPathOpts {
   proxyVarName?: string
   proxyVarSubDir?: string
@@ -97,23 +108,10 @@ async function setupShell (
   opts: AddDirToPosixEnvPathOpts
 ): Promise<PathExtenderPosixReport> {
   const configFile = getConfigFilePath(shell)
-  let newSettings: string
-  const _createPathValue = createPathValue.bind(null, opts.position ?? 'start')
-  if (opts.proxyVarName) {
-    const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
-    newSettings = `export ${opts.proxyVarName}="${dir}"
-case ":$PATH:" in
-  *":${pathRef}:"*) ;;
-  *) export PATH="${_createPathValue(pathRef)}" ;;
-esac`
-  } else {
-    newSettings = `case ":$PATH:" in
-  *":${dir}:"*) ;;
-  *) export PATH="${_createPathValue(dir)}" ;;
-esac`
-  }
+  const newSettings = renderPosixSettings(dir, opts, 'positioned')
   const content = wrapSettings(opts.configSectionName, newSettings)
-  const { changeType, oldSettings } = await updateShellConfig(configFile, content, opts)
+  const outdated = wrapSettings(opts.configSectionName, renderPosixSettings(dir, opts, 'anywhere'))
+  const { changeType, oldSettings } = await updateShellConfig(configFile, content, { ...opts, outdated })
   return {
     configFile: {
       path: configFile,
@@ -122,6 +120,23 @@ esac`
     oldSettings,
     newSettings,
   }
+}
+
+function renderPosixSettings (dir: string, opts: AddDirToPosixEnvPathOpts, guard: PathGuard): string {
+  const position = opts.position ?? 'start'
+  const pathRef = opts.proxyVarName
+    ? (opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`)
+    : dir
+  const guardedCase = `case ":$PATH:" in
+  ${createCasePattern(position, guard, `":${pathRef}:"`)}) ;;
+  *) export PATH="${createPathValue(position, pathRef)}" ;;
+esac`
+  return opts.proxyVarName ? `export ${opts.proxyVarName}="${dir}"\n${guardedCase}` : guardedCase
+}
+
+function createCasePattern (position: AddingPosition, guard: PathGuard, entry: string): string {
+  if (guard === 'anywhere') return `*${entry}*`
+  return position === 'start' ? `${entry}*` : `*${entry}`
 }
 
 function getConfigFilePath (shell: 'bash' | 'zsh' | 'ksh' | 'dash' | 'sh'): string {
@@ -146,22 +161,10 @@ function createPathValue (position: AddingPosition, dir: string): string {
 
 async function setupFishShell (dir: string, opts: AddDirToPosixEnvPathOpts): Promise<PathExtenderPosixReport> {
   const configFile = path.join(os.homedir(), '.config/fish/config.fish')
-  let newSettings: string
-  const _createPathValue = createFishPathValue.bind(null, opts.position ?? 'start')
-  if (opts.proxyVarName) {
-    const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
-    const matchPattern = opts.proxyVarSubDir ? `"${pathRef}"` : pathRef
-    newSettings = `set -gx ${opts.proxyVarName} "${dir}"
-if not string match -q -- ${matchPattern} $PATH
-  set -gx PATH ${_createPathValue(pathRef)}
-end`
-  } else {
-    newSettings = `if not string match -q -- "${dir}" $PATH
-  set -gx PATH ${_createPathValue(dir)}
-end`
-  }
+  const newSettings = renderFishSettings(dir, opts, 'positioned')
   const content = wrapSettings(opts.configSectionName, newSettings)
-  const { changeType, oldSettings } = await updateShellConfig(configFile, content, opts)
+  const outdated = wrapSettings(opts.configSectionName, renderFishSettings(dir, opts, 'anywhere'))
+  const { changeType, oldSettings } = await updateShellConfig(configFile, content, { ...opts, outdated })
   return {
     configFile: {
       path: configFile,
@@ -170,6 +173,27 @@ end`
     oldSettings,
     newSettings,
   }
+}
+
+function renderFishSettings (dir: string, opts: AddDirToPosixEnvPathOpts, guard: PathGuard): string {
+  const position = opts.position ?? 'start'
+  if (!opts.proxyVarName) {
+    return `if ${createFishCondition(position, guard, `"${dir}"`)}
+  set -gx PATH ${createFishPathValue(position, dir)}
+end`
+  }
+  const pathRef = opts.proxyVarSubDir ? `$${opts.proxyVarName}/${opts.proxyVarSubDir}` : `$${opts.proxyVarName}`
+  // The `anywhere` block left a bare `$PROXY` unquoted.
+  const entry = guard === 'anywhere' && !opts.proxyVarSubDir ? pathRef : `"${pathRef}"`
+  return `set -gx ${opts.proxyVarName} "${dir}"
+if ${createFishCondition(position, guard, entry)}
+  set -gx PATH ${createFishPathValue(position, pathRef)}
+end`
+}
+
+function createFishCondition (position: AddingPosition, guard: PathGuard, entry: string): string {
+  if (guard === 'anywhere') return `not string match -q -- ${entry} $PATH`
+  return `test "$PATH[${position === 'start' ? '1' : '-1'}]" != ${entry}`
 }
 
 async function setupNuShell (dir: string, opts: AddDirToPosixEnvPathOpts): Promise<PathExtenderPosixReport> {
@@ -214,10 +238,15 @@ interface UpdateShellResult {
   oldSettings: string
 }
 
+export interface UpdateShellConfigOpts extends AddDirToPosixEnvPathOpts {
+  /** The block an earlier pnpm version rendered. It is replaced without `overwrite`. */
+  outdated?: string
+}
+
 export async function updateShellConfig (
   configFile: string,
   newContent: string,
-  opts: AddDirToPosixEnvPathOpts
+  opts: UpdateShellConfigOpts
 ): Promise<UpdateShellResult> {
   await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
   const created = await tryCreateShellConfig(configFile, newContent)
@@ -249,14 +278,14 @@ async function applySectionUpdate (
   configContent: string,
   section: FoundSection,
   newContent: string,
-  opts: AddDirToPosixEnvPathOpts
+  opts: UpdateShellConfigOpts
 ): Promise<UpdateShellResult> {
   const oldSettings = section.inner
   const normalizedFullMatch = section.fullMatch.replace(/\r\n/g, '\n')
   if (normalizedFullMatch === newContent) {
     return { changeType: 'skipped', oldSettings }
   }
-  if (!opts.overwrite) {
+  if (!opts.overwrite && normalizedFullMatch !== opts.outdated) {
     throw new BadShellSectionError({
       configFile,
       configSectionName: opts.configSectionName,

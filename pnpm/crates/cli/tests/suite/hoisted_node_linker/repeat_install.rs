@@ -129,6 +129,81 @@ fn a_repeat_frozen_install_leaves_present_hoisted_packages_alone() {
     drop((root, mock_instance));
 }
 
+/// A patched package already in place is left alone too, and so is a
+/// package that only peers on one, whose dep path carries the peer's
+/// `patch_hash`. A changed patch gives the package another dep path, so
+/// it is still imported then, as `install_level_modified_patch_is_reapplied`
+/// checks under this linker.
+#[test]
+fn a_repeat_frozen_install_leaves_present_patched_hoisted_packages_alone() {
+    const PATCHED: &str = "@pnpm.e2e/peer-c";
+    const PEER_DEPENDENT: &str = "@pnpm.e2e/wants-peer-c-1.0.0";
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    let write_local = |marker: &str| {
+        fs::write(
+            local.join("package.json"),
+            serde_json::json!({ "name": "local-pkg", "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the local package.json");
+        fs::write(local.join("marker.txt"), marker).expect("write the marker");
+    };
+    write_local("first");
+    fs::create_dir_all(workspace.join("patches")).expect("create the patches dir");
+    fs::write(workspace.join("patches/peer-c.patch"), crate::patch::MARKER_PATCH)
+        .expect("write the patch");
+    write_manifest(
+        &workspace,
+        serde_json::json!({ PATCHED: "1.0.0", PEER_DEPENDENT: "1.0.0", "local-pkg": "file:./local-pkg" }),
+    );
+    write_workspace_yaml(
+        &workspace,
+        &format!(
+            "nodeLinker: hoisted\noptimisticRepeatInstall: false\npatchedDependencies:\n  '{PATCHED}@1.0.0': patches/peer-c.patch\n",
+        ),
+    );
+    pacquet
+        .with_args(["install"])
+        .assert()
+        .success();
+
+    let patched_marker = workspace
+        .join("node_modules")
+        .join(PATCHED)
+        .join("patched-marker.txt");
+    assert!(patched_marker.exists(), "the patch was applied on the first install");
+    let witnesses: Vec<DirWitness> = [PATCHED, PEER_DEPENDENT]
+        .iter()
+        .map(|name| DirWitness::take(&workspace.join("node_modules").join(name)))
+        .collect();
+
+    write_local("second");
+    let output = pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .output()
+        .expect("run pnpm install");
+    assert!(output.status.success(), "repeat install failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("Packages: +1\n"), "stdout:\n{stdout}");
+
+    assert!(
+        witnesses.iter().all(DirWitness::is_intact),
+        "the patched package and its peer dependent were left in place",
+    );
+    assert!(patched_marker.exists(), "the patch is still applied");
+
+    drop((root, mock_instance));
+}
+
 /// A present package is not handed to the build phase either, so its
 /// lifecycle scripts do not run again over the already-built directory
 /// (pnpm marks an unfetched node `isBuilt`). `pnpm rebuild` still
@@ -803,6 +878,107 @@ fn a_repeat_install_restores_a_removed_workspace_project_modules_dir() {
             );
         }
     }
+
+    drop((root, mock_instance));
+}
+
+/// The hoisted linker's orphan diff covers only the package directories
+/// it imported, so a removed `link:` dependency needs its own cleanup.
+#[test]
+fn removing_a_linked_dependency_unlinks_it_under_the_hoisted_linker() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "@local/pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(&workspace, serde_json::json!({ "@local/pkg": "link:./local-pkg" }));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let link = workspace.join("node_modules/@local/pkg");
+    assert!(
+        is_symlink_or_junction(&link).expect("stat the link"),
+        "the install should link the local package",
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["remove", "@local/pkg"])
+        .assert()
+        .success();
+
+    assert!(fs::symlink_metadata(&link).is_err(), "the link should be removed");
+    assert!(local.join("package.json").exists(), "the link target should be left alone");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read the lockfile");
+    assert!(!lockfile.contains("@local/pkg"), "the lockfile should drop the dependency");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert!(fs::symlink_metadata(&link).is_err(), "a frozen install should not relink it");
+
+    drop((root, mock_instance));
+}
+
+/// A symlinked `@scope` directory would redirect the stale-link cleanup
+/// outside the modules directory, so the cleanup leaves it alone.
+#[test]
+fn removing_a_linked_dependency_does_not_unlink_through_a_symlinked_scope() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let local = workspace.join("local-pkg");
+    fs::create_dir_all(&local).expect("create the local package dir");
+    fs::write(
+        local.join("package.json"),
+        serde_json::json!({ "name": "@local/pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write the local package.json");
+    write_manifest(&workspace, serde_json::json!({ "@local/pkg": "link:./local-pkg" }));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let external_scope = workspace.join("external-scope");
+    fs::create_dir_all(&external_scope).expect("create the external scope dir");
+    let external_link = external_scope.join("pkg");
+    symlink_dir(&local, &external_link).expect("link the external package");
+    let scope_dir = workspace.join("node_modules/@local");
+    fs_remove_dir_all(&scope_dir);
+    symlink_dir(&external_scope, &scope_dir).expect("link the scope dir outside node_modules");
+
+    pacquet_in(&workspace)
+        .with_args(["remove", "@local/pkg"])
+        .assert()
+        .success();
+
+    assert!(
+        is_symlink_or_junction(&external_link).expect("stat the external link"),
+        "the cleanup should not unlink through a symlinked scope dir",
+    );
 
     drop((root, mock_instance));
 }

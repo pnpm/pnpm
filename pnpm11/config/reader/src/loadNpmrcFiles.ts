@@ -11,6 +11,7 @@ import { findLocalPrefix } from './findLocalPrefix.js'
 import { type JsonAuthResult, readGlobalConfigAuth, readJsonAuthEnv } from './jsonAuth.js'
 import { isNpmrcReadableKey } from './localConfig.js'
 import { parseCAFileContents } from './parseCAFileContents.js'
+import { redactRegistryUrl } from './registryUrlUserinfo.js'
 import { rescopeUnscopedCreds } from './rescopeUnscopedCreds.js'
 
 export { findLocalPrefix } from './findLocalPrefix.js'
@@ -53,6 +54,8 @@ export interface LoadNpmrcConfigOpts {
   dir?: string
   /** Workspace directory */
   workspaceDir?: string
+  /** Skip the project `.npmrc` */
+  ignoreProjectNpmrc?: boolean
   /** Custom path to user .npmrc (from npmrcAuthFile setting, overrides ~/.npmrc) */
   npmrcAuthFile?: string
   /** pnpm config directory (for pnpm auth file) */
@@ -66,6 +69,10 @@ export interface LoadNpmrcConfigOpts {
    * must not reach this — repo-controlled config may never supply auth.
    */
   globalConfigAuth?: unknown
+  /** Receives the warnings as they are found, so they survive a throw. */
+  warnings?: string[]
+  /** Leave out each `_auth` source this pnpm cannot read. */
+  skipUnreadableAuth?: boolean
 }
 
 interface ReadAndFilterNpmrcOptions {
@@ -74,7 +81,7 @@ interface ReadAndFilterNpmrcOptions {
 }
 
 export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
-  const warnings: string[] = []
+  const warnings = opts.warnings ?? []
   const env = opts.env ?? process.env as Record<string, string | undefined>
 
   const localPrefix = opts.dir
@@ -143,15 +150,17 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
   // When npmrcAuthFile explicitly points at the project .npmrc, the user has
   // opted in to trusting it — allow auth env expansion and suppress the warning.
   const workspaceIsTrustedAuthFile = userConfigPath === workspaceNpmrcPath
-  const workspace = readAndFilterNpmrc(
-    workspaceNpmrcPath,
-    warnings,
-    env,
-    {
-      expandAuthValueEnv: workspaceIsTrustedAuthFile,
-      expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
-    }
-  )
+  const workspace = opts.ignoreProjectNpmrc
+    ? {}
+    : readAndFilterNpmrc(
+      workspaceNpmrcPath,
+      warnings,
+      env,
+      {
+        expandAuthValueEnv: workspaceIsTrustedAuthFile,
+        expandRequestDestinationEnv: workspaceIsTrustedAuthFile,
+      }
+    )
 
   const user = readAndFilterNpmrc(userConfigPath, warnings, env)
 
@@ -173,21 +182,22 @@ function readNpmrcSources ({ opts, env, localPrefix, warnings }: ReadNpmrcSource
   // making them a safe, file-free way to configure registry authentication.
   const envScoped = readUrlScopedEnvConfig(env)
 
-  const jsonAuth = readJsonAuth(opts.globalConfigAuth, env, warnings)
+  const jsonAuth = readJsonAuth(opts, env, warnings)
 
   const builtin = readPnpmBuiltinConfig(opts.moduleDirname, warnings, env)
 
   return { builtin, user, authIni, workspace, envScoped, jsonAuth, cli }
 }
 
+
 // Structured `_auth` registry auth from two trusted, non-repo sources:
 // the `pnpm_config__auth` env var (one JSON object, so it survives CI
 // runners that silently drop env vars whose names contain `/`, `:`, or
 // `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
 // key of the global pnpm config yaml. The env var wins on conflict.
-function readJsonAuth (globalConfigAuth: unknown, env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
-  const envJsonAuth = readJsonAuthEnv(env)
-  const globalConfigJsonAuth = readGlobalConfigAuth(globalConfigAuth)
+function readJsonAuth (opts: LoadNpmrcConfigOpts, env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
+  const envJsonAuth = readJsonAuthSource(opts, () => readJsonAuthEnv(env, warnings))
+  const globalConfigJsonAuth = readJsonAuthSource(opts, () => readGlobalConfigAuth(opts.globalConfigAuth, warnings))
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: envJsonAuth.registries,
@@ -198,6 +208,16 @@ function readJsonAuth (globalConfigAuth: unknown, env: Record<string, string | u
     jsonAuth.auth[key] = substituteEnv(value, env, { warnings, key, context: ' in _auth.authToken' })
   }
   return jsonAuth
+}
+
+/** One `_auth` source, left out by itself when unreadable and `skipUnreadableAuth` is set. */
+function readJsonAuthSource (opts: LoadNpmrcConfigOpts, read: () => JsonAuthResult): JsonAuthResult {
+  try {
+    return read()
+  } catch (err: unknown) {
+    if (!opts.skipUnreadableAuth) throw err
+    return { auth: {}, registries: {}, fallbackRegistries: {} }
+  }
 }
 
 function readPnpmBuiltinConfig (moduleDirname: string, warnings: string[], env: Record<string, string | undefined>): Record<string, unknown> {
@@ -406,14 +426,14 @@ function hasEnvPlaceholder (value: string): boolean {
 const DOCS_URL = 'https://pnpm.io/npmrc'
 
 function warnIgnoredRequestDestinationEnv (filePath: string, key: string, warnings: string[]): void {
-  warnings.push(`Ignored project-level request destination "${key}" in "${filePath}": ` +
+  warnings.push(`Ignored project-level request destination "${redactRegistryUrl(key)}" in "${filePath}": ` +
     'environment variables are not expanded in registry or proxy URLs that come from a project .npmrc, ' +
     'because that file is committed to the repository and a malicious value could redirect requests or leak secrets. ' +
     `If the value is not secret, you can also write it literally in the project .npmrc. See ${DOCS_URL}`)
 }
 
 function warnIgnoredAuthValueEnv (filePath: string, key: string, warnings: string[]): void {
-  warnings.push(`Ignored project-level auth setting "${key}" in "${filePath}": ` +
+  warnings.push(`Ignored project-level auth setting "${redactRegistryUrl(key)}" in "${filePath}": ` +
     'environment variables are not expanded in registry credentials that come from a project .npmrc, ' +
     'because that file is committed to the repository and could leak the secret to an attacker-controlled registry. ' +
     `See ${DOCS_URL}`)

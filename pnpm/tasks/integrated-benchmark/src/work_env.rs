@@ -8,15 +8,21 @@ use scripts::{
 
 mod fixtures;
 
-use fixtures::{create_npmrc, create_package_json, create_pnpm_workspace, save_pristine_copies};
+use fixtures::{
+    create_generated_projects, create_npmrc, create_package_json, create_pnpm_workspace,
+    save_pristine_copies,
+};
 
+mod cargo_workspace;
+mod injected_workspace;
 mod linked_workspace;
+mod unlocked_deps;
 
 mod server_config;
 use server_config::{
     PnprServer, PnprServerPaths, RevisionMockRegistry, append_pnpr_auth_to_npmrc,
     cold_mock_config_yaml, distinct_public_route_registries, mint_pnpr_token, seed_pnpr_auth,
-    wait_for_pnpr_ready, write_pnpr_benchmark_config,
+    serves_npm_under_base_path, wait_for_pnpr_ready, write_pnpr_benchmark_config,
 };
 
 mod measurements;
@@ -283,17 +289,9 @@ impl WorkEnv {
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.options.selection.fixture_dir.as_deref(), scenario);
-            if scenario.uses_linked_workspace_fixture() {
-                linked_workspace::create_projects(&dir);
-            }
-            create_pnpm_workspace(
-                &dir,
-                self.options.selection.fixture_dir.as_deref(),
-                registry,
-                scenario,
-            );
+            create_generated_projects(&dir, scenario);
+            self.write_registry_config(&dir, registry);
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
-            create_npmrc(&dir, registry, scenario);
             may_create_lockfile(&dir, scenario, self.options.selection.fixture_dir.as_deref());
             save_pristine_copies(&dir);
         }
@@ -304,6 +302,19 @@ impl WorkEnv {
                 .arg(self.script_path(WorkEnv::INIT_PROXY_CACHE))
                 .pipe_mut(executor("install.bash"));
         }
+    }
+
+    /// Write the `pnpm-workspace.yaml` and `.npmrc` that point a bench dir at
+    /// `registry`.
+    fn write_registry_config(&self, dir: &Path, registry: &str) {
+        let scenario = self.options.selection.scenario.expect("scenario set before writing config");
+        create_pnpm_workspace(
+            dir,
+            self.options.selection.fixture_dir.as_deref(),
+            registry,
+            scenario,
+        );
+        create_npmrc(dir, registry, scenario);
     }
 
     fn benchmark(
@@ -417,16 +428,24 @@ impl WorkEnv {
     /// fetches tarballs, not packuments; an up-to-date `node_modules`
     /// short-circuits the install outright).
     fn prewarm_caches(&self, cleanup_command: &str) {
+        let scenario =
+            self.options.selection.scenario.expect("scenario set when prewarm_caches() is reached");
         Command::new("bash")
             .current_dir(self.root())
             .arg("-c")
             .arg(cleanup_command)
             .pipe_mut(executor("prewarm cleanup"));
         for id in self.benchmarked_ids() {
+            if scenario.uses_cargo_workspace_fixture() {
+                cargo_workspace::seed_store(&self.bench_dir(id));
+            }
             eprintln!("Pre-warming caches for {id}...");
             Command::new("bash")
                 .arg(self.prewarm_script_path(id))
                 .pipe_mut(executor(PREWARM_SCRIPT));
+            if scenario.uses_cargo_workspace_fixture() {
+                cargo_workspace::verify_materialized_crates(&self.bench_dir(id));
+            }
         }
     }
 
@@ -449,19 +468,15 @@ impl WorkEnv {
 impl WorkEnv {
     pub fn run(&self) {
         let registry_proxy = self.start_client_registry_proxy();
-        let client_registry = registry_proxy
-            .as_ref()
-            .map_or_else(
-                || self.registry.client.clone(),
-                |proxy| format!("http://{}/", proxy.addr),
-            );
+        let client_registry = match &registry_proxy {
+            Some(proxy) => self.proxied_registry_url(proxy),
+            None => self.registry.client.clone(),
+        };
         let pnpr_server_registry_proxy = self.start_pnpr_server_registry_proxy();
-        let pnpr_server_registry = pnpr_server_registry_proxy
-            .as_ref()
-            .map_or_else(
-                || self.registry.cache_populator.clone(),
-                |proxy| format!("http://{}/", proxy.addr),
-            );
+        let pnpr_server_registry = match &pnpr_server_registry_proxy {
+            Some(proxy) => self.proxied_registry_url(proxy),
+            None => self.registry.cache_populator.clone(),
+        };
 
         let revision_mocks = self.plan_revision_mocks();
         self.init(&client_registry, &revision_mocks);

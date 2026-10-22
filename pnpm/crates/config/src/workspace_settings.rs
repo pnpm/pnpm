@@ -1,8 +1,8 @@
 use super::{
-    Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
-    LoadWorkspaceYamlError, Path, PathBuf, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
-    collect_explicit_settings, default_pnpm_home_dir, fs, note_declared_registries,
-    resolve_configured_state_dir,
+    Arc, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
+    LoadWorkspaceYamlError, Path, PathBuf, WorkspaceSettings, collect_explicit_settings,
+    default_pnpm_home_dir, note_declared_registries, resolve_configured_state_dir,
+    workspace_yaml::{parse_settings, read_workspace_document},
 };
 
 impl Config {
@@ -92,23 +92,7 @@ impl Config {
     where
         Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
     {
-        // CI detection is process state. A repository-controlled
-        // manifest must not be able to turn it off; trusted global
-        // config and PNPM_CONFIG_CI are applied in their own layers.
-        settings.ci = None;
-        settings.state_dir = None;
-        settings.scope = None;
-        settings.global_dir = None;
-        settings.global_bin_dir = None;
-        settings.macos_backup = None;
-        // A mirror decides where the binary pnpm runs an ecosystem with is
-        // downloaded from, and a release's checksums come from the mirror
-        // that serves its files, so verifying the download says only that
-        // the mirror agrees with itself. A repository that named one would
-        // be choosing which program runs on the machine of everyone who
-        // clones it. `tools` therefore comes from the global `config.yaml`
-        // and `PNPM_CONFIG_TOOLS` only.
-        settings.tools = None;
+        settings.clear_machine_only_settings();
         // A shim decides which program a global command runs, so a
         // repository that named one would be choosing which binary runs in
         // place of the user's globally installed one. `globalShims`
@@ -129,6 +113,7 @@ impl Config {
             settings.clear_self_update_policy();
         }
         self.workspace_key_issues = settings.key_issues.clone();
+        self.workspace_includes = settings.includes.take().map(Arc::new);
         note_declared_registries(declared_registries, &settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         settings.resolve_script_shell(base_dir);
@@ -182,8 +167,21 @@ impl Config {
         }
     }
 
-    /// Find the workspace root and read its `pnpm-workspace.yaml`.
+    /// Find the workspace root and read its `pnpm-workspace.yaml`. One
+    /// that cannot be read at all keeps only the root when
+    /// [`Config::settings_read`] skips unreadable ones.
     pub(super) fn resolve_workspace_yaml<Sys>(
+        &self,
+        start_dir: &std::path::Path,
+    ) -> Result<Option<(PathBuf, Option<WorkspaceSettings>)>, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        let resolved = self.read_workspace_yaml::<Sys>(start_dir);
+        self.skip_if_unreadable(resolved, || self.locate_workspace::<Sys>(start_dir))
+    }
+
+    fn read_workspace_yaml<Sys>(
         &self,
         start_dir: &std::path::Path,
     ) -> Result<Option<(PathBuf, Option<WorkspaceSettings>)>, LoadWorkspaceYamlError>
@@ -206,25 +204,9 @@ impl Config {
         let workspace_yaml = if self.ignore_workspace {
             None
         } else if let Some(env_dir) = env_workspace_dir {
-            // Env-var path: load yaml directly from the env dir. A
-            // missing file is silent, but the re-anchor still fires
-            // because the user has explicitly told us where the
-            // workspace lives.
-            let yaml_path = env_dir.join(WORKSPACE_MANIFEST_FILENAME);
-            match fs::read_to_string(&yaml_path) {
-                Ok(text) => {
-                    let mut settings =
-                        crate::workspace_yaml::parse_settings_file::<Sys>(&text, &yaml_path)?;
-                    settings.collect_key_issues(&text);
-                    Some((env_dir, Some(settings)))
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some((env_dir, None)),
-                Err(source) => {
-                    return Err(LoadWorkspaceYamlError::ReadFile { path: yaml_path, source });
-                }
-            }
+            Some(read_env_workspace_yaml::<Sys>(env_dir, self.settings_read)?)
         } else {
-            WorkspaceSettings::find_and_load(start_dir)?
+            WorkspaceSettings::find_and_read(start_dir, self.settings_read)?
                 .map(|(path, settings)| {
                     let base_dir = path
                         .parent()
@@ -238,6 +220,22 @@ impl Config {
         };
         Ok(workspace_yaml)
     }
+}
+
+/// Read the `pnpm-workspace.yaml` of the workspace dir an environment
+/// variable names. A missing file is silent, but the workspace dir still
+/// applies, because the user has said where the workspace lives.
+fn read_env_workspace_yaml<Sys: EnvVar>(
+    env_dir: PathBuf,
+    settings_read: crate::SettingsRead,
+) -> Result<(PathBuf, Option<WorkspaceSettings>), LoadWorkspaceYamlError> {
+    let Some(document) = read_workspace_document(&env_dir)? else {
+        return Ok((env_dir, None));
+    };
+    let settings = WorkspaceSettings::read_document(document, settings_read, |text, path| {
+        crate::workspace_yaml::parse_settings_file::<Sys>(text, path)
+    })?;
+    Ok((env_dir, Some(settings)))
 }
 
 /// Does the workspace found above `start_dir` include a project there?

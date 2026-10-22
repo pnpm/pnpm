@@ -2,6 +2,7 @@ pub(crate) use configuration::{
     apply_install_cli_config, derive_config_root, warn_about_config_root,
 };
 pub(crate) use install::InstallPipeline;
+pub(in crate::cli_args) use install::run_dedicated_lockfile_workspace_install;
 pub(crate) use maintenance::{DedupePipeline, PrunePipeline};
 pub(crate) use mutation::{AddPipeline, DeployPipeline, RemovePipeline, UpdatePipeline};
 pub(crate) use selection::{WorkspaceScope, select_workspace_projects};
@@ -144,6 +145,8 @@ pub(crate) struct DedicatedProjects {
     /// The projects a pipelined run may start ahead of the workspace
     /// projects they depend on. See [`pipelined_runs::early_starts`].
     early_starts: HashSet<PathBuf>,
+    /// Every workspace project, as the command discovered them.
+    workspace: pnpm_package_manager::DiscoveredWorkspace,
 }
 
 impl DedicatedProjects {
@@ -172,12 +175,21 @@ impl DedicatedProjects {
             covers_workspace,
             injected_source_dirs,
             early_starts,
+            workspace: pnpm_package_manager::DiscoveredWorkspace::new(selection.projects),
         }
     }
 
     fn is_empty(&self) -> bool {
         self.dependencies.is_empty()
     }
+}
+
+/// The declared `"name"` of a workspace project, when it is a string.
+pub(crate) fn project_manifest_name(project: &pnpm_workspace::Project) -> Option<&str> {
+    project.manifest
+        .value()
+        .get("name")?
+        .as_str()
 }
 
 /// The declared name of every project that declares one, keyed by its
@@ -193,10 +205,7 @@ pub(crate) fn project_names(
     projects
         .iter()
         .filter_map(|project| {
-            let name = project.manifest
-                .value()
-                .get("name")?
-                .as_str()?;
+            let name = project_manifest_name(project)?;
             Some((project.root_dir.clone(), name.to_string()))
         })
         .collect()
@@ -227,7 +236,9 @@ struct DedicatedProjectRuns<'a> {
     /// Whether the projects run pipelined: each resolves and materializes
     /// without waiting for the workspace projects it depends on, and waits
     /// for them only before it links its dependencies and runs its scripts.
-    /// Only an install, which changes no manifest, runs pipelined.
+    /// Only an install, which changes no manifest, runs pipelined, so its
+    /// projects also read [`DedicatedProjects::workspace`] instead
+    /// of walking the workspace each.
     pipelined: bool,
 }
 
@@ -262,7 +273,12 @@ fn sync_dedicated_injected_deps(
             project_dir,
             sync.names.get(project_dir).map(String::as_str),
         );
-        sync_injected_deps_of_modules_dir(project_dir, &modules_dir, sync.source_dirs)?;
+        sync_injected_deps_of_modules_dir(
+            project_dir,
+            &modules_dir,
+            sync.source_dirs,
+            !config.deploy_all_files,
+        )?;
     }
     Ok(())
 }

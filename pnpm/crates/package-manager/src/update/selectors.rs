@@ -5,11 +5,12 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::{UpdateTargets, VersionLine, real_package_name_of};
 
 /// A CLI selector split into its name pattern and optional version part.
-pub(super) struct ParsedSelector {
-    pub(super) pattern: String,
-    pub(super) version: Option<String>,
+pub struct ParsedSelector {
+    pub pattern: String,
+    pub version: Option<String>,
 }
-pub(super) fn parse_update_param(input: &str) -> ParsedSelector {
+#[must_use]
+pub fn parse_update_param(input: &str) -> ParsedSelector {
     let search_start = if input.starts_with('!') { 2 } else { 1 };
     let at_index = input
         .get(search_start..)

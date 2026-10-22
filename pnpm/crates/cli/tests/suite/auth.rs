@@ -2,6 +2,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::CommandTempCwd,
+    diagnostics::assert_diagnostic_contains,
     fixtures::{minimal_tarball, sha512_integrity},
 };
 use std::{fs, path::Path, process::Command};
@@ -31,6 +32,7 @@ fn install_command(workspace: &Path, root: &Path) -> Command {
 fn assert_authenticated_install(
     package: &str,
     credentials: impl FnOnce(&str) -> String,
+    cli_args: impl FnOnce(&str) -> Vec<String>,
     expected_header: &str,
     frozen_reinstall: bool,
 ) {
@@ -39,6 +41,7 @@ fn assert_authenticated_install(
     let registry_url = registry.url();
     let authority = registry_url.strip_prefix("http://").expect("mock registry is HTTP");
     write_project_config(root.path(), &workspace, &registry_url, &credentials(authority));
+    let cli_args = cli_args(authority);
 
     let tarball = minimal_tarball(package, "1.0.0");
     let integrity = sha512_integrity(&tarball);
@@ -81,6 +84,7 @@ fn assert_authenticated_install(
 
     install_command(&workspace, root.path())
         .with_arg("install")
+        .with_args(&cli_args)
         .assert()
         .success();
     assert!(
@@ -95,6 +99,7 @@ fn assert_authenticated_install(
         fs::remove_dir_all(root.path().join("store")).expect("remove cold store");
         install_command(&workspace, root.path())
             .with_args(["install", "--frozen-lockfile"])
+            .with_args(&cli_args)
             .assert()
             .success();
         assert!(
@@ -114,7 +119,32 @@ fn bearer_auth_is_used_for_metadata_tarballs_and_cold_frozen_reinstall() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_authToken=secret-token\n"),
+        |_| Vec::new(),
         "Bearer secret-token",
+        true,
+    );
+}
+
+#[test]
+fn bearer_auth_from_the_command_line_wins_over_the_project_npmrc() {
+    assert_authenticated_install(
+        "private-pkg",
+        |authority| format!("//{authority}/:_authToken=project-token\n"),
+        |authority| vec![format!("--config.//{authority}/:_authToken=cli-token")],
+        "Bearer cli-token",
+        true,
+    );
+}
+
+#[test]
+fn unscoped_auth_token_from_the_command_line_pins_to_the_registry_flag() {
+    assert_authenticated_install(
+        "private-pkg",
+        |_| String::new(),
+        |authority| {
+            vec![format!("--registry=http://{authority}/"), "--config._authToken=cli-token".into()]
+        },
+        "Bearer cli-token",
         true,
     );
 }
@@ -124,6 +154,7 @@ fn username_and_password_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:username=foo\n//{authority}/:_password=YmFy\n"),
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         false,
     );
@@ -134,6 +165,7 @@ fn legacy_basic_auth_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_auth=Zm9vOmJhcg==\n"),
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         false,
     );
@@ -147,6 +179,7 @@ fn unpadded_legacy_basic_auth_authenticates_install() {
     assert_authenticated_install(
         "private-pkg",
         |authority| format!("//{authority}/:_auth=Zm9vOmJhcg\n"),
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         false,
     );
@@ -162,6 +195,7 @@ fn package_scope_bearer_auth_wins_for_scoped_install() {
                  //{authority}/:@private:_authToken=scoped-token\n",
             )
         },
+        |_| Vec::new(),
         "Bearer scoped-token",
         true,
     );
@@ -177,6 +211,7 @@ fn package_scope_legacy_auth_wins_for_scoped_install() {
                  //{authority}/:@private:_auth=Zm9vOmJhcg==\n",
             )
         },
+        |_| Vec::new(),
         "Basic Zm9vOmJhcg==",
         true,
     );
@@ -462,6 +497,61 @@ fn trusted_auth_env_warning_reaches_stderr() {
         assert!(!String::from_utf8_lossy(&output.stdout).contains(warning));
     }
     unauthorized.assert();
+}
+
+/// The unset variable is what makes `_auth` undecodable, so the warning
+/// naming it has to reach the user along with the error.
+#[test]
+fn config_warnings_reach_stderr_when_the_config_fails_to_load() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_project_config(root.path(), &workspace, "http://127.0.0.1:1", "");
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    let auth_file = root.path().join("auth.npmrc");
+    fs::write(&auth_file, "//registry.npmjs.org/:_auth=${PNPM_TEST_AUTH}:not-base64\n")
+        .expect("write auth file");
+    let mut command = install_command(&workspace, root.path())
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
+        .with_args(["install", "--ignore-scripts"]);
+    command.env_remove("PNPM_TEST_AUTH");
+
+    let output = command.output().expect("run pnpm install");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, "ERR_PNPM_AUTH_INVALID_BASE64");
+    assert!(
+        stderr.contains(
+            r#"Failed to replace env in config: ${PNPM_TEST_AUTH} in .npmrc key "_auth""#
+        ),
+        "{stderr}",
+    );
+}
+
+#[test]
+fn npmrc_warnings_reach_stderr_when_the_json_auth_setting_is_malformed() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_project_config(root.path(), &workspace, "http://127.0.0.1:1", "");
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    let auth_file = root.path().join("auth.npmrc");
+    fs::write(&auth_file, "//registry.npmjs.org/:_authToken=${PNPM_TEST_AUTH_TOKEN}\n")
+        .expect("write auth file");
+    let mut command = install_command(&workspace, root.path())
+        .with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", &auth_file)
+        .with_env("pnpm_config__auth", "{")
+        .with_args(["install", "--ignore-scripts"]);
+    command.env_remove("PNPM_TEST_AUTH_TOKEN");
+
+    let output = command.output().expect("run pnpm install");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_diagnostic_contains(&stderr, "Invalid `_auth` setting");
+    assert!(
+        stderr.contains(
+            r#"Failed to replace env in config: ${PNPM_TEST_AUTH_TOKEN} in .npmrc key "_authToken""#
+        ),
+        "{stderr}",
+    );
 }
 
 #[test]

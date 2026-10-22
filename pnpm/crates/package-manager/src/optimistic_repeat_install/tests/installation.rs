@@ -129,7 +129,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
             included,
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -175,7 +175,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
             included,
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
@@ -271,7 +271,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
             included,
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -349,25 +349,48 @@ fn returns_skipped_when_no_state_file() {
         matches!(decision, Decision::Skipped { reason } if reason.contains("no workspace state")),
     );
 }
-/// Manifest touched after the validation → must NOT short-circuit;
-/// the regular install path needs to run.
+/// A manifest edited after the validation → must NOT short-circuit; the
+/// regular install path needs to run.
 #[test]
-fn returns_skipped_when_manifest_is_newer_than_validation() {
+fn returns_skipped_when_the_manifest_changed_since_validation() {
     let (dir, config, _manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
-    // Touch the manifest after the workspace-state was stamped.
     let manifest_path = dir.path().join("package.json");
-    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
-    let refreshed_manifest = PackageManifest::from_path(manifest_path).unwrap();
+    fs::write(
+        &manifest_path,
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let edited_manifest = PackageManifest::from_path(manifest_path).unwrap();
 
     let decision = check(
         dir.path(),
         config,
         pnpm_config::NodeLinker::Isolated,
-        &[(dir.path().to_path_buf(), &refreshed_manifest)],
+        &[(dir.path().to_path_buf(), &edited_manifest)],
     );
-    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("newer")));
+    assert!(matches!(decision, Decision::Skipped { .. }), "{decision:?}");
+}
+/// A manifest rewritten with the content it was validated with, as `touch`
+/// or a formatter that changed nothing leaves it, keeps the fast path.
+#[test]
+fn returns_up_to_date_when_the_manifest_is_rewritten_unchanged() {
+    let (dir, config, _manifest) =
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    let manifest_path = dir.path().join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    pnpm_testing_utils::fs::bump_mtime(&manifest_path);
+    let rewritten_manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &rewritten_manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
 }
 /// Drift in `minimumReleaseAge` invalidates the cached state. pnpm
 /// resolves it to a concrete `1440` default and records it verbatim
@@ -503,6 +526,54 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+
+/// Drift in `configDependencies` must defeat the install fast path as well as
+/// the pre-run gate: `configDependencies` lives in the workspace manifest and
+/// in a separate YAML document when merged into `pnpm-lock.yaml`, so neither
+/// the manifest digest nor the main lockfile digest sees a removed entry.
+#[test]
+fn install_and_run_refuse_drifted_config_dependencies() {
+    let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| {
+            config.config_dependencies = Some(BTreeMap::from([(
+                "my-cfg".into(),
+                pnpm_workspace_state::ConfigDependency::VersionWithIntegrity(
+                    "1.0.0+sha512-aaa".into(),
+                ),
+            )]));
+        },
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    assert_eq!(
+        check(dir.path(), recorded_config, pnpm_config::NodeLinker::Isolated, &project_manifests),
+        Decision::UpToDate,
+    );
+
+    let mut without_config_deps = recorded_config.clone();
+    without_config_deps.config_dependencies = None;
+    let without_config_deps = without_config_deps.leak();
+
+    let decision = check(
+        dir.path(),
+        without_config_deps,
+        pnpm_config::NodeLinker::Isolated,
+        &project_manifests,
+    );
+    assert_eq!(decision, Decision::Skipped { reason: "config dependencies drift" });
+
+    let status = super::single_project_deps_status(&dir, without_config_deps, &project_manifests);
+    assert_eq!(
+        status,
+        super::RunDepsStatus::Outdated {
+            issue: "Configuration dependencies are not up to date".to_string(),
+            install_args: Vec::new(),
+        },
+    );
 }
 /// Drift in `packageExtensions` invalidates the cached state.
 #[test]
@@ -734,4 +805,32 @@ fn install_args_reproduce_the_recorded_dependency_groups() {
     assert_eq!(args(Some(true), Some(false), None), ["--dev", "--no-optional"]);
     assert_eq!(args(Some(true), Some(true), Some(true)), [] as [&str; 0]);
     assert_eq!(args(Some(true), Some(false), Some(true)), ["--no-optional"]);
+}
+
+#[test]
+fn install_already_up_to_date_bails_before_walking_projects_when_workspace_state_is_missing() {
+    use crate::install::{UpToDateFastPathCheck, install_already_up_to_date};
+    use pnpm_package_manifest::DependencyGroup;
+
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n").unwrap();
+    let broken_dir = workspace_root.join("packages/broken");
+    fs::create_dir_all(&broken_dir).unwrap();
+    fs::write(broken_dir.join("package.json"), "{invalid json").unwrap();
+
+    let manifest_path = workspace_root.join("package.json");
+    let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    let config = config.leak();
+
+    let result = install_already_up_to_date(&UpToDateFastPathCheck {
+        config,
+        manifest: &manifest,
+        dependency_groups: vec![DependencyGroup::Prod],
+        node_linker: pnpm_config::NodeLinker::Isolated,
+        supported_architectures: None,
+    });
+    assert_eq!(result, Err("no workspace state on disk"));
 }

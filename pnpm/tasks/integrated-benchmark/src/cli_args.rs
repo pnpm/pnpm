@@ -180,6 +180,20 @@ pub enum RegistryMode {
     Virtual,
 }
 
+impl RegistryMode {
+    /// The npm registry URL, with a trailing `/`, of the local registry at
+    /// `origin`. The spawned mock is a pnpr server, which serves npm under
+    /// its own path; an external registry serves npm at its root.
+    #[must_use]
+    pub fn local_registry_url(self, origin: &str) -> String {
+        match self {
+            RegistryMode::Verdaccio => pnpm_registry_mock::npm_registry_url(origin),
+            RegistryMode::Virtual => format!("{}/", origin.trim_end_matches('/')),
+            RegistryMode::Npm => panic!("--registry=npm has no local registry"),
+        }
+    }
+}
+
 /// Slug shape: `<linker>.<action>.<cache state>.<store state>`. Dots
 /// separate the four axes that the bench varies, so charts and
 /// dashboards can group by leading segment (`isolated-linker.*`,
@@ -263,6 +277,31 @@ pub enum BenchmarkScenario {
     /// Frozen lockfile, hot cache + hot store, `enableGlobalVirtualStore: true` with a pre-warmed GVS.
     #[value(name = "gvs-linker.fresh-restore.hot-cache.hot-store")]
     GvsFreshRestoreHotCacheHotStore,
+    /// Frozen repeat install of a populated injected workspace package with many small files.
+    #[value(name = "isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store")]
+    IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore,
+    /// Store-only install (`enableModulesDir: false`) against a lockfile
+    /// whose importer lacks the direct dependencies that have peers, cold
+    /// cache + hot store. The shape of `pnpm install` after dependencies
+    /// were added to `package.json` by hand: the missing direct
+    /// dependencies resolve from the registry and land on versions the
+    /// lockfile's package graph still holds, so the walk takes their
+    /// subtrees from the lockfile. With the metadata cache wiped per
+    /// iteration every package the walk does resolve costs a registry
+    /// round trip, which is what makes the subtrees the lockfile spares
+    /// show in the timing; the lockfile is trusted so that its
+    /// supply-chain verification does not fetch every packument first.
+    /// Nothing is linked, so the rest of the timed work is the check that
+    /// the store holds every package's files, read through a per-file
+    /// store index (`storeIndexFormat: files`), the format a store shared
+    /// between machines uses.
+    #[value(name = "store-only.unlocked-direct-deps.cold-cache.hot-store")]
+    StoreOnlyUnlockedDepsColdCacheHotStore,
+    /// Frozen repeat install of a populated Cargo workspace (`cargo.enabled: true`)
+    /// with crates already materialized in `<storeDir>/v11/crates/` and linked into
+    /// `.pnpm/crates/crates-io`.
+    #[value(name = "cargo.repeat-install.hot-cache.hot-store")]
+    CargoRepeatInstallHotCacheHotStore,
 }
 
 /// Per-iteration cleanup applied by hyperfine's `--prepare`.
@@ -280,6 +319,13 @@ impl Cleanup {
     const fn removing(remove: &'static [&'static str]) -> Self {
         Cleanup { remove, restore: &[] }
     }
+
+    const fn new(
+        remove: &'static [&'static str],
+        restore: &'static [(&'static str, &'static str)],
+    ) -> Self {
+        Cleanup { remove, restore }
+    }
 }
 
 impl BenchmarkScenario {
@@ -295,10 +341,17 @@ impl BenchmarkScenario {
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
             | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
-            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
+            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore
+            | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::CargoRepeatInstallHotCacheHotStore => {
                 &["install", "--frozen-lockfile"]
             }
             BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => &["add", "is-odd"],
+            // Explicit: CI runners set `CI`, where a plain `install` is
+            // frozen and would refuse the out-of-date lockfile.
+            BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore => {
+                &["install", "--no-frozen-lockfile"]
+            }
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
             | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
             | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
@@ -307,14 +360,15 @@ impl BenchmarkScenario {
         }
     }
 
-    /// Arguments of the online install that primes `cache-dir` /
-    /// `store-dir` before hyperfine runs, for scenarios whose measured
-    /// command can't do its own priming (an `--offline` run against the
-    /// freshly wiped mirror fails). `None` for every other scenario:
-    /// hyperfine's warmup run primes whatever their per-iteration
-    /// cleanup preserves.
+    /// Untimed install arguments that prepare state the measured command cannot
+    /// create, such as cached metadata for offline resolution or a generated
+    /// lockfile for a frozen install. `None` uses hyperfine's normal warmup.
     pub fn prewarm_install_args(self) -> Option<&'static [&'static str]> {
         match self {
+            BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::CargoRepeatInstallHotCacheHotStore => {
+                Some(&["install", "--offline", "--no-frozen-lockfile"])
+            }
             BenchmarkScenario::IsolatedFreshResolveHotCacheOffline => Some(&["install"]),
             // This resolution-only fixture has no fetchable tarballs, so its
             // metadata prewarm must not proceed to fetching or linking.
@@ -347,7 +401,10 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore
-            | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => true,
+            | BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore
+            | BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore
+            | BenchmarkScenario::CargoRepeatInstallHotCacheHotStore => true,
         }
     }
 
@@ -357,7 +414,10 @@ impl BenchmarkScenario {
     /// the online pre-warm pass skip resolution, leaving the metadata
     /// mirror cold for the measured offline runs.
     pub fn seeds_lockfile(self) -> bool {
-        self.lockfile_enabled() && !self.is_offline_fresh_resolve()
+        self.lockfile_enabled()
+            && !self.is_offline_fresh_resolve()
+            && !self.uses_injected_workspace_fixture()
+            && !self.uses_cargo_workspace_fixture()
     }
 
     /// The `pnpm-lock.yaml` contents to seed during init, when
@@ -375,57 +435,60 @@ impl BenchmarkScenario {
     /// restore) applied via hyperfine's `--prepare`.
     pub fn cleanup(self) -> Cleanup {
         match self {
-            BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore => Cleanup {
-                // `cache-dir` (the packument-metadata mirror) is wiped
-                // alongside `store-dir` so a direct fresh install pays the
-                // full cold resolution — fetching every packument over the
-                // emulated registry link — which is precisely the cost pnpr
-                // offloads to its warm server. Without this the mirror
-                // stays warm and direct ≈ pnpr.
-                remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            // `cache-dir` (the packument-metadata mirror) is wiped
+            // alongside `store-dir` so a direct fresh install pays the
+            // full cold resolution — fetching every packument over the
+            // emulated registry link — which is precisely the cost pnpr
+            // offloads to its warm server. Without this the mirror
+            // stays warm and direct ≈ pnpr.
+            Self::IsolatedFreshInstallColdCacheColdStore => Cleanup::new(
+                &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
+                &[SAVED_PACKAGE_JSON],
+            ),
             // Same as the frozen cold-cache + cold-store restore, but also wipe
             // the per-revision mock's `cold-mock-storage` so the serving pnpr
             // refetches (and streams) every tarball from the warm origin each
             // iteration. (`cold-mock-storage` only exists under a `pnpr@<rev>`
             // bench dir; it's a harmless no-op for the other ids.)
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup {
-                remove: &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
-                restore: &[SAVED_LOCKFILE],
-            },
-            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
-                remove: &["node_modules", "store-dir", "cache-dir"],
-                restore: &[SAVED_LOCKFILE],
-            },
-            BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
-            | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
-                Cleanup { remove: &["node_modules"], restore: &[SAVED_LOCKFILE] }
+            Self::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup::new(
+                &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
+                &[SAVED_LOCKFILE],
+            ),
+            Self::IsolatedFreshRestoreColdCacheColdStore => {
+                Cleanup::new(&["node_modules", "store-dir", "cache-dir"], &[SAVED_LOCKFILE])
+            }
+            Self::IsolatedFreshRestoreHotCacheHotStore | Self::GvsFreshRestoreHotCacheHotStore => {
+                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE])
             }
             // A repeat install mutates nothing, so nothing is removed or
             // restored — restoring the lockfile would bump its mtime and
             // push every iteration off the pure-mtime fast path into the
             // heavier content re-check. The populated `node_modules` (and
             // workspace state) come from the pre-warm pass.
-            BenchmarkScenario::IsolatedRepeatInstallHotCacheHotStore => Cleanup::removing(&[]),
-            BenchmarkScenario::IsolatedRepeatInstallColdCacheHotStore => {
-                Cleanup::removing(&["cache-dir"])
+            Self::IsolatedRepeatInstallHotCacheHotStore
+            | Self::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore
+            | Self::CargoRepeatInstallHotCacheHotStore => Cleanup::removing(&[]),
+            Self::IsolatedRepeatInstallColdCacheHotStore => Cleanup::removing(&["cache-dir"]),
+            // The install writes the direct dependencies it resolved back
+            // into the lockfile; the next iteration must find them missing
+            // again, and resolve them against a cold metadata cache.
+            // `node_modules` is never created; the warm store stays.
+            Self::StoreOnlyUnlockedDepsColdCacheHotStore => {
+                Cleanup::new(&["cache-dir"], &[SAVED_LOCKFILE])
             }
-            BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore => Cleanup {
-                remove: &["node_modules"],
-                restore: &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON],
-            },
-            BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            Self::IsolatedFreshAddDepHotCacheHotStore => {
+                Cleanup::new(&["node_modules"], &[SAVED_LOCKFILE, SAVED_PACKAGE_JSON])
+            }
+            Self::IsolatedFreshInstallHotCacheHotStore => {
+                Cleanup::new(&["node_modules", "pnpm-lock.yaml"], &[SAVED_PACKAGE_JSON])
+            }
             // Cold cache (wipe `cache-dir` → re-resolve from scratch) but
             // hot store (keep `store-dir` → no tarball download). Resolution
             // is the only variable cost, so it can't hide behind downloads.
-            BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => Cleanup {
-                remove: &["node_modules", "pnpm-lock.yaml", "cache-dir"],
-                restore: &[SAVED_PACKAGE_JSON],
-            },
+            Self::IsolatedFreshInstallColdCacheHotStore => Cleanup::new(
+                &["node_modules", "pnpm-lock.yaml", "cache-dir"],
+                &[SAVED_PACKAGE_JSON],
+            ),
             // `node_modules` is wiped alongside the lockfile even though
             // `--lockfile-only` never writes it: a populated `node_modules`
             // left by the pre-warm pass lets the install's up-to-date
@@ -433,9 +496,9 @@ impl BenchmarkScenario {
             // date"), and the timed runs would measure a no-op. The warm
             // `cache-dir` / `store-dir` the pre-warm populated are the
             // scenario's contract and survive.
-            BenchmarkScenario::IsolatedFreshResolveHotCacheOffline
-            | BenchmarkScenario::IsolatedPeerHeavyResolveHotCacheOffline
-            | BenchmarkScenario::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
+            Self::IsolatedFreshResolveHotCacheOffline
+            | Self::IsolatedPeerHeavyResolveHotCacheOffline
+            | Self::IsolatedLinkedWorkspaceResolveHotCacheOffline => {
                 Cleanup::removing(&["node_modules", "pnpm-lock.yaml"])
             }
         }
@@ -448,11 +511,9 @@ impl BenchmarkScenario {
         matches!(self, BenchmarkScenario::GvsFreshRestoreHotCacheHotStore)
     }
 
-    /// Whether the scenario's contract is a populated, up-to-date
-    /// `node_modules`. The pre-benchmark wipe empties it, so an untimed
-    /// install pass per target re-establishes it before hyperfine runs —
-    /// hyperfine's warmup run would too, but `--warmup 0` must not
-    /// silently turn the first timed run into a fresh install.
+    /// Whether to populate `node_modules` with the measured install command
+    /// before timing, including when `--warmup 0` is requested. Scenarios with
+    /// [`Self::prewarm_install_args`] use their separate script instead.
     pub fn prewarms_node_modules(self) -> bool {
         matches!(
             self,
@@ -501,7 +562,32 @@ impl BenchmarkScenario {
     /// pass to populate the npm proxy cache, since it names none of the
     /// packages the static lockfile does.
     pub fn uses_generated_fixture(self) -> bool {
-        self.uses_peer_heavy_fixture() || self.uses_linked_workspace_fixture()
+        self.uses_peer_heavy_fixture()
+            || self.uses_linked_workspace_fixture()
+            || self.uses_injected_workspace_fixture()
+            || self.uses_cargo_workspace_fixture()
+    }
+
+    pub fn uses_injected_workspace_fixture(self) -> bool {
+        matches!(self, BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore)
+    }
+
+    pub fn uses_cargo_workspace_fixture(self) -> bool {
+        matches!(self, BenchmarkScenario::CargoRepeatInstallHotCacheHotStore)
+    }
+
+    /// Whether the install fetches into the store and links nothing
+    /// (`enableModulesDir: false`), reading a per-file store index.
+    pub fn store_only(self) -> bool {
+        matches!(self, BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore)
+    }
+
+    /// Whether the seeded lockfile leaves the direct dependencies with
+    /// peers out of its importer, so the install resolves those afresh,
+    /// and whether the lockfile is trusted so that only the resolution
+    /// reads metadata.
+    pub fn unlocks_direct_deps(self) -> bool {
+        matches!(self, BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore)
     }
 
     /// Whether the measured command needs an online pre-warm followed by an

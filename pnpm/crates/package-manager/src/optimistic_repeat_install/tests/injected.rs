@@ -2,8 +2,8 @@
 //! consumer's `node_modules` through a `file:` snapshot.
 
 use super::{
-    super::{Decision, ManifestFreshness},
-    backdate_validated_files, content_check_decision_for, isolated_included, write_state,
+    super::Decision, backdate_validated_files, content_check_decision, isolated_included,
+    record_installed, write_state,
 };
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
@@ -42,9 +42,11 @@ snapshots:
 /// The decision for a repeat install of a workspace whose root injects the
 /// `pkg-a` project, with manifests handed over in memory: `pkg-a` has no
 /// `package.json` on disk, and `sibling_manifest` is what it declares now.
+/// `None` hands over only the root's manifest, as a filtered install or a
+/// per-project install does.
 fn injected_sibling_decision(
     shared_workspace_lockfile: bool,
-    sibling_manifest: &serde_json::Value,
+    sibling_manifest: Option<&serde_json::Value>,
 ) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
@@ -95,15 +97,24 @@ fn injected_sibling_decision(
             "dependencies": { "pkg-a": "workspace:*" },
         }),
     );
-    let sibling_manifest =
-        PackageManifest::from_value(sibling_dir.join("package.json"), sibling_manifest.clone());
-    content_check_decision_for(
-        &dir,
+    let installed_sibling =
+        PackageManifest::from_value(sibling_dir.join("package.json"), unchanged_sibling());
+    record_installed(
+        workspace_root,
         config,
-        true,
-        &[(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)],
-        ManifestFreshness::Content,
-    )
+        &[
+            (workspace_root.to_path_buf(), &root_manifest),
+            (sibling_dir.clone(), &installed_sibling),
+        ],
+    );
+    let sibling_manifest = sibling_manifest.map(|manifest| {
+        PackageManifest::from_value(sibling_dir.join("package.json"), manifest.clone())
+    });
+    let mut project_manifests = vec![(workspace_root.to_path_buf(), &root_manifest)];
+    if let Some(sibling_manifest) = &sibling_manifest {
+        project_manifests.push((sibling_dir, sibling_manifest));
+    }
+    content_check_decision(&dir, config, true, &project_manifests)
 }
 
 fn unchanged_sibling() -> serde_json::Value {
@@ -115,7 +126,7 @@ fn unchanged_sibling() -> serde_json::Value {
 /// to its dependencies and the fast path may stand.
 #[test]
 fn returns_up_to_date_for_an_injected_workspace_dependency_with_a_shared_lockfile() {
-    assert_eq!(injected_sibling_decision(true, &unchanged_sibling()), Decision::UpToDate);
+    assert_eq!(injected_sibling_decision(true, Some(&unchanged_sibling())), Decision::UpToDate);
 }
 
 /// The injected project gained a dependency its `file:` snapshot does not
@@ -127,7 +138,7 @@ fn returns_skipped_when_an_injected_workspace_dependency_gains_a_dependency() {
         "version": "1.0.0",
         "dependencies": { "is-positive": "1.0.0" },
     });
-    let decision = injected_sibling_decision(true, &sibling);
+    let decision = injected_sibling_decision(true, Some(&sibling));
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("no longer satisfied")),
         "expected Skipped(manifest no longer satisfied), got {decision:?}",
@@ -139,7 +150,38 @@ fn returns_skipped_when_an_injected_workspace_dependency_gains_a_dependency() {
 /// to re-check it.
 #[test]
 fn returns_skipped_for_an_injected_workspace_dependency_without_a_shared_lockfile() {
-    let decision = injected_sibling_decision(false, &unchanged_sibling());
+    assert_skipped_for_local_file_dependency(&injected_sibling_decision(
+        false,
+        Some(&unchanged_sibling()),
+    ));
+}
+
+/// The root's manifest says `workspace:*` and nothing about injection, so
+/// only its lockfile can tell that `pkg-a` is an injected copy.
+#[test]
+fn returns_skipped_for_an_injected_workspace_dependency_whose_project_is_not_listed() {
+    assert_skipped_for_local_file_dependency(&injected_sibling_decision(false, None));
+}
+
+/// An optional peer leaves the injected project's own `importers` entry
+/// empty, so only checking the consumer that injects `pkg-a` catches the
+/// missing `peerDependencies` on `packages["pkg-a@file:pkg-a"]`.
+#[test]
+fn returns_skipped_when_an_injected_workspace_dependency_gains_an_optional_peer() {
+    let sibling = serde_json::json!({
+        "name": "pkg-a",
+        "version": "1.0.0",
+        "peerDependencies": { "is-positive": "^1.0.0" },
+        "peerDependenciesMeta": { "is-positive": { "optional": true } },
+    });
+    let decision = injected_sibling_decision(true, Some(&sibling));
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("no longer satisfied")),
+        "expected Skipped(manifest no longer satisfied), got {decision:?}",
+    );
+}
+
+fn assert_skipped_for_local_file_dependency(decision: &Decision) {
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
         "expected Skipped(local file dependency), got {decision:?}",

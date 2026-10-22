@@ -7,7 +7,7 @@ import { fetchFromDir } from '@pnpm/fetching.directory-fetcher'
 import { prepareEmpty } from '@pnpm/prepare'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 
-import { applyPatch, DIR, type DirDiff, publishEditsForWatchers, readPublishSource } from '../src/DirPatcher.js'
+import { applyPatch, DIR, type DirDiff, DirPatcher, publishEditsForWatchers, readPublishSource } from '../src/DirPatcher.js'
 
 const originalRm = fs.promises.rm
 const originalMkdir = fs.promises.mkdir
@@ -311,6 +311,88 @@ test('publishEditsForWatchers replaces an edited hardlink with a file a watcher 
     expect(events.length).toBeGreaterThan(0)
   } finally {
     watcher.close()
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('publishEditsForWatchers leaves out the files the manifest does not list when reading package files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  const target = path.join(root, 'target')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['index.js'] }))
+  createFile(path.join(source, 'index.js'), 'built')
+  createFile(path.join(source, 'src/index.ts'), 'source')
+  fs.mkdirSync(target)
+  try {
+    await publishEditsForWatchers(await readPublishSource(source, true), target, 0)
+    expect(fs.readFileSync(path.join(target, 'index.js'), 'utf8')).toBe('built')
+    expect(fs.existsSync(path.join(target, 'src'))).toBe(false)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('readPublishSource skips a dangling symlink among the package files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  const source = path.join(root, 'source')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source' }))
+  createFile(path.join(source, 'index.js'), 'built')
+  fs.symlinkSync('missing.js', path.join(source, 'dangling.js'))
+  try {
+    const { map } = await readPublishSource(source, true)
+    expect(Object.keys(map).sort()).toStrictEqual(['.', 'index.js', 'package.json'])
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+function prepareSourceWithLinkedDirectory (root: string, files: string[]): string {
+  const source = path.join(root, 'source')
+  createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files }))
+  createFile(path.join(source, 'files/foo/bar.txt'), 'bar')
+  fs.symlinkSync('files/foo', path.join(source, 'link-to-a-dir'))
+  return source
+}
+
+// The install keeps a package's link to its own content as a link, and
+// leaves out a link to a directory it does not import.
+testOnPosix('readPublishSource keeps a link to a listed directory as a link', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  try {
+    const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, ['link-to-a-dir', 'files']), true)
+    expect(map['link-to-a-dir']).toBe('link:files/foo')
+    expect(map['files/foo/bar.txt']).toEqual(expect.any(String))
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('a sync copies a link to a file the packlist does not list as the file', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  try {
+    const source = path.join(root, 'source')
+    const target = path.join(root, 'target')
+    createFile(path.join(source, 'package.json'), JSON.stringify({ name: 'source', files: ['link.txt'] }))
+    createFile(path.join(source, 'src/real.txt'), 'real')
+    fs.symlinkSync('src/real.txt', path.join(source, 'link.txt'))
+    fs.mkdirSync(target)
+
+    const patchers = await DirPatcher.fromMultipleTargets(source, [target], true)
+    await Promise.all(patchers.map(async (patcher) => patcher.apply()))
+
+    expect(fs.lstatSync(path.join(target, 'link.txt')).isFile()).toBe(true)
+    expect(fs.readFileSync(path.join(target, 'link.txt'), 'utf8')).toBe('real')
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+testOnPosix('readPublishSource leaves out a link to a directory the packlist does not list', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'injected-publish-'))
+  try {
+    const { map } = await readPublishSource(prepareSourceWithLinkedDirectory(root, ['link-to-a-dir']), true)
+    expect(Object.keys(map).filter((key) => key.startsWith('link-to-a-dir'))).toEqual([])
+  } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
 })

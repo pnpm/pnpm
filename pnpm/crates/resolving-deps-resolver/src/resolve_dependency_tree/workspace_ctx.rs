@@ -4,9 +4,13 @@
 //! which occurrence of a package records its children.
 
 pub(super) use children_ownership::{
-    ChildrenOwner, ChildrenOwnerClaim, RecordedChildren, RecordedChildrenContext,
-    claim_children_owner, claim_children_warmup, insert_tree_node, is_current_children_owner,
-    make_non_owner_nodes_lazy, record_children, recorded_children_match, register_peer_dep_names,
+    ChildrenOwner, ChildrenOwnerClaim, ChildrenRecording, RecordedChildren,
+    RecordedChildrenContext, children_warmup_claimed, claim_children_owner, claim_children_warmup,
+    insert_tree_node, is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+    register_peer_dep_names, register_shadowable_dep_names,
+};
+pub(super) use subtree_split::{
+    claim_recorded_subtree_owners, recorded_children_match, recorded_prior_key,
 };
 
 pub(super) use cache_keys::{
@@ -27,6 +31,8 @@ mod tree_sync;
 mod children_ownership;
 use children_ownership::ChildrenOwnerEntry;
 
+mod subtree_split;
+
 mod cache_keys;
 
 use chrono::{DateTime, Utc};
@@ -38,11 +44,12 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard, RwLock},
 };
 
 use crate::{
     node_id::NodeId,
+    parent_pkg_aliases::ParentPkgAliases,
     resolve_peers::MissingNames,
     resolved_tree::{
         AncestorPkgIds, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedTree,
@@ -51,21 +58,24 @@ use crate::{
 };
 
 use super::{
-    DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth,
-    UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
+    DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
+    UpdateDepth, UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
 };
 
-type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
+pub(super) type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// An importer's resolved direct-dependency versions, keyed by package
 /// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
 pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 
-/// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
-/// `(child_alias, child_range, child_optional, child_injected)` tuples extracted from
-/// a resolved package's manifest's `dependencies` plus
-/// `optionalDependencies` sections.
-pub(super) type ChildSpec = (String, String, bool, bool);
+/// What registering a package in the workspace's package table found, with
+/// the table's shared id either way.
+pub(super) enum PackageRegistration {
+    /// This occurrence created the entry.
+    Created(Arc<str>),
+    /// Another occurrence created it first.
+    Existing(Arc<str>),
+}
 
 /// Workspace-shared maps. Every per-importer [`TreeCtx`] in a
 /// multi-importer install holds an `Arc<WorkspaceTreeCtx>` so the
@@ -127,7 +137,7 @@ pub(crate) struct WorkspaceTreeStorage {
 
 #[derive(Default)]
 pub(crate) struct WorkspaceChildrenState {
-    pub(super) specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
+    pub(super) specs_by_id: RwLock<HashMap<Arc<str>, Arc<Vec<DependencySpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
     /// it a level seeds — see [`fn@warm_children_resolutions`].
@@ -135,6 +145,11 @@ pub(crate) struct WorkspaceChildrenState {
     /// [`fn@warm_children_resolutions`]: super::walk::warm_children_resolutions
     warmed_by_id: Mutex<HashSet<Arc<str>>>,
     pub(super) by_id: Mutex<HashMap<Arc<str>, RecordedChildren>>,
+    /// Every name a seeded package lists both in `dependencies` and in
+    /// `peerDependencies`. Only these names can change which children a
+    /// walk resolves under a different scope; see
+    /// [`fn@recorded_children_match`].
+    shadowable_dep_names: Mutex<HashSet<String>>,
     owner_by_id: Mutex<HashMap<Arc<str>, ChildrenOwnerEntry>>,
     /// `pkg id → importer id` of the importer whose occurrence owns
     /// that package's shared children context. Ownership is chosen by
@@ -223,6 +238,11 @@ pub(super) struct WorkspaceResolutionCache {
     /// `true` means the package and its entire transitive subtree can be
     /// synthesized from the prior lockfile.
     pub(super) subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
+    /// Memoises [`pnpm_lockfile::BoundProviders::of_snapshot`] for hashed
+    /// snapshot keys so repeated peer-scope and child-split checks on the
+    /// same snapshot key recover its bound providers at most once per
+    /// workspace pass.
+    pub(super) bound_providers: Mutex<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
     /// tarball URL for the `currentPkg` payload. Empty when the entry
@@ -252,20 +272,23 @@ pub(crate) struct WorkspacePreferredVersions {
     run_versions_cache: Mutex<RunVersionsCache>,
     /// Per importer: direct-dep aliases whose manifest specifier differs
     /// from the prior lockfile (new deps included). Gates the stale-pin
-    /// refresh's reuse-decline; only a changed direct dep can re-resolve
-    /// away from a transitive occurrence's pin. Keyed by importer: this
-    /// crate resolves importers sequentially (no workspace-wide
-    /// directs-before-transitives barrier), so a shared map would refresh
-    /// one importer's edges from another's direct deps order-dependently.
-    /// (pnpm has that barrier and so converges cross-importer; pacquet
-    /// stays per-importer to stay deterministic.)
-    pub(super) changed_direct_deps: Mutex<HashMap<String, HashSet<PkgName>>>,
-    /// Per importer: the parsed resolved versions of its direct
-    /// dependencies, recorded once the direct-dep level finishes resolving.
-    /// The direct-dep versions folded into the children's
-    /// `preferredVersions`; consulted by [`fn@higher_direct_dep_version`].
-    /// `Arc` so the hot child walk snapshots the importer's map with one
-    /// lock + refcount bump instead of locking per edge.
+    /// refresh's reuse-decline within that importer; cross-importer
+    /// direct-dep version changes decline reuse via
+    /// [`Self::changed_direct_dep_versions`] when a resolved version
+    /// differs from the pinned version.
+    pub(super) changed_direct_deps: Mutex<HashMap<String, Arc<HashSet<PkgName>>>>,
+    /// The parsed resolved versions of direct dependencies that changed
+    /// in this install across the workspace, pre-seeded before any
+    /// importer walks its transitive subtrees. Merged into each
+    /// importer's [`Self::direct_dep_versions`] for package names the
+    /// importer does not declare directly.
+    pub(super) changed_direct_dep_versions: Mutex<Arc<DirectDepVersions>>,
+    /// Per importer: the parsed resolved versions of its own direct
+    /// dependencies, plus [`Self::changed_direct_dep_versions`] for
+    /// names the importer does not declare directly. Consulted by
+    /// [`fn@higher_direct_dep_version`]. `Arc` so the hot child walk
+    /// snapshots the importer's map with one lock + refcount bump
+    /// instead of locking per edge.
     ///
     /// [`fn@higher_direct_dep_version`]: super::reuse::higher_direct_dep_version
     pub(super) direct_dep_versions: Mutex<HashMap<String, Arc<DirectDepVersions>>>,
@@ -302,7 +325,7 @@ pub(super) struct WorkspaceResolutionPolicy {
     /// resolved package's `dependencies` its own `peerDependencies`
     /// shadow — see [`peer_shadowed_dependencies`].
     ///
-    /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+    /// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
     pub(super) auto_install_peers: bool,
 }
 
@@ -382,10 +405,8 @@ pub(super) struct RunVersionsCache {
 /// [`WorkspaceTreeCtx::sync_discovery_tree`] can refresh a view by
 /// visiting the writes instead of rescanning every map.
 ///
-/// Only keys are recorded, never values: the sync reads each key's
-/// current value, so a key logged several times, or logged by
-/// concurrently-walking importers in either order, converges on the
-/// same view.
+/// Keys only: the sync reads each key's current value, so logging one
+/// twice, or in either order, converges on the same view.
 #[derive(Default)]
 struct SyncLog {
     packages: Vec<String>,
@@ -614,6 +635,11 @@ impl WorkspaceTreeCtx {
 /// Take a mutex-held map out of a context this thread solely owns,
 /// recovering from poisoning like every other read of these maps.
 fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
+    std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
+}
+
+/// [`fn@take_locked`] for a [`RwLock`].
+fn take_write_locked<Value: Default>(cell: &mut RwLock<Value>) -> Value {
     std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
 }
 

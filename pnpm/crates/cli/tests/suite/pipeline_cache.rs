@@ -68,70 +68,6 @@ fn configured_environment_changes_invalidate_task_outputs() {
 }
 
 #[test]
-fn affected_selection_keeps_an_enabled_workspace_root_dependent() {
-    let root = tempfile::tempdir().unwrap();
-    let fixture = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "demo");
-    fixture.write_file("package.json", r#"{"name":"root","private":true,"scripts":{"build":"echo root"},"dependencies":{"dep":"workspace:*"}}"#);
-    fixture.write_file("pnpm-workspace.yaml", "packages: [pkg]\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n");
-    fixture.write_file(
-        "pkg/package.json",
-        r#"{"name":"dep","version":"1.0.0","scripts":{"build":"echo dep"}}"#,
-    );
-    fixture.write_file("pkg/source", "first");
-    let base = fixture.commit("initial");
-    fixture.write_file("pkg/source", "second");
-    let result = Command::cargo_bin("pnpm")
-        .unwrap()
-        .without_ambient_pnpm_config()
-        .current_dir(root.path().join("demo-src"))
-        .env("XDG_CONFIG_HOME", root.path().join("config"))
-        .args(["pipeline", "--base", &base, "--dry-run", "--json"])
-        .assert()
-        .success();
-    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
-    assert!(
-        document["tasks"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|task| task["project"] == "." && task["script"] == "build"),
-        "root dependent must participate: {document}",
-    );
-}
-
-#[test]
-fn affected_selection_keeps_the_workspace_root_as_an_upstream_dependency() {
-    let root = tempfile::tempdir().unwrap();
-    let fixture = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "demo");
-    fixture.write_file(
-        "package.json",
-        r#"{"name":"root","version":"1.0.0","private":true,"scripts":{"build":"echo root"}}"#,
-    );
-    fixture.write_file("pnpm-workspace.yaml", "packages: [pkg]\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: ['^build']\n");
-    fixture.write_file("pkg/package.json", r#"{"name":"dep","version":"1.0.0","scripts":{"build":"echo dep"},"dependencies":{"root":"workspace:*"}}"#);
-    fixture.write_file("pkg/source", "first");
-    let base = fixture.commit("initial");
-    fixture.write_file("pkg/source", "second");
-    let result = Command::cargo_bin("pnpm")
-        .unwrap()
-        .without_ambient_pnpm_config()
-        .current_dir(root.path().join("demo-src"))
-        .env("XDG_CONFIG_HOME", root.path().join("config"))
-        .args(["pipeline", "--base", &base, "--dry-run", "--json"])
-        .assert()
-        .success();
-    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
-    assert!(
-        document["tasks"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|task| task["project"] == "." && task["script"] == "build"),
-        "root dependency must participate: {document}",
-    );
-}
-
-#[test]
 fn dry_run_prints_the_graph_without_executing_workspace_code() {
     let project = tempfile::tempdir().unwrap();
     fs::write(
@@ -170,6 +106,47 @@ fn dry_run_prints_the_graph_without_executing_workspace_code() {
     for path in ["node_modules", "pnpm-lock.yaml", "pnpm-lock.env.yaml"] {
         assert!(!project.path().join(path).exists(), "dry-run must not create {path}");
     }
+}
+
+#[test]
+fn empty_selection_dry_run_prints_empty_graph_without_a_report() {
+    let project = tempfile::tempdir().unwrap();
+    fs::write(project.path().join("package.json"), r#"{"name":"a","scripts":{"build":"echo B"}}"#)
+        .unwrap();
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "packages: ['packages/*']\npipelines:\n  default: [build]\n",
+    )
+    .unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let report_root = storage
+        .path()
+        .join("pnpm")
+        .join("pipeline");
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(project.path())
+            .env("XDG_CACHE_HOME", storage.path())
+            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        command
+    };
+    let result = command()
+        .args(["pipeline", "--full", "--dry-run", "--json"])
+        .assert()
+        .success();
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    assert_eq!(document, serde_json::json!({"tasks": []}));
+    assert!(!report_root.exists());
+    let result = command()
+        .args(["pipeline", "--full", "--dry-run"])
+        .assert()
+        .success();
+    assert_eq!(
+        String::from_utf8_lossy(&result.get_output().stdout),
+        "No projects are selected — nothing to run.\n",
+    );
+    assert!(!report_root.exists());
 }
 
 #[test]

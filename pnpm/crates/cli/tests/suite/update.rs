@@ -505,6 +505,23 @@ fn update_latest_preserves_tilde() {
     drop((root, anchor));
 }
 
+/// A range with no operator of its own that excludes the latest version is
+/// rewritten with the `savePrefix` setting.
+#[test]
+fn update_latest_applies_save_prefix_to_a_range_without_an_operator() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "<100.1.0" }}"#));
+    append_workspace_yaml_key(&workspace, "savePrefix", "'~'");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("~101.0.0"));
+
+    drop((root, anchor));
+}
+
 /// A dist-tag already reaches the latest version, so `--latest` has nothing
 /// to rewrite either.
 #[test]
@@ -1384,3 +1401,30 @@ mod selectors;
 mod overrides;
 
 mod compatibility_db;
+
+/// A changed specifier re-resolves its dependency, and that dependency's
+/// own dependencies keep the versions the lockfile pins while nothing else
+/// in the graph prefers another (pnpm/pnpm#2191).
+#[test]
+fn a_changed_specifier_keeps_the_locked_versions_of_its_dependencies() {
+    const FOOBARQAR: &str = "@pnpm.e2e/foobarqar";
+    let (root, workspace, anchor) = setup_with_own_registry();
+    anchor.set_dist_tag(FOO, "100.0.0", "latest");
+    anchor.set_dist_tag(BAR, "100.0.0", "latest");
+    anchor.set_dist_tag(FOOBARQAR, "1.0.0", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOOBARQAR}": "^1.0.0" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+    anchor.set_dist_tag(FOO, "100.1.0", "latest");
+    anchor.set_dist_tag(BAR, "100.1.0", "latest");
+    anchor.set_dist_tag(FOOBARQAR, "1.0.1", "latest");
+    write_manifest(&workspace, &format!(r#"{{ "{FOOBARQAR}": "^1.0.1" }}"#));
+    pacquet(&workspace, ["install", "--lockfile-only"]).assert().success();
+
+    let packages = lockfile_package_keys(&workspace);
+    assert!(packages.contains(&format!("{FOOBARQAR}@1.0.1")), "{packages:?}");
+    assert!(packages.contains(&format!("{FOO}@100.0.0")), "{packages:?}");
+    assert!(!packages.contains(&format!("{FOO}@100.1.0")), "{packages:?}");
+
+    drop((root, anchor));
+}

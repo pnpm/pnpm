@@ -2,7 +2,11 @@
 
 use crate::{
     node_id::NodeId,
-    resolve_peers::{ResolvePeersOptions, discovery::PeerDiscoveryCaches, walker::Walker},
+    resolve_peers::{
+        ResolvePeersOptions,
+        discovery::PeerDiscoveryCaches,
+        walker::{PeerWalkMode, Walker},
+    },
     resolved_tree::{
         ChildEdge, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage, ResolvedPackageInput,
         ResolvedTree, TreeChildren,
@@ -55,7 +59,7 @@ pub(super) fn walker_for_tests(tree: &mut ResolvedTree) -> Walker<'_> {
         HashMap::default(),
         Vec::new(),
         PeerDiscoveryCaches::default(),
-        false,
+        PeerWalkMode::Final,
     )
 }
 
@@ -87,7 +91,7 @@ pub(super) fn package_with_peer_dependencies(
     ResolvedPackage::new(ResolvedPackageInput {
         id: format!("{name}@{version}").into(),
         result: Arc::new(resolve_result(name, version)),
-        peer_dependencies,
+        peer_set: crate::PeerSet::taking_all(peer_dependencies),
         optional: false,
         is_leaf,
     })
@@ -113,7 +117,7 @@ pub(super) fn linked_package(name: &str, id: &str, directory: &str) -> ResolvedP
                 non_deprecated_alternative: None,
             },
         }),
-        peer_dependencies: BTreeMap::new(),
+        peer_set: crate::PeerSet::default(),
         optional: false,
         is_leaf: true,
     })

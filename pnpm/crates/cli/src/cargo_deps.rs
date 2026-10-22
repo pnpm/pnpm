@@ -1,7 +1,9 @@
 pub(crate) mod add;
+pub(crate) mod toolchain;
 
 pub(crate) use lockfile::workspace_root;
 pub(crate) use sparse_registry::{cargo_auth_headers, latest_version};
+pub(crate) use toolchain::installs_toolchains;
 
 use crate::{
     cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
@@ -15,11 +17,11 @@ use lockfile::{
     LockedCrate, discover_workspace_roots, parse_lockfile, read_or_resolve_lockfile,
     validate_package_field, verify_existing_lockfile,
 };
-use materialize::{DownloadOptions, add_cargo_checksum, download_crates};
+use materialize::{DownloadOptions, add_cargo_checksum, download_crates, slot_is_complete};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_cargo_resolver::is_crates_io;
 use pnpm_config::Config;
-use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_deps_restorer::{CARGO_CHECKSUM_FILE, ImportIndexedDirOpts, import_indexed_dir};
 use pnpm_install_coordinator::{InstallTask, PreparedInstall};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};
@@ -58,6 +60,12 @@ const MANAGED_END: &str = "# <<< pnpm-managed cargo sources <<<";
 /// Directory the registry crates are linked into, relative to the Cargo
 /// workspace root.
 const CRATES_SOURCE_DIRECTORY: [&str; 3] = [".pnpm", "crates", "crates-io"];
+/// Directory, relative to the Cargo workspace root, of [`SOURCES_CONFIG`].
+const SOURCES_CONFIG_DIRECTORY: [&str; 2] = [".pnpm", "crates"];
+/// The source replacement for the vendored crates. `.cargo/config.toml`
+/// includes it as optional, so a checkout without `.pnpm` still builds with
+/// plain Cargo.
+const SOURCES_CONFIG: &str = "config.toml";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoLockfilePolicy {
@@ -80,8 +88,16 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
     inventory: &EcosystemWorkspaceInventory,
 ) -> Result<InstallTask<'static>> {
-    let workspaces =
-        discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
+    let manifests = inventory.manifests(EcosystemManifest::Cargo).await?;
+    let checkout = checkout(inventory.workspace_root());
+    toolchain::provision::<Reporter>(
+        context.config,
+        &context.http_client,
+        manifests,
+        checkout.as_deref(),
+    )
+    .await?;
+    let workspaces = discover_workspace_roots(manifests, checkout.as_deref()).await?;
     if context.frozen_lockfile {
         workspaces.iter().try_for_each(verify_existing_lockfile)?;
     }
@@ -93,7 +109,6 @@ pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
         .iter()
         .flat_map(|root| metadata_paths(root))
         .collect();
-    let checkout = checkout(inventory.workspace_root());
     Ok(InstallTask::new(
         metadata,
         prepare::<Reporter>(context, roots, checkout, CargoLockfilePolicy::UseExisting),
@@ -112,8 +127,13 @@ pub(crate) fn checkout(dir: &Path) -> Option<PathBuf> {
     dunce::canonicalize(dir).ok()
 }
 
-pub(crate) fn metadata_paths(root: &Path) -> [PathBuf; 2] {
-    [root.join("Cargo.lock"), root.join(".cargo/config.toml")]
+pub(crate) fn metadata_paths(root: &Path) -> [PathBuf; 3] {
+    [
+        root.join("Cargo.lock"),
+        root.join(".cargo/config.toml"),
+        root.join(SOURCES_CONFIG_DIRECTORY.join("/"))
+            .join(SOURCES_CONFIG),
+    ]
 }
 
 pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
@@ -177,7 +197,8 @@ impl PreparedInstall for Prepared {
             if !slots.git.is_empty() {
                 link_workspace(&self.root, &GIT_SOURCE_DIRECTORY, &slots.git)?;
             }
-            write_cargo_config(&self.root, &self.index_url, &slots.git_sources)?;
+            write_sources_config(&self.root, &self.index_url, &slots.git_sources)?;
+            write_cargo_config(&self.root)?;
         }
         let path = self.root.join("Cargo.lock");
         let existing = match fs::read_to_string(&path) {
@@ -265,27 +286,27 @@ fn link_workspace_in(source_dir: &ManagedDirectory, slots: &[(String, PathBuf)])
     Ok(())
 }
 
-fn write_cargo_config(root_dir: &Path, index_url: &str, git_sources: &[GitSource]) -> Result<()> {
-    let cargo_dir = ensure_workspace_directory(root_dir, &[".cargo"])?;
-    write_cargo_config_in(&cargo_dir, index_url, git_sources)
+fn write_sources_config(root_dir: &Path, index_url: &str, git_sources: &[GitSource]) -> Result<()> {
+    let directory = ensure_workspace_directory(root_dir, &SOURCES_CONFIG_DIRECTORY)?;
+    let path = directory.path.join(SOURCES_CONFIG);
+    let config = sources_config(index_url, git_sources);
+    if read_existing_file(&directory, SOURCES_CONFIG)?.0 != config {
+        write_workspace_file(&directory, SOURCES_CONFIG, config.as_bytes(), None)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("write {}", path.display()))?;
+    }
+    Ok(())
 }
 
-fn write_cargo_config_in(
-    cargo_dir: &ManagedDirectory,
-    index_url: &str,
-    git_sources: &[GitSource],
-) -> Result<()> {
+fn write_cargo_config(root_dir: &Path) -> Result<()> {
+    let cargo_dir = ensure_workspace_directory(root_dir, &[".cargo"])?;
+    write_cargo_config_in(&cargo_dir)
+}
+
+fn write_cargo_config_in(cargo_dir: &ManagedDirectory) -> Result<()> {
     let config_path = cargo_dir.path.join("config.toml");
-    let (existing, mode) = match read_workspace_file(cargo_dir, "config.toml") {
-        Ok(existing) => existing,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => (String::new(), None),
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read {}", config_path.display()));
-        }
-    };
-    let updated = update_managed_config(&existing, index_url, git_sources)?;
+    let (existing, mode) = read_existing_file(cargo_dir, "config.toml")?;
+    let updated = update_managed_config(&existing)?;
     if updated != existing {
         write_workspace_file(cargo_dir, "config.toml", updated.as_bytes(), mode)
             .into_diagnostic()
@@ -294,12 +315,32 @@ fn write_cargo_config_in(
     Ok(())
 }
 
-fn update_managed_config(
-    existing: &str,
-    index_url: &str,
-    git_sources: &[GitSource],
-) -> Result<String> {
-    let managed_config = managed_config(index_url, git_sources);
+/// The file's contents and mode, or an empty string when it does not exist.
+fn read_existing_file(directory: &ManagedDirectory, name: &str) -> Result<(String, Option<u32>)> {
+    match read_workspace_file(directory, name) {
+        Ok(existing) => Ok(existing),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok((String::new(), None)),
+        Err(error) => Err(error)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("read {}", directory.path.join(name).display())),
+    }
+}
+
+fn update_managed_config(existing: &str) -> Result<String> {
+    let updated = splice_managed_config(existing)?;
+    // `[[include]]` cannot extend an `include` key written inline.
+    if toml::from_str::<toml::Table>(existing).is_ok()
+        && let Err(error) = toml::from_str::<toml::Table>(&updated)
+    {
+        return Err(miette::miette!(
+            "pnpm cannot add its `[[include]]` entry to .cargo/config.toml. Write `include` as `[[include]]` tables: {error}"
+        ));
+    }
+    Ok(updated)
+}
+
+fn splice_managed_config(existing: &str) -> Result<String> {
+    let managed_config = managed_config();
     match managed_config_range(existing)? {
         None => {
             let separator = if existing.is_empty() || existing.ends_with("\n\n") {
@@ -327,8 +368,15 @@ fn managed_config_range(existing: &str) -> Result<Option<std::ops::Range<usize>>
     }
 }
 
-fn managed_config(index_url: &str, git_sources: &[GitSource]) -> String {
-    let crates = CRATES_SOURCE_DIRECTORY.join("/");
+fn managed_config() -> String {
+    let path = format!("../{}/{SOURCES_CONFIG}", SOURCES_CONFIG_DIRECTORY.join("/"));
+    format!("{MANAGED_START}\n[[include]]\npath = \"{path}\"\noptional = true\n{MANAGED_END}")
+}
+
+/// Cargo resolves a relative `directory` against the parent of the directory
+/// holding the config file, so these paths start below `.pnpm`.
+fn sources_config(index_url: &str, git_sources: &[GitSource]) -> String {
+    let crates = CRATES_SOURCE_DIRECTORY[1..].join("/");
     let mut body = if is_crates_io(index_url) {
         format!(
             "[source.crates-io]\nreplace-with = \"pnpm-crates-io\"\n\n[source.pnpm-crates-io]\ndirectory = \"{crates}\"\n",
@@ -340,7 +388,7 @@ fn managed_config(index_url: &str, git_sources: &[GitSource]) -> String {
         )
     };
     if !git_sources.is_empty() {
-        let git = GIT_SOURCE_DIRECTORY.join("/");
+        let git = GIT_SOURCE_DIRECTORY[1..].join("/");
         let blocks = git_sources
             .iter()
             .fold(String::new(), |mut blocks, source| {
@@ -350,7 +398,7 @@ fn managed_config(index_url: &str, git_sources: &[GitSource]) -> String {
             });
         body = format!("{body}\n[source.{GIT_SOURCE_NAME}]\ndirectory = \"{git}\"\n{blocks}");
     }
-    format!("{MANAGED_START}\n{body}{MANAGED_END}")
+    body
 }
 
 #[cfg(test)]

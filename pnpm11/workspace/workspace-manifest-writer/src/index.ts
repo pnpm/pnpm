@@ -4,7 +4,7 @@ import path from 'node:path'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { type GLOBAL_CONFIG_YAML_FILENAME, WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import type { ResolvedCatalogEntry } from '@pnpm/lockfile.types'
+import type { CatalogSnapshots, ResolvedCatalogEntry } from '@pnpm/lockfile.types'
 import type {
   Project,
 } from '@pnpm/types'
@@ -59,6 +59,11 @@ export interface UpdateWorkspaceManifestOptions {
   deletedLegacyKeys?: string[]
   fileName?: FileName
   catalogPrune?: boolean
+  /**
+   * Lockfile catalogs whose entries `catalogPrune` keeps even when no project
+   * references them.
+   */
+  keptCatalogs?: CatalogSnapshots
   allProjects?: Project[]
   /**
    * Package name → the versions the freshly resolved lockfile records.
@@ -136,7 +141,7 @@ function applyCatalogUpdates (manifest: WritableManifest, opts: UpdateWorkspaceM
   if (!opts.catalogPrune) {
     return catalogsAdded
   }
-  return removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? []) || catalogsAdded
+  return removePackagesFromWorkspaceCatalog(manifest, opts.allProjects ?? [], opts.keptCatalogs) || catalogsAdded
 }
 
 function applyUpdatedFields (manifest: Record<string, unknown>, updatedFields: Partial<WorkspaceManifest>): boolean {

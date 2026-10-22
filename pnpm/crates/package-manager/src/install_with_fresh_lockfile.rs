@@ -17,6 +17,7 @@ use lockfile_build::{
 };
 
 mod on_disk;
+use crate::install::state_options::ResolveOnly;
 use on_disk::{OnDiskInputs, OnDiskOutput, finish_early_materialization, run_on_disk_phases};
 
 mod plan;
@@ -165,12 +166,13 @@ pub(crate) struct FreshInstallExecution {
     /// [`crate::link_hoisted_modules()`] instead of the isolated
     /// symlink layout.
     pub(crate) node_linker: NodeLinker,
-    /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
-    /// return — skipping the tarball prefetch, virtual-store
-    /// materialization, symlinks, hoisting, and bin linking. The store
-    /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
-    /// See [`crate::InstallExecution::lockfile_only`].
-    pub(crate) lockfile_only: bool,
+    /// `Some`: resolve the graph and write `pnpm-lock.yaml`, then return,
+    /// skipping virtual-store materialization, symlinks, hoisting, and bin
+    /// linking. [`ResolveOnly::LockfileOnly`] fetches nothing either (a
+    /// dry-run resolve pass; see [`crate::InstallExecution::lockfile_only`]);
+    /// [`ResolveOnly::FetchIntoStore`] keeps the tarball prefetch on and the
+    /// run waits for those downloads before it returns.
+    pub(crate) resolve_only: Option<ResolveOnly>,
     /// `config.skip_runtimes || --no-runtime`; see
     /// [`crate::add_direct_runtime_skips`].
     pub(crate) skip_runtimes: bool,
@@ -192,6 +194,16 @@ pub(crate) struct FreshInstallExecution {
     /// drives `<install_state_dir>/lock.yaml`. See
     /// [`crate::Install::run_legacy_deploy`].
     pub(crate) save_lockfile: bool,
+}
+
+impl FreshInstallExecution {
+    pub(crate) fn lockfile_only(self) -> bool {
+        self.resolve_only.is_some()
+    }
+
+    pub(crate) fn fetches_into_store(self) -> bool {
+        self.resolve_only == Some(ResolveOnly::FetchIntoStore)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -224,7 +236,7 @@ pub(crate) struct FreshPriorInstall<'a> {
     /// See [`pnpm_deps_restorer::PriorLinkState::previously_skipped`].
     pub(crate) previously_skipped: &'a pnpm_deps_restorer::SkippedSnapshots,
     /// See [`crate::PruneStaleModules::prune_orphans`].
-    pub(crate) prune_orphans: bool,
+    pub(crate) prune: pnpm_deps_restorer::PruneTreeOptions<'a>,
     /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
     pub(crate) relink_every_slot_bin: bool,
 }
@@ -321,6 +333,13 @@ pub(crate) struct FreshFetchingInputs {
     /// each fresh resolution while the install-side per-package call
     /// in `install_subtree` still takes `&MemCache` via deref.
     pub(crate) tarball_mem_cache: Arc<MemCache>,
+    /// Where a run that fetches into the store keeps the prefetch's download
+    /// tasks; `None` for every other run.
+    pub(crate) prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
+    /// Where a run that fetches into the store keeps the verification of
+    /// the wanted lockfile's rows it starts while resolving; `None` for
+    /// every other run.
+    pub(crate) store_verification: Option<Arc<crate::StoreVerification>>,
     /// Same client behind an [`Arc`] for the [`NpmResolver`][pnpm_resolving_npm_resolver::NpmResolver], whose
     /// stored `ThrottledClient` outlives any per-call borrow.
     pub(crate) http_client_arc: Arc<ThrottledClient>,
@@ -350,7 +369,7 @@ pub(crate) struct FreshProjectInputs {
     /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
     /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
     /// behavior.
-    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(crate) workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
 }
 
 /// Output of [`InstallWithFreshLockfile::run`].
@@ -539,6 +558,9 @@ fn check_patch_usage<Reporter: self::Reporter>(
     applied_patches: &rustc_hash::FxHashSet<String>,
     scope: PatchUsageScope<'_>,
 ) -> Result<(), InstallWithFreshLockfileError> {
+    if !config.shares_one_lockfile() && config.workspace_dir.is_some() {
+        return Ok(());
+    }
     let Some(deps) = patched_dependencies else { return Ok(()) };
     let verify = match scope.selected_importer_ids {
         None => true,

@@ -351,3 +351,16 @@ test('removes what the source dropped before replacing the directory that held i
 
   expect(fs.readFileSync('target/became-a-file', 'utf8')).toBe('now a file')
 })
+
+test('replaces a target manifest left half written instead of parsing it', async () => {
+  prepareEmpty()
+
+  const manifest = JSON.stringify({ name: 'pkg', version: '1.0.0' })
+  createFile('source/package.json', manifest)
+  createFile('target/package.json', '')
+
+  const patchers = await DirPatcher.fromMultipleTargets('source', ['target'], true)
+  await Promise.all(patchers.map(async patcher => patcher.apply()))
+
+  expect(fs.readFileSync('target/package.json', 'utf8')).toBe(manifest)
+})

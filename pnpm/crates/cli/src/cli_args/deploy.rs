@@ -40,7 +40,7 @@ use pnpm_workspace::{Project, WORKSPACE_MANIFEST_FILENAME, importer_id_from_root
 use resolution::{
     ResolveBases, convert_importer_version_to_snapshot_ref, convert_package_key,
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
-    create_file_url_key, project_snapshot_to_snapshot_entry, validate_lockfile_local_path,
+    create_file_url_key, project_snapshot_to_snapshot_entry,
 };
 use serde_json::{Map, Value};
 use std::{
@@ -53,7 +53,7 @@ use target::{
     apply_deploy_hook, copy_project, prepare_deploy_dir, real_deploy_dir, relative_path,
     resolve_target_dir, validate_deploy_target, write_deploy_files,
 };
-use workspace_manifest::deploy_workspace_settings;
+use workspace_manifest::{DeployWorkspaceSettings, deploy_workspace_settings};
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -117,14 +117,6 @@ enum DeployError {
     #[display("The selected project is missing from pnpm-lock.yaml: {project_id}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
     MissingImporter { project_id: String },
-
-    #[display(
-        "Refusing to deploy unsafe lockfile path {}: path resolves outside workspace {}",
-        path.display(),
-        workspace_dir.display()
-    )]
-    #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
-    UnsafeLockfilePath { path: PathBuf, workspace_dir: PathBuf },
 }
 
 #[derive(Clone)]
@@ -132,6 +124,8 @@ struct ProjectInfo {
     name: Option<String>,
     has_bin: bool,
     peer_dependencies: Vec<PkgName>,
+    /// The `packages:` entry blocks for the peers the project declares.
+    peer_blocks: pnpm_resolving_deps_resolver::LockfilePeerBlocks,
     /// Names the project declares as prod or optional dependencies. A peer it
     /// depends on itself is already bound by that edge, whether or not the
     /// deploy's group filter kept the edge in the deployed snapshot.
@@ -153,14 +147,9 @@ impl SelectedProject {
     }
 }
 
-struct DeployWorkspaceConfig {
-    patched_dependencies: Option<indexmap::IndexMap<String, String>>,
-    allow_builds: HashMap<String, bool>,
-}
-
 enum DeployInstallMode {
     Legacy,
-    Shared { workspace_config: DeployWorkspaceConfig },
+    Shared { workspace_config: Box<DeployWorkspaceSettings> },
 }
 
 impl DeployArgs {
@@ -294,7 +283,7 @@ impl DeployArgs {
         Box::pin(self.run_install_in_deploy_dir::<ReporterT>(
             config,
             deploy_dir,
-            DeployInstallMode::Shared { workspace_config: deploy_files.workspace_config },
+            DeployInstallMode::Shared { workspace_config: Box::new(deploy_files.workspace_config) },
             true,
             source_hooks,
             None,
@@ -364,6 +353,11 @@ fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> 
                 peer_dependencies: manifest_dependency_names(
                     &project.manifest,
                     &["peerDependencies"],
+                ),
+                peer_blocks: pnpm_resolving_deps_resolver::lockfile_peer_blocks(
+                    &pnpm_resolving_deps_resolver::declared_peer_dependencies(
+                        project.manifest.value(),
+                    ),
                 ),
                 declared_dependencies: manifest_dependency_names(
                     &project.manifest,

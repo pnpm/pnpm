@@ -28,13 +28,16 @@ impl Ecosystem {
     }
 
     /// Every ecosystem pnpr can serve.
-    ///
-    /// Derived rather than written out, because a caller asking "is this the
-    /// only one configured" has to compare against all of them, and a list
-    /// maintained by hand answers that wrongly the moment an ecosystem is
-    /// added without it.
     pub fn all() -> impl Iterator<Item = Self> {
         Self::iter()
+    }
+
+    /// The path this ecosystem's endpoints sit under, whatever else the
+    /// server is configured with. Every URL pnpr writes about itself and every
+    /// route it mounts starts here.
+    #[must_use]
+    pub fn base_path(self) -> String {
+        format!("/{self}")
     }
 }
 
@@ -91,7 +94,7 @@ pub enum OciNameError {
 /// image repository.
 /// Construction applies the ecosystem's normalization and validation before
 /// the name can be used as a storage or cache key.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CanonicalPackageName {
     raw: String,
     /// The unscoped portion — for `@scope/name` and `namespace/image` this is
@@ -101,6 +104,18 @@ pub struct CanonicalPackageName {
 }
 
 impl CanonicalPackageName {
+    /// Create a canonical name directly from an already-stored name without
+    /// re-parsing it against a specific ecosystem grammar. Used for offline
+    /// store migration and maintenance.
+    #[must_use]
+    pub fn from_stored(raw: &str) -> Self {
+        let basename = raw
+            .rsplit_once('/')
+            .map_or(raw, |(_, last)| last)
+            .to_string();
+        Self { raw: raw.to_string(), basename }
+    }
+
     pub fn parse(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {
         let canonical = match ecosystem {
             Ecosystem::Npm => raw.to_string(),
@@ -162,12 +177,25 @@ impl CanonicalPackageName {
         format!("{}-{version}.tgz", self.basename)
     }
 
+    #[must_use]
+    pub fn sigstore_name_for_version(&self, version: &str) -> String {
+        format!("{}-{version}.sigstore", self.basename)
+    }
+
     /// Validate `filename` and return the canonical disk filename
     /// (`<basename>-<version>.tgz`). Used by the publish handler so
     /// libnpmpublish's `@scope/name-1.0.0.tgz` attachment lands on
     /// disk under the same path the GET endpoint serves.
     pub fn canonicalize_tarball_name(&self, filename: &str) -> Result<String, RegistryError> {
         self.parse_tarball_name(filename).map(|(canonical, _)| canonical)
+    }
+
+    fn parse_versioned_stem<'a>(&self, stem: &'a str) -> Option<&'a str> {
+        let rest = stem
+            .strip_prefix(&self.raw)
+            .or_else(|| stem.strip_prefix(&self.basename))?;
+        let version = rest.strip_prefix('-')?;
+        is_safe_segment(version).then_some(version)
     }
 
     /// Like [`Self::canonicalize_tarball_name`] but also returns the
@@ -181,17 +209,24 @@ impl CanonicalPackageName {
             filename: filename.to_string(),
         };
         let stem = filename.strip_suffix(".tgz").ok_or_else(invalid)?;
-        // Try the longer prefix first so that for an unscoped package
-        // (where `self.raw == self.basename`) we still match.
-        let rest = stem
-            .strip_prefix(&self.raw)
-            .or_else(|| stem.strip_prefix(&self.basename))
-            .ok_or_else(invalid)?;
-        let version = rest.strip_prefix('-').ok_or_else(invalid)?;
-        if !is_safe_segment(version) {
-            return Err(invalid());
-        }
+        let version = self.parse_versioned_stem(stem).ok_or_else(invalid)?;
         Ok((self.tarball_name_for_version(version), version.to_string()))
+    }
+
+    /// Parse a sigstore provenance attachment filename (`<basename>-<version>.sigstore`
+    /// or with scope prefix / `.sigstore.json` extension). Returns the canonical
+    /// disk filename (`<basename>-<version>.sigstore`) and the version string.
+    pub fn parse_sigstore_name(&self, filename: &str) -> Result<(String, String), RegistryError> {
+        let invalid = || RegistryError::InvalidTarballName {
+            package: self.raw.clone(),
+            filename: filename.to_string(),
+        };
+        let stem = filename
+            .strip_suffix(".sigstore.json")
+            .or_else(|| filename.strip_suffix(".sigstore"))
+            .ok_or_else(invalid)?;
+        let version = self.parse_versioned_stem(stem).ok_or_else(invalid)?;
+        Ok((self.sigstore_name_for_version(version), version.to_string()))
     }
 }
 

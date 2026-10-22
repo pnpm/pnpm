@@ -2,14 +2,16 @@ use super::{
     AccessList, AuthState, Body, Ecosystem, PackagePattern, Registries, Registry, Request,
     ServiceExt, StatusCode, TempDir, access_rule, body_bytes, body_json, config_for, header,
     hosted_publish_request, hosted_with_access, integrity_addressed_tarball_path, json,
-    router_with_auth, seed_hosted, sha512_integrity,
+    package_tar_and_tgz, router_with_auth, seed_hosted, sha512_integrity,
 };
+use crate::tokens::issue_token;
+use pnpr_storage::layout::local_document_path;
 
 #[tokio::test]
 async fn hosted_registry_serves_only_what_it_hosts() {
     let tmp = TempDir::new().unwrap();
-    // The org "acme" stores under its own namespace (`<storage>/acme/`).
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    // The org "acme" stores under its own namespace (`<storage>/orgs/acme/`).
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
@@ -23,7 +25,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     let hit = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -35,7 +37,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     // no upstream fall-through.
     let miss = app
         .oneshot(
-            Request::get("/~acme/@acme/absent")
+            Request::get("/npm/~acme/@acme/absent")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -47,8 +49,8 @@ async fn hosted_registry_serves_only_what_it_hosts() {
 #[tokio::test]
 async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let tmp = TempDir::new().unwrap();
-    // The org "acme" stores under its own namespace (`<storage>/acme/`).
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    // The org "acme" stores under its own namespace (`<storage>/orgs/acme/`).
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -57,7 +59,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
         None,
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     // An unauthorized (anonymous) caller gets 404, not 403 — the org's package
@@ -65,7 +67,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let anon = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -76,7 +78,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     // The authorized caller reads it.
     let authed = app
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -92,7 +94,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
 #[tokio::test]
 async fn private_hosted_org_masks_before_the_package_acl() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -112,9 +114,9 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     let app = router_with_auth(config, AuthState::in_memory());
 
     for path in [
-        "/~acme/@acme/widget",                    // packument
-        "/~acme/@acme/widget/1.0.0",              // version manifest
-        "/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
+        "/npm/~acme/@acme/widget",                    // packument
+        "/npm/~acme/@acme/widget/1.0.0",              // version manifest
+        "/npm/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
     ] {
         let resp = app
             .clone()
@@ -134,7 +136,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
 #[tokio::test]
 async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     let tmp = TempDir::new().unwrap();
-    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+    seed_hosted(tmp.path(), "acme", "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.hosted.insert("acme".to_string(), hosted_with_access("acme", "alice"));
@@ -153,7 +155,7 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
 
     let resp = app
         .oneshot(
-            Request::get("/-/package/@acme%2Fwidget/dist-tags")
+            Request::get("/npm/-/package/@acme%2Fwidget/dist-tags")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -188,7 +190,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let tarball = b"acme-widget-1.0.0-bytes";
@@ -215,7 +217,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let publish = app
         .clone()
         .oneshot(
-            Request::put("/~acme/@acme/widget")
+            Request::put("/npm/~acme/@acme/widget")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -225,25 +227,21 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    // It physically lands in the org's storage namespace, not the flat root.
+    // It physically lands in the org's storage namespace, not the default one.
     assert!(
-        tmp.path()
-            .join("acme/@acme/widget/package.json")
-            .exists(),
+        local_document_path(tmp.path(), "acme", "@acme/widget").exists(),
         "published packument should be in the org namespace",
     );
     assert!(
-        !tmp.path()
-            .join("@acme/widget/package.json")
-            .exists(),
-        "nothing should be written to the flat hosted root",
+        !local_document_path(tmp.path(), "", "@acme/widget").exists(),
+        "nothing should be written to the default namespace",
     );
 
     // It reads back through the org endpoint (authenticated)...
     let read = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget")
+            Request::get("/npm/~acme/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -262,7 +260,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let search = app
         .clone()
         .oneshot(
-            Request::get("/~acme/-/v1/search?text=maintainer%3Aalice")
+            Request::get("/npm/~acme/-/v1/search?text=maintainer%3Aalice")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -278,7 +276,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let tar = app
         .clone()
         .oneshot(
-            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz")
+            Request::get("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -292,7 +290,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     // an upstream registry.
     let rejected = app
         .oneshot(
-            Request::put("/lodash")
+            Request::put("/npm/lodash")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
@@ -320,22 +318,17 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
     config.routing.registries =
         Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
-    let tarball = b"public-hosted-original";
-    let integrity_text = sha512_integrity(tarball);
-    let integrity = integrity_text.parse().unwrap();
+    let token = issue_token(&auth, "alice").await;
+    let (tar, tarball) = package_tar_and_tgz(r#"{"name":"@acme/widget","version":"1.0.0"}"#);
+    let integrity = sha512_integrity(&tar).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
-    let digest = revision_path
-        .rsplit('/')
-        .next()
-        .unwrap();
 
     let publish = router_with_auth(config.clone(), auth.clone())
         .oneshot(hosted_publish_request(
-            "/~acme/@acme/widget",
+            "/npm/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
-            tarball,
+            &tarball,
             &token,
         ))
         .await
@@ -344,9 +337,9 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let app = router_with_auth(config, auth);
     for path in [
-        format!("/~acme/{revision_path}"),
-        format!("/~main/{revision_path}"),
-        format!("/{revision_path}"),
+        format!("/npm/~acme/{revision_path}"),
+        format!("/npm/~main/{revision_path}"),
+        format!("/npm/{revision_path}"),
     ] {
         let response = app
             .clone()
@@ -358,44 +351,47 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert_eq!(
-            response
-                .headers()
-                .get(header::CACHE_CONTROL)
-                .unwrap(),
-            "private, no-store",
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get(header::VARY)
-                .unwrap(),
-            "Authorization",
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get(header::ETAG)
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            format!(r#""{digest}""#),
-        );
-        assert_eq!(
-            response
-                .headers()
-                .get("content-digest")
-                .unwrap()
-                .to_str()
-                .unwrap(),
-            format!("sha-512=:{}:", integrity_text.strip_prefix("sha512-").unwrap()),
-        );
-        assert_eq!(body_bytes(response.into_body()).await, tarball, "{path}");
+        let headers = response.headers();
+        assert_eq!(headers[header::CACHE_CONTROL], "private, no-store");
+        assert_eq!(headers[header::VARY], "accept-encoding, Authorization");
+        assert_eq!(headers[header::CONTENT_TYPE], "application/x-tar");
+        for absent in [header::ETAG.as_str(), "content-digest", header::CONTENT_ENCODING.as_str()] {
+            assert!(headers.get(absent).is_none(), "{path} sends no {absent}");
+        }
+        assert_eq!(body_bytes(response.into_body()).await, tar, "{path}");
     }
+
+    let gzip_response = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/npm/{revision_path}"))
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .header(header::RANGE, "bytes=0-1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(gzip_response.status(), StatusCode::OK, "a range request gets the whole body");
+    assert_eq!(gzip_response.headers()[header::CONTENT_ENCODING], "gzip");
+    assert_eq!(body_bytes(gzip_response.into_body()).await, tarball);
+
+    let tgz_integrity = sha512_integrity(&tarball).parse().unwrap();
+    let tgz_path = integrity_addressed_tarball_path(&tgz_integrity).unwrap();
+    let by_tgz = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/npm/{tgz_path}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(by_tgz.status(), StatusCode::NOT_FOUND, "a digest names the tar, not the .tgz");
 
     let canonical = app
         .oneshot(
-            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz")
+            Request::get("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -415,9 +411,9 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
-    let tarball = b"shared-hosted-original";
-    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let token = issue_token(&auth, "alice").await;
+    let (tar, tarball) = package_tar_and_tgz(r#"{"name":"shared-artifact","version":"1.0.0"}"#);
+    let integrity = sha512_integrity(&tar).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
     let app = router_with_auth(config, auth);
 
@@ -426,10 +422,10 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         let response = app
             .clone()
             .oneshot(hosted_publish_request(
-                &format!("/~acme/{package}"),
+                &format!("/npm/~acme/{package}"),
                 &package,
                 "1.0.0",
-                tarball,
+                &tarball,
                 &token,
             ))
             .await
@@ -440,10 +436,10 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     let rejected = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/~acme/shared-artifact-overflow",
+            "/npm/~acme/shared-artifact-overflow",
             "shared-artifact-overflow",
             "1.0.0",
-            tarball,
+            &tarball,
             &token,
         ))
         .await
@@ -453,7 +449,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     let overflow_packument = app
         .clone()
         .oneshot(
-            Request::get("/~acme/shared-artifact-overflow")
+            Request::get("/npm/~acme/shared-artifact-overflow")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -466,7 +462,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
 
     let existing = app
         .oneshot(
-            Request::get(format!("/~acme/{revision_path}"))
+            Request::get(format!("/npm/~acme/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -474,7 +470,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         .await
         .unwrap();
     assert_eq!(existing.status(), StatusCode::OK);
-    assert_eq!(body_bytes(existing.into_body()).await, tarball);
+    assert_eq!(body_bytes(existing.into_body()).await, tar);
 }
 
 #[tokio::test]
@@ -487,22 +483,22 @@ async fn hosted_digest_route_rechecks_package_access() {
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
-    let alice = auth.tokens.issue("alice").await.unwrap();
-    let bob = auth.tokens.issue("bob").await.unwrap();
-    let tarball = b"private-hosted-original";
-    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let alice = issue_token(&auth, "alice").await;
+    let bob = issue_token(&auth, "bob").await;
+    let (tar, tarball) = package_tar_and_tgz(r#"{"name":"secret","version":"1.0.0"}"#);
+    let integrity = sha512_integrity(&tar).parse().unwrap();
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
     let app = router_with_auth(config, auth);
 
     let publish = app
         .clone()
-        .oneshot(hosted_publish_request("/~corp/secret", "secret", "1.0.0", tarball, &alice))
+        .oneshot(hosted_publish_request("/npm/~corp/secret", "secret", "1.0.0", &tarball, &alice))
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
     for authorization in [None, Some(format!("Bearer {bob}"))] {
-        let mut request = Request::get(format!("/~corp/{revision_path}"));
+        let mut request = Request::get(format!("/npm/~corp/{revision_path}"));
         if let Some(authorization) = authorization {
             request = request.header(header::AUTHORIZATION, authorization);
         }
@@ -530,7 +526,7 @@ async fn hosted_digest_route_rechecks_package_access() {
 
     let response = app
         .oneshot(
-            Request::get(format!("/~corp/{revision_path}"))
+            Request::get(format!("/npm/~corp/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {alice}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -550,9 +546,9 @@ async fn hosted_digest_route_rechecks_package_access() {
             .headers()
             .get(header::VARY)
             .unwrap(),
-        "Authorization",
+        "accept-encoding, Authorization",
     );
-    assert_eq!(body_bytes(response.into_body()).await, tarball);
+    assert_eq!(body_bytes(response.into_body()).await, tar);
 }
 
 /// A hosted registry's declared `patterns:` are enforced on the registry itself, on
@@ -582,7 +578,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     registries.validate().expect("patterned hosted config is valid");
     config.routing.registries = registries;
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
 
     let publish_body = |pkg: &str| {
@@ -614,9 +610,9 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     // An off-pattern publish is rejected on the registry's own URL, through the
     // router, and via the path-less base — and nothing lands in the store.
     for (url, pkg) in [
-        ("/~acme/@typo/widget", "@typo/widget"),
-        ("/~main/@typo/widget", "@typo/widget"),
-        ("/@typo%2Fwidget", "@typo/widget"),
+        ("/npm/~acme/@typo/widget", "@typo/widget"),
+        ("/npm/~main/@typo/widget", "@typo/widget"),
+        ("/npm/@typo%2Fwidget", "@typo/widget"),
     ] {
         let rejected = app
             .clone()
@@ -626,22 +622,20 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
-        !tmp.path()
-            .join("acme/@typo/widget/package.json")
-            .exists(),
+        !local_document_path(tmp.path(), "acme", "@typo/widget").exists(),
         "an off-pattern publish must write nothing",
     );
 
     // A claimed name publishes normally through the registry's own URL.
     let accepted = app
         .clone()
-        .oneshot(publish_to("/~acme/@acme/widget", "@acme/widget"))
+        .oneshot(publish_to("/npm/~acme/@acme/widget", "@acme/widget"))
         .await;
     assert_eq!(accepted.unwrap().status(), StatusCode::CREATED);
 
     // An off-pattern read is a definitive 404 on both addresses, before the
     // hosted store is consulted.
-    for url in ["/~acme/@typo/widget", "/~main/@typo/widget"] {
+    for url in ["/npm/~acme/@typo/widget", "/npm/~main/@typo/widget"] {
         let read = app
             .clone()
             .oneshot(
@@ -677,12 +671,12 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
         None,
     );
     let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let member = issue_token(&auth, "alice").await;
+    let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
-        Request::put("/~corp/@typo/widget")
+        Request::put("/npm/~corp/@typo/widget")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(json!({ "name": "@typo/widget", "versions": {} }).to_string()))
@@ -730,12 +724,12 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
     corp.access = Some(AccessList::from_tokens(["alice"]));
     config.routing.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let member = issue_token(&auth, "alice").await;
+    let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
-        Request::put("/~corp/lodash")
+        Request::put("/npm/~corp/lodash")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
@@ -778,8 +772,8 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let member = issue_token(&auth, "alice").await;
+    let outsider = issue_token(&auth, "mallory").await;
     let app = router_with_auth(config, auth);
 
     let tarball = b"corp-tool-1.0.0-bytes";
@@ -798,14 +792,14 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     })
     .to_string();
     let publish_as = |token: &str| {
-        Request::put("/~corp/@corp/tool")
+        Request::put("/npm/~corp/@corp/tool")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(publish_body.clone()))
             .unwrap()
     };
     let retag_as = |token: &str| {
-        Request::put("/-/package/@corp%2Ftool/dist-tags/latest")
+        Request::put("/npm/-/package/@corp%2Ftool/dist-tags/latest")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(r#""1.0.0""#))
@@ -821,9 +815,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        !tmp.path()
-            .join("corp/@corp/tool/package.json")
-            .exists(),
+        !local_document_path(tmp.path(), "corp", "@corp/tool").exists(),
         "a denied publish must write nothing",
     );
 
@@ -834,11 +826,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .await
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::CREATED);
-    assert!(
-        tmp.path()
-            .join("corp/@corp/tool/package.json")
-            .exists(),
-    );
+    assert!(local_document_path(tmp.path(), "corp", "@corp/tool").exists());
 
     // With the package now hosted, the non-member's path-less retag and
     // unpublish are masked the same way; the member's retag succeeds.
@@ -851,7 +839,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     let unpublish_denied = app
         .clone()
         .oneshot(
-            Request::delete("/@corp%2Ftool/-rev/1")
+            Request::delete("/npm/@corp%2Ftool/-rev/1")
                 .header(header::AUTHORIZATION, format!("Bearer {outsider}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -860,9 +848,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        tmp.path()
-            .join("corp/@corp/tool/package.json")
-            .exists(),
+        local_document_path(tmp.path(), "corp", "@corp/tool").exists(),
         "a denied unpublish must remove nothing",
     );
     let retag_allowed = app
@@ -886,9 +872,9 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
         request.body(Body::empty()).unwrap()
     };
 
-    for url in ["/-/v1/search?text=secret", "/-/v1/search?browse=true"] {
+    for url in ["/npm/-/v1/search?text=secret", "/npm/-/v1/search?browse=true"] {
         let tmp = TempDir::new().unwrap();
-        seed_hosted(tmp.path(), "@corp/secret-tool");
+        seed_hosted(tmp.path(), "", "@corp/secret-tool");
 
         let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
         // A surviving public flat-root registry would defeat this access check.
@@ -899,8 +885,8 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
             Some("corp".to_string()),
         );
         let auth = AuthState::in_memory();
-        let member = auth.tokens.issue("alice").await.unwrap();
-        let outsider = auth.tokens.issue("mallory").await.unwrap();
+        let member = issue_token(&auth, "alice").await;
+        let outsider = issue_token(&auth, "mallory").await;
         let app = router_with_auth(config, auth);
 
         for authorization in [None, Some(format!("Bearer {outsider}"))] {

@@ -1,5 +1,6 @@
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { parsePkgAndParentSelector } from '@pnpm/config.parse-overrides'
+import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import type { Project } from '@pnpm/types'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
@@ -60,11 +61,12 @@ function attachCatalog (manifest: Partial<WorkspaceManifest>, catalogName: strin
   }
 }
 
-export function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest>, packagesJson: Project[]): boolean {
+export function removePackagesFromWorkspaceCatalog (manifest: Partial<WorkspaceManifest>, packagesJson: Project[], keptCatalogs?: CatalogSnapshots): boolean {
   if (packagesJson.length === 0 || (manifest.catalog == null && manifest.catalogs == null)) {
     return false
   }
   const packageReferences = collectCatalogReferences(packagesJson, manifest.overrides ?? {})
+  addKeptCatalogReferences(packageReferences, keptCatalogs ?? {})
   const defaultCatalogChanged = pruneDefaultCatalog(manifest, packageReferences)
   const namedCatalogsChanged = pruneNamedCatalogs(manifest, packageReferences)
   return defaultCatalogChanged || namedCatalogsChanged
@@ -97,6 +99,15 @@ function collectCatalogReferences (packagesJson: Project[], overrides: Record<st
   }
 
   return packageReferences
+}
+
+function addKeptCatalogReferences (packageReferences: CatalogReferences, keptCatalogs: CatalogSnapshots): void {
+  for (const [catalogName, catalog] of Object.entries(keptCatalogs)) {
+    const reference = catalogName === 'default' ? 'catalog:' : `catalog:${catalogName}`
+    for (const pkgName of Object.keys(catalog)) {
+      addPackageReference(packageReferences, pkgName, reference)
+    }
+  }
 }
 
 function addPackageReferences (packageReferences: CatalogReferences, deps: Record<string, string>): void {

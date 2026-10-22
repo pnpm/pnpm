@@ -1,4 +1,4 @@
-//! Resolves `yarn@runtime:<spec>` dependencies against `yarnpkg/zpm`.
+//! Resolves `yarn@tool:<spec>` (alias `yarn@runtime:<spec>`) dependencies against `yarnpkg/zpm`.
 
 use std::sync::Arc;
 
@@ -10,13 +10,13 @@ use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
 };
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, strip_tool_protocol};
 
 use crate::read_yarn_releases::{
     ReadYarnReleasesError, YarnRelease, asset_variants, fetch_yarn_releases,
 };
 
 const RESOLVED_VIA: &str = "github.com/yarnpkg/zpm";
-const BARE_SPEC_PREFIX: &str = "runtime:";
 
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum YarnResolverError {
@@ -115,7 +115,7 @@ impl YarnResolver {
             id: format!("yarn@runtime:{version}").into(),
             resolution: LockfileResolution::Variations(VariationsResolution { variants }),
             resolved_via: RESOLVED_VIA.to_string(),
-            normalized_bare_specifier: Some(format!("runtime:{version_spec}")),
+            normalized_bare_specifier: Some(format!("{RUNTIME_PROTOCOL}{version_spec}")),
             alias: wanted_dependency.alias.clone(),
             policy_violation: None,
             package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
@@ -213,13 +213,12 @@ fn without_prerelease(version: &node_semver::Version) -> node_semver::Version {
     }
 }
 
+/// The version selector of a `yarn@tool:` / `yarn@runtime:` request.
 fn bare_runtime_spec(wanted: &WantedDependency) -> Option<&str> {
     if wanted.alias.as_deref() != Some("yarn") {
         return None;
     }
-    wanted.bare_specifier
-        .as_deref()
-        .and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+    wanted.bare_specifier.as_deref().and_then(strip_tool_protocol)
 }
 
 /// The archive member the manifest advertises as the engine's bin. See

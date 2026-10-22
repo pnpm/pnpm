@@ -13,15 +13,18 @@ pub use dir_patcher::{
     Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
     extend_files_map,
 };
+pub use injection_records::ProjectModulesDir;
 
 mod bin_links;
 mod dir_patcher;
+mod injection_records;
 
 #[cfg(test)]
 mod tests;
 
 use bin_links::{SyncBinLinks, bin_names, sync_bin_links};
 use derive_more::{Display, Error};
+use injection_records::{InjectionRecord, copies_of_source, injection_records};
 use miette::Diagnostic;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_modules_yaml::{ReadModulesError, read_modules_manifest};
@@ -82,21 +85,37 @@ pub struct SyncInjectedDeps<'a> {
     pub pkg_name: Option<&'a str>,
     pub pkg_root_dir: &'a Path,
     pub workspace_dir: Option<&'a Path>,
-    /// The name of the workspace's modules directories, `node_modules`
-    /// unless `modulesDir` says otherwise.
-    pub modules_dir_name: &'a std::ffi::OsStr,
     /// The workspace root's resolved modules directory, which holds the
     /// `.modules.yaml` that lists the injected copies. A `modulesDir` with
-    /// a path separator puts it deeper than `modules_dir_name` reaches.
+    /// a path separator puts it deeper than
+    /// [`BinLinkSettings::modules_dir_name`] reaches.
     pub workspace_modules_dir: &'a Path,
-    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
-    /// directory on `NODE_PATH`, as the install's shims do.
-    pub extend_node_path: bool,
+    pub bin_links: BinLinkSettings<'a>,
+    /// Selects the source files the install put in the copies, as
+    /// [`sync_injected_deps_of_modules_dir`] does, so the sync adds no file
+    /// the install left out.
+    pub include_only_package_files: bool,
     /// The package's manifest as it was before the scripts ran. A script
     /// that drops a bin leaves its shim behind, and the copies cannot say
     /// which bins they used to have: their `package.json` is hardlinked to
     /// the source, so an in-place rewrite has already reached them.
     pub manifest_before_scripts: Option<&'a serde_json::Value>,
+    /// The projects with their own lockfile (`sharedWorkspaceLockfile:
+    /// false`), whose `.modules.yaml` lists the copies injected into them.
+    /// Empty with a shared lockfile, where the workspace root's lists every
+    /// copy.
+    pub project_modules_dirs: &'a [ProjectModulesDir],
+}
+
+/// How the workspace links bins, so the shims the sync relinks match the
+/// ones the install made.
+pub struct BinLinkSettings<'a> {
+    /// The name of the workspace's modules directories, `node_modules`
+    /// unless `modulesDir` says otherwise.
+    pub modules_dir_name: &'a std::ffi::OsStr,
+    /// pnpm's `extendNodePath`: the relinked shims put a custom modules
+    /// directory on `NODE_PATH`, as the install's shims do.
+    pub extend_node_path: bool,
     /// Passed to [`pnpm_workspace::FindWorkspaceProjectsOpts::ignored_directories`] when
     /// discovering the projects whose bins are relinked.
     pub ignored_directories: Vec<PathBuf>,
@@ -141,42 +160,35 @@ fn sync_workspace_injected_deps(
     // on this project bypasses that redirect, so it is tracked under the
     // project root instead, and its copy has to be patched from there.
     let content_source_dir = publish_source_dir(&pkg_root_dir, opts.manifest_before_scripts);
-    let modules = read_workspace_modules(opts.workspace_modules_dir)?;
-    let hoisted_bin_dir = hoisted_bin_path(workspace_dir, modules.as_ref());
+    let records = injection_records(opts, workspace_dir)?;
 
     let mut source_dirs = vec![content_source_dir.clone()];
     if content_source_dir != pkg_root_dir {
         source_dirs.push(pkg_root_dir);
     }
     for source_dir in &source_dirs {
-        sync_injected_deps_from_source(
-            opts,
-            workspace_dir,
-            source_dir,
-            modules.as_ref(),
-            hoisted_bin_dir.as_deref(),
-        )?;
+        sync_injected_deps_from_source(opts, workspace_dir, source_dir, &records)?;
     }
     Ok(())
 }
 
-/// Patch every injected copy of `source_dir` and relink its bins.
+/// Patch every injected copy of `source_dir` that `records` list, and
+/// relink its bins.
 fn sync_injected_deps_from_source(
     opts: &SyncInjectedDeps<'_>,
     workspace_dir: &Path,
     source_dir: &Path,
-    modules: Option<&pnpm_modules_yaml::Modules>,
-    hoisted_bin_dir: Option<&Path>,
+    records: &[InjectionRecord],
 ) -> Result<(), SyncInjectedDepsError> {
-    let Some(resolved_targets) =
-        resolved_injected_targets(opts, workspace_dir, source_dir, modules)
-    else {
-        return Ok(());
-    };
-    if source_not_yet_built(source_dir)? {
+    let copies = copies_of_source(opts, records, source_dir);
+    if copies.is_empty() || source_not_yet_built(source_dir)? {
         return Ok(());
     }
-    patch_targets(source_dir, &resolved_targets)?;
+    let copy_dirs: Vec<PathBuf> = copies
+        .iter()
+        .map(|copy| copy.dir.clone())
+        .collect();
+    patch_targets(source_dir, &copy_dirs, opts.include_only_package_files)?;
 
     // Read from the project root, not `source_dir`: when `source_dir` is a
     // `publishConfig.directory`, `prepare` has already run by the time this
@@ -188,13 +200,10 @@ fn sync_injected_deps_from_source(
     // The install hoists bins into the virtual store's own `.bin` as well.
     sync_bin_links(&SyncBinLinks {
         pkg_root_dir: source_dir,
-        resolved_targets: &resolved_targets,
+        copies: &copies,
         workspace_dir,
         previous_bin_names: &previous_bin_names,
-        hoisted_bin_dir,
-        ignored_directories: &opts.ignored_directories,
-        modules_dir_name: opts.modules_dir_name,
-        extend_node_path: opts.extend_node_path,
+        settings: &opts.bin_links,
     })
 }
 
@@ -205,10 +214,13 @@ fn sync_injected_deps_from_source(
 /// whose lifecycle scripts run in their own install, so nothing else syncs
 /// those copies after the scripts run. Only the copies of the sources in
 /// `source_dirs` are synced. `source_dirs` holds lexically normalized paths.
+/// `include_only_package_files` selects the source files the install put in
+/// the copies, so the sync adds no file the install left out.
 pub fn sync_injected_deps_of_modules_dir(
     lockfile_dir: &Path,
     modules_dir: &Path,
     source_dirs: &HashSet<PathBuf>,
+    include_only_package_files: bool,
 ) -> Result<(), SyncInjectedDepsError> {
     let modules = read_workspace_modules(modules_dir)?;
     let Some(injected_deps) =
@@ -228,7 +240,7 @@ pub fn sync_injected_deps_of_modules_dir(
             .iter()
             .map(|target_dir| lockfile_dir.join(target_dir))
             .collect();
-        patch_targets(&source_dir, &resolved_targets)?;
+        patch_targets(&source_dir, &resolved_targets, include_only_package_files)?;
     }
     Ok(())
 }
@@ -250,47 +262,13 @@ pub fn injected_source_dirs<'a>(
         .collect()
 }
 
-/// The resolved directories that hold injected copies of `content_source_dir`,
-/// or `None` if there are none to sync.
-fn resolved_injected_targets(
-    opts: &SyncInjectedDeps<'_>,
-    workspace_dir: &Path,
-    source_dir: &Path,
-    modules: Option<&pnpm_modules_yaml::Modules>,
-) -> Option<Vec<PathBuf>> {
-    let Some(injected_deps) = modules.and_then(|modules| modules.injected_deps.as_ref()) else {
-        tracing::debug!(
-            target: "pacquet::sync_injected_deps",
-            "Skipping sync of injected dependencies because none were detected",
-        );
-        return None;
-    };
-
-    let Some(target_dirs) = injected_deps
-        .get(&injected_dep_key(workspace_dir, source_dir))
-        .filter(|dirs| !dirs.is_empty())
-    else {
-        tracing::debug!(
-            target: "pacquet::sync_injected_deps",
-            pkg_root_dir = ?opts.pkg_root_dir,
-            "There are no injected dependencies from this package",
-        );
-        return None;
-    };
-
-    Some(
-        target_dirs
-            .iter()
-            .map(|target_dir| workspace_dir.join(target_dir))
-            .collect(),
-    )
-}
-
 /// A source directory and the injected copies a running script should
 /// publish from it.
 pub struct InjectedEditSource {
     pub source: PathBuf,
     pub targets: Vec<PathBuf>,
+    /// See [`SyncInjectedDeps::include_only_package_files`].
+    pub include_only_package_files: bool,
 }
 
 /// The same sources [`sync_injected_deps`] patches from: the
@@ -304,8 +282,8 @@ pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSou
     let (Some(_), Some(workspace_dir)) = (opts.pkg_name, opts.workspace_dir) else {
         return Vec::new();
     };
-    let modules = match read_workspace_modules(opts.workspace_modules_dir) {
-        Ok(modules) => modules,
+    let records = match injection_records(opts, workspace_dir) {
+        Ok(records) => records,
         Err(error) => {
             tracing::debug!(
                 target: "pacquet::sync_injected_deps",
@@ -323,9 +301,18 @@ pub fn injected_edit_sources(opts: &SyncInjectedDeps<'_>) -> Vec<InjectedEditSou
     sources
         .into_iter()
         .filter_map(|source| {
-            let targets =
-                resolved_injected_targets(opts, workspace_dir, &source, modules.as_ref())?;
-            Some(InjectedEditSource { source, targets })
+            let targets: Vec<PathBuf> = copies_of_source(opts, &records, &source)
+                .into_iter()
+                .map(|copy| copy.dir)
+                .collect();
+            if targets.is_empty() {
+                return None;
+            }
+            Some(InjectedEditSource {
+                source,
+                targets,
+                include_only_package_files: opts.include_only_package_files,
+            })
         })
         .collect()
 }
@@ -383,7 +370,11 @@ pub fn watch_injected_edits(sources: Vec<InjectedEditSource>) -> InjectedEditWat
 }
 
 fn publish_to_targets(
-    InjectedEditSource { source, targets }: &InjectedEditSource,
+    InjectedEditSource {
+        source,
+        targets,
+        include_only_package_files,
+    }: &InjectedEditSource,
     edited_since: SystemTime,
 ) {
     // A publish directory the script has not built yet reads back empty,
@@ -391,7 +382,7 @@ fn publish_to_targets(
     if !source.is_dir() {
         return;
     }
-    let source_files = match dir_patcher::PublishSource::load(source) {
+    let source_files = match dir_patcher::PublishSource::load(source, *include_only_package_files) {
         Ok(source_files) => source_files,
         Err(error) => {
             tracing::debug!(
@@ -414,14 +405,14 @@ fn publish_to_targets(
     }
 }
 
-fn read_workspace_modules(
+pub(crate) fn read_workspace_modules(
     workspace_modules_dir: &Path,
 ) -> Result<Option<pnpm_modules_yaml::Modules>, SyncInjectedDepsError> {
     read_modules_manifest::<pnpm_modules_yaml::Host>(workspace_modules_dir)
         .map_err(|error| SyncInjectedDepsError::ReadModules { error })
 }
 
-fn hoisted_bin_path(
+pub(crate) fn hoisted_bin_path(
     workspace_dir: &Path,
     modules: Option<&pnpm_modules_yaml::Modules>,
 ) -> Option<PathBuf> {
@@ -478,18 +469,16 @@ fn source_not_yet_built(source_dir: &Path) -> Result<bool, SyncInjectedDepsError
 fn patch_targets(
     pkg_root_dir: &Path,
     resolved_targets: &[PathBuf],
+    include_only_package_files: bool,
 ) -> Result<(), SyncInjectedDepsError> {
-    for patcher in DirPatcher::from_multiple_targets(pkg_root_dir, resolved_targets)
-        .map_err(SyncInjectedDepsError::Patch)?
+    for patcher in DirPatcher::from_multiple_targets(
+        pkg_root_dir,
+        resolved_targets,
+        include_only_package_files,
+    )
+    .map_err(SyncInjectedDepsError::Patch)?
     {
         patcher.apply().map_err(SyncInjectedDepsError::Patch)?;
     }
     Ok(())
-}
-
-/// The key `.modules.yaml` files an injected dependency under: the
-/// package's path relative to the workspace root, with forward slashes
-/// on every host.
-fn injected_dep_key(workspace_dir: &Path, pkg_root_dir: &Path) -> String {
-    pnpm_fs::relative_path(workspace_dir, pkg_root_dir).to_string_lossy().replace('\\', "/")
 }

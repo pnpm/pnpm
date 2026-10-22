@@ -1,7 +1,8 @@
 use super::{
-    DepKind, PackageDiff, PackageManifestMessage, ReporterState, SUMMARY_ORDER, SummaryScope,
-    SummaryState, Value, added_diff, diff_key, is_strictly_newer, manifest_dep_versions,
-    normalized_prefix, record_missing, relative, remove_optional_from_prod, removed_diff,
+    BlockPlacement, DepKind, PackageDiff, PackageManifestMessage, ReporterState, SUMMARY_ORDER,
+    SummaryScope, SummaryState, Value, added_diff, diff_key, is_strictly_newer,
+    manifest_dep_versions, normalized_prefix, record_missing, relative, remove_optional_from_prod,
+    removed_diff,
 };
 use std::fmt::Write as _;
 
@@ -21,22 +22,18 @@ impl ReporterState {
             RootMessage::Removed { removed, .. } => removed_diff(removed),
         };
         let key = diff_key(kind);
+        let Some(bucket) = self.summary.diff.get_mut(key) else {
+            return;
+        };
         let opposite_key = format!("{}{}", if entry.added { '-' } else { '+' }, entry.name);
-        if let Some(prev) = self.summary.diff
-            .get(key)
-            .and_then(|b| b.get(&opposite_key))
+        if let Some(prev) = bucket.get(&opposite_key)
             && prev.version == entry.version
         {
-            self.summary.diff
-                .get_mut(key)
-                .unwrap()
-                .remove(&opposite_key);
+            bucket.remove(&opposite_key);
             return;
         }
-        self.summary.diff
-            .get_mut(key)
-            .unwrap()
-            .insert(format!("{}{}", if entry.added { '+' } else { '-' }, entry.name), entry);
+        let entry_key = format!("{}{}", if entry.added { '+' } else { '-' }, entry.name);
+        bucket.insert(entry_key, entry);
     }
 
     pub(super) fn on_manifest(&mut self, message: &PackageManifestMessage) {
@@ -86,7 +83,7 @@ impl ReporterState {
         }
         self.summary.rendered = true;
         let mut slot = std::mem::take(&mut self.summary.slot);
-        self.display.frame.emit(&mut slot, msg, false);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.summary.slot = slot;
     }
 
@@ -204,11 +201,10 @@ impl SummaryState {
             let prop = kind.header();
             let initial_deps = manifest_dep_versions(&initial, prop);
             let updated_deps = manifest_dep_versions(&updated, prop);
-            let bucket = self.diff
-                .get_mut(diff_key(kind))
-                .unwrap();
-            record_missing(bucket, &initial_deps, &updated_deps, false);
-            record_missing(bucket, &updated_deps, &initial_deps, true);
+            if let Some(bucket) = self.diff.get_mut(diff_key(kind)) {
+                record_missing(bucket, &initial_deps, &updated_deps, false);
+                record_missing(bucket, &updated_deps, &initial_deps, true);
+            }
         }
     }
 }

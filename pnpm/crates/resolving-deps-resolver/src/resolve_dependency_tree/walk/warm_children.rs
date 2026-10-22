@@ -1,10 +1,11 @@
 use super::{
-    ChildSpec, HashSet, NodeSeed, ParentPkgAliases, Pipe, ResolveOptions, Resolver, TreeCtx,
-    WantedDependency, WantedKey, async_recursion, catalog_anchor, catalogs_for_children,
-    claim_children_warmup, declaring_manifest_dir, extract_children, future, is_update_target,
-    opts_relative_to_declaring_manifest, peer_shadowed_dependencies, project_relative_cache_scope,
-    resolve_catalog_child_specs, resolve_wanted_cached, resolves_children_through_catalogs,
-    wanted_package_root_link,
+    ChildSeedScope, DependencySpec, HashSet, NodeKind, NodeSeed, ParentPkgAliases, Pipe,
+    PkgNameVerPeer, ResolveOptions, Resolver, TreeCtx, WantedDependency, WantedKey,
+    async_recursion, child_wanted, children_warmup_claimed, claim_children_warmup,
+    declaring_manifest_dir, extract_children, future, is_update_target, landed_on_prior_entry,
+    node_depends_on_changed_direct_dep, opts_relative_to_declaring_manifest,
+    peer_shadowed_dependencies, project_relative_cache_scope, resolve_wanted_cached,
+    resolves_children_through_catalogs, try_reuse_node, walk_child_specs, wanted_package_root_link,
 };
 
 /// Speculatively warm a freshly-seeded node's whole subtree so its
@@ -15,6 +16,15 @@ use super::{
 /// fetch must never fail the install (the real resolve will surface
 /// it). Recovers the cross-level pipelining the postponed-resolution
 /// barrier otherwise serializes; pure overlap, no behavioral effect.
+///
+/// A child the walk will take from the prior lockfile's subtree is left
+/// alone: the walk never consults metadata for it, so warming it would
+/// only cost the lookups. The children's lockfile keys are derived as
+/// the walk derives them, from the snapshot the node landed on. Whether
+/// a child is reused is decided per importer (its update scope, its
+/// changed direct dependencies), so a package is claimed as warmed only
+/// when every child was warmed: another importer that must resolve a
+/// child skipped here warms it when it reaches the package.
 pub(in super::super) async fn warm_children_resolutions<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -32,18 +42,50 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let NodeSeed::Pending(pending) = seed else { return };
-    if pending.is_link || !claim_children_warmup(ctx, &pending.identity.id) {
-        return;
+    match pending.kind {
+        NodeKind::Link => return,
+        NodeKind::Leaf | NodeKind::Branch => {}
     }
+    let parent = WarmedParent {
+        result: &pending.result,
+        peer_shadowed: &pending.peer_shadowed,
+        through_catalogs: pending.resolves_children_through_catalogs,
+        claim_id: &pending.identity.id,
+    };
     warm_result_children(
         ctx,
         resolver,
-        &pending.result,
-        &pending.peer_shadowed,
-        pending.resolves_children_through_catalogs,
+        &parent,
         pending.ancestry.depth,
+        &ChildSeedScope::of(ctx, pending),
     )
     .await;
+}
+
+/// A node whose children are warmed.
+pub(super) struct WarmedParent<'a> {
+    pub(super) result: &'a pnpm_resolving_resolver_base::ResolveResult,
+    /// Children shadowed by the node's own peers, skipped the way the
+    /// real seed path skips them.
+    pub(super) peer_shadowed: &'a HashSet<String>,
+    pub(super) through_catalogs: bool,
+    /// The id the node's children are claimed under, once all of them
+    /// were warmed.
+    pub(super) claim_id: &'a str,
+}
+
+/// Whether the walk will synthesize this edge's subtree from the prior
+/// lockfile instead of resolving it, under the gate `resolve_node_seed`
+/// applies.
+fn walk_reuses_subtree(
+    ctx: &TreeCtx,
+    wanted: &WantedDependency,
+    prior: Option<&PkgNameVerPeer>,
+    depth: i32,
+) -> bool {
+    ctx.workspace.reuse.subtrees
+        && !node_depends_on_changed_direct_dep(ctx, prior)
+        && try_reuse_node(ctx, wanted, prior, depth).is_some()
 }
 
 /// Warm the resolutions of `result`'s whole subtree. Speculative only:
@@ -54,33 +96,72 @@ pub(in super::super) async fn warm_children_resolutions<Chain>(
 pub(super) async fn warm_result_children<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
-    result: &pnpm_resolving_resolver_base::ResolveResult,
-    peer_shadowed: &HashSet<String>,
-    through_catalogs: bool,
+    parent: &WarmedParent<'_>,
     depth: i32,
+    scope: &ChildSeedScope<'_>,
 ) where
     Chain: Resolver + ?Sized,
 {
-    let Some(specs) = warm_child_specs(ctx, result, peer_shadowed, through_catalogs) else {
+    let importer_claim_id = importer_claim_id(ctx, parent.claim_id);
+    if children_warmup_claimed(ctx, parent.claim_id)
+        || children_warmup_claimed(ctx, &importer_claim_id)
+    {
+        return;
+    }
+    let Some(specs) =
+        warm_child_specs(ctx, parent.result, parent.peer_shadowed, parent.through_catalogs)
+    else {
         return;
     };
+    let (warmed, skipped_any) = children_to_warm(ctx, scope, &specs, depth + 1);
+    // A package some of whose children this importer left to lockfile
+    // reuse is claimed for this importer only: another importer, with
+    // another update scope, may have to warm them. The claim still stops
+    // a dependency cycle from being warmed again and again.
+    let claim_id = if skipped_any { importer_claim_id.as_str() } else { parent.claim_id };
+    if !claim_children_warmup(ctx, claim_id) {
+        return;
+    }
     let opts = ctx.opts_for_depth(depth + 1);
-    let declaring_dir = declaring_manifest_dir(ctx, result);
-    specs
-        .iter()
-        .map(|(name, range, optional, injected)| {
-            let wanted = WantedDependency {
-                alias: Some(name.clone()),
-                bare_specifier: Some(range.clone()),
-                optional: Some(*optional),
-                injected: injected.then_some(true),
-                ..WantedDependency::default()
-            };
+    let declaring_dir = declaring_manifest_dir(ctx, parent.result);
+    warmed
+        .into_iter()
+        .map(|(wanted, prior)| {
             let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
-            async move { warm_child(ctx, resolver, wanted, opts.as_ref(), depth).await }
+            async move { warm_child(ctx, resolver, wanted, opts.as_ref(), depth, prior).await }
         })
         .pipe(future::join_all)
         .await;
+}
+
+/// The key a package's warm-up is claimed under for the current importer
+/// alone. A package id never contains a tab, so the key cannot collide
+/// with a plain id.
+fn importer_claim_id(ctx: &TreeCtx, pkg_id: &str) -> String {
+    format!("{}\t{pkg_id}", ctx.importer.id)
+}
+
+/// The children of a node to warm, with their lockfile keys, and whether
+/// any child was left to the walk's lockfile reuse.
+fn children_to_warm(
+    ctx: &TreeCtx,
+    scope: &ChildSeedScope<'_>,
+    specs: &[DependencySpec],
+    depth: i32,
+) -> (Vec<(WantedDependency, Option<PkgNameVerPeer>)>, bool) {
+    let mut skipped_any = false;
+    let warmed = specs
+        .iter()
+        .filter_map(|spec| {
+            let (wanted, prior) = child_wanted(ctx, scope, spec, depth);
+            if walk_reuses_subtree(ctx, &wanted, prior.as_ref(), depth) {
+                skipped_any = true;
+                return None;
+            }
+            Some((wanted, prior))
+        })
+        .collect();
+    (warmed, skipped_any)
 }
 
 /// The child edges a warm-up walks: the declared children minus the ones a
@@ -91,20 +172,9 @@ pub(super) fn warm_child_specs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     through_catalogs: bool,
-) -> Option<Vec<ChildSpec>> {
+) -> Option<Vec<DependencySpec>> {
     let specs = extract_children(result).ok()?;
-    let specs = if peer_shadowed.is_empty() {
-        specs
-    } else {
-        specs
-            .into_iter()
-            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
-            .collect()
-    };
-    let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) else { return Some(specs) };
-    let declaring_dir = declaring_manifest_dir(ctx, result);
-    let anchor = catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref());
-    resolve_catalog_child_specs(specs, catalogs, anchor).ok()
+    walk_child_specs(ctx, result, &specs, peer_shadowed, through_catalogs).ok()
 }
 
 /// Warm one child edge through the same per-wanted dedup cache, under the
@@ -117,6 +187,7 @@ pub(super) async fn warm_child<Chain>(
     wanted: WantedDependency,
     opts: &ResolveOptions,
     parent_depth: i32,
+    prior: Option<PkgNameVerPeer>,
 ) where
     Chain: Resolver + ?Sized,
 {
@@ -150,9 +221,24 @@ pub(super) async fn warm_child<Chain>(
     // id is only built on the real walk, whose bookkeeping
     // decides which patches count as applied.
     let child_id = child.id.as_str();
-    if child_id.starts_with("link:") || !claim_children_warmup(ctx, child_id) {
+    if child_id.starts_with("link:") {
         return;
     }
+    let landed_prior = prior.as_ref().filter(|key| landed_on_prior_entry(key, child_id));
+    warm_grandchildren(ctx, resolver, &child, landed_prior, parent_depth + 1).await;
+}
+
+/// Warm the children of a warmed `child`, whose own children the walk
+/// derives from the lockfile entry `landed_prior` when it landed on one.
+async fn warm_grandchildren<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    child: &pnpm_resolving_resolver_base::ResolveResult,
+    landed_prior: Option<&PkgNameVerPeer>,
+    depth: i32,
+) where
+    Chain: Resolver + ?Sized,
+{
     // The parent alias scope is not tracked speculatively;
     // with `autoInstallPeers` off nothing is shadowed and
     // the real walk drops the edge instead.
@@ -161,13 +247,18 @@ pub(super) async fn warm_child<Chain>(
         &ParentPkgAliases::root(HashSet::default()),
         ctx.workspace.policy.auto_install_peers,
     );
+    let parent = WarmedParent {
+        result: child,
+        peer_shadowed: &child_peer_shadowed,
+        through_catalogs: resolves_children_through_catalogs(child),
+        claim_id: child.id.as_str(),
+    };
     warm_result_children(
         ctx,
         resolver,
-        &child,
-        &child_peer_shadowed,
-        resolves_children_through_catalogs(&child),
-        parent_depth + 1,
+        &parent,
+        depth,
+        &ChildSeedScope::for_result(ctx, child, landed_prior),
     )
     .await;
 }

@@ -10,6 +10,7 @@ import { union } from 'ramda'
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
 import { linkRuntimeBinsOfImporters } from './linkBinsOfImporters.js'
 import { addPackageMapOption } from './packageMap.js'
+import { mergeIntoCurrentLockfile } from './writeModulesDirState.js'
 
 export async function buildDependencies (
   ctx: HeadlessContext,
@@ -110,13 +111,15 @@ async function runBuildModules (
 
 function addPreviouslyIgnoredBuilds (
   ignoredBuilds: IgnoredBuilds | undefined,
-  { opts }: HeadlessContext,
-  { allowBuild, filteredLockfile }: HeadlessDepGraph
+  ctx: HeadlessContext,
+  depGraph: HeadlessDepGraph
 ): IgnoredBuilds | undefined {
+  const { opts } = ctx
   if (!opts.modulesFile?.ignoredBuilds?.size) return ignoredBuilds
+  const currentPackages = mergeIntoCurrentLockfile(ctx, depGraph).packages
   const allIgnoredBuilds = ignoredBuilds ?? new Set()
   for (const ignoredBuild of opts.modulesFile.ignoredBuilds.values()) {
-    if (filteredLockfile.packages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, allowBuild)) {
+    if (currentPackages?.[ignoredBuild] && !isBuildExplicitlyDisallowed(ignoredBuild, depGraph.allowBuild)) {
       allIgnoredBuilds.add(ignoredBuild)
     }
   }

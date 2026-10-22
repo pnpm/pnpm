@@ -15,6 +15,7 @@ const REGISTRY_NPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(REGISTRY_NPM_ROOT, "..");
 const REPO_ROOT = resolve(PACKAGES_ROOT, "../..");
 const MANIFEST_PATH = resolve(REGISTRY_NPM_ROOT, "package.json");
+const UI_PACKAGE_NAME = "@pnpm/pnpr-ui";
 
 const rootManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
 
@@ -79,6 +80,9 @@ function writeManifest() {
 
   manifestData["version"] = rootManifest.version;
   manifestData["optionalDependencies"] = Object.fromEntries(nativePackages);
+  // pnpr serves the web UI when this peer is installed next to it.
+  manifestData["peerDependencies"] = { [UI_PACKAGE_NAME]: rootManifest.version };
+  manifestData["peerDependenciesMeta"] = { [UI_PACKAGE_NAME]: { optional: true } };
   // The committed wrapper is a private workspace package; the published one is not.
   delete manifestData["private"];
 
@@ -103,3 +107,16 @@ for (const target of TARGETS) {
 }
 
 writeManifest();
+writeUiManifest();
+
+function writeUiManifest() {
+  const manifestPath = resolve(PACKAGES_ROOT, "pnpr-ui", "package.json");
+  const manifestData = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  if (manifestData.version !== rootManifest.version) {
+    throw new Error(`${UI_PACKAGE_NAME}@${manifestData.version} does not match @pnpm/pnpr@${rootManifest.version}`);
+  }
+  delete manifestData["private"];
+
+  console.log(`Update manifest ${manifestPath}`);
+  fs.writeFileSync(manifestPath, JSON.stringify(manifestData));
+}

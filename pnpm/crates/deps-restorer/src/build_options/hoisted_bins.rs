@@ -21,13 +21,20 @@ pub(crate) struct HoistedBinDirectory {
 impl HoistedBinDirectory {
     pub(crate) fn initialize(&mut self, directory: &Path) -> Result<(), LinkBinsError> {
         if self.plan.is_none() {
-            self.plan = Some(match &self.sources {
-                Some(sources) => DirectoryBinPlan::from_packages::<Host>(sources),
+            self.plan = Some(match self.sources.take() {
+                Some(sources) => DirectoryBinPlan::from_packages::<Host>(&sources),
                 None => DirectoryBinPlan::discover::<Host>(directory)?,
             });
-            self.sources = None;
         }
         Ok(())
+    }
+
+    pub(crate) fn plan_or_seeded(&mut self) -> Option<&DirectoryBinPlan> {
+        if self.plan.is_none() {
+            let sources = self.sources.take()?;
+            self.plan = Some(DirectoryBinPlan::from_packages::<Host>(&sources));
+        }
+        self.plan.as_ref()
     }
 }
 

@@ -31,8 +31,10 @@ fn ingest<'a>(
             auth_headers,
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(integrity),
             unpacked_size: None,
             file_count: None,
@@ -64,9 +66,9 @@ fn resolution_read<'a>(
 ) -> FetchTarballForResolution<'a> {
     FetchTarballForResolution {
         http_client: client,
-        store_dir: store_path,
-        store_index_writer: None,
+        store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(integrity),
             unpacked_size: None,
             file_count: None,
@@ -75,6 +77,7 @@ fn resolution_read<'a>(
         },
         auth_headers,
         retry_opts: fast_retry_opts(),
+        tar_limits: crate::TarLimits::default(),
         manifest_subdir: None,
         revision_addressed: false,
     }

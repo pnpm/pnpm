@@ -207,8 +207,27 @@ pub enum LoadWorkspaceYamlError {
     )]
     WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 
+    /// A machine-only field of `remoteCache` appeared in a committed file —
+    /// see [`RemoteCacheSettings`](crate::workspace_yaml::sections::RemoteCacheSettings).
+    #[display("remoteCache.{field} cannot be set by a workspace ({})", path.display())]
+    #[diagnostic(
+        code(ERR_PNPM_WORKSPACE_REMOTE_CACHE_TRUST),
+        help(
+            "Set it in the global config file or in the environment instead of {}.",
+            path.display(),
+        )
+    )]
+    WorkspaceRemoteCacheTrust { path: PathBuf, field: &'static str },
+
     #[diagnostic(transparent)]
     UnexpandedEnvInPath(#[error(source)] crate::UnexpandedWindowsEnvVar),
+
+    #[diagnostic(transparent)]
+    Include(#[error(source)] pnpm_workspace::IncludeError),
+
+    #[display(r#""{setting}" in the settings delegated to "{spec}" is not a pnpm setting"#)]
+    #[diagnostic(code(ERR_PNPM_INVALID_WORKSPACE_INCLUDE))]
+    UnknownDelegatedSetting { spec: String, setting: String },
 }
 
 fn base64_credential_content(key: &str) -> &'static str {

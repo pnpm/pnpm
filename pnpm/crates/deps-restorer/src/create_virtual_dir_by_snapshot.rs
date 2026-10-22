@@ -230,6 +230,7 @@ impl CreateVirtualDirBySnapshot<'_> {
                     source_exists: self.source.source_exists,
                     force_import: self.source.force,
                 },
+                self.import.swap_lock,
             ),
         )
         .map_err(CreateVirtualDirError::ImportIndexedDir)
@@ -286,6 +287,12 @@ impl SlotPaths {
         layout: &VirtualStoreLayout,
         package_key: &PackageKey,
     ) -> Result<Self, CreateVirtualDirError> {
+        if !layout.is_slot_contained(package_key) {
+            return Err(CreateVirtualDirError::InvalidAlias(InvalidDependencyAliasError {
+                modules: layout.package_store_dir().to_path_buf(),
+                alias: package_key.to_string(),
+            }));
+        }
         let slot_dir = layout.slot_dir(package_key);
         let node_modules = slot_dir.join("node_modules");
         // Two direct `mkdir`s instead of one `create_dir_all` on the
@@ -378,10 +385,11 @@ struct SlotForceInputs {
     force_import: bool,
 }
 
-fn slot_import_opts(
+fn slot_import_opts<'a>(
     layout: &crate::VirtualStoreLayout,
     slot: SlotForceInputs,
-) -> ImportIndexedDirOpts {
+    swap_lock: Option<&'a crate::ModulesSwapLock>,
+) -> ImportIndexedDirOpts<'a> {
     let SlotForceInputs {
         interrupted_build,
         source_is_mutable,
@@ -394,17 +402,19 @@ fn slot_import_opts(
     // A mutable source that is currently missing must never be forced, even by
     // interrupted_build or force_import — see SlotImportSource::source_exists.
     if source_is_mutable && !source_exists {
-        return ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() };
+        return ImportIndexedDirOpts { safe_to_skip, swap_lock, ..ImportIndexedDirOpts::default() };
     }
     if interrupted_build || source_is_mutable || force_import {
         return ImportIndexedDirOpts {
             force: true,
+            reuse_hardlinks: source_is_mutable && !force_import && !interrupted_build,
             keep_modules_dir: true,
             safe_to_skip,
             preserve_symlinks: source_is_mutable,
+            swap_lock,
         };
     }
-    ImportIndexedDirOpts { safe_to_skip, ..ImportIndexedDirOpts::default() }
+    ImportIndexedDirOpts { safe_to_skip, swap_lock, ..ImportIndexedDirOpts::default() }
 }
 
 /// Unlink every child but the package's own `node_modules/<self>` directory.
@@ -428,14 +438,19 @@ fn remove_obsolete_children<'a>(
 /// carries those writes back into the workspace directory of an injected
 /// package, or into the content-addressable store for a registry package.
 /// `clone-or-copy` gives the build private inodes and still lets a reflink
-/// avoid a byte-for-byte copy. pnpm v11 applies the same override to
+/// avoid a byte-for-byte copy. An explicit `copy` already gives private
+/// inodes, so it is kept. pnpm v11 applies the same override to
 /// `willBeBuilt` packages in `createPackageImporter`.
 #[must_use]
 pub fn effective_import_method(
     configured: PackageImportMethod,
     needs_build: bool,
 ) -> PackageImportMethod {
-    if needs_build { PackageImportMethod::CloneOrCopy } else { configured }
+    if needs_build && configured != PackageImportMethod::Copy {
+        PackageImportMethod::CloneOrCopy
+    } else {
+        configured
+    }
 }
 
 /// Map pacquet's configured [`PackageImportMethod`] to the value

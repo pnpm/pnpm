@@ -115,24 +115,19 @@ pub(super) fn update_read_package_hook<Reporter: self::Reporter>(
     workspace_root: &Path,
     config: &Config,
 ) -> Result<Option<ReadPackageHook>, UpdateError> {
-    let Some(hook) =
-        pnpm_hooks::finder::load_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
-            .map_err(UpdateError::MissingPnpmfile)?
+    let Some(hook) = crate::load_install_pnpmfiles(config, workspace_root)
+        .map_err(UpdateError::MissingPnpmfile)?
     else {
         return Ok(None);
     };
-    let log = hook
-        .source_path()
-        .map_or_else(
-            || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-            |from| {
-                crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                    workspace_root,
-                    from,
-                    "readPackage",
-                )
-            },
-        );
+    let log = match hook.source_path() {
+        Some(from) => crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+            workspace_root,
+            from,
+            "readPackage",
+        ),
+        None => Arc::new(|_| {}) as pnpm_hooks::LogFn,
+    };
     Ok(Some((hook, log)))
 }
 pub(super) async fn apply_read_package_hook_to_update_manifest(
@@ -229,7 +224,7 @@ pub(super) fn update_scope<'a>(
         lockfile: update.lockfile.document,
         config: update.config,
         version: update.version,
-        depth: update.selection.depth,
+        selection: update.selection,
         updates_all_groups: updates_all_groups(&owned.include_direct),
     }
 }

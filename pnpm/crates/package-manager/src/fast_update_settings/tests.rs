@@ -52,8 +52,10 @@ fn recorded_settings() -> LockfileSettings {
         auto_install_peers: true,
         dedupe_peers: None,
         exclude_links_from_lockfile: false,
+        add_missing_peer_types: None,
         inject_workspace_packages: false,
         peers_suffix_max_length: None,
+        integrity_target: None,
         resolution: pnpm_lockfile::ResolutionSettings::default(),
     }
 }
@@ -65,8 +67,10 @@ fn records_every_setting_the_locked_graph_cannot_notice() {
         auto_install_peers: false,
         dedupe_peers: Some(true),
         exclude_links_from_lockfile: true,
+        add_missing_peer_types: None,
         inject_workspace_packages: true,
         peers_suffix_max_length: Some(10),
+        integrity_target: None,
         resolution: pnpm_lockfile::ResolutionSettings::default(),
     };
 

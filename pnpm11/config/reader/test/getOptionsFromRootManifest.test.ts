@@ -950,7 +950,23 @@ test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean allowUnus
   expect(options.allowUnusedPatches).toBe(allowUnusedPatches)
 })
 
+test.each(['false', 'true', 1, 0, [], {}])('getOptionsFromPnpmSettings() rejects non-boolean autoInstallPeersFromHighestMatch %p', (autoInstallPeersFromHighestMatch) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    autoInstallPeersFromHighestMatch: autoInstallPeersFromHighestMatch as unknown as boolean,
+  })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+    message: expect.stringMatching(/The "autoInstallPeersFromHighestMatch" setting should be a boolean/),
+  }))
+})
+
+test.each([true, false])('getOptionsFromPnpmSettings() accepts boolean autoInstallPeersFromHighestMatch %p', (autoInstallPeersFromHighestMatch) => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), { autoInstallPeersFromHighestMatch })
+  expect(options.autoInstallPeersFromHighestMatch).toBe(autoInstallPeersFromHighestMatch)
+})
+
 test.each([
+  ['externalDependencies', 'foo', 'string'],
+  ['externalDependencies', ['foo', 123], 'array'],
   ['ignoredOptionalDependencies', 'foo', 'string'],
   ['ignoredOptionalDependencies', ['foo', 123], 'array'],
   ['requiredScripts', 'test', 'string'],
@@ -964,22 +980,22 @@ test.each([
   }))
 })
 
-test('getOptionsFromPnpmSettings() accepts valid ignoredOptionalDependencies and requiredScripts', () => {
+test('getOptionsFromPnpmSettings() accepts valid externalDependencies, ignoredOptionalDependencies, and requiredScripts', () => {
   const options = getOptionsFromPnpmSettings(process.cwd(), {
+    externalDependencies: ['foo', 'bar'],
     ignoredOptionalDependencies: ['foo', '@bar/*'],
     requiredScripts: ['build', 'test'],
   })
+  expect(options.externalDependencies).toStrictEqual(new Set(['foo', 'bar']))
   expect(options.ignoredOptionalDependencies).toStrictEqual(['foo', '@bar/*'])
   expect(options.requiredScripts).toStrictEqual(['build', 'test'])
 })
 
 test.each([
   ['httpProxy', 123, 'The "httpProxy" setting should be a string, but got number'],
-  ['httpProxy', null, 'The "httpProxy" setting should be a string, but got null'],
   ['httpProxy', true, 'The "httpProxy" setting should be a string, but got boolean'],
   ['httpProxy', ['http://proxy.local'], 'The "httpProxy" setting should be a string, but got array'],
   ['httpsProxy', 123, 'The "httpsProxy" setting should be a string, but got number'],
-  ['httpsProxy', null, 'The "httpsProxy" setting should be a string, but got null'],
   ['httpsProxy', false, 'The "httpsProxy" setting should be a string, but got boolean'],
   ['httpsProxy', { url: 'https://proxy.local' }, 'The "httpsProxy" setting should be a string, but got object'],
 ])('getOptionsFromPnpmSettings() rejects invalid %s shape', (settingName, value, expectedMessage) => {
@@ -989,6 +1005,17 @@ test.each([
     code: 'ERR_PNPM_INVALID_SETTING',
     message: expectedMessage,
   }))
+})
+
+test('getOptionsFromPnpmSettings() treats a null httpProxy and httpsProxy as unset', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    httpProxy: null as unknown as string,
+    httpsProxy: null as unknown as string,
+  })
+  expect(options.httpProxy).toBeUndefined()
+  expect(options.httpsProxy).toBeUndefined()
+  expect('httpProxy' in options).toBe(false)
+  expect('httpsProxy' in options).toBe(false)
 })
 
 test('getOptionsFromPnpmSettings() accepts valid httpProxy and httpsProxy', () => {

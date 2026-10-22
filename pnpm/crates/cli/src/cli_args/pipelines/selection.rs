@@ -182,7 +182,7 @@ fn select_workspace_projects_with_cycles(
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
     let active_manifest_is_standin =
         configuration::active_manifest_is_standin(active_dir, &projects)?;
-    let install_dirs = install_dirs(&resolved.selected_dirs, &projects, &workspace_root);
+    let install_dirs = install_dirs(&resolved.selected_dirs, &projects, &workspace_root, cfg);
 
     Ok(Some(NarrowedWorkspace {
         selection: InstallFamilySelection {
@@ -249,17 +249,23 @@ fn selected_project_dirs(selection: &RecursiveSelection<'_>) -> Arc<HashSet<Path
 }
 
 /// The selected projects plus the workspace root project, when the
-/// workspace root is a project.
+/// workspace root is a project and the install does not prune direct
+/// dependencies on a filtered selection.
 fn install_dirs(
     selected_dirs: &HashSet<PathBuf>,
     projects: &[pnpm_workspace::Project],
     workspace_root: &Path,
+    cfg: &Config,
 ) -> HashSet<PathBuf> {
-    let normalized_workspace_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut install_dirs = selected_dirs.clone();
-    if let Some(workspace_root_project) = projects
-        .iter()
-        .find(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_workspace_root)
+    if (!cfg.prune_direct_dependencies
+        || (cfg.filter.is_empty() && cfg.filter_prod.is_empty()))
+        && let normalized_workspace_root = pnpm_fs::lexical_normalize(workspace_root)
+        && let Some(workspace_root_project) = projects
+            .iter()
+            .find(|project| {
+                pnpm_fs::lexical_normalize(&project.root_dir) == normalized_workspace_root
+            })
     {
         install_dirs.insert(workspace_root_project.root_dir.clone());
     }

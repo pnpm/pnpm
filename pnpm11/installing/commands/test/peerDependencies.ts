@@ -6,7 +6,7 @@ import { prepare } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { temporaryDirectory } from 'tempy'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const TMP = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {

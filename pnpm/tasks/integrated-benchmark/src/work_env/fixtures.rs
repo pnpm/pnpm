@@ -3,8 +3,9 @@ use super::{
     PEER_HEAVY_WIDTH,
 };
 use crate::{
-    cli_args::BenchmarkScenario, fixtures::PACKAGE_JSON,
-    workspace_manifest::MinimalWorkspaceManifest,
+    cli_args::BenchmarkScenario,
+    fixtures::PACKAGE_JSON,
+    workspace_manifest::{CargoSettings, MinimalWorkspaceManifest},
 };
 use serde_json::Value;
 use std::{
@@ -23,6 +24,16 @@ pub(super) fn create_package_json(
         fs::write(dst, peer_heavy_root_manifest()).expect("write peer-heavy package.json");
         return;
     }
+    if scenario.uses_injected_workspace_fixture() {
+        fs::write(dst, super::injected_workspace::root_manifest())
+            .expect("write injected workspace root manifest");
+        return;
+    }
+    if scenario.uses_cargo_workspace_fixture() {
+        fs::write(dst, super::cargo_workspace::root_manifest())
+            .expect("write cargo workspace root manifest");
+        return;
+    }
     if scenario.uses_linked_workspace_fixture() {
         fs::write(dst, super::linked_workspace::root_manifest())
             .expect("write linked-workspace package.json");
@@ -35,6 +46,17 @@ pub(super) fn create_package_json(
         fs::copy(src, dst).expect("copy package.json for the revision");
     } else {
         fs::write(dst, PACKAGE_JSON).expect("write package.json for the revision");
+    }
+}
+pub(super) fn create_generated_projects(dir: &Path, scenario: BenchmarkScenario) {
+    if scenario.uses_injected_workspace_fixture() {
+        super::injected_workspace::create_project(dir);
+    }
+    if scenario.uses_cargo_workspace_fixture() {
+        super::cargo_workspace::create_project(dir);
+    }
+    if scenario.uses_linked_workspace_fixture() {
+        super::linked_workspace::create_projects(dir);
     }
 }
 pub(super) fn peer_heavy_root_manifest() -> String {
@@ -101,13 +123,11 @@ pub(super) fn write_peer_heavy_packument(
         "versions": versions,
         "time": time,
     });
-    let package_dir = storage_root.join(name);
-    fs::create_dir_all(&package_dir).expect("create peer-heavy registry package directory");
-    fs::write(
-        package_dir.join("package.json"),
-        serde_json::to_vec(&packument).expect("serialize peer-heavy packument"),
-    )
-    .expect("write peer-heavy packument");
+    let document = pnpr_storage::layout::local_document_path(storage_root, "", name);
+    fs::create_dir_all(document.parent().expect("a document has a package directory"))
+        .expect("create peer-heavy registry package directory");
+    fs::write(document, serde_json::to_vec(&packument).expect("serialize peer-heavy packument"))
+        .expect("write peer-heavy packument");
 }
 pub(super) fn peer_heavy_manifest(
     name: &str,
@@ -188,9 +208,6 @@ pub(super) fn create_pnpm_workspace(
     let src_dir = if scenario.uses_generated_fixture() { None } else { src_dir };
     let mut manifest = fixture_workspace_manifest(src_dir, &dst)
         .unwrap_or_else(MinimalWorkspaceManifest::default_for_benchmark);
-    if scenario.uses_linked_workspace_fixture() {
-        manifest.packages = Some(vec![".".to_string(), "packages/*".to_string()]);
-    }
     if manifest.store_dir.is_none() {
         manifest.store_dir = Some("./store-dir".to_string());
     }
@@ -204,11 +221,35 @@ pub(super) fn create_pnpm_workspace(
     manifest.auto_install_peers = Some(true);
     manifest.ignore_scripts = Some(true);
     manifest.lockfile = Some(scenario.lockfile_enabled());
+    apply_scenario_settings(&mut manifest, scenario);
+    let yaml = serde_saphyr::to_string(&manifest).expect("serialize pnpm-workspace.yaml");
+    fs::write(dst, yaml).expect("write pnpm-workspace.yaml for the revision");
+}
+/// The settings a scenario needs in every target's workspace manifest, on
+/// top of the benchmark-wide ones.
+fn apply_scenario_settings(manifest: &mut MinimalWorkspaceManifest, scenario: BenchmarkScenario) {
+    if scenario.uses_injected_workspace_fixture() {
+        manifest.dedupe_injected_deps = Some(false);
+    }
+    if scenario.uses_cargo_workspace_fixture() {
+        manifest.cargo = Some(CargoSettings { enabled: true });
+    }
+    if scenario.uses_linked_workspace_fixture() || scenario.uses_injected_workspace_fixture() {
+        manifest.packages = Some(vec![".".to_string(), "packages/*".to_string()]);
+    }
     if scenario.enables_gvs() {
         manifest.enable_global_virtual_store = Some(true);
     }
-    let yaml = serde_saphyr::to_string(&manifest).expect("serialize pnpm-workspace.yaml");
-    fs::write(dst, yaml).expect("write pnpm-workspace.yaml for the revision");
+    if scenario.store_only() {
+        manifest.enable_modules_dir = Some(false);
+        manifest.store_index_format = Some("files".to_string());
+    }
+    if scenario.unlocks_direct_deps() {
+        // The lockfile verification reads every entry's packument, which
+        // leaves nothing for the resolution to fetch and hides the
+        // subtrees it reuses. The scenario measures the resolution.
+        manifest.trust_lockfile = Some(true);
+    }
 }
 /// The fixture's own `pnpm-workspace.yaml`, when it ships one.
 pub(super) fn fixture_workspace_manifest(

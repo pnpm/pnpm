@@ -63,6 +63,19 @@ test('config get on array should return a comma-separated list', async () => {
   ])
 })
 
+test('config get on Set setting (externalDependencies) should return a JSON array', async () => {
+  const getResult = await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir: process.cwd(),
+    global: true,
+    authConfig: {},
+    externalDependencies: new Set(['ms', 'debug']),
+  }), ['get', 'externalDependencies'])
+
+  expect(JSON.parse(getOutputString(getResult))).toStrictEqual(['ms', 'debug'])
+})
+
 test('config get on object should return a JSON string', async () => {
   const getResult = await config.handler(createConfigCommandOpts({
     dir: process.cwd(),

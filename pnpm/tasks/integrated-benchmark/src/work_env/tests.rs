@@ -1,16 +1,30 @@
+use pnpr_storage::layout::local_document_path;
+
 use super::{
     BenchId, HyperfineCommand, LINKED_WORKSPACE_DEPTH, LINKED_WORKSPACE_WIDTH, PEER_HEAVY_DEPTH,
     PEER_HEAVY_PROVIDER, PEER_HEAVY_WIDTH, WorkEnv, collect_pnpr_direct_ratios,
-    create_install_script, create_package_json, create_pnpm_workspace,
+    create_generated_projects, create_install_script, create_package_json, create_pnpm_workspace,
     fixtures::peer_heavy_package_name,
+    may_create_lockfile,
     measurements::PhaseEvent,
     non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, seed_peer_heavy_registry,
-    server_config::{pnpr_auth_config_key, pnpr_benchmark_config_yaml},
+    server_config::{
+        cold_mock_config_yaml, pnpr_auth_config_key, pnpr_benchmark_config_yaml,
+        serves_npm_under_base_path,
+    },
     summarize_phase_events,
 };
 use crate::cli_args::BenchmarkScenario;
-use std::{collections::HashMap, fs};
+use pnpm_lockfile::Lockfile;
+use std::{
+    collections::HashMap,
+    fs,
+    io::{Read, Write},
+    net::TcpListener,
+    path::Path,
+    thread,
+};
 
 #[test]
 fn offline_scenario_writes_online_prewarm_script() {
@@ -103,25 +117,21 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
     let registry = dir.join("registry");
     seed_peer_heavy_registry(&registry);
     let first_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            registry
-                .join(peer_heavy_package_name(0, 0))
-                .join("package.json"),
-        )
-        .expect("read first peer-heavy packument"),
+        &fs::read(local_document_path(&registry, "", &peer_heavy_package_name(0, 0)))
+            .expect("read first peer-heavy packument"),
     )
     .expect("parse first peer-heavy packument");
     let leaf_packument: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            registry
-                .join(peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0))
-                .join("package.json"),
-        )
+        &fs::read(local_document_path(
+            &registry,
+            "",
+            &peer_heavy_package_name(PEER_HEAVY_DEPTH - 1, 0),
+        ))
         .expect("read leaf peer-heavy packument"),
     )
     .expect("parse leaf peer-heavy packument");
     let registry_package_count =
-        fs::read_dir(registry.join("@pnpmtest")).expect("read peer-heavy registry scope").count();
+        fs::read_dir(registry.join("default/packages")).expect("read peer-heavy registry").count();
     let _ = fs::remove_dir_all(&dir);
 
     let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");
@@ -434,6 +444,19 @@ fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
 }
 
 #[test]
+fn cold_mock_config_declares_public_upstream_under_registries() {
+    let storage = std::env::temp_dir().join("cold-mock-config-test-storage");
+
+    let yaml = cold_mock_config_yaml(&storage, "http://127.0.0.1:4873");
+
+    assert!(yaml.contains("registries:"));
+    assert!(yaml.contains("type: upstream"));
+    assert!(yaml.contains("defaultRegistry: npmjs"));
+    assert!(!yaml.contains("mounts:"));
+    assert!(!yaml.contains("defaultTarget:"));
+}
+
+#[test]
 fn diagnostics_markdown_includes_create_virtual_store_line_item() {
     let markdown = render_diagnostics_markdown(
         &super::BenchmarkDiagnostics {
@@ -570,4 +593,181 @@ fn client_binary_in_prefers_the_existing_binary() {
     assert_eq!(WorkEnv::client_binary_in(&root), release.join("pnpm"));
 
     let _ = fs::remove_dir_all(&root);
+}
+
+/// The scenario's contract: the seeded lockfile is out of date in exactly
+/// one way (the direct dependencies with peers are missing from the
+/// importer, with the package graph intact), the install links nothing and
+/// trusts the lockfile, and the next iteration finds the lockfile out of
+/// date again with no metadata cached.
+#[test]
+fn store_only_scenario_unlocks_the_peered_direct_deps_and_links_nothing() {
+    let scenario = BenchmarkScenario::StoreOnlyUnlockedDepsColdCacheHotStore;
+    let temp = tempfile::TempDir::new().expect("create store-only test dir");
+    let dir = temp.path();
+
+    create_package_json(dir, None, scenario);
+    create_pnpm_workspace(dir, None, "http://localhost:4873/", scenario);
+    create_install_script(dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    may_create_lockfile(dir, scenario, None);
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).expect("read package.json"))
+            .expect("parse package.json");
+    let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).expect("read workspace");
+    let install = fs::read_to_string(dir.join("install.bash")).expect("read install.bash");
+    let seeded = Lockfile::load_wanted_from_dir(dir)
+        .expect("read the seeded lockfile")
+        .expect("a lockfile was seeded");
+    let fixture = Lockfile::parse(crate::fixtures::LOCKFILE, Path::new("pnpm-lock.yaml"))
+        .expect("parse the fixture lockfile")
+        .expect("the fixture lockfile holds a document");
+
+    let declared: usize = ["dependencies", "devDependencies", "optionalDependencies"]
+        .iter()
+        .map(|group| {
+            manifest[group]
+                .as_object()
+                .map(serde_json::Map::len)
+                .unwrap_or(0)
+        })
+        .sum();
+    // The importer's direct dependencies, split into those whose locked
+    // version carries a peer suffix and the rest.
+    let locked = |lockfile: &Lockfile| -> (usize, usize) {
+        let importer = &lockfile.importers["."];
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
+            .into_iter()
+            .flatten()
+            .flat_map(HashMap::values)
+            .fold((0, 0), |(peered, plain), spec| {
+                if super::unlocked_deps::has_peer_suffix(spec) {
+                    (peered + 1, plain)
+                } else {
+                    (peered, plain + 1)
+                }
+            })
+    };
+    let packages = |lockfile: &Lockfile| lockfile.packages.as_ref().map(HashMap::len);
+    let (peered, plain) = locked(&fixture);
+    assert_eq!(peered + plain, declared, "the fixture lockfile is current");
+    assert!(peered > 0 && plain > 0, "the fixture has direct deps with and without peers");
+    assert_eq!(locked(&seeded), (0, plain), "exactly the peered direct deps are unlocked");
+    assert_eq!(packages(&seeded), packages(&fixture), "the package graph is kept whole");
+    assert!(workspace.contains("enableModulesDir: false"), "workspace = {workspace}");
+    assert!(workspace.contains("storeIndexFormat: files"), "workspace = {workspace}");
+    assert!(workspace.contains("trustLockfile: true"), "workspace = {workspace}");
+    assert!(install.ends_with("exec pnpm install --no-frozen-lockfile\n"), "install = {install}");
+    let cleanup = scenario.cleanup();
+    assert_eq!(cleanup.remove, ["cache-dir"], "the metadata cache is cold, the store is kept");
+    assert_eq!(cleanup.restore, [("pnpm-lock.yaml", ".saved-pnpm-lock.yaml")]);
+}
+
+#[test]
+fn injected_repeat_install_creates_its_lockfile_before_the_frozen_runs() {
+    let scenario = BenchmarkScenario::IsolatedInjectedWorkspaceRepeatInstallHotCacheHotStore;
+    let dir = std::env::temp_dir().join(format!("pnpm-benchmark-injected-{}", std::process::id()));
+    fs::create_dir_all(&dir).unwrap();
+    create_package_json(&dir, None, scenario);
+    create_pnpm_workspace(&dir, None, "http://localhost:4873/", scenario);
+    create_install_script(&dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["dependencies"]["injected-benchmark-library"], "workspace:*");
+    assert_eq!(manifest["dependenciesMeta"]["injected-benchmark-library"]["injected"], true);
+    let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(workspace.contains("dedupeInjectedDeps: false"));
+    assert!(workspace.contains("packages/*"));
+    assert!(
+        fs::read_to_string(dir.join("prewarm.bash"))
+            .unwrap()
+            .ends_with("exec pnpm install --offline --no-frozen-lockfile\n"),
+    );
+    assert!(
+        fs::read_to_string(dir.join("install.bash")).unwrap().contains("install --frozen-lockfile"),
+    );
+    assert!(!scenario.seeds_lockfile());
+    assert!(!scenario.prewarms_node_modules());
+    assert!(scenario.cleanup().remove.is_empty());
+    assert!(scenario.cleanup().restore.is_empty());
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn cargo_repeat_install_seeds_workspace_and_store_before_frozen_runs() {
+    let scenario = BenchmarkScenario::CargoRepeatInstallHotCacheHotStore;
+    let temp = tempfile::TempDir::new().expect("create cargo benchmark test dir");
+    let dir = temp.path();
+
+    create_package_json(dir, None, scenario);
+    create_generated_projects(dir, scenario);
+    create_pnpm_workspace(dir, None, "http://localhost:4873/", scenario);
+    create_install_script(dir, scenario, "pnpm", BenchId::PnpmRevision("HEAD"));
+    super::cargo_workspace::seed_store(dir);
+
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(dir.join("package.json")).unwrap()).unwrap();
+    assert_eq!(manifest["name"], "cargo-benchmark-root");
+    let cargo_toml = fs::read_to_string(dir.join("Cargo.toml")).unwrap();
+    assert!(cargo_toml.contains("\n[workspace]\n"), "cargo_toml = {cargo_toml}");
+    assert!(dir.join("src/lib.rs").is_file());
+    let cargo_lock = fs::read_to_string(dir.join("Cargo.lock")).unwrap();
+    assert!(cargo_lock.contains("benchmark-crate-0000"));
+    assert!(cargo_lock.contains("dependencies = [\n \"benchmark-crate-0001\",\n]"));
+    assert!(cargo_lock.contains("dependencies = [\n \"benchmark-crate-0799\",\n]"));
+    let workspace = fs::read_to_string(dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(workspace.contains("cargo:\n  enabled: true"), "workspace = {workspace}");
+    assert!(
+        fs::read_to_string(dir.join("prewarm.bash"))
+            .unwrap()
+            .ends_with("exec pnpm install --offline --no-frozen-lockfile\n"),
+    );
+    assert!(
+        fs::read_to_string(dir.join("install.bash")).unwrap().contains("install --frozen-lockfile"),
+    );
+    let store_dir = pnpm_store_dir::StoreDir::new(dir.join("store-dir"));
+    let store_index = pnpm_store_dir::StoreIndex::open_readonly_in(&store_dir).unwrap();
+    assert_eq!(store_index.keys().unwrap().len(), super::cargo_workspace::CRATE_COUNT);
+    assert!(!scenario.seeds_lockfile());
+    assert!(!scenario.prewarms_node_modules());
+    assert!(scenario.cleanup().remove.is_empty());
+    assert!(scenario.cleanup().restore.is_empty());
+}
+
+/// Answer one request on a loopback port with `status_line` and `body`.
+fn serve_registry_directory_once(status_line: &'static str, body: &'static str) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind a registry directory stub");
+    let port = listener
+        .local_addr()
+        .expect("stub address")
+        .port();
+    thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept the directory request");
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request).expect("read the directory request");
+        write!(
+            stream,
+            "{status_line}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len(),
+        )
+        .expect("answer the directory request");
+    });
+    port
+}
+
+#[test]
+fn registry_directory_reports_where_npm_is_served() {
+    let prefixed = serve_registry_directory_once(
+        "HTTP/1.1 200 OK",
+        r#"{"ecosystems":{"npm":{"available":true,"prefixed":true}}}"#,
+    );
+    assert!(serves_npm_under_base_path(prefixed));
+
+    let root = serve_registry_directory_once(
+        "HTTP/1.1 200 OK",
+        r#"{"ecosystems":{"npm":{"available":true,"prefixed":false}}}"#,
+    );
+    assert!(!serves_npm_under_base_path(root));
+
+    let without_directory = serve_registry_directory_once("HTTP/1.1 404 Not Found", "{}");
+    assert!(!serves_npm_under_base_path(without_directory));
 }

@@ -71,6 +71,21 @@ test('setup makes no changes', async () => {
   expect(output).toBe('No changes to the environment were made. Everything is already up to date.')
 })
 
+test('setup names the shell config file when it makes no changes', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    configFile: {
+      changeType: 'skipped',
+      path: '~/.bashrc',
+    },
+    oldSettings: 'export PNPM_HOME=dir',
+    newSettings: 'export PNPM_HOME=dir',
+  }))
+  const output = await setup.handler({ pnpmHomeDir: '' })
+  expect(output).toBe(`Configuration already up to date in ~/.bashrc
+
+No changes to the environment were made. Everything is already up to date.`)
+})
+
 test('setup makes changes on POSIX', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     configFile: {
@@ -299,6 +314,54 @@ test('hint is added to ERR_PNPM_BAD_SHELL_SECTION error object', async () => {
   expect(err?.hint).toBe('If you want to override the existing configuration section, use the --force option')
 })
 
+test('setup prints the lines to add by hand when the shell is unknown', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: '/root/.pnpm' })
+  expect(output).toBe(`Could not infer shell type. No shell config file was changed.
+
+To start using pnpm, add these lines to your shell config file:
+export PNPM_HOME='/root/.pnpm'
+export PATH="$PNPM_HOME/bin:$PATH"`)
+})
+
+test('setup quotes PNPM_HOME as a literal in the lines to add by hand', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNKNOWN_SHELL', 'Could not infer shell type.')))
+  const output = await setup.handler({ pnpmHomeDir: "/home/o'neil/$(touch pwned)" })
+  expect(output).toContain("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n")
+})
+
+test('setup prints the lines to add by hand when sh has no ENV', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(
+    new PnpmError('NO_SHELL_CONFIG', 'Cannot find a config file for sh. The ENV environment variable is not set.')
+  ))
+  const output = await setup.handler({ pnpmHomeDir: '/root/.pnpm' })
+  expect(output.startsWith('Cannot find a config file for sh. The ENV environment variable is not set. No shell config file was changed.\n\n')).toBe(true)
+})
+
+test('setup fails on an unsupported shell', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.reject(new PnpmError('UNSUPPORTED_SHELL', 'Can\'t setup configuration for "tcsh" shell')))
+  await expect(setup.handler({ pnpmHomeDir: '/root/.pnpm' })).rejects.toMatchObject({ code: 'ERR_PNPM_UNSUPPORTED_SHELL' })
+})
+
+test.each(['REG_READ', 'FAILED_SET_ENV'])('setup prints PowerShell instructions on %s', async (code) => {
+  jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError(code, 'Registry access denied.'))
+  const output = await setup.handler({ pnpmHomeDir: 'C:\\Users\\developer\\pnpm' })
+  expect(output).toBe(`Registry access denied.
+
+pnpm is installed, but its environment could not be saved in the registry.
+To start using pnpm in this PowerShell session, run:
+$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'
+$env:Path = "$env:PNPM_HOME\\bin;$env:Path"
+
+Add these lines to your PowerShell profile to use pnpm in future sessions.`)
+})
+
+test.each(["'", '\u2018', '\u2019', '\u201a', '\u201b'])('setup escapes %s in PowerShell instructions', async (quote) => {
+  jest.mocked(addDirToEnvPath).mockRejectedValue(new PnpmError('REG_READ', 'Registry access denied.'))
+  const output = await setup.handler({ pnpmHomeDir: `C:\\Users\\o${quote}neil\\$(Write-Error injected)` })
+  expect(output).toContain(`\n$env:PNPM_HOME = 'C:\\Users\\o${quote}${quote}neil\\$(Write-Error injected)'\n`)
+})
+
 test('global install of the standalone executable skips its build scripts', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
     oldSettings: 'PNPM_HOME=dir',
@@ -390,6 +453,32 @@ test('setup ignores legacy shim cleanup failures', async () => {
 // The aliases setup writes are `sh` scripts, so this runs where `sh` does. On
 // Windows the .cmd wrappers take over.
 const posixTest = process.platform === 'win32' ? test.skip : test
+
+// Creating a file symlink on Windows needs elevated rights.
+posixTest('setup does not install the CLI globally when pnpm runs through a symlink to its JS entry point', async () => {
+  jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({
+    oldSettings: 'PNPM_HOME=dir',
+    newSettings: 'PNPM_HOME=dir',
+  }))
+  jest.mocked(detectIfCurrentPkgIsExecutable).mockReturnValue(false)
+  jest.mocked(spawnSync).mockClear()
+  const tmpDir = actualFs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-setup-test-'))
+  const entryPoint = path.join(tmpDir, 'lib/node_modules/pnpm/bin/pnpm.mjs')
+  actualFs.mkdirSync(path.dirname(entryPoint), { recursive: true })
+  actualFs.writeFileSync(entryPoint, '')
+  const launcher = path.join(tmpDir, 'bin/pnpm')
+  actualFs.mkdirSync(path.dirname(launcher))
+  actualFs.symlinkSync('../lib/node_modules/pnpm/bin/pnpm.mjs', launcher)
+  const originalArgv1 = process.argv[1]
+  process.argv[1] = launcher
+  try {
+    await setup.handler({ pnpmHomeDir: path.join(tmpDir, 'home') })
+  } finally {
+    process.argv[1] = originalArgv1
+    actualFs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+  expect(spawnSync).not.toHaveBeenCalled()
+})
 
 posixTest('the alias scripts run the pnpm beside them, not one earlier on PATH', async () => {
   jest.mocked(addDirToEnvPath).mockReturnValue(Promise.resolve<PathExtenderReport>({

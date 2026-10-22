@@ -18,7 +18,7 @@ const baseline = run([entry, repo], env)
 const auditPath = path.join(root, 'compiler-cas-loads.jsonl')
 fs.writeFileSync(auditPath, '')
 const cas = run(['--import', pathToFileURL(path.join(root, 'loader.mjs')).href, entry, path.join(root, 'repo')], {
-  ...env, PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json'), PNPM_LOADER_AUDIT: auditPath,
+  ...env, PNPM_LOADER_MANIFEST: path.join(root, '.store-manifest.json'), PNPM_LOADER_AUDIT: auditPath,
 })
 assert.deepEqual(cas, baseline)
 assertIsolated(root)

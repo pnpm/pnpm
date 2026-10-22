@@ -72,7 +72,7 @@ fn sibling_decision(sibling_modules_dir: &str, configure: impl FnOnce(&mut Confi
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -141,7 +141,7 @@ fn a_root_with_a_multi_component_modules_dir_is_installed() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -170,7 +170,7 @@ fn root_direct_dependency_decision(link_foo: impl FnOnce(&std::path::Path)) -> D
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     })
 }
 
@@ -249,10 +249,262 @@ fn a_hoisted_sibling_dependency_linked_to_a_missing_target_is_not_installed() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(matches!(
         decision,
         Decision::Skipped { reason } if reason.contains("missing target"),
     ));
+}
+
+#[test]
+fn expanded_selected_modules_dir_check_follows_aliases_paths_and_matching_versions() {
+    let linker = pnpm_config::NodeLinker::Isolated;
+    let (dir, config, root_manifest) =
+        setup_fresh_install_with_config(linker, "root", "1.0.0", "", |config| {
+            config.link_workspace_packages = pnpm_config::LinkWorkspacePackages::DirectOnly;
+        });
+    let write_pkg = |rel: &str, json: &str, create_modules_dir: bool| {
+        let pkg_dir = dir.path().join(rel);
+        fs::create_dir_all(&pkg_dir).unwrap();
+        if create_modules_dir {
+            fs::create_dir_all(pkg_dir.join("node_modules")).unwrap();
+        }
+        let manifest_path = pkg_dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        (pkg_dir, PackageManifest::from_path(manifest_path).unwrap())
+    };
+    let (app_dir, app_manifest) = write_pkg(
+        "app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"alias-b":"npm:pkg-b@^1.0.0","rel-c":"workspace:..\\pkg-c","pkg-d":"catalog:","file-f":"file:../pkg-f"},"peerDependencies":{"pkg-e":"workspace:*"}}"#,
+        true,
+    );
+    let (pkg_b_dir, pkg_b_manifest) = write_pkg(
+        "pkg-b",
+        r#"{"name":"pkg-b","version":"1.2.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_c_dir, pkg_c_manifest) = write_pkg(
+        "pkg-c",
+        r#"{"name":"pkg-c","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_d_v1_dir, pkg_d_v1_manifest) = write_pkg(
+        "pkg-d-v1",
+        r#"{"name":"pkg-d","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        false,
+    );
+    let (pkg_d_v2_dir, pkg_d_v2_manifest) = write_pkg(
+        "pkg-d-v2",
+        r#"{"name":"pkg-d","version":"2.1.0-beta.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_e_dir, pkg_e_manifest) = write_pkg(
+        "pkg-e",
+        r#"{"name":"pkg-e","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+    let (pkg_f_dir, pkg_f_manifest) = write_pkg(
+        "pkg-f",
+        r#"{"name":"pkg-f","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        true,
+    );
+
+    let project_manifests = [
+        (dir.path().to_path_buf(), &root_manifest),
+        (app_dir.clone(), &app_manifest),
+        (pkg_b_dir.clone(), &pkg_b_manifest),
+        (pkg_c_dir.clone(), &pkg_c_manifest),
+        (pkg_d_v1_dir, &pkg_d_v1_manifest),
+        (pkg_d_v2_dir.clone(), &pkg_d_v2_manifest),
+        (pkg_e_dir.clone(), &pkg_e_manifest),
+        (pkg_f_dir.clone(), &pkg_f_manifest),
+    ];
+    let catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("pkg-d".to_string(), "^2.0.0".to_string())]),
+    )]);
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = pnpm_workspace_state::WorkspaceState::default();
+    let selected = [app_dir.as_path()];
+
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        ),
+        None,
+    );
+
+    fs::remove_dir_all(pkg_b_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("pkg-b"),
+    );
+    fs::create_dir_all(pkg_b_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_c_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("pkg-c"),
+    );
+    fs::create_dir_all(pkg_c_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_d_v2_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("pkg-d"),
+    );
+    fs::create_dir_all(pkg_d_v2_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_e_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("pkg-e"),
+    );
+    let mut no_auto_peers_state = state.clone();
+    no_auto_peers_state.settings.auto_install_peers = Some(false);
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &no_auto_peers_state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        ),
+        None,
+    );
+    fs::create_dir_all(pkg_e_dir.join("node_modules")).unwrap();
+
+    fs::remove_dir_all(pkg_f_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("pkg-f"),
+    );
+}
+
+#[test]
+fn expanded_selected_modules_dir_check_under_dedicated_lockfiles_with_injection_follows_only_link_deps()
+ {
+    let linker = pnpm_config::NodeLinker::Isolated;
+    let (dir, config, root_manifest) =
+        setup_fresh_install_with_config(linker, "root", "1.0.0", "", |config| {
+            config.shared_workspace_lockfile = false;
+            config.inject_workspace_packages = true;
+        });
+    let write_pkg = |rel: &str, json: &str, create_modules_dir: bool| {
+        let pkg_dir = dir.path().join(rel);
+        fs::create_dir_all(&pkg_dir).unwrap();
+        if create_modules_dir {
+            fs::create_dir_all(pkg_dir.join("node_modules")).unwrap();
+        }
+        let manifest_path = pkg_dir.join("package.json");
+        fs::write(&manifest_path, json).unwrap();
+        (pkg_dir, PackageManifest::from_path(manifest_path).unwrap())
+    };
+    let (app_dir, app_manifest) = write_pkg(
+        "app",
+        r#"{"name":"app","version":"1.0.0","dependencies":{"injected":"workspace:*","linked":"link:../linked"}}"#,
+        true,
+    );
+    let (injected_dir, injected_manifest) = write_pkg(
+        "injected",
+        r#"{"name":"injected","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        false,
+    );
+    let (linked_dir, linked_manifest) = write_pkg(
+        "linked",
+        r#"{"name":"linked","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+        false,
+    );
+
+    let project_manifests = [
+        (dir.path().to_path_buf(), &root_manifest),
+        (app_dir.clone(), &app_manifest),
+        (injected_dir, &injected_manifest),
+        (linked_dir.clone(), &linked_manifest),
+    ];
+    let catalogs = BTreeMap::default();
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = pnpm_workspace_state::WorkspaceState::default();
+    let selected = [app_dir.as_path()];
+
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("linked"),
+    );
+
+    fs::create_dir_all(linked_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        ),
+        None,
+    );
 }

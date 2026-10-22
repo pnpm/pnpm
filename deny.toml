@@ -27,15 +27,6 @@ ignore = [
   # Production code only performs public-key verification in both paths;
   # the private-key timing side channel is not reachable.
   { id = "RUSTSEC-2023-0071", reason = "Only public-key verification is performed for Node.js OpenPGP release signatures and pnpr OIDC tokens; no RSA private-key operation is exposed." },
-  # quick-xml DoS advisories (quadratic duplicate-attribute check, unbounded
-  # namespace-declaration allocation). quick-xml is reached only through
-  # object_store's S3 XML response parsing in pnpr, so the XML comes from the
-  # operator-configured S3-compatible storage backend, not from untrusted
-  # clients. Both fixes ship only in quick-xml 0.41.0, which no object_store
-  # release can resolve yet: object_store 0.13 requires ^0.39 and 0.14
-  # requires ^0.40.1. Revisit when object_store consumes quick-xml 0.41+.
-  { id = "RUSTSEC-2026-0194", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
-  { id = "RUSTSEC-2026-0195", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
   # Unbounded queueing of empty HTTP/2 DATA frames (low-severity DoS). Only the
   # `h2` 0.3 line is left unpatched here: pnpr's own HTTP/2 server surface runs
   # on axum 0.8 -> hyper 1.x, which is on the fixed h2 0.4.16. The 0.3 copy is
@@ -51,6 +42,15 @@ ignore = [
   # entry would also silence the advisory on the 0.4 line. The `h2` bans below
   # hold that line instead.
   { id = "RUSTSEC-2026-0258", reason = "Temporary risk acceptance: the unpatched h2 0.3 copy is reached only by libsql's outbound gRPC client to the operator-configured backend; pnpr's own server is on the patched h2 0.4.16, and no stable libsql release moves off tonic 0.11." },
+  # `zip` 8.6.0 has advisories for `ZipArchive::extract()` and
+  # `ZipStreamReader::extract()` preserving SUID/SGID bits and allowing symlink
+  # traversal. pnpm and pnpr do not call `extract()`; extraction iterates entries
+  # directly in `pnpm-tarball` with safe path sanitization via `enclosed_name()`
+  # and explicit target validation, while `pnpr-osv` and `pnpr` only read
+  # entry streams into memory.
+  { id = "RUSTSEC-2026-0367", reason = "pnpm and pnpr do not use ZipArchive::extract() or stream extraction; zip extraction iterates entries manually with enclosed_name validation and explicit safe file writing." },
+  { id = "RUSTSEC-2026-0368", reason = "pnpm and pnpr do not use ZipArchive::extract(); symlink validation is handled independently in pnpm-tarball." },
+  { id = "RUSTSEC-2026-0369", reason = "pnpm and pnpr do not use ZipStreamReader::extract(); zip streams are never extracted through the vulnerable API." },
 ]
 
 # --- Licenses ------------------------------------------------------------
@@ -228,7 +228,7 @@ skip-tree = []
 unknown-registry = "warn"
 unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/pnpm/node-semver-rs"]
+allow-git = ["https://github.com/pnpm/node-semver-rs", "https://github.com/pnpm/dashmap"]
 
 [sources.allow-org]
 github = []

@@ -23,7 +23,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_resolving_deps_resolver::UpdateTargets;
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::Path,
     sync::Arc,
 };
@@ -41,7 +41,7 @@ pub(super) struct Resolved<'a, Reporter> {
     pub(super) overrides: ResolvedOverrides,
     pub(super) patches: super::setup::Patches,
     pub(super) hooks: ResolvedHooks,
-    pub(super) reuse: ResolutionReuseGuard<'a>,
+    pub(super) reuse: ResolutionReuse,
     pub(super) graph: ResolvedGraph,
 }
 
@@ -56,12 +56,7 @@ pub(super) struct ResolvedHooks {
     pub(super) after_all_resolved_log: Option<pnpm_hooks::LogFn>,
 }
 
-pub(super) struct ResolutionReuseGuard<'a> {
-    pub(super) guard_previous_importers:
-        Option<&'a HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
-    pub(super) guard_update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
-    pub(super) guard_update_reuse_scopes_by_importer:
-        BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
+pub(super) struct ResolutionReuse {
     pub(super) full_resolution: bool,
 }
 
@@ -169,6 +164,10 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             workspace_packages: self.setup.workspace_packages.clone(),
             update_checksums: self.install.update_checksums,
             update_behavior: resolver_update_behavior(&self.owned.resolution.update_seed_policy),
+            refresh_metadata: matches!(
+                self.owned.resolution.update_seed_policy,
+                super::UpdateSeedPolicy::KeepAllResolveAll,
+            ),
         }
     }
 
@@ -302,7 +301,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
                             .cloned()
                             .map(Arc::new)
                     }),
-                subtrees: lockfile_reuse_seed.is_some(),
+                // A reused subtree keeps its recorded integrities, which
+                // `--update-checksums` is there to refresh.
+                subtrees: lockfile_reuse_seed.is_some() && !self.install.update_checksums,
                 scope: self.prep.reuse.scope.clone(),
                 scopes_by_importer: self.prep.reuse.by_importer.clone(),
                 depth: self.owned.resolution.update_seed_policy.max_depth(),

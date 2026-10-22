@@ -1,7 +1,7 @@
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { ProjectManifest } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
-import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
+import { readWorkspaceManifest, readWorkspaceManifestKeys, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 
 import { quoteAndJoin } from '../quoteAndJoin.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from '../unknownSettings.js'
@@ -10,6 +10,7 @@ import { getIgnoredPnpmFieldKeys } from './ignoredPnpmFieldKeys.js'
 import { getWantedPackageManager } from './packageManager.js'
 import {
   isRefusedByAProjectManifest,
+  PIN_DECISION_SETTINGS,
   PROJECT_MANIFEST_SKIPPED_KEYS,
   quoteAndExplain,
   quoteAndSuggestCamelCase,
@@ -28,7 +29,7 @@ import { addSettingsFromWorkspaceManifestToConfig } from './workspaceManifestSet
  */
 export async function applyLocalSettings (
   state: ConfigBuildState,
-  { forSelfUpdate }: { forSelfUpdate?: boolean }
+  { forSelfUpdate, skipUnreadableSettings }: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean }
 ): Promise<Record<string, string> | undefined> {
   const { cliOptions, pnpmConfig, warnings } = state
   pnpmConfig.rootProjectManifest = await safeReadProjectManifestOnly(pnpmConfig.rootProjectManifestDir) ?? undefined
@@ -43,7 +44,7 @@ export async function applyLocalSettings (
   await readEnginePinManifest(state)
 
   if (pnpmConfig.workspaceDir != null) {
-    return applyProjectWorkspaceManifest(state, { forSelfUpdate, workspaceDir: pnpmConfig.workspaceDir })
+    return applyProjectWorkspaceManifestUnlessUnreadable(state, { forSelfUpdate, skipUnreadableSettings, workspaceDir: pnpmConfig.workspaceDir })
   }
   if (cliOptions['global']) {
     return applyGlobalPackageDirWorkspaceManifest(state)
@@ -77,12 +78,58 @@ async function readEnginePinManifest ({ pnpmConfig, warnings }: ConfigBuildState
   warnings.push(...wantedPmResult.warnings)
 }
 
+async function applyProjectWorkspaceManifestUnlessUnreadable (
+  state: ConfigBuildState,
+  opts: { forSelfUpdate?: boolean, skipUnreadableSettings?: boolean, workspaceDir: string }
+): Promise<Record<string, string> | undefined> {
+  if (!opts.skipUnreadableSettings) return applyProjectWorkspaceManifest(state, opts)
+  // A setting outside the pin decision cannot steer it, so one that fails
+  // must not drop the `pmOnFail` or `lockfileDir` beside it. Neither may an
+  // unreadable `packages`.
+  for (const keys of [undefined, PIN_DECISION_SETTINGS, PIN_DECISION_SETTINGS_BUT_PACKAGES]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop -- each read is a fallback for the one before it
+      return await applyAllOrNothing(state, () => applyProjectWorkspaceManifest(state, { ...opts, keys }))
+    } catch {}
+  }
+  state.pnpmConfig.workspacePackagePatterns = ['.']
+  return undefined
+}
+
+const PIN_DECISION_SETTINGS_BUT_PACKAGES: ReadonlySet<string> = new Set([...PIN_DECISION_SETTINGS].filter((key) => key !== 'packages'))
+
+/**
+ * A failure partway through must not leave the settings applied before it in
+ * force.
+ */
+async function applyAllOrNothing<Result> (state: ConfigBuildState, apply: () => Promise<Result>): Promise<Result> {
+  const before = { ...state.pnpmConfig }
+  const explicitlySetKeysBefore = [...state.explicitlySetKeys]
+  try {
+    return await apply()
+  } catch (err: unknown) {
+    restoreConfig(state.pnpmConfig as unknown as Record<string, unknown>, before)
+    state.explicitlySetKeys.clear()
+    for (const key of explicitlySetKeysBefore) state.explicitlySetKeys.add(key)
+    throw err
+  }
+}
+
+function restoreConfig (config: Record<string, unknown>, before: Record<string, unknown>): void {
+  for (const key of Object.keys(config)) {
+    if (!(key in before)) delete config[key]
+  }
+  Object.assign(config, before)
+}
+
 async function applyProjectWorkspaceManifest (
   state: ConfigBuildState,
-  { forSelfUpdate, workspaceDir }: { forSelfUpdate?: boolean, workspaceDir: string }
+  { forSelfUpdate, keys, workspaceDir }: { forSelfUpdate?: boolean, keys?: ReadonlySet<string>, workspaceDir: string }
 ): Promise<Record<string, string> | undefined> {
   const { cliOptions, pnpmConfig } = state
-  const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+  const workspaceManifest = keys == null
+    ? await readWorkspaceManifest(workspaceDir)
+    : await readWorkspaceManifestKeys(workspaceDir, keys)
 
   pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
   if (!workspaceManifest) return undefined

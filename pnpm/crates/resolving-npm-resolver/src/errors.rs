@@ -115,9 +115,9 @@ pub enum FetchMetadataError {
 #[must_use]
 pub fn legacy_mirror_hint(legacy_mirror: &std::path::Path) -> String {
     format!(
-        "The cache layout for registry metadata changed in pnpm 11.27 and 12.4. {} holds a mirror \
-         from an older pnpm version, which this offline install cannot read. Run one online install \
-         to repopulate the cache under the new layout, then retry offline.",
+        "The cache layout for registry metadata has changed. {} holds a mirror from an older pnpm \
+         version, which this offline install cannot read. Run one online install to repopulate \
+         the cache under the new layout, then retry offline.",
         legacy_mirror.display(),
     )
 }
@@ -221,6 +221,22 @@ pub struct InvalidTarballIntegrityError {
     #[error(not(source))]
     pub tarball: String,
     pub shasum: String,
+}
+
+/// Raised when a version's metadata names no `dist.tarball` and its registry
+/// declares no layout to rebuild the URL from.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The metadata of {package} from {registry} names no tarball URL")]
+#[diagnostic(
+    code(ERR_PNPM_MISSING_TARBALL_URL),
+    help(
+        "A registry that omits dist.tarball has to declare its URL layout. For a pnpr tar registry, add `serverType: pnpr` to its entry under `registries` in pnpm-workspace.yaml."
+    )
+)]
+pub struct MissingTarballUrlError {
+    #[error(not(source))]
+    pub package: String,
+    pub registry: String,
 }
 
 /// Raised when a registry marks a tarball as a replacement revision but its

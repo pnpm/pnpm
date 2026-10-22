@@ -295,37 +295,7 @@ async function installFromDeployFiles (
   { deployDir, deployFiles }: { deployDir: string, deployFiles: DeployFiles }
 ): Promise<void> {
   try {
-    await install.handler({
-      ...opts,
-      deploy: true,
-      allProjects: undefined,
-      allProjectsGraph: undefined,
-      selectedProjectsGraph: undefined,
-      rootProjectManifest: deployFiles.manifest,
-      enableGlobalVirtualStore: false,
-      rootProjectManifestDir: deployDir,
-      dir: deployDir,
-      lockfileDir: deployDir,
-      workspaceDir: deployDir,
-      virtualStoreDir: resolveDeployVirtualStoreDir(deployDir, opts),
-      localDirPackageImportMethod: 'clone-or-copy',
-      modulesDir: undefined,
-      confirmModulesPurge: false,
-      frozenLockfile: true,
-      injectWorkspacePackages: false, // the effects of injecting workspace packages should already be part of the package snapshots
-      overrides: undefined, // the effects of the overrides should already be part of the package snapshots
-      packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
-      configDependencies: undefined, // configDependencies (e.g. pacquet) are not installed into the deploy dir, so the install engine they designate isn't on disk to invoke
-      workspacePackagePatterns: ['.'],
-      hooks: {
-        ...opts.hooks,
-        readPackage: [
-          ...(opts.hooks?.readPackage ?? []),
-          pkg => deployHook(pkg),
-        ],
-        calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
-      },
-    })
+    await install.handler(buildDeployInstallOptions(opts, { deployDir, deployFiles }))
   } catch (error) {
     globalWarn(`Deployment with a shared lockfile has failed. If this is a bug, please report it at <https://github.com/pnpm/pnpm/issues>.
 As a workaround, add the following to pnpm-workspace.yaml:
@@ -333,6 +303,67 @@ As a workaround, add the following to pnpm-workspace.yaml:
   forceLegacyDeploy: true`)
     throw error
   }
+}
+
+function buildDeployInstallOptions (opts: DeployOptions, { deployDir, deployFiles }: { deployDir: string, deployFiles: DeployFiles }): install.InstallCommandOptions {
+  const { workspaceManifest } = deployFiles
+  return {
+    ...opts,
+    deploy: true,
+    allProjects: undefined,
+    allProjectsGraph: undefined,
+    selectedProjectsGraph: undefined,
+    rootProjectManifest: deployFiles.manifest,
+    enableGlobalVirtualStore: false,
+    rootProjectManifestDir: deployDir,
+    dir: deployDir,
+    lockfileDir: deployDir,
+    workspaceDir: deployDir,
+    virtualStoreDir: resolveDeployVirtualStoreDir(deployDir, opts),
+    localDirPackageImportMethod: 'clone-or-copy',
+    modulesDir: undefined,
+    confirmModulesPurge: false,
+    frozenLockfile: true,
+    allowBuilds: workspaceManifest.allowBuilds,
+    autoInstallPeers: workspaceManifest.autoInstallPeers,
+    catalogs: undefined,
+    dedupeInjectedDeps: workspaceManifest.dedupeInjectedDeps,
+    dedupePeerDependents: workspaceManifest.dedupePeerDependents,
+    dedupePeers: workspaceManifest.dedupePeers,
+    excludeLinksFromLockfile: workspaceManifest.excludeLinksFromLockfile,
+    ignorePnpmfile: workspaceManifest.ignorePnpmfile,
+    ignoredOptionalDependencies: workspaceManifest.ignoredOptionalDependencies,
+    injectWorkspacePackages: workspaceManifest.injectWorkspacePackages, // the effects of injecting workspace packages should already be part of the package snapshots
+    linkWorkspacePackages: false,
+    overrides: undefined, // the effects of the overrides should already be part of the package snapshots
+    packageExtensions: undefined, // the effects of the package extensions should already be part of the package snapshots
+    patchedDependencies: pickDeployPatchedDependencies(opts.patchedDependencies, workspaceManifest.patchedDependencies),
+    peersSuffixMaxLength: workspaceManifest.peersSuffixMaxLength,
+    pnpmfile: [],
+    configDependencies: undefined, // configDependencies (e.g. pacquet) are not installed into the deploy dir, so the install engine they designate isn't on disk to invoke
+    workspacePackagePatterns: workspaceManifest.packages,
+    hooks: buildDeployHooks(opts.hooks),
+  }
+}
+
+function buildDeployHooks (hooks: DeployOptions['hooks']): DeployOptions['hooks'] {
+  return {
+    ...hooks,
+    readPackage: [...(hooks?.readPackage ?? []), pkg => deployHook(pkg)],
+    calculatePnpmfileChecksum: undefined, // the effects of the pnpmfile should already be part of the package snapshots
+  }
+}
+
+function pickDeployPatchedDependencies (
+  sourcePatchedDependencies: Record<string, string> | undefined,
+  manifestPatchedDependencies: Record<string, string> | undefined
+): Record<string, string> | undefined {
+  if (sourcePatchedDependencies == null || manifestPatchedDependencies == null) return undefined
+  return Object.fromEntries(
+    Object.keys(manifestPatchedDependencies)
+      .filter(key => Object.hasOwn(sourcePatchedDependencies, key))
+      .map(key => [key, sourcePatchedDependencies[key]])
+  )
 }
 
 // A global virtual store or an absolute virtualStoreDir is shared with the

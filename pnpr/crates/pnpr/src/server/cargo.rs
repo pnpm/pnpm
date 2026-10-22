@@ -64,9 +64,9 @@ const INDEX_CONFIG_LIMIT: usize = 64 * 1024;
 /// `.`, so it can never collide with a crate's own entry.
 const INDEX_CONFIG_KEY: &str = "config.json";
 
-pub(super) fn routes(prefixed: bool) -> Router<AppState> {
+pub(super) fn routes() -> Router<AppState> {
     let mut router = Router::new();
-    for base in mount_bases(ECOSYSTEM, prefixed) {
+    for base in mount_bases(ECOSYSTEM) {
         router = router
             .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))
@@ -181,16 +181,14 @@ async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageNam
         CrateDocument::parse(&bytes).ok()
     }
     .await;
-    document
-        .as_ref()
-        .map_or_else(
-            || SearchCrate {
-                name: key.as_str().to_string(),
-                description: None,
-                max_version: String::new(),
-            },
-            CrateDocument::to_search_crate,
-        )
+    match &document {
+        Some(document) => document.to_search_crate(),
+        None => SearchCrate {
+            name: key.as_str().to_string(),
+            description: None,
+            max_version: String::new(),
+        },
+    }
 }
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the

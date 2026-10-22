@@ -63,7 +63,7 @@ fn pnpr_binary() -> PathBuf {
 /// `cargo build -p pnpr` once before invoking the mock if
 /// it isn't already built. `--public-url` defaults to
 /// `http://localhost:<port>` so the tarball URLs the registry rewrites
-/// match the URL pacquet's tests expect via `port_to_url`. The
+/// sit under the URL [`crate::RegistryInfo::url`] returns. The
 /// integrated benchmark can override it when a proxy fronts the registry
 /// port: packuments served by pnpr must advertise the proxy URL, or
 /// tarball downloads bypass the emulated registry link.
@@ -107,12 +107,13 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
             cmd.env_remove(&name);
         }
     }
-    // `pnpr` defaults to its bundled registry-mock config (the fixture
-    // namespace served from local hosted storage, everything else proxied
-    // through the pattern-less npmjs upstream), which is exactly what the
-    // mock needs — no `-c` override required. We only pin the runtime
-    // bits the bundled config can't know about.
-    cmd.arg("--storage")
+    // Front pnpr with the registry-mock config from `pnpr/.fixtures/config.yaml`
+    // (the fixture namespace served from local hosted storage, everything else
+    // proxied through the pattern-less npmjs upstream). We pin the runtime bits
+    // the config file can't know about via CLI arguments.
+    cmd.arg("--config")
+        .arg(pnpr_fixtures::mock_config_path())
+        .arg("--storage")
         .arg(runtime_storage())
         .arg("--packument-ttl-secs")
         .arg("31536000")

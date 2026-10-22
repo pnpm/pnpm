@@ -63,6 +63,7 @@ where
     /// pass reads no `package.json` for a prefetched dep; `None` keeps
     /// every dep on the disk-read fallback.
     pub package_manifests: Option<&'a crate::PackageManifests>,
+    pub package_bins: Option<&'a crate::PackageBins>,
 
     /// Per-snapshot `requiresBuild` flags from the same prefetch,
     /// gating [`Self::package_manifests`] — see
@@ -144,6 +145,7 @@ where
                 self.package_manifests,
                 self.requires_build_by_snapshot,
             )
+            .with_package_bins(self.package_bins)
             .with_scheduled_builds(self.scheduled_builds),
         }
         .run::<Reporter>()

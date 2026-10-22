@@ -63,6 +63,28 @@ async fn fetch_from_registry_attaches_authorization_header() {
 }
 
 #[tokio::test]
+async fn fetch_from_registry_normalizes_registry_url_without_trailing_slash() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{"name":"acme","dist-tags":{"latest":"1.0.0"},"versions":{}}"#;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let pkg = Package::fetch_from_registry("acme", &client, &server.url(), &auth_headers)
+        .await
+        .expect("server should accept the request when registry url lacks trailing slash");
+    assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn fetch_from_registry_reports_the_status_of_an_unknown_package() {
     let mut server = mockito::Server::new_async().await;
     let mock = server

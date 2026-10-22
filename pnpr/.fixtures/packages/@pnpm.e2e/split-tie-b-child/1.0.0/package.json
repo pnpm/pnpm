@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/split-tie-b-child",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/has-optional-peer-also-in-deps": "1.0.0"
+  }
+}

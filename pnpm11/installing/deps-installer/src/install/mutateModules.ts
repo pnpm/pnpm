@@ -130,7 +130,7 @@ async function openMutationRun (base: MutationRunBase): Promise<OpenedMutationRu
   const openedCtx = await getMutationContext(base)
   const scriptsOpts = createScriptsOptions(opts, openedCtx)
   const rootProjectPreinstallRan = await runRootProjectEarlyHooks(base, { ctx: openedCtx, rootProjectManifest, scriptsOpts })
-  const ctx = await validateModulesAndReopenContext(opts, openedCtx, installsOnly)
+  const ctx = await validateModulesAndReopenContext(opts, openedCtx, { installsOnly, projects })
   return {
     ...base,
     allowBuild,
@@ -213,6 +213,7 @@ function createScriptsOptions (opts: StrictInstallOptions, ctx: PnpmContext): Ru
     extendNodePath: opts.extendNodePath,
     extraNodePaths: ctx.extraNodePaths,
     extraEnv: opts.extraEnv,
+    includeOnlyPackageFiles: !opts.deployAllFiles,
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     userAgent: opts.userAgent,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
@@ -265,12 +266,16 @@ async function runRootProjectEarlyHooks (
 async function validateModulesAndReopenContext (
   opts: StrictInstallOptions,
   ctx: PnpmContext,
-  installsOnly: boolean
+  { installsOnly, projects }: { installsOnly: boolean, projects: MutatedProject[] }
 ): Promise<PnpmContext> {
-  if (opts.lockfileOnly || isCheckOnlyInstall(opts) || ctx.modulesFile == null) return ctx
+  if (opts.lockfileOnly || isCheckOnlyInstall(opts) || ctx.modulesFile == null) {
+    applyProjectPruneFlags(ctx, projects)
+    return ctx
+  }
+  const isPrune = projects.some((project) => 'pruneDirectDependencies' in project && Boolean(project.pruneDirectDependencies))
   const { purged } = await validateModules(ctx.modulesFile, Object.values(ctx.projects), {
     forceNewModules: installsOnly,
-    include: opts.include,
+    include: isPrune ? undefined : opts.include,
     lockfileDir: opts.lockfileDir,
     modulesDir: opts.modulesDir ?? 'node_modules',
     registriesByScope: opts.registriesByScope,
@@ -286,7 +291,17 @@ async function validateModulesAndReopenContext (
     currentPublicHoistPattern: ctx.currentPublicHoistPattern,
     global: opts.global,
   })
-  return purged ? getContext(opts) : ctx
+  const nextCtx = purged ? await getContext(opts) : ctx
+  applyProjectPruneFlags(nextCtx, projects)
+  return nextCtx
+}
+
+function applyProjectPruneFlags (ctx: PnpmContext, projects: MutatedProject[]): void {
+  for (const project of projects) {
+    if ('pruneDirectDependencies' in project && project.pruneDirectDependencies != null && ctx.projects[project.rootDir] != null) {
+      ctx.projects[project.rootDir].pruneDirectDependencies = project.pruneDirectDependencies
+    }
+  }
 }
 
 /**
@@ -468,6 +483,7 @@ async function finishMutation (run: MutationRun, result: InnerInstallResult): Pr
     updatedCatalogs: result.updatedCatalogs,
     updatedProjects: result.updatedProjects,
     newLockfile: result.newLockfile,
+    wantedLockfile: result.wantedLockfile,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
     ignoredBuilds,

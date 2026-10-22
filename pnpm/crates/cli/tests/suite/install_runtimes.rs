@@ -72,6 +72,33 @@ fn installs_node_deno_and_bun_then_reinstalls_them_offline() {
 }
 
 #[test]
+fn frozen_install_accepts_tool_specifiers_against_a_runtime_lockfile() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "");
+    let mut server = mockito::Server::new();
+    let fixtures = [
+        runtime_fixture(&mut server, "node", "22.0.0", host_platform(), host_arch()),
+        runtime_fixture(&mut server, "deno", "2.4.2", host_platform(), host_arch()),
+        runtime_fixture(&mut server, "bun", "1.2.19", host_platform(), host_arch()),
+    ];
+    let dependencies = fixtures
+        .iter()
+        .map(|fixture| {
+            (fixture.name.to_string(), Value::String(format!("tool:{}", fixture.version)))
+        })
+        .collect::<Map<_, _>>();
+    fs::write(workspace.join("package.json"), json!({ "dependencies": dependencies }).to_string())
+        .unwrap();
+    write_runtime_lockfile(&workspace, &fixtures);
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_installed(&workspace, &fixtures);
+}
+
+#[test]
 fn node_runtime_fails_when_missing_offline() {
     assert_runtime_missing_offline("node", "22.0.0");
 }
@@ -146,6 +173,46 @@ fn installs_node_runtime_from_the_rc_channel() {
         .success();
     assert!(workspace.join("node_modules/node/package.json").exists());
     assert!(fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap().contains(version));
+}
+
+#[test]
+fn installs_node_from_a_tool_specifier() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "node": format!("tool:{version}") } }).to_string(),
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/node/package.json").exists());
+    let lockfile: Value =
+        serde_saphyr::from_str(&fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap())
+            .unwrap();
+    assert_eq!(
+        lockfile["importers"]["."]["dependencies"]["node"],
+        json!({ "specifier": format!("tool:{version}"), "version": format!("runtime:{version}") }),
+    );
+    assert!(
+        lockfile["packages"]
+            .get(format!("node@runtime:{version}"))
+            .is_some(),
+    );
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 }
 
 #[test]
@@ -279,6 +346,73 @@ fn update_moves_a_channel_qualified_devengines_runtime_range() {
     );
 }
 
+/// `devEngines.runtime` stores no protocol, so its lockfile specifier stays
+/// `runtime:` whichever spelling the command used.
+#[test]
+fn tool_requests_keep_runtime_specifier_for_devengines_runtime() {
+    for subcommand in ["add", "update"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let _mocks = mock_node_releases(&mut server, &["24.0.0", "24.1.0"], None);
+        let workspace = prepare_workspace(
+            &root,
+            format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+        );
+        write_devengines_manifest(&workspace, "rc/24.0.0", Some("download"));
+        command(&workspace)
+            .with_args(["install", "--lockfile-only"])
+            .assert()
+            .success();
+
+        command(&workspace)
+            .with_args([subcommand, "node@tool:rc/24.1.0", "--lockfile-only"])
+            .assert()
+            .success();
+
+        let manifest = fs::read_to_string(workspace.join("package.json")).unwrap();
+        let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+        assert!(
+            manifest.contains("devEngines")
+                && !manifest.contains("tool:")
+                && lockfile.contains("version: runtime:24.1.0")
+                && !lockfile.contains("tool:"),
+            "{subcommand}: {manifest}\n{lockfile}",
+        );
+    }
+}
+
+#[test]
+fn add_keeps_the_locked_devengines_runtime_version() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let mocks = mock_node_releases(&mut server, &["24.0.0"], None);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    write_devengines_manifest(&workspace, "rc/^24.0.0", Some("download"));
+    command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    drop(mocks);
+    let _mocks = mock_node_releases(&mut server, &["24.0.0", "24.1.0"], None);
+    let dep = root.path().join("dep");
+    fs::create_dir(&dep).unwrap();
+    fs::write(dep.join("package.json"), r#"{"name":"dep","version":"1.0.0"}"#).unwrap();
+
+    command(&workspace)
+        .with_args(["add", "../dep", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(
+        lockfile.contains("version: runtime:24.0.0") && !lockfile.contains("24.1.0"),
+        "the runtime stays at its locked version: {lockfile}",
+    );
+}
+
 /// pnpm/pnpm#14817: the registry mock knows no package named "node", so the
 /// install fails if the npm resolver claims the union instead of leaving it
 /// to the runtime resolver.
@@ -400,6 +534,51 @@ fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
 fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts_in_the_global_virtual_store()
  {
     assert_downloaded_node_runtime_reaches_dependency_lifecycle_scripts(true);
+}
+
+#[cfg(unix)]
+#[test]
+fn loaded_linker_runs_scripts_with_the_downloaded_node_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\nnodeLinker:\n  type: loaded\n", server.url())
+            .as_str(),
+    );
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "scripts": { "test": "node && printf ran > runtime-ran" },
+            "devEngines": {
+                "runtime": { "name": "node", "version": version, "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let empty_path = root.path().join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
+
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_arg("install")
+        .assert()
+        .success();
+    let manifest: Value = serde_json::from_slice(
+        &fs::read(workspace.join("node_modules/.pnpm/.store-manifest.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["packages"][format!("node@runtime:{version}")]["resolution"], "node");
+    command(&workspace)
+        .with_env("PATH", &empty_path)
+        .with_args(["run", "test"])
+        .assert()
+        .success();
+    assert!(workspace.join("runtime-ran").exists());
 }
 
 /// A filtered install that leaves the root project out still builds

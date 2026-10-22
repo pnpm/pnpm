@@ -88,7 +88,10 @@ const REGISTRY: &str = "https://registry.npmjs.org/";
 /// Build a JWT-shaped `header.payload.signature` token carrying the GitHub
 /// repository visibility the orchestrator's visibility probe relies on.
 fn public_repo_id_token() -> String {
-    let payload = json!({ "repository_visibility": "public" });
+    let payload = json!({
+        "aud": "npm:registry.npmjs.org",
+        "repository_visibility": "public",
+    });
     let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload).unwrap());
     format!("header.{payload_b64}.signature")
 }
@@ -331,6 +334,38 @@ async fn create_publish_options_applies_oidc_when_enabled() {
         .unwrap();
     assert_eq!(resolved.auth_token_override, Some("registry-token".to_owned()));
     assert_eq!(resolved.provenance, Some(true));
+}
+
+#[tokio::test]
+async fn npm_alias_uses_canonical_oidc_audience_and_exchange_host() {
+    github_sys!(Sys, |request: OidcRequest<'_>| {
+        if request.url.contains("audience=") {
+            assert!(request.url.contains("audience=npm%3Aregistry.npmjs.org"));
+        } else {
+            assert!(request.url.starts_with("https://registry.npmjs.org/"));
+        }
+        github_chain_fetch(&request, &public_repo_id_token())
+    });
+
+    let manifest = json!({
+        "name": "@org/pkg",
+        "publishConfig": { "registry": "https://registry.npmjs.com/" },
+    });
+    let http = OidcHttpOptions::default();
+    let input = CreatePublishOptionsInput {
+        default_registry: REGISTRY,
+        scoped_registries: &BTreeMap::new(),
+        access: None,
+        tag: "latest",
+        otp: None,
+        provenance: None,
+        http: &http,
+    };
+    let resolved = create_publish_options::<Sys, SilentReporter>(&manifest, &input, true)
+        .await
+        .unwrap();
+    assert_eq!(resolved.registry.as_str(), REGISTRY);
+    assert_eq!(resolved.auth_token_override.as_deref(), Some("registry-token"));
 }
 
 #[tokio::test]

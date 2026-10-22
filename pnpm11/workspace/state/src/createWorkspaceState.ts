@@ -21,7 +21,7 @@ export const createWorkspaceState = (opts: CreateWorkspaceStateOptions): Workspa
     },
   ])),
   pnpmfiles: opts.pnpmfiles,
-  settings: pick(WORKSPACE_STATE_SETTING_KEYS, opts.settings),
+  settings: pick([...WORKSPACE_STATE_SETTING_KEYS, 'autoDedupe'], opts.settings),
   filteredInstall: opts.filteredInstall,
   configDependencies: opts.configDependencies,
 })

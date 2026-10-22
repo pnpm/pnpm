@@ -14,7 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { after, describe, it } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { URL, fileURLToPath } from 'node:url'
 
 import { INTEGRITY_KEYS, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
 
@@ -33,6 +33,14 @@ echo "ran: $*"
 const SPAWNS_THE_BINARY = process.platform === 'win32' &&
   'the stand-in for the native binary is a shell script, which Windows cannot spawn'
 const DOWNLOADED_BINARY = process.platform === 'win32' ? 'pnpm-native.exe' : 'pnpm-native'
+// The variables that could name a registry or a user `.npmrc` from the
+// environment the tests run in.
+const ENV_NPM_CONFIG = ['registry', 'userconfig'].flatMap((name) => [
+  `pnpm_config_${name}`,
+  `PNPM_CONFIG_${name.toUpperCase()}`,
+  `npm_config_${name}`,
+  `NPM_CONFIG_${name.toUpperCase()}`,
+])
 
 describe('corepack entry point', () => {
   it('downloads the native binary on first use, then reuses it', { skip: SPAWNS_THE_BINARY }, async () => {
@@ -128,6 +136,91 @@ describe('corepack entry point', () => {
     assert.match(empty.stderr, /no "npm" key set/)
   })
 
+  it('downloads from the registry the user .npmrc names, with its credentials', async () => {
+    const fixture = await createFixture()
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:_authToken=\${FIXTURE_TOKEN}`,
+    ])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      FIXTURE_TOKEN: 'user-token',
+      COREPACK_NPM_TOKEN: 'corepack-token',
+    })
+    assert.match(result.stderr, /Downloading/)
+    assert.deepEqual(new Set(fixture.requests.map(({ url, authorization }) => `${url} ${authorization}`)), new Set([
+      `/${packageName}/${VERSION} Bearer user-token`,
+      `/${packageName}/-/${VERSION}.tgz Bearer user-token`,
+    ]))
+  })
+
+  it('takes the @pnpm scope registry over the default one', async () => {
+    const fixture = await createFixture()
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`@pnpm:registry=${fixture.registryUrl}/`])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      npm_config_registry: 'http://127.0.0.1:9/',
+    })
+    assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
+  })
+
+  it('sends the @pnpm scope credentials over the registry-wide ones', async () => {
+    const fixture = await createFixture()
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `@pnpm:registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:_authToken=registry-token`,
+      `${nerfDart(fixture.registryUrl)}:@pnpm:_authToken=scope-token`,
+    ])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assert.deepEqual(new Set(fixture.requests.map(({ url, authorization }) => `${url} ${authorization}`)), new Set([
+      `/${packageName}/${VERSION} Bearer scope-token`,
+      `/${packageName}/-/${VERSION}.tgz Bearer scope-token`,
+    ]))
+  })
+
+  it('downloads from the registry the workspace .npmrc names, without expanding its credentials', async () => {
+    const fixture = await createFixture()
+    const userRegistry = await startRegistry({ payload: FAKE_BINARY })
+    after(userRegistry.close)
+    fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    writeNpmrc(fixture, 'project/.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:_authToken=\${FIXTURE_TOKEN}`,
+    ])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${userRegistry.url}/`])
+    const packageDir = path.join(fixture.projectDir, 'packages/a')
+    fs.mkdirSync(packageDir, { recursive: true })
+
+    const result = await runEntry({ ...fixture, projectDir: packageDir }, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      FIXTURE_TOKEN: 'user-token',
+    })
+    assert.match(result.stderr, /Ignored .*:_authToken from .*\.npmrc/)
+    assert.deepEqual(userRegistry.requests, [])
+    assert.deepEqual(new Set(fixture.requests.map(({ url, authorization }) => `${url} ${authorization}`)), new Set([
+      `/${packageName}/${VERSION} undefined`,
+      `/${packageName}/-/${VERSION}.tgz undefined`,
+    ]))
+  })
+
+  it('does not let a project .npmrc choose the registry of an unchecked download', async () => {
+    const fixture = await createFixture()
+    const projectRegistry = await startRegistry({ payload: FAKE_BINARY })
+    after(projectRegistry.close)
+    writeNpmrc(fixture, 'project/.npmrc', [`registry=${projectRegistry.url}/`])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${fixture.registryUrl}/`])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      COREPACK_INTEGRITY_KEYS: '0',
+    })
+    assert.deepEqual(projectRegistry.requests, [])
+    assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
+  })
+
   it('reports a disabled network instead of reaching for one', async () => {
     const fixture = await createFixture()
 
@@ -138,15 +231,21 @@ describe('corepack entry point', () => {
 })
 
 // Asynchronous on purpose: the registry runs in this process, so blocking on
-// the child would deadlock the download.
+// the child would deadlock the download. A variable `env` sets to `undefined`
+// is left out of the child's environment.
 function runEntry (fixture, entry, args, env) {
+  const childEnv = {
+    ...process.env,
+    COREPACK_NPM_REGISTRY: fixture.registryUrl,
+    COREPACK_INTEGRITY_KEYS: INTEGRITY_KEYS,
+    ...env,
+  }
+  for (const [name, value] of Object.entries(childEnv)) {
+    if (value === undefined) delete childEnv[name]
+  }
   const child = spawn(process.execPath, [path.join(fixture.dir, entry), ...args], {
-    env: {
-      ...process.env,
-      COREPACK_NPM_REGISTRY: fixture.registryUrl,
-      COREPACK_INTEGRITY_KEYS: INTEGRITY_KEYS,
-      ...env,
-    },
+    cwd: fixture.projectDir,
+    env: childEnv,
   })
 
   let stdout = ''
@@ -175,11 +274,35 @@ async function createFixture (registryOptions = {}) {
   }
   fs.cpSync(downloaderDir(), path.join(dir, BUNDLED_DOWNLOADER), { dereference: true, recursive: true })
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pnpm', version: VERSION }))
+  const projectDir = path.join(dir, 'project')
+  fs.mkdirSync(projectDir)
 
   const registry = await startRegistry({ payload: FAKE_BINARY, ...registryOptions })
   after(registry.close)
 
-  return { dir, registryUrl: registry.url, closeRegistry: registry.close }
+  return { dir, projectDir, registryUrl: registry.url, requests: registry.requests, closeRegistry: registry.close }
+}
+
+function writeNpmrc (fixture, file, lines) {
+  const npmrcPath = path.join(fixture.dir, file)
+  fs.writeFileSync(npmrcPath, `${lines.join('\n')}\n`)
+  return npmrcPath
+}
+
+/**
+ * An environment whose only npm configuration is `userNpmrc`, with no registry
+ * named by Corepack or by an environment variable.
+ */
+function userNpmConfig (userNpmrc) {
+  return {
+    ...Object.fromEntries(ENV_NPM_CONFIG.map((name) => [name, undefined])),
+    COREPACK_NPM_REGISTRY: undefined,
+    npm_config_userconfig: userNpmrc,
+  }
+}
+
+function nerfDart (registryUrl) {
+  return `//${new URL(registryUrl).host}/`
 }
 
 /** The installed get-pnpm, which the release bundles into `dist/`. */

@@ -19,7 +19,7 @@ const { root } = prepared
 console.log(`Prepared ${prepared.ids.size} packages and ${prepared.fileCount} files (${Math.round(prepared.bytes / 1024 / 1024)} MiB) in ${root}`)
 const env = {
   ...process.env, NODE_PATH: '', NODE_OPTIONS: '', XDG_CONFIG_HOME: path.join(root, 'config'),
-  PNPM_LOADER_MANIFEST: path.join(root, '.pnpm-store.json'), UNRS_RESOLVER_NODE_RESOLUTION: '1',
+  PNPM_LOADER_MANIFEST: path.join(root, '.store-manifest.json'), UNRS_RESOLVER_NODE_RESOLUTION: '1',
 }
 const cases = [
   { name: 'parse-cli-args', directory: suite, entry: 'repo/run-jest.cjs', args: ['--runInBand', '--coverage=false', '--runTestsByPath', 'test/index.ts'] },

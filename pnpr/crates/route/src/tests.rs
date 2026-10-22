@@ -9,7 +9,8 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
-use pnpr_policy::{AccessList, Identity};
+use pnpr_fixtures::MockConfigPresets;
+use pnpr_policy::{AccessList, Identity, RuleOverride};
 
 fn base_config() -> Config {
     Config::proxy("127.0.0.1:7677".parse::<SocketAddr>().unwrap(), PathBuf::from("/tmp/pnpr-route"))
@@ -432,9 +433,9 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
-    // A request to pnpr's own `/~corp/` endpoint resolves through the corp
-    // upstream, using its current credential (the URL carries none).
-    let url = format!("{}/~corp/@acme%2fwidget", config.http.public_url);
+    // A request to pnpr's own `/npm/~corp/` endpoint resolves through the
+    // corp upstream, using its current credential (the URL carries none).
+    let url = format!("{}/npm/~corp/@acme%2fwidget", config.http.public_url);
     assert_eq!(
         context.classify(&user("alice"), &url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
@@ -445,7 +446,7 @@ fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     // itself rejects is the fail-closed point.
     assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Public);
     // An unknown upstream name is treated the same way.
-    let ghost = format!("{}/~ghost/@acme%2fwidget", config.http.public_url);
+    let ghost = format!("{}/npm/~ghost/@acme%2fwidget", config.http.public_url);
     assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Public);
 }
 
@@ -459,12 +460,12 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
-    // The path-preserving hosted prefix still recognizes the `/pnpr/~corp/`
+    // The path-preserving hosted prefix still recognizes the `/pnpr/npm/~corp/`
     // endpoint instead of dropping the `/pnpr` path and misclassifying it.
     assert_eq!(
         context.classify(
             &user("alice"),
-            "https://host.example/pnpr/~corp/@acme%2fwidget",
+            "https://host.example/pnpr/npm/~corp/@acme%2fwidget",
             Some("@acme/widget"),
         ),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
@@ -493,13 +494,15 @@ fn upstream_without_access_is_an_anonymous_route() {
 
 #[test]
 fn proxied_alias_accepts_team_member_identity() {
-    use pnpr_policy::{AccessList, AccessToken};
+    use pnpr_policy::{AccessList, AccessToken, TeamDirectory};
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
     upstream.access = Some(AccessList::new(vec![AccessToken::Team {
         name: "platform".to_string(),
-        members: ["alice".to_string()].into(),
+        directory: TeamDirectory::new(
+            [("platform".to_string(), ["alice".to_string()].into())].into(),
+        ),
     }]));
     config.routing.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);
@@ -543,6 +546,30 @@ fn hosted_route_follows_package_access_policy() {
         context.classify(&anon(), "https://pnpr.example/lodash", Some("lodash")),
         RouteClass::Public,
     );
+}
+
+#[test]
+fn hosted_route_follows_rules_replaced_after_the_context_was_built() {
+    let mut config = base_config();
+    config.http.public_url = "https://pnpr.example/".to_string();
+    let context = RouteContext::from_config(&config);
+    let url = "https://pnpr.example/@private%2fpkg";
+    let alice_reads = || context.classify(&user("alice"), url, Some("@private/pkg"));
+    assert!(matches!(alice_reads(), RouteClass::Hosted { .. }));
+
+    let rules = &config.routing.hosted["local"].rules;
+    let table = rules.snapshot();
+    let only_bob = table
+        .rules()
+        .iter()
+        .map(|rule| {
+            let access = Some(AccessList::from_tokens(["bob"]));
+            (rule.pattern.clone(), RuleOverride { access, ..RuleOverride::default() })
+        })
+        .collect();
+    rules.replace(table.with_overrides(None, only_bob).unwrap());
+
+    assert_eq!(alice_reads(), RouteClass::Public);
 }
 
 #[test]

@@ -1,22 +1,27 @@
 pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
-pub(crate) use parse_settings::parse_settings_file;
+pub(crate) use includes::read_workspace_document;
+pub(crate) use parse_settings::{parse_settings, parse_settings_file};
+pub use permissions::{
+    PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
+};
+pub(crate) use readable::{read_readable_settings, select_settings};
 pub(crate) use sections::deserialize_tools;
 pub use sections::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, LockfileSetting, PackageExtension, PeerDependencyMeta,
-    PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings,
-    SideEffectsCacheSetting, SideEffectsCacheSettings, TaskSettings, Tool, ToolSettings,
-    UpdateConfig, UpdateSettings, decided_allow_builds,
+    DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, LockfileSetting, PackageExtension,
+    PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteCacheSettings,
+    RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
+    TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
-pub use settings::{MacosBackupSettings, WorkspaceSettings};
+pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
-    NodeLinkerSetting, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
-    RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType,
+    NodeLinkerSetting, NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
+    VerifyDepsBeforeRun, VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
@@ -32,7 +37,7 @@ use package_configs::PackageConfigsSetting;
 use pnpm_env_replace::{SystemEnv, env_replace_lossy, placeholder_ranges};
 use pnpm_network::redact_and_sanitize;
 use pnpm_package_is_installable::SupportedArchitectures;
-use pnpm_store_dir::StoreDir;
+use pnpm_store_dir::{StoreDir, StoreIndexFormat};
 use pnpm_workspace_state::ConfigDependency;
 use registries::RegistryEntry;
 use serde::{Deserialize, Deserializer, de::IgnoredAny};
@@ -53,7 +58,10 @@ pub struct WorkspaceKeyIssues {
     pub refused: Vec<String>,
     pub unrecognized: Vec<String>,
     pub non_camel_case: Vec<String>,
-    pub unrecognized_task_settings: UnrecognizedTaskSettings,
+    pub unrecognized_task_settings: UnrecognizedSettings,
+    /// `permissions` capabilities no supported pnpm reads, e.g.
+    /// `permissions['esbuild'].mcp`.
+    pub unrecognized_permissions: UnrecognizedSettings,
 }
 
 impl WorkspaceKeyIssues {
@@ -63,24 +71,25 @@ impl WorkspaceKeyIssues {
             && self.unrecognized.is_empty()
             && self.non_camel_case.is_empty()
             && self.unrecognized_task_settings.total == 0
+            && self.unrecognized_permissions.total == 0
     }
 }
 
-/// The `tasks` entries' fields no supported pnpm reads: the paths that name
-/// them, e.g. `tasks['build'].dependson`, and how many there are.
+/// Nested settings no supported pnpm reads: the paths that name them, e.g.
+/// `tasks['build'].dependson`, and how many there are.
 ///
-/// Every path repeats the name of the task it belongs to, so a file naming
-/// one long task and many fields renders far more text than it contains.
-/// Only the first [`NAMED_UNRECOGNIZED_TASK_SETTINGS`] are rendered, which
+/// Every path repeats the name of the entry it belongs to, so a file naming
+/// one long entry and many fields renders far more text than it contains.
+/// Only the first [`NAMED_UNRECOGNIZED_SETTINGS`] are rendered, which
 /// bounds the report by itself rather than by the file.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct UnrecognizedTaskSettings {
+pub struct UnrecognizedSettings {
     pub named: Vec<String>,
     pub total: usize,
 }
 
-/// How many unrecognized task settings a report names one by one.
-pub const NAMED_UNRECOGNIZED_TASK_SETTINGS: usize = 10;
+/// How many unrecognized settings a report names one by one.
+pub const NAMED_UNRECOGNIZED_SETTINGS: usize = 10;
 
 /// Basename of the file pnpm reads; exported for test use.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
@@ -211,7 +220,6 @@ macro_rules! identically_named_settings {
             stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
             skip_manifest_obfuscation, sort, use_beta_cli,
             hoist, shamefully_hoist,
-            node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
@@ -230,9 +238,9 @@ macro_rules! identically_named_settings {
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, auto_dedupe,
             dedupe_direct_deps, dedupe_injected_deps,
-            strict_peer_dependencies, ignore_compatibility_db,
+            strict_peer_dependencies, ignore_compatibility_db, add_missing_peer_types,
             resolve_peers_from_workspace_root, verify_store_integrity,
-            strict_store_pkg_content_check, frozen_store,
+            strict_store_pkg_content_check, frozen_store, store_index_format,
             include_workspace_root, fail_if_no_match,
             ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,
@@ -245,7 +253,7 @@ macro_rules! identically_named_settings {
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,
-            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
+            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, max_tarball_unpacked_size, user_agent,
             tag_version_prefix,
             publish_wait_timeout,
             enable_global_virtual_store,
@@ -289,18 +297,22 @@ fn global_shims_setting(config: &Config) -> crate::GlobalShimsSetting {
 }
 
 /// Reads and writes as resolved, in the boolean shorthand when they agree
-/// and no remote cache is configured. That is the shape pnpm reports and
-/// the one a hook is likeliest to assign.
+/// and neither a remote cache nor an exclude list is configured. That is
+/// the shape pnpm reports and the one a hook is likeliest to assign.
 fn side_effects_cache_setting(config: &Config) -> SideEffectsCacheSetting {
     let read = config.side_effects_cache_read();
     let write = config.side_effects_cache_write();
-    if read == write && config.remote_side_effects_cache.is_none() {
+    if read == write
+        && config.remote_side_effects_cache.is_none()
+        && config.side_effects_cache_exclude.is_none()
+    {
         SideEffectsCacheSetting::Enabled(read)
     } else {
         SideEffectsCacheSetting::Settings(Box::new(SideEffectsCacheSettings {
             read: Some(read),
             write: Some(write),
             remote: config.remote_side_effects_cache.clone(),
+            exclude: config.side_effects_cache_exclude.clone(),
         }))
     }
 }
@@ -396,6 +408,8 @@ mod sections;
 
 mod validation;
 
+mod permissions;
+
 mod workspace_scope;
 
 mod env;
@@ -417,6 +431,12 @@ mod reset;
 mod parse_settings;
 
 mod settings;
+
+mod includes;
+
+mod global;
+
+mod readable;
 
 mod error;
 

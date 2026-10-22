@@ -504,6 +504,30 @@ fn patch_commit_diff_dirs_writes_a_parseable_nested_added_file_patch() {
 }
 
 #[test]
+fn patch_commit_diff_dirs_writes_a_rename_with_package_relative_paths() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    for dir in [before.path(), after.path()] {
+        fs::create_dir(dir.join("lib")).unwrap();
+    }
+    fs::write(before.path().join("lib/a.js"), "module.exports = 1\n").unwrap();
+    fs::write(after.path().join("lib/b.js"), "module.exports = 1\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches
+        .next()
+        .expect("rename patch")
+        .expect("parse generated patch");
+    let FileOperation::Rename { from, to } = patch.operation() else {
+        panic!("expected a rename, diff: {diff}");
+    };
+    assert_eq!((from.as_ref(), to.as_ref()), ("lib/a.js", "lib/b.js"));
+    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+}
+
+#[test]
 fn patch_commit_diff_dirs_reports_git_errors() {
     let tmp = tempdir().expect("temp dir");
 

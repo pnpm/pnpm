@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::super::child_seeds::{ChildSeedScope, child_wanted};
 use crate::resolve_dependency_tree::{
-    TreeCtx,
+    DependencySpec, TreeCtx,
     workspace_ctx::{DirectDepVersions, WorkspaceTreeCtx},
 };
 
@@ -31,7 +31,12 @@ fn child_wanted_for_react(ctx: &TreeCtx) -> (Option<String>, Option<String>) {
         declaring_dir: None,
         parent_is_workspace: false,
     };
-    let spec = ("react".to_string(), "^17.0.0 || ^18.0.0".to_string(), false, false);
+    let spec = DependencySpec {
+        alias: "react".to_string(),
+        bare_specifier: "^17.0.0 || ^18.0.0".to_string(),
+        optional: false,
+        injected: false,
+    };
     let (wanted, prior) = child_wanted(ctx, &scope, &spec, 1);
     (wanted.bare_specifier, prior.map(|key| key.to_string()))
 }

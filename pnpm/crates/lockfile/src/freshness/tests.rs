@@ -24,6 +24,7 @@ fn manifest_from_json(json: &str) -> (tempfile::TempDir, PackageManifest) {
 
 fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
     LockfileSettingsCheck {
+        integrity_target: crate::IntegrityTarget::Resource,
         catalogs,
         overrides: None,
         package_extensions_checksum: None,
@@ -33,6 +34,7 @@ fn settings_check(catalogs: &Catalogs) -> LockfileSettingsCheck<'_> {
             auto_install_peers: true,
             dedupe_peers: false,
             exclude_links_from_lockfile: false,
+            add_missing_peer_types: false,
             inject_workspace_packages: false,
             peers_suffix_max_length: crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH,
             pnpmfile_checksum: PnpmfileChecksumCheck::Current(None),

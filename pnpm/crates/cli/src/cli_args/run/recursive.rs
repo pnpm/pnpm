@@ -23,9 +23,8 @@ use super::{
 use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-        filtered_projects_dependencies, find_resume_root, no_projects_matched_message,
-        notice_workspace_dir, projects_to_verify, select_recursive_projects,
-        write_recursive_summary,
+        filtered_projects_dependencies, find_resume_root, print_no_projects_matched,
+        projects_to_verify, select_recursive_projects, write_recursive_summary,
     },
     reporter::{ReporterType, reporter_emit, suppresses_info_output},
     task_run_state::{TaskRunExecutionSettings, TaskRunStateContext, task_run_execution_settings},
@@ -36,7 +35,7 @@ use execution::{RunOutcome, RunSlots, TaskRunner};
 use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, TaskSettings};
-use pnpm_executor::{ProcessTracker, ScriptOutput};
+use pnpm_executor::{ProcessTracker, ScriptExit, ScriptOutput, exit_like};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -148,7 +147,7 @@ pub fn run_recursive(
     // workspace instead falls through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
         if !args.json && !silent {
-            println!("{}", no_projects_matched_message(notice_workspace_dir(config, dir)));
+            print_no_projects_matched(config, dir);
         }
         return Ok(RecursiveRunOutcome::Done);
     }
@@ -228,6 +227,8 @@ struct RunResults {
     ran_a_command: bool,
     /// The first failed project's prefix, when `--bail` stopped the run.
     first_failure: Option<String>,
+    /// How the first script the user's interrupt ended exited.
+    interrupted: Option<ScriptExit>,
 }
 
 impl RecursiveRun<'_, '_> {
@@ -253,6 +254,12 @@ impl RecursiveRun<'_, '_> {
             self.reporter,
         )?;
         let results = self.execute(&prepared)?;
+        // The user ended the run, so pnpm ends the way the interrupted
+        // script did rather than reporting the scripts as failed
+        // (pnpm/pnpm#16964).
+        if let Some(exit) = results.interrupted {
+            exit_like(exit);
+        }
         report_run_outcome(
             &RunReporting {
                 args: self.args,
@@ -406,6 +413,7 @@ impl RecursiveRun<'_, '_> {
                 result: &slots.result,
                 has_command: &slots.has_command,
                 first_failure: &slots.first_failure,
+                interrupted: &slots.interrupted,
                 abort: &slots.abort,
                 process_tracker: process_tracker.as_ref(),
                 task_run_state: &prepared.task_run_state,

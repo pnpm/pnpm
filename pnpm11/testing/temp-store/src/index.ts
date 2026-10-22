@@ -7,7 +7,7 @@ import type { StoreController } from '@pnpm/store.controller-types'
 import { StoreIndex } from '@pnpm/store.index'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 export interface CreateTempStoreResult {
   storeController: StoreController

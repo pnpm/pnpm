@@ -23,6 +23,7 @@ on:
       - 'pnpm/tasks/registry-mock/package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.config/pnpm/**'
       - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
@@ -52,6 +53,7 @@ on:
       - 'pnpm/tasks/registry-mock/package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.config/pnpm/**'
       - 'pnpm/tasks/integrated-benchmark/src/fixtures/**'
       - '.github/actions/rustup/**'
       - '.github/actions/binstall/**'
@@ -198,7 +200,7 @@ jobs:
           tar -cf "revision-$REVISION.tar" "${files[@]}"
 
       - name: Upload revision binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integrated-benchmark-bin-${{ matrix.os }}-${{ matrix.revision }}
           path: revision-${{ matrix.revision }}.tar
@@ -247,7 +249,7 @@ jobs:
         run: tar -cf executor.tar target/debug/integrated-benchmark
 
       - name: Upload benchmark executor
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integrated-benchmark-bin-blacksmith-8vcpu-ubuntu-2404-executor
           path: executor.tar
@@ -272,8 +274,11 @@ jobs:
           - isolated-linker.fresh-resolve.hot-cache.offline
           - isolated-linker.peer-heavy-resolve.hot-cache.offline
           - isolated-linker.linked-workspace-resolve.hot-cache.offline
+          - isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store
           - isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr
           - gvs-linker.fresh-restore.hot-cache.hot-store
+          - store-only.unlocked-direct-deps.cold-cache.hot-store
+          - cargo.repeat-install.hot-cache.hot-store
     name: ${{ matrix.scenario }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
@@ -296,10 +301,11 @@ jobs:
       # command exercises client-side peer resolution rather than server or
       # tarball performance.
       PEER_HEAVY_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpm@HEAD' || 'pacquet@HEAD pacquet@main pnpm@HEAD' }}
-      # The linked-workspace case compares the PR against main only. Its
-      # fixture is a pure `workspace:*` graph, so there is nothing for a pnpr
-      # server to accelerate, and pnpm v11 never walks linked importers at all.
-      LINKED_WORKSPACE_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
+      # The workspace fixtures use only local packages, and the store-only
+      # scenario measures the client's own resolution and store check, which
+      # a pnpr server would take over, so these compare the PR against main
+      # without one.
+      WORKSPACE_BENCHMARK_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD' || 'pacquet@HEAD pacquet@main' }}
       BENCHMARK_BUILD_TARGETS: ${{ github.ref_name == 'main' && 'pacquet@HEAD pnpr@HEAD' || 'pacquet@HEAD pacquet@main pnpr@HEAD pnpr@main' }}
       # Network emulation so both install strategies cross the link they
       # would in production instead of free loopback (~GB/s, ~0 RTT), which
@@ -338,11 +344,13 @@ jobs:
 
       - name: Cache pnpm-registry storage
         # The generated fixtures never populate the npm proxy cache: peer-heavy
-        # is seeded into hosted storage, linked-workspace names no registry
-        # package at all.
+        # is seeded into hosted storage, while the workspace fixtures name
+        # no registry package.
         if: >-
           matrix.scenario != 'isolated-linker.peer-heavy-resolve.hot-cache.offline' &&
-          matrix.scenario != 'isolated-linker.linked-workspace-resolve.hot-cache.offline'
+          matrix.scenario != 'isolated-linker.linked-workspace-resolve.hot-cache.offline' &&
+          matrix.scenario != 'isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store' &&
+          matrix.scenario != 'cargo.repeat-install.hot-cache.hot-store'
         # Persists pnpm-registry's `--storage` dir across CI runs so
         # cold-cache benchmark scenarios don't refetch ~2.3k unscoped
         # packages from npmjs on every run. Replaces the older
@@ -365,7 +373,7 @@ jobs:
         continue-on-error: true
 
       - name: Download revision binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: integrated-benchmark-bin-${{ matrix.os }}-*
           path: revision-binaries
@@ -386,7 +394,7 @@ jobs:
           save-cache: false # it's insufficient
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -407,7 +415,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: just
 
@@ -585,9 +593,18 @@ jobs:
         # (https://github.com/pnpm/pnpm/issues/14906).
         timeout-minutes: 20
         run: |
-          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=isolated-linker.linked-workspace-resolve.hot-cache.offline --registry=verdaccio --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $LINKED_WORKSPACE_BENCHMARK_TARGETS
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=isolated-linker.linked-workspace-resolve.hot-cache.offline --registry=verdaccio --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $WORKSPACE_BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE.json
+
+      - name: 'Benchmark: Isolated linker: injected workspace repeat install, hot cache + hot store'
+        if: matrix.scenario == 'isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store'
+        shell: bash
+        timeout-minutes: 20
+        run: |
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store --registry=npm $WORKSPACE_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
         if: matrix.scenario == 'isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
@@ -631,6 +648,52 @@ jobs:
           node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=gvs-linker.fresh-restore.hot-cache.hot-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Store only: unlocked direct deps, cold cache + hot store'
+        if: matrix.scenario == 'store-only.unlocked-direct-deps.cold-cache.hot-store'
+        shell: bash
+        # The install a FUSE-mounted `node_modules` or a CI job that only
+        # fills a shared store runs: `enableModulesDir: false`, so the
+        # client resolves, writes the lockfile and checks the store, and
+        # links nothing. The seeded lockfile lacks the direct dependencies
+        # that have peers, the shape of `pnpm install` after dependencies
+        # were added to `package.json` by hand: those dependencies resolve
+        # from the registry and land on versions the lockfile's package
+        # graph still holds, so the walk reuses their subtrees instead of
+        # resolving them. (A dependency without peers is taken from the
+        # lockfile's package list without a registry request, so it would
+        # add nothing.) The metadata cache is wiped per iteration, so every
+        # package the walk does resolve costs a round trip over the
+        # emulated registry link; that is what makes the subtrees the
+        # lockfile spares show in the timing. The lockfile is trusted
+        # (`trustLockfile: true`): its supply-chain verification reads
+        # every entry's packument and would hide the walk's own fetches.
+        # The rest of the timed work is the per-package check that the
+        # store holds every file, against a per-file store index
+        # (`storeIndexFormat: files`), the format a store shared between
+        # machines uses.
+        #
+        # No other scenario resolves against a lockfile it can mostly
+        # reuse, runs store-only, or reads the per-file index; this is the
+        # series that guards the speculative warm-up against re-resolving
+        # reused subtrees (pnpm/pnpm#16886) and keeps the store check
+        # overlapped with the resolution (pnpm/pnpm#16888). Direct targets
+        # only: a pnpr server would take over the resolution being measured.
+        # No download and no linking per iteration, so 15 min is ample.
+        timeout-minutes: 15
+        run: |
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=store-only.unlocked-direct-deps.cold-cache.hot-store --registry=verdaccio --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $WORKSPACE_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.json
+
+      - name: 'Benchmark: Cargo: repeat install, hot cache + hot store'
+        if: matrix.scenario == 'cargo.repeat-install.hot-cache.hot-store'
+        shell: bash
+        timeout-minutes: 20
+        run: |
+          node .github/scripts/run-integrated-benchmark.mjs --reuse-prebuilt-binaries --scenario=cargo.repeat-install.hot-cache.hot-store --registry=npm $WORKSPACE_BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
 
       # When a scenario fails, hyperfine aborts and the benchmarked install's
       # own output is invisible: each target's script redirects stdout+stderr to
@@ -682,7 +745,7 @@ jobs:
           echo "$OUTCOME" > bench-work-env/peer-heavy-outcome.txt
 
       - name: Upload scenario results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integrated-benchmark-scenario-${{ matrix.os }}-${{ matrix.scenario }}
           overwrite: true
@@ -711,7 +774,7 @@ jobs:
         run: node --test .github/scripts/compare-integrated-benchmarks.test.mjs .github/scripts/run-integrated-benchmark.test.mjs
 
       - name: Download scenario results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: integrated-benchmark-scenario-blacksmith-8vcpu-ubuntu-2404-*
           path: bench-work-env
@@ -731,7 +794,7 @@ jobs:
             echo
             echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
-            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked-workspace scenario compares current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
+            echo 'Regular scenarios report direct and pnpr installs. The peer-heavy resolver scenario compares current Rust, main Rust, and TypeScript pnpm; the linked, injected, and Cargo workspace scenarios compare current Rust against main Rust. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
             echo 'The tables below show mean ± σ. Bencher tracks absolute minimum latency; PR regression checks compare HEAD and main samples from the same runner. Historical timing alerts do not gate PRs.'
             echo
@@ -855,6 +918,18 @@ jobs:
             echo
             echo '</details>'
             echo
+            echo '### Scenario: Isolated linker: injected workspace repeat install, hot cache + hot store'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
             echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
             echo
             cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
@@ -877,6 +952,34 @@ jobs:
             echo
             echo '```json'
             jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: Store only: unlocked direct deps, cold cache + hot store'
+            echo
+            echo 'Store-only install (`enableModulesDir: false`, per-file store index, trusted lockfile) against a lockfile missing the direct dependencies that have peers, with the metadata cache wiped per iteration: the install resolves those from the registry, reuses their subtrees from the lockfile and checks the store, linking nothing. Direct installs only.'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE.json
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo '### Scenario: Cargo: repeat install, hot cache + hot store'
+            echo
+            echo 'Frozen repeat install of a Cargo workspace (`cargo.enabled: true`) whose crates are already materialized in `<storeDir>/v11/crates/` and linked into `.pnpm/crates/crates-io`. Direct installs only.'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes, .results[].times, .confirmation.results[]?.exit_codes, .confirmation.results[]?.times)' bench-work-env/BENCHMARK_REPORT_CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE.json
             echo '```'
             echo
             echo '</details>'
@@ -935,8 +1038,11 @@ jobs:
             'ISOLATED_FRESH_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.fresh-resolve.hot-cache.offline' \
             'ISOLATED_PEER_HEAVY_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.peer-heavy-resolve.hot-cache.offline' \
             'ISOLATED_LINKED_WORKSPACE_RESOLVE_HOT_CACHE_OFFLINE:isolated-linker.linked-workspace-resolve.hot-cache.offline' \
+            'ISOLATED_INJECTED_WORKSPACE_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store' \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr' \
-            'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store'
+            'GVS_FRESH_RESTORE_HOT_CACHE_HOT_STORE:gvs-linker.fresh-restore.hot-cache.hot-store' \
+            'STORE_ONLY_UNLOCKED_DIRECT_DEPS_COLD_CACHE_HOT_STORE:store-only.unlocked-direct-deps.cold-cache.hot-store' \
+            'CARGO_REPEAT_INSTALL_HOT_CACHE_HOT_STORE:cargo.repeat-install.hot-cache.hot-store'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
@@ -970,7 +1076,7 @@ jobs:
           cp bench-work-env/bencher-results-pnpr.json benchmark-artifact/bencher-results-pnpr.json
 
       - name: Upload benchmark report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integrated-benchmark-report-ubuntu-latest
           overwrite: true

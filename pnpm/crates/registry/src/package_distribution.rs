@@ -1,8 +1,18 @@
+use std::collections::BTreeMap;
+
+use pnpm_package_manifest::PackageBin;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
 
 #[derive(Debug, Default, Clone, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror npm registry dist metadata."
+    )
+)]
 pub struct PackageDistribution {
     /// Subresource integrity for the version's tarball.
     ///
@@ -14,6 +24,10 @@ pub struct PackageDistribution {
     /// version, on purpose.
     pub integrity: Option<Integrity>,
     pub shasum: Option<String>,
+    /// The tarball URL, or empty when the registry names none. A registry
+    /// with a declared URL layout may omit it, and the resolver then
+    /// rebuilds it from the package's identity.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tarball: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<serde_json::Value>,
@@ -49,6 +63,35 @@ pub struct PackageDistribution {
         skip_serializing_if = "Option::is_none"
     )]
     pub attestations: Option<AttestationsDist>,
+
+    /// Tarball-verified facts `pnpr` computes from the archive's own
+    /// bytes and attaches under `dist.pnpr`.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub pnpr: Option<PnprDistribution>,
+}
+
+/// Tarball-verified facts `pnpr` attaches to `dist.pnpr`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PnprDistribution {
+    /// The build-trigger verdict of `pnpm_tarball::tar_requires_build`.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_strict_flag",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub requires_build: Option<bool>,
+    /// Precalculated executable bin entries and their shebang runtimes.
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_pnpr_bins",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub bins: Option<BTreeMap<String, PackageBin>>,
 }
 
 /// Container for the attestation evidence a version exposes on its

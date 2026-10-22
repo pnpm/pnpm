@@ -1,7 +1,7 @@
 use super::{
-    AuthHeaders, MAX_REDIRECT_HOPS, RetryOpts, SecureAuthResponse, ThrottledClient,
-    ThrottledClientGuard, UNPRIORITIZED, is_redirect_status, is_url_secure_for_credentials,
-    read_limited_body, retry,
+    AuthHeaders, Client, ClientSet, Instant, MAX_REDIRECT_HOPS, RetryOpts, SecureAuthResponse,
+    ThrottledClient, ThrottledClientGuard, UNPRIORITIZED, is_redirect_status,
+    is_url_secure_for_credentials, read_limited_body, retry,
 };
 
 impl ThrottledClient {
@@ -174,6 +174,16 @@ impl ThrottledClient {
         priority: u64,
         follow_redirects: bool,
     ) -> ThrottledClientGuard<'_> {
+        self.acquire_with_client(url, priority, |clients| clients.select(follow_redirects, true))
+            .await
+    }
+
+    pub(super) async fn acquire_with_client(
+        &self,
+        url: &str,
+        priority: u64,
+        select: impl FnOnce(&ClientSet) -> &Client,
+    ) -> ThrottledClientGuard<'_> {
         // Acquire the per-origin permits *before* the global
         // concurrency permit: a request queued behind a saturated origin must
         // not hold a global slot while it waits, or a burst to one origin would
@@ -192,8 +202,14 @@ impl ThrottledClient {
             origin_permit.mark_active();
         }
         let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
-        let client = clients.select(follow_redirects);
-        ThrottledClientGuard { permit, host_permit, origin_permit, client }
+        let client = select(clients);
+        ThrottledClientGuard {
+            permit,
+            host_permit,
+            origin_permit,
+            client,
+            acquired_at: Instant::now(),
+        }
     }
 }
 

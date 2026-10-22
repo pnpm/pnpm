@@ -2,12 +2,11 @@ use crate::fast_update_compose::Drift;
 use pnpm_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pnpm_lockfile::{
     ImporterDepVersion, Lockfile, PackageKey, PatchedDepPathsStatus, ProjectSnapshot,
-    ResolvedDependencyMap, SnapshotDepRef, check_patched_dep_paths, name_version_from_package_key,
+    ResolvedDependencyMap, SnapshotDepRef, applied_patch_keys, check_patched_dep_paths,
+    patch_groups_from_hashes,
 };
-use pnpm_patching::{
-    PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
-};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use pnpm_patching::{PatchGroupRecord, all_patch_keys, get_patch_info};
+use std::collections::{BTreeMap, HashMap};
 
 /// Where a package's snapshot key moves to when its patch changes.
 type Rekeys = HashMap<PackageKey, PackageKey>;
@@ -47,7 +46,7 @@ pub(crate) fn detect_patched_drift(
     if recorded == current {
         return Drift::Clean;
     }
-    match groups_from_hashes(current) {
+    match patch_groups_from_hashes(current) {
         Some(groups) => Drift::Absorb(PatchedPlan { current: current.clone(), groups }),
         None => Drift::Resolve,
     }
@@ -303,7 +302,7 @@ pub(crate) fn every_configured_patch_is_applied(
     let Some(hashes) = hashes.filter(|hashes| !hashes.is_empty()) else {
         return true;
     };
-    let Some(groups) = groups_from_hashes(hashes) else {
+    let Some(groups) = patch_groups_from_hashes(hashes) else {
         return false;
     };
     let Some(applied) = applied_patch_keys(lockfile, &groups) else {
@@ -323,56 +322,13 @@ pub(crate) fn unused_patches(
     hashes: Option<&BTreeMap<String, String>>,
 ) -> Option<pnpm_patching::UnusedPatches> {
     let hashes = hashes.filter(|hashes| !hashes.is_empty())?;
-    let groups = groups_from_hashes(hashes)?;
+    let groups = patch_groups_from_hashes(hashes)?;
     let applied = applied_patch_keys(lockfile, &groups)?;
     let applied = applied
         .into_iter()
         .map(str::to_string)
         .collect();
     pnpm_patching::verify_patches(&groups, &applied, true).ok().flatten()
-}
-
-/// Bucket `hashes` the way the resolver buckets configured patches.
-///
-/// The patch file path is left out: nothing here applies a patch, and
-/// the hashes [`pnpm_config::Config::patched_dependency_hashes`]
-/// already computed are the only payload the rewrite needs, so no patch
-/// file is read twice.
-///
-/// `None` for a key whose version segment is neither a version nor a
-/// range, leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
-fn groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRecord> {
-    group_patched_dependencies(
-        hashes
-            .iter()
-            .map(|(key, hash)| {
-                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
-            }),
-    )
-    .ok()
-}
-
-/// The patch keys in `patch_groups` that match a package the lockfile
-/// records, matched the way the resolver matches them.
-///
-/// `None` when a locked package matches more than one configured range,
-/// so the caller falls back and lets the resolver raise
-/// `ERR_PNPM_PATCH_KEY_CONFLICT` instead of quietly picking a winner.
-fn applied_patch_keys<'a>(
-    lockfile: &Lockfile,
-    patch_groups: &'a PatchGroupRecord,
-) -> Option<BTreeSet<&'a str>> {
-    let Some(snapshots) = lockfile.snapshots.as_ref() else {
-        return Some(BTreeSet::new());
-    };
-    let mut applied = BTreeSet::new();
-    for key in snapshots.keys() {
-        let (name, version) = name_version_from_package_key(key, lockfile.packages.as_ref());
-        if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
-            applied.insert(info.key.as_str());
-        }
-    }
-    Some(applied)
 }
 
 #[cfg(test)]

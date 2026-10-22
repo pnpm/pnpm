@@ -1,13 +1,11 @@
 import { expect, test } from '@jest/globals'
 import type { PackageSnapshots } from '@pnpm/lockfile.utils'
+import { DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT } from '@pnpm/resolving.resolver-base'
 import type { DepPath, ProjectManifest } from '@pnpm/types'
 
 import { getPreferredVersionsFromLockfileAndManifests } from '../lib/index.js'
 
-test.each([
-  { dedupe: false, lockfileWeight: 1_000_000 },
-  { dedupe: true, lockfileWeight: 1 },
-])('seeds manifest specs and lockfile pins with combined weights (dedupe: $dedupe)', ({ dedupe, lockfileWeight }) => {
+test('seeds manifest specs and lockfile pins with combined weights', () => {
   const manifest: ProjectManifest = {
     name: 'project',
     version: '1.0.0',
@@ -21,14 +19,14 @@ test.each([
     ['qar@3.0.0' as DepPath]: { resolution: { integrity: 'sha512-1' } },
   }
 
-  const preferredVersions = getPreferredVersionsFromLockfileAndManifests(snapshots, [manifest], { dedupe })
+  const preferredVersions = getPreferredVersionsFromLockfileAndManifests(snapshots, [manifest])
 
   // Manifest pin that is also locked gets both weights added together.
-  expect(preferredVersions.foo['1.0.0']).toEqual({ selectorType: 'version', weight: lockfileWeight + 1000 })
+  expect(preferredVersions.foo['1.0.0']).toEqual({ selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT })
   // Manifest range: manifest weight only.
-  expect(preferredVersions.bar['^2.0.0']).toEqual({ selectorType: 'range', weight: 1000 })
+  expect(preferredVersions.bar['^2.0.0']).toEqual({ selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT })
   // Lockfile-only pin: lockfile weight only.
-  expect(preferredVersions.qar['3.0.0']).toEqual({ selectorType: 'version', weight: lockfileWeight })
+  expect(preferredVersions.qar['3.0.0']).toEqual({ selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT })
 })
 
 test('catalog: specs seed the catalog entry they name', () => {
@@ -49,8 +47,8 @@ test('catalog: specs seed the catalog entry they name', () => {
     },
   })
 
-  expect(preferredVersions['from-default']).toEqual({ '1.2.3': { selectorType: 'version', weight: 1000 } })
-  expect(preferredVersions['from-named']).toEqual({ '^2.0.0': { selectorType: 'range', weight: 1000 } })
+  expect(preferredVersions['from-default']).toEqual({ '1.2.3': { selectorType: 'version', weight: DIRECT_DEP_SELECTOR_WEIGHT } })
+  expect(preferredVersions['from-named']).toEqual({ '^2.0.0': { selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT } })
   expect(preferredVersions.missing).toBeUndefined()
 })
 
@@ -70,9 +68,9 @@ test('a dependency named __proto__ cannot pollute Object.prototype', () => {
 
   // The crafted names land as plain own keys with the usual weights...
   expect(Object.getOwnPropertyDescriptor(preferredVersions, '__proto__')?.value)
-    .toEqual({ '1.0.0': { selectorType: 'version', weight: 1_001_000 } })
+    .toEqual({ '1.0.0': { selectorType: 'version', weight: EXISTING_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT } })
   expect(Object.getOwnPropertyDescriptor(preferredVersions, 'constructor')?.value)
-    .toEqual({ '^2.0.0': { selectorType: 'range', weight: 1000 } })
+    .toEqual({ '^2.0.0': { selectorType: 'range', weight: DIRECT_DEP_SELECTOR_WEIGHT } })
   // ...and Object.prototype is untouched.
   expect(({} as Record<string, unknown>)['1.0.0']).toBeUndefined()
   expect(Object.prototype).not.toHaveProperty('1.0.0')

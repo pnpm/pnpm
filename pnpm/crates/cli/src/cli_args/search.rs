@@ -1,14 +1,19 @@
 //! `pacquet search` — search for packages in the registry.
 
-use crate::cli_args::{registry_client::build_registry_client, sanitize::sanitize};
+use crate::cli_args::{
+    registry_client::{
+        apply_auth_and_otp, build_registry_client, join_registry_url,
+        resolve_registries_with_override,
+    },
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body, sanitize},
+};
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Diagnostic, IntoDiagnostic, WrapErr};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, redact_and_sanitize, send_with_retry};
+use pnpm_network::{redact_and_sanitize, send_with_retry};
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -96,27 +101,20 @@ impl SearchArgs {
             return Err(SearchError::MissingQuery.into());
         }
 
-        let normalized_registry_url =
-            with_trailing_slash(self.registry.as_deref().unwrap_or(&config.registry));
-        let search_url = self.search_url(&normalized_registry_url, &query_string)?;
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let default_registry = registries
+            .get("default")
+            .map(String::as_str)
+            .unwrap_or(config.registry.as_str());
+        let search_url = self.search_url(default_registry, &query_string)?;
 
-        let auth_header = config.auth_headers.for_url(&normalized_registry_url);
+        let auth_header = config.auth_headers.for_url(default_registry);
         let http_client = build_registry_client(config)?;
-
-        let retry_opts = RetryOpts {
-            retries: config.fetch_retries,
-            factor: config.fetch_retry_factor,
-            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-        };
+        let retry_opts = config.retry_opts();
 
         let (client, response) =
             send_with_retry(&http_client, search_url.as_str(), retry_opts, |client| {
-                let mut request = client.get(search_url.as_str());
-                if let Some(ref header) = auth_header {
-                    request = request.header("authorization", header.as_str());
-                }
-                request
+                apply_auth_and_otp(client.get(search_url.as_str()), auth_header.as_deref(), None)
             })
             .await
             .map_err(|error| SearchError::NetworkError {
@@ -137,16 +135,10 @@ impl SearchArgs {
         self.render(data)
     }
 
-    fn search_url(
-        &self,
-        normalized_registry_url: &str,
-        query_string: &str,
-    ) -> miette::Result<url::Url> {
-        let base_url = url::Url::parse(normalized_registry_url)
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
-        let mut search_url = base_url
-            .join("./-/v1/search")
-            .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+    fn search_url(&self, registry_url: &str, query_string: &str) -> miette::Result<url::Url> {
+        let mut search_url = join_registry_url(registry_url, "-/v1/search")
+            .into_diagnostic()
+            .wrap_err("building search endpoint URL")?;
         search_url
             .query_pairs_mut()
             .append_pair("text", query_string)
@@ -161,8 +153,9 @@ impl SearchArgs {
                 .iter()
                 .map(|obj| &obj.package)
                 .collect();
-            return Ok(serde_json::to_string_pretty(&packages)
-                .map_err(|err| SearchError::NetworkError { message: err.to_string() })?);
+            return serde_json::to_string_pretty(&packages)
+                .into_diagnostic()
+                .wrap_err("formatting search results as JSON");
         }
 
         if data.objects.is_empty() {
@@ -172,7 +165,8 @@ impl SearchArgs {
         let mut formatted_packages = Vec::new();
         for obj in data.objects {
             let pkg: SearchPackage = serde_json::from_value(obj.package)
-                .map_err(|err| SearchError::NetworkError { message: err.to_string() })?;
+                .into_diagnostic()
+                .wrap_err("deserializing package search result")?;
             formatted_packages.push(format_package(&pkg));
         }
 
@@ -180,31 +174,12 @@ impl SearchArgs {
     }
 }
 
-/// Add a trailing slash before joining so a registry with a path prefix
-/// keeps it.
-fn with_trailing_slash(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_owned() } else { format!("{registry_url}/") }
-}
-
 /// The registry's own explanation of a rejected search, when it sent one.
 async fn search_request_failed(response: reqwest::Response) -> SearchError {
-    let status = response.status();
-    let error_body = response
-        .text()
-        .await
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let detail =
-        if error_body.is_empty() { String::new() } else { format!(". {}", sanitize(&error_body)) };
-    SearchError::SearchFailed {
-        status: status.as_u16(),
-        status_text: status
-            .canonical_reason()
-            .unwrap_or_default()
-            .to_string(),
-        detail,
-    }
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
+    let detail = if body.is_empty() { String::new() } else { format!(". {body}") };
+    SearchError::SearchFailed { status: status.as_u16(), status_text, detail }
 }
 
 fn format_package(pkg: &SearchPackage) -> String {
@@ -285,3 +260,6 @@ fn bright_blue(text: &str) -> String {
         .if_supports_color(Stream::Stdout, |t| t.bright_blue())
         .to_string()
 }
+
+#[cfg(test)]
+mod tests;

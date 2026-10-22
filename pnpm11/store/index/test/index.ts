@@ -64,6 +64,76 @@ test('ReadOnlyStoreIndex reads database growth after another connection runs a c
   }
 })
 
+test('StoreIndex leaves the store directory mtime unchanged when its entries are unchanged', () => {
+  const storeDir = temporaryDirectory()
+  try {
+    const setup = new StoreIndex(storeDir)
+    setup.set('present', { value: 1 })
+    setup.close()
+    const oldMtime = new Date('2020-09-13T12:26:40Z')
+    fs.utimesSync(storeDir, oldMtime, oldMtime)
+
+    const reader = new ReadOnlyStoreIndex(storeDir)
+    const writer = new StoreIndex(storeDir)
+    expect(reader.get('present')).toEqual({ value: 1 })
+    writer.set('added', { value: 2 })
+    reader.close()
+    expect(fs.existsSync(path.join(storeDir, 'index.db-wal'))).toBe(true)
+    writer.close()
+    expect(fs.existsSync(path.join(storeDir, 'index.db-wal'))).toBe(false)
+    expect(fs.statSync(storeDir).mtime).toEqual(oldMtime)
+
+    const index = new ReadOnlyStoreIndex(storeDir)
+    fs.mkdirSync(path.join(storeDir, 'projects'))
+    index.close()
+    expect(fs.statSync(storeDir).mtime).not.toEqual(oldMtime)
+  } finally {
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
+test('StoreIndex connections through a store alias share one store directory mtime snapshot', () => {
+  const storeDir = temporaryDirectory()
+  const aliasDir = temporaryDirectory()
+  try {
+    const setup = new StoreIndex(storeDir)
+    setup.set('present', { value: 1 })
+    setup.close()
+    const oldMtime = new Date('2020-09-13T12:26:40Z')
+    fs.utimesSync(storeDir, oldMtime, oldMtime)
+    const alias = path.join(aliasDir, 'store')
+    fs.symlinkSync(storeDir, alias, 'junction')
+
+    const direct = new ReadOnlyStoreIndex(storeDir)
+    expect(direct.get('present')).toEqual({ value: 1 })
+    const aliased = new StoreIndex(alias)
+    aliased.set('added', { value: 2 })
+    direct.close()
+    aliased.close()
+
+    expect(fs.statSync(storeDir).mtime).toEqual(oldMtime)
+  } finally {
+    fs.rmSync(aliasDir, { recursive: true, force: true })
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
+test('StoreIndex closes the database and keeps the store directory mtime when preparing statements fails', () => {
+  const storeDir = temporaryDirectory()
+  try {
+    new StoreIndex(storeDir).close()
+    const oldMtime = new Date('2020-09-13T12:26:40Z')
+    fs.utimesSync(storeDir, oldMtime, oldMtime)
+
+    expect(() => new FailingPrepareStoreIndex(storeDir)).toThrow('prepare failed')
+
+    expect(fs.existsSync(path.join(storeDir, 'index.db-wal'))).toBe(false)
+    expect(fs.statSync(storeDir).mtime).toEqual(oldMtime)
+  } finally {
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
 test('StoreIndex round-trips data via SQLite key', () => {
   const storeDir = path.join(temporaryDirectory(), 'store', 'v11')
   const idx = new StoreIndex(storeDir)
@@ -477,6 +547,13 @@ class MissingExecReadOnlyStoreIndex extends ReadOnlyStoreIndex {
     const db = super.openConnection(storeDir)
     ;(db as { exec?: unknown }).exec = undefined
     return db
+  }
+}
+
+class FailingPrepareStoreIndex extends StoreIndex {
+  protected override prepareStatements (): void {
+    super.prepareStatements()
+    throw new Error('prepare failed')
   }
 }
 

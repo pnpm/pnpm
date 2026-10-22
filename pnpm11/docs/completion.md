@@ -19,14 +19,14 @@ shell names are `bash`, `fish`, `pwsh`, and `zsh`.
 
 To setup autocompletion for Bash, run:
 
-```text
+```sh
 pnpm completion bash > ~/completion-for-pnpm.bash
 echo 'source ~/completion-for-pnpm.bash' >> ~/.bashrc
 ```
 
 To setup autocompletion for Fish, run:
 
-```text
+```sh
 pnpm completion fish > ~/.config/fish/completions/pnpm.fish
 ```
 

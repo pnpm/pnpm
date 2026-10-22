@@ -5,7 +5,7 @@ import path from 'node:path'
 import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 
-import { createStoreHooks } from '../index.mjs'
+import { assertSupportedNode, createStoreHooks } from '../index.mjs'
 import { openStore } from '../store.mjs'
 import { fixture } from './fixture.mjs'
 
@@ -115,8 +115,10 @@ test('rejects traversal in manifests and module requests', context => {
   const files = setup.add('example@1', { 'package.json': esm, 'index.js': "import '../../app.mjs'" })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+  setup.manifest.packages['example@1'].files['index.js'] = files['package.json']
   setup.manifest.packages['example@1'].files['../escape.js'] = files['index.js']
   assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_MANIFEST/)
+  assert.equal(setup.run("console.log('unused package')").stdout.trim(), 'unused package')
 })
 
 test('does not intercept files outside registered project roots', context => {
@@ -315,17 +317,17 @@ test('runs a stored extensionless CommonJS bin as the main module', context => {
 test('unknown virtual package paths produce a loader ENOENT error', context => {
   const setup = fixture(context)
   delete setup.manifest.packages['.']
-  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
-  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  setup.write('.store-manifest.json', JSON.stringify(setup.manifest))
+  const hooks = createStoreHooks(pathToFileURL(path.join(setup.root, '.store-manifest.json')))
   assert.throws(() => hooks.load(pathToFileURL(path.join(setup.root, '.pnpm-loader/unknown/index.js')).href, { conditions: [] }, () => assert.fail()), { code: 'ENOENT' })
 })
 
 test('caches verified virtual JSON without caching mutable workspace manifests', context => {
   const setup = fixture(context)
   const files = setup.add('example@1', { 'package.json': esm })
-  setup.write('.pnpm-store.json', JSON.stringify(setup.manifest))
+  setup.write('.store-manifest.json', JSON.stringify(setup.manifest))
   setup.write('package.json', '{"name":"before"}')
-  const store = openStore(pathToFileURL(path.join(setup.root, '.pnpm-store.json')))
+  const store = openStore(pathToFileURL(path.join(setup.root, '.store-manifest.json')))
   const virtual = path.join(store.packages.get('example@1').root, 'package.json')
   assert.equal(store.filesystem.readJsonSync(virtual).name, 'example')
   const hash = files['package.json']
@@ -343,4 +345,39 @@ test('rejects package main paths escaping into physical workspace files', contex
   setup.add('example@1', { 'package.json': '{"main":"../../outside.cjs"}' })
   setup.manifest.packages['.'].dependencies.example = 'example@1'
   assert.match(setup.run("import value from 'example'; console.log(value)", { failure: true }).stderr, /ERR_PNPM_LOADER_PATH_ESCAPE/)
+})
+
+test('resolves bundled dependencies from node_modules inside a stored package', context => {
+  const setup = fixture(context)
+  setup.add('example@1', {
+    'package.json': JSON.stringify({ name: 'example', main: 'index.js' }),
+    'index.js': "module.exports = require('bundled').default + require('declared')",
+    'node_modules/bundled/package.json': JSON.stringify({ name: 'bundled', type: 'module', exports: './index.js' }),
+    'node_modules/bundled/index.js': "import nested from 'nested'; export default 'bundled ' + nested",
+    'node_modules/nested/index.js': "module.exports = 'nested'",
+    'test/node_modules/fixture/index.js': 'module.exports = 1',
+  }, { declared: 'declared@1' })
+  setup.add('declared@1', { 'index.js': "module.exports = ' declared'" })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.equal(setup.run("import value from 'example'; console.log(value)").stdout, 'bundled nested declared\n')
+})
+
+test('does not resolve a package bundled in a sibling directory', context => {
+  const setup = fixture(context)
+  setup.add('example@1', {
+    'index.js': "module.exports = require('./lib')",
+    'lib/index.js': "module.exports = require('bundled')",
+    'vendor/node_modules/bundled/index.js': 'module.exports = 1',
+  })
+  setup.manifest.packages['.'].dependencies.example = 'example@1'
+  assert.match(setup.run("import 'example'", { failure: true }).stderr, /ERR_PNPM_LOADER_UNDECLARED_DEPENDENCY/)
+})
+
+test('rejects Node.js versions whose imported CommonJS bypasses the resolve hooks', () => {
+  for (const version of ['22.13.0', '22.23.3', '24.17.0', '24.18.0-rc.1', '25.9.0', '26.1.0', '26.2.0-rc.1']) {
+    assert.throws(() => assertSupportedNode(version), { code: 'ERR_PNPM_LOADER_UNSUPPORTED_NODE' }, version)
+  }
+  for (const version of ['24.18.0', '24.18.1-rc.1', '24.21.0', '26.2.0', '26.10.0', '27.0.0', '27.0.0-nightly20261001abcdef']) {
+    assert.doesNotThrow(() => assertSupportedNode(version), version)
+  }
 })

@@ -130,7 +130,7 @@ impl PackageManifest {
         }
         let manifest = PackageManifest::init_value_for(path, options);
         let contents = PackageManifest::write_to_file(path, &manifest)?;
-        println!("Wrote to {path}\n\n{contents}", path = path.display());
+        pnpm_diagnostics::println!("Wrote to {path}\n\n{contents}", path = path.display());
         Ok(())
     }
 }

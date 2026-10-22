@@ -7,6 +7,7 @@ import { prepare, preparePackages } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
+import { readYamlFileSync } from 'read-yaml-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from './utils/index.js'
@@ -159,6 +160,76 @@ test('importPackage hooks', async () => {
     'package.json',
     'readme.md',
   ])
+})
+
+test('a project with its own lockfile records the checksum of the workspace pnpmfile beside a global pnpmfile', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    sharedWorkspaceLockfile: false,
+  })
+  const workspacePnpmfile = 'module.exports = { hooks: { readPackage: (pkg) => pkg } }\n'
+  fs.writeFileSync('.pnpmfile.cjs', workspacePnpmfile)
+  fs.writeFileSync('../global-pnpmfile.cjs', 'module.exports = { hooks: { readPackage: (pkg) => pkg } }\n')
+
+  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global-pnpmfile.cjs')])
+
+  const lockfile = readYamlFileSync<{ pnpmfileChecksum?: string }>('project/pnpm-lock.yaml')
+  expect(lockfile.pnpmfileChecksum).toBe(createHash(workspacePnpmfile))
+})
+
+test('a project with its own lockfile runs the preResolution hooks of the global and the workspace pnpmfile once', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project'],
+    sharedWorkspaceLockfile: false,
+  })
+  // Each pnpmfile counts its runs in a file next to itself.
+  const countingPnpmfile = "module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(require('path').join(__dirname, 'runs.txt'), 'run;') } } }\n"
+  fs.writeFileSync('.pnpmfile.cjs', countingPnpmfile)
+  fs.mkdirSync('../global')
+  fs.writeFileSync('../global/pnpmfile.cjs', countingPnpmfile)
+
+  await execPnpm(['install', '--global-pnpmfile', path.resolve('..', 'global', 'pnpmfile.cjs')])
+
+  expect(fs.readFileSync('runs.txt', 'utf8')).toBe('run;')
+  expect(fs.readFileSync('../global/runs.txt', 'utf8')).toBe('run;')
+})
+
+test('the workspace root project with its own lockfile runs the workspace pnpmfile once', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', version: '1.0.0' },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.', 'project'],
+    sharedWorkspaceLockfile: false,
+  })
+  fs.writeFileSync('.pnpmfile.cjs', "module.exports = { hooks: { preResolution: () => { require('fs').appendFileSync(require('path').join(__dirname, 'runs.txt'), 'run;') } } }\n")
+
+  await execPnpm(['install'])
+
+  // Once for each of the two projects.
+  expect(fs.readFileSync('runs.txt', 'utf8')).toBe('run;run;')
 })
 
 test('adding or changing pnpmfile should change pnpmfileChecksum and module structure', async () => {
@@ -331,7 +402,7 @@ export const hooks = {
   await execPnpm([
     'add',
     'is-odd@1.0.0',
-    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
     '--node-linker=hoisted',
     '--fetch-retries=0',
   ])

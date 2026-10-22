@@ -103,7 +103,7 @@ importers:
     fn importer_check<'a>(
         (lockfile, lockfile_dir, config): (&'a Lockfile, &'a std::path::Path, &'a Config),
         manifest: &'a PackageManifest,
-        (ignored, allow_unresolved): (&'a pnpm_matcher::Matcher, bool),
+        (ignored, frozen_lockfile): (&'a pnpm_matcher::Matcher, bool),
     ) -> super::ImporterSatisfactionCheck<'a> {
         super::ImporterSatisfactionCheck {
             lockfile,
@@ -115,17 +115,18 @@ importers:
                 packages: None,
                 manifests_by_dir: Box::leak(Box::default()),
                 catalogs: Box::leak(Box::default()),
+                canonical_paths: Box::leak(Box::default()),
             },
-            optional_exclusions: super::OptionalDependencyExclusions { ignored, allow_unresolved },
+            optional_exclusions: super::OptionalDependencyExclusions { ignored, frozen_lockfile },
             parsed_overrides: None,
         }
     }
     let fixture = (&lockfile, root.path(), &config);
-    let check = |manifest: &PackageManifest, allow_unresolved: bool| {
+    let check = |manifest: &PackageManifest, frozen_lockfile: bool| {
         super::check_importer_satisfies(&importer_check(
             fixture,
             manifest,
-            (&ignored_optional_matcher, allow_unresolved),
+            (&ignored_optional_matcher, frozen_lockfile),
         ))
     };
 

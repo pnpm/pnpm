@@ -2,7 +2,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::{Lockfile, PackageKey, PackageMetadata, PkgName, SnapshotDepRef, SnapshotEntry};
+use crate::{
+    BoundProviders, Lockfile, PackageKey, PackageMetadata, PeerBindings, PkgName, SnapshotDepRef,
+    SnapshotEntry,
+};
 
 /// How [`PeerSatisfactionEdges::of_lockfile`] decides which importers
 /// provide a peer.
@@ -177,18 +180,24 @@ fn direct_keys(importer: &crate::ProjectSnapshot) -> HashSet<PackageKey> {
 }
 
 /// Each snapshot's entries whose alias is one of its package's optional
-/// peers, with the key each resolves to.
+/// peers and that its key records as a peer binding, with the key each
+/// resolves to. An entry the key does not bind is the package's own
+/// dependency.
 fn optional_peer_edges<'a>(
     snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
 ) -> HashMap<&'a PackageKey, Vec<(&'a PkgName, PackageKey)>> {
+    let entries = crate::LockfileEntries { snapshots: Some(snapshots), packages: Some(packages) };
     snapshots
         .iter()
         .filter_map(|(key, snapshot)| {
             let package = packages.get(&key.without_peer())?;
+            let _ = PeerBindings::from_key(key)?;
+            let providers = BoundProviders::of_snapshot(entries, key);
             let edges = all_entries(snapshot)
                 .filter(|(alias, _)| is_optional_peer(package, alias))
                 .filter_map(|(alias, dep_ref)| Some((alias, dep_ref.resolve(alias)?)))
+                .filter(|(_, target)| providers.binds(target))
                 .collect::<Vec<_>>();
             (!edges.is_empty()).then_some((key, edges))
         })

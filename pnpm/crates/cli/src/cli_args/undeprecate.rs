@@ -1,6 +1,5 @@
-use super::deprecate::{
-    DeprecateContext, DeprecateError, PackageSpec, parse_package_spec, update_deprecation,
-};
+use super::deprecate::{DeprecateContext, DeprecateError, parse_package_spec, update_deprecation};
+use crate::cli_args::package_spec::PackageSpec;
 use clap::Args;
 use pnpm_config::Config;
 
@@ -20,7 +19,7 @@ pub struct UndeprecateArgs {
 
 impl UndeprecateArgs {
     pub async fn run(self, config: &Config) -> miette::Result<Option<String>> {
-        let context = DeprecateContext::new(config, self.registry.as_ref(), self.otp)?;
+        let context = DeprecateContext::new(config, self.registry.as_deref(), self.otp)?;
 
         if self.params.is_empty() {
             return Err(DeprecateError::UndeprecateRequired.into());

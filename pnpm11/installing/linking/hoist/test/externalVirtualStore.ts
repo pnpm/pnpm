@@ -15,6 +15,7 @@ test('does not link skipped root dependencies into an external virtual store', a
   const depPath = '@types/fixture@1.0.0' as DepPath
   try {
     await hoist({
+      directDependencyAliases: [],
       graph: {
         [depPath]: {
           dir: path.join(virtualStoreDir, '@types+fixture@1.0.0/node_modules/@types/fixture'),
@@ -66,6 +67,7 @@ test.each([
   await symlinkDir(types, path.join(modulesDir, '@types/fixture'))
   try {
     await hoist({
+      directDependencyAliases: [],
       graph: {
         parent: {
           dir: parent,
@@ -116,6 +118,37 @@ test.each([
       expect(resolveTypes).toThrow("Cannot find module '@types/fixture/index.d.ts'")
     }
     expect(await resolveLinkTarget(path.join(modulesDir, '@types/fixture'))).toBe(types)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('hoists a workspace project into a symlinked external virtual store', async () => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-external-hoist-')))
+  const outside = path.join(root, 'outside')
+  const virtualStoreDir = path.join(root, 'store')
+  const projectDir = path.join(root, 'packages/project')
+  fs.mkdirSync(outside)
+  fs.mkdirSync(projectDir, { recursive: true })
+  fs.symlinkSync(outside, virtualStoreDir, 'junction')
+  try {
+    await hoist({
+      directDependencyAliases: [],
+      graph: {},
+      directDepsByImporterId: {},
+      hoistedWorkspacePackages: {
+        ['packages/project' as ProjectId]: { dir: projectDir, name: 'project' },
+      },
+      skipped: new Set<DepPath>(),
+      privateHoistPattern: ['*'],
+      publicHoistPattern: [],
+      privateHoistedModulesDir: path.join(virtualStoreDir, 'node_modules'),
+      publicHoistedModulesDir: path.join(root, 'project/node_modules'),
+      virtualStoreDir,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    expect(await resolveLinkTarget(path.join(outside, 'node_modules/project'))).toBe(projectDir)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

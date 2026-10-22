@@ -1,6 +1,10 @@
 #![cfg_attr(target_family = "wasm", recursion_limit = "256")]
 
 pub use add::*;
+pub use agent_skills::{
+    AGENT_SKILL_LINK_PREFIX, AgentSkillsError, AgentSkillsState, ResyncAgentSkillsError,
+    SyncAgentSkills, agent_skills_dir_from_env, resync_installed_agent_skills, sync_agent_skills,
+};
 pub use build_resolution_verifiers::*;
 pub use build_snapshot::*;
 pub use catalog_cleanup::{WriteWorkspaceCatalogsError, prune_against_project_lockfiles};
@@ -8,7 +12,9 @@ pub use catalog_mode::*;
 pub use command_lockfile::CommandLockfile;
 pub use dependencies_graph_to_lockfile::*;
 pub use fast_update_lockfile::prune_unreachable_packages;
-pub(crate) use hoisted_selection::selected_materialization_ids;
+pub(crate) use hoisted_selection::{
+    selected_materialization_closure, selected_materialization_ids,
+};
 pub use install::*;
 pub use install_with_fresh_lockfile::*;
 pub use link_manifest_link_deps::*;
@@ -24,11 +30,14 @@ pub use pnpm_deps_restorer::*;
 pub use pnpm_patching::{
     PatchCommitError, PkgFilesForDiff, diff_folders, prepare_pkg_files_for_diff,
 };
+pub use prefetch_downloads::{DownloadOutcome, PrefetchDownloads};
 pub use prefetching_resolver::*;
+pub use rayon_pool::*;
 pub use remove::*;
 pub use resolution_observer::*;
 pub use resolution_policy::{PickPolicy, create_configured_registry_resolver};
 pub use resolve_latest::ResolveLatestError;
+pub(crate) use store_verification::StoreVerification;
 pub use tarball_prefetch::*;
 pub use update::*;
 pub use update_project_manifest::*;
@@ -39,6 +48,7 @@ pub use workspace_cycles::{
 };
 
 mod add;
+mod agent_skills;
 mod build_resolution_verifiers;
 mod build_snapshot;
 mod catalog_cleanup;
@@ -65,19 +75,24 @@ mod linked_peer_dependencies;
 mod lockfile_diff;
 mod manifest_spec_bumps;
 mod minimum_release_age;
+mod missing_peer_types;
 mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod patch;
 mod peer_dependency_issues;
+mod prefetch_downloads;
 mod prefetching_resolver;
 mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
+mod rayon_pool;
 mod remove;
 mod resolution_observer;
 mod resolution_policy;
 mod resolve_latest;
 mod runtime_specifier;
+mod store_fetch;
+mod store_verification;
 mod tarball_prefetch;
 mod update;
 mod update_project_manifest;
@@ -159,6 +174,59 @@ pub fn report_merged_lockfile_conflicts<Reporter: pnpm_reporter::Reporter>(
 
 #[cfg(test)]
 mod tests;
+
+/// Load the pnpmfiles an install whose lockfile sits in `lockfile_dir` runs.
+/// A workspace project with its own lockfile also runs the workspace root's
+/// (see [`pnpm_hooks::finder::load_workspace_project_pnpmfiles`]).
+pub fn load_install_pnpmfiles(
+    config: &pnpm_config::Config,
+    lockfile_dir: &std::path::Path,
+) -> Result<
+    Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pnpm_hooks::finder::MissingPnpmfileError,
+> {
+    let selection = pnpmfile_selection(config);
+    match workspace_root_of_own_lockfile_project(config, lockfile_dir) {
+        Some(workspace_root) => pnpm_hooks::finder::load_workspace_project_pnpmfiles(
+            lockfile_dir,
+            workspace_root,
+            selection,
+        ),
+        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, selection),
+    }
+}
+
+/// The pnpmfiles [`load_install_pnpmfiles`] would load, without loading them.
+#[must_use]
+pub fn find_install_pnpmfiles(
+    config: &pnpm_config::Config,
+    lockfile_dir: &std::path::Path,
+) -> Vec<std::path::PathBuf> {
+    let selection = pnpmfile_selection(config);
+    let mut paths = pnpm_hooks::finder::find_pnpmfiles(lockfile_dir, selection);
+    if let Some(workspace_root) = workspace_root_of_own_lockfile_project(config, lockfile_dir) {
+        for path in pnpm_hooks::finder::find_pnpmfiles(workspace_root, selection) {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+    }
+    paths
+}
+
+/// The workspace root when `lockfile_dir` is a workspace project's own
+/// lockfile directory (`sharedWorkspaceLockfile: false`).
+fn workspace_root_of_own_lockfile_project<'a>(
+    config: &'a pnpm_config::Config,
+    lockfile_dir: &std::path::Path,
+) -> Option<&'a std::path::Path> {
+    if config.shares_one_lockfile() {
+        return None;
+    }
+    let workspace_root = config.workspace_dir.as_deref()?;
+    (pnpm_fs::lexical_normalize(workspace_root) != pnpm_fs::lexical_normalize(lockfile_dir))
+        .then_some(workspace_root)
+}
 
 /// The pnpmfiles an install runs, as configured. Every entry point that loads
 /// hooks or asks whether any exist reads the same settings.

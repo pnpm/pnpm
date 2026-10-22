@@ -1,6 +1,7 @@
 import { writeSettings } from '@pnpm/config.writer'
 import { type AuditReport, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { globalInfo } from '@pnpm/logger'
+import { getRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { sanitizeInline } from '@pnpm/text.sanitize'
 
 import type { AuditOptions } from './audit.js'
@@ -36,7 +37,7 @@ export async function runAuditFix (auditReport: AuditReport, opts: AuditOptions,
     advisories: filterAdvisoriesForFix(auditReport.advisories, opts),
   }
   if (opts.interactive) {
-    filteredAuditReport = await interactiveAuditFix(filteredAuditReport)
+    filteredAuditReport = await interactiveAuditFix(filteredAuditReport, getRangeSpecStyle(opts))
   }
   if (context.fixMethod === 'update') {
     return fixVulnerabilitiesWithUpdate(filteredAuditReport, { ...opts, getPublishTimes: context.getPublishTimes, include: context.include })

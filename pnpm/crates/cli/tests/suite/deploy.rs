@@ -109,6 +109,12 @@ fn deploy_from_shared_lockfile_installs_selected_project() {
             "production deploy virtual store should exclude {excluded}: {virtual_store_entries:#?}",
         );
     }
+    assert!(
+        !virtual_store_entries
+            .iter()
+            .any(|entry| entry.starts_with('@') && !entry.contains('+')),
+        "deploy virtual store should hold one copy of each package: {virtual_store_entries:#?}",
+    );
 
     drop((root, mock_instance));
 }
@@ -162,6 +168,7 @@ fn deployed_project_passes_dependency_verification() {
             "dedupePeerDependents": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": true,
+            "ignorePnpmfile": true,
             "ignoredOptionalDependencies": ["never-matches"],
             "injectWorkspacePackages": false,
             "packages": ["."],
@@ -173,6 +180,139 @@ fn deployed_project_passes_dependency_verification() {
         .with_args(["--config.verify-deps-before-run=error", "run", "start"])
         .assert()
         .success();
+
+    drop((root, mock_instance));
+}
+
+/// The deploy install normalizes `dedupeInjectedDeps`, `dedupePeerDependents`,
+/// `autoDedupe`, and `linkWorkspacePackages`, and writes
+/// `lockfile.includeResolutionSettings` to `pnpm-workspace.yaml` when the
+/// source lockfile records its resolution settings.
+#[test]
+fn deploy_records_its_own_resolution_settings() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+    let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_manifest = fs::read_to_string(&workspace_manifest_path).unwrap();
+    workspace_manifest.push_str(concat!(
+        "autoDedupe: true\n",
+        "dedupeInjectedDeps: true\n",
+        "dedupePeerDependents: true\n",
+        "linkWorkspacePackages: deep\n",
+        "lockfile:\n  includeResolutionSettings: true\n",
+    ));
+    fs::write(workspace_manifest_path, workspace_manifest).unwrap();
+    let deploy_dir = dunce::canonicalize(root.path()).unwrap().join("deployment");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let source_lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap();
+    assert!(source_lockfile.contains("autoDedupe: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("dedupeInjectedDeps: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("dedupePeerDependents: true"), "{source_lockfile}");
+    assert!(source_lockfile.contains("linkWorkspacePackages: deep"), "{source_lockfile}");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", deploy_dir.to_str().unwrap()])
+        .assert()
+        .success();
+
+    let deployed_lockfile = fs::read_to_string(deploy_dir.join("pnpm-lock.yaml")).unwrap();
+    assert!(deployed_lockfile.contains("autoDedupe: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("dedupeInjectedDeps: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("dedupePeerDependents: false"), "{deployed_lockfile}");
+    assert!(deployed_lockfile.contains("linkWorkspacePackages: false"), "{deployed_lockfile}");
+    let deployed_workspace_manifest =
+        fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap();
+    assert!(
+        deployed_workspace_manifest.contains("autoDedupe: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("linkWorkspacePackages: false"),
+        "{deployed_workspace_manifest}",
+    );
+    assert!(
+        deployed_workspace_manifest.contains("includeResolutionSettings: true"),
+        "{deployed_workspace_manifest}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn deploy_writes_dependencies_and_allow_builds_sorted_by_name() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let lib_names = ["lib-a", "lib-b", "lib-c", "lib-d", "lib-e", "lib-f", "lib-g", "lib-h"];
+    let dependencies = lib_names
+        .iter()
+        .rev()
+        .map(|name| (name.to_string(), serde_json::json!("workspace:*")))
+        .collect::<serde_json::Map<_, _>>();
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({ "name": "app", "version": "1.0.0", "dependencies": dependencies }),
+    );
+    for name in lib_names {
+        write_project(&workspace, name, &serde_json::json!({ "name": name, "version": "1.0.0" }));
+    }
+    let allow_builds = lib_names
+        .iter()
+        .rev()
+        .map(|name| format!("{name}: true"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    append_workspace_yaml_key(&workspace, "allowBuilds", format!("{{ {allow_builds} }}"));
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod", "deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("deploy");
+    let deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    let deployed_names = deploy_manifest["dependencies"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(deployed_names, lib_names);
+
+    let deployed_workspace_manifest: serde_json::Value = serde_saphyr::from_str(
+        &fs::read_to_string(deploy_dir.join("pnpm-workspace.yaml")).unwrap(),
+    )
+    .unwrap();
+    let allowed_names = deployed_workspace_manifest["allowBuilds"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(allowed_names, lib_names);
 
     drop((root, mock_instance));
 }
@@ -999,3 +1139,9 @@ mod dependency_groups;
 mod virtual_store;
 
 mod source_isolation;
+
+mod local_dependencies;
+
+mod self_containment;
+
+mod reproducible;

@@ -6,6 +6,7 @@ use super::{
     project_names, select_install_family,
 };
 use crate::cli_args::recursive::{AutoExcludeRoot, select_recursive_projects};
+use tracing::Instrument as _;
 
 /// The reporter-generic body of `pacquet install`: it threads one `Reporter`
 /// type through config-dependency sync, the `updateConfig` hooks, and the
@@ -35,6 +36,7 @@ impl InstallPipeline {
             root_config,
             (self.frozen_lockfile, RuntimePolicy::Config(self.args.materialization.no_runtime)),
         )
+        .instrument(tracing::debug_span!(target: "pacquet::install", "prepare_config"))
         .await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
@@ -52,14 +54,7 @@ impl InstallPipeline {
         {
             lockfile.prefetch();
         }
-        let family = select_install_family::<Reporter>(
-            self.cfg,
-            &self.prefix,
-            &self.manifest_path,
-            self.recursive_sort,
-            false,
-            certain_full_install,
-        )?;
+        let family = self.select_install_family::<Reporter>(certain_full_install)?;
         let installs_node = match &family.plan {
             InstallFamilyPlan::PerProject(projects) => !projects.is_empty(),
             InstallFamilyPlan::Shared(selection) => !selection.selected_dirs.is_empty(),
@@ -77,13 +72,34 @@ impl InstallPipeline {
         self.run_prepared::<Reporter>(family, lockfile).await
     }
 
+    /// [`select_install_family`] inside the `discover_workspace_projects`
+    /// span.
+    fn select_install_family<Reporter: self::Reporter>(
+        &self,
+        certain_full_install: bool,
+    ) -> miette::Result<InstallFamily> {
+        let _span = tracing::debug_span!(target: "pacquet::install", "discover_workspace_projects")
+            .entered();
+        select_install_family::<Reporter>(
+            self.cfg,
+            &self.prefix,
+            &self.manifest_path,
+            self.recursive_sort,
+            false,
+            certain_full_install,
+        )
+    }
+
     async fn run_prepared<Reporter: self::Reporter + 'static>(
         self,
         family: InstallFamily,
         lockfile: Option<pnpm_lockfile::LazyLockfile>,
     ) -> miette::Result<&'static Config> {
-        let http_client =
-            State::new_http_client(self.cfg).wrap_err("initialize the install network")?;
+        let http_client = {
+            let _span =
+                tracing::debug_span!(target: "pacquet::install", "build_http_client").entered();
+            State::new_http_client(self.cfg).wrap_err("initialize the install network")?
+        };
         if !ecosystem_install::is_enabled(self.cfg) {
             run_node_install::<Reporter>(
                 family.plan,
@@ -175,7 +191,7 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
                 sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
                 pipelined: true,
             }
-            .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+            .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
             .await
         }
         InstallFamilyPlan::Shared(selection) => {
@@ -228,7 +244,9 @@ pub(super) fn init_shared_state(
 /// matching the project set a shared-lockfile workspace install covers.
 /// Projects whose workspace dependencies have finished run concurrently
 /// under `workspaceConcurrency`, as a recursive install does.
-pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'static>(
+pub(in crate::cli_args) async fn run_dedicated_lockfile_workspace_install<
+    Reporter: self::Reporter + 'static,
+>(
     args: &super::super::install::InstallArgs,
     cfg: &Config,
     workspace_root: &Path,
@@ -265,6 +283,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
             covers_workspace: true,
             injected_source_dirs,
             early_starts: early_starts(cfg, &projects),
+            workspace: pnpm_package_manager::DiscoveredWorkspace::new(projects),
         },
         require_lockfile,
         http_client: Some(http_client),
@@ -272,7 +291,7 @@ pub(super) async fn run_dedicated_lockfile_workspace_install<Reporter: self::Rep
         sync_injected_deps: !(args.lockfile.only || args.materialization.dry_run),
         pipelined: true,
     }
-    .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+    .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
     .await
 }
 

@@ -22,6 +22,9 @@ the registry metadata if the manifest has no `readme` value. It recognizes
 as `README.markdown` and `README.mdown`), and `README`. It prefers `README.md`,
 then another Markdown README, then `README`.
 
+When publishing a pre-built tarball, pnpm rejects manifests, README files, and
+archive metadata larger than 64 MiB.
+
 When publishing a package inside a [workspace](../workspaces.md), the LICENSE file
 from the root of the workspace is packed with the package (unless the package
 has a license of its own).
@@ -99,7 +102,7 @@ anything is published, rather than after part of the release went out. The
 
 Added in: v11.3.0
 
-Keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.
+Keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
 
 ### --publish-wait-timeout &lt;milliseconds\>
 
@@ -152,7 +155,7 @@ Save the list of published packages to `pnpm-publish-summary.json`. Useful when 
 
 An example of a `pnpm-publish-summary.json` file:
 
-```json
+```json title="pnpm-publish-summary.json"
 {
   "publishedPackages": [
     {
@@ -193,13 +196,17 @@ If the registry requests web-based authentication, pnpm will print a scannable Q
 
 When publishing from a supported cloud CI/CD system, the package will be publicly linked to where it was built and published from.
 
+Under trusted publishing, pnpm attaches provenance to a public package from a public repository on its own.
+Use `--no-provenance` (or `--provenance=false`) to publish without it, for example from a self-hosted runner.
+Use [`provenance`](#provenance) to set a default.
+
 ### --filter &lt;package_selector\>
 
 [Read more about filtering.](../filtering.md)
 
 ## Configuration
 
-You can also set `gitChecks`, `publishBranch`, and `publishWaitTimeout` options in the `pnpm-workspace.yaml` file.
+You can also set `gitChecks`, `publishBranch`, `publishWaitTimeout`, and `provenance` options in the `pnpm-workspace.yaml` file.
 
 For example:
 
@@ -226,6 +233,22 @@ publishWaitTimeout: 600000
 The `PNPM_CONFIG_PUBLISH_WAIT_TIMEOUT` environment variable overrides the
 configuration files. The command-line option takes precedence over both,
 including `--publish-wait-timeout=0` to disable waiting for one command.
+
+### provenance
+
+* Default: **undefined**
+* Type: **Boolean**
+
+Sets the default for [`--provenance`](#--provenance).
+When unset, trusted publishing decides.
+Set it to `false` to never attach provenance:
+
+```yaml title="pnpm-workspace.yaml"
+provenance: false
+```
+
+The `PNPM_CONFIG_PROVENANCE` environment variable overrides the
+configuration files. The command-line option takes precedence over both.
 
 ## Life Cycle Scripts
 

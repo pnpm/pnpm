@@ -1,45 +1,13 @@
 use super::{
-    Arc, DateTime, HashSet, Package, PackageMetaCache, PackageVersion, PackageVersionPolicy,
-    PickPackageContext, PickPackageError, PickPackageFromMetaOptions, PickPackageOptions,
-    RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck, TrustPolicy, Utc,
-    VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
-    pick_lowest_version_by_version_range, pick_package_from_meta, pick_stable_cached_range_version,
-    pick_version_by_version_range, warn_missing_time_once,
+    Arc, DateTime, HashSet, Package, PackageVersion, PackageVersionPolicy, PickPackageError,
+    PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType, SkippedTimeCheck,
+    Utc, VersionSelectors, filter_pkg_metadata_versions, offline_store::tarball_key,
+    pick_lowest_version_by_version_range, pick_package_from_meta, pick_version_by_version_range,
+    warn_missing_time_once,
 };
 use crate::{OfflineStoreView, PickPackageFromMetaError};
 
-/// Whether a pick made from a registry-unverified entry can be returned as
-/// is: an offline-leaning resolve, a lowest-version pick and an exact
-/// version spec all answer the same from a stale mirror, and so does a range
-/// whose pick is the one the mirror is already stable on.
-pub(super) fn unverified_pick_is_safe<Cache: PackageMetaCache>(
-    ctx: &PickPackageContext<'_, Cache>,
-    spec: &RegistryPackageSpec,
-    opts: &PickPackageOptions<'_>,
-    meta: &Arc<Package>,
-    picked: Option<&Arc<PackageVersion>>,
-) -> bool {
-    let Some(picked) = picked else { return false };
-    if ctx.cache_policy.prefer_offline
-        || opts.pick_lowest_version
-        || matches!(spec.spec_type, RegistryPackageSpecType::Version)
-    {
-        return true;
-    }
-    let stable_range_pick = matches!(spec.spec_type, RegistryPackageSpecType::Range)
-        && !opts.include_latest_tag
-        && !opts.request.update_checksums
-        && !opts.policy.release_age_applies_to(&spec.name)
-        && opts.policy.trust_policy != Some(TrustPolicy::NoDowngrade)
-        && opts.blocked_versions.is_none();
-    if !stable_range_pick {
-        return false;
-    }
-    pick_stable_cached_range_version(meta, &spec.fetch_spec, opts.preferred_version_selectors)
-        .is_some_and(|stable| picked.version.to_string() == stable)
-}
-
-/// Same fields as [`PickPackageOptions`] minus the dispatcher-only
+/// Same fields as [`super::PickPackageOptions`] minus the dispatcher-only
 /// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
 /// pull-up from the context.
 pub(super) struct PickerOpts<'a> {

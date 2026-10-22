@@ -1,8 +1,10 @@
+pub(super) mod sqlite;
+
 use super::{
-    AtomicU64, Connection, Digest, HashMap, Mutex, Ordering, PathBuf, RegistryError, Result,
-    Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait, token_timestamp_from_sql,
-    token_timestamp_to_sql,
+    AtomicU64, Connection, Digest, HashMap, HashSet, Mutex, Ordering, PathBuf, RegistryError,
+    Result, Sha256, SystemTime, TokenBackend, UNIX_EPOCH, async_trait,
 };
+use sqlite::{delete_token, init_tokens_schema, insert_token, load_all_tokens};
 use std::fmt::Write as _;
 
 /// SHA-256-hashed (`token_hash` → username) map, optionally backed by
@@ -19,19 +21,185 @@ pub struct TokenStore {
     pub(super) counter: AtomicU64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(super) struct TokenInner {
     /// hex-encoded SHA-256 of the raw token → record.
-    pub(super) tokens: HashMap<String, TokenRecord>,
+    tokens: HashMap<String, TokenRecord>,
+    /// username → the keys of its tokens, so work on one user's tokens does
+    /// not scan everyone's while holding the lock lookups need.
+    by_owner: HashMap<String, HashSet<String>>,
 }
 
-#[derive(Debug, Clone)]
+impl TokenInner {
+    fn from_tokens(tokens: HashMap<String, TokenRecord>) -> Self {
+        let mut inner = Self::default();
+        for (key, record) in tokens {
+            inner.insert(key, record);
+        }
+        inner
+    }
+
+    pub(super) fn insert(&mut self, key: String, record: TokenRecord) {
+        self.by_owner
+            .entry(record.username.clone())
+            .or_default()
+            .insert(key.clone());
+        self.tokens.insert(key, record);
+    }
+
+    fn remove(&mut self, key: &str) {
+        let Some(record) = self.tokens.remove(key) else {
+            return;
+        };
+        if let Some(keys) = self.by_owner.get_mut(&record.username) {
+            keys.remove(key);
+            if keys.is_empty() {
+                self.by_owner.remove(&record.username);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_empty(&self) -> bool {
+        self.tokens.is_empty()
+    }
+
+    fn owned_by(&self, username: &str) -> Vec<(String, TokenRecord)> {
+        self.by_owner
+            .get(username)
+            .into_iter()
+            .flatten()
+            .filter_map(|key| Some((key.clone(), self.tokens.get(key)?.clone())))
+            .collect()
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct NewToken {
+    pub readonly: bool,
+    pub cidr_whitelist: Vec<String>,
+    pub name: Option<String>,
+    pub expires_at: Option<u64>,
+    pub scopes: Option<Vec<String>>,
+    pub kind: Option<String>,
+}
+
+impl NewToken {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    #[must_use]
+    pub fn with_readonly(mut self, readonly: bool) -> Self {
+        self.readonly = readonly;
+        self
+    }
+
+    #[must_use]
+    pub fn with_cidr_whitelist(mut self, cidr_whitelist: Vec<String>) -> Self {
+        self.cidr_whitelist = cidr_whitelist;
+        self
+    }
+
+    #[must_use]
+    pub fn with_name(mut self, name: Option<String>) -> Self {
+        self.name = name;
+        self
+    }
+
+    #[must_use]
+    pub fn with_expires_at(mut self, expires_at: Option<u64>) -> Self {
+        self.expires_at = expires_at;
+        self
+    }
+
+    #[must_use]
+    pub fn with_scopes(mut self, scopes: Option<Vec<String>>) -> Self {
+        self.scopes = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_kind(mut self, kind: Option<String>) -> Self {
+        self.kind = kind;
+        self
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "The fields mirror the auth tokens table columns."
+    )
+)]
 pub struct TokenRecord {
     pub username: String,
     pub created_at: u64,
     pub last_used_at: u64,
     pub readonly: bool,
     pub cidr_whitelist: Vec<String>,
+    pub name: Option<String>,
+    pub expires_at: Option<u64>,
+    pub scopes: Option<Vec<String>>,
+    pub kind: Option<String>,
+}
+
+impl TokenRecord {
+    #[must_use]
+    pub fn new(username: impl Into<String>, created_at: u64, last_used_at: u64) -> Self {
+        Self {
+            username: username.into(),
+            created_at,
+            last_used_at,
+            readonly: false,
+            cidr_whitelist: Vec::new(),
+            name: None,
+            expires_at: None,
+            scopes: None,
+            kind: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_readonly(mut self, readonly: bool) -> Self {
+        self.readonly = readonly;
+        self
+    }
+
+    #[must_use]
+    pub fn with_cidr_whitelist(mut self, cidr_whitelist: Vec<String>) -> Self {
+        self.cidr_whitelist = cidr_whitelist;
+        self
+    }
+
+    #[must_use]
+    pub fn with_name(mut self, name: Option<String>) -> Self {
+        self.name = name;
+        self
+    }
+
+    #[must_use]
+    pub fn with_expires_at(mut self, expires_at: Option<u64>) -> Self {
+        self.expires_at = expires_at;
+        self
+    }
+
+    #[must_use]
+    pub fn with_scopes(mut self, scopes: Option<Vec<String>>) -> Self {
+        self.scopes = scopes;
+        self
+    }
+
+    #[must_use]
+    pub fn with_kind(mut self, kind: Option<String>) -> Self {
+        self.kind = kind;
+        self
+    }
 }
 
 impl TokenStore {
@@ -39,7 +207,7 @@ impl TokenStore {
     #[must_use]
     pub fn in_memory() -> Self {
         Self {
-            inner: Mutex::new(TokenInner { tokens: HashMap::new() }),
+            inner: Mutex::new(TokenInner::default()),
             persist: None,
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
@@ -55,58 +223,89 @@ impl TokenStore {
         {
             std::fs::create_dir_all(parent)?;
         }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            if !path.exists() {
+                let _ = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(&path);
+            }
+        }
         let conn = Connection::open(&path)?;
         init_tokens_schema(&conn)?;
         let tokens = load_all_tokens(&conn)?;
         drop(conn);
         Ok(Self {
-            inner: Mutex::new(TokenInner { tokens }),
+            inner: Mutex::new(TokenInner::from_tokens(tokens)),
             persist: Some(path),
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
         })
     }
+
+    async fn persist_issued(&self, token_hash: &str, record: &TokenRecord) -> Result<()> {
+        let Some(path) = self.persist.clone() else {
+            return Ok(());
+        };
+        let hash_for_db = token_hash.to_string();
+        let record_for_db = record.clone();
+        let result = tokio::task::spawn_blocking(move || -> Result<()> {
+            let conn = Connection::open(&path)?;
+            insert_token(&conn, &hash_for_db, &record_for_db)?;
+            Ok(())
+        })
+        .await;
+        match result {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => {
+                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                inner.remove(token_hash);
+                Err(err)
+            }
+            Err(err) => {
+                let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+                inner.remove(token_hash);
+                Err(err.into())
+            }
+        }
+    }
 }
 
 #[async_trait]
 impl TokenBackend for TokenStore {
-    async fn issue(&self, username: &str) -> Result<String> {
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
+        let now = unix_seconds();
         let record = TokenRecord {
             username: username.to_string(),
-            created_at: unix_seconds(),
-            last_used_at: unix_seconds(),
-            readonly: false,
-            cidr_whitelist: Vec::new(),
+            created_at: now,
+            last_used_at: now,
+            readonly: new_token.readonly,
+            cidr_whitelist: new_token.cidr_whitelist,
+            name: new_token.name,
+            expires_at: new_token.expires_at,
+            scopes: new_token.scopes,
+            kind: new_token.kind,
         };
         {
             let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.insert(token_hash.clone(), record.clone());
+            inner.insert(token_hash.clone(), record.clone());
         }
-        if let Some(path) = self.persist.clone() {
-            let hash_for_db = token_hash.clone();
-            let result = tokio::task::spawn_blocking(move || -> Result<()> {
-                let conn = Connection::open(&path)?;
-                insert_token(&conn, &hash_for_db, &record)?;
-                Ok(())
-            })
-            .await;
-            match result {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) => {
-                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.tokens.remove(&token_hash);
-                    return Err(err);
-                }
-                Err(err) => {
-                    let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-                    inner.tokens.remove(&token_hash);
-                    return Err(err.into());
-                }
-            }
-        }
+        self.persist_issued(&token_hash, &record).await?;
+        Ok((raw, record))
+    }
+
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
         Ok(raw)
     }
 
@@ -115,7 +314,40 @@ impl TokenBackend for TokenStore {
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens.get(&token_hash).map(|record| record.username.clone()))
+        let now = unix_seconds();
+        let Some(record) = inner.tokens.get(&token_hash) else {
+            return Ok(None);
+        };
+        if record.expires_at.is_some_and(|exp| exp <= now) {
+            return Ok(None);
+        }
+        Ok(Some(record.username.clone()))
+    }
+
+    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+        let should_persist = {
+            let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
+            if let Some(record) = inner.tokens.get_mut(key) {
+                let old = record.last_used_at;
+                record.last_used_at = now;
+                self.persist.is_some() && now != old
+            } else {
+                false
+            }
+        };
+        if should_persist && let Some(path) = self.persist.clone() {
+            let key = key.to_string();
+            tokio::task::spawn_blocking(move || -> Result<()> {
+                let conn = Connection::open(&path)?;
+                conn.execute(
+                    "UPDATE tokens SET last_used_at = ?1 WHERE token_hash = ?2",
+                    rusqlite::params![now as i64, key],
+                )?;
+                Ok(())
+            })
+            .await??;
+        }
+        Ok(())
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
@@ -125,11 +357,7 @@ impl TokenBackend for TokenStore {
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let inner = self.inner.lock().expect("TokenStore mutex poisoned");
-        Ok(inner.tokens
-            .iter()
-            .filter(|(_, record)| record.username == username)
-            .map(|(hash, record)| (hash.clone(), record.clone()))
-            .collect())
+        Ok(inner.owned_by(username))
     }
 
     /// `SQLite` gets the `DELETE` *before* the in-memory map is mutated.
@@ -155,9 +383,23 @@ impl TokenBackend for TokenStore {
         }
         {
             let mut inner = self.inner.lock().expect("TokenStore mutex poisoned");
-            inner.tokens.remove(key);
+            inner.remove(key);
         }
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        let Some(path) = self.persist.clone() else {
+            return Ok(());
+        };
+        tokio::task::spawn_blocking(move || -> Result<()> {
+            let flags = rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE;
+            let conn = Connection::open_with_flags(&path, flags)?;
+            conn.query_row("SELECT EXISTS(SELECT 1 FROM tokens LIMIT 1);", [], |_row| Ok(()))?;
+            Ok(())
+        })
+        .await??;
+        Ok(())
     }
 }
 
@@ -165,89 +407,6 @@ impl Default for TokenStore {
     fn default() -> Self {
         Self::in_memory()
     }
-}
-
-// ---------------------------------------------------------------
-// SQLite-backed token store
-// ---------------------------------------------------------------
-
-/// `tokens` table DDL — shared by every SQL-backed auth store so the
-/// backends store the same shape and records can be moved between them.
-pub(super) const TOKENS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS tokens (
-    token_hash      CHAR(64) PRIMARY KEY,
-    username        VARCHAR(255) NOT NULL,
-    created_at      BIGINT NOT NULL,
-    last_used_at    BIGINT NOT NULL,
-    readonly        SMALLINT NOT NULL DEFAULT 0,
-    cidr_whitelist  VARCHAR(4096) NOT NULL DEFAULT '[]'
-)";
-
-pub(super) const TOKENS_INDEX_SQL: &str =
-    "CREATE INDEX IF NOT EXISTS tokens_username ON tokens(username)";
-
-pub(super) fn init_tokens_schema(conn: &Connection) -> Result<()> {
-    conn.execute(TOKENS_TABLE_SQL, [])?;
-    conn.execute(TOKENS_INDEX_SQL, [])?;
-    Ok(())
-}
-
-pub(super) fn load_all_tokens(conn: &Connection) -> Result<HashMap<String, TokenRecord>> {
-    let mut stmt = conn.prepare(
-        "SELECT token_hash, username, created_at, last_used_at, readonly, cidr_whitelist
-         FROM tokens",
-    )?;
-    let mut rows = stmt.query([])?;
-    let mut out = HashMap::new();
-    while let Some(row) = rows.next()? {
-        let hash: String = row.get(0)?;
-        let username: String = row.get(1)?;
-        let created_at: i64 = row.get(2)?;
-        let last_used_at: i64 = row.get(3)?;
-        let readonly: i64 = row.get(4)?;
-        let cidr_json: String = row.get(5)?;
-        let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
-            .map_err(|err| RegistryError::Internal {
-                reason: format!("token {hash} has an unreadable cidr_whitelist: {err}"),
-            })?;
-        out.insert(
-            hash,
-            TokenRecord {
-                username,
-                created_at: token_timestamp_from_sql(created_at),
-                last_used_at: token_timestamp_from_sql(last_used_at),
-                readonly: readonly != 0,
-                cidr_whitelist,
-            },
-        );
-    }
-    Ok(out)
-}
-
-pub(super) fn delete_token(conn: &Connection, token_hash: &str) -> Result<()> {
-    conn.execute("DELETE FROM tokens WHERE token_hash = ?1", rusqlite::params![token_hash])?;
-    Ok(())
-}
-
-pub(super) fn insert_token(
-    conn: &Connection,
-    token_hash: &str,
-    record: &TokenRecord,
-) -> Result<()> {
-    let cidr_json = serde_json::to_string(&record.cidr_whitelist)
-        .expect("Vec<String> always serializes to JSON");
-    conn.execute(
-        "INSERT INTO tokens (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        rusqlite::params![
-            token_hash,
-            record.username,
-            token_timestamp_to_sql(record.created_at),
-            token_timestamp_to_sql(record.last_used_at),
-            i64::from(record.readonly),
-            cidr_json,
-        ],
-    )?;
-    Ok(())
 }
 
 // ---------------------------------------------------------------

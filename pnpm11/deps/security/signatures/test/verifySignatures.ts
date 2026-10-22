@@ -36,6 +36,40 @@ describe('verifySignatures', () => {
     })
   })
 
+  test('verifies the recorded artifact even when registry integrity changed', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', 'sha512-recorded') }] })
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha512-recorded' },
+    ], () => undefined, { requireLockfileIntegrity: true })
+    expect(result.verified).toBe(1)
+    expect(result.invalid).toEqual([])
+  })
+
+  test('current registry signature cannot cover a different recorded artifact', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }] })
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: 'sha512-recorded' },
+    ], () => undefined, { requireLockfileIntegrity: true })
+    expect(result.verified).toBe(0)
+    expect(result.invalid).toHaveLength(1)
+    expect(result.invalid[0].integrity).toBe('sha512-recorded')
+  })
+
+  test('missing lockfile integrity cannot fall back to registry integrity', async () => {
+    const key = createSigningKey()
+    mockRegistryKey(key)
+    mockPackument({ signatures: [{ keyid: key.keyid, sig: key.sign('signed-pkg@1.0.0', INTEGRITY) }] })
+    const result = await verifySignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0' },
+    ], () => undefined, { requireLockfileIntegrity: true })
+    expect(result.verified).toBe(0)
+    expect(result.invalid[0].reason).toBe('Missing lockfile integrity for signed-pkg@1.0.0')
+  })
+
   test('reports missing signatures when registry provides signing keys', async () => {
     const key = createSigningKey()
     mockRegistryKey(key)

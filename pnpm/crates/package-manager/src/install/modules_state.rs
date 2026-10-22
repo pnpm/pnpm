@@ -455,6 +455,37 @@ pub(super) fn build_modules_manifest(
     }
 }
 
+/// A rebuild leaves the tree laid out as the previous install left it, so
+/// the manifest it writes keeps the layout settings that install recorded
+/// and a later install still sees a changed setting as drift. A setting the
+/// previous manifest did not record takes the current value.
+pub(super) fn keep_recorded_layout(
+    next: &mut Modules,
+    recorded: &pnpm_modules_yaml::ModulesLayout,
+) {
+    if recorded.node_linker.is_some() {
+        next.node_linker = recorded.node_linker;
+    }
+    if recorded.layout_version.is_some() {
+        next.layout_version = recorded.layout_version;
+    }
+    if let Some(pattern) = &recorded.hoist_pattern {
+        next.hoist_pattern = Some(pattern.clone());
+    }
+    if let Some(pattern) = &recorded.public_hoist_pattern {
+        next.public_hoist_pattern = Some(pattern.clone());
+    }
+    if !recorded.store_dir.is_empty() {
+        next.store_dir.clone_from(&recorded.store_dir);
+    }
+    if !recorded.virtual_store_dir.is_empty() {
+        next.virtual_store_dir.clone_from(&recorded.virtual_store_dir);
+    }
+    if recorded.virtual_store_dir_max_length != 0 {
+        next.virtual_store_dir_max_length = recorded.virtual_store_dir_max_length;
+    }
+}
+
 /// Drop `settled` from the `pendingBuilds` the install just wrote, now
 /// that the projects' scripts have run.
 ///
@@ -501,10 +532,20 @@ pub(super) fn project_requires_lifecycle_scripts(
         .any(|stage| matches!(manifest.script(stage, true), Ok(Some(_))));
     has_lifecycle_script
         || (stages.contains(&"install")
-            && matches!(manifest.script("preinstall", true), Ok(None))
-            && matches!(manifest.script("install", true), Ok(None))
-            && !manifest_opts_out_of_gyp_build(manifest.value())
-            && project_dir.join(BINDING_GYP).exists())
+            && project_requires_implicit_gyp_build(project_dir, manifest))
+}
+
+/// Whether the executor's implicit `node-gyp rebuild` applies to the
+/// project's `install` stage: it ships a `binding.gyp`, declares neither
+/// `install` nor `preinstall`, and does not opt out with `gypfile: false`.
+pub(super) fn project_requires_implicit_gyp_build(
+    project_dir: &Path,
+    manifest: &PackageManifest,
+) -> bool {
+    matches!(manifest.script("preinstall", true), Ok(None))
+        && matches!(manifest.script("install", true), Ok(None))
+        && !manifest_opts_out_of_gyp_build(manifest.value())
+        && project_dir.join(BINDING_GYP).exists()
 }
 
 /// Read a string field off a project manifest, returning `None` when

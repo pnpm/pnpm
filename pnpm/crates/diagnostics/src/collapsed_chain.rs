@@ -27,6 +27,20 @@ pub fn install_report_handler() {
     }));
 }
 
+/// The reported error and its distinct causes on one line, joined by
+/// `: ` the way `{report:#}` joins them, without the repeated levels.
+pub fn collapsed_message(diagnostic: &dyn Diagnostic) -> String {
+    let collapsed = Collapsed::new(diagnostic);
+    let mut message = collapsed.head.to_string();
+    let mut cause = collapsed.causes.as_deref();
+    while let Some(current) = cause {
+        message.push_str(": ");
+        message.push_str(&current.message);
+        cause = current.next.as_deref();
+    }
+    message
+}
+
 struct CollapsingHandler {
     inner: MietteHandler,
 }
@@ -87,9 +101,11 @@ impl<'a> Collapsed<'a> {
     }
 }
 
-/// Whether `outer` already says everything `inner` says: the two are equal, or
+/// Whether `outer` already says everything `inner` says: the two are equal,
 /// `outer` is a wrapper that appended `inner` verbatim behind a separator
-/// ("Failed to resolve dependency tree: {inner}"). A cause level renders as its
+/// ("Failed to resolve dependency tree: {inner}"), or `outer` starts with
+/// `inner` and continues on a new line ("{inner}\n\nFailed to resolve foo@1").
+/// A cause level renders as its
 /// message and nothing else, so one whose whole message the line above already
 /// ends with adds no information.
 ///
@@ -98,6 +114,12 @@ impl<'a> Collapsed<'a> {
 /// whose sentence happens to end with those characters ("resolved to 3.0.1"),
 /// dropping a distinct cause.
 fn restates(outer: &str, inner: &str) -> bool {
+    if outer
+        .strip_prefix(inner)
+        .is_some_and(|context| context.starts_with('\n'))
+    {
+        return true;
+    }
     let Some(prefix) = outer.strip_suffix(inner) else { return false };
     prefix.is_empty() || prefix.ends_with([' ', ':'])
 }

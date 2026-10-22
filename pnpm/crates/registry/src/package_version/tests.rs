@@ -42,6 +42,42 @@ async fn fetch_from_registry_attaches_authorization_header() {
     mock.assert_async().await;
 }
 
+#[tokio::test]
+async fn fetch_from_registry_normalizes_registry_url_without_trailing_slash() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "acme",
+        "version": "1.0.0",
+        "dist": {
+            "integrity": "sha512-AAAA",
+            "shasum": "0000000000000000000000000000000000000000",
+            "tarball": "https://registry.test/acme-1.0.0.tgz"
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/acme/latest")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let pkg_version = PackageVersion::fetch_from_registry(
+        "acme",
+        PackageTag::Latest,
+        &client,
+        &server.url(),
+        &auth_headers,
+    )
+    .await
+    .expect("server should accept the request when registry url lacks trailing slash");
+    assert_eq!(pkg_version.name, "acme");
+    mock.assert_async().await;
+}
+
 /// Dropping either field would silently treat optional peers as
 /// required (auto-installed via `autoInstallPeers`) and skip
 /// `optionalDependencies` entirely.

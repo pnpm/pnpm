@@ -173,6 +173,9 @@ struct BuildCandidate<'c> {
 
 impl<'c> BuildCandidate<'c> {
     fn of(context: &BuildOneSnapshot<'c>, snapshot_key: &PackageKey) -> Option<Self> {
+        if !crate::build_scope::in_build_scope(context.graph.build_scope, snapshot_key) {
+            return None;
+        }
         let metadata_key = snapshot_key.without_peer();
         let patch = context.graph.patches.and_then(|patches| patches.get(&metadata_key));
         let requires_build = context.graph.requires_build_map

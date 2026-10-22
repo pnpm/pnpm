@@ -1,4 +1,4 @@
-use std::fmt::Write as _;
+use std::{borrow::Cow, fmt::Write as _};
 
 /// Decode percent-escaped UTF-8 without form-query semantics: `+` and `&`
 /// remain literal. Invalid escapes pass through; invalid UTF-8 is replaced.
@@ -33,6 +33,40 @@ pub fn encode_package_name(name: &str) -> String {
     }
 }
 
+/// Percent-encode a package name for an npm registry endpoint path, matching
+/// npm's escaping where the scope separator `/` is encoded in lowercase hex (`%2f`).
+#[must_use]
+pub fn escaped_package_name(name: &str) -> String {
+    match name.strip_prefix('@') {
+        Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
+        None => encode_uri_component(name),
+    }
+}
+
+/// Canonicalize npm's HTTPS registry alias and append a trailing slash.
+/// Protocol-relative credential keys use the same canonical host.
+#[must_use]
+pub fn normalize_registry_url(registry: &str) -> Cow<'_, str> {
+    append_trailing_slash(canonicalize_npm_registry_url(registry))
+}
+
+pub(crate) fn append_trailing_slash(url: Cow<'_, str>) -> Cow<'_, str> {
+    if url.ends_with('/') { url } else { Cow::Owned(format!("{url}/")) }
+}
+
+/// Canonicalize npm's exact HTTPS registry root or its protocol-relative
+/// credential key. Other endpoints and key spellings remain unchanged.
+#[must_use]
+pub fn canonicalize_npm_registry_url(registry: &str) -> Cow<'_, str> {
+    match registry {
+        "https://registry.npmjs.com" | "https://registry.npmjs.com/" => {
+            Cow::Borrowed("https://registry.npmjs.org/")
+        }
+        "//registry.npmjs.com" | "//registry.npmjs.com/" => Cow::Borrowed("//registry.npmjs.org/"),
+        _ => Cow::Borrowed(registry),
+    }
+}
+
 /// Port of JavaScript `encodeURIComponent`: every UTF-8 byte outside the
 /// unreserved set is percent-encoded.
 #[must_use]
@@ -48,3 +82,6 @@ pub fn encode_uri_component(input: &str) -> String {
     }
     output
 }
+
+#[cfg(test)]
+mod tests;

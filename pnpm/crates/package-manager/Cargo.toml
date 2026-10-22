@@ -22,6 +22,7 @@ pnpm-cmd-shim = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
 pnpm-deps-path = { workspace = true }
 pnpm-deps-restorer = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
 pnpm-engine-pm-yarn-resolver = { workspace = true }
@@ -58,6 +59,7 @@ pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 pnpm-resolving-tarball-resolver = { workspace = true }
+pnpm-semver-include-prerelease = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 pnpm-workspace = { workspace = true }
@@ -85,6 +87,7 @@ rayon = { workspace = true }
 reflink-copy = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 ssri = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
@@ -102,7 +105,6 @@ node-semver = { workspace = true }
 pathdiff = { workspace = true }
 pretty_assertions = { workspace = true }
 serde-saphyr = { workspace = true }
-sha2 = { workspace = true }
 ssri = { workspace = true }
 tar = { workspace = true }
 text-block-macros = { workspace = true }
@@ -112,7 +114,13 @@ walkdir = { workspace = true }
 home = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
+# Without it a contended shard lock panics on wasm instead of parking.
+# See <https://github.com/pnpm/pnpm/pull/16951>.
+dashmap = { workspace = true, features = ["nightly"] }
 pnpm-wasm-host = { path = "../wasm-host" }
 
 [lints]

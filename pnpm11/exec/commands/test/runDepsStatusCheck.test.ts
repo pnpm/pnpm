@@ -589,3 +589,64 @@ test('the prompt omits the forwarded --config flags that the confirmed install r
     expect.objectContaining({ cwd: process.cwd() })
   )
 })
+
+test('warns when the install succeeds but leaves node_modules out of date', async () => {
+  checkDepsStatus
+    .mockResolvedValueOnce({
+      upToDate: false,
+      issue: 'The lockfile is not up to date',
+      workspaceState: undefined,
+    })
+    .mockResolvedValueOnce({
+      upToDate: false,
+      issue: 'The value of the overrides setting has changed',
+      workspaceState: undefined,
+    })
+
+  await runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+      dependencies: { foo: '1.0.0' },
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(globalWarn).toHaveBeenCalledWith(
+    'The install that ran before the script left node_modules out of date, so the next run installs again. The value of the overrides setting has changed'
+  )
+})
+
+test('does not warn when the install brings node_modules up to date', async () => {
+  checkDepsStatus
+    .mockResolvedValueOnce({
+      upToDate: false,
+      issue: 'The lockfile is not up to date',
+      workspaceState: undefined,
+    })
+    .mockResolvedValueOnce({
+      upToDate: true,
+      workspaceState: undefined,
+    })
+
+  await runDepsStatusCheck({
+    dir: process.cwd(),
+    excludeLinksFromLockfile: false,
+    linkWorkspacePackages: false,
+    pnpmfile: [],
+    preferWorkspacePackages: false,
+    rootProjectManifest: {
+      name: 'root',
+      dependencies: { foo: '1.0.0' },
+    },
+    rootProjectManifestDir: process.cwd(),
+    verifyDepsBeforeRun: 'install',
+  })
+
+  expect(globalWarn).not.toHaveBeenCalled()
+})

@@ -65,8 +65,16 @@ fn ingest<'a>(
             auth_headers: config.auth_headers.as_ref(),
             retry_opts: RetryOpts { retries: 0, ..Default::default() },
             offline: true,
+            tar_limits: pnpm_tarball::TarLimits::default(),
         },
-        package: TarballPackage { integrity, unpacked_size: None, file_count: None, url, id },
+        package: TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
+            integrity,
+            unpacked_size: None,
+            file_count: None,
+            url,
+            id,
+        },
         store: ArchiveStoreContext {
             dir: &config.store_dir,
             index: None,

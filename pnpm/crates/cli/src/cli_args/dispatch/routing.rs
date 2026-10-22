@@ -41,6 +41,8 @@ pub(super) fn route<'a>(
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
         CliCommand::Env(args) => dispatch_install::env(ctx, args),
         CliCommand::ApproveBuilds(args) => dispatch_install::approve_builds(ctx, args),
+        CliCommand::Permissions(args) => dispatch_install::permissions(ctx, args),
+        CliCommand::Approve(args) => dispatch_install::approve(ctx, args),
         CliCommand::Link(args) => dispatch_install::link(ctx, args),
         CliCommand::Import(args) => dispatch_install::import(ctx, args),
         CliCommand::Dedupe(args) => dispatch_install::dedupe(ctx, args),
@@ -59,7 +61,7 @@ fn route_registry<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<C
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
         CliCommand::Bugs(args) => dispatch_query::bugs(ctx, args),
         CliCommand::View(args) => dispatch_query::view(ctx, args),
-        CliCommand::Whoami => dispatch_query::whoami(ctx),
+        CliCommand::Whoami(args) => dispatch_query::whoami(ctx, args),
         CliCommand::Star(args) => dispatch_query::star(ctx, args),
         CliCommand::Unstar(args) => dispatch_query::unstar(ctx, args),
         CliCommand::Stars(args) => dispatch_query::stars(ctx, args),
@@ -72,11 +74,12 @@ fn route_registry<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<C
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),
         CliCommand::Publish(args) => dispatch_query::publish(ctx, args),
-        CliCommand::Token(_) => dispatch_query::not_implemented("token"),
+        CliCommand::Token(args) => dispatch_query::token(ctx, args),
         CliCommand::Docs(args) => dispatch_query::docs(ctx, args),
         CliCommand::Repo(args) => dispatch_query::repo(ctx, args),
         CliCommand::Login(args) => dispatch_query::login(ctx, args),
         CliCommand::Logout(args) => dispatch_query::logout(ctx, args),
+        CliCommand::Profile(args) => dispatch_query::profile(ctx, args),
         command => route_project(command, ctx),
     }
 }
@@ -94,7 +97,6 @@ fn route_project<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<Co
         CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
         CliCommand::Pkg(args) => dispatch_script::pkg(ctx, args),
         CliCommand::Edit(_) => dispatch_query::not_implemented("edit"),
-        CliCommand::Profile(_) => dispatch_query::not_implemented("profile"),
         CliCommand::Xmas(_) => dispatch_query::not_implemented("xmas"),
         command => route_maintenance(command, ctx),
     }
@@ -175,7 +177,7 @@ pub(super) fn print_json_error(error: &miette::Report) {
     // pnpm's `errorHandler` prints the envelope with `JSON.stringify(_, null, 2)`;
     // match its two-space indentation byte-for-byte.
     let output = serde_json::to_string_pretty(&output).expect("a JSON error envelope serializes");
-    println!("{output}");
+    pnpm_diagnostics::println!("{output}");
 }
 
 pub(super) fn json_error_message(error: &miette::Report) -> String {

@@ -3,7 +3,7 @@ use axum::{
     extract::State,
     response::{IntoResponse as _, Response},
 };
-use pnpr_config::Config;
+use pnpr_config::{Config, Management};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry};
 use serde_json::{Value, json};
 
@@ -30,31 +30,29 @@ pub(super) async fn serve(
             }
         }
     }
-    let ecosystems: serde_json::Map<String, Value> = Ecosystem::all()
-        .map(|ecosystem| ecosystem_capability(registries, &entries, ecosystem))
-        .collect();
+    let ecosystems: serde_json::Map<String, Value> =
+        Ecosystem::all().map(|ecosystem| ecosystem_capability(&entries, ecosystem)).collect();
     private_no_cache(
         Json(json!({
             "registries": entries, "defaultRegistries": defaults, "ecosystems": ecosystems,
+            "admin": config.identity.is_admin(&identity),
         }))
         .into_response(),
     )
 }
 
 /// What one ecosystem's clients can expect of this server.
-fn ecosystem_capability(
-    registries: &Registries,
-    entries: &[Value],
-    ecosystem: Ecosystem,
-) -> (String, Value) {
+fn ecosystem_capability(entries: &[Value], ecosystem: Ecosystem) -> (String, Value) {
     let name = ecosystem.to_string();
     let available = entries
         .iter()
         .any(|entry| entry["ecosystem"] == name);
-    let prefixed = ecosystem != Ecosystem::Oci && !registries.is_only_ecosystem(ecosystem);
+    // An image client cannot be pointed at a prefix, so the default image
+    // registry answers at the host root. Its named registries are prefixed.
+    let prefixed = ecosystem != Ecosystem::Oci;
     let mut capability = json!({ "available": available, "prefixed": prefixed });
     if ecosystem == Ecosystem::Oci {
-        capability["namedPrefixed"] = json!(!registries.is_only_ecosystem(ecosystem));
+        capability["namedPrefixed"] = json!(true);
     }
     (name, capability)
 }
@@ -65,14 +63,14 @@ fn registry_is_visible(config: &Config, identity: &Identity, key: &str) -> bool 
     match config.routing.registries.get(key) {
         Some(Registry::Hosted { .. }) => config.routing.hosted
             .get(key)
-            .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
+            .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
         Some(Registry::Upstream { .. }) => config.routing.upstreams
             .get(key)
             .is_some_and(|upstream| {
                 upstream.access
                     .as_ref()
                     .is_none_or(|access| access.allows(identity))
-                    && upstream.rules.default_access().allows(identity)
+                    && upstream.rules.default_access_admits(identity)
             }),
         _ => false,
     }
@@ -107,11 +105,23 @@ fn directory_entry(
         }
         Registry::Router { .. } => ("router", None, disclosed_sources(&sources, visible)),
     };
-    Some(json!({
+    let mut entry = json!({
         "name": Registries::local_name(key), "kind": kind,
         "ecosystem": ecosystem.to_string(),
         "patterns": patterns, "sources": route_sources,
-    }))
+    });
+    if let Some(hosted) = config.routing.hosted.get(key) {
+        entry["teamsManagedBy"] = json!(management_name(hosted.teams_managed_by));
+        entry["rulesManagedBy"] = json!(management_name(hosted.rules_managed_by));
+    }
+    Some(entry)
+}
+
+pub(super) fn management_name(management: Management) -> &'static str {
+    match management {
+        Management::Config => "config",
+        Management::Api => "api",
+    }
 }
 
 /// A router's sources, disclosed only when the caller can see every one.

@@ -28,7 +28,10 @@ fn install(workspace: &Path, args: &[&str]) {
 /// Without registry metadata a resolution fails, so an offline install
 /// succeeds only when it trusts the lockfile as it is.
 fn resolves_offline_without_metadata(workspace: &Path, cache_dir: &Path, args: &[&str]) -> bool {
-    let metadata = cache_dir.join("v11");
+    // Every metadata mirror lives under the version directory of this one.
+    let metadata_version_dir =
+        Path::new(pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR).parent().unwrap();
+    let metadata = cache_dir.join(metadata_version_dir);
     if metadata.exists() {
         fs::remove_dir_all(metadata).unwrap();
     }

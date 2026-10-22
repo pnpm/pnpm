@@ -36,15 +36,17 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
         })
 }
 
-/// Whether `source_file`'s on-disk mode is [`desired_mode`]. A mode that
-/// differs cannot be fixed on a store inode, so the hardlink tiers copy
-/// instead; a reflink that copied the same mode onto the target is
+/// Whether `source_file`'s on-disk mode is linkable where [`desired_mode`]
+/// is wanted (see [`pnpm_fs::file_mode::store_inode_mode_is_linkable`]). A
+/// mode that is not cannot be fixed on a store inode, so the hardlink tiers
+/// copy instead; a reflink that copied the same mode onto the target is
 /// aligned instead.
 #[cfg(unix)]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
     use std::os::unix::fs::MetadataExt;
-    let Some(mode) = desired_mode(source_file) else { return Ok(true) };
-    Ok(fs::metadata(source_file)?.mode() & 0o777 == mode)
+    let Some(desired) = desired_mode(source_file) else { return Ok(true) };
+    let mode = fs::metadata(source_file)?.mode();
+    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 
 /// Align a materialized `target_link` with the mode a fresh store write
@@ -73,6 +75,7 @@ pub(super) fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io:
 
 #[cfg(target_os = "wasi")]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    let Some(mode) = desired_mode(source_file) else { return Ok(true) };
-    Ok(pnpm_fs::copy_permissions(source_file)? & 0o777 == mode)
+    let Some(desired) = desired_mode(source_file) else { return Ok(true) };
+    let mode = pnpm_fs::copy_permissions(source_file)?;
+    Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }

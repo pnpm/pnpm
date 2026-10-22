@@ -32,11 +32,12 @@ pub(super) fn check_settings_match_lockfile(
     Ok(())
 }
 
-/// The reason a failed lockfile settings check reports. The patch-hash
-/// checks compare the lockfile against itself rather than against a setting,
-/// so they are named apart.
+/// The specific user-facing reason for each patch-hash failure.
 fn settings_drift_reason(error: &crate::install::FreshnessCheckError) -> &'static str {
     match error {
+        crate::install::FreshnessCheckError::Stale(
+            StalenessReason::PatchedDependenciesChanged { .. },
+        ) => "Patches were modified",
         crate::install::FreshnessCheckError::Stale(StalenessReason::InconsistentPatchHashes) => {
             r#"the lockfile has patch hashes that disagree with its own "patchedDependencies""#
         }

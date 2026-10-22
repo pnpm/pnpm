@@ -301,9 +301,11 @@ async fn load_or_fetch_registry_tarball<Reporter: self::Reporter>(
     .await?;
     Ok(Arc::new(FetchedTarball {
         integrity: integrity.clone(),
+        tar_integrity: None,
         manifest: pnpm_tarball::read_cas_package_json(&files_map, "package.json").await?,
         requires_build: crate::requires_build_from_cas_paths(&files_map),
         files_map,
+        bins: None,
     }))
 }
 

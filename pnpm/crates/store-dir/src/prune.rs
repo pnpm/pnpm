@@ -97,19 +97,19 @@ impl StoreDir {
         self.prune_global_virtual_store(&references.package_roots)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
             .map_err(PruneError::PruneCas)?;
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "Removed {} file{} ({} bytes)",
             stats.files,
             if stats.files == 1 { "" } else { "s" },
             stats.bytes,
         );
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "Removed {} package{}",
             stats.packages,
             if stats.packages == 1 { "" } else { "s" },
         );
         if stats.undecodable_packages > 0 {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 "Kept {} package index entr{} that could not be read",
                 stats.undecodable_packages,
                 if stats.undecodable_packages == 1 { "y" } else { "ies" },
@@ -126,10 +126,10 @@ impl StoreDir {
 
         let projects = get_registered_projects(self).map_err(PruneError::ListProjects)?;
         if projects.is_empty() {
-            eprintln!("No registered projects for global virtual store");
+            pnpm_diagnostics::eprintln!("No registered projects for global virtual store");
             return Ok(());
         }
-        eprintln!(
+        pnpm_diagnostics::eprintln!(
             "Checking {} registered project(s) for global virtual store usage",
             projects.len(),
         );
@@ -139,18 +139,18 @@ impl StoreDir {
         // from any registered project leaves the slots' users as unknown as
         // an empty registry does.
         if reachable.is_empty() {
-            eprintln!("No registered project uses the global virtual store");
+            pnpm_diagnostics::eprintln!("No registered project uses the global virtual store");
             return Ok(());
         }
         let removed = remove_unreachable_packages(&links_dir, &reachable)?;
         if removed > 0 {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 "Removed {} package{} from global virtual store",
                 removed,
                 if removed == 1 { "" } else { "s" },
             );
         } else {
-            eprintln!("No unused packages found in global virtual store");
+            pnpm_diagnostics::eprintln!("No unused packages found in global virtual store");
         }
         Ok(())
     }
@@ -173,7 +173,10 @@ fn mark_reachable_slots(
     let mut visited: HashSet<PathBuf> = HashSet::new();
     mark_loader_roots(loader_roots, &canonical_links, &mut reachable, &mut visited)?;
     for project_dir in projects {
-        for modules_dir in find_all_node_modules_dirs(project_dir)? {
+        for modules_dir in find_all_node_modules_dirs(
+            project_dir,
+            canonical_links.parent().expect("links directory has a store root"),
+        )? {
             walk_symlinks_to_store(&modules_dir, &canonical_links, &mut reachable, &mut visited)?;
         }
     }
@@ -202,47 +205,56 @@ fn mark_loader_roots(
 /// records the path and stops descending — the
 /// hoisted deps inside `node_modules/.pnpm` and friends are picked up
 /// by [`walk_symlinks_to_store`]'s transitive recursion instead.
-fn find_all_node_modules_dirs(project_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
+fn find_all_node_modules_dirs(
+    project_dir: &Path,
+    excluded_store: &Path,
+) -> Result<Vec<PathBuf>, PruneError> {
     let mut out = Vec::new();
-    scan(project_dir, &mut out)?;
-    return Ok(out);
+    let project = dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
+    scan_node_modules_dirs(&project, &mut out, excluded_store)?;
+    Ok(out)
+}
 
-    fn scan(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), PruneError> {
-        let entries = match fs::read_dir(dir) {
-            Ok(entries) => entries,
-            Err(error)
-                if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
-            {
-                return Ok(());
-            }
-            Err(error) => {
-                return Err(PruneError::ReadMarkDir { path: dir.to_path_buf(), error });
-            }
-        };
-        let mut subdirs = Vec::new();
-        for entry in entries {
-            let entry =
-                entry.map_err(|error| PruneError::ReadMarkDir { path: dir.to_path_buf(), error })?;
-            let file_type = entry
-                .file_type()
-                .map_err(|error| PruneError::ReadMarkDir { path: entry.path(), error })?;
-            if !file_type.is_dir() {
-                continue;
-            }
-            let entry_path = entry.path();
-            let name = entry.file_name();
-            let name_str = name.to_string_lossy();
-            if name_str == "node_modules" {
-                out.push(entry_path);
-            } else if !name_str.starts_with('.') {
-                subdirs.push(entry_path);
-            }
+fn scan_node_modules_dirs(
+    dir: &Path,
+    out: &mut Vec<PathBuf>,
+    excluded_store: &Path,
+) -> Result<(), PruneError> {
+    for subdir in project_subdirectories(dir, excluded_store)? {
+        let name = subdir
+            .file_name()
+            .expect("directory entry has a name")
+            .to_string_lossy();
+        if name == "node_modules" {
+            out.push(subdir);
+        } else if !name.starts_with('.') {
+            scan_node_modules_dirs(&subdir, out, excluded_store)?;
         }
-        for sub in subdirs {
-            scan(&sub, out)?;
-        }
-        Ok(())
     }
+    Ok(())
+}
+
+fn project_subdirectories(dir: &Path, excluded_store: &Path) -> Result<Vec<PathBuf>, PruneError> {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {
+            return Ok(Vec::new());
+        }
+        Err(error) => return Err(PruneError::ReadMarkDir { path: dir.to_path_buf(), error }),
+    };
+    let mut subdirs = Vec::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|error| PruneError::ReadMarkDir { path: dir.to_path_buf(), error })?;
+        let file_type = entry
+            .file_type()
+            .map_err(|error| PruneError::ReadMarkDir { path: entry.path(), error })?;
+        let entry_path = entry.path();
+        if file_type.is_dir() && entry_path != excluded_store {
+            subdirs.push(entry_path);
+        }
+    }
+    Ok(subdirs)
 }
 
 /// Recursively follow every symlink under `dir`. When a symlink
@@ -299,14 +311,18 @@ fn next_walk_dir(
     reachable: &mut HashSet<PathBuf>,
 ) -> Option<PathBuf> {
     let file_type = entry.file_type().ok()?;
+    let entry_path = entry.path();
     if file_type.is_symlink() {
-        let slot = linked_store_slot(&entry.path(), canonical_links)?;
+        let slot = linked_store_slot(&entry_path, canonical_links)?;
         let inner_modules = canonical_links.join(&slot).join("node_modules");
         reachable.insert(slot);
         return Some(inner_modules);
     }
-    if file_type.is_dir() && entry.file_name().to_string_lossy() != ".pnpm" {
-        return Some(entry.path());
+    if file_type.is_dir()
+        && entry.file_name().to_string_lossy() != ".pnpm"
+        && canonical_links.parent() != Some(entry_path.as_path())
+    {
+        return Some(entry_path);
     }
     None
 }

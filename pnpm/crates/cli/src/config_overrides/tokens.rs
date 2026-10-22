@@ -1,6 +1,6 @@
 use super::{
-    HashSet, LinkWorkspacePackages, OsStr, PackageImportMethod, PmOnFail, RuntimeOnFail,
-    SaveWorkspaceProtocol, TrustPolicy,
+    HashSet, LinkWorkspacePackages, NodeLinkerSetting, OsStr, PackageImportMethod, PmOnFail,
+    RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy,
 };
 
 /// Whether the token at `index` belongs to the forwarded child command line.
@@ -154,12 +154,14 @@ pub(super) enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
+pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 46] = [
     ("allow-unused-patches", SettingArity::Boolean),
+    ("auto-dedupe", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("dangerously-allow-all-builds", SettingArity::Boolean),
     ("engine-strict", SettingArity::Boolean),
     ("force-legacy-deploy", SettingArity::Boolean),
+    ("frozen-lockfile", SettingArity::Boolean),
     ("frozen-store", SettingArity::Boolean),
     ("global-dir", SettingArity::Text),
     ("hoist", SettingArity::Boolean),
@@ -171,16 +173,21 @@ pub(super) const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
         SettingArity::BooleanOr { takes: is_enum::<LinkWorkspacePackages>, bare_keyword: true },
     ),
     ("lockfile", SettingArity::Boolean),
+    ("lockfile-dir", SettingArity::Text),
     ("lockfile-include-tarball-url", SettingArity::Boolean),
+    ("lockfile-only", SettingArity::Boolean),
     ("merge-git-branch-lockfiles", SettingArity::Boolean),
+    ("merge-git-branch-lockfiles-branch-pattern", SettingArity::Text),
     ("modules-dir", SettingArity::Text),
     ("node-experimental-package-map", SettingArity::Boolean),
+    ("node-linker", SettingArity::Parsed(is_node_linker)),
     ("offline", SettingArity::Boolean),
     ("optimistic-repeat-install", SettingArity::Boolean),
     ("package-import-method", SettingArity::Parsed(is_enum::<PackageImportMethod>)),
     ("pm-on-fail", SettingArity::Parsed(is_enum::<PmOnFail>)),
     ("prefer-frozen-lockfile", SettingArity::Boolean),
     ("prefer-offline", SettingArity::Boolean),
+    ("prefer-workspace-packages", SettingArity::Boolean),
     ("public-hoist-pattern", SettingArity::Text),
     ("runtime-on-fail", SettingArity::Parsed(is_enum::<RuntimeOnFail>)),
     (
@@ -212,6 +219,11 @@ fn is_u64(value: &str) -> bool {
 
 fn is_enum<Value: serde::de::DeserializeOwned>(value: &str) -> bool {
     parse_enum::<Value>(value).is_some()
+}
+
+fn is_node_linker(value: &str) -> bool {
+    serde_json::from_str::<NodeLinkerSetting>(value).is_ok()
+        || parse_enum::<NodeLinkerSetting>(value).is_some()
 }
 
 fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {

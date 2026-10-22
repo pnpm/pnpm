@@ -5,7 +5,7 @@
 //! for every key in the schema and applies it to the config *after*
 //! `pnpm-workspace.yaml`.
 //! The command line's `--config.<key>=<value>` values read through the same
-//! field list; see [`crate::Config::cli_setting_values`].
+//! field list; see [`crate::CliLayer::setting_values`].
 //!
 //! Pacquet does NOT read `npm_config_*` / `NPM_CONFIG_*` env vars (with
 //! the exception of `NPM_CONFIG_WORKSPACE_DIR`, a fallback of the
@@ -16,9 +16,9 @@
 
 use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
-    NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType, WorkspaceSettings, api::EnvVar,
+    NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, StoreIndexFormat,
+    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use parse::{parse_json, parse_json_or_string, parse_tri_array};
 use std::collections::BTreeMap;
@@ -83,6 +83,9 @@ macro_rules! tri_string_field {
     };
 }
 
+// Declared after the field macros so the module can use them.
+mod resolution;
+
 impl WorkspaceSettings {
     /// Build a [`WorkspaceSettings`] from `PNPM_CONFIG_*` env vars.
     ///
@@ -120,6 +123,7 @@ impl WorkspaceSettings {
         settings.read_layout_env(reader);
         settings.read_lockfile_env(reader);
         settings.read_registry_env(reader);
+        settings.read_peer_env(reader);
         settings.read_resolution_env(reader);
         settings.read_network_env(reader);
         settings.read_scripts_env(reader);
@@ -180,9 +184,19 @@ impl WorkspaceSettings {
         tri_array_field!(settings, reader, public_hoist_pattern, "PUBLIC_HOIST_PATTERN");
         json_field!(settings, reader, shamefully_hoist, "SHAMEFULLY_HOIST");
         string_field!(settings, reader, store_dir, "STORE_DIR");
+        enum_field!(settings, reader, store_index_format, "STORE_INDEX_FORMAT", StoreIndexFormat);
         string_field!(settings, reader, state_dir, "STATE_DIR");
         string_field!(settings, reader, modules_dir, "MODULES_DIR");
         enum_field!(settings, reader, node_linker, "NODE_LINKER", NodeLinkerSetting);
+        json_field!(settings, reader, symlink, "SYMLINK");
+        settings.read_node_package_map_env(reader);
+        settings.read_virtual_store_env(reader);
+    }
+
+    /// `nodePackageMap.type` and the deprecated `nodePackageMapType` share
+    /// the `NODE_PACKAGE_MAP_TYPE` variable.
+    fn read_node_package_map_env(&mut self, reader: &StringReader<'_>) {
+        let settings = self;
         json_field!(
             settings,
             reader,
@@ -196,8 +210,12 @@ impl WorkspaceSettings {
             "NODE_PACKAGE_MAP_TYPE",
             NodePackageMapType
         );
-        json_field!(settings, reader, symlink, "SYMLINK");
-        settings.read_virtual_store_env(reader);
+        if let Some(mode) = reader
+            .value("NODE_PACKAGE_MAP_MODE")
+            .and_then(|value| parse_json_or_string::<NodePackageMapMode>(&value))
+        {
+            settings.node_package_map.get_or_insert_default().mode = Some(mode);
+        }
     }
 
     fn read_virtual_store_env(&mut self, reader: &StringReader<'_>) {
@@ -266,49 +284,6 @@ impl WorkspaceSettings {
         }
     }
 
-    fn read_resolution_env(&mut self, reader: &StringReader<'_>) {
-        let settings = self;
-        json_field!(settings, reader, auto_install_peers, "AUTO_INSTALL_PEERS");
-        json_field!(
-            settings,
-            reader,
-            auto_install_peers_from_highest_match,
-            "AUTO_INSTALL_PEERS_FROM_HIGHEST_MATCH"
-        );
-        json_field!(settings, reader, exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");
-        json_field!(settings, reader, hoist_workspace_packages, "HOIST_WORKSPACE_PACKAGES");
-        enum_field!(settings, reader, hoisting_limits, "HOISTING_LIMITS", HoistingLimits);
-        json_field!(settings, reader, external_dependencies, "EXTERNAL_DEPENDENCIES");
-        json_field!(settings, reader, dedupe_peer_dependents, "DEDUPE_PEER_DEPENDENTS");
-        json_field!(settings, reader, dedupe_peers, "DEDUPE_PEERS");
-        json_field!(settings, reader, auto_dedupe, "AUTO_DEDUPE");
-        json_field!(settings, reader, dedupe_direct_deps, "DEDUPE_DIRECT_DEPS");
-        json_field!(settings, reader, prefer_workspace_packages, "PREFER_WORKSPACE_PACKAGES");
-        json_field!(settings, reader, dedupe_injected_deps, "DEDUPE_INJECTED_DEPS");
-        json_field!(settings, reader, strict_peer_dependencies, "STRICT_PEER_DEPENDENCIES");
-        json_field!(settings, reader, ignore_compatibility_db, "IGNORE_COMPATIBILITY_DB");
-        json_field!(
-            settings,
-            reader,
-            resolve_peers_from_workspace_root,
-            "RESOLVE_PEERS_FROM_WORKSPACE_ROOT"
-        );
-        json_field!(settings, reader, block_exotic_subdeps, "BLOCK_EXOTIC_SUBDEPS");
-        json_field!(settings, reader, verify_store_integrity, "VERIFY_STORE_INTEGRITY");
-        json_field!(
-            settings,
-            reader,
-            strict_store_pkg_content_check,
-            "STRICT_STORE_PKG_CONTENT_CHECK"
-        );
-        json_field!(settings, reader, include_workspace_root, "INCLUDE_WORKSPACE_ROOT");
-        json_field!(settings, reader, fail_if_no_match, "FAIL_IF_NO_MATCH");
-        json_field!(settings, reader, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
-        json_field!(settings, reader, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
-        json_field!(settings, reader, side_effects_cache, "SIDE_EFFECTS_CACHE");
-        json_field!(settings, reader, side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
-    }
-
     fn read_network_env(&mut self, reader: &StringReader<'_>) {
         let settings = self;
         json_field!(settings, reader, fetch_retries, "FETCH_RETRIES");
@@ -321,6 +296,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, fetch_timeout, "FETCH_TIMEOUT");
         json_field!(settings, reader, fetch_warn_timeout_ms, "FETCH_WARN_TIMEOUT_MS");
         json_field!(settings, reader, fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
+        json_field!(settings, reader, max_tarball_unpacked_size, "MAX_TARBALL_UNPACKED_SIZE");
         string_field!(settings, reader, user_agent, "USER_AGENT");
     }
 
@@ -337,6 +313,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, ignore_scripts, "IGNORE_SCRIPTS");
         json_field!(settings, reader, git_checks, "GIT_CHECKS");
         json_field!(settings, reader, publish_wait_timeout, "PUBLISH_WAIT_TIMEOUT");
+        json_field!(settings, reader, provenance, "PROVENANCE");
         string_field_allow_empty!(settings, reader, tag_version_prefix, "TAG_VERSION_PREFIX");
         json_field!(settings, reader, engine_strict, "ENGINE_STRICT");
         json_field!(settings, reader, force_ignores_platform, "FORCE_IGNORES_PLATFORM");
@@ -352,7 +329,7 @@ impl WorkspaceSettings {
         );
         json_field!(settings, reader, enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(settings, reader, script_shell, "SCRIPT_SHELL");
-        tri_string_field!(settings, reader, node_options, "NODE_OPTIONS");
+        settings.node_options = reader.value_allow_empty("NODE_OPTIONS").map(Some);
         json_field!(settings, reader, unsafe_perm, "UNSAFE_PERM");
         json_field!(settings, reader, child_concurrency, "CHILD_CONCURRENCY");
         json_field!(settings, reader, workspace_concurrency, "WORKSPACE_CONCURRENCY");

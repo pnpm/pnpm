@@ -1,6 +1,24 @@
 import path from 'node:path'
 
+import { assertBufferedTarballEntry } from './assertBufferedTarballEntry.js'
+import { assertUnpackedSize } from './assertUnpackedSize.js'
+import { parseOctal, SPACE } from './parseOctal.js'
+
 export type OnTarballFile = (relativePath: string, mode: number, content: Buffer) => void
+
+export interface TarballFileWriter {
+  write: (chunk: Buffer) => void
+  end: () => void
+}
+
+export type CreateTarballFileWriter = (relativePath: string, mode: number, size: number) => TarballFileWriter | undefined
+
+export interface TarballParserLimits {
+  /** Largest entry whose content the parser may hold in memory. */
+  maxBufferedEntrySize?: number
+  /** Largest sum of the declared sizes of the archive's regular files. */
+  maxTarballUnpackedSize?: number
+}
 
 export interface TarballParser {
   push: (chunk: Buffer) => void
@@ -11,7 +29,7 @@ const ZERO: number = '0'.charCodeAt(0)
 const FILE_TYPE_HARD_LINK: number = '1'.charCodeAt(0)
 const FILE_TYPE_SYMLINK: number = '2'.charCodeAt(0)
 const FILE_TYPE_DIRECTORY: number = '5'.charCodeAt(0)
-const SPACE: number = ' '.charCodeAt(0)
+const NEWLINE: number = '\n'.charCodeAt(0)
 const SLASH: number = '/'.charCodeAt(0)
 const BACKSLASH: number = '\\'.charCodeAt(0)
 const FILE_TYPE_PAX_HEADER: number = 'x'.charCodeAt(0)
@@ -43,9 +61,14 @@ interface PendingEntry {
  *
  * See the TAR specification: https://www.gnu.org/software/tar/manual/html_node/Standard.html
  */
-export function createTarballParser (onFile: OnTarballFile): TarballParser {
+export function createTarballParser (onFile: OnTarballFile, createFileWriter?: CreateTarballFileWriter, { maxBufferedEntrySize, maxTarballUnpackedSize }: TarballParserLimits = {}): TarballParser {
   const state: ParserState = {
     onFile,
+    createFileWriter,
+    maxBufferedEntrySize,
+    maxTarballUnpackedSize,
+    unpackedSize: 0,
+    writer: undefined,
     chunks: [],
     chunkOffset: 0,
     available: 0,
@@ -59,17 +82,18 @@ export function createTarballParser (onFile: OnTarballFile): TarballParser {
     paxHeaderFileSize: undefined,
   }
   return {
-    push: (chunk) => {
-      pushChunk(state, chunk)
-    },
-    end: () => {
-      assertArchiveFinished(state)
-    },
+    push: (chunk) => pushChunk(state, chunk),
+    end: () => assertArchiveFinished(state),
   }
 }
 
 interface ParserState {
   onFile: OnTarballFile
+  createFileWriter?: CreateTarballFileWriter
+  maxBufferedEntrySize?: number
+  maxTarballUnpackedSize?: number
+  unpackedSize: number
+  writer: { sink: TarballFileWriter, remaining: number } | undefined
   chunks: Buffer[]
   chunkOffset: number
   available: number
@@ -121,12 +145,41 @@ function skipBytes (state: ParserState): boolean {
 }
 
 function consumeEntryContent (state: ParserState, entry: PendingEntry): boolean {
-  const entryContent = readContent(state, entry.size)
-  if (entryContent == null) return false
-  handleEntryContent(state, entry, entryContent)
+  if (state.writer) {
+    if (!consumeStreamedContent(state)) return false
+  } else {
+    const entryContent = readContent(state, entry.size)
+    if (entryContent == null) return false
+    handleEntryContent(state, entry, entryContent)
+  }
   state.bytesToSkip = paddingOf(entry.size)
   state.entry = undefined
   return true
+}
+
+function consumeStreamedContent (state: ParserState): boolean {
+  const writer = state.writer!
+  while (state.available > 0 && writer.remaining > 0) {
+    const chunk = state.chunks[0]
+    const size = Math.min(chunk.length - state.chunkOffset, writer.remaining)
+    writer.sink.write(chunk.subarray(state.chunkOffset, state.chunkOffset + size))
+    discard(state, size)
+    writer.remaining -= size
+  }
+  if (writer.remaining > 0) return false
+  writer.sink.end()
+  state.writer = undefined
+  return true
+}
+
+function isRegularFile (fileType: number): boolean {
+  return fileType === 0 || fileType === ZERO || fileType === FILE_TYPE_HARD_LINK
+}
+
+function startEntryWriter (state: ParserState, entry: PendingEntry): void {
+  if (!isRegularFile(entry.fileType)) return
+  const sink = state.createFileWriter?.(entry.fileName, entry.mode, entry.size)
+  if (sink) state.writer = { sink, remaining: entry.size }
 }
 
 function consumeHeader (state: ParserState): boolean {
@@ -144,6 +197,12 @@ function consumeHeader (state: ParserState): boolean {
   const nextEntry = parseHeader(state, header, headerOffset)
   if (entryHasContent(nextEntry.fileType)) {
     state.entry = nextEntry
+    if (isRegularFile(nextEntry.fileType)) {
+      state.unpackedSize += nextEntry.size
+      assertUnpackedSize(state.unpackedSize, state.maxTarballUnpackedSize)
+    }
+    startEntryWriter(state, nextEntry)
+    if (!state.writer) assertBufferedTarballEntry(nextEntry, state.maxBufferedEntrySize)
   } else {
     state.bytesToSkip = nextEntry.size + paddingOf(nextEntry.size)
   }
@@ -322,11 +381,14 @@ function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, li
   while (cursor < end && buffer[cursor] !== SPACE) {
     cursor++
   }
+  if (cursor >= end) {
+    throw new Error('Invalid PAX record format: missing space delimiter')
+  }
 
   // The format of a PAX header line is "%d %s=%s\n"
   const strLen: string = buffer.toString('utf-8', lineStart, cursor)
   const len: number = parseInt(strLen, 10)
-  if (!len) {
+  if (isNaN(len) || len <= 0 || lineStart + len > end || lineStart + len <= cursor) {
     throw new Error(`Invalid length in PAX record: ${strLen}`)
   }
 
@@ -334,6 +396,9 @@ function readPaxRecord (buffer: Buffer, lineStart: number): { record: string, li
   cursor++
 
   const lineEnd: number = lineStart + len
+  if (buffer[lineEnd - 1] !== NEWLINE) {
+    throw new Error('Invalid PAX record format: missing newline terminator')
+  }
   return { record: buffer.toString('utf-8', cursor, lineEnd - 1), lineEnd }
 }
 
@@ -355,7 +420,7 @@ function applyPaxRecord (state: ParserState, record: string, global: boolean): v
 
 function parsePaxSize (record: string, equalSign: number, global: boolean): number {
   const size: number = parseInt(record.slice(equalSign + 1), 10)
-  if (isNaN(size) || size < 0) {
+  if (isNaN(size) || size < 0 || !Number.isSafeInteger(size)) {
     throw new Error(`Invalid size in PAX record: ${record}`)
   }
   if (global) {
@@ -371,8 +436,8 @@ function entryHasContent (fileType: number): boolean {
 /**
  * An entry's content is followed by zeros up to the next 512-byte block boundary.
  */
-function paddingOf (size: number): number {
-  return (BLOCK_SIZE - (size & 0x1ff)) & 0x1ff
+export function paddingOf (size: number): number {
+  return (BLOCK_SIZE - (size % BLOCK_SIZE)) % BLOCK_SIZE
 }
 
 /**
@@ -429,37 +494,4 @@ function checkSum (header: Buffer): number {
   }
 
   return sum
-}
-
-/**
- * Parses an octal number at the specified `offset`, up to `length` characters. If it ends early, it will be terminated by either
- * a NUL or a space.
- */
-function parseOctal (buffer: Buffer, offset: number, length: number): number {
-  const val = buffer.subarray(offset, offset + length)
-  offset = 0
-
-  // Older versions of tar can prefix with spaces
-  while (offset < val.length && val[offset] === SPACE) offset++
-  const end = clamp(indexOf(val, SPACE, offset, val.length), val.length, val.length)
-  while (offset < end && val[offset] === 0) offset++
-  if (end === offset) return 0
-  return parseInt(val.subarray(offset, end).toString(), 8)
-}
-
-function indexOf (block: Buffer, num: number, offset: number, end: number): number {
-  for (; offset < end; offset++) {
-    if (block[offset] === num) return offset
-  }
-  return end
-}
-
-function clamp (index: number, len: number, defaultValue: number): number {
-  if (typeof index !== 'number') return defaultValue
-  index = ~~index // Coerce to integer.
-  if (index >= len) return len
-  if (index >= 0) return index
-  index += len
-  if (index >= 0) return index
-  return 0
 }

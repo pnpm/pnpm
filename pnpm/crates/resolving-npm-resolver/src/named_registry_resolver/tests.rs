@@ -88,10 +88,10 @@ fn build_resolver(
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
+            registry_options_by_url: std::sync::Arc::default(),
         },
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -403,7 +403,7 @@ async fn update_requested_keeps_non_version_selectors() {
             pnpm_resolving_resolver_base::VersionSelectorEntry::Weighted(
                 pnpm_resolving_resolver_base::VersionSelectorWithWeight {
                     selector_type: pnpm_resolving_resolver_base::VersionSelectorType::Range,
-                    weight: 1000,
+                    weight: pnpm_resolving_resolver_base::DIRECT_DEP_SELECTOR_WEIGHT,
                 },
             ),
         );
@@ -705,7 +705,7 @@ async fn offline_named_registry_range_pick_narrows_to_store_held_version() {
     let mut user = HashMap::new();
     user.insert("work".to_string(), registry.clone());
     let (mut resolver, tempdir) = build_resolver(user);
-    resolver.cache_policy.offline = true;
+    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
 
     let preloaded: pnpm_registry::Package =
         serde_json::from_str(ACME_PRIVATE_BODY).expect("parse packument");

@@ -128,7 +128,7 @@ The easiest solution to resolve missing dependencies of the buggy packages is to
 You can do so, by installing it via `pnpm add iterall`, and will be
 automatically added to your project's `package.json`.
 
-```json
+```json title="package.json"
   "dependencies": {
     ...
     "iterall": "^1.2.2",
@@ -146,7 +146,7 @@ since been resolved such that it works with `pnpm` now.
 
 It used to throw an error:
 
-```console
+```text
 Error: Cannot find module 'babel-traverse'
   at /node_modules/inspectpack@2.2.3/node_modules/inspectpack/lib/actions/parse
 ```
@@ -158,7 +158,7 @@ they create flat `node_modules`.
 
 The solution was to create a `.pnpmfile.mjs` with the following contents:
 
-```js
+```js title=".pnpmfile.mjs"
 export const hooks = {
   readPackage: (pkg) => {
     if (pkg.name === "inspectpack") {

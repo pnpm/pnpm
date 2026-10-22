@@ -4,30 +4,34 @@
 //! events the reporter renders during a fetch.
 
 pub(crate) use body::{BodyProgress, slow_download_warning};
+pub(crate) use buffered::{BufferedArchive, ExtractedFiles, extract_tarball_buffer};
 pub(crate) use fetch::{AttemptedFetch, ExtractedArchive, fetch_and_extract_once};
 pub use progress::download_priority;
 pub(crate) use progress::{emit_progress_fetched, emit_progress_found_in_store};
 
 use super::{
-    Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, Path, PathBuf,
-    STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
-    body_chunk_channel, extract_gzipped_tarball, local_file_tarball_path, non_gzip_body_error,
-    open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
-    stream_extract_gzipped_channel, streaming_extract_semaphore,
+    Arc, Duration, HashMap, IgnoreEntryFilter, Instant, MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError,
+    Path, PathBuf, STREAM_EXTRACT_COMPRESSED_THRESHOLD, STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD,
+    SharedReportedProgressKeys, TarLimits, TarballError, VerifyChecksumError,
+    allocate_tarball_buffer, body_chunk_channel,
+    content_coding::ContentCoding,
+    extract::{BodyChunkSender, ExtractedResource, StreamedResource},
+    extract_archive_bytes, extract_resource_stream,
+    extraction_task::spawn_extraction,
+    local_file_tarball_path, open_local_tarball, post_download_semaphore,
+    read_local_tarball_buffer, streaming_extract_semaphore,
 };
-use crate::{extract::BodyChunkSender, extraction_task::spawn_extraction};
+use crate::archive_integrity::ArchiveVerification;
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
-    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, is_permanent_error,
-    redact_url_for_display,
+    AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
 };
 use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
-    Reporter, RequestRetryError,
+    Reporter,
 };
 use pnpm_store_dir::{PackageFilesIndex, StoreDir, store_index_key};
-use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use ssri::{Algorithm, Integrity, IntegrityOpts};
 use tokio::sync::SemaphorePermit;
 
 /// Controls how archive files are projected into pnpm's content-addressable store.
@@ -185,142 +189,6 @@ pub struct IngestTarballToStore<'a> {
     pub store_projection: ArchiveStoreProjection<'a>,
 }
 
-/// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
-/// JS-shaped error object. The JS default-reporter dispatches on
-/// `httpStatusCode ?? status ?? errno ?? code` to render the retry
-/// reason; absent fields skip rather than emit `null` so the `??`
-/// chain doesn't short-circuit on a present-but-`null` field.
-///
-/// The mapping is hand-maintained per match arm rather than
-/// reflectively derived, so renaming a [`TarballError`] variant
-/// won't silently change the emitted `code`. `errno` and `status`
-/// are skipped because pacquet's error layer doesn't carry them;
-/// pnpm's emit fills them when the underlying network error did.
-pub(crate) fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
-    let mut out = RequestRetryError {
-        message: err.to_string(),
-        http_status_code: None,
-        status: None,
-        errno: None,
-        code: None,
-    };
-    let code = match err {
-        TarballError::HttpStatus(http) => {
-            out.http_status_code = Some(http.status.to_string());
-            return out;
-        }
-        TarballError::FetchTarball(_) => "ERR_PNPM_FETCH",
-        TarballError::OffAllowlist { .. } => "ERR_PNPM_REGISTRY_OFF_ALLOWLIST",
-        TarballError::Checksum(_) => "ERR_PNPM_TARBALL_INTEGRITY",
-        TarballError::DecodeGzip(_) => "ERR_PNPM_TARBALL_GZIP",
-        TarballError::ReadTarballEntries(_) => "ERR_PNPM_TARBALL_TAR",
-        TarballError::ParseBundledManifest { .. } => "ERR_PNPM_TARBALL_EXTRACT",
-        TarballError::ReadLocalTarball { .. } => "ERR_PNPM_TARBALL_FILE",
-        TarballError::WriteCasFile(_) | TarballError::WriteStoreIndex(_) => {
-            "ERR_PNPM_TARBALL_STORE"
-        }
-        TarballError::TaskJoin(_) => "ERR_PNPM_TASK_JOIN",
-        TarballError::TarballTooLarge { .. } => "ERR_PNPM_TARBALL_TOO_LARGE",
-        TarballError::SiblingFetchFailed { .. } => "ERR_PNPM_SIBLING_FETCH",
-        TarballError::PathTraversal { .. } => "ERR_PNPM_PATH_TRAVERSAL",
-        TarballError::ReadZipArchive { .. } | TarballError::ReadZipEntries { .. } => "ERR_PNPM_ZIP",
-        TarballError::NoOfflineTarball { .. } => {
-            // The retry classifier sees this only if the offline gate
-            // were ever placed inside the retry loop (it isn't —
-            // `NoOfflineTarball` short-circuits before
-            // `fetch_and_extract_with_retry`). The arm exists for
-            // exhaustiveness; the `code` field is set so a future
-            // surface that does run this error through the retry
-            // logger renders the right code.
-            "ERR_PNPM_NO_OFFLINE_TARBALL"
-        }
-        TarballError::UnexpectedPkgContentInStore { .. } => {
-            // Same "for exhaustiveness" stance as the arm above: the
-            // store read this comes from happens before the retry loop,
-            // and re-reading the same row would only reproduce it.
-            "ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE"
-        }
-    };
-    out.code = Some(code.to_string());
-    out
-}
-
-/// Whether a [`TarballError`] from one tarball-fetch attempt should be
-/// retried.
-///
-/// We retry integrity mismatches and decode errors. The body fetch
-/// *and* the post-download integrity check + extraction live in one
-/// retried closure for the same reason: a corrupted byte on the wire
-/// that happens to escape TCP framing can break either the integrity
-/// check or the gzip decode, and a re-fetch is the cheapest way out.
-pub(crate) fn is_transient_error(err: &TarballError) -> bool {
-    match err {
-        TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
-        TarballError::FetchTarball(network) => !is_permanent_error(&network.error),
-        TarballError::ReadLocalTarball { .. } => false,
-        TarballError::WriteCasFile(write) => !is_storage_full(write),
-        // A route policy does not change between attempts.
-        TarballError::OffAllowlist { .. } => false,
-        _ => true,
-    }
-}
-
-fn is_storage_full(error: &(dyn std::error::Error + 'static)) -> bool {
-    let mut source = Some(error);
-    while let Some(error) = source {
-        if error
-            .downcast_ref::<std::io::Error>()
-            .is_some_and(|io| io.kind() == std::io::ErrorKind::StorageFull)
-        {
-            return true;
-        }
-        source = error.source();
-    }
-    false
-}
-
-pub(crate) async fn extract_tarball_buffer(
-    buffer: Vec<u8>,
-    expected_integrity: Option<&Integrity>,
-    package_unpacked_size: Option<usize>,
-    package_url: &str,
-    store_dir: &'static StoreDir,
-    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let post_download_permit = post_download_semaphore()
-        .acquire()
-        .await
-        .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    let expected_integrity = expected_integrity.cloned();
-    let package_url_owned = package_url.to_string();
-    let result = spawn_extraction(
-        post_download_permit,
-        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            let integrity = verify_tarball_integrity(
-                &buffer,
-                expected_integrity,
-                package_url_owned,
-            )?;
-            let (cas_paths, pkg_files_idx) = extract_gzipped_tarball(
-                &buffer,
-                package_unpacked_size,
-                store_dir,
-                ignore_file_pattern.as_deref(),
-            )?;
-            Ok((integrity, cas_paths, pkg_files_idx))
-        },
-    )
-    .await
-    .map_err(TarballError::TaskJoin)??;
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
-
-    Ok(result)
-}
-
 pub(crate) fn verify_tarball_integrity(
     buffer: &[u8],
     expected_integrity: Option<Integrity>,
@@ -352,12 +220,6 @@ impl<'a> BodyProgress<'a> {
             last_emitted_downloaded: 0,
             downloaded: 0,
             package_id,
-        }
-    }
-
-    pub(crate) fn on_chunks<Reporter: self::Reporter>(&mut self, chunks: &[bytes::Bytes]) {
-        for chunk in chunks {
-            self.on_chunk::<Reporter>(chunk.len());
         }
     }
 
@@ -406,7 +268,7 @@ impl<'a> BodyProgress<'a> {
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
-/// errors (see [`is_transient_error`]) fail on the first attempt;
+/// errors (see [`super::archive_retry::is_transient_error`]) fail on the first attempt;
 /// transient errors sleep with exponential backoff until the retry
 /// budget is exhausted, surfacing the most recent error.
 ///
@@ -427,11 +289,12 @@ impl<'a> BodyProgress<'a> {
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
 )]
-pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
+pub(crate) async fn fetch_and_extract_archive_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
     download_priority: u64,
     package_id: &str,
     requester: &str,
@@ -441,12 +304,13 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedFiles, TarballError> {
     match fetch_and_extract_conditional::<Reporter>(
         http_client,
         package_url,
-        expected_integrity,
+        verification,
         package_unpacked_size,
+        tar_limits,
         download_priority,
         package_id,
         requester,
@@ -462,7 +326,7 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     {
         AttemptedFetch::Extracted(extracted) => {
             let extracted = *extracted;
-            Ok((extracted.integrity, extracted.files, extracted.index))
+            Ok((extracted.integrity, extracted.files, extracted.index, extracted.bins))
         }
         AttemptedFetch::NotModified(meta) => {
             Err(TarballError::HttpStatus(crate::HttpStatusError {
@@ -473,8 +337,9 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     }
 }
 
-/// Like [`fetch_and_extract_with_retry`], but a conditional `If-None-Match`
-/// may resolve to [`AttemptedFetch::NotModified`] instead of a body.
+/// Fetch and extract a tarball with retry, allowing a conditional
+/// `If-None-Match` to resolve to [`AttemptedFetch::NotModified`] instead of a
+/// body.
 #[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
@@ -482,8 +347,9 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
 pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
     download_priority: u64,
     package_id: &str,
     requester: &str,
@@ -506,8 +372,9 @@ pub(crate) async fn fetch_and_extract_conditional<Reporter: self::Reporter>(
             fetch_and_extract_once::<Reporter>(
                 http_client,
                 package_url,
-                expected_integrity,
+                verification,
                 package_unpacked_size,
+                tar_limits,
                 download_priority,
                 package_id,
                 attempt,
@@ -538,9 +405,11 @@ pub(crate) fn store_index_cache_key(
 
 mod body;
 use body::{
-    BodyHasher, BufferBody, Buffered, advertises_large_body, buffer_body,
-    extract_body_while_downloading, starts_with_gzip_magic,
+    BodyVerification, BufferBody, Buffered, buffer_body, extract_body_while_downloading,
+    streams_while_downloading,
 };
+
+mod buffered;
 
 mod fetch;
 

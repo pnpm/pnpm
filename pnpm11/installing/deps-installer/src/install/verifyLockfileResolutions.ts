@@ -56,6 +56,11 @@ const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
   canTrustPastCheck: (cached) => cached.dependencyAliasCheck === true,
 }
 
+const VARIATION_RESOLUTION_CACHE_IDENTITY: VerifierCacheIdentity = {
+  policy: { variationResolutionCheck: true },
+  canTrustPastCheck: (cached) => cached.variationResolutionCheck === true,
+}
+
 /**
  * Every verifier list that flows into the verification cache must carry
  * the always-on offline structural checks' identities, so a record
@@ -68,7 +73,7 @@ const DEPENDENCY_ALIAS_CACHE_IDENTITY: VerifierCacheIdentity = {
  * resolution it just produced).
  */
 export function withOfflineCheckCacheIdentities (verifiers: readonly VerifierCacheIdentity[]): VerifierCacheIdentity[] {
-  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY]
+  return [...verifiers, RESOLUTION_SHAPE_CACHE_IDENTITY, DEPENDENCY_ALIAS_CACHE_IDENTITY, VARIATION_RESOLUTION_CACHE_IDENTITY]
 }
 
 export interface VerifyLockfileResolutionsOptions {
@@ -381,9 +386,10 @@ function isRegistryShapedResolution (resolution: unknown): boolean {
 }
 
 function areRegistryShapedVariants (variants: unknown): boolean {
-  return Array.isArray(variants) && variants.every(
-    (variant) => isRegistryShapedResolution((variant as { resolution?: unknown })?.resolution)
-  )
+  return Array.isArray(variants) && variants.length > 0 && variants.every((variant) => {
+    const resolution = (variant as { resolution?: unknown })?.resolution
+    return resolution != null && isRegistryShapedResolution(resolution)
+  })
 }
 
 function isRegistryShapedTarballResolution (gitHosted: unknown, tarball: unknown): boolean {

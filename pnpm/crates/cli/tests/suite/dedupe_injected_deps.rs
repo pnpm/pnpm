@@ -308,10 +308,9 @@ fn injected_peer_suffixed_workspace_dep_stays_file_after_remove() {
     drop((root, mock_instance));
 }
 
-/// The pnpm/pnpm#10433 guard preserves an untargeted workspace dep's
-/// prior `link:`, but it only compensates for the dedupe pass not
-/// running on every re-resolution path — with that pass off the recorded
-/// entry is stale. Regression test for pnpm/pnpm#13754.
+/// With the dedupe pass off, nothing turns an injected workspace dep back
+/// into a `link:`, so a recorded `link:` gives way to the injected copy.
+/// Regression test for pnpm/pnpm#13754.
 #[test]
 fn newly_injected_workspace_dep_with_dedupe_off_replaces_recorded_link() {
     let CommandTempCwd {
@@ -663,4 +662,52 @@ fn injected_workspace_dep_is_deduped_after_its_peer_variants_merge() {
     );
 
     drop((root, mock_instance));
+}
+
+/// `q` peer-depends on `@pnpm.e2e/foo`, and `n` depends on `q`. While only
+/// the root provides `foo`, `q` binds the same version under the consumer
+/// as in `n`'s own context, so `consumer -> n` dedupes to `link:`. Once the
+/// consumer provides another version, the injected copy binds that one, so
+/// the next install records the copy, as a fresh install does.
+/// Covers <https://github.com/pnpm/pnpm/issues/17057>.
+#[test]
+fn injected_workspace_dep_turns_into_a_copy_when_its_peer_diverges() {
+    let fixture = _utils::WorkspaceFixture::new();
+    fixture.append_workspace_yaml("injectWorkspacePackages: true\n");
+    let write = |dir: &str, manifest: serde_json::Value| {
+        let path = fixture.workspace.join("packages").join(dir);
+        fs::create_dir_all(&path).expect("create project dir");
+        fs::write(path.join("package.json"), manifest.to_string()).expect("write package.json");
+    };
+    fs::write(
+        fixture.workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })
+            .to_string(),
+    )
+    .expect("write root package.json");
+    write("q", serde_json::json!({ "name": "q", "peerDependencies": { "@pnpm.e2e/foo": "*" } }));
+    write("n", serde_json::json!({ "name": "n", "dependencies": { "q": "workspace:^" } }));
+    write(
+        "consumer",
+        serde_json::json!({ "name": "consumer", "dependencies": { "n": "workspace:*" } }),
+    );
+    let n_version = || _utils::importer_version(&fixture.wanted(), "packages/consumer", "n");
+
+    fixture.run(["install"]);
+    assert_eq!(n_version(), "link:../n");
+
+    write(
+        "consumer",
+        serde_json::json!({
+            "name": "consumer",
+            "dependencies": { "n": "workspace:*", "@pnpm.e2e/foo": "100.1.0" },
+        }),
+    );
+    fixture.run(["install"]);
+    let incremental = n_version();
+    fs::remove_file(fixture.workspace.join("pnpm-lock.yaml")).expect("remove the lockfile");
+    fixture.run(["install"]);
+
+    assert_eq!(incremental, "file:packages/n(@pnpm.e2e/foo@100.1.0)");
+    assert_eq!(n_version(), incremental, "a fresh install records the same copy");
 }

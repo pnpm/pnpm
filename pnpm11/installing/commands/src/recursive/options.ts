@@ -8,12 +8,14 @@ import type { StoreController } from '@pnpm/store.controller'
 import type { IncludedDependencies, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
+| 'autoInstallPeersFromHighestMatch'
 | 'bail'
 | 'configDependencies'
 | 'dedupePeerDependents'
 | 'dedupePeers'
 | 'depth'
 | 'dryRun'
+| 'externalDependencies'
 | 'globalPnpmfile'
 | 'hoistPattern'
 | 'hoistingLimits'
@@ -43,11 +45,12 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'trustLockfile'
 | 'tryLoadDefaultPnpmfile'
 | 'catalogPrune'
+| 'configDependencies'
 | 'minimumReleaseAgeExcludePrune'
 | 'trustPolicyExcludePrune'
 | 'packageConfigs'
 | 'updateConfig'
-> & Pick<ConfigContext,
+> & Partial<Pick<Config, 'filter' | 'filterProd'>> & Pick<ConfigContext,
 | 'hooks'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'
@@ -111,6 +114,7 @@ export type CommandFullName = 'install' | 'add' | 'remove' | 'update' | 'import'
 
 export interface RecursiveResult {
   passed: boolean | string
+  installedProjectDirs: ProjectRootDir[]
   /**
    * Catalog entries written to `pnpm-workspace.yaml` during this install.
    * The caller folds these into the catalogs recorded in the workspace state

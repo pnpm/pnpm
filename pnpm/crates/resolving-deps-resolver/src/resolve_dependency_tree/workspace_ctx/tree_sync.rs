@@ -178,7 +178,7 @@ impl super::WorkspaceTreeStorage {
                     entry.insert(pkg.clone());
                 }
                 Entry::Occupied(entry) => {
-                    if entry.get().peer_dependencies != pkg.peer_dependencies {
+                    if entry.get().peer_set.taken() != pkg.peer_set.taken() {
                         return false;
                     }
                 }
@@ -201,6 +201,9 @@ impl super::WorkspaceTreeStorage {
                 Entry::Occupied(mut entry) => {
                     if entry.get().depth > node.depth {
                         entry.get_mut().depth = node.depth;
+                    }
+                    if matches!(node.children, crate::resolved_tree::TreeChildren::Lazy) {
+                        entry.get_mut().children = crate::resolved_tree::TreeChildren::Lazy;
                     }
                 }
             }

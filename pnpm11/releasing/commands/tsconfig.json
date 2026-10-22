@@ -97,6 +97,9 @@
       "path": "../../installing/commands"
     },
     {
+      "path": "../../installing/deps-resolver"
+    },
+    {
       "path": "../../lockfile/fs"
     },
     {

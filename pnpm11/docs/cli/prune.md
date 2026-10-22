@@ -15,8 +15,10 @@ Remove the packages specified in `devDependencies`.
 
 Remove the packages specified in `optionalDependencies`.
 
-:::warning
+### --recursive, -r
 
-The prune command does not support recursive execution on a monorepo currently. To only install production-dependencies in a monorepo `node_modules` folders can be deleted and then re-installed with `pnpm install --prod`.
+Run `pnpm prune` in every package found in subdirectories, or in every workspace package when executed inside a workspace.
 
-:::
+### --filter &lt;package_selector&gt;
+
+Restrict `pnpm prune` to the selected workspace projects. [Read more about filtering.](../filtering.md)

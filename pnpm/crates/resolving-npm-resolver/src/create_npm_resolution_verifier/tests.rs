@@ -15,7 +15,8 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, RegistryResolution, TarballResolution, TarballRevision,
+    LockfileResolution, PkgName, PlatformAssetResolution, RegistryResolution, TarballResolution,
+    TarballRevision, VariationsResolution,
 };
 use pnpm_network::{
     AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
@@ -70,6 +71,7 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
     CreateNpmResolutionVerifierOptions {
         registries: registries_with_default(registry_url),
         registries_by_prefix: HashMap::new(),
+        registry_options_by_url: None,
         now: None,
         release_age: crate::VerificationReleaseAgeOptions {
             minimum_minutes: None,
@@ -221,6 +223,8 @@ fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
     VerifyCtx { name, version, registry_name: None }
 }
 
+const REVISION_ZERO_DIGEST: &str =
+    "H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ";
 const REVISION_ONE_DIGEST: &str =
     "Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g";
 const REVISION_TWO_DIGEST: &str =

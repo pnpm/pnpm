@@ -102,15 +102,22 @@ function findNewestInstallableNonDeprecated (
   opts: PublishPolicyOptions
 ): semver.SemVer | undefined {
   let newest: semver.SemVer | undefined
-  for (const [version, versionMeta] of Object.entries(meta.versions)) {
-    if (versionMeta.deprecated) continue
-    if (!installableUnderPolicy(meta, version, opts)) continue
+  // Keys first, so a lazily-loaded manifest is parsed only for a version the
+  // policy admits. A version without a manifest is skipped.
+  for (const version in meta.versions) {
+    if (!isInstallableNonDeprecated(meta, version, opts)) continue
     const parsed = semver.parse(version, true)
     if (parsed != null && (newest == null || parsed.compare(newest) > 0)) {
       newest = parsed
     }
   }
   return newest
+}
+
+function isInstallableNonDeprecated (meta: PackageMeta, version: string, opts: PublishPolicyOptions): boolean {
+  if (!Object.hasOwn(meta.versions, version) || !installableUnderPolicy(meta, version, opts)) return false
+  const versionMeta = meta.versions[version]
+  return versionMeta != null && !versionMeta.deprecated
 }
 
 export function parseModifiedDate (modified: string | undefined): Date | null {

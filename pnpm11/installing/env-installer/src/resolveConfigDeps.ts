@@ -7,21 +7,19 @@ import {
   readEnvLockfile,
 } from '@pnpm/lockfile.fs'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
-import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
-import { createFetchFromRegistry, type CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
-import { createNpmResolver, type ResolverFactoryOptions } from '@pnpm/resolving.npm-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
-import type { ConfigDependencies, ConfigDependencySpecifiers, RegistryConfig } from '@pnpm/types'
+import type { ConfigDependencies, ConfigDependencySpecifiers } from '@pnpm/types'
 
+import { type ConfigDepResolverOpts, createConfigDepResolvers, type ResolveConfigDep } from './createConfigDepResolvers.js'
 import { installConfigDeps, type InstallConfigDepsOpts } from './installConfigDeps.js'
 import { pruneEnvLockfile } from './pruneEnvLockfile.js'
 import { resolveOptionalSubdeps } from './resolveOptionalSubdeps.js'
+import { createConfigDepsVerifier } from './verifyConfigDepResolutions.js'
 import { writeVerifiedEnvLockfile } from './writeVerifiedEnvLockfile.js'
 
-export type ResolveConfigDepsOpts = CreateFetchFromRegistryOptions & ResolverFactoryOptions & InstallConfigDepsOpts & {
+export type ResolveConfigDepsOpts = ConfigDepResolverOpts & InstallConfigDepsOpts & {
   configDependencies?: ConfigDependencies
   rootDir: string
-  configByUri?: Record<string, RegistryConfig>
 }
 
 export async function resolveConfigDeps (configDeps: string[], opts: ResolveConfigDepsOpts): Promise<void> {
@@ -29,9 +27,8 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
     throw new PnpmError('FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE', 'Cannot resolve configDependencies with "frozen-lockfile" because the lockfile is not up to date')
   }
 
-  const fetch = createFetchFromRegistry(opts)
-  const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
-  const { resolveFromNpm } = createNpmResolver(fetch, getAuthHeader, opts)
+  opts = { ...opts, now: opts.now ?? Date.now() }
+  const resolveFromNpm = createConfigDepResolvers(opts).resolve
 
   const configDependencySpecifiers: ConfigDependencySpecifiers = extractSpecifiers(opts.configDependencies)
   const envLockfile: EnvLockfile = (await readEnvLockfile(opts.rootDir)) ?? createEnvLockfile()
@@ -41,6 +38,7 @@ export async function resolveConfigDeps (configDeps: string[], opts: ResolveConf
 
   pruneEnvLockfile(envLockfile)
 
+  await createConfigDepsVerifier(declaredConfigDepsExcept(opts.configDependencies, configDeps), opts)(envLockfile)
   await writeVerifiedEnvLockfile(opts.rootDir, envLockfile)
   await writeSettings({
     ...opts,
@@ -57,7 +55,7 @@ interface AddConfigDepContext {
   configDependencySpecifiers: ConfigDependencySpecifiers
   envLockfile: EnvLockfile
   opts: ResolveConfigDepsOpts
-  resolveFromNpm: ReturnType<typeof createNpmResolver>['resolveFromNpm']
+  resolveFromNpm: ResolveConfigDep
 }
 
 async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: string): Promise<void> {
@@ -99,6 +97,11 @@ async function addConfigDepToLockfile (ctx: AddConfigDepContext, configDep: stri
     resolveFromNpm: ctx.resolveFromNpm,
   })
   envLockfile.snapshots[pkgKey] = optionalSubdeps ? { optionalDependencies: optionalSubdeps } : {}
+}
+
+function declaredConfigDepsExcept (configDependencies: ConfigDependencies | undefined, added: string[]): ConfigDependencies {
+  const addedNames = new Set(added.map((configDep) => parseWantedDependency(configDep).alias))
+  return Object.fromEntries(Object.entries(configDependencies ?? {}).filter(([name]) => !addedNames.has(name)))
 }
 
 /**

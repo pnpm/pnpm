@@ -1,6 +1,6 @@
 use super::{
     Arc, AtomicBool, CafsFileInfo, HashMap, Ordering, PackageFilesIndex, SideEffectsDiff, StoreDir,
-    StoreIndex, StoreIndexError,
+    StoreIndex, StoreIndexError, StoreIndexFormat,
 };
 
 /// Handle producers use to hand rows off to the batched writer task. Clone
@@ -76,6 +76,11 @@ enum WriteMsg {
         channel: String,
         envelope_digest: String,
     },
+    /// Make the row at `target` reachable under `alias` as well.
+    Alias {
+        alias: String,
+        target: String,
+    },
 }
 
 const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS: usize = 64;
@@ -94,13 +99,24 @@ impl StoreIndexWriter {
     ///
     /// The writer task owns the [`StoreIndex`] connection for its entire
     /// lifetime; on DB open failure the task returns the error and the
-    /// channel closes on the first producer send.
+    /// channel closes on the first producer send. The index keeps the
+    /// format the store already has.
     pub fn spawn(
         store_dir: &StoreDir,
+    ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+        StoreIndexWriter::spawn_in_format(store_dir, StoreIndexFormat::Sqlite)
+    }
+
+    /// [`StoreIndexWriter::spawn`], after giving the store the index
+    /// `index_format` asks for (see [`StoreIndex::apply_format`]).
+    pub fn spawn_in_format(
+        store_dir: &StoreDir,
+        index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         let store_root = store_dir.root().to_path_buf();
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<WriteMsg>();
         let handle = tokio::task::spawn_blocking(move || -> Result<(), StoreIndexError> {
+            StoreIndex::apply_format(&store_root, index_format)?;
             let mut index = StoreIndex::open(&store_root)?;
             let mut batch: Vec<WriteMsg> = Vec::with_capacity(MAX_BATCH_SIZE);
             while let Some(first) = rx.blocking_recv() {
@@ -120,18 +136,19 @@ impl StoreIndexWriter {
         )
     }
 
-    /// [`StoreIndexWriter::spawn`], or [`StoreIndexWriter::spawn_disabled`]
-    /// under `frozenStore` where the store is read-only and there is
-    /// nothing to write back.
+    /// [`StoreIndexWriter::spawn_in_format`], or
+    /// [`StoreIndexWriter::spawn_disabled`] under `frozenStore` where the
+    /// store is read-only and there is nothing to write back.
     #[must_use]
     pub fn spawn_for(
         store_dir: &StoreDir,
         frozen_store: bool,
+        index_format: StoreIndexFormat,
     ) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
         if frozen_store {
             StoreIndexWriter::spawn_disabled()
         } else {
-            StoreIndexWriter::spawn(store_dir)
+            StoreIndexWriter::spawn_in_format(store_dir, index_format)
         }
     }
 
@@ -212,8 +229,12 @@ fn drain_queued(
 /// Coalesce the batch by key and write it in one transaction.
 fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
     let mut pending: HashMap<String, PackageFilesIndex> = HashMap::with_capacity(batch.len());
+    let mut aliases: Vec<(String, String)> = Vec::new();
     for msg in batch.drain(..) {
-        apply_write_msg(index, &mut pending, msg);
+        match msg {
+            WriteMsg::Alias { alias, target } => aliases.push((alias, target)),
+            msg => apply_write_msg(index, &mut pending, msg),
+        }
     }
     if let Err(error) = index.set_many(pending.drain()) {
         // Drop the batch and keep going. One failed flush (e.g. a disk-full
@@ -225,6 +246,16 @@ fn flush_batch(index: &mut StoreIndex, batch: &mut Vec<WriteMsg>) {
             target: "pacquet::store_index",
             ?error,
             "batched store-index write failed; dropping this batch and continuing",
+        );
+        // An alias of a row this batch failed to write could replace one
+        // that names a row that exists.
+        return;
+    }
+    if let Err(error) = index.set_aliases(&aliases) {
+        tracing::warn!(
+            target: "pacquet::store_index",
+            ?error,
+            "batched store-index alias write failed; dropping these aliases and continuing",
         );
     }
 }
@@ -268,6 +299,7 @@ fn apply_write_msg(
                 quarantine_digest(row, channel, envelope_digest);
             }
         }
+        WriteMsg::Alias { .. } => unreachable!("flush_batch collects aliases itself"),
     }
 }
 
@@ -391,6 +423,12 @@ impl StoreIndexWriter {
     /// this cache-key and re-downloads.
     pub fn queue(&self, key: String, value: PackageFilesIndex) {
         self.send_msg(WriteMsg::Replace { key, value });
+    }
+
+    /// Queue an alias: once flushed, a lookup of `alias` reads the row at
+    /// `target`. See [`StoreIndex::set_aliases`].
+    pub fn queue_alias(&self, alias: String, target: String) {
+        self.send_msg(WriteMsg::Alias { alias, target });
     }
 
     /// Queue a side-effects R/M/W: the writer task loads the row,

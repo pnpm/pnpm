@@ -1,11 +1,12 @@
 use super::{
-    Arc, BTreeMap, CandidatePeerRanges, DirectDep, HashMap, HashSet, HoistMissingScope,
-    HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases, PeerDiscoveryResult,
-    PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver, WantedSpec,
+    Arc, BTreeMap, CandidatePeerRanges, DependencySpec, DirectDep, HashMap, HashSet,
+    HoistMissingScope, HoistPeersOptions, ImporterHoistState, MissingPeerInfo, ParentPkgAliases,
+    PeerDiscoveryResult, PeerHoistDiscovery, RequiredRound, ResolveImporterError, Resolver,
     WorkspaceRootDep, apply_hoist_missing_scope, extend_tree,
     get_hoistable_optional_peers_with_preferred_versions, hoist_peers, index_missing_names,
     partition_missing_peers, peers_accept_provided_versions,
 };
+use crate::peer_provider::optional_peer_specifier;
 
 impl ImporterHoistState {
     /// Resolve the importer's missing *required* peers to a fixpoint,
@@ -63,7 +64,6 @@ impl ImporterHoistState {
                 importer_id: self.importer_id.clone(),
                 first_importer_by_pkg: Arc::clone(first_importer_by_pkg),
                 first_walk_missing_by_pkg: Arc::clone(first_walk_missing_by_pkg),
-                locked_peer_names: Arc::clone(&self.selection.locked_names),
             },
         );
     }
@@ -134,7 +134,12 @@ impl ImporterHoistState {
         Chain: Resolver + ?Sized,
     {
         loop {
-            let round = match first_round.take() {
+            let round = match first_round
+                .take()
+                .filter(|_| {
+                    self.ctx.workspace().tree.children_rewrites()
+                        == self.progress.walked_children_rewrites
+                }) {
                 Some(round) => round,
                 None => self.next_required_round(peer_discovery),
             };
@@ -203,19 +208,12 @@ impl ImporterHoistState {
 
         for name in hoisted.keys() {
             self.dependencies.parent_pkg_aliases.insert(name.clone());
+            self.dependencies.all_missing_optional_peers.remove(name);
         }
 
-        // Hoisted required peers are installed at the importer
-        // level as non-optional direct deps — they exist precisely
-        // to satisfy a missing required peer, so flipping their
-        // own `optional` flag to `true` would defeat the
-        // auto-install. Hoisted peers don't carry
-        // `dependenciesMeta` from any manifest, so `injected`
-        // defaults to `false`: the hoist path constructs a fresh
-        // wanted dependency without threading the per-dep meta.
-        let new_wanted: Vec<WantedSpec> = hoisted
+        let new_wanted: Vec<DependencySpec> = hoisted
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(alias, bare_specifier)| hoisted_dependency(alias, bare_specifier))
             .collect();
         let new_direct = extend_tree(
             &self.ctx,
@@ -251,7 +249,6 @@ impl ImporterHoistState {
                     .workspace()
                     .children
                     .first_walk_missing_by_pkg(),
-                locked_peer_names: Arc::clone(&self.selection.locked_names),
             })),
             peer_discovery,
         )
@@ -280,6 +277,9 @@ impl ImporterHoistState {
         fresh_optional: BTreeMap<String, Vec<String>>,
     ) {
         for (name, ranges) in fresh_optional {
+            if self.dependencies.parent_pkg_aliases.contains(&name) {
+                continue;
+            }
             let bucket = self.dependencies.all_missing_optional_peers.entry(name).or_default();
             for range in ranges {
                 if !bucket
@@ -317,6 +317,7 @@ impl ImporterHoistState {
             });
             self.dependencies.hoisted_peer_provider_node_ids.insert(node_id.clone());
             self.dependencies.parent_pkg_aliases.insert(alias.clone());
+            self.dependencies.all_missing_optional_peers.remove(alias);
         }
     }
 
@@ -383,14 +384,17 @@ impl ImporterHoistState {
         for name in hoisted_optional.keys() {
             self.dependencies.parent_pkg_aliases.insert(name.clone());
         }
-        // Optional peers picked up via `getHoistableOptionalPeers` are
-        // also installed at the importer level — the picker already
-        // confirmed a preferred version is in scope. Treating them as
-        // non-optional matches the required-peer arm above; `injected`
-        // also defaults to `false` for the same reason.
-        let new_wanted: Vec<WantedSpec> = hoisted_optional
+        let new_wanted: Vec<DependencySpec> = hoisted_optional
             .into_iter()
-            .map(|(name, range)| (name, range, false, false))
+            .map(|(alias, version)| {
+                let bare_specifier = optional_peer_specifier(
+                    &alias,
+                    version,
+                    self.hoist_root_deps(),
+                    &self.dependencies.workspace_root_dep_versions,
+                );
+                hoisted_dependency(alias, bare_specifier)
+            })
             .collect();
         let new_direct = extend_tree(
             &self.ctx,
@@ -406,4 +410,10 @@ impl ImporterHoistState {
         self.progress.discovery_converged = false;
         Ok(true)
     }
+}
+
+/// A hoisted peer as a direct dependency of the importer, left
+/// non-optional even when the peer it satisfies was declared optional.
+fn hoisted_dependency(alias: String, bare_specifier: String) -> DependencySpec {
+    DependencySpec { alias, bare_specifier, optional: false, injected: false }
 }

@@ -19,6 +19,7 @@ pub mod diff;
 pub mod format;
 pub mod state;
 
+pub use colors::{colors_enabled, set_color_mode};
 pub use progress::set_progress;
 
 mod progress;
@@ -30,7 +31,6 @@ use std::{
 };
 
 use console::Term;
-use pnpm_config::ColorMode;
 use pnpm_reporter::{LogEvent, PromptAction, Reporter};
 
 use crate::{
@@ -52,7 +52,6 @@ static AGGREGATE_OUTPUT: OnceLock<bool> = OnceLock::new();
 static HIDE_LIFECYCLE_PREFIX: OnceLock<bool> = OnceLock::new();
 static IS_RECURSIVE: OnceLock<bool> = OnceLock::new();
 static MAX_LOG_LEVEL: OnceLock<MaxLogLevel> = OnceLock::new();
-static COLOR_MODE: OnceLock<ColorMode> = OnceLock::new();
 
 /// Verbosity ceiling for the rendered output, from pnpm's `--loglevel`
 /// setting. Mirrors `LOG_LEVEL_NUMBER` in `@pnpm/cli.default-reporter`
@@ -182,20 +181,17 @@ pub fn max_log_level() -> MaxLogLevel {
         .unwrap_or(MaxLogLevel::Info)
 }
 
-/// Configure ANSI color rendering. Call before the first reporter event.
-pub fn set_color_mode(mode: ColorMode) {
-    let _ = COLOR_MODE.set(mode);
+/// Whether the default reporter paints its output in color.
+#[must_use]
+pub fn output_colors_enabled() -> bool {
+    colors_enabled(output_is_terminal())
 }
 
-pub fn colors_enabled(is_terminal: bool) -> bool {
-    match COLOR_MODE
-        .get()
-        .copied()
-        .unwrap_or_default()
-    {
-        ColorMode::Always => true,
-        ColorMode::Auto => is_terminal && std::env::var_os("NO_COLOR").is_none(),
-        ColorMode::Never => false,
+fn output_is_terminal() -> bool {
+    if is_stderr_output() {
+        std::io::stderr().is_terminal()
+    } else {
+        std::io::stdout().is_terminal()
     }
 }
 
@@ -272,11 +268,7 @@ struct PromptBuffer {
 
 impl Sink {
     fn new() -> Self {
-        let is_tty = if is_stderr_output() {
-            std::io::stderr().is_terminal()
-        } else {
-            std::io::stdout().is_terminal()
-        };
+        let is_tty = output_is_terminal();
         let append_only = !is_tty
             || FORCE_APPEND_ONLY
                 .get()

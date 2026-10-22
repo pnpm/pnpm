@@ -23,6 +23,7 @@ fn cli_disabling_all_surfaces_with_bundled_config_errors_without_panicking() {
         disable_registry: true,
         disable_resolver: true,
         disable_artifacts: true,
+        disable_pipeline: true,
     };
     let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
         .expect_err("all surfaces disabled must error rather than panic");
@@ -114,32 +115,6 @@ fn resolve_relative_joins_relative_paths_to_base() {
 }
 
 #[test]
-fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
-    use pnpr_registry::{ConcreteKind, Resolved};
-    let config = Config::proxy(listen(), PathBuf::from("/tmp"));
-    assert!(config.routing.upstreams.contains_key("npmjs"));
-    assert_eq!(config.routing.registries.default_registry(), Some("main"));
-    // The flat-root hosted org serves the registry-mock fixture scopes.
-    assert_eq!(config.routing.hosted["local"].org, "");
-    assert_eq!(
-        config.routing.registries.resolve_default(
-            Ecosystem::Npm,
-            "@pnpm.e2e/dep-of-pkg-with-1-dep"
-        ),
-        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-    );
-    assert_eq!(
-        config.routing.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
-        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-    );
-    // Everything else proxies to the npm upstream.
-    assert_eq!(
-        config.routing.registries.resolve_default(Ecosystem::Npm, "is-positive"),
-        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
-    );
-}
-
-#[test]
 fn backend_defaults_to_local_without_a_block() {
     let yaml = "storage: /var/lib/pnpr\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
@@ -164,13 +139,12 @@ storage: /var/lib/pnpr
 backend:
   sqlite:
     url: sqlite:///var/lib/pnpr/auth.db
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("an unknown backend key must not fall back to local");
     assert!(
-        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("exactly one database backend")),
-        "expected an InvalidConfig naming the backend selection, got {err:?}",
+        matches!(err, RegistryError::InvalidConfig { ref reason } if reason.contains("unknown field `sqlite`")),
+        "expected an InvalidConfig naming the unknown field, got {err:?}",
     );
 }
 
@@ -184,7 +158,6 @@ backend:
     maxConnections: 12
     timeout: 5s
     startupTimeout: 2m
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -205,7 +178,6 @@ storage: /var/lib/pnpr
 backend:
   postgresql:
     url: postgresql://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -229,7 +201,6 @@ storage: /var/lib/pnpr
 backend:
   mysql:
     url: mysql://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -322,8 +293,22 @@ fn most_specific_key_wins_regardless_of_declaration_order() {
     for packages in [scope_then_catch_all, catch_all_then_scope] {
         let config = hosted_rules_config(packages);
         let rules = &config.routing.hosted["local"].rules;
-        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
-        assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
+        assert!(
+            !rules
+                .snapshot()
+                .for_package("@secret/x")
+                .access
+                .allows(&Identity::Anonymous),
+            "{packages}",
+        );
+        assert!(
+            rules
+                .snapshot()
+                .for_package("anything")
+                .access
+                .allows(&Identity::Anonymous),
+            "{packages}",
+        );
     }
 }
 
@@ -332,7 +317,8 @@ fn empty_and_null_map_values_mean_default_rules() {
     for value in ["{}", "", "~"] {
         let config = hosted_rules_config(&format!("      'lodash': {value}\n"));
         let rules = &config.routing.hosted["local"].rules;
-        let effective = rules.for_package("lodash");
+        let table = rules.snapshot();
+        let effective = table.for_package("lodash");
         assert!(effective.access.allows(&Identity::Anonymous), "value {value:?}");
         assert!(!effective.publish.allows(&Identity::Anonymous), "value {value:?}");
         assert!(effective.publish.allows(&user("alice")), "value {value:?}");
@@ -343,7 +329,8 @@ fn empty_and_null_map_values_mean_default_rules() {
 #[test]
 fn rule_missing_unpublish_denies_destructive_writes() {
     let config = hosted_rules_config("      '@team/*':\n        publish: alice\n");
-    let team = config.routing.hosted["local"].rules.for_package("@team/x");
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let team = table.for_package("@team/x");
     assert!(team.publish.allows(&user("alice")));
     assert!(!team.publish.allows(&user("bob")));
     assert!(!team.unpublish.allows(&user("alice")));
@@ -357,7 +344,8 @@ fn rule_empty_unpublish_denies_destructive_writes() {
         "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
     for packages in [as_null, as_empty_sequence] {
         let config = hosted_rules_config(packages);
-        let team = config.routing.hosted["local"].rules.for_package("@team/x");
+        let table = config.routing.hosted["local"].rules.snapshot();
+        let team = table.for_package("@team/x");
         assert!(team.publish.allows(&user("alice")), "{packages}");
         assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
         assert!(!team.unpublish.allows(&user("alice")), "{packages}");
@@ -382,7 +370,8 @@ fn rule_empty_string_value_is_a_config_error() {
 #[test]
 fn rule_anonymous_token_is_wired() {
     let config = hosted_rules_config("      '@anon/*':\n        access: $anonymous\n");
-    let anon = config.routing.hosted["local"].rules.for_package("@anon/x");
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let anon = table.for_package("@anon/x");
     assert!(anon.access.allows(&Identity::Anonymous));
     assert!(!anon.access.allows(&user("alice")));
 }
@@ -400,6 +389,8 @@ fn rule_alias_spellings_of_builtins_are_config_errors() {
         ("'@authenticated'", "$authenticated"),
         ("anonymous", "$anonymous"),
         ("'@anonymous'", "$anonymous"),
+        ("owners", "$owners"),
+        ("'@owners'", "$owners"),
     ] {
         let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
         assert!(
@@ -411,6 +402,17 @@ fn rule_alias_spellings_of_builtins_are_config_errors() {
             "unexpected error for {token:?}: {err}",
         );
     }
+}
+
+#[test]
+fn rule_accepts_owners_builtin_token() {
+    let config = hosted_rules_config(
+        "      '@team/*':\n        publish: $owners\n        unpublish: $owners\n",
+    );
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let effective = table.for_package("@team/pkg");
+    assert!(effective.publish.references_owners());
+    assert!(effective.unpublish.references_owners());
 }
 
 #[test]
@@ -514,29 +516,23 @@ packages:
 
 #[test]
 fn bundled_default_config_enforces_its_protections() {
-    // The bundled YAML is the only place the registry-mock protections are
-    // declared, so building from it must yield every one of them.
-    let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
-    let rules = &config.routing.hosted["local"].rules;
-    // The exact needs-auth key wins over the '@pnpm.e2e/*' scope key by
-    // specificity (both are declared, in either order).
-    let needs_auth = rules.for_package("@pnpm.e2e/needs-auth");
-    assert!(!needs_auth.access.allows(&Identity::Anonymous));
-    assert!(needs_auth.access.allows(&user("alice")));
-    assert!(!rules.for_package("@private/foo").access.allows(&Identity::Anonymous));
-    let public = rules.for_package("@pnpm.e2e/no-deps");
-    assert!(public.access.allows(&Identity::Anonymous));
-    assert!(!public.publish.allows(&Identity::Anonymous));
-    // The registry-mock contract: any authenticated user may unpublish.
-    assert!(public.unpublish.allows(&user("alice")));
-    assert!(!public.unpublish.allows(&Identity::Anonymous));
-    // `lodash` is not local: it is unclaimed by the hosted registry and
-    // resolves to the npmjs catch-all through the router.
     use pnpr_registry::{ConcreteKind, Resolved};
+    // The bundled YAML provides production-safe defaults: registration disabled,
+    // default public npmjs proxy, and an empty local hosted registry.
+    let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
+    assert!(config.routing.hosted.contains_key("local"));
     assert_eq!(
         config.routing.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
+    assert_eq!(
+        config.routing.registries.resolve("local", Ecosystem::Npm, "private-pkg"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+    assert!(!config.has_configured_secret);
+    assert_eq!(config.resolution_cache_secret.len(), 32);
 }
 
 #[test]

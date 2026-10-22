@@ -5,8 +5,116 @@ use super::{
 use pnpm_config::PackageImportMethod;
 use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
-use std::{fs, sync::atomic::AtomicU8};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::atomic::AtomicU8,
+};
 use tempfile::tempdir;
+
+#[cfg(windows)]
+#[test]
+fn invalid_windows_filename_is_renamed_on_fresh_import_and_repair() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let manifest = write_source(&src_root, "manifest", b"{}");
+    let asset = write_source(&src_root, "asset", b"asset");
+    let cas = cas_map(&[("package.json", manifest), ("assets/icon.svg?as=metadata.d.ts", asset)]);
+    let target = tmp.path().join("pkg");
+
+    for opts in [ImportIndexedDirOpts::default(), ImportIndexedDirOpts::default(), FORCE_SHARED] {
+        import_indexed_dir::<SilentReporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::Copy,
+            &target,
+            &cas,
+            opts,
+        )
+        .expect("invalid filename should be renamed");
+        assert_eq!(fs::read(target.join("assets/icon.svgas=metadata.d.ts")).unwrap(), b"asset");
+        fs::remove_file(target.join("package.json")).unwrap();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn renamed_filename_warning_strips_control_characters() {
+    use pnpm_reporter::{LogEvent, Reporter};
+    use std::sync::Mutex;
+
+    static MESSAGES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            if let LogEvent::Global(log) = event {
+                MESSAGES
+                    .lock()
+                    .unwrap()
+                    .push(log.message.clone());
+            }
+        }
+    }
+
+    let tmp = tempdir().unwrap();
+    let source = write_source(&tmp.path().join("cas"), "asset", b"asset");
+    let cas = cas_map(&[("\u{1b}[31m-red.txt", source)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<RecordingReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("invalid filename should be renamed");
+    assert_eq!(fs::read(target.join("[31m-red.txt")).unwrap(), b"asset");
+    let messages = MESSAGES.lock().unwrap();
+    assert_eq!(messages.len(), 1);
+    assert!(messages[0].contains("[31m-red.txt"), "{}", messages[0]);
+    assert!(!messages[0].contains('\u{1b}'), "{:?}", messages[0]);
+}
+
+#[cfg(windows)]
+#[test]
+fn renamed_windows_filename_collision_installs_one_file() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    let original = write_source(&src_root, "original", b"original");
+    let renamed = write_source(&src_root, "renamed", b"renamed");
+    let cas = cas_map(&[("name.txt", original), ("name*.txt", renamed)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("colliding sanitized paths should not be rejected");
+    assert_eq!(fs::read(target.join("name.txt")).unwrap(), b"original");
+}
+
+#[cfg(windows)]
+#[test]
+fn valid_windows_filename_is_not_sanitized_without_an_import_error() {
+    let tmp = tempdir().unwrap();
+    let source = write_source(&tmp.path().join("cas"), "asset", b"asset");
+    let cas = cas_map(&[("name\u{80}.txt", source)]);
+    let target = tmp.path().join("pkg");
+
+    import_indexed_dir::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Copy,
+        &target,
+        &cas,
+        ImportIndexedDirOpts::default(),
+    )
+    .expect("valid filename should be imported without sanitizing");
+    assert_eq!(fs::read(target.join("name\u{80}.txt")).unwrap(), b"asset");
+}
 
 /// Default opts (isolated linker) short-circuit when the target holds the
 /// completion marker — the load-bearing invariant that a fully-imported
@@ -136,6 +244,136 @@ fn concurrent_force_imports_into_different_targets_do_not_collide() {
     assert!(!target_a.join("stale.txt").exists());
     assert!(!target_b.join("stale.txt").exists());
 }
+
+// Each thread stands for one install, with the swap lock an install holds.
+#[test]
+fn concurrent_force_imports_into_the_same_target_accept_the_completed_import() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let package_json = write_source(&src_root, "package.json", b"{\"name\":\"pkg\"}");
+    let code = write_source(&src_root, "index.js", b"content");
+    let cas = cas_map(&[("package.json", package_json), ("index.js", code)]);
+    let target = tmp.path().join("pkg");
+    fs::create_dir_all(target.join("node_modules")).unwrap();
+    fs::write(target.join("stale.txt"), b"stale").unwrap();
+    fs::write(target.join("node_modules/kept"), b"nested dependency").unwrap();
+    let barrier = std::sync::Barrier::new(8);
+
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            let barrier = &barrier;
+            let target = &target;
+            let cas = &cas;
+            scope.spawn(move || {
+                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap());
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    target,
+                    cas,
+                    ImportIndexedDirOpts { swap_lock: Some(&swap_lock), ..FORCE_KEEP },
+                )
+                .expect("an equivalent concurrent import should succeed");
+            });
+        }
+    });
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"name\":\"pkg\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"content");
+    assert_eq!(fs::read(target.join("node_modules/kept")).unwrap(), b"nested dependency");
+    assert!(!target.join("stale.txt").exists());
+}
+
+#[test]
+fn concurrent_forced_and_non_forced_imports_into_the_same_target_succeed() {
+    let tmp = tempdir().unwrap();
+    let src_root = tmp.path().join("cas");
+    fs::create_dir_all(&src_root).unwrap();
+    let old_pkg_json = write_source(&src_root, "old-package.json", b"{\"version\":\"1.0.0\"}");
+    let old_extra = write_source(&src_root, "old-only.js", b"old");
+    let new_pkg_json = write_source(&src_root, "new-package.json", b"{\"version\":\"2.0.0\"}");
+    let new_code = write_source(&src_root, "index.js", b"fresh");
+    let mut non_forced_entries = vec![("package.json", old_pkg_json), ("old-only.js", old_extra)];
+    let mut forced_entries = vec![("package.json", new_pkg_json), ("index.js", new_code)];
+    for index in 0..32 {
+        let file = write_source(&src_root, &format!("sub/{index}.js"), b"payload");
+        let rel = Box::leak(format!("sub/dir-{index}/file.js").into_boxed_str());
+        non_forced_entries.push((rel, file.clone()));
+        forced_entries.push((rel, file));
+    }
+    let non_forced_cas = cas_map(&non_forced_entries);
+    let forced_cas = cas_map(&forced_entries);
+
+    let absent_target = tmp.path().join("pkg-absent");
+    assert_concurrent_forced_and_non_forced_imports_converge(
+        &absent_target,
+        &non_forced_cas,
+        &forced_cas,
+    );
+
+    let partial_target = tmp.path().join("pkg-partial");
+    fs::create_dir_all(partial_target.join("sub")).unwrap();
+    fs::write(partial_target.join("stale.txt"), b"partial").unwrap();
+    assert_concurrent_forced_and_non_forced_imports_converge(
+        &partial_target,
+        &non_forced_cas,
+        &forced_cas,
+    );
+
+    let file_target = tmp.path().join("pkg-file");
+    fs::write(&file_target, b"a file, not a dir").unwrap();
+    assert_concurrent_forced_and_non_forced_imports_converge(
+        &file_target,
+        &non_forced_cas,
+        &forced_cas,
+    );
+}
+
+fn assert_concurrent_forced_and_non_forced_imports_converge(
+    target: &Path,
+    non_forced_cas: &HashMap<String, PathBuf>,
+    forced_cas: &HashMap<String, PathBuf>,
+) {
+    let cases = [
+        (non_forced_cas, false),
+        (forced_cas, true),
+        (non_forced_cas, false),
+        (forced_cas, true),
+        (non_forced_cas, false),
+        (forced_cas, true),
+    ];
+    let barrier = std::sync::Barrier::new(cases.len());
+    std::thread::scope(|scope| {
+        for (cas, force) in cases {
+            let barrier = &barrier;
+            scope.spawn(move || {
+                let swap_lock = crate::ModulesSwapLock::new(target.parent().unwrap());
+                barrier.wait();
+                import_indexed_dir::<SilentReporter>(
+                    &AtomicU8::new(0),
+                    PackageImportMethod::Copy,
+                    target,
+                    cas,
+                    ImportIndexedDirOpts {
+                        force,
+                        keep_modules_dir: force,
+                        swap_lock: Some(&swap_lock),
+                        ..ImportIndexedDirOpts::default()
+                    },
+                )
+                .expect("concurrent forced and non-forced imports must succeed");
+            });
+        }
+    });
+
+    assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{\"version\":\"2.0.0\"}");
+    assert_eq!(fs::read(target.join("index.js")).unwrap(), b"fresh");
+    assert!(!target.join("old-only.js").exists());
+    assert!(!target.join("stale.txt").exists());
+}
+
 #[test]
 fn partial_dir_without_marker_is_repaired() {
     let tmp = tempdir().unwrap();

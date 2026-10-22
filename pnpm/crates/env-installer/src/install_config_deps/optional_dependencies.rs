@@ -35,14 +35,7 @@ pub(super) async fn install_optional_subdeps<Reporter: self::Reporter>(
     )?;
 
     for subdep in compatible {
-        let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
-        let subdep_rel =
-            calc_leaf_global_virtual_store_path(&subdep_full_id, &subdep.name, &subdep.version);
-        let subdep_dir = pnpm_fs::join_slash_separated_path(
-            &join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel)
-                .join("node_modules"),
-            &subdep.name,
-        );
+        let subdep_dir = subdep_dir(subdep, global_virtual_store_dir);
         if !subdep_dir.join("package.json").exists() {
             started.report::<Reporter>();
             materialize::<Reporter>(
@@ -64,6 +57,38 @@ pub(super) async fn install_optional_subdeps<Reporter: self::Reporter>(
         force_symlink(&subdep_dir, &link_path)?;
     }
     Ok(())
+}
+
+/// Whether every host-compatible subdep is already materialized in the
+/// global virtual store.
+pub(super) fn optional_subdeps_installed(
+    opts: &ConfigDepsInstallOptions<'_>,
+    subdeps: &[NormalizedSubdep],
+    global_virtual_store_dir: &Path,
+) -> bool {
+    subdeps
+        .iter()
+        .filter(|subdep| {
+            !matches!(
+                check_package(
+                    &format!("{}@{}", subdep.name, subdep.version),
+                    &subdep_installability_manifest(subdep),
+                    &opts.platform,
+                ),
+                Ok(Some(_)),
+            )
+        })
+        .all(|subdep| subdep_dir(subdep, global_virtual_store_dir).join("package.json").exists())
+}
+
+fn subdep_dir(subdep: &NormalizedSubdep, global_virtual_store_dir: &Path) -> std::path::PathBuf {
+    let subdep_full_id = full_pkg_id(&subdep.name, &subdep.version, &subdep.integrity);
+    let subdep_rel =
+        calc_leaf_global_virtual_store_path(&subdep_full_id, &subdep.name, &subdep.version);
+    pnpm_fs::join_slash_separated_path(
+        &join_global_virtual_store_path(global_virtual_store_dir, &subdep_rel).join("node_modules"),
+        &subdep.name,
+    )
 }
 
 /// Whether `subdep` runs on the host. Subdeps with no platform
@@ -147,7 +172,7 @@ pub(super) fn normalize_from_lockfile(
             &pkg.resolution,
             name,
             &spec.version,
-            opts.pick_registry(name),
+            opts.verification.pick_registry(name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
@@ -222,7 +247,7 @@ fn read_optional_subdeps(
             &pkg.resolution,
             &subdep_name,
             &version,
-            opts.pick_registry(&subdep_name),
+            opts.verification.pick_registry(&subdep_name),
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(

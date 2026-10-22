@@ -12,21 +12,35 @@ mod pausing_store;
 mod registry_groups;
 #[path = "common/storage.rs"]
 mod storage;
+#[path = "common/tokens.rs"]
+mod tokens;
 
+mod admin_audit_log;
 mod auth_persistence;
 mod auth_publish;
 mod auth_user_endpoints;
 mod batch_publish;
+mod cache_eviction;
 mod cargo_registry;
 mod cargo_resolve;
 mod cross_ecosystem_publish;
 mod journal_recovery;
 mod multi_replica;
 mod oci_registry;
+mod package_ownership;
 mod policy;
+mod provenance;
 mod pypi_registry;
 mod pypi_resolve;
 mod registry_mock;
+mod reserved_usernames;
+mod rule_administration;
 mod s3_backend;
+mod scim;
 mod server;
 mod staged_publish;
+mod team_administration;
+mod team_package_access;
+mod token_management;
+mod tooling;
+mod user_administration;

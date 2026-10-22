@@ -18,6 +18,31 @@ impl HostedBackend for S3Store {
         ))
     }
 
+    async fn check_readiness(&self) -> Result<()> {
+        fs::create_dir_all(&self.staging_dir).await
+            .map_err(|err| super::RegistryError::StorageUnavailable {
+                reason: format!(
+                    "s3 staging directory '{}' is not accessible: {err}",
+                    self.staging_dir.display(),
+                ),
+            })?;
+        let prefix_path = if self.prefix.is_empty() {
+            None
+        } else {
+            Some(ObjectPath::from(self.prefix.as_str()))
+        };
+        let check = self.store.list_with_delimiter(prefix_path.as_ref());
+        match tokio::time::timeout(std::time::Duration::from_secs(5), check).await {
+            Ok(Ok(_)) => Ok(()),
+            Ok(Err(err)) => Err(super::RegistryError::StorageUnavailable {
+                reason: format!("S3 store check failed: {err}"),
+            }),
+            Err(_) => Err(super::RegistryError::StorageUnavailable {
+                reason: "S3 store check timed out after 5s".to_string(),
+            }),
+        }
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         S3Store::read_document(self, name).await
     }
@@ -126,32 +151,33 @@ impl HostedBackend for S3Store {
     fn list_blob_files(
         &self,
     ) -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>> {
-        let prefix = ObjectPath::from(self.prefix.trim_end_matches('/'));
-        self.store
-            .list(Some(&prefix))
-            .filter_map(move |result| async move {
-                let meta = match result {
-                    Ok(meta) => meta,
-                    Err(error) => return Some(Err(error.into())),
+        self.list_package_files()
+            .map(|file| {
+                let (package, file, meta) = file?;
+                let blob = match file {
+                    super::PackageFile::Document => None,
+                    super::PackageFile::Blob(blob) => Some(blob),
                 };
-                let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
-                if path
-                    .split('/')
-                    .any(|part| part.starts_with('.'))
-                {
-                    return None;
-                }
-                Some(Ok(crate::HostedBlobFile {
-                    path: path.to_string(),
+                Ok(crate::HostedBlobFile {
+                    package,
+                    blob,
                     modified: meta.last_modified.into(),
                     size: meta.size,
-                }))
+                })
             })
             .boxed()
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
         S3Store::list_package_names(self).await
+    }
+
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
+        S3Store::list_package_blobs(self, name).await
+    }
+
+    async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
+        S3Store::list_top_level_dirs(self).await
     }
 
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
@@ -208,6 +234,15 @@ impl HostedBackend for S3Store {
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
         S3Store::remove_record(self, namespace, key).await
+    }
+
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        S3Store::remove_record_if_current(self, namespace, key, expected).await
     }
 
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {

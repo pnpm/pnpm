@@ -97,6 +97,8 @@ fn shared_lockfile_deploy_binds_a_singleton_peer_outside_the_declared_range() {
     drop((root, mock_instance));
 }
 
+/// No ancestor of `lib` depends on its peer, and the deployed graph holds two
+/// versions of it, so nothing says which one injecting `lib` would bind.
 #[test]
 fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_peer() {
     let CommandTempCwd {
@@ -108,6 +110,30 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_ambiguous_peer_workspace(&workspace);
+    write_project(
+        &workspace,
+        "other-v1-0-0",
+        &serde_json::json!({
+            "name": "other-v1-0-0",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/peer-a": "1.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": {
+                "lib": "workspace:*",
+                "other": "workspace:*",
+                "other-v1-0-0": "workspace:*",
+            },
+        }),
+    );
 
     pacquet
         .with_arg("install")
@@ -422,6 +448,55 @@ fn shared_lockfile_deploy_does_not_resurrect_an_excluded_optional_peer() {
             .is_some_and(|deps| deps.contains_key(&peer)),
         "an excluded optional peer must not come back as a required dependency: {lib:#?}",
     );
+
+    drop((root, mock_instance));
+}
+
+mod ancestors;
+
+/// The deployed `packages:` entry of a workspace package records the peers
+/// it declares, as every entry of a resolved lockfile does, so pnpm v11's
+/// frozen check accepts the deployed lockfile (pnpm/pnpm#17093).
+#[test]
+fn deploy_records_the_peers_a_workspace_package_declares() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_peer_workspace(&workspace);
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    let lib = lockfile.packages
+        .iter()
+        .flatten()
+        .find(|(key, _)| key.name.to_string() == "lib")
+        .map(|(_, metadata)| metadata)
+        .expect("the deployed lockfile has a packages entry for lib");
+    assert_eq!(
+        lib.peer_dependencies,
+        Some(std::iter::once(("@pnpm.e2e/peer-a".to_string(), "*".to_string())).collect()),
+    );
+    fs::copy(workspace.join(".npmrc"), deploy_dir.join(".npmrc")).unwrap();
+    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
+    pacquet_cmd(&deploy_dir)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

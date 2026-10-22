@@ -38,6 +38,21 @@ pub fn safe_read_project_manifest_from_dir(
     Ok(None)
 }
 
+/// Whether `manifest` at `project_dir` sets `publishConfig.directory` to a
+/// path that lexically normalizes to `normalized_target`.
+#[must_use]
+pub fn publishes_from_directory(
+    project_dir: &Path,
+    manifest: &Value,
+    normalized_target: &Path,
+) -> bool {
+    manifest
+        .get("publishConfig")
+        .and_then(|config| config.get("directory"))
+        .and_then(Value::as_str)
+        .is_some_and(|dir| pnpm_fs::lexical_normalize(&project_dir.join(dir)) == normalized_target)
+}
+
 /// The manifest of the project enclosing `target` whose `publishConfig.directory`
 /// resolves to `target`, or `None` when no ancestor publishes from it.
 pub fn find_parent_publish_manifest(target: &Path) -> Result<Option<Value>, PackageManifestError> {
@@ -46,12 +61,7 @@ pub fn find_parent_publish_manifest(target: &Path) -> Result<Option<Value>, Pack
         let Some(manifest) = safe_read_project_manifest_from_dir(parent)? else {
             continue;
         };
-        let is_publish_dir = manifest
-            .get("publishConfig")
-            .and_then(|config| config.get("directory"))
-            .and_then(Value::as_str)
-            .is_some_and(|dir| pnpm_fs::lexical_normalize(&parent.join(dir)) == normalized_target);
-        if is_publish_dir {
+        if publishes_from_directory(parent, &manifest, &normalized_target) {
             return Ok(Some(manifest));
         }
     }

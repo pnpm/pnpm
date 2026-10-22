@@ -353,6 +353,7 @@ pub(super) fn command_cache_dir(
 fn apply_dlx_build_policy(config: &mut Config, pkgs: &[String], allow_build: &[String]) {
     config.dangerously_allow_all_builds = false;
     config.allow_builds.clear();
+    config.disable_agent_skills();
     for spec in pkgs {
         if let Some(alias) = parse_wanted_dependency(spec).alias {
             config.allow_builds.insert(alias, true);

@@ -1,4 +1,4 @@
-use super::is_valid_old_npm_package_name;
+use super::{is_valid_old_npm_package_name, is_valid_package_version};
 
 #[test]
 fn is_valid_old_npm_package_name_accepts_common_shapes() {
@@ -29,5 +29,33 @@ fn is_valid_old_npm_package_name_rejects_error_cases() {
         "@scope/",          // scoped shape with empty pkg
     ] {
         assert!(!is_valid_old_npm_package_name(bad), "{bad:?} should be invalid");
+    }
+}
+
+#[test]
+fn is_valid_package_version_accepts_valid_versions() {
+    for ok in ["1.0.0", "0.0.0", "1.2.3-alpha.1+build", "2.0.0-rc.0", "directory"] {
+        assert!(is_valid_package_version(ok), "{ok:?} should be valid");
+    }
+}
+
+#[test]
+fn is_valid_package_version_rejects_traversals_and_separators() {
+    for bad in [
+        "",
+        ".",
+        "..",
+        "../escaped",
+        "../../escaped",
+        "../../../escaped",
+        "foo/bar",
+        r"foo\bar",
+        "/1.0.0",
+        "1.0.0/",
+        r"\1.0.0",
+        r"1.0.0\",
+        "1.0.0/../escape",
+    ] {
+        assert!(!is_valid_package_version(bad), "{bad:?} should be invalid");
     }
 }

@@ -72,6 +72,30 @@ enum PromptStyle {
     GlobalGroups,
 }
 
+impl PromptStyle {
+    /// The prompt for `rows`, whose answer names the checked rows by index.
+    fn checkbox_prompt(self, message: &str, rows: &[PromptRow]) -> CheckboxPrompt<usize> {
+        let items = rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| match row {
+                PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
+                PromptRow::Choice { label, short, .. } => CheckboxItem::Choice(CheckboxChoice {
+                    name: label.clone(),
+                    short: short.clone(),
+                    value: index,
+                }),
+            })
+            .collect();
+        match self {
+            Self::Dependencies => CheckboxPrompt::new(message, items)
+                .required(true)
+                .theme(CheckboxTheme { checked: "●".to_string(), unchecked: "○".to_string() }),
+            Self::GlobalGroups => CheckboxPrompt::new(message, items),
+        }
+    }
+}
+
 /// How `update --interactive` asks which dependencies to update.
 ///
 /// `clap` never sets it. It exists so a test can answer the prompt the
@@ -96,30 +120,7 @@ impl UpdatePrompt {
     ) -> miette::Result<Option<Vec<usize>>> {
         match self {
             Self::Terminal => {
-                let items = rows
-                    .iter()
-                    .enumerate()
-                    .map(|(index, row)| match row {
-                        PromptRow::Separator(text) => CheckboxItem::Separator(text.clone()),
-                        PromptRow::Choice { label, short, .. } => {
-                            CheckboxItem::Choice(CheckboxChoice {
-                                name: label.clone(),
-                                short: short.clone(),
-                                value: index,
-                            })
-                        }
-                    })
-                    .collect();
-                let prompt = match style {
-                    PromptStyle::Dependencies => CheckboxPrompt::new(message, items)
-                        .required(true)
-                        .theme(CheckboxTheme {
-                            checked: "●".to_string(),
-                            unchecked: "○".to_string(),
-                            highlight_active: false,
-                        }),
-                    PromptStyle::GlobalGroups => CheckboxPrompt::new(message, items),
-                };
+                let prompt = style.checkbox_prompt(message, rows);
                 match prompt
                     .interact()
                     .into_diagnostic()
@@ -300,7 +301,7 @@ fn print_up_to_date(latest: bool) {
     } else {
         "All of your dependencies are already up to date inside the specified ranges. Use the --latest option to update the ranges in package.json"
     };
-    println!("{message}");
+    pnpm_diagnostics::println!("{message}");
 }
 
 fn prompt_for_packages<Reporter: self::Reporter>(

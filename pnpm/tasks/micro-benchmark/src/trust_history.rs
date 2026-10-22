@@ -86,7 +86,7 @@ fn synthetic_versions(file_backed: bool) -> PackageVersions {
         fragments.push((version, RawValue::from_string(json).unwrap()));
     }
     if !file_backed {
-        return PackageVersions::from_raw_fragments(fragments);
+        return PackageVersions::from_buffered_mirror_fragments(fragments);
     }
     let mut file = tempfile::tempfile().unwrap();
     file.write_all(&bytes).unwrap();

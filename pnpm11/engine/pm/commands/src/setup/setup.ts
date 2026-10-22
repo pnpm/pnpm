@@ -57,7 +57,9 @@ function getExecPath (): string {
     // to the exe file instead of the js path.
     return process.execPath
   }
-  return process.argv[1] ?? process.cwd()
+  // npm and Homebrew start pnpm through a symlink in their bin directory,
+  // and `process.argv[1]` keeps that path.
+  return process.argv[1] == null ? process.cwd() : fs.realpathSync(process.argv[1])
 }
 
 /**
@@ -284,6 +286,17 @@ export async function handler (
     installCliGlobally(execPath, opts.pnpmHomeDir)
     createAliasScripts(binDir)
   }
+  const output = await addPnpmHomeToEnvPath(opts)
+  writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
+  removeLegacyHomeDirShims(opts.pnpmHomeDir)
+  return output
+}
+
+/**
+ * Unavailable shell configuration or registry access leaves pnpm installed,
+ * with instructions for configuring the environment manually.
+ */
+async function addPnpmHomeToEnvPath (opts: { force?: boolean, pnpmHomeDir: string }): Promise<string> {
   try {
     const report = await addDirToEnvPath(opts.pnpmHomeDir, {
       configSectionName: 'pnpm',
@@ -292,11 +305,15 @@ export async function handler (
       overwrite: opts.force,
       position: 'start',
     })
-    writeGHActionsEnvFiles(opts.pnpmHomeDir, binDir)
-    removeLegacyHomeDirShims(opts.pnpmHomeDir)
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
+      case 'ERR_PNPM_REG_READ':
+      case 'ERR_PNPM_FAILED_SET_ENV':
+        return renderWindowsManualSetupOutput(err.message, opts.pnpmHomeDir)
+      case 'ERR_PNPM_UNKNOWN_SHELL':
+      case 'ERR_PNPM_NO_SHELL_CONFIG':
+        return renderManualSetupOutput(err.message, opts.pnpmHomeDir)
       case 'ERR_PNPM_BAD_ENV_FOUND':
         err.hint = 'If you want to override the existing env variable, use the --force option'
         break
@@ -308,13 +325,39 @@ export async function handler (
   }
 }
 
+function renderWindowsManualSetupOutput (reason: string, pnpmHomeDir: string): string {
+  // PowerShell also treats typographic apostrophes as string delimiters.
+  const quotedHome = pnpmHomeDir.replace(/['\u2018-\u201b]/g, quote => quote + quote)
+  return `${reason}
+
+pnpm is installed, but its environment could not be saved in the registry.
+To start using pnpm in this PowerShell session, run:
+$env:PNPM_HOME = '${quotedHome}'
+$env:Path = "$env:PNPM_HOME\\bin;$env:Path"
+
+Add these lines to your PowerShell profile to use pnpm in future sessions.`
+}
+
+function renderManualSetupOutput (reason: string, pnpmHomeDir: string): string {
+  return `${reason} No shell config file was changed.
+
+To start using pnpm, add these lines to your shell config file:
+export PNPM_HOME=${shSingleQuote(pnpmHomeDir)}
+export PATH="$PNPM_HOME/bin:$PATH"`
+}
+
+function shSingleQuote (text: string): string {
+  return `'${text.replace(/'/g, "'\\''")}'`
+}
+
 function renderSetupOutput (report: PathExtenderReport): string {
-  if (report.oldSettings === report.newSettings) {
-    return 'No changes to the environment were made. Everything is already up to date.'
-  }
   const output = []
   if (report.configFile) {
     output.push(reportConfigChange(report.configFile))
+  }
+  if (report.oldSettings === report.newSettings) {
+    output.push('No changes to the environment were made. Everything is already up to date.')
+    return output.join('\n\n')
   }
   output.push(`The following configuration changes were made:
 ${report.newSettings}`)

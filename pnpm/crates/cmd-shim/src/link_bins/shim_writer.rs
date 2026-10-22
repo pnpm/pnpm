@@ -21,8 +21,8 @@ use crate::shim::{CmdShimBatch, end_replaced_cmd_shim_batch};
 /// Without [`WindowsShimPolicy::powershell`] there is no `.ps1` sibling, and
 /// one an earlier install left is deleted.
 ///
-/// The chmod step (`set_executable` for the canonical shim and
-/// `ensure_executable_bits` for the target binary) is wired through the
+/// The chmod step (for the canonical shim and the target binary) is wired
+/// through the
 /// [`FsSetExecutable`] / [`FsEnsureExecutableBits`] capability traits.
 /// On Unix the production impls run the actual `chmod`; on Windows
 /// they are no-ops (Windows has no equivalent permission concept), so
@@ -43,9 +43,9 @@ pub(super) struct ShimSpec<'a> {
     pub(super) options: &'a LinkBinsOptions,
     pub(super) windows: WindowsShimPolicy,
     pub(super) paths: &'a LinkingPaths<'a>,
-    /// Whether this run created the bin directory. Read by
-    /// [`read_or_create_shim`], which documents what it is worth.
-    pub(super) bin_dir: DirCreation,
+    /// Precalculated script runtime from archive inspection or
+    /// `dist.pnpr.bins`, skipping the on-disk shebang probe when `Some`.
+    pub(super) precalculated_runtime: Option<&'a Option<ScriptRuntime>>,
 }
 
 impl ShimSpec<'_> {
@@ -55,6 +55,21 @@ impl ShimSpec<'_> {
 
     fn relocatable_root(&self) -> Option<&Path> {
         self.paths.relocatable_root.as_deref()
+    }
+
+    fn resolve_runtime<Sys: FsReadHead>(
+        &self,
+        cache: &ShimTargetCache,
+    ) -> Result<Option<ScriptRuntime>, LinkBinsError> {
+        match self.precalculated_runtime {
+            Some(runtime) => Ok(runtime.clone()),
+            None => cache
+                .runtime_for::<Sys>(self.probe_path)
+                .map_err(|error| LinkBinsError::ProbeShimSource {
+                    path: self.probe_path.to_path_buf(),
+                    error,
+                }),
+        }
     }
 
     fn sh_body(&self, runtime: Option<&ScriptRuntime>) -> Result<String, LinkBinsError> {
@@ -149,13 +164,7 @@ where
         return Ok(());
     }
 
-    let runtime = cache
-        .runtime_for::<Sys>(spec.probe_path)
-        .map_err(|error| LinkBinsError::ProbeShimSource {
-            path: spec.probe_path.to_path_buf(),
-            error,
-        })?;
-
+    let runtime = spec.resolve_runtime::<Sys>(cache)?;
     let sh_body = spec.sh_body(runtime.as_ref())?;
     let windows_shims = windows_shim_bodies::<Sys>(&spec, runtime.as_ref());
 
@@ -165,7 +174,7 @@ where
         replace_shims::<Sys>(spec.shim_path, &sh_body, windows_shims.as_ref())?;
     }
 
-    chmod_tolerating_removal(spec.shim_path, Sys::set_executable)?;
+    chmod_tolerating_removal(spec.shim_path, Sys::ensure_executable)?;
     cache.ensure_target_executable_once::<Sys>(spec.probe_path, spec.installed_modules_dir())
 }
 
@@ -210,7 +219,7 @@ fn read_or_create_shim<Sys>(
 where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
-    if spec.bin_dir == DirCreation::Created
+    if spec.paths.bin_dir == DirCreation::Created
         && fresh_write_applies(spec)
         && write_shim_fresh::<Sys>(spec, cache)?
     {
@@ -384,12 +393,7 @@ where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
     let &ShimSpec { probe_path, shim_path, .. } = spec;
-    let runtime = cache
-        .runtime_for::<Sys>(probe_path)
-        .map_err(|error| LinkBinsError::ProbeShimSource {
-            path: probe_path.to_path_buf(),
-            error,
-        })?;
+    let runtime = spec.resolve_runtime::<Sys>(cache)?;
     let sh_body = spec.sh_body(runtime.as_ref())?;
     // Any failure — a lost race, a dangling symlink squatting on the
     // path, a `Sys` without exclusive creation — goes to the general

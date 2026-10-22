@@ -34,12 +34,16 @@ export interface Packument {
 }
 
 export interface SignaturePackage {
+  /** Digest selected by the caller, which registry metadata cannot override. */
+  integrity?: string
   name: string
   registry: string
   version: string
 }
 
 export interface VerifySignaturesOptions extends CreateFetchFromRegistryOptions {
+  /** Reject a package without a caller-supplied integrity. */
+  requireLockfileIntegrity?: boolean
   networkConcurrency?: number
   retry?: RetryTimeoutOptions
   timeout?: number

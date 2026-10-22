@@ -20,6 +20,15 @@ pub enum ListReportAs {
     Parseable,
 }
 
+/// A global install that is not an npm package, such as the Rust
+/// toolchain, listed beside the packages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalTool {
+    pub name: String,
+    pub version: String,
+    pub location: PathBuf,
+}
+
 /// One resolved global dependency to render.
 struct ListedDep {
     alias: String,
@@ -61,12 +70,13 @@ pub fn find_global_install_dirs(
 pub fn list_global_packages(
     global_dir: &Path,
     params: &[String],
+    tools: Vec<GlobalTool>,
     report_as: ListReportAs,
     long: bool,
 ) -> std::io::Result<String> {
     let packages = scan_global_packages(global_dir)?;
     let global_dir_str = global_dir.to_string_lossy().into_owned();
-    let deps = collect_listed_deps(&packages, params);
+    let deps = collect_listed_deps(&packages, tools, params);
 
     if deps.is_empty() {
         return Ok(render_empty(&global_dir_str, params, report_as));
@@ -80,7 +90,11 @@ pub fn list_global_packages(
 }
 
 /// Every installed dependency matching `params`, sorted by alias.
-fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec<ListedDep> {
+fn collect_listed_deps(
+    packages: &[GlobalPackageInfo],
+    tools: Vec<GlobalTool>,
+    params: &[String],
+) -> Vec<ListedDep> {
     let patterns: Vec<_> = params
         .iter()
         .map(|pattern| WildcardMatcher::new(pattern))
@@ -94,9 +108,26 @@ fn collect_listed_deps(packages: &[GlobalPackageInfo], params: &[String]) -> Vec
         })
         .filter(|(_, installed)| matches_params(&patterns, &installed.alias))
         .map(|(pkg, installed)| listed_dep(pkg, installed))
+        .chain(
+            tools
+                .into_iter()
+                .filter(|tool| matches_params(&patterns, &tool.name))
+                .map(listed_tool),
+        )
         .collect();
     deps.sort_by(|a, b| a.alias.cmp(&b.alias));
     deps
+}
+
+fn listed_tool(tool: GlobalTool) -> ListedDep {
+    let path = tool.location.to_string_lossy().into_owned();
+    ListedDep {
+        alias: tool.name.clone(),
+        name: tool.name,
+        version: tool.version,
+        location: tool.location,
+        path,
+    }
 }
 
 fn listed_dep(pkg: &GlobalPackageInfo, installed: InstalledGlobalPackage) -> ListedDep {

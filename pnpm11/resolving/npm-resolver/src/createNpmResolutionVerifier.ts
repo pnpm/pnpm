@@ -19,7 +19,7 @@ import {
   type RegistryPin,
   type RegistryRouting,
   type ResolutionViolation,
-  runRegistryArtifactCheck,
+  runTarballUrlCheck,
 } from './checkRegistryArtifact.js'
 import type { FetchMetadataFromFromRegistryOptions } from './fetch.js'
 import type { FetchFullMetadataCachedOptions } from './fetchFullMetadataCached.js'
@@ -187,6 +187,10 @@ async function verifyResolution (
   resolution: Resolution,
   entry: VerifiedEntry
 ): Promise<ResolutionVerification> {
+  if (isVariationsResolution(resolution)) {
+    return verifyVariationsResolution(settings, resolution, entry)
+  }
+
   if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
   // Network-free structural checks must run before registry metadata shortcuts.
@@ -218,9 +222,27 @@ async function verifyResolution (
     name: entry.name,
     version: entry.version,
     integrity,
-    rawRevision: (resolution as { revision?: unknown }).revision,
     tarballUrl,
   })
+}
+
+function isVariationsResolution (resolution: Resolution): resolution is Resolution & { type: 'variations', variants?: Array<{ resolution?: Resolution }> } {
+  return resolution != null && typeof resolution === 'object' && (resolution as { type?: unknown }).type === 'variations'
+}
+
+async function verifyVariationsResolution (
+  settings: VerifierSettings,
+  resolution: { variants?: Array<{ resolution?: Resolution }> },
+  entry: VerifiedEntry
+): Promise<ResolutionVerification> {
+  for (const variant of resolution.variants ?? []) {
+    if (variant?.resolution) {
+      // eslint-disable-next-line no-await-in-loop -- sequential variant verification stops at first violation
+      const result = await verifyResolution(settings, variant.resolution, entry)
+      if (!result.ok) return result
+    }
+  }
+  return { ok: true }
 }
 
 function findRegistryEntryShapeViolation (version: string, rawTarball: unknown): ResolutionViolation | undefined {
@@ -279,10 +301,9 @@ async function verifyAgainstRegistry (
   // narrowed by their exclude lists, since it guards integrity rather
   // than maturity/trust. Registry entries with no tarball URL reconstruct
   // it from name+version+registry, so they're inherently bound.
-  const policyApplies = scope.ageApplies || scope.trustApplies
-  if (pin.tarballUrl != null || (pin.rawRevision != null && policyApplies)) {
-    const artifactViolation = await runRegistryArtifactCheck(settings.lookupContext, pin)
-    if (artifactViolation) return artifactViolation
+  if (pin.tarballUrl != null) {
+    const tarballViolation = await runTarballUrlCheck(settings.lookupContext, { ...pin, tarballUrl: pin.tarballUrl })
+    if (tarballViolation) return tarballViolation
   }
   return (await runPolicyChecks(settings, pin, scope)) ?? { ok: true }
 }
@@ -315,8 +336,8 @@ async function runPolicyChecks (
 // stays trusted after its exclude entry has been pulled.
 type VerifierPolicy = {
   tarballUrlBinding: true
-  revisionHistoryBinding: true
   integrityRequired: true
+  variationResolutionsVerified: true
   namedRegistriesRouting: string
   minimumReleaseAge: number
   minimumReleaseAgeExclude: string[]
@@ -336,9 +357,9 @@ function snapshotVerifierPolicy (
   return {
     // Marks runs that enforced the tarball-URL binding.
     tarballUrlBinding: true,
-    revisionHistoryBinding: true,
     // Same cache identity rule for the missing-integrity structural check.
     integrityRequired: true,
+    variationResolutionsVerified: true,
     namedRegistriesRouting: createHash('sha256')
       .update(JSON.stringify(sortedRegistriesByPrefix))
       .digest('hex'),
@@ -372,11 +393,11 @@ function cachedRunEnforcedUnconditionalChecks (cached: Record<string, unknown>, 
   // The tarball-URL binding is unconditional today; a cached run that
   // didn't record it can't be trusted to have enforced it.
   if (cached.tarballUrlBinding !== true) return false
-  if (cached.revisionHistoryBinding !== true) return false
 
   // The missing-integrity check is also unconditional; older cache records
   // without the flag cannot prove they rejected unverifiable tarballs.
   if (cached.integrityRequired !== true) return false
+  if (cached.variationResolutionsVerified !== true) return false
 
   return cached.namedRegistriesRouting === namedRegistriesRouting
 }

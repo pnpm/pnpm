@@ -28,8 +28,9 @@ pub(crate) fn write_installation(
 ) -> io::Result<()> {
     let manifest = build_manifest(inputs, skipped)?;
     let root = inputs.ctx.workspace_root;
-    pnpm_fs::write_atomic(&root.join(MANIFEST_FILENAME), &serde_json::to_vec(&manifest)?)?;
-    write_file(&root.join(LOADER_FILENAME), LOADER.as_bytes())?;
+    let loader_dir = inputs.ctx.config.store_loader_dir(root);
+    pnpm_fs::write_atomic(&loader_dir.join(MANIFEST_FILENAME), &serde_json::to_vec(&manifest)?)?;
+    write_file(&loader_dir.join(LOADER_FILENAME), LOADER.as_bytes())?;
     bins::write_bins(
         &bins::BinInstall {
             trusted_importer_ids: inputs.projects.trusted_importer_ids,
@@ -149,6 +150,7 @@ fn write_file(path: &Path, contents: &[u8]) -> io::Result<()> {
 }
 
 pub(crate) fn refresh_bins(inputs: &BinInstall<'_>) -> io::Result<()> {
-    let manifest = serde_json::from_slice(&std::fs::read(inputs.root.join(MANIFEST_FILENAME))?)?;
+    let manifest_path = inputs.config.store_loader_dir(inputs.root).join(MANIFEST_FILENAME);
+    let manifest = serde_json::from_slice(&std::fs::read(manifest_path)?)?;
     bins::write_bins(inputs, &manifest)
 }

@@ -368,3 +368,6 @@ mod workspace_settings;
 
 #[path = "render/files.rs"]
 mod files;
+
+#[path = "render/script_output.rs"]
+mod script_output;

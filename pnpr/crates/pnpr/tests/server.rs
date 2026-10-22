@@ -31,8 +31,29 @@ mod tarball_proxy;
 #[path = "server/packuments.rs"]
 mod packuments;
 
+#[path = "server/tar_registry.rs"]
+mod tar_registry;
+
+#[path = "server/version_tarballs.rs"]
+mod version_tarballs;
+
+#[path = "server/packument_caching.rs"]
+mod packument_caching;
+
 #[path = "server/resolver_access.rs"]
 mod resolver_access;
+
+#[path = "server/web_ui.rs"]
+mod web_ui;
+
+#[path = "server/sign_in.rs"]
+mod sign_in;
+
+#[path = "server/audit.rs"]
+mod audit;
+
+#[path = "server/web_login.rs"]
+mod web_login;
 
 use crate::registry_groups;
 
@@ -48,6 +69,8 @@ use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, IpNetwork, MaxUsers, PackagePattern,
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
+use pnpr_fixtures::MockConfigPresets;
+use pnpr_storage::layout::{encode_segment, local_document_path};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -84,12 +107,11 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
 /// authenticated user, the registry-mock contract these fixtures always ran
 /// under (the safe per-registry default would deny destructive writes).
 fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
-    HostedConfig {
-        org: org.to_string(),
-        rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
+    HostedConfig::new(
+        org,
+        PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
             .with_default_unpublish(AccessList::from_tokens(["$authenticated"])),
-        teams: pnpr::Teams::default(),
-    }
+    )
 }
 
 /// One `packages:` entry carrying only an `access` rule.
@@ -102,7 +124,8 @@ fn access_rule(pattern: &str, access: &str) -> PackageRule {
     }
 }
 
-/// A public upstream registry caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
+/// A public upstream registry caches under
+/// `.pnpr-cache/~public/<digest>/packages/<encoded pkg>/`.
 /// The proxy tests use a single `npmjs` registry, so there is one digest dir; this
 /// resolves the per-package cache dir under it. When nothing is cached yet it
 /// returns a path that does not exist, so existence assertions read naturally.
@@ -127,7 +150,13 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
         .first()
         .cloned()
         .unwrap_or_else(|| public.join("__none__"))
-        .join(pkg)
+        .join("packages")
+        .join(encode_segment(pkg))
+}
+
+/// The directory [`public_cache_pkg`] keeps `pkg`'s cached tarballs in.
+fn public_cache_blobs(cache_root: &Path, pkg: &str) -> PathBuf {
+    public_cache_pkg(cache_root, pkg).join("blobs")
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -239,6 +268,33 @@ async fn spawn_counting_server(response: &'static [u8]) -> (String, Arc<AtomicUs
 
 async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
+}
+
+fn tar_of(files: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, body) in files {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, path, *body).unwrap();
+    }
+    builder.into_inner().unwrap()
+}
+
+fn gzip(bytes: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(bytes).unwrap();
+    encoder.finish().unwrap()
+}
+
+/// A package tar holding `package/package.json` with `contents`, and its
+/// `.tgz`.
+fn package_tar_and_tgz(contents: &str) -> (Vec<u8>, Vec<u8>) {
+    let tar = tar_of(&[("package/package.json", contents.as_bytes())]);
+    let tgz = gzip(&tar);
+    (tar, tgz)
 }
 
 fn sha512_integrity(bytes: &[u8]) -> String {
@@ -547,9 +603,9 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     config
 }
 
-/// Seed a hosted package directly into the hosted store (root == `storage`),
-/// as a publish would have.
-fn seed_hosted(storage: &Path, pkg: &str) {
+/// Seed a hosted package directly into `org`'s namespace of the hosted store
+/// at `storage` (`""` for the default namespace), as a publish would have.
+fn seed_hosted(storage: &Path, org: &str, pkg: &str) {
     let packument = json!({
         "name": pkg,
         "dist-tags": { "latest": "1.0.0" },
@@ -558,13 +614,14 @@ fn seed_hosted(storage: &Path, pkg: &str) {
             "shasum": "abc",
         } } },
     });
-    std::fs::create_dir_all(storage.join(pkg)).unwrap();
-    std::fs::write(storage.join(pkg).join("package.json"), packument.to_string()).unwrap();
+    let document = local_document_path(storage, org, pkg);
+    std::fs::create_dir_all(document.parent().unwrap()).unwrap();
+    std::fs::write(document, packument.to_string()).unwrap();
 }
 
 fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
-    seed_hosted(storage, pkg);
-    let path = storage.join(pkg).join("package.json");
+    seed_hosted(storage, "", pkg);
+    let path = local_document_path(storage, "", pkg);
     let mut packument: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     packument["maintainers"] = json!([{ "username": maintainer }]);
     std::fs::write(path, serde_json::to_vec(&packument).unwrap()).unwrap();

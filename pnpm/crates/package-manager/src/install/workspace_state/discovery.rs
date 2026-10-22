@@ -36,13 +36,13 @@ pub fn check_deps_status_before_run_at(
     let Ok(workspace_dir_opt) = configured_or_discovered_workspace_dir(config, dir) else {
         return cannot_check_deps();
     };
-    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
+    let workspace_root = workspace_dir_opt.as_deref().unwrap_or(dir);
     // One shared lockfile is written at the workspace root, whose
     // manifest heads the importer list the install recorded. Dedicated
     // per-project lockfiles give every project its own lockfile, state
     // and single-importer list, so the gate reads the manifest of the
     // project the command runs in.
-    let manifest_dir = if config.shares_one_lockfile() { workspace_root.as_path() } else { dir };
+    let manifest_dir = if config.shares_one_lockfile() { workspace_root } else { dir };
     let manifest = match read_gate_manifest(
         manifest_dir,
         workspace_dir_opt.is_some(),
@@ -60,7 +60,7 @@ pub fn check_deps_status_before_run_at(
         return cannot_check_deps();
     };
     let workspace_manifest = workspace_manifest.flatten();
-    let config = gate_config(config, manifest_dir, &manifest);
+    let config = gate_config(config, workspace_dir_opt.as_deref(), manifest_dir, &manifest);
     // A pinned `lockfileDir` is where the install left the state and the
     // lockfile; otherwise it follows the manifest read above, just as it
     // does during install.
@@ -70,7 +70,7 @@ pub fn check_deps_status_before_run_at(
             config: &config,
             manifest: &manifest,
             workspace_manifest: workspace_manifest.as_ref(),
-            workspace_root: &workspace_root,
+            workspace_root,
             lockfile_root: &lockfile_root,
         },
         selected_project_dirs,
@@ -99,7 +99,12 @@ fn deps_status_from_state(
     if inputs.config.node_linker == pnpm_config::NodeLinker::Loaded
         && [pnpm_config::CAS_MANIFEST_FILENAME, pnpm_config::CAS_LOADER_FILENAME]
             .iter()
-            .any(|filename| !inputs.lockfile_root.join(filename).is_file())
+            .any(|filename| {
+                !inputs.config
+                    .store_loader_dir(inputs.lockfile_root)
+                    .join(filename)
+                    .is_file()
+            })
     {
         return cannot_check_deps();
     }
@@ -137,20 +142,26 @@ pub fn deps_install_root(dir: &Path, config: &Config) -> std::path::PathBuf {
 }
 fn gate_config<'a>(
     config: &'a Config,
+    workspace_dir: Option<&Path>,
     manifest_dir: &Path,
     manifest: &PackageManifest,
 ) -> Cow<'a, Config> {
-    if config.shares_one_lockfile() {
-        Cow::Borrowed(config)
-    } else {
-        let mut project_config = config.clone();
+    let needs_workspace_dir = config.workspace_dir.is_none() && workspace_dir.is_some();
+    if config.shares_one_lockfile() && !needs_workspace_dir {
+        return Cow::Borrowed(config);
+    }
+    let mut project_config = config.clone();
+    if needs_workspace_dir {
+        project_config.workspace_dir = workspace_dir.map(Path::to_path_buf);
+    }
+    if !config.shares_one_lockfile() {
         let project_name = manifest
             .value()
             .get("name")
             .and_then(serde_json::Value::as_str);
         project_config.anchor_dedicated_project(manifest_dir, project_name);
-        Cow::Owned(project_config)
     }
+    Cow::Owned(project_config)
 }
 pub(super) fn cannot_check_deps() -> Option<crate::RunDepsStatus> {
     Some(crate::RunDepsStatus::Outdated {
@@ -203,7 +214,7 @@ pub(super) fn check_discovered_deps(
                     optional_dependencies: true,
                 },
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         workspace_state,
         selected_project_dirs,
@@ -228,6 +239,14 @@ pub(super) fn read_gate_manifest(
         {
             GateManifest::NoManifest
         }
+        // A workspace root without a manifest is no importer, as the install
+        // treats it, and the workspace projects are checked without it.
+        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. }) => {
+            GateManifest::Found(Box::new(PackageManifest::from_value(
+                manifest_dir.join("package.json"),
+                serde_json::Value::Object(serde_json::Map::new()),
+            )))
+        }
         Err(_) => GateManifest::Unreadable,
     }
 }
@@ -237,8 +256,8 @@ pub(super) fn configured_catalogs(
     config: &Config,
     workspace_manifest: Option<&pnpm_workspace::WorkspaceManifest>,
 ) -> Option<Catalogs> {
-    match config.catalogs.clone() {
-        Some(catalogs) => Some(catalogs),
+    match &config.catalogs {
+        Some(catalogs) => Some(catalogs.clone()),
         None => get_catalogs_from_workspace_manifest(workspace_manifest).ok(),
     }
 }

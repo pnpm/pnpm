@@ -155,6 +155,59 @@ fn auto_installed_peer_bins_are_linked_at_workspace_root() {
     drop((root, mock_instance));
 }
 
+/// `peer-scope-host@2` depends on `peer-scope-plugin`, whose peer is
+/// `peer-scope-host@^1`. `packages/a` depends on `peer-scope-host@^2`,
+/// and both `.` and `packages/b` depend on the plugin directly. Nothing in
+/// `packages/b` provides the host, so its plugin gets the auto-installed
+/// `peer-scope-host@1.0.0`, not the `2.0.0` from `packages/a`'s subtree.
+#[test]
+fn a_peer_is_not_borrowed_from_another_importers_subtree() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read workspace settings");
+    workspace_yaml.push_str("packages:\n  - packages/*\nresolvePeersFromWorkspaceRoot: false\n");
+    fs::write(workspace_yaml_path, workspace_yaml).expect("write workspace settings");
+    let write_manifest = |dir: &std::path::Path, name: &str, dependency: &str, range: &str| {
+        fs::create_dir_all(dir).expect("create project dir");
+        let manifest = serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": { dependency: range },
+        });
+        fs::write(dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    };
+    write_manifest(&workspace, "root", "@pnpm.e2e/peer-scope-plugin", "^1.0.0");
+    write_manifest(&workspace.join("packages/a"), "a", "@pnpm.e2e/peer-scope-host", "^2.0.0");
+    write_manifest(&workspace.join("packages/b"), "b", "@pnpm.e2e/peer-scope-plugin", "^1.0.0");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let plugin_of_b = lockfile.importers["packages/b"].dependencies
+        .as_ref()
+        .and_then(|deps| {
+            deps.iter()
+                .find(|(name, _)| name.to_string() == "@pnpm.e2e/peer-scope-plugin")
+        })
+        .map(|(_, dep)| dep.version.to_string())
+        .expect("packages/b depends on the plugin");
+    assert_eq!(plugin_of_b, "1.0.0(@pnpm.e2e/peer-scope-host@1.0.0)");
+
+    drop((root, mock_instance));
+}
+
 /// `peer-diamond-plugin` peer-depends both `peer-diamond-parser` and
 /// `peer-diamond-ts`, and `peer-diamond-parser` peer-depends
 /// `peer-diamond-ts`. The plugin's parser and its ts must agree: when
@@ -896,6 +949,16 @@ fn assert_optional_peer_also_in_deps_is_installed(auto_install_peers: bool) {
         ["@pnpm.e2e/bravo-dep 1.0.0"],
         "the snapshot must keep the dependency at its own range",
     );
+    let lockfile = read_lockfile(&lockfile_path);
+    let metadata = &lockfile.packages.as_ref().expect("packages")
+        [&"@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0".parse().expect("package key")];
+    assert_eq!(
+        metadata.peer_dependencies
+            .as_ref()
+            .and_then(|peers| peers.get("@pnpm.e2e/bravo-dep")),
+        Some(&"^1.0.0".to_string()),
+        "the package entry records the peer the dependency supplies in this scope",
+    );
 
     fs::write(
         &manifest_path,
@@ -944,4 +1007,294 @@ fn optional_peer_also_in_deps_is_installed_with_auto_install_peers() {
 #[test]
 fn optional_peer_also_in_deps_is_installed_without_auto_install_peers() {
     assert_optional_peer_also_in_deps_is_installed(false);
+}
+
+/// `@pnpm.e2e/has-optional-peer-also-in-deps` is first reached through
+/// `…-grandparent > …-parent`, where `@pnpm.e2e/bravo-dep` is not in scope.
+/// Hoisting the optional peers of
+/// `@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent` reaches it
+/// again, shallower, with `@pnpm.e2e/bravo-dep` in scope, and that
+/// occurrence decides that `@pnpm.e2e/bravo-dep` is supplied as a peer.
+/// Covers <https://github.com/pnpm/pnpm/issues/16901>.
+#[test]
+fn optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent": "1.0.0",
+            "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_has_optional_peer_also_in_deps_takes_bravo_dep_as_peer(&workspace);
+
+    drop((root, mock_instance));
+}
+
+/// The graph of
+/// [`optional_peer_also_in_deps_is_kept_when_a_hoisted_parent_owns_its_children`],
+/// installed in two steps. The first lockfile records
+/// `@pnpm.e2e/bravo-dep` as a dependency of
+/// `@pnpm.e2e/has-optional-peer-also-in-deps`, and the second install
+/// must reach the same lockfile as the one-step install.
+/// Covers <https://github.com/pnpm/pnpm/issues/16901>.
+#[test]
+fn optional_peer_also_in_deps_is_resplit_when_a_hoisted_parent_owns_locked_children() {
+    assert_two_step_install_takes_bravo_dep_as_peer(
+        "@pnpm.e2e/has-optional-peer-also-in-deps-grandparent",
+        "@pnpm.e2e/peers-of-has-optional-peer-also-in-deps-parent",
+    );
+}
+
+/// `@pnpm.e2e/has-optional-peer-also-in-deps` is reached at the same depth
+/// through `…-a` and `…-b`. Only `…-b` provides `@pnpm.e2e/bravo-dep`
+/// already, and `…-a` sorts first, so its path decides the split.
+#[test]
+fn optional_peer_also_in_deps_is_resplit_by_its_deciding_path_among_equal_depths() {
+    assert_two_step_install_takes_bravo_dep_as_peer(
+        "@pnpm.e2e/split-tie-root",
+        "@pnpm.e2e/peers-of-split-tie-parent",
+    );
+}
+
+/// Installs `first`, then adds `added`, and checks that the lockfile
+/// gives `@pnpm.e2e/has-optional-peer-also-in-deps` `@pnpm.e2e/bravo-dep`
+/// as a peer, as installing both at once does.
+fn assert_two_step_install_takes_bravo_dep_as_peer(first: &str, added: &str) {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": { first: "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    fs::write(
+        &manifest_path,
+        serde_json::json!({ "dependencies": { first: "1.0.0", added: "1.0.0" } }).to_string(),
+    )
+    .expect("rewrite package.json");
+    bump_mtime(&manifest_path);
+    new_pacquet_command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    assert_has_optional_peer_also_in_deps_takes_bravo_dep_as_peer(&workspace);
+
+    drop((root, mock_instance));
+}
+
+fn assert_has_optional_peer_also_in_deps_takes_bravo_dep_as_peer(workspace: &std::path::Path) {
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    let snapshots: Vec<_> = lockfile.snapshots
+        .iter()
+        .flatten()
+        .filter(|(key, _)| key.to_string().starts_with("@pnpm.e2e/has-optional-peer-also-in-deps@"))
+        .map(|(key, snapshot)| {
+            let optional_dependencies: Vec<String> = snapshot
+                .optional_dependencies
+                .iter()
+                .flatten()
+                .map(|(alias, reference)| format!("{alias} {reference}"))
+                .collect();
+            (key.to_string(), optional_dependencies)
+        })
+        .collect();
+    assert_eq!(
+        snapshots,
+        [(
+            "@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0(@pnpm.e2e/bravo-dep@1.0.0)".to_string(),
+            vec!["@pnpm.e2e/bravo-dep 1.0.0".to_string()],
+        )],
+    );
+}
+
+/// Older pnpm versions resolved the optional peer of
+/// `@pnpm.e2e/has-optional-peer-range-also-in-deps` to its parent's
+/// `npm:` alias of `@pnpm.e2e/foo@1.2.0`. Changing overrides re-resolves
+/// the tree, and the dependency must not be looked up as
+/// `@pnpm.e2e/bravo-dep@1.2.0`, which does not exist.
+/// Covers <https://github.com/pnpm/pnpm/issues/16654>.
+#[test]
+fn changing_overrides_re_resolves_a_dependency_locked_to_an_aliased_optional_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/aliases-optional-peer-of-dep": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let child = "@pnpm.e2e/has-optional-peer-range-also-in-deps@1.0.0";
+    let peers_suffix = "(@pnpm.e2e/foo@1.2.0)";
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let read_lockfile_value = || -> serde_json::Value {
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml")
+    };
+    let mut lockfile = read_lockfile_value();
+    let fresh_dependencies = lockfile["snapshots"][child]["dependencies"].clone();
+    assert!(fresh_dependencies.is_object(), "the fresh resolve records the dependency");
+    lockfile["packages"][child]["peerDependencies"] =
+        serde_json::json!({ "@pnpm.e2e/bravo-dep": "^1.0.0" });
+    lockfile["packages"][child]["peerDependenciesMeta"] =
+        serde_json::json!({ "@pnpm.e2e/bravo-dep": { "optional": true } });
+    let snapshots = lockfile["snapshots"].as_object_mut().expect("snapshots map");
+    snapshots.remove(child);
+    snapshots.insert(
+        format!("{child}{peers_suffix}"),
+        serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/bravo-dep": "@pnpm.e2e/foo@1.2.0" },
+        }),
+    );
+    lockfile["snapshots"]["@pnpm.e2e/aliases-optional-peer-of-dep@1.0.0"]["dependencies"]["@pnpm.e2e/has-optional-peer-range-also-in-deps"] =
+        serde_json::Value::String(format!("1.0.0{peers_suffix}"));
+    fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).expect("serialize lockfile"))
+        .expect("write pnpm-lock.yaml");
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("overrides:\n  '@pnpm.e2e/bar@<100': 100.0.0\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(read_lockfile_value()["snapshots"][child]["dependencies"], fresh_dependencies);
+
+    drop((root, mock_instance));
+}
+
+/// A package declaring a dependency also as an optional peer had been
+/// recorded peer-resolved in an earlier lockfile. Re-resolving one of its
+/// parents retains the dependency on the peerless snapshot instead of
+/// leaving it empty.
+/// Covers <https://github.com/pnpm/pnpm/issues/17161>.
+#[test]
+fn re_resolving_one_parent_keeps_dependency_that_is_also_optional_peer() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps-parent": "1.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let child = "@pnpm.e2e/has-optional-peer-also-in-deps@1.0.0";
+    let peers_suffix = "(@pnpm.e2e/bravo-dep@1.0.0)";
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let read_lockfile_value = || -> serde_json::Value {
+        serde_saphyr::from_str(&fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml"))
+            .expect("parse pnpm-lock.yaml")
+    };
+    let mut lockfile = read_lockfile_value();
+    let snapshots = lockfile["snapshots"].as_object_mut().expect("snapshots map");
+    snapshots.remove(child);
+    snapshots.insert(
+        format!("{child}{peers_suffix}"),
+        serde_json::json!({
+            "optionalDependencies": { "@pnpm.e2e/bravo-dep": "1.0.0" },
+        }),
+    );
+    lockfile["snapshots"]["@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0"]["dependencies"]
+        ["@pnpm.e2e/has-optional-peer-also-in-deps"] =
+        serde_json::Value::String(format!("1.0.0{peers_suffix}"));
+    fs::write(&lockfile_path, serde_saphyr::to_string(&lockfile).expect("serialize lockfile"))
+        .expect("write pnpm-lock.yaml");
+
+    // Frozen lockfile accepts this peer-resolved shape
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    // Re-resolve by adding another dependency
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": {
+            "@pnpm.e2e/has-optional-peer-also-in-deps-parent": "1.0.0",
+            "@pnpm.e2e/foo": "100.0.0",
+        } })
+        .to_string(),
+    )
+    .expect("rewrite package.json");
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let updated = read_lockfile_value();
+    let snapshot = &updated["snapshots"][child];
+    assert_eq!(
+        snapshot["dependencies"]["@pnpm.e2e/bravo-dep"], "1.0.0",
+        "re-resolving retains the dependency on peerless snapshot; got snapshot: {snapshot}",
+    );
+    assert_eq!(
+        updated["snapshots"]["@pnpm.e2e/has-optional-peer-also-in-deps-parent@1.0.0"]["dependencies"]
+            ["@pnpm.e2e/has-optional-peer-also-in-deps"],
+        "1.0.0",
+    );
+
+    drop((root, mock_instance));
 }

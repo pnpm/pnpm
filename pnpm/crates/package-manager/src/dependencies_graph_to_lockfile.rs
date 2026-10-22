@@ -30,9 +30,7 @@ use pnpm_lockfile::{
     ResolvedCatalogEntry,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
-};
+use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use serde_json::Value;
 
 /// One importer's contribution to [`dependencies_graph_to_lockfile`].
@@ -81,7 +79,6 @@ pub struct GraphToLockfileOptions<'a> {
     pub settings: pnpm_lockfile::LockfileSettings,
     pub metadata_sources: crate::PackageMetadataSources<'a>,
     pub manifest_settings: crate::LockfileManifestSettings,
-    pub reuse: crate::LockfileImporterReuse<'a>,
 }
 
 pub struct LockfileManifestSettings {
@@ -108,29 +105,6 @@ pub struct LockfileManifestSettings {
     /// has no `.pnpmfile.{cjs,mjs}` — or one that exports no `hooks`.
     pub pnpmfile_checksum: Option<String>,
     pub untracked_pnpmfile_read_package_hook: Option<bool>,
-}
-
-pub struct LockfileImporterReuse<'a> {
-    /// The previous run's importer entries (the wanted lockfile's
-    /// `importers:` map), keyed by the same importer ids as
-    /// [`GraphToLockfileOptions::importers`]. Used to preserve a workspace dependency's
-    /// prior `link:` entry when this install does not target it — see
-    /// `build_importer` and pnpm/pnpm#10433. `None` when there is no
-    /// previous lockfile (a first install) or when `dedupeInjectedDeps`
-    /// is off.
-    pub previous_importers: Option<&'a HashMap<String, ProjectSnapshot>>,
-    /// How this install reuses the prior resolution, mapped from the
-    /// `pacquet update` seed policy. Together with a spec change it
-    /// decides whether an importer's workspace dependency is *targeted*
-    /// by the run (and so may legitimately change its `link:`/`file:`
-    /// form) — see `build_importer`. This is the workspace-wide default;
-    /// [`Self::scopes_by_importer`] overrides it per importer.
-    pub scope: UpdateReuseScope,
-    /// Per-importer update scopes, mirroring the resolver's
-    /// `update_reuse_scope_for`: a `pacquet update <name> --recursive`
-    /// lowers to a `ByImporter` policy whose workspace-wide scope is `All`
-    /// with the named packages recorded per importer here.
-    pub scopes_by_importer: BTreeMap<String, UpdateReuseScope>,
 }
 
 /// Error returned while converting a resolver graph into a lockfile.
@@ -186,7 +160,8 @@ pub enum DependenciesGraphToLockfileError {
 pub fn dependencies_graph_to_lockfile(
     opts: GraphToLockfileOptions<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
-    let optional_overrides = compute_corrected_optional(&opts.importers, opts.graph);
+    let optional_overrides =
+        compute_corrected_optional(&opts.importers, opts.graph, opts.settings.auto_install_peers);
     let (packages, snapshots) =
         build_packages_and_snapshots(opts.graph, &optional_overrides, &opts.metadata_sources)?;
     let importers = build_importers(&opts)?;
@@ -277,6 +252,7 @@ fn build_catalog_snapshots(
 fn compute_corrected_optional(
     importer_inputs: &BTreeMap<String, ImporterLockfileInput<'_>>,
     graph: &DependenciesGraph,
+    auto_install_peers: bool,
 ) -> HashMap<DepPath, bool> {
     // Partition every importer's deps into dev / optional / prod
     // seed sets. Across importers the union of non-optional reach is
@@ -285,10 +261,10 @@ fn compute_corrected_optional(
     let mut optional_seeds: Vec<&DepPath> = Vec::new();
     let mut prod_seeds: Vec<&DepPath> = Vec::new();
     for input in importer_inputs.values() {
-        let alias_to_group = manifest_alias_to_group(input.manifest);
+        let alias_to_group = manifest_alias_to_group(input.manifest, auto_install_peers);
         for (alias, dep_path) in &input.direct_dependencies_by_alias {
-            // Skip aliases the manifest doesn't declare — auto-installed
-            // peers hoisted into `direct_dependencies_by_alias` when
+            // Skip aliases the manifest doesn't declare — the peers of
+            // dependencies hoisted into `direct_dependencies_by_alias` when
             // `autoInstallPeers: true` is on never make it into the
             // importer's lockfile entry (see [`build_importer`](crate::dependencies_graph_to_lockfile::importers::build_importer)), so we
             // don't seed from them here either. Seeding them would force
@@ -368,7 +344,7 @@ fn optional_children_of(node: &DependenciesGraphNode) -> rustc_hash::FxHashSet<S
             out.insert(name.clone());
         }
     }
-    for (name, peer) in &node.edges.peer_dependencies {
+    for (name, peer) in node.edges.peer_set.taken() {
         if peer.optional {
             out.insert(name.clone());
         }

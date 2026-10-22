@@ -9,7 +9,7 @@ use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
 use pnpm_package_manager::{ProjectMutation, RebuildOptions, allow_build_key_from_ignored_build};
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_package_manifest::{DependencyGroup, project_manifest_path};
 use pnpm_reporter::Reporter;
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
@@ -44,7 +44,7 @@ impl RebuildArgs {
         state: State,
         workspace_selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
-        let selection = resolve_selection(&self.packages, self.pending, state.config)?;
+        let selection = resolve_selection(&self.packages, self.pending, &state)?;
         run_rebuild::<Reporter>(&state, selection, workspace_selection).await
     }
 
@@ -150,17 +150,16 @@ pub(crate) struct RebuildSelection {
 /// otherwise every build-needing package.
 ///
 /// A `pendingBuilds` record is a dep path for a dependency and an
-/// importer id for a workspace project, and both are plain strings on
-/// disk. They are told apart by whether the entry resolves to a
-/// directory with a manifest, which is what an importer id means —
-/// asking the string's shape instead would misread a workspace
-/// directory named `foo@1.0.0` as a dependency and then drop its debt
-/// without running anything.
+/// importer id for a project, and both are plain strings on disk. They
+/// are told apart by [`pending_entry_is_project`] — asking the string's
+/// shape instead would misread a workspace directory named `foo@1.0.0`
+/// as a dependency and then drop its debt without running anything.
 fn resolve_selection(
     packages: &[String],
     pending: bool,
-    config: &Config,
+    state: &State,
 ) -> miette::Result<RebuildSelection> {
+    let config = state.config;
     if !packages.is_empty() {
         return Ok(RebuildSelection { names: Some(packages.to_vec()), projects: Vec::new() });
     }
@@ -172,21 +171,11 @@ fn resolve_selection(
         return Ok(RebuildSelection { names: Some(Vec::new()), projects: Vec::new() });
     };
     let lockfile_dir = config.modules_dir_anchor().unwrap_or(&config.modules_dir);
-    // An importer id is always a relative path; a dep path can be
-    // absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join`
-    // replaces the base on an absolute component, so probe only for
-    // relative entries — an absolute one is a dependency by construction.
-    let is_project = |entry: &String| {
-        !Path::new(entry).is_absolute()
-            && lockfile_dir
-                .join(entry)
-                .join("package.json")
-                .is_file()
-    };
+    let active_importer_id = state.active_importer_id();
     let (projects, dep_paths): (Vec<&String>, Vec<&String>) = modules
         .pending_builds
         .iter()
-        .partition(|entry| is_project(entry));
+        .partition(|entry| pending_entry_is_project(lockfile_dir, &active_importer_id, entry));
     Ok(RebuildSelection {
         names: Some(
             dep_paths
@@ -196,6 +185,20 @@ fn resolve_selection(
         ),
         projects: projects.into_iter().cloned().collect(),
     })
+}
+
+/// Whether a `pendingBuilds` entry is an importer id: the active project,
+/// whose manifest may still be the in-memory scaffold of a project that
+/// has none on disk, or a directory with a manifest.
+///
+/// An importer id is always a relative path; a dep path can be
+/// absolute-looking (`/lodash@1.0.0`), and Rust's `Path::join` replaces
+/// the base on an absolute component, so only a relative entry is
+/// probed — an absolute one is a dependency by construction.
+fn pending_entry_is_project(lockfile_dir: &Path, active_importer_id: &str, entry: &str) -> bool {
+    !Path::new(entry).is_absolute()
+        && (entry == active_importer_id
+            || project_manifest_path(&lockfile_dir.join(entry)).is_file())
 }
 
 /// Drive a forced rebuild of the selected packages (or every build-needing
@@ -211,6 +214,8 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
     let rebuild = RebuildOptions {
         selected_names: selection.names.map(|names| names.into_iter().collect::<HashSet<_>>()),
         pending_projects: selection.projects,
+        check_lockfile_patches_only: false,
+        skip_if_has_side_effects_cache: false,
     };
 
     let dependency_groups = rebuild_dependency_groups(state.config)?;

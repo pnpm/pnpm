@@ -1,7 +1,7 @@
 pub use redact_url::redact_url_credentials;
 
 mod redact_url;
-#[cfg(not(target_family = "wasm"))]
+#[cfg(feature = "server")]
 mod response;
 
 use derive_more::{Display, Error, From};
@@ -10,7 +10,7 @@ use derive_more::{Display, Error, From};
 #[non_exhaustive]
 pub enum RegistryError {
     #[display("Upstream request to {url} failed: {source}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Upstream {
         url: String,
         #[error(source)]
@@ -50,6 +50,13 @@ pub enum RegistryError {
     UpstreamUnavailable {
         #[error(not(source))]
         upstream: String,
+    },
+
+    #[display("Storage is temporarily unavailable: {reason}")]
+    #[from(skip)]
+    StorageUnavailable {
+        #[error(not(source))]
+        reason: String,
     },
 
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
@@ -114,15 +121,40 @@ pub enum RegistryError {
         resource: String,
     },
 
-    /// A team mutation (create/destroy/add/rm) hit the npm team API, but
-    /// pnpr teams are declared in the registry configuration and cannot be
-    /// changed over HTTP. Maps to 403.
+    /// A team mutation (create/destroy/add/rm) hit the npm team API on a
+    /// registry whose teams are declared in the configuration. Maps to 403.
     #[display(
         "Teams on this registry are declared in the pnpr configuration; to {action}, ask the \
          registry operator to update the config"
     )]
     #[from(skip)]
     TeamsConfigManaged { action: &'static str },
+
+    /// A conditional write whose `If-Match` names a version the resource no
+    /// longer has. Maps to 412.
+    #[display("{resource} changed since version {expected}; read it again and repeat the change")]
+    #[from(skip)]
+    PreconditionFailed {
+        #[error(not(source))]
+        resource: String,
+        expected: String,
+    },
+
+    /// A rules edit hit the admin API on a registry whose rules are declared
+    /// in the configuration. Maps to 403.
+    #[display(
+        "The package rules of this registry are declared in the pnpr configuration; to change \
+         them, ask the registry operator to update the config"
+    )]
+    #[from(skip)]
+    RulesConfigManaged,
+
+    /// An admin edit that the current state refuses. Maps to 409.
+    #[from(skip)]
+    AdminConflict {
+        #[error(not(source))]
+        reason: String,
+    },
 
     /// Tarball payload from a publish couldn't be decoded — bad
     /// base64, length mismatch, or integrity mismatch.
@@ -205,6 +237,17 @@ pub enum RegistryError {
         package: String,
     },
 
+    #[display(
+        "Hosted document {document} has format version {format_version}, but this server only supports up to version {supported_version}; refusing to rewrite"
+    )]
+    #[from(skip)]
+    DocumentFormatTooNew {
+        #[error(not(source))]
+        document: String,
+        format_version: u32,
+        supported_version: u32,
+    },
+
     /// Another request is already approving this staged publish. A staged
     /// record is approved exactly once: the approving request claims it with
     /// a conditional write, and a second one is refused rather than
@@ -255,6 +298,73 @@ pub enum RegistryError {
     #[from(skip)]
     TooManyUsers { max: u64 },
 
+    /// A registration attempt targeted a reserved username (`auth.admins`,
+    /// an OIDC binding, or a SCIM-provisioned user).
+    #[display("Username {name:?} is reserved")]
+    #[from(skip)]
+    ReservedUsername {
+        #[error(not(source))]
+        name: String,
+    },
+
+    /// Caller is not a maintainer of the package.
+    #[display("You must be a package maintainer to {action} {package:?}")]
+    #[from(skip)]
+    NotPackageMaintainer {
+        #[error(not(source))]
+        action: &'static str,
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// Package was unpublished and cannot be claimed by non-maintainers.
+    #[display(
+        "Package {package:?} was unpublished and can only be republished by former maintainers"
+    )]
+    #[from(skip)]
+    PackageTombstoned {
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// A version that was previously unpublished cannot be republished.
+    #[display("Cannot republish previously unpublished version {version:?} of package {package:?}")]
+    #[from(skip)]
+    CannotRepublishUnpublishedVersion {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+    },
+
+    /// Maintainers list cannot be emptied.
+    #[display("Package {package:?} must have at least one maintainer")]
+    #[from(skip)]
+    EmptyMaintainers {
+        #[error(not(source))]
+        package: String,
+    },
+
+    /// The client sent too many requests. Maps to 429 Too Many Requests.
+    #[display("Too many requests: {reason}")]
+    #[from(skip)]
+    TooManyRequests {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// Request processing timed out. Maps to 504 Gateway Timeout.
+    #[display("Request timed out: {reason}")]
+    #[from(skip)]
+    RequestTimeout {
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// An error wrapped in an `Arc` so multiple concurrent waiters sharing a
+    /// singleflight upstream fetch can clone the failure.
+    Shared(std::sync::Arc<RegistryError>),
+
     #[display("Internal error: {reason}")]
     #[from(skip)]
     Internal {
@@ -276,12 +386,12 @@ pub enum RegistryError {
 
     /// Bcrypt hash/verify failure. Operational error, not user-facing.
     #[display("Bcrypt failure: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Bcrypt(bcrypt::BcryptError),
 
     /// SQLite-backed token store failure.
     #[display("Token database error: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Sqlite(rusqlite::Error),
 
     /// Networked-SQLite (libsql / Turso) auth backend failure.
@@ -306,7 +416,7 @@ pub enum RegistryError {
     /// A blocking task spawned for bcrypt or `SQLite` work panicked
     /// or was cancelled. Treat as an internal server error.
     #[display("Background task failed: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     JoinError(tokio::task::JoinError),
 
     #[display("I/O error: {_0}")]
@@ -315,15 +425,15 @@ pub enum RegistryError {
     /// Object-store (S3 / R2 / S3-compatible) backend failure on the
     /// hosted store.
     #[display("Object store error: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     ObjectStore(object_store::Error),
 
     #[display("JSON error: {_0}")]
-    #[cfg(not(target_family = "wasm"))]
+    #[cfg(feature = "server")]
     Json(serde_json::Error),
 }
 
 pub type Result<Value, Error = RegistryError> = std::result::Result<Value, Error>;
 
-#[cfg(all(test, not(target_family = "wasm")))]
+#[cfg(all(test, feature = "server"))]
 mod tests;

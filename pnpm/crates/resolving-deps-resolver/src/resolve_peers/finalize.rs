@@ -4,7 +4,7 @@
 //! suffix, and the [`DependenciesGraph`] built from the per-node records
 //! keyed by those depPaths.
 
-pub(crate) use final_paths::FinalDepPaths;
+pub(crate) use final_paths::{FinalDepPaths, PeerIdRecording};
 pub(crate) use graph_edges::merge_additional_edges;
 
 mod peer_scc;
@@ -24,7 +24,7 @@ use crate::{
     },
     resolved_tree::{ResolvedPackage, pkg_name_version},
 };
-use pnpm_deps_path::{DepPath, PeerId, create_peer_dep_graph_hash, link_path_to_peer_version};
+use pnpm_deps_path::{DepPath, PeerId, link_path_to_peer_version};
 use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -174,7 +174,7 @@ impl Walker<'_> {
                 edges: crate::ResolvedDependencyEdges {
                     children: graph_children,
                     optional_children: optional_child_aliases,
-                    peer_dependencies: node.pkg.peer_dependencies.clone(),
+                    peer_set: node.pkg.peer_set.clone(),
                     transitive_peer_dependencies,
                     resolved_peer_names: node.peers.resolved
                         .keys()
@@ -409,7 +409,7 @@ impl Walker<'_> {
             edges: crate::ResolvedDependencyEdges {
                 children,
                 optional_children: record.optional_child_aliases.clone(),
-                peer_dependencies: pkg.peer_dependencies.clone(),
+                peer_set: pkg.peer_set.clone(),
                 transitive_peer_dependencies: record
                     .transitive_peer_dependencies
                     .clone(),

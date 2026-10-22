@@ -148,7 +148,7 @@ impl FsAtomicWrite for Host {
             };
             pnpm_fs::set_file_permissions(tmp.as_file(), &mode)?;
         }
-        tmp.as_file().sync_all()?;
+        pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(dest).map_err(|error| error.error)?;
         Ok(())
     }

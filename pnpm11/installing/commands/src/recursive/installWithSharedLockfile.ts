@@ -11,7 +11,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { isSubdir } from 'is-subdir'
 
 import { handleIgnoredBuilds } from '../handleIgnoredBuilds.js'
-import { resolvedPackageVersionsForPrune } from '../resolvedPackageVersionsForPrune.js'
+import { keptCatalogsForPrune, resolvedPackageVersionsForPrune } from '../resolvedPackageVersionsForPrune.js'
 import {
   completeDependencySelectors,
   createNoPackageInDependenciesError,
@@ -34,23 +34,19 @@ interface ImporterToMutate {
  */
 export async function installWithSharedLockfile (ctx: RecursiveContext): Promise<RecursiveResult> {
   const importers = getImportersInsideRepository(ctx.opts)
-  if (importers.length === 0) return { passed: true }
+  if (importers.length === 0) return { passed: true, installedProjectDirs: [] }
   const mutatedImporters = await createMutatedImporters(ctx, importers)
   if ((mutatedImporters.length === 0) && ctx.cmdFullName === 'update' && ctx.opts.depth === 0) {
     throw createNoPackageInDependenciesError()
   }
-  if (shouldInstallWorkspaceRoot(ctx)) {
-    mutatedImporters.push({
-      mutation: 'install',
-      rootDir: ctx.opts.workspaceDir as ProjectRootDir,
-    })
-  }
+  includeUnselectedWorkspaceRoot(ctx, mutatedImporters)
   const saveManifests = createManifestsSaver(ctx)
   const {
     updatedCatalogs,
     updatedProjects,
     ignoredBuilds,
     newLockfile,
+    wantedLockfile,
     resolutionPolicyViolations,
     dryRunResult,
   } = await mutateModules(mutatedImporters, {
@@ -63,10 +59,16 @@ export async function installWithSharedLockfile (ctx: RecursiveContext): Promise
     updatedProjects,
     updatedCatalogs,
     newLockfile,
+    wantedLockfile,
     resolutionPolicyViolations,
   })
   await handleIgnoredBuilds(ctx.opts, ignoredBuilds)
-  return { passed: true, updatedCatalogs, dryRunResult }
+  return {
+    passed: true,
+    installedProjectDirs: mutatedImporters.map(({ rootDir }) => rootDir),
+    updatedCatalogs,
+    dryRunResult,
+  }
 }
 
 function getImportersInsideRepository (
@@ -199,10 +201,28 @@ function createInstallSomeMutation (
   } as MutatedProject
 }
 
-function shouldInstallWorkspaceRoot ({ opts, manifestsByPath }: RecursiveContext): boolean {
-  return !opts.excludeWorkspaceRootProject &&
+function includeUnselectedWorkspaceRoot ({ opts, manifestsByPath }: RecursiveContext, mutatedImporters: MutatedProject[]): void {
+  if (installCoversUnselectedWorkspaceRoot(opts) &&
     !opts.selectedProjectsGraph[opts.workspaceDir as ProjectRootDir] &&
-    manifestsByPath[opts.workspaceDir as ProjectRootDir] != null
+    manifestsByPath[opts.workspaceDir as ProjectRootDir] != null) {
+    mutatedImporters.push({
+      mutation: 'install',
+      rootDir: opts.workspaceDir as ProjectRootDir,
+    })
+  }
+}
+
+/**
+ * Whether an install under a shared lockfile also installs the workspace
+ * root when the selection leaves it out. A filtered install that prunes
+ * direct dependencies leaves the root alone, as `excludeWorkspaceRootProject`
+ * does.
+ */
+function installCoversUnselectedWorkspaceRoot (
+  opts: Pick<RecursiveOptions, 'excludeWorkspaceRootProject' | 'filter' | 'filterProd' | 'pruneDirectDependencies'>
+): boolean {
+  return (!opts.pruneDirectDependencies || (!opts.filter?.length && !opts.filterProd?.length)) &&
+    !opts.excludeWorkspaceRootProject
 }
 
 /**
@@ -222,13 +242,14 @@ function createManifestsSaver (ctx: RecursiveContext): (result: BeforeLifecycleS
 
 async function persistManifests (
   { allProjects, manifestsByPath, opts, policyHandlers }: RecursiveContext,
-  { updatedProjects, updatedCatalogs, newLockfile, resolutionPolicyViolations }: BeforeLifecycleScriptsResult
+  { updatedProjects, updatedCatalogs, newLockfile, wantedLockfile, resolutionPolicyViolations }: BeforeLifecycleScriptsResult
 ): Promise<void> {
   // Only pick entries when we'll actually persist. Otherwise the
   // info log would claim entries were added that the workspace
   // manifest never saw, and the next install would re-prompt or
   // fail verification.
   const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations ?? [])
+  const resolvedPackageVersions = await resolvedPackageVersionsForPrune(opts, newLockfile)
   const promises: Array<Promise<void>> = updatedProjects
     .filter(({ rootDir }) => manifestsByPath[rootDir] != null)
     .map(async ({ originalManifest, manifest, rootDir }) => {
@@ -237,7 +258,8 @@ async function persistManifests (
   promises.push(updateWorkspaceManifest(opts.workspaceDir, {
     updatedCatalogs,
     catalogPrune: opts.catalogPrune,
-    resolvedPackageVersions: resolvedPackageVersionsForPrune(opts, newLockfile),
+    keptCatalogs: keptCatalogsForPrune(opts, newLockfile, wantedLockfile),
+    resolvedPackageVersions,
     minimumReleaseAgeExcludePrune: opts.minimumReleaseAgeExcludePrune,
     trustPolicyExcludePrune: opts.trustPolicyExcludePrune,
     allProjects,

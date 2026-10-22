@@ -56,10 +56,11 @@ fn update_actions_root(
     state: &State,
     selection: Option<&InstallFamilySelection>,
 ) -> std::path::PathBuf {
-    selection.map_or_else(
-        || state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest)),
-        |selection| selection.workspace_root.clone(),
-    )
+    match (selection, &state.config.workspace_dir) {
+        (Some(selection), _) => selection.workspace_root.clone(),
+        (None, Some(workspace_dir)) => workspace_dir.clone(),
+        (None, None) => manifest_root(&state.manifest),
+    }
 }
 
 impl UpdateArgs {
@@ -204,11 +205,12 @@ impl UpdateArgs {
                     depth: self.selection.depth.unwrap_or(usize::MAX),
                     workspace_packages: inputs.workspace_packages.as_ref(),
                     interactive: self.selection.interactive,
+                    targets: None,
                 },
                 version: pnpm_package_manager::UpdateVersionOptions {
                     latest: self.selection.latest,
                     patches: self.selection.patches,
-                    save_exact: self.save.exact || state.config.save_exact,
+                    range_spec_style: self.range_spec_style(state.config),
                     save: !self.save.no_save,
                 },
             },

@@ -28,7 +28,7 @@ impl RootArgs {
                 .map_err(miette::Report::new)?;
             let pkg_dir =
                 config.global_pkg_dir.clone().ok_or(GlobalError::MissingGlobalPackageDir)?;
-            println!("{}", pkg_dir.display());
+            pnpm_diagnostics::println!("{}", pkg_dir.display());
         } else {
             // Gated so an ordinary `pnpm root` reads no manifest, and so a
             // project without one still answers.
@@ -36,7 +36,10 @@ impl RootArgs {
                 .applies_package_configs()
                 .then(|| pnpm_workspace::read_project_name(dir))
                 .flatten();
-            println!("{}", config.project_modules_dir(dir, project_name.as_deref()).display());
+            pnpm_diagnostics::println!(
+                "{}",
+                config.project_modules_dir(dir, project_name.as_deref()).display(),
+            );
         }
         Ok(())
     }

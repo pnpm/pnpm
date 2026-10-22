@@ -6,3 +6,14 @@
 /pnpm11/reviewing/license-scanner/* @weyert
 /pnpm11/reviewing/plugin-commands-licenses/* @weyert
 /pnpm11/hooks/* @d3lm
+
+# Supply-chain and CI settings, and code that runs on install
+/pnpm-workspace.yaml @zkochan
+/.config/pnpm/policies.yaml @zkochan
+/.pnpmfile.cjs @zkochan
+/.config/pnpm/patches/ @zkochan
+/.config/pnpm/tasks.yaml @zkochan
+
+# No code owner: pnpm-workspace.yaml lets this file define only the
+# catalog settings and the update settings.
+/.config/pnpm/catalog.yaml

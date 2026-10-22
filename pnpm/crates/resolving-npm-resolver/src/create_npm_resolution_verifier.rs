@@ -63,9 +63,7 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
-use pnpm_registry::{
-    Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
-};
+use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
 };
@@ -74,11 +72,12 @@ use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
-    fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustEvidence,
+    TrustHistory, TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
+    fetch_full_metadata_cached::fetch_full_metadata_projected,
     lookup_context::{
         PublishedAtLookupContext, PublishedAtTimeMap, RegistryArtifact, RegistryArtifactHistory,
-        package_key, version_key,
+        TrustHistoryProjection, package_key, version_key,
     },
     named_registry::named_registry_tarball_prefixes,
     pick_package::{PackageMetaCache, SkippedTimeCheck, warn_missing_time_once},
@@ -99,6 +98,7 @@ use crate::{
 pub struct DistStats {
     pub unpacked_size: Option<usize>,
     pub file_count: Option<usize>,
+    pub requires_build: Option<bool>,
 }
 
 /// `(package name, version) → dist` work statistics filled by the
@@ -128,6 +128,9 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// `https://npm.pkg.github.com/`). Merged with
     /// [`crate::BUILTIN_REGISTRIES_BY_PREFIX`].
     pub registries_by_prefix: HashMap<String, String>,
+    /// Per-registry options (`serverType`, `supportsTimeField`) keyed by URL.
+    pub registry_options_by_url:
+        Option<std::collections::BTreeMap<String, pnpm_lockfile::RegistryOptions>>,
     /// Override for `Utc::now()` when computing the age cutoff and
     /// the `trustPolicyIgnoreAfter` window. `None` falls back to
     /// wall-clock at construction time.
@@ -187,7 +190,7 @@ pub struct VerificationMetadataClient {
     pub auth_headers: Arc<AuthHeaders>,
     /// Root of pnpm's on-disk metadata mirror. When set, the verifier
     /// reads conditional headers from
-    /// `<cache_dir>/v11/metadata-full/<registry>/<pkg>.jsonl` and
+    /// `<cache_dir>/v12/metadata-full/<registry>/<pkg>.jsonl` and
     /// writes 200 responses back; when `None`, every fetch is
     /// unconditional.
     pub cache_dir: Option<PathBuf>,
@@ -326,12 +329,18 @@ pub fn create_npm_resolution_verifier(
             registries: opts.registries,
             named_registry_prefixes,
             registries_by_prefix: opts.registries_by_prefix,
+            registry_options_by_url: opts.registry_options_by_url,
         },
     }
 }
 
 impl ResolutionVerifier for NpmResolutionVerifier {
     fn might_verify(&self, resolution: &LockfileResolution, ctx: VerifyCtx<'_>) -> bool {
+        if let LockfileResolution::Variations(variations) = resolution {
+            return variations.variants
+                .iter()
+                .any(|variant| self.might_verify(&variant.resolution, ctx));
+        }
         let Some(tarball_url) = npm_registry_tarball(resolution) else {
             return false;
         };
@@ -415,11 +424,29 @@ impl ResolutionVerifier for NpmResolutionVerifier {
 }
 
 impl NpmResolutionVerifier {
+    async fn verify_variations(
+        &self,
+        variations: &pnpm_lockfile::VariationsResolution,
+        ctx: VerifyCtx<'_>,
+    ) -> ResolutionVerification {
+        for variant in &variations.variants {
+            let verification = Box::pin(self.verify_impl(&variant.resolution, ctx)).await;
+            if !matches!(verification, ResolutionVerification::Ok) {
+                return verification;
+            }
+        }
+        ResolutionVerification::Ok
+    }
+
     async fn verify_impl(
         &self,
         resolution: &LockfileResolution,
         ctx: VerifyCtx<'_>,
     ) -> ResolutionVerification {
+        if let LockfileResolution::Variations(variations) = resolution {
+            return self.verify_variations(variations, ctx).await;
+        }
+
         let Some(tarball_url) = npm_registry_tarball(resolution) else {
             return ResolutionVerification::Ok;
         };

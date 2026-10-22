@@ -23,25 +23,37 @@ pub struct PackageImportOptions<'a> {
     pub requester: &'a str,
     /// Mirrors [`Config::isolate_local_directory_imports`].
     pub isolate_mutable_sources: bool,
+    /// The install's [`crate::ModulesSwapLock`]; see
+    /// [`crate::ImportIndexedDirOpts::swap_lock`].
+    pub swap_lock: Option<&'a crate::ModulesSwapLock>,
 }
 
 impl<'a> PackageImportOptions<'a> {
     #[must_use]
-    pub fn from_config(config: &Config, logged_methods: &'a AtomicU8, requester: &'a str) -> Self {
+    pub fn from_config(
+        config: &Config,
+        logged_methods: &'a AtomicU8,
+        requester: &'a str,
+        swap_lock: Option<&'a crate::ModulesSwapLock>,
+    ) -> Self {
         PackageImportOptions {
             method: config.package_import_method,
             logged_methods,
             requester,
             isolate_mutable_sources: config.isolate_local_directory_imports,
+            swap_lock,
         }
     }
 
-    /// The method a package's files are actually materialized with: `clone-or-copy`
-    /// when a build or patch will still write them, or when the source is a
-    /// mutable local directory this install must not share inodes with;
-    /// `hardlink` for any other mutable local directory under the `auto`
-    /// method, so an in-place edit of the source reaches the injected copy,
-    /// as pnpm v11's directory fetcher asks for; [`Self::method`] otherwise.
+    /// The method a package's files are actually materialized with:
+    ///
+    /// - When a build or patch will still write them, or the source is a
+    ///   mutable local directory this install must not share inodes with:
+    ///   [`fn@crate::effective_import_method`].
+    /// - For any other mutable local directory under the `auto` method:
+    ///   `hardlink`, so an in-place edit of the source reaches the injected
+    ///   copy, as pnpm v11's directory fetcher asks for.
+    /// - Otherwise: [`Self::method`].
     #[must_use]
     pub fn method_for(&self, source_is_mutable: bool, needs_build: bool) -> PackageImportMethod {
         let needs_private_files =
@@ -59,8 +71,8 @@ pub struct SlotImportSource<'a> {
     /// (a `file:` / [`pnpm_lockfile::LockfileResolution::Directory`]
     /// resolution) rather than immutable CAS entries. pnpm's `file:` is
     /// a copy taken at install time — unlike `link:`, which symlinks —
-    /// so the slot has to be rebuilt on every install: the source can
-    /// change without the lockfile changing, and the completion-marker
+    /// so each install must refresh or verify the slot's files: the source
+    /// can change without the lockfile changing, and the completion-marker
     /// short-circuit in [`fn@crate::import_indexed_dir`] would otherwise
     /// leave the previous install's copy in place forever.
     pub is_mutable: bool,
@@ -83,8 +95,8 @@ pub struct SlotImportSource<'a> {
     pub build_marker: Option<&'a Path>,
     /// Whether a lifecycle script or a patch will still write this slot's
     /// files after the import. Such a slot must not share inodes with its
-    /// source, so it ignores [`PackageImportOptions::method`] and imports
-    /// with `clone-or-copy`. See
+    /// source, so it imports with `clone-or-copy` unless
+    /// [`PackageImportOptions::method`] is `copy`. See
     /// [`fn@crate::create_virtual_dir_by_snapshot::effective_import_method`].
     pub needs_build: bool,
 }

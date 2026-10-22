@@ -74,7 +74,7 @@ impl AddPipeline {
                     sync_injected_deps: !self.args.install.lockfile_only,
                     pipelined: false,
                 }
-                .run(|state| {
+                .run::<Reporter, _, _>(|state| {
                     let args = self.args.clone();
                     let workspace_packages = Arc::clone(&workspace_packages);
                     Box::pin(async move {
@@ -260,6 +260,8 @@ pub(super) fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> 
     ];
     if let Some(workspace_dir) = config.workspace_dir.as_deref() {
         paths.push(workspace_dir.join("pnpm-workspace.yaml"));
+        let included = config.workspace_includes.iter().flat_map(|includes| includes.local_paths());
+        paths.extend(included.map(Path::to_path_buf));
     }
     paths
 }
@@ -279,6 +281,7 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        self.args.update_config_dependencies::<Reporter>(self.cfg, &self.config_root).await?;
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
         prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         let plan = select_install_family_plan::<Reporter>(
@@ -309,14 +312,8 @@ impl UpdatePipeline {
         {
             anchor_active_project(self.cfg, &self.manifest_path);
         }
-        let generate_changeset = if self.args.save.changeset {
-            true
-        } else if self.args.save.no_changeset {
-            false
-        } else {
-            self.cfg.update_config.changeset.unwrap_or(false)
-        };
-        let changeset_context = generate_changeset
+        let changeset_context = self.args.save
+            .generates_changeset(self.cfg)
             .then(|| UpdateChangesetContext::capture(self.cfg, &self.manifest_path))
             .transpose()?;
         self.run_plan::<Reporter>(plan).await?;
@@ -340,7 +337,7 @@ impl UpdatePipeline {
                     sync_injected_deps: !self.args.install.lockfile_only,
                     pipelined: false,
                 }
-                .run(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
+                .run::<Reporter, _, _>(|state| Box::pin(self.args.clone().run::<Reporter>(state)))
                 .await?;
             }
             InstallFamilyPlan::Shared(selection) => {
@@ -402,7 +399,7 @@ impl RemovePipeline {
                     sync_injected_deps: false,
                     pipelined: false,
                 }
-                .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
+                .run::<Reporter, _, _>(|state| Box::pin(args.clone().run::<Reporter>(state)))
                 .await
             }
             InstallFamilyPlan::Shared(selection) => {

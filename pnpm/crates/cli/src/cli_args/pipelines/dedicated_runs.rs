@@ -2,7 +2,7 @@
 //! own lockfiles, each once the workspace projects it depends on are done.
 
 use super::{
-    Arc, Config, Context, DedicatedProjectRuns, DedicatedSync, Path, PathBuf, State,
+    Arc, Config, Context, DedicatedProjectRuns, DedicatedSync, Path, PathBuf, Reporter, State,
     ThrottledClient, prune_after_dedicated_installs, sync_dedicated_injected_deps,
 };
 use crate::state::DedicatedCaches;
@@ -13,8 +13,9 @@ use pnpm_workspace_task_scheduler::{
 use std::{future::Future, sync::Mutex};
 
 impl DedicatedProjectRuns<'_> {
-    pub(super) async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
+    pub(super) async fn run<Rep, Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
     where
+        Rep: Reporter,
         Runner: Fn(State) -> RunFuture + Sync,
         RunFuture: Future<Output = miette::Result<()>> + Send + 'static,
     {
@@ -24,6 +25,15 @@ impl DedicatedProjectRuns<'_> {
             self.run_projects(run).await?;
         }
         if self.prune_excludes && self.projects.covers_workspace {
+            let project_dirs: Vec<PathBuf> = self.projects.dependencies
+                .keys()
+                .cloned()
+                .collect();
+            pnpm_package_manager::verify_patches_against_project_lockfiles::<Rep>(
+                self.config,
+                &project_dirs,
+            )
+            .map_err(miette::Report::new)?;
             prune_after_dedicated_installs(self.config)?;
         }
         if self.sync_injected_deps {
@@ -95,7 +105,11 @@ impl DedicatedProjectRuns<'_> {
             self.require_lockfile,
             self.http_client.as_ref().map(Arc::clone),
         )?
-        .into_dedicated_project(caches, dependencies_installed);
+        .into_dedicated_project(
+            caches,
+            dependencies_installed,
+            self.pipelined.then(|| self.projects.workspace.clone()),
+        );
         // A project's install blocks its thread in places, such as while its
         // lifecycle scripts run. On its own task, the other projects'
         // installs move to another worker then.

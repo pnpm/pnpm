@@ -9,7 +9,6 @@ name: Pacquet Integrated-Benchmark Comment
 # for the security rationale.
 
 on:
-  # zizmor: ignore[dangerous-triggers]
   # `workflow_run` is intentional and required: this workflow runs in the
   # base-repo privilege context so it can comment on fork PRs (the build
   # workflow itself runs with a read-only token on fork PRs). The job-level
@@ -17,7 +16,7 @@ on:
   # trusted `workflow_run` event payload (not from the fork-controlled
   # artifact), and the artifact body is treated as untrusted markdown.
   # See https://securitylab.github.com/research/github-actions-preventing-pwn-requests/.
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: ["Pacquet Integrated-Benchmark"]
     types: [completed]
 
@@ -113,7 +112,7 @@ jobs:
       - name: Download benchmark report
         # `run-id` + `github-token` lets v8 pull artifacts from a different
         # workflow run, which is exactly the workflow_run pattern.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: integrated-benchmark-report-ubuntu-latest
           path: benchmark-artifact

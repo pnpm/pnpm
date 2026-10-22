@@ -1,8 +1,8 @@
 use super::{
-    ABBREVIATED_CONTENT_TYPE, AppState, Arc, Body, CanonicalPackageName, HashSet, HeaderMap,
-    IndexMap, Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
-    declared_tarball_integrity, header, private_no_cache, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, streaming, tarball_basename,
+    ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
+    Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
+    declared_tarball_integrity, describe_tars, filter_osv_vulnerable_versions, header,
+    rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming, tarball_basename,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -13,6 +13,7 @@ use super::{
 pub(super) struct TarballDist {
     pub(super) version: String,
     pub(super) integrity: Integrity,
+    pub(super) unpacked_size: Option<u64>,
 }
 
 /// The `versions[v].dist` subset the tarball serve path reads. Every tarball
@@ -41,6 +42,8 @@ pub(super) struct DistBlock {
     /// Legacy hex sha1 — the only hash pre-2017 npm publishes carry.
     #[serde(default)]
     pub(super) shasum: Option<String>,
+    #[serde(default, rename = "unpackedSize")]
+    pub(super) unpacked_size: Option<u64>,
 }
 
 pub(super) fn expected_tarball_dist(
@@ -74,7 +77,7 @@ pub(super) fn expected_tarball_dist(
         ));
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
-    Ok(Some(TarballDist { version: version.clone(), integrity }))
+    Ok(Some(TarballDist { version: version.clone(), integrity, unpacked_size: dist.unpacked_size }))
 }
 
 pub(super) fn tarball_stream_error(
@@ -132,197 +135,140 @@ pub(super) fn wants_abbreviated(headers: &HeaderMap) -> bool {
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 
-/// Parse the on-disk packument, rewrite `dist.tarball` URLs, and
-/// build the response. When `abbreviated` is true, strip down to
-/// the npm spec's install-v1 field set (mirrors verdaccio's
-/// `convertAbbreviatedManifest`) and tag the response with the
-/// `application/vnd.npm.install-v1+json` content type. Parse
-/// failures surface as 502 via `RegistryError::Json`.
+/// Parse the on-disk packument, rewrite `dist.tarball` URLs, and build the
+/// response. Honors conditional requests (`If-None-Match`, `If-Modified-Since`)
+/// with 304 Not Modified. When abbreviated MIME is requested, strip down to the
+/// npm spec's install-v1 field set and tag the response with the abbreviated
+/// content type.
 pub(super) fn packument_response(
     name: &CanonicalPackageName,
     bytes: &[u8],
     tarball_base: &str,
-    revision_registry: Option<&str>,
+    view: DistView<'_>,
     osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
-    abbreviated: bool,
+    headers: &HeaderMap,
+    max_age: u64,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    match revision_registry {
+    match view.revision_registry {
         Some(source_registry) => {
             rewrite_upstream_tarball_urls(&mut doc, name, source_registry, tarball_base);
         }
         None => rewrite_tarball_urls(&mut doc, name, tarball_base),
     }
-    let last_modified = packument_last_modified(&doc);
+    if let Some(table) = view.tar_integrities {
+        describe_tars(&mut doc, table, view.tar_registry);
+    }
+    let abbreviated = wants_abbreviated(headers);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
     } else {
         (serde_json::to_vec(&doc)?, "application/json")
     };
-    Ok(packument_bytes_response(body, content_type, last_modified))
+    let etag = format!(r#""{}""#, super::ecosystem::sha256_hex(&body));
+    // Per RFC 9110 Section 8.8.2, Last-Modified is omitted when the representation
+    // is dynamically generated or subject to content negotiation (such as OSV
+    // filtering or abbreviation) and can vary independently of modification time.
+    let last_modified =
+        if osv_index.is_some() || abbreviated { None } else { packument_last_modified(&doc) };
+    if is_not_modified(headers, &etag, last_modified.as_deref()) {
+        return Ok(packument_not_modified_response(&etag, last_modified, max_age));
+    }
+    Ok(packument_ok_response(body, content_type, &etag, last_modified, max_age))
 }
 
-pub(super) fn filter_osv_vulnerable_versions(
-    packument: &mut Value,
-    name: &CanonicalPackageName,
-    osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
-) {
-    let Some(osv_index) = osv_index else { return };
-    let package_name = name.as_str();
-    let mut blocked_keys = HashSet::new();
-    let mut retained_version_keys = HashSet::new();
-    let has_time = packument
-        .get("time")
-        .and_then(Value::as_object)
-        .is_some();
-    if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
-        versions.retain(|key, manifest| {
-            if version_is_vulnerable(osv_index, package_name, key, manifest) {
-                blocked_keys.insert(key.clone());
-                return false;
+fn is_not_modified(headers: &HeaderMap, etag: &str, last_modified: Option<&str>) -> bool {
+    let mut has_inm = false;
+    for inm in headers.get_all(header::IF_NONE_MATCH) {
+        has_inm = true;
+        if inm.to_str().is_ok_and(|header_val| if_none_match_matches(header_val, etag)) {
+            return true;
+        }
+    }
+    if has_inm {
+        return false;
+    }
+    if let Some(ims) = headers
+        .get(header::IF_MODIFIED_SINCE)
+        .and_then(|val| val.to_str().ok())
+        && let Some(lm) = last_modified
+    {
+        return if_modified_since_matches(ims, lm);
+    }
+    false
+}
+
+fn if_none_match_matches(header_val: &str, etag: &str) -> bool {
+    let matches_candidate = |candidate: &str| {
+        let candidate = candidate.trim();
+        candidate == "*" || candidate.strip_prefix("W/").unwrap_or(candidate) == etag
+    };
+    let mut in_quotes = false;
+    let mut start = 0;
+    for (idx, char_code) in header_val.char_indices() {
+        match char_code {
+            '"' => in_quotes = !in_quotes,
+            ',' if !in_quotes => {
+                if matches_candidate(&header_val[start..idx]) {
+                    return true;
+                }
+                start = idx + 1;
             }
-            if has_time {
-                retained_version_keys.insert(key.clone());
-            }
-            true
-        });
+            _ => {}
+        }
     }
-    drop_blocked_dist_tags(packument, osv_index, package_name, &blocked_keys);
-    drop_blocked_time_entries(
-        packument,
-        osv_index,
-        package_name,
-        &BlockedVersions { blocked: &blocked_keys, retained: &retained_version_keys },
-    );
+    matches_candidate(&header_val[start..])
 }
 
-/// Drop every tag pointing at a version an advisory covers.
-pub(super) fn drop_blocked_dist_tags(
-    packument: &mut Value,
-    osv_index: &pnpr_osv::OsvIndex,
-    package_name: &str,
-    blocked: &HashSet<String>,
-) {
-    let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) else {
-        return;
+fn if_modified_since_matches(if_modified_since: &str, last_modified: &str) -> bool {
+    let Ok(ims_time) = chrono::DateTime::parse_from_rfc2822(if_modified_since) else {
+        return false;
     };
-    tags.retain(|_, version| {
-        version
-            .as_str()
-            .is_none_or(|version| {
-                !blocked.contains(version) && !osv_index.is_vulnerable(package_name, version)
-            })
-    });
-}
-
-/// The versions a filter pass blocked, and the ones it kept.
-pub(super) struct BlockedVersions<'a> {
-    pub(super) blocked: &'a HashSet<String>,
-    pub(super) retained: &'a HashSet<String>,
-}
-
-/// Drop the `time` entries of blocked versions, keeping the two document-level
-/// stamps and every version the filter kept.
-pub(super) fn drop_blocked_time_entries(
-    packument: &mut Value,
-    osv_index: &pnpr_osv::OsvIndex,
-    package_name: &str,
-    versions: &BlockedVersions<'_>,
-) {
-    let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) else {
-        return;
+    let Ok(lm_time) = chrono::DateTime::parse_from_rfc2822(last_modified) else {
+        return false;
     };
-    time.retain(|key, _| {
-        !versions.blocked.contains(key)
-            && (matches!(key.as_str(), "created" | "modified")
-                || versions.retained.contains(key)
-                || !osv_index.is_vulnerable(package_name, key))
-    });
+    lm_time <= ims_time
 }
 
-/// Whether an advisory covers a packument entry, under either the version its
-/// key names or the one its manifest declares.
-pub(super) fn version_is_vulnerable(
-    osv_index: &pnpr_osv::OsvIndex,
-    package_name: &str,
-    key: &str,
-    manifest: &Value,
-) -> bool {
-    if osv_index.is_vulnerable(package_name, key) {
-        return true;
+fn packument_not_modified_response(
+    etag: &str,
+    last_modified: Option<String>,
+    max_age: u64,
+) -> Response {
+    let mut builder = Response::builder()
+        .status(StatusCode::NOT_MODIFIED)
+        .header(header::ETAG, etag)
+        .header(header::VARY, "Accept")
+        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"));
+    if let Some(last_modified) = last_modified {
+        builder = builder.header(header::LAST_MODIFIED, last_modified);
     }
-    manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .is_some_and(|version| version != key && osv_index.is_vulnerable(package_name, version))
+    builder
+        .body(Body::empty())
+        .expect("static-shape response always builds")
 }
 
-pub(super) fn filter_osv_vulnerable_dist_tags(
-    tags: &mut Value,
-    packument: &Value,
-    name: &CanonicalPackageName,
-    osv_index: Option<&Arc<pnpr_osv::OsvIndex>>,
-) {
-    let Some(osv_index) = osv_index else { return };
-    let Some(tags) = tags.as_object_mut() else {
-        return;
-    };
-    let package_name = name.as_str();
-    tags.retain(|_, version| {
-        version
-            .as_str()
-            .is_none_or(|version| {
-                !is_osv_vulnerable_packument_version(packument, package_name, version, osv_index)
-            })
-    });
-}
-
-pub(super) fn is_osv_vulnerable_packument_version(
-    packument: &Value,
-    package_name: &str,
-    version: &str,
-    osv_index: &pnpr_osv::OsvIndex,
-) -> bool {
-    if osv_index.is_vulnerable(package_name, version) {
-        return true;
+fn packument_ok_response(
+    body: Vec<u8>,
+    content_type: &'static str,
+    etag: &str,
+    last_modified: Option<String>,
+    max_age: u64,
+) -> Response {
+    let mut builder = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::ETAG, etag)
+        .header(header::VARY, "Accept")
+        .header(header::CACHE_CONTROL, format!("public, max-age={max_age}"));
+    if let Some(last_modified) = last_modified {
+        builder = builder.header(header::LAST_MODIFIED, last_modified);
     }
-    let manifest_version = packument
-        .get("versions")
-        .and_then(|versions| versions.get(version))
-        .and_then(|manifest| manifest.get("version"))
-        .and_then(Value::as_str);
-    manifest_version.is_some_and(|manifest_version| {
-        manifest_version != version && osv_index.is_vulnerable(package_name, manifest_version)
-    })
-}
-
-pub(super) fn resolve_version_or_tag<'a>(packument: &'a Value, version_or_tag: &'a str) -> &'a str {
-    packument
-        .get("dist-tags")
-        .and_then(|tags| tags.get(version_or_tag))
-        .and_then(Value::as_str)
-        .unwrap_or(version_or_tag)
-}
-
-pub(super) fn ensure_osv_allowed(
-    state: &AppState,
-    name: &CanonicalPackageName,
-    version: &str,
-) -> Result<(), RegistryError> {
-    let Some(osv_index) = state.inner.osv_index.as_ref() else {
-        return Ok(());
-    };
-    let ids = osv_index.vulnerability_ids(name.as_str(), version);
-    if ids.is_empty() {
-        return Ok(());
-    }
-    Err(RegistryError::OsvVulnerability {
-        package: name.as_str().to_string(),
-        version: version.to_string(),
-        advisories: pnpr_osv::format_advisory_ids(&ids),
-    })
+    builder
+        .body(Body::from(body))
+        .expect("static-shape response always builds")
 }
 
 pub(super) fn packument_bytes_response(
@@ -371,31 +317,4 @@ pub(super) fn tarball_response(body: Body, content_length: Option<u64>) -> Respo
         builder = builder.header(header::CONTENT_LENGTH, len);
     }
     builder.body(body).expect("static-shape response always builds")
-}
-
-pub(super) fn revision_tarball_response(
-    body: Body,
-    content_length: Option<u64>,
-    digest: &str,
-    integrity: &Integrity,
-) -> Response {
-    let mut response = tarball_response(body, content_length);
-    let headers = response.headers_mut();
-    headers.insert(
-        header::CACHE_CONTROL,
-        "public, max-age=31536000, immutable".parse().expect("static cache control is valid"),
-    );
-    headers.insert(
-        header::ETAG,
-        format!(r#""{digest}""#).parse().expect("canonical base64url digest is a valid ETag"),
-    );
-    if let [hash] = integrity.hashes.as_slice() {
-        headers.insert(
-            "content-digest",
-            format!("sha-512=:{}:", hash.digest)
-                .parse()
-                .expect("canonical base64 digest is a valid header value"),
-        );
-    }
-    private_no_cache(response)
 }

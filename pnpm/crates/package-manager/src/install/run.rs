@@ -1,12 +1,15 @@
-pub(super) use fast_path::register_workspace_in_store;
+pub(super) use fast_path::{
+    check_strict_dep_builds_for_fast_path, gvs_build_markers_complete, register_workspace_in_store,
+};
 
 mod fast_path;
 use fast_path::{
-    RepeatInstallVerdict, UpToDateCheck, repeat_install_verdict, report_already_up_to_date,
+    RepeatInstallVerdict, UpToDateCheck, lock_store, repeat_install_verdict,
+    report_already_up_to_date,
 };
 
 mod dispatch;
-use dispatch::{Dispatched, Settled, dispatch};
+use dispatch::{Dispatched, dispatch};
 
 mod manifests;
 use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hook};
@@ -17,21 +20,26 @@ use wanted::{Lockfiles, settle_wanted_lockfile};
 mod lockfile_load;
 use lockfile_load::{Loaded, load_lockfiles};
 
+mod importer_selection;
 mod workspace;
 use workspace::{InstallScope, InstallWorkspace, workspace_projects};
 
 mod auto_dedupe;
 mod custom_fetcher_reuse;
 mod execution;
+mod manifest_validation;
+mod materialization_inputs;
 mod mode;
+mod store_fetch;
 use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
+mod owned;
+use owned::InstallOwned;
+mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;
 mod up_to_date_scripts;
 use uninstall_hooks::run_pre_uninstall_hooks;
-
-use std::fs;
 
 use super::{
     Arc, DependencyGroup, InMemoryPackageMetaCache, Install, InstallError, InstallRunOptions,
@@ -43,7 +51,8 @@ use pnpm_config::Config;
 use crate::{
     PolicyExcludes, PreferredVersionsOverride, ProjectMutation,
     catalog_cleanup::{
-        post_install_prune, write_workspace_catalogs, write_workspace_catalogs_selected,
+        lockfile_catalogs, post_install_prune, write_workspace_catalogs,
+        write_workspace_catalogs_selected,
     },
 };
 
@@ -63,12 +72,7 @@ where
         self,
         options: InstallRunOptions<'a, '_>,
     ) -> Result<(), InstallError> {
-        let store_lock = if self.context.config.frozen_store {
-            self.context.config.store_dir.lock_for_frozen_use()
-        } else {
-            self.context.config.store_dir.lock_for_use()
-        }
-        .map_err(InstallError::StoreLock)?;
+        let store_lock = lock_store(self.context.config)?;
         let mut time_machine_exclusions = super::TimeMachineExclusions::empty();
         // The branch lockfiles become disposable only once the merge has
         // been written for good. An install that neither reads nor saves a
@@ -191,11 +195,14 @@ where
             None
         };
         let mut workspace = InstallWorkspace::discover::<Reporter>(install, &mut owned, &options)?;
-        let loaded_workspace_projects = workspace.loaded_workspace_projects.take();
+        let loaded_workspace_projects = workspace.loaded_workspace.projects.take();
+        let fetches_into_store = mode.fetches_into_store(install.execution);
         let outcome = Box::pin(
             RunExecution {
                 install,
                 owned,
+                prefetch_downloads: fetches_into_store.then(Default::default),
+                store_verification: fetches_into_store.then(Default::default),
                 mode,
                 workspace,
                 options,
@@ -215,6 +222,11 @@ struct RunExecution<'a> {
     install: InstallView<'a>,
     owned: InstallOwned,
     mode: RunMode,
+    /// See [`crate::PrefetchDownloads`]; `Some` for a run that fetches into
+    /// the store.
+    prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
+    /// See [`crate::StoreVerification`]; `Some` for a run that fetches into the store.
+    store_verification: Option<Arc<crate::StoreVerification>>,
     workspace: InstallWorkspace<'a>,
     options: InstallRunOptions<'a, 'a>,
     loaded_workspace_projects: Option<&'a [pnpm_workspace::Project]>,
@@ -262,18 +274,28 @@ impl InstallView<'_> {
         else {
             return Ok(None);
         };
-        let workspace_manifest_path = workspace_dir.join("pnpm-workspace.yaml");
-        let original_content = fs::read_to_string(&workspace_manifest_path).ok();
+        let snapshot = WorkspaceManifestRollbackGuard::snapshot(&workspace_dir);
         let selected_projects = workspace_projects_override.or_else(|| {
             options.selection.as_ref().map(|s| s.all_projects)
         });
+        // A frozen install cannot rewrite the lockfile, so it keeps the
+        // entries the lockfile records even if no project on disk references them.
+        let kept_catalogs = if self.lockfile_policy.frozen {
+            self.context.lockfile
+                .get()
+                .map_err(InstallError::LoadWantedLockfile)?
+                .and_then(lockfile_catalogs)
+        } else {
+            None
+        };
         write_pruned_catalogs(
             self.context.config,
             self.context.manifest,
             &workspace_dir,
             selected_projects,
+            kept_catalogs.as_ref(),
         )?;
-        Ok(WorkspaceManifestRollbackGuard::new(workspace_manifest_path, original_content))
+        Ok(WorkspaceManifestRollbackGuard::new(snapshot))
     }
 }
 
@@ -282,12 +304,14 @@ fn write_pruned_catalogs(
     manifest: &pnpm_package_manifest::PackageManifest,
     workspace_dir: &Path,
     selected_projects: Option<&[pnpm_workspace::Project]>,
+    kept_catalogs: Option<&pnpm_catalogs_types::Catalogs>,
 ) -> Result<(), InstallError> {
     if let Some(projects) = selected_projects {
         write_workspace_catalogs_selected(
             config,
             workspace_dir,
             &pnpm_catalogs_types::Catalogs::new(),
+            kept_catalogs,
             projects,
         )
     } else {
@@ -295,6 +319,7 @@ fn write_pruned_catalogs(
             config,
             Some(workspace_dir),
             &pnpm_catalogs_types::Catalogs::new(),
+            kept_catalogs,
             manifest,
         )
     }
@@ -313,10 +338,6 @@ pub struct InstallLockfilePolicy {
     /// check before any install setup, and the "nothing to materialize"
     /// return once the lockfile has been verified against the manifests.
     pub disable_optimistic_repeat: bool,
-    /// How the workspace-state check learns whether a project manifest
-    /// changed: from its `package.json` mtime, or by content when the
-    /// caller supplied the manifests in memory.
-    pub manifest_freshness: crate::ManifestFreshness,
 }
 
 impl InstallLockfilePolicy {
@@ -332,7 +353,6 @@ impl InstallLockfilePolicy {
             update_checksums: false,
             excludes: PolicyExcludes::Skip,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         }
     }
 }
@@ -345,20 +365,6 @@ pub struct InstallExecution {
     pub node_linker: super::NodeLinker,
     pub lockfile_only: bool,
     pub dry_run: bool,
-}
-
-impl InstallOwned {
-    fn shared_caches(&self) -> Option<&super::SharedInstallCaches> {
-        self.projects.dedicated.as_ref().map(|dedicated| &dedicated.caches)
-    }
-}
-
-/// The install's owned inputs, each consumed by one phase.
-struct InstallOwned {
-    tarball_mem_cache: Arc<super::MemCache>,
-    http_client_arc: Arc<super::ThrottledClient>,
-    projects: super::InstallProjects<Vec<DependencyGroup>>,
-    resolution: crate::install::run::ResolutionInputs,
 }
 
 #[derive(Default)]

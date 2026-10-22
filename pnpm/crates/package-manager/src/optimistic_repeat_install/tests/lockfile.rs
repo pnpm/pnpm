@@ -2,16 +2,18 @@ use super::{
     super::{
         Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install,
         deps_status::{RunDepsStatus, check_deps_status_before_run},
+        freshness::InputDrift,
         settings::current_settings,
         timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
     },
-    FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, backdate_validated_files, check,
-    check_with_lockfile, check_workspace, content_check_decision, isolated_included,
+    FOO_LOCKFILE, FOO_LOCKFILE_WITHOUT_PACKAGES, FOO_MANIFEST, MTIME_STEP_MS,
+    backdate_validated_files, check, check_with_lockfile, check_workspace, content_check_decision,
+    date_lockfile_after, isolated_included, lockfile_mtime_after, recorded_timestamp,
     setup_content_check_project, setup_fresh_install, setup_fresh_install_with_config,
-    validate_existing_files, write_bare_tarball_lockfile, write_state,
+    single_project_deps_status, validate_existing_files, write_bare_tarball_lockfile, write_state,
 };
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
+use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_testing_utils::fs::set_mtime_ms;
 use pnpm_workspace_state::{ProjectEntry, load_workspace_state, update_workspace_state};
@@ -155,7 +157,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -202,7 +204,7 @@ fn run_status_reports_wanted_lockfile_merge_conflicts() {
                 included: isolated_included(),
                 supported_architectures: None,
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         &state,
         &[],
@@ -329,11 +331,39 @@ fn finds_a_conflict_marker_deep_in_a_large_changed_lockfile() {
 
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("conflict")));
 }
+/// Rewrite the wanted lockfile so a content check would report the project
+/// outdated, keeping its size and its mtime.
+fn poison_lockfile_content(workspace_root: &std::path::Path) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    let modified = fs::metadata(&path)
+        .unwrap()
+        .modified()
+        .unwrap();
+    fs::write(&path, super::FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
+    pnpm_testing_utils::fs::set_mtime(&path, modified);
+}
+
+/// A lockfile edit that restores both its size and its mtime still moves the
+/// change time (the inode's on Unix, NTFS's on Windows), which the recorded
+/// signature compares.
+#[test]
+fn a_lockfile_edit_that_restores_its_size_and_mtime_is_detected() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+
+    poison_lockfile_content(dir.path());
+    assert!(matches!(
+        content_check_decision(&dir, config, true, &project_manifests),
+        Decision::Skipped { .. }
+    ));
+}
 /// An empty lockfile followed by 17 MiB of comment lines, then `tail`.
 fn large_lockfile(tail: Option<&str>) -> String {
     const COMMENT_LINE: &str =
         "# padding padding padding padding padding padding padding padding\n";
-    let mut lockfile = String::from("lockfileVersion: '9.0'\n");
+    let mut lockfile = String::from("lockfileVersion: '9.0'\nimporters:\n  .: {}\n");
     let target = 17 * 1024 * 1024;
     lockfile.reserve(target + COMMENT_LINE.len());
     while lockfile.len() < target {
@@ -596,6 +626,89 @@ fn workspace_regenerates_missing_wanted_lockfile_and_bumps_state() {
         .last_validated_timestamp;
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
+
+#[test]
+fn lockfile_rewritten_after_the_drift_stat_is_not_unchanged() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = load_workspace_state(dir.path()).unwrap().unwrap();
+    let drift = InputDrift::compute(&check, &state);
+    assert!(drift.lockfile_unchanged());
+
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    set_mtime_ms(&lockfile_path, recorded_timestamp(dir.path()) + MTIME_STEP_MS);
+    assert!(!drift.lockfile_unchanged());
+}
+
+#[test]
+fn single_project_run_check_converges_after_lockfile_content_matches() {
+    let (dir, config) = setup_content_check_project();
+    let before = recorded_timestamp(dir.path());
+    date_lockfile_after(dir.path(), before);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    assert_eq!(
+        single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
+        RunDepsStatus::UpToDate,
+    );
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(refreshed > before);
+
+    let recorded = super::recorded_state_text(dir.path());
+    assert_eq!(
+        single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
+        RunDepsStatus::UpToDate,
+    );
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
+    );
+}
+
+#[test]
+fn lockfile_mtime_after_keeps_off_an_exact_second() {
+    let cases = [(1_700_000_000_123, 1_700_000_001_123), (1_699_999_999_000, 1_699_999_999_999)];
+    for (recorded, mtime) in cases {
+        assert_eq!(lockfile_mtime_after(recorded), mtime, "recorded={recorded}");
+    }
+}
+
+#[test]
+fn single_project_repeat_install_converges_after_lockfile_content_matches() {
+    let (dir, config) = setup_content_check_project();
+    let before = recorded_timestamp(dir.path());
+    date_lockfile_after(dir.path(), before);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(content_check_decision(&dir, config, false, &project_manifests), Decision::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(refreshed > before);
+
+    let recorded = super::recorded_state_text(dir.path());
+    assert_eq!(content_check_decision(&dir, config, false, &project_manifests), Decision::UpToDate);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
+    );
+}
 /// `lockfile: false` (pnpm's `useLockfile: false`) disables the
 /// regeneration but keeps the fast path.
 #[test]
@@ -623,6 +736,41 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
             .join(Lockfile::FILE_NAME)
             .exists(),
         "lockfile: false must skip the write",
+    );
+}
+
+#[test]
+fn install_and_run_refuse_missing_branch_lockfile_even_when_current_lockfile_exists() {
+    let (dir, config) = setup_content_check_project();
+    let mut branch_config = config.clone();
+    branch_config.use_git_branch_lockfile = true;
+    let branch_config = branch_config.leak();
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    let decision = content_check_decision(&dir, branch_config, true, &project_manifests);
+    assert_eq!(decision, Decision::Skipped { reason: "the branch lockfile is missing" });
+
+    let status = super::workspace_deps_status(&dir, branch_config, &project_manifests);
+    assert_eq!(
+        status,
+        RunDepsStatus::Outdated {
+            issue: format!("Cannot find a lockfile in {}", dir.path().display()),
+            install_args: Vec::new(),
+        },
+    );
+
+    let mut no_lockfile_branch_config = branch_config.clone();
+    no_lockfile_branch_config.lockfile = false;
+    let no_lockfile_branch_config = no_lockfile_branch_config.leak();
+    assert_eq!(
+        content_check_decision(&dir, no_lockfile_branch_config, false, &project_manifests),
+        Decision::UpToDate,
+    );
+    assert_eq!(
+        super::workspace_deps_status(&dir, no_lockfile_branch_config, &project_manifests),
+        RunDepsStatus::UpToDate,
     );
 }
 /// On a sub-second filesystem the lockfile freshness check uses
@@ -721,12 +869,43 @@ fn run_gate_detects_a_manifest_edit_that_landed_while_the_install_was_committing
                 included: isolated_included(),
                 supported_architectures: None,
             },
-            manifest_freshness: crate::ManifestFreshness::Mtime,
+            manifests: crate::RepeatInstallManifests::ON_DISK,
         },
         &state,
         &[],
     );
 
+    assert!(
+        matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue.contains("satisfied")),
+        "expected Outdated(no longer satisfied), got {status:?}",
+    );
+}
+
+#[test]
+fn lockfile_refresh_does_not_hide_a_manifest_edit_during_commit() {
+    let (dir, config) = setup_content_check_project();
+    let before = recorded_timestamp(dir.path());
+    let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
+    set_mtime_ms(&lockfile_path, before + MTIME_STEP_MS);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    assert_eq!(
+        single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &manifest)],),
+        RunDepsStatus::UpToDate,
+    );
+
+    let refreshed = recorded_timestamp(dir.path());
+    let lockfile_mtime = refreshed - 2 * MTIME_STEP_MS;
+    set_mtime_ms(&lockfile_path, lockfile_mtime);
+    set_mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), lockfile_mtime);
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^2.0.0"}}"#,
+    )
+    .unwrap();
+    set_mtime_ms(&dir.path().join("package.json"), refreshed - MTIME_STEP_MS);
+    let edited = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let status = single_project_deps_status(&dir, config, &[(dir.path().to_path_buf(), &edited)]);
     assert!(
         matches!(&status, RunDepsStatus::Outdated { issue, .. } if issue.contains("satisfied")),
         "expected Outdated(no longer satisfied), got {status:?}",
@@ -770,5 +949,82 @@ fn detects_an_edit_during_install_against_the_current_lockfile_stand_in() {
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("satisfied")),
         "expected Skipped(no longer satisfied), got {decision:?}",
+    );
+}
+
+/// A workspace without projects has no manifest to compare, but a changed
+/// lockfile still has to parse before the fast path may skip the install.
+#[test]
+fn workspace_without_projects_refuses_a_changed_unparsable_lockfile() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let lockfile_path = workspace_root.join(Lockfile::FILE_NAME);
+    fs::write(&lockfile_path, "lockfileVersion: '9.0'\n").unwrap();
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+    let settings =
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
+    let timestamp = backdate_validated_files(workspace_root);
+    write_state(workspace_root, timestamp, settings, BTreeMap::new());
+    fs::write(&lockfile_path, "lockfileVersion: '9.0'\nimporters: [\n").unwrap();
+    set_mtime_ms(&lockfile_path, timestamp + MTIME_STEP_MS);
+
+    let lazy =
+        LazyLockfile::deferred(workspace_root.to_path_buf(), config.wanted_lockfile_selection());
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        project_manifests: &[],
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Lazy(&lazy),
+        catalogs: &BTreeMap::default(),
+        layout: crate::RepeatInstallLayout {
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    });
+    assert_eq!(
+        decision,
+        Decision::Skipped { reason: "the wanted lockfile cannot be read or parsed" },
+    );
+}
+
+/// A lockfile stat'd in the clock tick its validation was recorded in could
+/// have changed again unseen, so the next check reads it. That check records
+/// the stat again, after which it stands for the content.
+#[test]
+fn a_lockfile_recorded_in_the_same_tick_is_read_once_more() {
+    let (dir, config) = setup_content_check_project();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let mut state = load_workspace_state(dir.path()).unwrap().unwrap();
+    let validation = state.validation.as_mut().expect("a recorded validation");
+    let lockfile_key = dir
+        .path()
+        .join(Lockfile::FILE_NAME)
+        .to_string_lossy()
+        .into_owned();
+    let signature = &validation.files[&lockfile_key];
+    validation.recorded_at_ns =
+        signature.ctime_ns.unwrap_or(signature.mtime_ns).max(signature.mtime_ns);
+    update_workspace_state(dir.path(), &state).unwrap();
+    super::wait_for_the_next_filesystem_tick(dir.path());
+
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let recorded = super::recorded_state_text(dir.path());
+    assert_ne!(
+        recorded,
+        format!("{}\n", serde_json::to_string_pretty(&state).unwrap()),
+        "the check records the lockfile's stat again",
+    );
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(
+        super::recorded_state_text(dir.path()),
+        recorded,
+        "a converged check records nothing",
     );
 }

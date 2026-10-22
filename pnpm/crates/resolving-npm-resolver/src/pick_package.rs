@@ -62,21 +62,20 @@ mod state;
 
 mod mirror_pick;
 
+mod fetch_pick;
+
 mod mirror_persistence;
 use mirror_persistence::{get_file_mtime, metadata_cache_key, validate_package_name};
 
 mod release_age_upgrade;
-use release_age_upgrade::{
-    UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age, persist_upgraded_to_mirror,
-};
+mod route;
+use release_age_upgrade::{UpgradeOutcome, maybe_upgrade_abbreviated_meta_for_release_age};
+use route::DiskFirst;
 
 mod version_pick;
 use cache_hit::handle_cache_hit;
 use state::PickState;
-use version_pick::{
-    PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline,
-    unverified_pick_is_safe,
-};
+use version_pick::{PickerOpts, pick_from_meta, pick_from_meta_fast, pick_from_meta_offline};
 
 mod metadata_cache;
 
@@ -97,8 +96,8 @@ use pnpm_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
 
 use crate::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, FetchMetadataError,
-    mirror::{clear_meta, get_pkg_mirror_path, load_meta, load_meta_async, save_meta_indexed},
+    FetchMetadataError,
+    mirror::{get_pkg_mirror_path, load_meta_async, save_meta_indexed},
     pick_package_from_meta::{
         PickPackageFromMetaOptions, RegistryPackageSpec, RegistryPackageSpecType,
         cached_meta_misses_preferred_version, dominant_lockfile_version,
@@ -175,14 +174,16 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     }
 
     // 2. Offline / pickLowestVersion / preferOffline disk read.
-    // An online lowest-version pick must not reuse a mirror the registry
-    // marked uncacheable. Offline and prefer-offline still may.
-    let online_lowest_must_refetch = opts.pick_lowest_version
-        && !ctx.cache_policy.offline
-        && !ctx.cache_policy.prefer_offline
-        && state.mirror_is_uncacheable().await;
-    if !online_lowest_must_refetch
-        && (ctx.cache_policy.offline || ctx.cache_policy.prefer_offline || opts.pick_lowest_version)
+    let disk_first = match DiskFirst::decide(
+        ctx.cache_policy.network,
+        opts.pick_lowest_version,
+        opts.request.refresh_metadata,
+    ) {
+        DiskFirst::Never => false,
+        DiskFirst::Always => true,
+        DiskFirst::UnlessUncacheable => state.mirror_may_answer(ctx).await,
+    };
+    if disk_first
         && let Some(result) = state.offline_disk_pick(ctx, spec, opts, &mut disk_meta).await?
     {
         return Ok(result);

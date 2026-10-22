@@ -238,12 +238,10 @@ where
     ) {
         return Ok(true);
     }
-    let link_target = shim_path
-        .parent()
-        .map_or_else(
-            || target_path.to_path_buf(),
-            |bins_dir| pnpm_fs::relative_path(bins_dir, target_path),
-        );
+    let link_target = match shim_path.parent() {
+        Some(bins_dir) => pnpm_fs::relative_path(bins_dir, target_path),
+        None => target_path.to_path_buf(),
+    };
     remove_stale_bin(shim_path)?;
     symlink(&link_target, shim_path)
         .map_err(|error| LinkBinsError::SymlinkBin {

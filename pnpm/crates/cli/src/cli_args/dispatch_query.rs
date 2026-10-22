@@ -4,8 +4,8 @@ pub(super) use maintenance::{
     store, tasks, with,
 };
 pub(super) use registry::{
-    access, deprecate, dist_tag, login, logout, owner, ping, search, star, stars, team,
-    undeprecate, unpublish, unstar, view, whoami,
+    access, deprecate, dist_tag, login, logout, owner, ping, profile, search, star, stars, team,
+    token, undeprecate, unpublish, unstar, view, whoami,
 };
 
 use super::{
@@ -39,6 +39,7 @@ use super::{
     peers::{PeersArgs, PeersOutcome},
     ping::PingArgs,
     prefix::PrefixArgs,
+    profile::ProfileArgs,
     publish::PublishArgs,
     repo::RepoArgs,
     reporter::ReporterType,
@@ -54,11 +55,13 @@ use super::{
     store::StoreCommand,
     tasks::TasksArgs,
     team::TeamArgs,
+    token::TokenArgs,
     undeprecate::UndeprecateArgs,
     unpublish::UnpublishArgs,
     unstar::UnstarArgs,
     version::VersionArgs,
     view::ViewArgs,
+    whoami::WhoamiArgs,
     why::WhyArgs,
     with::WithArgs,
 };
@@ -230,7 +233,7 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
             args.run::<CliReporter>(dir, config, recursive, hooks).await?
         };
         if print_output && !output.is_empty() {
-            println!("{output}");
+            pnpm_diagnostics::println!("{output}");
         }
         Ok(())
     }))
@@ -299,7 +302,7 @@ pub(super) fn stage<'a>(
         if let Some(output) = args.run::<Reporter>(dir, config, recursive, hooks).await? {
             let output = super::sanitize::sanitize(&output);
             if !output.is_empty() {
-                println!("{output}");
+                pnpm_diagnostics::println!("{output}");
             }
         }
         Ok(())

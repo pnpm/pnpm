@@ -12,7 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
 pnpm-shared-artifact-protocol = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }

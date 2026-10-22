@@ -151,6 +151,16 @@ Set the `TRACE` environment variable to enable trace-level logging for a given m
 TRACE=pnpm_tarball just cli add fastify
 ```
 
+An install that reports "Already up to date" slowly, or runs in full when
+nothing changed, explains itself under the `pacquet::install` target: why the
+repeat-install fast path was not taken, and how long loading the config,
+discovering the workspace projects, the up-to-date check, and the store
+registration took.
+
+```sh
+TRACE='pacquet::install=debug' just cli install
+```
+
 ## Testing
 
 ```sh
@@ -206,6 +216,24 @@ just integrated-benchmark --scenario=isolated-linker.fresh-restore.cold-cache.co
 just integrated-benchmark --help
 ```
 
+To measure frozen repeat installs of an unchanged injected workspace package:
+
+```sh
+just integrated-benchmark --scenario=isolated-linker.injected-workspace-repeat-install.hot-cache.hot-store pacquet@HEAD pacquet@main
+```
+
+This generated fixture uses hardlinked local files and needs no registry packages.
+Its untimed install creates the lockfile and populates `node_modules` before measurement.
+
+To measure frozen repeat installs of a Cargo workspace (`cargo.enabled: true`) with crates already materialized in the store:
+
+```sh
+just integrated-benchmark --scenario=cargo.repeat-install.hot-cache.hot-store --registry=npm pacquet@HEAD pacquet@main
+```
+
+This generated fixture seeds its crate files into the local CAFS store and needs no registry requests.
+Its untimed install populates the store crate slots and `.pnpm/crates` before measurement.
+
 ### CI regression checks
 
 Each PR benchmark scenario measures HEAD and main on the same runner. The check
@@ -216,8 +244,8 @@ A regression requires both the median slowdown and the gap between the fastest
 retained HEAD sample and slowest retained main sample to exceed that tolerance.
 The comparison trims `floor(sample count / 10)` samples from each tail and
 requires at least nine successful samples per target. Missing or invalid data
-fails the check. Both pacquet and pnpr are checked, except in the two client-only
-resolver scenarios.
+fails the check. Both pacquet and pnpr are checked, except in client-only
+workspace and resolver scenarios.
 
 Slowdowns above the tolerance without this sample separation are reported as
 inconclusive and do not fail CI. Suspected regressions are automatically rerun

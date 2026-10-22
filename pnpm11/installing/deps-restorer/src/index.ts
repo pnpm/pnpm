@@ -21,6 +21,7 @@ import { updatePackageMap } from './packageMap.js'
 import { reconcilePendingBuilds, runProjectLifecycleScripts } from './projectLifecycle.js'
 import type { HeadlessOptions, InstallationResult } from './types.js'
 import { writeModulesDirState } from './writeModulesDirState.js'
+export { getDirectDependencyAliases } from './directDependencyAliases.js'
 export { extendProjectsWithTargetDirs, getInjectedDeps } from './extendProjectsWithTargetDirs.js'
 export type {
   HeadlessOptions,
@@ -79,7 +80,8 @@ async function installFromLockfile (opts: HeadlessOptions): Promise<Installation
 async function pruneRemovedDependencies (ctx: HeadlessContext): Promise<number> {
   const { opts, currentLockfile, lockfileDir } = ctx
   if (opts.nodeLinker === 'hoisted') return 0
-  if (currentLockfile == null || opts.ignorePackageManifest) {
+  const pruneDirectDeps = ctx.selectedProjects.some((project) => project.pruneDirectDependencies)
+  if ((currentLockfile == null && !pruneDirectDeps) || opts.ignorePackageManifest) {
     statsLogger.debug({
       prefix: lockfileDir,
       removed: 0,
@@ -89,7 +91,10 @@ async function pruneRemovedDependencies (ctx: HeadlessContext): Promise<number> 
   const removedDepPaths = await prune(
     ctx.selectedProjects,
     {
-      currentLockfile,
+      currentLockfile: currentLockfile ?? {
+        lockfileVersion: ctx.wantedLockfile.lockfileVersion,
+        importers: {},
+      },
       dedupeDirectDeps: opts.dedupeDirectDeps,
       dryRun: false,
       hoistedDependencies: opts.hoistedDependencies,
@@ -104,10 +109,24 @@ async function pruneRemovedDependencies (ctx: HeadlessContext): Promise<number> 
       storeController: opts.storeController,
       virtualStoreDir: ctx.virtualStoreDir,
       virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
-      wantedLockfile: filterLockfileByEngine(ctx.wantedLockfile, ctx.filterOpts).lockfile,
+      wantedLockfile: filterLockfileByEngine(ctx.wantedLockfile, getPruneFilterOptions(ctx)).lockfile,
     }
   )
   return removedDepPaths.size
+}
+
+function getPruneFilterOptions (ctx: HeadlessContext): HeadlessContext['filterOpts'] {
+  if (ctx.selectedProjects.length === Object.keys(ctx.wantedLockfile.importers).length) {
+    return ctx.filterOpts
+  }
+  return {
+    ...ctx.filterOpts,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+  }
 }
 
 async function linkDependencies (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<LinkedDependencies> {

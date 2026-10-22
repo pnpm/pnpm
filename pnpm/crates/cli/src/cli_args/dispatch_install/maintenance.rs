@@ -1,10 +1,11 @@
 use super::{
     super::{dispatch_script, rebuild, script_override},
-    ApproveBuildsArgs, CommandFuture, Context, DedupeArgs, DedupePipeline, DeployArgs,
+    ApproveArgs, ApproveBuildsArgs, CommandFuture, Context, DedupeArgs, DedupePipeline, DeployArgs,
     DeployPipeline, EnvArgs, EnvSubcommand, FetchArgs, ImportArgs, InstallArgs, InstallPipeline,
-    LinkArgs, PruneArgs, PrunePipeline, RebuildArgs, RunCtx, RuntimeArgs, UnlinkArgs,
-    apply_install_cli_config, apply_update_config, derive_config_root, global,
-    installed_project_config, resolve_bool_override, warn_about_config_root,
+    LinkArgs, PermissionsArgs, PermissionsCommand, PruneArgs, PrunePipeline, RebuildArgs, RunCtx,
+    RuntimeArgs, UnlinkArgs, apply_install_cli_config, apply_update_config, derive_config_root,
+    global, installed_project_config, render_permissions, resolve_bool_override,
+    warn_about_config_root,
 };
 use crate::cli_args::reporter::{CliReporter, selected_reporter};
 
@@ -71,8 +72,15 @@ pub(in super::super) fn prune<'a>(
     Ok(Box::pin(async move {
         let config_root = derive_config_root(&mut *cfg, dir, reporter)
             .wrap_err("derive workspace root and package manager policy")?;
-        let pipeline =
-            PrunePipeline { args, cfg, config_root, manifest_path: manifest_path.to_path_buf() };
+        let recursive_sort = cfg.sort;
+        let pipeline = PrunePipeline {
+            args,
+            cfg,
+            config_root,
+            prefix: dir.to_path_buf(),
+            manifest_path: manifest_path.to_path_buf(),
+            recursive_sort,
+        };
         Box::pin(pipeline.run::<CliReporter>()).await?;
         Ok(())
     }))
@@ -217,10 +225,41 @@ pub(in super::super) fn env<'a>(
             Box::pin(EnvArgs::run_remove::<CliReporter>(versions, config, dir))
         }
         EnvSubcommand::List { version_spec } => Box::pin(async move {
-            println!("{}", EnvArgs::run_list(version_spec, config).await?);
+            pnpm_diagnostics::println!("{}", EnvArgs::run_list(version_spec, config).await?);
             Ok(())
         }),
     })
+}
+
+pub(in super::super) fn permissions<'a>(
+    ctx: &RunCtx<'a>,
+    args: PermissionsArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    match args.command {
+        Some(PermissionsCommand::Approve(args)) => approve(ctx, args),
+        Some(PermissionsCommand::List) | None => {
+            let config = ctx.prepared_config();
+            let manifest_path = ctx.locations.manifest_path;
+            Ok(Box::pin(async move {
+                let config = installed_project_config(config.await?, manifest_path);
+                pnpm_diagnostics::print!("{}", render_permissions(config)?);
+                Ok(())
+            }))
+        }
+    }
+}
+
+pub(in super::super) fn approve<'a>(
+    ctx: &RunCtx<'a>,
+    args: ApproveArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    let config = ctx.prepared_config();
+    let dir = ctx.locations.dir;
+    let manifest_path = ctx.locations.manifest_path;
+    Ok(Box::pin(async move {
+        let config = installed_project_config(config.await?, manifest_path);
+        Box::pin(args.run::<CliReporter>(dir, config, manifest_path)).await
+    }))
 }
 
 pub(in super::super) fn approve_builds<'a>(

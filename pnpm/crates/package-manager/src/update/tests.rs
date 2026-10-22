@@ -38,11 +38,12 @@ fn test_update(
                 depth: 0,
                 workspace_packages: None,
                 interactive: false,
+                targets: None,
             },
             version: crate::UpdateVersionOptions {
                 latest,
                 patches: false,
-                save_exact: false,
+                range_spec_style: pnpm_registry::RangeSpecStyle::Major,
                 save,
             },
         },

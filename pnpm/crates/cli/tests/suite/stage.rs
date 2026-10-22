@@ -12,6 +12,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use mockito::Matcher;
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -365,7 +366,8 @@ fn package_tarball(manifest: &Value) -> Vec<u8> {
 // --------------------------------------------------------------------
 
 /// A hosted pnpr on an ephemeral localhost port, backed by a fresh
-/// storage tempdir (returned so it outlives the test).
+/// storage tempdir (returned so it outlives the test), and its npm registry
+/// URL.
 fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
     let storage = tempfile::tempdir().expect("registry storage");
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
@@ -390,7 +392,7 @@ fn spawn_hosted_registry() -> (String, tempfile::TempDir) {
             });
         })
         .expect("spawn the registry thread");
-    (url, storage)
+    (format!("{url}npm/"), storage)
 }
 
 /// Run one async request against the e2e registry from this synchronous test.

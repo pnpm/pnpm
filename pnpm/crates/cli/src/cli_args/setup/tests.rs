@@ -4,8 +4,8 @@
 
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
-    PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims, render_setup_output,
-    standalone_manifest, write_windows_alias_wrapper,
+    PathExtenderError, PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims,
+    render_env_path_outcome, render_setup_output, standalone_manifest, write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -21,6 +21,19 @@ fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtend
 #[test]
 fn no_changes_when_settings_are_unchanged() {
     let report = report(ConfigFileChangeType::Skipped, "same", "same");
+    assert_eq!(
+        render_setup_output(&report),
+        "Configuration already up to date in /home/user/.bashrc\n\nNo changes to the environment were made. Everything is already up to date.",
+    );
+}
+
+#[test]
+fn no_changes_without_config_file() {
+    let report = PathExtenderReport {
+        config_file: None,
+        old_settings: "same".to_string(),
+        new_settings: "same".to_string(),
+    };
     assert_eq!(
         render_setup_output(&report),
         "No changes to the environment were made. Everything is already up to date.",
@@ -50,6 +63,104 @@ fn windows_report_omits_the_source_hint() {
 }
 
 #[test]
+fn unknown_shell_prints_the_lines_to_add_by_hand() {
+    let output =
+        render_env_path_outcome(Err(PathExtenderError::UnknownShell), Path::new("/root/.pnpm"))
+            .expect("an unknown shell leaves the install in place");
+    assert_eq!(
+        output,
+        "Could not infer shell type. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME='/root/.pnpm'\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+    );
+}
+
+#[test]
+fn manual_setup_lines_quote_pnpm_home_as_a_literal() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::UnknownShell),
+        Path::new("/home/o'neil/$(touch pwned)"),
+    )
+    .expect("an unknown shell leaves the install in place");
+    assert!(output.contains("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n"), "{output}");
+}
+
+#[test]
+fn sh_without_env_prints_the_lines_to_add_by_hand() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::NoShellConfig { shell: "sh".to_string() }),
+        Path::new("/root/.pnpm"),
+    )
+    .expect("a shell with no config file leaves the install in place");
+    assert!(
+        output.starts_with(
+            "Cannot find a config file for sh. The ENV environment variable is not set. No shell config file was changed.\n\n",
+        ),
+        "{output}",
+    );
+}
+
+#[test]
+fn registry_read_failure_prints_powershell_instructions() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::RegRead),
+        Path::new(r"C:\Users\developer\pnpm"),
+    )
+    .expect("registry access is not required to finish installation");
+    eprintln!("{output}");
+    assert_eq!(
+        output,
+        "win32 registry environment values could not be retrieved\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = 'C:\\Users\\developer\\pnpm'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+    );
+}
+
+#[test]
+fn registry_write_failure_prints_powershell_instructions() {
+    let output = render_env_path_outcome(
+        Err(PathExtenderError::FailedSetEnv {
+            env_name: "Path".to_string(),
+            value: r"%PNPM_HOME%\bin;C:\Windows".to_string(),
+            stderr: "Access is denied.".to_string(),
+        }),
+        Path::new(r"C:\Users\developer\pnpm"),
+    )
+    .expect("registry write failure leaves the install in place");
+    assert!(output.contains("Access is denied."), "{output}");
+    assert!(output.contains(r"$env:PNPM_HOME = 'C:\Users\developer\pnpm'"), "{output}");
+}
+
+#[test]
+fn powershell_instructions_quote_pnpm_home_as_a_literal() {
+    for quote in ['\'', '\u{2018}', '\u{2019}', '\u{201a}', '\u{201b}'] {
+        let output = render_env_path_outcome(
+            Err(PathExtenderError::RegRead),
+            Path::new(&format!(r"C:\Users\o{quote}neil\$(Write-Error injected)")),
+        )
+        .unwrap();
+        assert!(
+            output.contains(&format!(
+                "\n$env:PNPM_HOME = 'C:\\Users\\o{quote}{quote}neil\\$(Write-Error injected)'\n"
+            )),
+            "{output}",
+        );
+    }
+}
+
+#[test]
+fn other_env_path_errors_fail_the_setup() {
+    let error = render_env_path_outcome(
+        Err(PathExtenderError::UnsupportedShell { shell: "tcsh".to_string() }),
+        Path::new("/root/.pnpm"),
+    )
+    .expect_err("an unsupported shell still fails");
+    assert_eq!(
+        error
+            .code()
+            .map(|code| code.to_string())
+            .as_deref(),
+        Some("ERR_PNPM_UNSUPPORTED_SHELL"),
+    );
+}
+
+#[test]
 fn standalone_manifest_declares_package_files() {
     assert_eq!(
         standalone_manifest("pnpm.exe"),
@@ -60,6 +171,23 @@ fn standalone_manifest_declares_package_files() {
             "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
             "files": ["pnpm.exe", "dist/"],
         }),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn resolve_executable_follows_a_bin_symlink_into_the_package() {
+    let root = tempfile::tempdir().unwrap();
+    let engine = root.path().join("lib/node_modules/pnpm/pnpm");
+    std::fs::create_dir_all(engine.parent().unwrap()).unwrap();
+    std::fs::write(&engine, b"engine").unwrap();
+    let launcher = root.path().join("bin/pn");
+    std::fs::create_dir_all(launcher.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink("../lib/node_modules/pnpm/pnpm", &launcher).unwrap();
+
+    assert_eq!(
+        super::resolve_executable(&launcher).unwrap(),
+        dunce::canonicalize(&engine).unwrap(),
     );
 }
 

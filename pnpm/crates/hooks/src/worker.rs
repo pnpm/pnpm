@@ -143,16 +143,18 @@ impl NodeWorker {
             serde_json::to_string(&pnpmfile).map_err(|err| exec_err(err.to_string()))?;
         let runner = build_runner(&file_escaped);
 
-        let mut child = Command::new("node")
+        let mut command = Command::new("node");
+        command
             .arg("--input-type")
             .arg("commonjs")
             .arg("-e")
             .arg(&runner)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .kill_on_drop(true)
-            .spawn()
-            .map_err(|err| exec_err(err.to_string()))?;
+            .kill_on_drop(true);
+        #[cfg(target_vendor = "apple")]
+        inherited_descriptors::inherit_only_stdio(&mut command);
+        let mut child = command.spawn().map_err(|err| exec_err(err.to_string()))?;
 
         let stdin = Arc::new(Mutex::new(child.stdin.take().expect("worker stdin is piped")));
         let stdout = child.stdout.take().expect("worker stdout is piped");
@@ -525,6 +527,9 @@ fn build_runner(file_escaped: &str) -> String {
         include_str!("worker.cjs"),
     )
 }
+
+#[cfg(target_vendor = "apple")]
+mod inherited_descriptors;
 
 #[cfg(test)]
 mod tests;

@@ -42,14 +42,6 @@ interface RegistryResponse {
 
 export interface FetchMetadataResult {
   meta: PackageMeta
-  /**
-   * The raw registry response body, used only to mirror the response to disk
-   * without re-serializing `meta`. A fresh fetch always sets it, and every
-   * caller sharing that in-flight request sees it. Once the request settles
-   * the phase-long memo cache drops the body (see memoizeFetchMetadata.ts),
-   * so later cache hits see `undefined` and the cache never pins the body.
-   */
-  jsonText: string | undefined
   etag?: string
   /** The request asked for the full document, not the abbreviated one. */
   fullMetadata?: boolean
@@ -306,8 +298,7 @@ async function readMetadataResponse (
   response: RegistryResponse,
   startTime: number
 ): Promise<FetchMetadataResult> {
-  const jsonText = await response.text()
-  const meta = JSON.parse(jsonText) as PackageMeta
+  const meta = JSON.parse(await response.text()) as PackageMeta
   dropIncompletePublishTimes(meta)
   // Only the response headers decide cacheability, never the body.
   delete meta.uncacheable
@@ -316,7 +307,7 @@ async function readMetadataResponse (
     globalWarn(`Request took ${elapsedMs}ms: ${redactUrlForDisplay(request.uri)}`)
   }
   return {
-    ...normalizeAbbreviatedResponse({ fullMetadata: request.fullMetadata, meta, jsonText, response }),
+    meta: normalizeAbbreviatedResponse({ fullMetadata: request.fullMetadata, meta, response }),
     etag: response.headers.get('etag') ?? undefined,
     fullMetadata: request.fullMetadata === true,
     uncacheable: metadataResponseIsUncacheable(response.headers.get('cache-control')),
@@ -387,17 +378,15 @@ export function notModifiedWithoutCacheError (pkgName: string): PnpmError {
  * stripping — the happy path pays nothing.
  */
 function normalizeAbbreviatedResponse (
-  { fullMetadata, meta, jsonText, response }: {
+  { fullMetadata, meta, response }: {
     fullMetadata?: boolean
     meta: PackageMeta
-    jsonText: string
     response: RegistryResponse
   }
-): { meta: PackageMeta, jsonText: string } {
-  if (fullMetadata) return { meta, jsonText }
-  if (parseMediaType(response.headers.get('content-type')) === ABBREVIATED_META_CONTENT_TYPE) return { meta, jsonText }
-  const normalized = clearMeta(meta)
-  return { meta: normalized, jsonText: JSON.stringify(normalized) }
+): PackageMeta {
+  if (fullMetadata) return meta
+  if (parseMediaType(response.headers.get('content-type')) === ABBREVIATED_META_CONTENT_TYPE) return meta
+  return clearMeta(meta)
 }
 
 /**

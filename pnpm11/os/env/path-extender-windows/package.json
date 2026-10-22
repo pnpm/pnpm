@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/os.env.path-extender-windows",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "A module for adding a new directory to the Path environment variable of the Windows Registry",
   "keywords": [
     "pnpm",

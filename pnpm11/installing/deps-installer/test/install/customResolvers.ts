@@ -27,7 +27,7 @@ test('custom resolver is called during install', async () => {
         id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
         },
         manifest: {
           name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
@@ -76,7 +76,7 @@ test('custom resolver receives currentPkg on subsequent installs', async () => {
         id: '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
         resolution: {
           integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0'),
-          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz`,
         },
         manifest: {
           name: '@pnpm.e2e/dep-of-pkg-with-1-dep',

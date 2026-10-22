@@ -219,7 +219,7 @@ fn read_sbom_manifests(
     filter_importer_ids: Option<&[&str]>,
 ) -> (serde_json::Value, Option<serde_json::Value>) {
     let fallback = |importer_id: &str| {
-        if state.active_importer_id() == importer_id {
+        if state.active_importer_id() == importer_id && state.manifest.path().exists() {
             state.manifest.value().clone()
         } else {
             serde_json::json!({})

@@ -135,6 +135,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         files: base_files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -196,7 +197,7 @@ new file mode 100644
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some(engine),
             read: true,
             write: true,
@@ -225,6 +226,7 @@ new file mode 100644
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -336,7 +338,7 @@ new file mode 100644
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,
@@ -365,6 +367,7 @@ new file mode 100644
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -445,7 +448,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 
     let err = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: false,
             write: false,
@@ -474,6 +477,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

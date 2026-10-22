@@ -13,12 +13,12 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
-    /// Asked instead of [`Self::full_metadata`] when the caller can answer
-    /// per registry — a registry that declares `supportsTimeField` needs no
-    /// full metadata for a time-based resolution even when the others do. The
-    /// mirror path and cache key below are already keyed by registry, so two
-    /// registries may disagree within one install.
-    pub needs_full_metadata_for: Option<&'a (dyn Fn(&str) -> bool + Send + Sync)>,
+    /// Asked instead of `opts.request.optional || ctx.full_metadata` when the
+    /// caller can answer per `(registry, optional)` — a registry that declares
+    /// `supportsTimeField` or `serverType: pnpr` needs no full metadata when
+    /// the others do. The mirror path and cache key below are already keyed by
+    /// registry, so two registries may disagree within one install.
+    pub needs_full_metadata_for: Option<&'a pnpm_config::NeedsFullMetadataFn>,
     /// When full metadata is forced, use pnpm's filtered full-metadata
     /// mirror and filtered packument shape.
     pub filter_metadata: bool,
@@ -46,13 +46,11 @@ pub struct MetadataRequestContext<'a, Cache: PackageMetaCache> {
 
 #[derive(Default, Clone, Copy)]
 pub struct MetadataCachePolicy {
-    /// `offline=true` forbids any network access; the picker
-    /// surfaces [`super::PickPackageError::NoOfflineMeta`] when the disk
-    /// mirror is also empty.
-    pub offline: bool,
-    /// `prefer_offline=true` reads disk before the network *and*
-    /// returns immediately if disk has a satisfying pick.
-    pub prefer_offline: bool,
+    /// Which sources the picker may read and in which order. With
+    /// [`pnpm_config::NetworkPolicy::Offline`] it surfaces
+    /// [`super::PickPackageError::NoOfflineMeta`] when the disk mirror is
+    /// empty too.
+    pub network: pnpm_config::NetworkPolicy,
     /// When [`true`], a `minimumReleaseAge` check that hits an
     /// abbreviated packument (no per-version `time`) warns once and
     /// falls back to picking without the maturity filter.
@@ -121,8 +119,8 @@ pub struct MetadataPickRequest {
     /// the install is a pure dry-run (`--lockfile-only`, frozen
     /// lockfile, etc.).
     pub dry_run: bool,
-    /// `pnpm update` must see versions published since the mirror was
-    /// written, so it does not reuse an ETag-less mirror.
+    /// Revalidates the metadata mirror against the registry instead of
+    /// serving from unverified mirror shortcuts.
     pub refresh_metadata: bool,
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific

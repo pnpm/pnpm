@@ -26,14 +26,7 @@ fn apply_shared_deploy_config(config: &mut Config, deploy_dir: &Path, mode: Depl
     let DeployInstallMode::Shared { workspace_config } = mode else {
         return;
     };
-    config.workspace_dir = deploy_dir.to_path_buf().into();
-    config.inject_workspace_packages = false;
-    config.isolate_local_directory_imports = true;
-    config.overrides = None;
-    config.package_extensions = None;
-    config.config_dependencies = None;
-    config.patched_dependencies = workspace_config.patched_dependencies;
-    config.allow_builds = workspace_config.allow_builds;
+    workspace_config.apply_to_config(config, deploy_dir);
 }
 
 /// The lockfile a legacy deploy install reads and writes.
@@ -247,6 +240,16 @@ impl DeployArgs {
         // manifest, where `copy_project` may have left the deployed
         // project's own pnpmfile.
         deploy_config.ignore_pnpmfile = ignore_pnpmfile;
+        deploy_config.disable_agent_skills();
+        // The deploy hook injects only the workspace packages a manifest
+        // declares. A `workspace:` peer that the install auto-installs has
+        // no declaring manifest, and must still be copied into the deploy.
+        // This applies to every workspace package of the deploy install,
+        // whatever the workspace sets; a legacy deploy saves no lockfile,
+        // so the setting is not recorded anywhere.
+        if matches!(mode, DeployInstallMode::Legacy) {
+            deploy_config.inject_workspace_packages = true;
+        }
         apply_shared_deploy_config(&mut deploy_config, deploy_dir, mode);
         Config::leak(deploy_config)
     }

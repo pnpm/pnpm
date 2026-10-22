@@ -156,17 +156,18 @@ If its specifier does not ask for SSH (for example "github:owner/repo"), the loc
     #[diagnostic(code(ERR_PNPM_INVALID_GIT_COMMIT))]
     InvalidCommit { commit: String, repo: String },
 
-    /// `resolution.repo` begins with `-`. Same class as
-    /// [`Self::InvalidCommit`]: git parses such a value as an option
+    /// `resolution.repo` is empty, begins with `-`, or contains a NUL. A
+    /// leading `-` is the same class as [`Self::InvalidCommit`]: git
+    /// parses such a value as an option
     /// rather than a repository, so `--upload-pack=<cmd>` reaches the
     /// transport and runs `<cmd>`. The `--` end-of-options marker is
     /// passed as well; this rejects the value outright rather than rely
     /// on every subcommand honoring it.
     #[display(
-        "Invalid git repository {:?}. A repository must not begin with '-'.",
+        "Invalid git repository {:?}. A repository must not be empty, begin with '-', or contain a null byte.",
         pnpm_network::redact_and_sanitize(repo)
     )]
-    #[diagnostic(code(INVALID_GIT_REPOSITORY))]
+    #[diagnostic(code(ERR_PNPM_INVALID_GIT_REPOSITORY))]
     InvalidRepo { repo: String },
 
     #[display("I/O error during git fetch: {_0}")]

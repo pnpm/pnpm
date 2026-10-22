@@ -1,98 +1,16 @@
 use super::{
-    Decision, OptimisticRepeatInstallCheck,
-    manifest_agreement::{LinkedPackagesContext, ManifestStat},
-    manifest_string_field,
+    OptimisticRepeatInstallCheck, current_lockfile::CurrentLockfile,
+    manifest_agreement::LinkedPackagesContext, manifest_string_field,
 };
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_lockfile::Lockfile;
-use pnpm_modules_yaml::Host;
 use pnpm_package_manifest::PackageManifest;
-use pnpm_workspace_state::{WorkspaceState, update_workspace_state};
+use pnpm_workspace_state::WorkspaceState;
 use std::{
     fs,
     path::{Path, PathBuf},
 };
 
-/// The verdict the fast path can already reach from the current lockfile and
-/// the fact that nothing was modified.
-pub(super) fn early_repeat_verdict(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    modified: &[&ManifestStat<'_>],
-    lockfile_modified: bool,
-) -> Option<Decision> {
-    match current_lockfile_unusable_with_non_empty_wanted(check) {
-        Ok(true) => return Some(Decision::Skipped { reason: "current lockfile missing" }),
-        Ok(false) => {}
-        Err(reason) => return Some(Decision::Skipped { reason }),
-    }
-    if modified.is_empty() && !lockfile_modified {
-        return Some(match regenerate_wanted_lockfile_if_missing(check, None) {
-            Ok(()) => Decision::UpToDate,
-            Err(reason) => Decision::Skipped { reason },
-        });
-    }
-    None
-}
-/// Restore a missing wanted lockfile and refresh `lastValidatedTimestamp`
-/// after the content checks passed, so a repeat run short-circuits earlier.
-///
-/// The workspace branch rewrites the state; the single-project branch keys
-/// its comparisons off the lockfile mtimes instead and leaves the state
-/// alone, unless the tree `moved` and the state has to be recorded where it
-/// is now. A failed write only costs the next run a repeat of the content
-/// check, so it degrades rather than fails.
-pub(super) fn settle_repeat_install(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    loaded_current: Option<Lockfile>,
-    filesystem_now: Option<i64>,
-    moved: bool,
-) -> Result<(), &'static str> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        project_manifests,
-        is_workspace_install,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
-    } = check;
-    regenerate_wanted_lockfile_if_missing(check, loaded_current)?;
-    if !is_workspace_install && !moved {
-        return Ok(());
-    }
-    // This path refreshes the timestamp without materializing anything, so
-    // it carries the previous run's `filtered_install` forward: clearing it
-    // would claim every importer is materialized when a filtered install
-    // left the unselected ones untouched.
-    let mut new_state = crate::install::build_workspace_state::<Host>(
-        workspace_root,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        catalogs,
-        project_manifests,
-        state.filtered_install,
-        filesystem_now,
-    );
-    new_state.settings.auto_dedupe =
-        crate::install::recorded_auto_dedupe(config, state.settings.auto_dedupe);
-    if let Err(error) = update_workspace_state(workspace_root, &new_state) {
-        tracing::warn!(
-            target: "pacquet::install",
-            ?error,
-            "Failed to refresh the workspace state after the repeat-install content check",
-        );
-    }
-    Ok(())
-}
 /// Restore a missing `pnpm-lock.yaml` from the current lockfile before
 /// the fast path reports "Already up to date", so the short-circuit
 /// leaves the same on-disk contract a full install would (the full
@@ -101,24 +19,21 @@ pub(super) fn settle_repeat_install(
 /// writing is disabled (`lockfile: false`), or when there is no
 /// current lockfile to restore from (a dependency-less project).
 /// A write failure falls through to the full install path rather than
-/// reporting up-to-date while leaving the lockfile missing.
+/// reporting up-to-date while leaving the lockfile missing. Returns whether it
+/// wrote the lockfile.
 pub(super) fn regenerate_wanted_lockfile_if_missing(
     check: &OptimisticRepeatInstallCheck<'_>,
-    loaded_current: Option<Lockfile>,
-) -> Result<(), &'static str> {
+    current: &CurrentLockfile<'_>,
+) -> Result<bool, &'static str> {
     if check.lockfile.is_loaded_or_on_disk() || !check.config.lockfile {
-        return Ok(());
+        return Ok(false);
     }
-    let current = match loaded_current {
-        Some(current) => Some(current),
-        None => Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-            .map_err(|_| "the current lockfile cannot be loaded")?,
-    };
-    let Some(current) = current else {
-        return Ok(());
+    let Some(current) = current.get().ok_or("the current lockfile cannot be loaded")? else {
+        return Ok(false);
     };
     current
         .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        .map(|()| true)
         .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }
 impl<'a> LinkedPackagesContext<'a> {

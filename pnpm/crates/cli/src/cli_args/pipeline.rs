@@ -4,9 +4,9 @@
 //! of re-run, and a machine-readable account of what happened.
 //!
 //! Proof of concept for the `pnpm ci` RFC (pnpm/rfcs — "pnpm as the CI
-//! engine"), with the task cache of pnpm/rfcs#22 in a local-tier-only
-//! form. The command name is `pipeline` because `pnpm ci` is already the
-//! clean-install command.
+//! engine"), with the task cache of pnpm/rfcs#22 as a local tier and an
+//! optional remote one. The command name is `pipeline` because `pnpm ci`
+//! is already the clean-install command.
 
 pub(crate) use agent::WatchPolling;
 pub use agent::{WatchInvocation, run_watch};
@@ -17,7 +17,7 @@ pub use selection::{Selection, SelectionMode};
 mod arguments;
 
 use super::{
-    recursive::{ExecutionStatus, Status, discover_workspace_projects},
+    recursive::{ExecutionStatus, Status, discover_workspace_projects, keeps_workspace_root},
     reporter::{ReporterType, reporter_emit},
     run::{RunContext, ScriptSelector, run_stages},
 };
@@ -30,7 +30,7 @@ use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::ScriptOutput;
-use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{BinLinkSettings, SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
@@ -48,6 +48,8 @@ use pnpm_workspace_task_scheduler::{
 };
 use report::RunReport;
 
+use cache_tiers::CacheTiers;
+use remote_cache::RemoteTaskCache;
 use reporting::{StatusCounts, compute_task_keys, print_dry_run, record_task_outcome};
 use selection::{
     SelectAffectedOptions, build_full_graph, git_stdout, select_affected_projects,
@@ -65,9 +67,11 @@ use std::{
 
 mod agent;
 mod cache;
+mod cache_tiers;
 mod capture;
 mod cargo_cache;
 mod paths;
+mod remote_cache;
 mod report;
 
 /// The base ref the affected selection falls back to when neither
@@ -131,13 +135,14 @@ pub fn run_pipeline(
     };
     let (name, requested_tasks) = run.requested_tasks()?;
 
-    let (projects, _) = discover_workspace_projects(run.workspace_root, config)?;
+    let (projects, patterns) = discover_workspace_projects(run.workspace_root, config)?;
     let graph = build_full_graph(&projects, config)?;
 
     let base = pipeline_base(invocation, config);
     let selection = select_affected_projects(&SelectAffectedOptions {
         graph: &graph,
         workspace_root: run.workspace_root,
+        keeps_workspace_root: keeps_workspace_root(config, patterns.as_deref()),
         base: &base,
         full: invocation.full,
         config,
@@ -152,8 +157,7 @@ pub fn run_pipeline(
     )?;
 
     if selection.requested.is_empty() {
-        run.info(format!("No projects are affected since {base} — nothing to run."));
-        return run.conclude(&report, None, 0);
+        return run.conclude_empty_selection(&report, selection.mode, &base);
     }
     run.execute(&PipelinePlan {
         name,
@@ -188,6 +192,14 @@ impl<'a> PipelineRun<'a> {
     fn info(&self, message: String) {
         (self.emit)(&LogEvent::Pnpm(PnpmLog {
             level: LogLevel::Info,
+            message,
+            prefix: self.workspace_root.to_string_lossy().into_owned(),
+        }));
+    }
+
+    fn warn(&self, message: String) {
+        (self.emit)(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Warn,
             message,
             prefix: self.workspace_root.to_string_lossy().into_owned(),
         }));
@@ -237,12 +249,16 @@ impl<'a> PipelineRun<'a> {
 
         let cache = TaskCache::open(&self.data_dir(), self.workspace_root)?;
         let task_keys = self.compute_task_keys(&task_graph, &sequenced_tasks, plan, &cache)?;
+        let remote_cache =
+            cache_tiers::open_remote_tier(self.config, self.invocation.no_cache, |message| {
+                self.warn(message);
+            });
 
         capture::install_forward(self.emit);
         let runner = TaskRunner {
             run: self,
             graph: plan.graph,
-            cache: &cache,
+            cache: CacheTiers { local: &cache, remote: remote_cache.as_ref() },
             task_keys: &task_keys,
             report: plan.report,
             environment: PipelineEnvironment {
@@ -252,6 +268,9 @@ impl<'a> PipelineRun<'a> {
             results: PipelineResults::new(&task_graph, self.workspace_root),
         };
         runner.schedule(&task_graph);
+        for failure in remote_cache.iter().flat_map(RemoteTaskCache::finish_uploads) {
+            self.warn(format!("Failed to upload a task to the remote cache: {failure}"));
+        }
 
         let statuses = runner.finish()?;
         self.finish_plan(plan, &statuses, &task_keys)
@@ -355,7 +374,7 @@ impl<'a> PipelineRun<'a> {
 struct TaskRunner<'a, 'graph> {
     run: &'a PipelineRun<'a>,
     graph: &'a ProjectGraph<GraphPkg<'graph>>,
-    cache: &'a TaskCache,
+    cache: CacheTiers<'a>,
     task_keys: &'a HashMap<TaskKey, Option<String>>,
     report: &'a RunReport,
     environment: PipelineEnvironment,

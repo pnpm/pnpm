@@ -1,25 +1,17 @@
+use std::collections::{BTreeMap, HashMap};
+
 use super::{OwnerArgs, OwnerError};
+use crate::cli_args::registry_client::PACKAGE_DOCUMENT_BODY_LIMIT;
 use pnpm_config::Config;
+use pnpm_network::normalize_registry_url;
 use serde_json::json;
 
 #[test]
 fn owner_entry_deserializes() {
-    let json = r#"{"username": "alice", "email": "alice@example.com"}"#;
+    let json = r#"{"name": "alice", "email": "alice@example.com"}"#;
     let entry: super::OwnerEntry = serde_json::from_str(json).expect("should deserialize");
-    assert_eq!(entry.username, "alice");
-    assert_eq!(entry.email, "alice@example.com");
-}
-
-#[test]
-fn owner_entry_deserializes_array() {
-    let json = r#"[
-        {"username": "alice", "email": "alice@example.com"},
-        {"username": "bob", "email": "bob@example.com"}
-    ]"#;
-    let entries: Vec<super::OwnerEntry> = serde_json::from_str(json).expect("should deserialize");
-    assert_eq!(entries.len(), 2);
-    assert_eq!(entries[0].username, "alice");
-    assert_eq!(entries[1].username, "bob");
+    assert_eq!(entry.name, "alice");
+    assert_eq!(entry.email.as_deref(), Some("alice@example.com"));
 }
 
 #[test]
@@ -79,12 +71,12 @@ fn error_registry_write_failed_includes_package() {
 }
 
 fn config_with_registry(registry: &str) -> Config {
-    let url = if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let url = normalize_registry_url(registry).into_owned();
     Config { registry: url, ..Config::default() }
 }
 
 fn config_with_registry_no_retries(registry: &str) -> Config {
-    let url = if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    let url = normalize_registry_url(registry).into_owned();
     Config { registry: url, fetch_retries: 0, ..Config::default() }
 }
 
@@ -109,16 +101,17 @@ fn owner_args_with_otp(otp: &str, subcommand: &str, params: &[&str]) -> OwnerArg
 // ── owner ls HTTP-flow tests ──────────────────────────────────────────
 
 #[tokio::test]
-async fn owner_ls_success() {
+async fn owner_ls_reads_package_maintainers() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/my-pkg/owners")
+        .mock("GET", "/my-pkg")
+        .match_header("accept", "application/json")
         .with_status(200)
         .with_body(
-            json!([
-                {"username": "alice", "email": "alice@example.com"},
-                {"username": "bob", "email": "bob@example.com"}
-            ])
+            json!({"maintainers": [
+                {"name": "alice", "email": "alice@example.com"},
+                {"name": "bob", "email": "bob@example.com"}
+            ]})
             .to_string(),
         )
         .create_async()
@@ -134,10 +127,111 @@ async fn owner_ls_success() {
 }
 
 #[tokio::test]
+async fn owner_ls_without_maintainers_or_email() {
+    for (metadata, expected) in [
+        (json!({}), ""),
+        (json!({"maintainers": []}), ""),
+        (json!({"maintainers": null}), ""),
+        (json!({"maintainers": [{"name": "alice"}]}), "alice"),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/my-pkg")
+            .with_status(200)
+            .with_body(metadata.to_string())
+            .create_async()
+            .await;
+
+        let result = owner_args("ls", &["my-pkg"])
+            .run(&config_with_registry(&server.url()))
+            .await
+            .expect("metadata without maintainers or email must be accepted");
+
+        mock.assert_async().await;
+        assert_eq!(result.as_deref(), Some(expected));
+    }
+}
+
+#[tokio::test]
+async fn owner_ls_preserves_scoped_auth_and_registry_path_prefix() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/npm/", server.url());
+    let mock = server
+        .mock("GET", "/npm/@scope%2fpkg")
+        .match_header("authorization", "Bearer test-token")
+        .match_header("accept", "application/json")
+        .with_status(200)
+        .with_body(
+            json!({"maintainers": [{"name": "alice", "email": "alice@example.com"}]}).to_string(),
+        )
+        .create_async()
+        .await;
+    let config = Config {
+        registry: "https://unused.example/".to_string(),
+        registries_by_scope: BTreeMap::from([("@scope".to_string(), registry.clone())]),
+        auth_headers: std::sync::Arc::new(pnpm_network::AuthHeaders::from_creds_map([(
+            registry.trim_start_matches("http:").to_string(),
+            "Bearer test-token".to_string(),
+        )])),
+        ..Config::default()
+    };
+
+    let result =
+        owner_args("ls", &["@scope/pkg"]).run(&config).await.expect("owner ls must succeed");
+
+    mock.assert_async().await;
+    assert_eq!(result.as_deref(), Some("alice <alice@example.com>"));
+}
+
+#[tokio::test]
+async fn owner_ls_reads_metadata_larger_than_one_mib() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/my-pkg")
+        .with_status(200)
+        .with_body(
+            json!({
+                "readme": "x".repeat(1024 * 1024),
+                "maintainers": [{"name": "alice", "email": "alice@example.com"}]
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+
+    let result = owner_args("ls", &["my-pkg"])
+        .run(&config_with_registry(&server.url()))
+        .await
+        .expect("full package metadata can exceed 1 MiB");
+
+    mock.assert_async().await;
+    assert_eq!(result.as_deref(), Some("alice <alice@example.com>"));
+}
+
+#[tokio::test]
+async fn owner_ls_rejects_oversized_metadata() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/my-pkg")
+        .with_status(200)
+        .with_body(format!("{{}}{}", " ".repeat(PACKAGE_DOCUMENT_BODY_LIMIT)))
+        .create_async()
+        .await;
+
+    let error = owner_args("ls", &["my-pkg"])
+        .run(&config_with_registry(&server.url()))
+        .await
+        .expect_err("truncated metadata must not be parsed as a complete response");
+
+    mock.assert_async().await;
+    assert!(error.to_string().contains("registry response exceeded"), "{error:?}");
+}
+
+#[tokio::test]
 async fn owner_ls_404_returns_package_not_found() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/unknown-pkg/owners")
+        .mock("GET", "/unknown-pkg")
         .with_status(404)
         .create_async()
         .await;
@@ -160,7 +254,7 @@ async fn owner_ls_404_returns_package_not_found() {
 async fn owner_ls_401_returns_unauthorized() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/private-pkg/owners")
+        .mock("GET", "/private-pkg")
         .with_status(401)
         .with_body("unauthorized access")
         .create_async()
@@ -185,7 +279,7 @@ async fn owner_ls_401_returns_unauthorized() {
 async fn owner_ls_403_returns_forbidden() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/locked-pkg/owners")
+        .mock("GET", "/locked-pkg")
         .with_status(403)
         .with_body("forbidden detail")
         .create_async()
@@ -208,7 +302,7 @@ async fn owner_ls_403_returns_forbidden() {
 async fn owner_ls_500_returns_registry_error() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/broken-pkg/owners")
+        .mock("GET", "/broken-pkg")
         .with_status(500)
         .with_body("teapot")
         .create_async()
@@ -233,9 +327,9 @@ async fn owner_ls_500_returns_registry_error() {
 async fn owner_ls_scoped_package_encodes_correctly() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/@scope%2Fpkg/owners")
+        .mock("GET", "/@scope%2fpkg")
         .with_status(200)
-        .with_body(json!([{"username": "alice", "email": "a@b.com"}]).to_string())
+        .with_body(json!({"maintainers": [{"name": "alice", "email": "a@b.com"}]}).to_string())
         .create_async()
         .await;
 
@@ -251,9 +345,9 @@ async fn owner_ls_scoped_package_encodes_correctly() {
 async fn owner_ls_list_alias() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/my-pkg/owners")
+        .mock("GET", "/my-pkg")
         .with_status(200)
-        .with_body(json!([{"username": "carol", "email": "c@d.com"}]).to_string())
+        .with_body(json!({"maintainers": [{"name": "carol", "email": "c@d.com"}]}).to_string())
         .create_async()
         .await;
 
@@ -540,9 +634,11 @@ async fn owner_rm_encodes_owner_in_url() {
 async fn owner_no_subcommand_defaults_to_ls() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("GET", "/-/package/my-pkg/owners")
+        .mock("GET", "/my-pkg")
         .with_status(200)
-        .with_body(json!([{"username": "dave", "email": "dave@example.com"}]).to_string())
+        .with_body(
+            json!({"maintainers": [{"name": "dave", "email": "dave@example.com"}]}).to_string(),
+        )
         .create_async()
         .await;
 
@@ -560,17 +656,22 @@ async fn owner_no_subcommand_defaults_to_ls() {
 async fn owner_ls_registry_override() {
     let mut default_server = mockito::Server::new_async().await;
     let _default_mock = default_server
-        .mock("GET", "/-/package/my-pkg/owners")
+        .mock("GET", "/my-pkg")
         .with_status(200)
-        .with_body(json!([{"username": "wrong", "email": "wrong@example.com"}]).to_string())
+        .with_body(
+            json!({"maintainers": [{"name": "wrong", "email": "wrong@example.com"}]}).to_string(),
+        )
         .create_async()
         .await;
 
     let mut override_server = mockito::Server::new_async().await;
     let override_mock = override_server
-        .mock("GET", "/-/package/my-pkg/owners")
+        .mock("GET", "/my-pkg")
         .with_status(200)
-        .with_body(json!([{"username": "correct", "email": "correct@example.com"}]).to_string())
+        .with_body(
+            json!({"maintainers": [{"name": "correct", "email": "correct@example.com"}]})
+                .to_string(),
+        )
         .create_async()
         .await;
 
@@ -612,7 +713,7 @@ async fn owner_add_registry_override() {
 #[test]
 fn normalize_registry_url_adds_trailing_slash() {
     assert_eq!(
-        super::normalize_registry_url("https://registry.example.com"),
+        pnpm_network::normalize_registry_url("https://registry.example.com"),
         "https://registry.example.com/",
     );
 }
@@ -620,7 +721,43 @@ fn normalize_registry_url_adds_trailing_slash() {
 #[test]
 fn normalize_registry_url_preserves_trailing_slash() {
     assert_eq!(
-        super::normalize_registry_url("https://registry.example.com/"),
+        pnpm_network::normalize_registry_url("https://registry.example.com/"),
         "https://registry.example.com/",
     );
+}
+
+#[test]
+fn owners_endpoint_preserves_path_prefix() {
+    let config = Config::default();
+    let registries =
+        HashMap::from([("default".to_string(), "https://registry.example/npm/".to_string())]);
+    let context = super::OwnerContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: None,
+        otp: None,
+    };
+    let endpoint = super::owners_endpoint(&context, "@scope/my-pkg");
+    assert_eq!(endpoint.url, "https://registry.example/npm/-/package/@scope%2fmy-pkg/owners");
+}
+
+#[test]
+fn owners_endpoint_honors_registry_override_for_scoped_package() {
+    let config = Config::default();
+    let registries = HashMap::from([
+        ("default".to_string(), "https://registry.example/npm/".to_string()),
+        ("@scope".to_string(), "https://scoped.example/npm/".to_string()),
+    ]);
+    let context = super::OwnerContext {
+        config: &config,
+        http_client: pnpm_network::ThrottledClient::default(),
+        retry_opts: pnpm_network::RetryOpts::default(),
+        registries,
+        registry_override: Some("https://override.example/npm/"),
+        otp: None,
+    };
+    let endpoint = super::owners_endpoint(&context, "@scope/my-pkg");
+    assert_eq!(endpoint.url, "https://override.example/npm/-/package/@scope%2fmy-pkg/owners");
 }

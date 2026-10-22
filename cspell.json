@@ -4,7 +4,8 @@
     "**/nodeReleaseKeys.d.ts",
     "**/node_release_keys.rs",
     "bench-work-env/**",
-    "target/**"
+    "target/**",
+    "vendor/**"
   ],
   "words": [
     "abrt",
@@ -41,6 +42,7 @@
     "bryntum",
     "btrfs",
     "buildx",
+    "Bunzip",
     "cafile",
     "cafs",
     "camelcase",
@@ -139,6 +141,7 @@
     "filenamify",
     "filesystem",
     "filesystems",
+    "fnpm",
     "fnumber",
     "foobarqar",
     "foofoo",
@@ -178,6 +181,7 @@
     "homepath",
     "hosters",
     "hostnames",
+    "hotspots",
     "htpasswd",
     "hyperdrive",
     "idempotency",
@@ -200,6 +204,7 @@
     "keyid",
     "keytype",
     "killcb",
+    "kloc",
     "kochan",
     "koorchik",
     "kshrc",
@@ -413,6 +418,7 @@
     "rustup",
     "safecrlf",
     "sccache",
+    "scim",
     "scopeless",
     "scriptless",
     "sdiff",
@@ -480,6 +486,7 @@
     "tarballtemplate",
     "Tarjan",
     "taskkill",
+    "tcsh",
     "teambit",
     "tempy",
     "testcase",
@@ -525,8 +532,10 @@
     "valign",
     "venv",
     "versionless",
+    "virtiofs",
     "vuln",
     "wabt",
+    "wafpickle",
     "waitpid",
     "wakeup",
     "wasi",
@@ -544,6 +553,7 @@
     "worktree",
     "worktrees",
     "wrappy",
+    "wscript",
     "wslpath",
     "WTERMSIG",
     "xattr",
@@ -553,6 +563,7 @@
     "zdotdir",
     "zkochan",
     "zoli",
-    "zoltan"
+    "zoltan",
+    "zstd"
   ]
 }

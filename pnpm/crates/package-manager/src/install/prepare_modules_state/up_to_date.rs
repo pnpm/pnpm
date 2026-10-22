@@ -1,10 +1,9 @@
 use super::super::{
-    Arc, Config, Host, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
-    ResolutionVerifier, Stage, StageLog, SystemTime, build_workspace_state, frozen_tree_intact,
-    gvs_build_marker_present, has_newly_allowed_ignored_builds,
-    hoisted_linker_workspace_links_intact, hoisted_workspace_packages_present,
-    map_frozen_lockfile_error, modules_consistent_with, moved_tree_is_reusable,
-    recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
+    Arc, Config, InstallError, Lockfile, LogEvent, LogLevel, Path, PnpmLog, Reporter,
+    ResolutionVerifier, Stage, StageLog, SystemTime, frozen_tree_intact, gvs_build_marker_present,
+    has_newly_allowed_ignored_builds, hoisted_linker_workspace_links_intact,
+    hoisted_workspace_packages_present, map_frozen_lockfile_error, modules_consistent_with,
+    moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
     update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
 use crate::optimistic_repeat_install::{filesystem_now_ms_in_modules, materialized_shape_matches};
@@ -166,6 +165,8 @@ pub(super) fn modules_cache_prune_due(
     config: &Config,
     modules_manifest: Option<&pnpm_modules_yaml::ModulesLayout>,
 ) -> bool {
+    let now = SystemTime::now();
+    let effective_now = config.source_date_epoch.map_or(now, |epoch| epoch.min(now));
     modules_manifest.is_some_and(|modules| {
         crate::prune_virtual_store::should_prune_virtual_store(
             crate::prune_virtual_store::same_dir(
@@ -174,7 +175,7 @@ pub(super) fn modules_cache_prune_due(
             ),
             Some(modules.pruned_at.as_str()),
             config.modules_cache_max_age,
-            SystemTime::now(),
+            effective_now,
         )
     })
 }
@@ -192,14 +193,9 @@ pub(super) struct UpToDateInstall<'a, 'install> {
     pub(super) carried_state: CarriedWorkspaceState,
 }
 /// The workspace-state fields the up-to-date refresh carries over from the
-/// previous run instead of recomputing: the refresh materializes nothing, so
-/// it may neither claim every importer was materialized nor establish a
-/// dedupe baseline.
+/// previous run instead of recomputing: the refresh resolves nothing, so it
+/// may not establish a dedupe baseline.
 pub(super) struct CarriedWorkspaceState {
-    /// The previous run's `filteredInstall`. Clearing it would claim every
-    /// importer is materialized when a filtered install left the unselected
-    /// ones untouched.
-    pub(super) filtered_install: bool,
     /// The previous run's `autoDedupe`; only a resolving install sets it.
     pub(super) recorded_auto_dedupe: Option<bool>,
 }
@@ -255,23 +251,27 @@ pub(super) fn enforce_recorded_build_policy(
 pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
     context: &UpToDateInstall<'_, '_>,
 ) {
-    let mut state = build_workspace_state::<Host>(
-        context.tree.workspace_root,
-        context.tree.config,
-        context.tree.node_linker,
-        context.tree.included,
-        context.supported_architectures,
-        context.projects.catalogs,
-        context.projects.manifests,
-        context.carried_state.filtered_install,
-        filesystem_now_ms_in_modules(&context.tree.config.workspace_state_modules_dir(
-            context.tree.workspace_root,
-        )),
-    );
-    state.settings.auto_dedupe = crate::install::recorded_auto_dedupe(
-        context.tree.config,
-        context.carried_state.recorded_auto_dedupe,
-    );
+    // [`frozen_tree_up_to_date`] found every importer materialized; it never
+    // passes a filtered install.
+    let state = crate::install::recorded_workspace_state(&crate::install::StateWrite {
+        workspace_root: context.tree.workspace_root,
+        config: context.tree.config,
+        layout: crate::RepeatInstallLayout {
+            node_linker: context.tree.node_linker,
+            included: context.tree.included,
+            supported_architectures: context.supported_architectures,
+        },
+        catalogs: context.projects.catalogs,
+        project_manifests: context.projects.manifests,
+        filesystem_now_ms: filesystem_now_ms_in_modules(
+            &context.tree.config.workspace_state_modules_dir(context.tree.workspace_root),
+        ),
+        carried: crate::install::CarriedSettings {
+            established_auto_dedupe: context.carried_state.recorded_auto_dedupe,
+            kept_groups: None,
+        },
+        vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
+    });
     update_workspace_state_or_warn::<Reporter>(
         context.tree.workspace_root,
         &state,

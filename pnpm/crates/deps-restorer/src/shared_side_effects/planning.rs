@@ -26,6 +26,7 @@ pub(super) fn plan_eligible_roots(
         options.requires_build_by_snapshot,
         options.allow_build_policy,
         options.cached.base_cas_paths,
+        options.cached.cold_snapshots,
         &setup.eligible_packages,
     );
     tracing::debug!(
@@ -35,14 +36,24 @@ pub(super) fn plan_eligible_roots(
     );
     roots
 }
+fn has_materialized_base(
+    snapshot_key: &PackageKey,
+    base_cas_paths: &BaseCasPaths,
+    cold_snapshots: Option<&HashSet<&PackageKey>>,
+) -> bool {
+    base_cas_paths.contains_key(snapshot_key)
+        || cold_snapshots.is_some_and(|cold| cold.contains(snapshot_key))
+}
 /// The snapshots whose built output the remote cache may supply: an
 /// eligible package with a build to run, an explicit allow-build
-/// verdict, and a materialized base file map to overlay.
+/// verdict, no `sideEffectsCache.exclude` rule, and a materialized base
+/// file map to overlay.
 pub(super) fn eligible_roots(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     requires_build_by_snapshot: &RequiresBuildBySnapshot,
     allow_build_policy: &AllowBuildPolicy,
     base_cas_paths: &BaseCasPaths,
+    cold_snapshots: Option<&HashSet<&PackageKey>>,
     eligible_packages: &HashSet<String>,
 ) -> Vec<PackageKey> {
     in_lockfile_order(snapshots)
@@ -54,7 +65,8 @@ pub(super) fn eligible_roots(
                 .unwrap_or(false)
                 && eligible_packages.contains(&snapshot_key.name.to_string())
                 && allow_build_policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
-                && base_cas_paths.contains_key(*snapshot_key)
+                && allow_build_policy.caches_build(snapshot_key)
+                && has_materialized_base(snapshot_key, base_cas_paths, cold_snapshots)
         })
         .map(|(snapshot_key, _)| snapshot_key.clone())
         .collect()
@@ -279,7 +291,7 @@ pub(super) fn verified_persisted_diff<'a>(
             stored_remote_side_effects_are_verified(
                 diff,
                 candidate,
-                plan.config.pnpr_server.as_deref(),
+                Some(plan.setup.store.channel()),
                 &plan.setup.supported_tags,
                 &plan.setup.trusted_keys,
             )

@@ -11,7 +11,7 @@ const DEFAULT_OPTS = {
   bail: false,
 }
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {

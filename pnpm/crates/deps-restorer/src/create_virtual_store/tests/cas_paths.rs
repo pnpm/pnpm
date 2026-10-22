@@ -43,10 +43,15 @@ fn cold_cas_paths_preserve_warm_entries_and_add_missing_packages() {
         .map(|snapshot_key| ColdCapture {
             snapshot_key,
             snapshot: &snapshot,
-            cas_paths: HashMap::from([("index.js".to_string(), PathBuf::from("cas/cold"))]),
+            installed: crate::InstalledPackage {
+                cas_paths: HashMap::from([("index.js".to_string(), PathBuf::from("cas/cold"))]),
+                manifest: None,
+                requires_build: Some(false),
+                bins: None,
+                source_is_mutable: false,
+                source_exists: true,
+            },
             requires_build: false,
-            source_is_mutable: false,
-            source_exists: true,
             force_import: false,
         })
         .collect();

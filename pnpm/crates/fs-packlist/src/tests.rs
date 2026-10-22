@@ -28,3 +28,9 @@ mod workspace_settings;
 mod security;
 
 mod behavior;
+
+mod default_excludes;
+
+mod parity;
+
+mod files_ranges;

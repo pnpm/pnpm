@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/os.env.path-extender-posix",
-  "version": "1100.0.0",
+  "version": "1100.0.1",
   "description": "A module for adding a new directory to the PATH environment variable on Linux and macOS",
   "keywords": [
     "pnpm",

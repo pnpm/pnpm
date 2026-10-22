@@ -1,7 +1,7 @@
 use super::{
-    IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_TASK_SETTINGS, Path,
+    IgnoredAny, IndexMap, LoadWorkspaceYamlError, NAMED_UNRECOGNIZED_SETTINGS, Path,
     RemoteSideEffectsCacheSettings, SCHEMA_DIRECTIVE_KEY, SideEffectsCacheSetting, TaskSettings,
-    UnrecognizedTaskSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
+    UnrecognizedSettings, WorkspaceKeyIssues, WorkspaceSettings, is_camel_case,
     is_known_setting_key, is_refused_by_a_project_manifest, registries,
 };
 
@@ -13,6 +13,31 @@ impl WorkspaceSettings {
     /// `serde_saphyr` renders the offending source line verbatim under its
     /// errors, so rejecting at parse time would print the very credential
     /// being rejected into the terminal and any CI log.
+    /// Validate the sections the checks below cover. With `skip_invalid`, a
+    /// section that fails is left out instead, so one this pnpm rejects does
+    /// not take the file's other settings with it (see
+    /// [`crate::Config::settings_read`]).
+    pub(super) fn validate_sections(
+        &mut self,
+        skip_invalid: bool,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        if !skip_invalid {
+            self.validate_registries()?;
+            self.validate_tasks()?;
+            return self.validate_pipelines();
+        }
+        if self.validate_registries().is_err() {
+            self.registries = None;
+        }
+        if self.validate_tasks().is_err() {
+            self.tasks = None;
+        }
+        if self.validate_pipelines().is_err() {
+            self.pipelines = None;
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
@@ -76,8 +101,8 @@ impl WorkspaceSettings {
     /// `pnpm config`, as a setting pnpm had said it ignored. An entry that
     /// carried nothing else goes with them, so a setting this pnpm does not
     /// read cannot quietly reorder its tasks.
-    fn take_unknown_task_settings(&mut self) -> UnrecognizedTaskSettings {
-        let mut report = UnrecognizedTaskSettings::default();
+    fn take_unknown_task_settings(&mut self) -> UnrecognizedSettings {
+        let mut report = UnrecognizedSettings::default();
         let Some(tasks) = self.tasks.as_mut() else { return report };
         tasks.retain(|task, settings| {
             if settings.unknown.is_empty() {
@@ -86,7 +111,7 @@ impl WorkspaceSettings {
             report.total += settings.unknown.len();
             let named = settings.unknown
                 .keys()
-                .take(NAMED_UNRECOGNIZED_TASK_SETTINGS.saturating_sub(report.named.len()));
+                .take(NAMED_UNRECOGNIZED_SETTINGS.saturating_sub(report.named.len()));
             report.named.extend(named.map(|field| format!("tasks['{task}'].{field}")));
             settings.unknown.clear();
             // An entry left with nothing declares nothing, and a task with no
@@ -141,7 +166,27 @@ impl WorkspaceSettings {
             let Some(settings) = setting else { continue };
             Self::reject_machine_only_fields(settings, prefix, path)?;
         }
-        Ok(())
+        self.reject_machine_only_remote_cache_fields(path)
+    }
+
+    /// The token and everything that describes signing belong to the
+    /// machine, for the reasons [`Self::reject_repo_controlled_trust_material`]
+    /// gives for `sideEffectsCache.remote`.
+    fn reject_machine_only_remote_cache_fields(
+        &self,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(settings) = self.remote_cache.as_ref() else {
+            return Ok(());
+        };
+        let Some((field, _)) = settings
+            .machine_only_fields()
+            .into_iter()
+            .find(|(_, is_set)| *is_set)
+        else {
+            return Ok(());
+        };
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteCacheTrust { path: path.to_path_buf(), field })
     }
 
     pub(super) fn reject_machine_only_fields(
@@ -178,8 +223,10 @@ impl WorkspaceSettings {
     /// which only the CLI layer knows.
     pub fn collect_key_issues(&mut self, text: &str) {
         let unrecognized_task_settings = self.take_unknown_task_settings();
+        let unrecognized_permissions = self.take_unknown_permissions();
         let mut issues = Self::top_level_key_issues(text);
         issues.unrecognized_task_settings = unrecognized_task_settings;
+        issues.unrecognized_permissions = unrecognized_permissions;
         self.key_issues = issues;
     }
 

@@ -1,11 +1,13 @@
 import path from 'node:path'
 
 import * as dp from '@pnpm/deps.path'
+import { getAppliedPatchKeys, getLockfilePeerDependencies, groupPatchedDependencies } from '@pnpm/installing.deps-resolver'
 import { getPeerSatisfactionEdgesToSkip } from '@pnpm/lockfile.peer-edges'
 import type {
   LockfileObject,
   PackageSnapshots,
   ProjectSnapshot,
+  ResolvedDependencies,
 } from '@pnpm/lockfile.types'
 import type {
   DependenciesField,
@@ -51,8 +53,11 @@ export interface CreateDeployFilesOptions {
 export interface DeployWorkspaceManifest {
   allowBuilds?: Record<string, boolean | string>
   autoInstallPeers: boolean
+  dedupeInjectedDeps: false
+  dedupePeerDependents: false
   dedupePeers: boolean
   excludeLinksFromLockfile: boolean
+  ignorePnpmfile: true
   ignoredOptionalDependencies: string[]
   injectWorkspacePackages: false
   packages: ['.']
@@ -89,8 +94,14 @@ export function createDeployFiles (opts: CreateDeployFilesOptions): DeployFiles 
   }
 
   if (opts.lockfile.patchedDependencies && opts.patchedDependencies) {
-    result.lockfile.patchedDependencies = { ...opts.lockfile.patchedDependencies }
-    workspaceManifest.patchedDependencies = relativizePatchPaths(opts.patchedDependencies, opts.deployDir)
+    const appliedKeys = getAppliedPatchKeys(result.lockfile, groupPatchedDependencies(opts.lockfile.patchedDependencies))
+    if (appliedKeys.size > 0) {
+      result.lockfile.patchedDependencies = pick(Array.from(appliedKeys), opts.lockfile.patchedDependencies)
+      workspaceManifest.patchedDependencies = relativizePatchPaths(
+        pick(Array.from(appliedKeys), opts.patchedDependencies),
+        opts.deployDir
+      )
+    }
   }
 
   if (opts.allowBuilds) {
@@ -151,16 +162,19 @@ function convertWorkspaceImporters (
       deployedProjectRealPath: ctx.deployedProjectRealPath,
       projectRootDirRealPath,
     }
-    const packageSnapshot = convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions)
+    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    const packageSnapshot = {
+      ...convertProjectSnapshotToPackageSnapshot(projectSnapshot, convertOptions),
+      ...(manifest == null ? {} : getLockfilePeerDependencies(manifest)),
+    }
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, opts.allProjects)
     ctx.targetPackageSnapshots[depPath] = packageSnapshot
-    const manifest = peerBearingProjects.get(projectRootDirRealPath)
-    if (manifest == null) continue
+    if (manifest?.peerDependencies == null) continue
     linkedWorkspaceProjects.set(depPath, {
       manifest,
       dedupedPeerResolutions: injectedWorkspace
         ? convertResolvedDependencies(
-          pick(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
+          pickOwn(Object.keys(manifest.peerDependencies ?? {}), projectSnapshot.devDependencies ?? {}),
           convertOptions
         )
         : undefined,
@@ -178,7 +192,7 @@ function convertWorkspaceImporters (
 function indexPeerBearingProjects (allProjects: DeployAllProjects): Map<string, ProjectManifest> {
   const peerBearingProjects = new Map<string, ProjectManifest>()
   for (const project of allProjects) {
-    if (project.manifest.peerDependencies == null) continue
+    if (project.manifest.peerDependencies == null && project.manifest.peerDependenciesMeta == null) continue
     peerBearingProjects.set(project.rootDir, project.manifest)
     peerBearingProjects.set(project.rootDirRealPath, project.manifest)
   }
@@ -248,8 +262,11 @@ function addDeployImporterDependency (
 function createDeployWorkspaceManifest (lockfile: LockfileObject): DeployWorkspaceManifest {
   return {
     autoInstallPeers: lockfile.settings?.autoInstallPeers ?? true,
+    dedupeInjectedDeps: false,
+    dedupePeerDependents: false,
     dedupePeers: lockfile.settings?.dedupePeers ?? false,
     excludeLinksFromLockfile: lockfile.settings?.excludeLinksFromLockfile ?? false,
+    ignorePnpmfile: true,
     ignoredOptionalDependencies: lockfile.ignoredOptionalDependencies ?? [],
     injectWorkspacePackages: false,
     packages: ['.'],
@@ -333,4 +350,12 @@ function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string
 function omitKeys<Value> (record: Record<string, Value> | undefined, keys: Set<string>): Record<string, Value> | undefined {
   if (record == null) return undefined
   return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
+}
+
+/**
+ * `ramda`'s `pick` also copies inherited properties, so a peer named after an
+ * `Object.prototype` member, such as `constructor`, would pick up that member.
+ */
+function pickOwn (names: string[], dependencies: ResolvedDependencies): ResolvedDependencies {
+  return Object.fromEntries(names.filter(name => Object.hasOwn(dependencies, name)).map(name => [name, dependencies[name]]))
 }

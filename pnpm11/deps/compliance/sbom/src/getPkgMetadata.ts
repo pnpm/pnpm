@@ -22,6 +22,7 @@ export interface GetPkgMetadataOptions {
   storeDir: string
   storeIndex: StoreIndex
   lockfileDir: string
+  directoryRootsByDepPath?: Map<string, string>
   virtualStoreDirMaxLength: number
 }
 
@@ -45,7 +46,10 @@ async function getPkgMetadataUnclamped (
 
   let files: Map<string, string>
   try {
-    const result = await readPackageFileMap(resolution, id, opts)
+    const result = await readPackageFileMap(resolution, id, {
+      ...opts,
+      lockfileDir: opts.directoryRootsByDepPath?.get(depPath) ?? opts.lockfileDir,
+    })
     if (!result) return {}
     files = result
   } catch {
@@ -106,10 +110,8 @@ export function repositoryFromField (field: unknown): string | undefined {
   const absolute = absoluteUrl(raw)
   if (absolute) return absolute
   const hosted = HostedGit.fromUrl(raw)
-  // An ownerless shorthand derives a URL naming `null` as the owner.
-  // `gist:<id>` is ownerless too and pnpm v12's parser has no gist support, so
-  // dropping it here is what keeps the two versions in step.
-  if (!hosted?.user) return undefined
+  // An ownerless shorthand derives a URL naming `null` as the owner. A gist needs no owner.
+  if (hosted == null || (!hosted.user && hosted.type !== 'gist')) return undefined
   const expanded = hosted.https()
   return expanded ? urlWithoutCredentials(expanded)?.href : undefined
 }

@@ -103,6 +103,7 @@ fn parses_registry_declarations_from_yaml_and_normalizes_the_keys() {
 registries:
   https://artifactory.example/artifactory/api/npm/npm-virtual: {serverType: artifactory}
   https://npm.example.com/: {serverType: npm}
+  https://pnpr.example/~zstd/: {serverType: pnpr}
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
@@ -118,6 +119,12 @@ registries:
             .get("https://npm.example.com/")
             .map(|options| options.server_type),
         Some(Some(RegistryServerType::Npm)),
+    );
+    assert_eq!(
+        config.registry_options_by_url
+            .get("https://pnpr.example/~zstd/")
+            .map(|options| options.server_type),
+        Some(Some(RegistryServerType::Pnpr)),
     );
 }
 
@@ -463,6 +470,35 @@ registries:
     settings.apply_to(&mut config, Path::new("/irrelevant"));
 
     assert!(config.requires_full_metadata_for_registry("https://time.example.com/"));
+}
+
+#[test]
+fn pnpr_registry_waives_full_metadata_for_trust_policy_and_time_based() {
+    let yaml = r"
+resolutionMode: time-based
+trustPolicy: no-downgrade
+registries:
+  https://pnpr.example.com/: {serverType: pnpr}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(config.registry_supports_time_field("https://pnpr.example.com/"));
+    assert!(config.registry_supports_time_field("https://pnpr.example.com"));
+    assert!(!config.registry_supports_time_field("https://registry.npmjs.org/"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://pnpr.example.com/"));
+    assert!(!config.requires_full_metadata_for_registry("https://pnpr.example.com"));
+    assert!(config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+
+    let policy_fn = config.requires_full_metadata_for_registry_fn();
+    assert!(!policy_fn("https://pnpr.example.com/", false));
+    assert!(!policy_fn("https://pnpr.example.com", false));
+    assert!(!policy_fn("https://pnpr.example.com/", true));
+    assert!(!policy_fn("https://pnpr.example.com", true));
+    assert!(policy_fn("https://registry.npmjs.org/", false));
+    assert!(policy_fn("https://registry.npmjs.org/", true));
 }
 
 /// Nothing is filtered when no registry can need full metadata.

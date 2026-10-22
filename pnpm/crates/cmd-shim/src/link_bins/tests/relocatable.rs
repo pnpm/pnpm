@@ -1,14 +1,29 @@
 use super::{
-    Arc, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, create_dir_all, json,
-    link_bins_of_packages, read_to_string, tempdir, write_file,
+    Arc, Host, LinkBinsOptions, PackageBinSource, Path, PathBuf, create_dir_all,
+    is_shim_pointing_at, json, link_bins_of_packages, read_to_string, tempdir, write_file,
 };
 use crate::link_bins::bin_dir_is_relocatable;
 use pnpm_fs::lexical_normalize;
 use std::{
     fs,
     os::unix::fs::{MetadataExt, symlink},
-    process::Command,
+    process::{Command, Output},
 };
+
+fn run_command(command: &mut Command) -> Output {
+    let mut last_busy = None;
+    for _ in 0..200 {
+        match command.output() {
+            Ok(output) => return output,
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                last_busy = Some(error);
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(error) => panic!("run command {command:?}: {error:?}"),
+        }
+    }
+    panic!("command stayed busy {command:?}: {last_busy:?}");
+}
 
 fn link_node_path_printer(root: &Path, relocatable_root: Option<PathBuf>) -> PathBuf {
     let pkg_dir = root.join("node_modules/.pnpm/foo@1.0.0/node_modules/foo");
@@ -64,10 +79,7 @@ fn relocated_shim_resolves_node_path_from_its_new_location() {
         ("relative $0 through a directory symlink", through_a_dir_symlink),
     ];
     for (label, mut command) in invocations {
-        let output = command
-            .env_remove("NODE_PATH")
-            .output()
-            .unwrap();
+        let output = run_command(command.env_remove("NODE_PATH"));
         let node_path = String::from_utf8(output.stdout).unwrap();
         let stderr = String::from_utf8_lossy(&output.stderr);
         eprintln!("{label}: NODE_PATH={node_path}\nSTDERR:\n{stderr}");
@@ -243,11 +255,11 @@ fn extra_node_path_through_directory_symlinks_resolves_before_and_after_move() {
             if current == &moved {
                 fs::rename(&root, &moved).unwrap();
             }
-            let output = Command::new(current.join(&relative_bin).join("foo"))
-                .env_remove("NODE_PATH")
-                .env_remove("NODE_OPTIONS")
-                .output()
-                .unwrap();
+            let output = run_command(
+                Command::new(current.join(&relative_bin).join("foo"))
+                    .env_remove("NODE_PATH")
+                    .env_remove("NODE_OPTIONS"),
+            );
             eprintln!("terminal={terminal}, root={current:?}, output={output:?}");
             assert!(output.status.success());
             assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "resolved-extra");
@@ -269,10 +281,8 @@ fn physical_paths_use_the_resolved_relocation_root() {
     assert!(!body.contains(alias.to_str().unwrap()));
     let moved = tmp.path().join("moved");
     fs::rename(&physical_root, &moved).unwrap();
-    let output = Command::new(moved.join("node_modules/.bin/foo"))
-        .env_remove("NODE_PATH")
-        .output()
-        .unwrap();
+    let output =
+        run_command(Command::new(moved.join("node_modules/.bin/foo")).env_remove("NODE_PATH"));
     eprintln!("{output:?}");
     assert!(output.status.success());
     for entry in String::from_utf8(output.stdout).unwrap().split(':') {
@@ -323,10 +333,7 @@ fn external_node_path_alias_keeps_its_original_spelling() {
         },
     )
     .unwrap();
-    let output = Command::new(bins.join("foo"))
-        .env_remove("NODE_PATH")
-        .output()
-        .unwrap();
+    let output = run_command(Command::new(bins.join("foo")).env_remove("NODE_PATH"));
     eprintln!("{output:?}");
     assert!(output.status.success());
     assert_eq!(
@@ -361,11 +368,11 @@ fn physical_target_without_node_path_runs_through_a_directory_symlink() {
     .unwrap();
     let moved = tmp.path().join("moved");
     fs::rename(&root, &moved).unwrap();
-    let output = Command::new(moved.join("alias/.bin/foo"))
-        .env_remove("NODE_PATH")
-        .env_remove("NODE_OPTIONS")
-        .output()
-        .unwrap();
+    let output = run_command(
+        Command::new(moved.join("alias/.bin/foo"))
+            .env_remove("NODE_PATH")
+            .env_remove("NODE_OPTIONS"),
+    );
     eprintln!("{output:?}");
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "physical-target");
@@ -403,10 +410,7 @@ fn extra_node_path_escaping_root_stays_absolute() {
     .unwrap();
     let moved = base.join("moved");
     fs::rename(&root, &moved).unwrap();
-    let output = Command::new(moved.join(".bin/foo"))
-        .env_remove("NODE_PATH")
-        .output()
-        .unwrap();
+    let output = run_command(Command::new(moved.join(".bin/foo")).env_remove("NODE_PATH"));
     eprintln!("{output:?}");
     assert!(output.status.success());
     assert_eq!(
@@ -472,11 +476,8 @@ fn external_target_runs_through_a_physical_bin_directory() {
         "# cmd-shim-target={}\n",
         base.join("external-package/cli.js").display()
     )));
-    let output = Command::new(&shim)
-        .env_remove("NODE_PATH")
-        .env_remove("NODE_OPTIONS")
-        .output()
-        .unwrap();
+    let output =
+        run_command(Command::new(&shim).env_remove("NODE_PATH").env_remove("NODE_OPTIONS"));
     eprintln!("{output:?}");
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "external-target");
@@ -514,11 +515,9 @@ fn unresolved_optional_node_paths_do_not_prevent_linking_bins() {
             let body = read_to_string(bins.join(name)).unwrap();
             eprintln!("destination={destination}, body={body}");
             assert!(body.contains("$basedir_abs/../extra"), "optional path remains in NODE_PATH");
-            let output = Command::new(bins.join(name))
-                .env_remove("NODE_PATH")
-                .env_remove("NODE_OPTIONS")
-                .output()
-                .unwrap();
+            let output = run_command(
+                Command::new(bins.join(name)).env_remove("NODE_PATH").env_remove("NODE_OPTIONS"),
+            );
             eprintln!("destination={destination}, name={name}, output={output:?}");
             assert!(output.status.success());
             assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "linked");
@@ -528,12 +527,12 @@ fn unresolved_optional_node_paths_do_not_prevent_linking_bins() {
         create_dir_all(root.join("missing-modules/late")).unwrap();
         write_file(root.join("missing-modules/late/index.js"), "module.exports = 'loaded-later'\n")
             .unwrap();
-        let output = Command::new(bins.join("foo"))
-            .arg("require")
-            .env_remove("NODE_PATH")
-            .env_remove("NODE_OPTIONS")
-            .output()
-            .unwrap();
+        let output = run_command(
+            Command::new(bins.join("foo"))
+                .arg("require")
+                .env_remove("NODE_PATH")
+                .env_remove("NODE_OPTIONS"),
+        );
         eprintln!("destination={destination}, repaired output={output:?}");
         assert!(output.status.success());
         assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "loaded-later");
@@ -567,11 +566,9 @@ fn external_target_directory_alias_can_be_retargeted_after_linking() {
     .unwrap();
     fs::remove_file(&alias).unwrap();
     symlink("second", &alias).unwrap();
-    let output = Command::new(bins.join("foo"))
-        .env_remove("NODE_PATH")
-        .env_remove("NODE_OPTIONS")
-        .output()
-        .unwrap();
+    let output = run_command(
+        Command::new(bins.join("foo")).env_remove("NODE_PATH").env_remove("NODE_OPTIONS"),
+    );
     eprintln!("{output:?}");
     assert!(output.status.success());
     assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "second");
@@ -612,4 +609,69 @@ fn bin_dir_is_relocatable_rejects_directory_entries() {
 
     create_dir_all(bin_dir.join("unexpected-directory")).unwrap();
     assert!(!bin_dir_is_relocatable(&bin_dir, &root));
+}
+
+#[test]
+fn missing_dependency_symlink_does_not_prevent_linking_bins() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap().join("project");
+    let modules = root.join("node_modules/.pnpm/consumer@1.0.0/node_modules");
+    create_dir_all(&modules).unwrap();
+    let package = modules.join("js-yaml");
+    let destination = root.join("node_modules/.pnpm/js-yaml@4.1.0/node_modules/js-yaml");
+    symlink("../../js-yaml@4.1.0/node_modules/js-yaml", &package).unwrap();
+    let packages = [PackageBinSource::new(
+        package.clone(),
+        Arc::new(json!({"name": "js-yaml", "bin": {"js-yaml": "bin/js-yaml.js"}})),
+    )
+    .with_resolved_location(destination.clone())];
+    let bins = modules.join("consumer/node_modules/.bin");
+    let options =
+        LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() };
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    let body = read_to_string(bins.join("js-yaml")).unwrap();
+    eprintln!("missing target shim: {body}");
+    assert!(is_shim_pointing_at(&body, &bins.join("js-yaml"), &package.join("bin/js-yaml.js")));
+    assert!(!bin_dir_is_relocatable(&bins, &root), "unresolved symlinks fail validation");
+
+    create_dir_all(destination.join("bin")).unwrap();
+    write_file(
+        destination.join("bin/js-yaml.js"),
+        "#!/usr/bin/env node\nconsole.log('repaired')\n",
+    )
+    .unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins, &options).unwrap();
+    assert!(bin_dir_is_relocatable(&bins, &root));
+    let moved = tmp.path().join("moved");
+    let relative_bins = bins.strip_prefix(&root).unwrap();
+    fs::rename(&root, &moved).unwrap();
+    let output = run_command(
+        Command::new(moved.join(relative_bins).join("js-yaml"))
+            .env_remove("NODE_PATH")
+            .env_remove("NODE_OPTIONS"),
+    );
+    eprintln!("repaired and relocated: {output:?}");
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8(output.stdout).unwrap().trim(), "repaired");
+}
+
+#[test]
+fn dependency_symlink_loop_still_fails_bin_linking() {
+    let tmp = tempdir().unwrap();
+    let root = dunce::canonicalize(tmp.path()).unwrap();
+    let package = root.join("package");
+    symlink("package", &package).unwrap();
+    let error = link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(
+            package.clone(),
+            Arc::new(json!({"name": "foo", "bin": "bin/cli.js"})),
+        )],
+        &root.join(".bin"),
+        &LinkBinsOptions { relocatable_root: Some(root.clone()), ..LinkBinsOptions::default() },
+    )
+    .unwrap_err();
+    eprintln!("symlink loop: {error:?}");
+    assert!(
+        matches!(error, crate::LinkBinsError::ResolvePath { path, .. } if path == package.join("bin")),
+    );
 }

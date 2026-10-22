@@ -9,12 +9,11 @@ const REGISTRY = 'https://registry.npmjs.org/'
 function fooFetchResult (): FetchMetadataResult {
   return {
     meta: { name: 'foo' } as PackageMeta,
-    jsonText: '{"name":"foo"}',
     etag: '"abc"',
   }
 }
 
-test('the initiating caller receives the raw body; cache hits get a body-less clone sharing the same meta', async () => {
+test('the initiating caller receives the fetched result; cache hits get a clone sharing the same meta', async () => {
   const result = fooFetchResult()
   let calls = 0
   const { fetch } = memoizeFetchMetadata(async () => {
@@ -25,19 +24,16 @@ test('the initiating caller receives the raw body; cache hits get a body-less cl
   const first = await fetch('foo', { registry: REGISTRY })
   expect(first).toBe(result)
   if (first.notModified) throw new Error('expected a fresh fetch result')
-  expect(first.jsonText).toBe('{"name":"foo"}')
 
   const second = await fetch('foo', { registry: REGISTRY })
   expect(calls).toBe(1)
   if (second.notModified) throw new Error('expected a cached fetch result')
-  expect(second.jsonText).toBeUndefined()
+  expect(second).not.toBe(result)
   expect(second.meta).toBe(result.meta)
   expect(second.etag).toBe(result.etag)
-  // The clone keeps the original intact for the initiating caller.
-  expect(result.jsonText).toBe('{"name":"foo"}')
 })
 
-test('callers sharing an in-flight fetch receive the same raw body', async () => {
+test('callers sharing an in-flight fetch receive the same result', async () => {
   let release!: (result: FetchMetadataResult) => void
   const { fetch } = memoizeFetchMetadata(async () => new Promise<FetchMetadataResult>((resolve) => {
     release = resolve
@@ -48,8 +44,6 @@ test('callers sharing an in-flight fetch receive the same raw body', async () =>
   release(fooFetchResult())
 
   const [first, second] = await Promise.all([firstPromise, secondPromise])
-  if (first.notModified || second.notModified) throw new Error('expected fresh fetch results')
-  expect(first.jsonText).toBe('{"name":"foo"}')
   expect(second).toBe(first)
 })
 
@@ -163,7 +157,6 @@ test('a throwing condenseSettledMeta falls back to retaining the uncondensed met
   const second = await fetch('foo', { registry: REGISTRY })
   if (second.notModified) throw new Error('expected a cached fetch result')
   expect(second.meta).toBe(result.meta)
-  expect(second.jsonText).toBeUndefined()
 })
 
 test('condenseSettledMeta narrows the retained meta while the initiating caller sees the original', async () => {

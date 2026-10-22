@@ -1,7 +1,7 @@
 use super::{
     Body, Duration, Request, ServiceExt, StatusCode, TempDir, await_no_tgz, body_bytes, config_for,
-    json, mock_packument_for_tarball, public_cache_pkg, router, sha512_integrity,
-    spawn_truncated_upstream, tarball_cache_entries,
+    json, mock_packument_for_tarball, public_cache_blobs, public_cache_pkg, router,
+    sha512_integrity, spawn_truncated_upstream, tarball_cache_entries,
 };
 
 /// Stale-if-error: once a cached packument is stale, a refetch that fails
@@ -32,7 +32,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -58,7 +58,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     // The stale cached packument is served (200), not a 502.
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -96,7 +96,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -118,7 +118,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
 
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -148,7 +148,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let packument = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -159,14 +159,14 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let req1 = app
         .clone()
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         );
     let req2 = app
         .clone()
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         );
@@ -179,7 +179,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 
     // Any overlapping verified writes atomically target the same final
     // path, so one tarball remains with no temporary siblings.
-    let dir = public_cache_pkg(&cache_dir, "foo");
+    let dir = public_cache_blobs(&cache_dir, "foo");
     let entries = tarball_cache_entries(&dir);
     assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
 
@@ -209,7 +209,7 @@ async fn cache_tmp_open_failure_fails_closed() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -218,7 +218,7 @@ async fn cache_tmp_open_failure_fails_closed() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     // The cache path under the not-a-dir should not exist.
-    let cache_path = public_cache_pkg(&blocked, "foo").join("foo-1.0.0.tgz");
+    let cache_path = public_cache_blobs(&blocked, "foo").join("foo-1.0.0.tgz");
     assert!(!cache_path.exists());
 }
 
@@ -238,7 +238,7 @@ async fn malformed_upstream_json_maps_to_bad_gateway() {
 
     let response = app
         .oneshot(
-            Request::get("/borked")
+            Request::get("/npm/borked")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -258,7 +258,7 @@ async fn upstream_stream_error_clears_cache() {
 
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -273,7 +273,7 @@ async fn upstream_stream_error_clears_cache() {
     );
 
     // The incomplete body is never promoted to the cache.
-    assert!(await_no_tgz(&public_cache_pkg(&cache_dir, "foo"), Duration::from_secs(1)).await);
+    assert!(await_no_tgz(&public_cache_blobs(&cache_dir, "foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
@@ -294,7 +294,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
 
     let response = app
         .oneshot(
-            Request::get("/big/-/big-1.0.0.tgz")
+            Request::get("/npm/big/-/big-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -305,7 +305,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
     // end-of-stream SRI check that promotes the verified bytes to the cache.
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 
-    let cache_path = public_cache_pkg(&cache_dir, "big").join("big-1.0.0.tgz");
+    let cache_path = public_cache_blobs(&cache_dir, "big").join("big-1.0.0.tgz");
     assert_eq!(std::fs::read(cache_path).unwrap(), bytes);
 }
 
@@ -330,7 +330,7 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
     // them even when the client offers `Accept-Encoding: gzip`.
     let response = app
         .oneshot(
-            Request::get("/foo/-/foo-1.0.0.tgz")
+            Request::get("/npm/foo/-/foo-1.0.0.tgz")
                 .header("accept-encoding", "gzip")
                 .body(Body::empty())
                 .unwrap(),
@@ -378,7 +378,7 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -389,7 +389,7 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
 
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -428,7 +428,7 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/foo/-/foo-1.0.0.tgz")
+                Request::get("/npm/foo/-/foo-1.0.0.tgz")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -440,9 +440,9 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
 
     // Nothing was mirrored: the package dir either doesn't exist or holds
     // no tarball or temp tarball. Both requests therefore went to the upstream.
-    let package_dir = public_cache_pkg(&cache_dir, "foo");
+    let blobs_dir = public_cache_blobs(&cache_dir, "foo");
     assert!(
-        tarball_cache_entries(&package_dir).is_empty(),
+        tarball_cache_entries(&blobs_dir).is_empty(),
         "a cache:false upstream must not write tarballs to the mirror",
     );
 
@@ -473,7 +473,7 @@ async fn upstream_404_purges_cached_packument() {
     let first = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -497,7 +497,7 @@ async fn upstream_404_purges_cached_packument() {
     let gone = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -510,11 +510,49 @@ async fn upstream_404_purges_cached_packument() {
     let dead = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
     let outage = dead
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_ne!(outage.status(), StatusCode::OK, "purged package must not be served stale");
+}
+
+#[tokio::test]
+async fn upstream_packument_concurrent_fetches_are_coalesced_by_singleflight() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "coalesce-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "coalesce-pkg", "version": "1.0.0" } },
+    });
+    // Upstream expects exactly 1 fetch despite 5 concurrent requests from different clients
+    let mock = upstream
+        .mock("GET", "/coalesce-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let app = router(config);
+
+    let tasks = (0..5).map(|_| {
+        let app = app.clone();
+        tokio::spawn(async move {
+            let request = Request::get("/npm/coalesce-pkg")
+                .body(Body::empty())
+                .unwrap();
+            let response = app.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = body_bytes(response.into_body()).await;
+            assert!(!bytes.is_empty());
+        })
+    });
+
+    futures_util::future::try_join_all(tasks).await.unwrap();
+    mock.assert_async().await;
 }

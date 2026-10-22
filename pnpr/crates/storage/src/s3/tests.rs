@@ -251,7 +251,7 @@ async fn remove_blob_then_package() {
 
 #[tokio::test]
 async fn lists_hosted_package_names() {
-    for prefix in ["", "packages"] {
+    for prefix in ["", "packages", "npm~internal"] {
         let (store, _staging) = store_with_prefix(prefix);
         write_document(&store, &pkg("is-positive"), b"{}").await;
         write_document(&store, &pkg("@scope/thing"), b"{}").await;
@@ -520,7 +520,22 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     assert!(
         files
             .iter()
-            .any(|file| file.path == "acme/app/tool/sha256-child"),
+            .any(|file| file.package == "acme/app/tool"
+                && file.blob.as_deref() == Some("sha256-child")),
+    );
+
+    let (store, _staging) = store_with_prefix("npm~internal");
+    let pkg_name = pkg("@scope/thing");
+    upload(&store, &pkg_name, "thing-1.0.0.tgz", b"tarball").await;
+    write_document(&store, &pkg_name, b"{}").await;
+    let files =
+        crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
+    assert_eq!(files.len(), 2);
+    assert!(
+        files
+            .iter()
+            .any(|file| file.package == "@scope/thing"
+                && file.blob.as_deref() == Some("thing-1.0.0.tgz")),
     );
 }
 
@@ -620,4 +635,163 @@ async fn record_keys_are_listed_relative_to_their_namespace() {
     keys.sort();
     assert_eq!(keys, ["demo/100.json", "other/200.json"]);
     assert_eq!(store.list_record_keys(".staged").await.unwrap(), ["stage.json"]);
+}
+
+#[tokio::test]
+async fn empty_records_can_be_created_read_replaced_and_listed() {
+    let (store, _staging) = store_with_prefix("");
+    assert!(store.create_record(".test-records", "empty.json", b"").await.unwrap());
+    assert_eq!(store.read_record(".test-records", "empty.json").await.unwrap(), Some(Vec::new()));
+    assert_eq!(store.list_record_keys(".test-records").await.unwrap(), ["empty.json"]);
+
+    let replaced = store
+        .replace_record_if_current(".test-records", "empty.json", b"", b"non-empty")
+        .await
+        .unwrap();
+    assert_eq!(replaced, DocumentWrite::Written);
+    assert_eq!(
+        store
+            .read_record(".test-records", "empty.json")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(&b"non-empty"[..]),
+    );
+}
+
+#[tokio::test]
+async fn remove_record_if_current_requires_matching_content() {
+    let (store, _staging) = store_with_prefix("");
+    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
+
+    let removed = store
+        .remove_record_if_current(".staged", "stage.json", br#"{"id":"wrong"}"#)
+        .await
+        .unwrap();
+    assert!(!removed);
+    assert_eq!(
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(&br#"{"id":"stage"}"#[..]),
+    );
+
+    let removed = store
+        .remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#)
+        .await
+        .unwrap();
+    assert!(removed);
+    assert_eq!(store.read_record(".staged", "stage.json").await.unwrap(), None);
+}
+
+#[derive(Debug)]
+struct ReplaceOnGetStore {
+    inner: Arc<dyn ObjectStore>,
+    target_path: ObjectPath,
+    replacement: Vec<u8>,
+    replaced: std::sync::atomic::AtomicBool,
+}
+
+impl std::fmt::Display for ReplaceOnGetStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ReplaceOnGetStore")
+    }
+}
+
+#[async_trait::async_trait]
+impl ObjectStore for ReplaceOnGetStore {
+    async fn put_opts(
+        &self,
+        location: &ObjectPath,
+        payload: PutPayload,
+        opts: object_store::PutOptions,
+    ) -> object_store::Result<object_store::PutResult> {
+        self.inner.put_opts(location, payload, opts).await
+    }
+
+    async fn put_multipart_opts(
+        &self,
+        location: &ObjectPath,
+        opts: object_store::PutMultipartOptions,
+    ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+        self.inner.put_multipart_opts(location, opts).await
+    }
+
+    async fn get_opts(
+        &self,
+        location: &ObjectPath,
+        options: object_store::GetOptions,
+    ) -> object_store::Result<object_store::GetResult> {
+        let result = self.inner.get_opts(location, options).await?;
+        if location == &self.target_path
+            && !self.replaced.swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            self.inner.put(location, PutPayload::from(self.replacement.clone())).await?;
+        }
+        Ok(result)
+    }
+
+    fn delete_stream(
+        &self,
+        locations: futures_util::stream::BoxStream<'static, object_store::Result<ObjectPath>>,
+    ) -> futures_util::stream::BoxStream<'static, object_store::Result<ObjectPath>> {
+        self.inner.delete_stream(locations)
+    }
+
+    fn list(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> futures_util::stream::BoxStream<'static, object_store::Result<object_store::ObjectMeta>>
+    {
+        self.inner.list(prefix)
+    }
+
+    async fn list_with_delimiter(
+        &self,
+        prefix: Option<&ObjectPath>,
+    ) -> object_store::Result<object_store::ListResult> {
+        self.inner.list_with_delimiter(prefix).await
+    }
+
+    async fn copy_opts(
+        &self,
+        from: &ObjectPath,
+        to: &ObjectPath,
+        options: object_store::CopyOptions,
+    ) -> object_store::Result<()> {
+        self.inner.copy_opts(from, to, options).await
+    }
+}
+
+#[tokio::test]
+async fn remove_record_if_current_preserves_concurrent_replacement() {
+    let staging = tempdir().expect("tempdir");
+    let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let target_path = ObjectPath::from(".staged/stage.json");
+    let hook_store = Arc::new(ReplaceOnGetStore {
+        inner: Arc::clone(&inner),
+        target_path,
+        replacement: br#"{"id":"stage","v":2}"#.to_vec(),
+        replaced: std::sync::atomic::AtomicBool::new(false),
+    });
+    let store = S3Store::new(hook_store, String::new(), staging.path().to_path_buf());
+
+    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
+
+    let removed = store
+        .remove_record_if_current(".staged", "stage.json", br#"{"id":"stage"}"#)
+        .await
+        .unwrap();
+    assert!(!removed);
+
+    assert_eq!(
+        store
+            .read_record(".staged", "stage.json")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some(&br#"{"id":"stage","v":2}"#[..]),
+    );
 }

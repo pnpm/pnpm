@@ -1,7 +1,8 @@
 use super::{
-    super::{MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
+    super::{TokenBackend, TokenRecord, UpsertOutcome, UserBackend},
     AuthSqlBackend, InsertUser, SqlAuth, StoredUser,
 };
+use crate::validation::MAX_USERNAME_CHARS;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
@@ -56,10 +57,6 @@ impl AuthSqlBackend for CanonicalBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
@@ -70,6 +67,22 @@ impl AuthSqlBackend for CanonicalBackend {
 
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -100,12 +113,8 @@ impl AuthSqlBackend for SlowLookupBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        tokio::time::sleep(Duration::from_mins(1)).await;
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
+        tokio::time::sleep(Duration::from_mins(1)).await;
         Ok(None)
     }
 
@@ -115,6 +124,22 @@ impl AuthSqlBackend for SlowLookupBackend {
 
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -146,10 +171,6 @@ impl AuthSqlBackend for SlowWriteBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
@@ -161,6 +182,22 @@ impl AuthSqlBackend for SlowWriteBackend {
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         tokio::time::sleep(Duration::from_millis(20)).await;
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -192,10 +229,6 @@ impl AuthSqlBackend for CountingLookupBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
@@ -206,6 +239,22 @@ impl AuthSqlBackend for CountingLookupBackend {
 
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 
@@ -237,10 +286,6 @@ impl AuthSqlBackend for CappedBackend {
         Ok(())
     }
 
-    async fn lookup_token(&self, _token_hash: &str) -> Result<Option<String>> {
-        Ok(None)
-    }
-
     async fn find_token(&self, _token_hash: &str) -> Result<Option<TokenRecord>> {
         Ok(None)
     }
@@ -251,6 +296,22 @@ impl AuthSqlBackend for CappedBackend {
 
     async fn delete_token(&self, _token_hash: &str) -> Result<()> {
         Ok(())
+    }
+
+    async fn list_usernames(&self) -> Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+
+    async fn update_password_hash(
+        &self,
+        _username: &str,
+        _bcrypt_hash: &str,
+    ) -> Result<PasswordChange> {
+        Ok(PasswordChange::NoSuchUser)
+    }
+
+    async fn delete_user(&self, _username: &str) -> Result<UserRemoval> {
+        Ok(UserRemoval::NoSuchUser)
     }
 }
 

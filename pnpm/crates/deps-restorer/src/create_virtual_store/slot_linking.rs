@@ -122,22 +122,22 @@ pub(super) fn link_cold_chunk<Reporter: self::Reporter>(
                 snapshot_needs_build_marker(capture.snapshot_key, capture.requires_build);
             SlotLink {
                 source: crate::SlotImportSource {
-                    is_mutable: capture.source_is_mutable,
-                    source_exists: capture.source_exists,
+                    is_mutable: capture.installed.source_is_mutable,
+                    source_exists: capture.installed.source_exists,
                     force: capture.force_import,
                     build_marker: needs_build.then_some(marker_path).flatten(),
                     needs_build,
                 },
                 snapshot_key: capture.snapshot_key,
                 snapshot: capture.snapshot,
-                cas_paths: &capture.cas_paths,
+                cas_paths: &capture.installed.cas_paths,
                 warm_cache_key: None,
 
                 dir_clone_cacheable: dir_clone_cacheable(
                     packages,
                     capture.snapshot_key,
                     needs_build,
-                    capture.source_is_mutable,
+                    capture.installed.source_is_mutable,
                     capture.force_import,
                 ),
                 removed_aliases: removed_aliases_for(removed_aliases_by_key, capture.snapshot_key),
@@ -166,7 +166,7 @@ pub(super) fn link_slots_parallel<Reporter: self::Reporter>(
     let groups = group_slots_by_dir(opts.slots, opts.link.layout);
     let link_work =
         || groups.par_iter().try_for_each(|group| link_slot_group::<Reporter>(group, &opts));
-    crate::block_in_place_if_multi_thread(link_work)?;
+    crate::block_in_place_if_multi_thread(|| crate::link_pool::in_link_pool(link_work))?;
     tracing::info!(
         target: "pacquet::install::phase",
         phase = "link_slots",

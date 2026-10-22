@@ -1,5 +1,6 @@
 pub use placement::marker_present;
 
+mod hardlinks;
 mod placement;
 
 use placement::{all_files_match, file_matches_store_entry, populate_dir};
@@ -7,7 +8,12 @@ use placement::{all_files_match, file_matches_store_entry, populate_dir};
 mod staging;
 use staging::stage_and_swap;
 
-use crate::{LinkFileError, remove_quarantine::remove_quarantine_from_native_binaries};
+#[cfg(windows)]
+mod windows_filenames;
+
+use crate::{
+    LinkFileError, ModulesSwapLock, remove_quarantine::remove_quarantine_from_native_binaries,
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::PackageImportMethod;
@@ -28,12 +34,14 @@ use std::{
 /// shape (no force, no nested-modules preservation); the hoisted
 /// linker passes both flags set to `true`.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct ImportIndexedDirOpts {
+pub struct ImportIndexedDirOpts<'a> {
     /// When `true`, re-import even when `dir_path` already exists,
     /// overwriting the existing contents. Without `force`, an
     /// existing directory short-circuits this function (matches
     /// pnpm's pre-existence check in `importIndexedPackage`).
     pub force: bool,
+    /// Reuse an unchanged mutable directory when every imported file is still hardlinked.
+    pub reuse_hardlinks: bool,
     /// When `true` (only meaningful with `force`), preserve
     /// `dir_path/node_modules/` across the re-import so nested
     /// dependencies survive the rebuild. Required by the hoisted
@@ -49,6 +57,11 @@ pub struct ImportIndexedDirOpts {
     /// When `true`, preserve safe symlinks in the imported package instead of
     /// assuming all entries are regular files.
     pub preserve_symlinks: bool,
+    /// The install's [`ModulesSwapLock`], which serializes this install's
+    /// forced replacements of private targets with those of the other
+    /// installs under the same modules directory. `None` replaces
+    /// unserialized.
+    pub swap_lock: Option<&'a ModulesSwapLock>,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -179,8 +192,40 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     cas_paths: &HashMap<String, PathBuf>,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
-    let existing_kind = existing_dirent_kind(dir_path)?;
+    let result = import_indexed_dir_once::<Reporter>(
+        logged_methods,
+        import_method,
+        dir_path,
+        cas_paths,
+        opts,
+        false,
+    );
+    #[cfg(windows)]
+    if let Err(error) = &result
+        && let Some(paths) =
+            windows_filenames::sanitize_after_not_found::<Reporter>(error, dir_path, cas_paths)
+    {
+        return import_indexed_dir_once::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            &paths,
+            opts,
+            true,
+        );
+    }
+    result
+}
 
+fn import_indexed_dir_once<Reporter: self::Reporter>(
+    logged_methods: &AtomicU8,
+    import_method: PackageImportMethod,
+    dir_path: &Path,
+    cas_paths: &HashMap<String, PathBuf>,
+    opts: ImportIndexedDirOpts,
+    repair_sanitized: bool,
+) -> Result<(), ImportIndexedDirError> {
+    let existing_kind = existing_dirent_kind(dir_path)?;
     // Drop the macOS quarantine xattr from the package's native binaries after
     // a populating import, matching pnpm's `removeQuarantineFromNativeBinaries`.
     // The marker-present short-circuit (and the non-directory dirent left as-is)
@@ -188,12 +233,24 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
     // per-install `xattr` cost — exactly pnpm's `!pkgExistsAtTargetDir` gate.
     let unquarantine = || remove_quarantine_from_native_binaries(dir_path, cas_paths);
     match (existing_kind, opts.force) {
-        (None, _) => import_absent_dir::<Reporter>(
+        // A private target stages even when the target is absent, so that a
+        // sibling forced import's swap cannot remove a directory this one is
+        // filling in place. A shared slot is claimed in place instead, because
+        // nothing may remove it (see `import_into_shared_dir`).
+        (None, _) if !opts.safe_to_skip => stage_and_swap::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
-            opts.safe_to_skip,
+            staging::SwapTarget::Absent,
+            opts,
+        )
+        .inspect(|()| unquarantine()),
+        (None, _) => import_into_shared_dir::<Reporter>(
+            logged_methods,
+            import_method,
+            dir_path,
+            cas_paths,
             opts.preserve_symlinks,
         )
         .inspect(|()| unquarantine()),
@@ -208,13 +265,13 @@ pub fn import_indexed_dir<Reporter: self::Reporter>(
         // work, so an existing dirent is this package's file and is
         // adopted, while a shared one may hold a file an importer died
         // halfway through writing, which only a replacement heals.
-        (Some(file_type), false) if file_type.is_dir() => repair_incomplete_dir::<Reporter>(
+        (Some(file_type), false) if file_type.is_dir() => repair_existing_dir::<Reporter>(
             logged_methods,
             import_method,
             dir_path,
             cas_paths,
-            opts.safe_to_skip,
-            opts.preserve_symlinks,
+            opts,
+            repair_sanitized,
         ),
         // A non-directory dirent is left as-is; only force=true clobbers it.
         (Some(_), false) => Ok(()),
@@ -238,15 +295,17 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
     file_type: fs::FileType,
     opts: ImportIndexedDirOpts,
 ) -> Result<(), ImportIndexedDirError> {
-    if !file_type.is_dir() {
-        return replace_non_dir::<Reporter>(
+    let is_dir = clear_forced_non_dir_target(dir_path, file_type, opts)?;
+    if is_dir
+        && opts.reuse_hardlinks
+        && import_method == PackageImportMethod::Hardlink
+        && hardlinks::directory_matches(dir_path, cas_paths, opts.keep_modules_dir)
+    {
+        crate::link_file::log_method_once::<Reporter>(
             logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            file_type,
-            opts.preserve_symlinks,
+            pnpm_reporter::PackageImportMethod::Hardlink,
         );
+        return Ok(());
     }
     if opts.safe_to_skip {
         return import_into_shared_dir::<Reporter>(
@@ -257,13 +316,15 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
             opts.preserve_symlinks,
         );
     }
+    let swap_target =
+        if is_dir { staging::SwapTarget::Occupied } else { staging::SwapTarget::Absent };
     stage_and_swap::<Reporter>(
         logged_methods,
         import_method,
         dir_path,
         cas_paths,
-        opts.keep_modules_dir,
-        opts.preserve_symlinks,
+        swap_target,
+        opts,
     )
 }
 
@@ -289,7 +350,7 @@ fn existing_dirent_kind(path: &Path) -> Result<Option<fs::FileType>, ImportIndex
 /// what is there, because a slot that exists is either finished, being
 /// filled right now, or left behind by an importer that died mid-file —
 /// and the three are indistinguishable from the outside.
-fn import_into_shared_dir<Reporter: self::Reporter>(
+pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
@@ -338,80 +399,66 @@ fn claim_dir(dir_path: &Path) -> Result<bool, ImportIndexedDirError> {
     }
 }
 
-// An absent shared target can be created concurrently; exclusive mkdir establishes ownership.
-fn import_absent_dir<Reporter: self::Reporter>(
-    logged_methods: &AtomicU8,
-    import_method: PackageImportMethod,
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-    safe_to_skip: bool,
-    preserve_symlinks: bool,
-) -> Result<(), ImportIndexedDirError> {
-    if safe_to_skip {
-        import_into_shared_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            preserve_symlinks,
-        )
-    } else {
-        populate_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            Placement::Fresh,
-            preserve_symlinks.then_some(dir_path),
-        )
-    }
-}
-
 // A marker-less target is a partial import. Shared targets must replace potentially torn files.
-fn repair_incomplete_dir<Reporter: self::Reporter>(
+fn repair_existing_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
-    safe_to_skip: bool,
-    preserve_symlinks: bool,
+    opts: ImportIndexedDirOpts,
+    repair_sanitized: bool,
 ) -> Result<(), ImportIndexedDirError> {
-    if marker_present(dir_path, cas_paths) {
-        Ok(())
-    } else {
-        populate_dir::<Reporter>(
-            logged_methods,
-            import_method,
-            dir_path,
-            cas_paths,
-            Placement::for_target(safe_to_skip),
-            preserve_symlinks.then_some(dir_path),
-        )
-        .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
+    // The first import may have left files that do not match the sanitized map.
+    if !repair_sanitized && marker_present(dir_path, cas_paths) {
+        return Ok(());
     }
-}
-
-fn replace_non_dir<Reporter: self::Reporter>(
-    logged_methods: &AtomicU8,
-    import_method: PackageImportMethod,
-    dir_path: &Path,
-    cas_paths: &HashMap<String, PathBuf>,
-    file_type: fs::FileType,
-    preserve_symlinks: bool,
-) -> Result<(), ImportIndexedDirError> {
-    remove_non_dir_dirent(dir_path, file_type)
-        .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
-            path: dir_path.to_path_buf(),
-            error,
-        })?;
+    if !opts.safe_to_skip {
+        if let Some(swap_lock) = opts.swap_lock {
+            swap_lock.hold();
+        }
+        if !repair_sanitized && marker_present(dir_path, cas_paths) {
+            return Ok(());
+        }
+    }
     populate_dir::<Reporter>(
         logged_methods,
         import_method,
         dir_path,
         cas_paths,
-        Placement::Fresh,
-        preserve_symlinks.then_some(dir_path),
+        Placement::for_target(opts.safe_to_skip || repair_sanitized),
+        opts.preserve_symlinks.then_some(dir_path),
     )
+    .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
+}
+
+fn clear_forced_non_dir_target(
+    dir_path: &Path,
+    file_type: fs::FileType,
+    opts: ImportIndexedDirOpts,
+) -> Result<bool, ImportIndexedDirError> {
+    if file_type.is_dir() {
+        return Ok(true);
+    }
+    let current = if !opts.safe_to_skip
+        && let Some(swap_lock) = opts.swap_lock
+    {
+        swap_lock.hold();
+        existing_dirent_kind(dir_path)?
+    } else {
+        Some(file_type)
+    };
+    match current {
+        Some(current) if current.is_dir() => Ok(true),
+        Some(current) => {
+            remove_non_dir_dirent(dir_path, current)
+                .map_err(|error| ImportIndexedDirError::ClearNonDirEntry {
+                    path: dir_path.to_path_buf(),
+                    error,
+                })?;
+            Ok(false)
+        }
+        None => Ok(false),
+    }
 }
 
 /// Remove a non-directory dirent at `path`.
@@ -424,12 +471,24 @@ fn replace_non_dir<Reporter: self::Reporter>(
 /// so a dangling junction left behind by a deleted target is unlinked
 /// too.
 fn remove_non_dir_dirent(path: &Path, file_type: fs::FileType) -> io::Result<()> {
-    #[cfg(windows)]
-    if std::os::windows::fs::FileTypeExt::is_symlink_dir(&file_type) {
-        return pnpm_fs::remove_dir_with_retry(path);
+    let result = {
+        #[cfg(windows)]
+        if std::os::windows::fs::FileTypeExt::is_symlink_dir(&file_type) {
+            pnpm_fs::remove_dir_with_retry(path)
+        } else {
+            pnpm_fs::remove_file_with_retry(path)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = file_type;
+            pnpm_fs::remove_file_with_retry(path)
+        }
+    };
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
-    let _ = file_type;
-    pnpm_fs::remove_file_with_retry(path)
 }
 
 #[cfg(test)]

@@ -54,6 +54,19 @@ struct HoistedLinkScope<'a> {
     is_workspace_root: bool,
 }
 
+/// The outcome of linking one direct dependency. Under
+/// [`DirectLink::RootShadowRemoved`] the alias resolves by walking up out of
+/// the project, so its bins are not this importer's to link.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirectLink {
+    /// The project's own `node_modules` already resolved the alias.
+    Unchanged,
+    /// A new symlink resolves the alias inside the project.
+    Created,
+    /// The copy that shadowed the workspace root's is gone.
+    RootShadowRemoved,
+}
+
 impl HoistedLinkScope<'_> {
     fn link_direct_dependencies(
         &self,
@@ -68,10 +81,13 @@ impl HoistedLinkScope<'_> {
         let mut linked_names = Vec::new();
         let mut changed = false;
         for (alias, target) in direct_dependencies {
-            let (linked, replaced) = self.link_one(alias, target)?;
-            changed |= replaced;
-            if linked {
-                linked_names.push(alias.clone());
+            match self.link_one(alias, target)? {
+                DirectLink::Unchanged => linked_names.push(alias.clone()),
+                DirectLink::Created => {
+                    changed = true;
+                    linked_names.push(alias.clone());
+                }
+                DirectLink::RootShadowRemoved => changed = true,
             }
         }
         if !changed && self.already_linked(&linked_names, initial_sources) {
@@ -102,9 +118,7 @@ impl HoistedLinkScope<'_> {
         })
     }
 
-    /// `Ok(true)` when the alias now resolves inside the project's own
-    /// `node_modules`, so its bins are this importer's to link.
-    fn link_one(&self, alias: &str, target: &Path) -> Result<(bool, bool), HoistedLinkerError> {
+    fn link_one(&self, alias: &str, target: &Path) -> Result<DirectLink, HoistedLinkerError> {
         let link_path =
             crate::safe_join_modules_dir::safe_join_modules_dir(&self.modules_dir, alias)
                 .map_err(|source| {
@@ -120,14 +134,14 @@ impl HoistedLinkScope<'_> {
                 == pnpm_fs::lexical_normalize(&self.root_modules_dir.join(alias))
         {
             self.remove_root_shadow(alias, target, &link_path)?;
-            return Ok((false, true));
+            return Ok(DirectLink::RootShadowRemoved);
         }
         if pnpm_fs::lexical_normalize(&link_path) == pnpm_fs::lexical_normalize(target) {
-            return Ok((true, false));
+            return Ok(DirectLink::Unchanged);
         }
         crate::symlink_package(target, &link_path)
             .map_err(|source| self.symlink_failure(alias, source))?;
-        Ok((true, true))
+        Ok(DirectLink::Created)
     }
 
     /// An install that predates the walk-up rule, or one where the

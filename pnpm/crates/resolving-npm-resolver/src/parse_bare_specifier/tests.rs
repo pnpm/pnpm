@@ -206,6 +206,44 @@ fn tarball_url_for_scoped_package_decodes_path() {
 }
 
 #[test]
+fn tarball_url_under_registry_with_path_is_parsed() {
+    let registry = "https://example.com/artifactory/api/npm/npm-remote/";
+    let url = "https://example.com/artifactory/api/npm/npm-remote/foo/-/foo-1.0.0.tgz";
+    let spec = parse_bare_specifier(url, None, DEFAULT_TAG, registry).unwrap();
+    assert_eq!(spec.name, "foo");
+    assert_eq!(spec.fetch_spec, "1.0.0");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+    assert_eq!(spec.normalized_bare_specifier.as_deref(), Some(url));
+}
+
+#[test]
+fn scoped_tarball_url_under_registry_with_path_is_parsed() {
+    let registry = "https://example.com/npm/";
+    let url = "https://example.com/npm/@scope/foo/-/foo-1.0.0.tgz";
+    let spec = parse_bare_specifier(url, None, DEFAULT_TAG, registry).unwrap();
+    assert_eq!(spec.name, "@scope/foo");
+    assert_eq!(spec.fetch_spec, "1.0.0");
+    assert_eq!(spec.spec_type, RegistryPackageSpecType::Version);
+}
+
+#[test]
+fn tarball_url_in_sibling_of_registry_path_declines() {
+    let registry = "https://example.com/npm";
+    let url = "https://example.com/npm-other/foo/-/foo-1.0.0.tgz";
+    assert!(parse_bare_specifier(url, None, DEFAULT_TAG, registry).is_none());
+}
+
+#[test]
+fn tarball_url_with_malformed_escape_declines() {
+    for url in [
+        "https://registry.npmjs.org/foo%ZZ/-/foo%ZZ-1.0.0.tgz",
+        "https://registry.npmjs.org/foo%FF/-/foo%FF-1.0.0.tgz",
+    ] {
+        assert!(parse_bare_specifier(url, None, DEFAULT_TAG, REGISTRY).is_none(), "{url}");
+    }
+}
+
+#[test]
 fn unrelated_url_declines() {
     let url = "https://example.com/foo/-/foo-1.0.0.tgz";
     assert!(parse_bare_specifier(url, None, DEFAULT_TAG, REGISTRY).is_none());

@@ -12,7 +12,7 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     diagnostics::assert_diagnostic_contains,
-    fs::{backdate_existing_files, bump_mtime},
+    fs::bump_mtime,
 };
 use serde_json::json;
 use std::{fs, path::Path};
@@ -235,7 +235,7 @@ fn install_action_reruns_a_production_only_install() {
 }
 
 #[test]
-fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
+fn dedupe_peers_lockfile_rewrite_installs_before_running_the_script() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -271,20 +271,27 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         "x",
     );
 
-    let mut state = pnpm_workspace_state::load_workspace_state(&workspace)
-        .expect("read workspace state")
-        .expect("installed workspace state");
-    state.last_validated_timestamp = backdate_existing_files(&workspace);
-    pnpm_workspace_state::update_workspace_state(&workspace, &state)
-        .expect("record backdated validation");
-
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove pnpm-lock.yaml");
     pacquet_in(&workspace)
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
-    let regenerated_lockfile =
+    pacquet_in(&workspace)
+        .with_args(["run", "hello"])
+        .assert()
+        .success();
+    assert_eq!(
+        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
+        "xh",
+        "a regenerated lockfile with the same content needs no install",
+    );
+
+    // The same lockfile in another layout has to be content-checked, and the
+    // run gate checks it without `dedupePeers`, as pnpm's does.
+    let mut relaid_lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
+    relaid_lockfile.push('\n');
+    fs::write(workspace.join("pnpm-lock.yaml"), &relaid_lockfile).expect("rewrite the lockfile");
 
     let output = pacquet_in(&workspace)
         .with_args(["run", "hello"])
@@ -313,11 +320,11 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
     assert_eq!(
         fs::read_to_string(workspace.join("pnpm-lock.yaml"))
             .expect("read lockfile after verifier install"),
-        regenerated_lockfile,
+        relaid_lockfile,
     );
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xxh",
+        "xhxh",
     );
 
     pacquet_in(&workspace)
@@ -326,7 +333,7 @@ fn dedupe_peers_lockfile_regeneration_installs_before_running_the_script() {
         .success();
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xxhh",
+        "xhxhh",
     );
 
     drop((root, mock_instance));
@@ -1326,6 +1333,94 @@ fn exec_installs_the_selected_project_after_a_filtered_install() {
     drop((root, mock_instance));
 }
 
+/// A filtered install refreshes the recorded validation for the whole
+/// workspace, so a project installed before it whose dependencies changed
+/// since is still outdated when a later filtered command selects it
+/// ([pnpm/pnpm#17011](https://github.com/pnpm/pnpm/issues/17011)).
+#[test]
+fn exec_installs_the_changed_dependencies_of_a_project_a_filtered_install_left_behind() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    let write_projects = |dependencies: serde_json::Value| {
+        for name in ["foo", "bar"] {
+            let project = workspace.join("packages").join(name);
+            fs::create_dir_all(&project).expect("create workspace project");
+            write_named_manifest_with_dependency_groups(
+                &project,
+                name,
+                &project.join("marker.txt"),
+                json!({ "dependencies": dependencies }),
+            );
+        }
+    };
+    write_projects(json!({ "@pnpm.e2e/foo": "100.0.0" }));
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    // what a `git pull` brings in: both manifests and the lockfile change
+    write_projects(json!({ "@pnpm.e2e/foo": "100.0.0", "@pnpm.e2e/bar": "100.0.0" }));
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "exec", "node", "-e", ""])
+        .assert()
+        .success();
+    assert!(workspace.join("packages/foo/node_modules/@pnpm.e2e/bar").exists());
+    assert!(!workspace.join("packages/bar/node_modules/@pnpm.e2e/bar").exists());
+
+    let exec_bar = |action: &str| {
+        pacquet_in(&workspace)
+            .with_args([
+                &format!("--config.verify-deps-before-run={action}"),
+                "--filter",
+                "bar",
+                "exec",
+                "node",
+                "-e",
+                "",
+            ])
+            .output()
+            .expect("spawn pacquet exec")
+    };
+    let output = exec_bar("error");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success()
+            && stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN")
+            && stderr.contains("the installed dependencies are not up to date with the lockfile"),
+        "the project the filtered install left behind must be reported outdated:\n{stderr}",
+    );
+
+    let output = exec_bar("install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "the filtered exec must succeed:\n{stderr}");
+    assert!(
+        workspace.join("packages/bar/node_modules/@pnpm.e2e/bar").exists(),
+        "the filtered exec must install the changed dependencies of the project it selected:\n{stderr}",
+    );
+
+    let output = exec_bar("error");
+    assert!(
+        output.status.success(),
+        "the install the gate spawned must leave the selected project current:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A selected project needs the workspace projects it depends on installed
 /// too, so the install the gate spawns selects the dependencies of the
 /// selected projects.
@@ -1423,6 +1518,106 @@ fn filtered_exec_with_workspace_root_installs_the_root() {
     drop((root, mock_instance));
 }
 
+/// A filtered install that prunes direct dependencies leaves the workspace
+/// root alone, so the state must not record the root as installed, and a later
+/// command that selects the root must not treat its dependencies as up to date.
+#[test]
+fn filtered_install_that_prunes_direct_dependencies_does_not_vouch_for_the_workspace_root() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_named_manifest_with_dependency_groups(
+        &workspace,
+        "root",
+        &workspace.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "=100.0.0" } }),
+    );
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - '**'\n  - '!store/**'\n")
+        .expect("write pnpm-workspace.yaml");
+    let foo = workspace.join("foo");
+    fs::create_dir_all(&foo).expect("create workspace project");
+    write_named_manifest_with_dependency_groups(
+        &foo,
+        "foo",
+        &foo.join("marker.txt"),
+        json!({ "dependencies": { "@pnpm.e2e/foo": "=100.0.0" } }),
+    );
+
+    pacquet_in(&workspace)
+        .with_args(["--filter=foo", "--config.prune-direct-dependencies=true", "install"])
+        .assert()
+        .success();
+
+    assert!(!workspace.join("node_modules/@pnpm.e2e/foo").exists());
+    assert!(workspace.join("foo/node_modules/@pnpm.e2e/foo").exists());
+
+    let read_state = || -> serde_json::Value {
+        serde_json::from_str(
+            &fs::read_to_string(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+                .expect("read workspace state"),
+        )
+        .expect("parse workspace state")
+    };
+    let state = read_state();
+    assert_eq!(state["filteredInstall"], json!(true));
+    let manifests = state["validation"]["manifests"]
+        .as_object()
+        .expect("validation.manifests must be an object");
+    assert_eq!(manifests.keys().collect::<Vec<_>>(), vec!["foo"]);
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--filter=foo",
+            "--workspace-root",
+            "--config.verify-deps-before-run=error",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success()
+            && stderr.contains("Workspace package root has dependencies but was not installed"),
+        "expected workspace root not installed error:\n{stderr}",
+    );
+    let manifests = read_state()["validation"]["manifests"]
+        .as_object()
+        .expect("validation.manifests must be an object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(manifests, vec!["foo"]);
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--filter=foo",
+            "--workspace-root",
+            "--config.verify-deps-before-run=install",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .assert()
+        .success();
+    assert!(workspace.join("node_modules/@pnpm.e2e/foo").exists());
+    let state = read_state();
+    assert_eq!(state["filteredInstall"], json!(false));
+    let mut manifests = state["validation"]["manifests"]
+        .as_object()
+        .expect("validation.manifests must be an object")
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    manifests.sort();
+    assert_eq!(manifests, vec![".", "foo"]);
+
+    drop((root, mock_instance));
+}
+
 /// A filtered install leaves the workspace dependencies of the projects it
 /// selected without a modules directory too, but the install the gate spawns
 /// for a filtered command selects them, so the status check has to hold them
@@ -1484,6 +1679,141 @@ fn filtered_exec_installs_a_workspace_dependency_a_filtered_install_left_alone()
         workspace.join("packages/bar/node_modules/@pnpm.e2e/foo").exists(),
         "the filtered exec must install the workspace dependency of the project it selected:\n{stderr}",
     );
+
+    drop((root, mock_instance));
+}
+
+/// Under dedicated lockfiles with `injectWorkspacePackages`, an injected
+/// `workspace:*` dependency is a copy inside the dependent project that its
+/// own install covers, whereas an explicit `link:` dependency remains a
+/// symlink whose target project must still be installed
+/// ([pnpm/tasks#179](https://github.com/pnpm/tasks/issues/179)).
+#[test]
+fn filtered_exec_holds_a_link_dependency_under_dedicated_lockfiles_with_injection() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "workspace-root", "version": "0.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "sharedWorkspaceLockfile: false\ninjectWorkspacePackages: true\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let projects = [
+        ("foo", json!({ "dependencies": { "bar": "workspace:*" } })),
+        ("bar", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+        ("baz", json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } })),
+    ];
+    for (name, groups) in projects {
+        let project = workspace.join("packages").join(name);
+        fs::create_dir_all(&project).expect("create workspace project");
+        write_named_manifest_with_dependency_groups(
+            &project,
+            name,
+            &project.join("marker.txt"),
+            groups,
+        );
+    }
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "install"])
+        .assert()
+        .success();
+    assert!(!workspace.join("packages/bar/node_modules").exists());
+
+    // An injected `workspace:*` dependency is covered by `foo`'s own install,
+    // so an uninstalled `bar` does not block a filtered exec on `foo`.
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=error",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("injected-ok")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "an uninstalled injected workspace dependency must not block the filtered exec:\n{stderr}",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "injected-ok");
+
+    // Adding a `link:` dependency to `baz` and installing `foo` alone leaves
+    // `baz` without a modules directory; `link:` remains a symlink even with
+    // injection on, so the gate holds `baz` to the modules-directory check.
+    write_named_manifest_with_dependency_groups(
+        &workspace.join("packages/foo"),
+        "foo",
+        &workspace.join("packages/foo/marker.txt"),
+        json!({ "dependencies": { "bar": "workspace:*", "baz": "link:../baz" } }),
+    );
+    pacquet_in(&workspace)
+        .with_args(["--filter", "foo", "install"])
+        .assert()
+        .success();
+    assert!(!workspace.join("packages/baz/node_modules").exists());
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=error",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success() && stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "a never-installed link: dependency must fail the verify-deps check:\n{stderr}",
+    );
+
+    let output = pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=install",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            r#"process.stdout.write("linked-ok")"#,
+        ])
+        .output()
+        .expect("spawn pacquet exec");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "the filtered exec must install the link: dependency:\n{stderr}",
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "linked-ok");
+    assert!(
+        workspace.join("packages/baz/node_modules/@pnpm.e2e/foo").exists(),
+        "the gate must install the link: dependency:\n{stderr}",
+    );
+
+    pacquet_in(&workspace)
+        .with_args([
+            "--config.verify-deps-before-run=error",
+            "--filter",
+            "foo",
+            "exec",
+            "node",
+            "-e",
+            "0",
+        ])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

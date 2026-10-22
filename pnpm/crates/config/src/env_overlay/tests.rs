@@ -3,6 +3,7 @@ use crate::{
     ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol,
     ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
 };
+use pnpm_store_dir::StoreIndexFormat;
 use pretty_assertions::assert_eq;
 use std::path::Path;
 
@@ -111,6 +112,35 @@ fn empty_env_var_is_treated_as_unset() {
     }
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvEmpty>();
     assert_eq!(settings.store_dir, None);
+}
+
+#[test]
+fn empty_node_options_env_vars_override_lower_layers() {
+    struct UppercaseEmptyNodeOptions;
+    impl EnvVar for UppercaseEmptyNodeOptions {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_NODE_OPTIONS").then(String::new)
+        }
+    }
+    struct LowercaseEmptyNodeOptions;
+    impl EnvVar for LowercaseEmptyNodeOptions {
+        fn var(name: &str) -> Option<String> {
+            (name == "pnpm_config_node_options").then(String::new)
+        }
+    }
+
+    for settings in [
+        WorkspaceSettings::from_pnpm_config_env::<UppercaseEmptyNodeOptions>(),
+        WorkspaceSettings::from_pnpm_config_env::<LowercaseEmptyNodeOptions>(),
+    ] {
+        assert_eq!(settings.node_options.as_ref().map(Option::as_deref), Some(Some("")));
+        let mut config =
+            Config { node_options: Some("--trace-warnings".to_string()), ..Config::default() };
+
+        settings.apply_to(&mut config, Path::new("/workspace"));
+
+        assert_eq!(config.node_options.as_deref(), Some(""));
+    }
 }
 
 /// `savePrefix` is the exception to [`empty_env_var_is_treated_as_unset`]:
@@ -267,6 +297,34 @@ fn tri_array_env_var_parses_arrays_and_rejects_null() {
     assert_eq!(parse_tri_array(r#"["a","b"]"#), Some(Some(vec!["a".to_owned(), "b".to_owned()])));
     assert_eq!(parse_tri_array("null"), None);
     assert_eq!(parse_tri_array("not-json"), None);
+}
+
+#[test]
+fn store_index_format_env_var_parses_its_two_values() {
+    macro_rules! env_with_store_index_format {
+        ($name:ident, $value:expr) => {
+            struct $name;
+            impl EnvVar for $name {
+                fn var(name: &str) -> Option<String> {
+                    (name == "PNPM_CONFIG_STORE_INDEX_FORMAT").then(|| $value.to_owned())
+                }
+            }
+        };
+    }
+
+    env_with_store_index_format!(EnvFiles, "files");
+    env_with_store_index_format!(EnvSqlite, "sqlite");
+    env_with_store_index_format!(EnvNonsense, "postgres");
+
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvFiles>().store_index_format,
+        Some(StoreIndexFormat::Files),
+    );
+    assert_eq!(
+        WorkspaceSettings::from_pnpm_config_env::<EnvSqlite>().store_index_format,
+        Some(StoreIndexFormat::Sqlite),
+    );
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().store_index_format, None);
 }
 
 #[test]

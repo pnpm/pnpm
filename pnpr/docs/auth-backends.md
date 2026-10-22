@@ -33,7 +33,7 @@ low-latency from the server.
 
 ## libsql / Turso
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 
 backend:
@@ -48,19 +48,19 @@ backend:
 | Key | Required | Description |
 | --- | --- | --- |
 | `url` | yes | Database URL — `libsql://<db>.turso.io` (Turso) or `http://<host>:<port>` (self-hosted `sqld`). |
-| `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. |
+| `authToken` | no | Bearer token for the database. Omit for an unauthenticated local `sqld`. pnpr sends it only over `https://` or `libsql://`, or over `http://` to a loopback host, and refuses to start otherwise. |
 | `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |
-| `syncIntervalSecs` | no | How often (seconds) the embedded replica pulls from the primary. Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60`. |
+| `syncInterval` | no | How often the embedded replica pulls from the primary. Accepts an interval string (such as `60s` or `1m`) or integer seconds. Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60s`. `syncIntervalSecs` is also accepted. |
 
 For a remote primary (e.g. Turso), serve reads from a local replica:
 
-```yaml
+```yaml title="pnpr.yaml"
 backend:
   libsql:
     url: ${PNPR_LIBSQL_URL}
     authToken: ${PNPR_LIBSQL_TOKEN}
     replicaPath: ./auth-replica.db
-    syncIntervalSecs: 60
+    syncInterval: 60s
 ```
 
 The trade-off is read freshness: an embedded replica reflects another replica's
@@ -70,7 +70,7 @@ sync, so a lower `syncIntervalSecs` means less revocation lag. Omit
 
 ## PostgreSQL
 
-```yaml
+```yaml title="pnpr.yaml"
 backend:
   postgres:
     url: ${PNPR_POSTGRES_URL}
@@ -81,7 +81,7 @@ backend:
 
 ## MySQL
 
-```yaml
+```yaml title="pnpr.yaml"
 backend:
   mysql:
     url: ${PNPR_MYSQL_URL}
@@ -102,3 +102,20 @@ When the `backend:` block is absent, auth stays on local disk and the
 `auth.htpasswd.max_users` registration cap is honored either way. Omitted
 `max_users` and `max_users: -1` both disable self-registration; set a
 non-negative cap to let new users register.
+
+## Extensibility model
+
+pnpr v1 relies on compile-time Rust trait implementations rather than a
+dynamic plugin runtime (such as WebAssembly, Lua, or dynamic C libraries).
+Custom user storage and token management implement the `UserBackend` and
+`TokenBackend` traits defined in `pnpr-auth`:
+
+- **`UserBackend`** — handles user lookup, credential verification (bcrypt
+  password hashing), user creation, password updates, and deprovisioning.
+- **`TokenBackend`** — manages bearer token creation, validation, listing, and
+  revocation.
+
+Registering custom backends at compile time avoids external scripting runtime
+dependencies (such as WebAssembly or Lua), while request-path backend calls use
+Rust dynamic dispatch through trait objects (`Arc<dyn UserBackend>`,
+`Arc<dyn TokenBackend>`).

@@ -19,6 +19,8 @@ nodeVersion: "22.22.3"
 saveExact: true
 ```
 
+`pnpm-workspace.yaml` can delegate settings to other files and to config dependencies. See [Splitting Settings Across Files](./config-includes.md).
+
 ## Global configuration
 
 The global YAML config file (`config.yaml`) is located at one of the following paths:

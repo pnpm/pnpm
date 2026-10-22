@@ -4,6 +4,7 @@ use super::{
     header, hosted_with_access, json, mock_package, mock_packument_for_tarball,
     read_registry_directory, registry_groups, router, router_config, router_with_auth,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn scoped_packument_is_served() {
@@ -22,7 +23,7 @@ async fn scoped_packument_is_served() {
 
     let response = app
         .oneshot(
-            Request::get("/@types/node")
+            Request::get("/npm/@types/node")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -63,17 +64,22 @@ async fn every_address_of_one_scoped_package_reaches_it() {
         }
     };
 
-    for path in ["/@types/node", "/@types%2Fnode", "/~npmjs/@types/node", "/~npmjs/@types%2Fnode"] {
+    for path in [
+        "/npm/@types/node",
+        "/npm/@types%2Fnode",
+        "/npm/~npmjs/@types/node",
+        "/npm/~npmjs/@types%2Fnode",
+    ] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
         assert_eq!(body_json(response.into_body()).await["name"], "@types/node", "GET {path}");
     }
 
     for path in [
-        "/@types/node/20.0.0",
-        "/@types%2Fnode/20.0.0",
-        "/~npmjs/@types/node/20.0.0",
-        "/~npmjs/@types%2Fnode/20.0.0",
+        "/npm/@types/node/20.0.0",
+        "/npm/@types%2Fnode/20.0.0",
+        "/npm/~npmjs/@types/node/20.0.0",
+        "/npm/~npmjs/@types%2Fnode/20.0.0",
     ] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
@@ -81,10 +87,10 @@ async fn every_address_of_one_scoped_package_reaches_it() {
     }
 
     for path in [
-        "/@types/node/-/node-20.0.0.tgz",
-        "/@types%2Fnode/-/node-20.0.0.tgz",
-        "/~npmjs/@types/node/-/node-20.0.0.tgz",
-        "/~npmjs/@types%2Fnode/-/node-20.0.0.tgz",
+        "/npm/@types/node/-/node-20.0.0.tgz",
+        "/npm/@types%2Fnode/-/node-20.0.0.tgz",
+        "/npm/~npmjs/@types/node/-/node-20.0.0.tgz",
+        "/npm/~npmjs/@types%2Fnode/-/node-20.0.0.tgz",
     ] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
@@ -101,7 +107,7 @@ async fn invalid_package_name_returns_bad_request() {
     // `.hidden` trips the dot-prefix rejection in `CanonicalPackageName::parse`.
     let response = app
         .oneshot(
-            Request::get("/.hidden")
+            Request::get("/npm/.hidden")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -125,7 +131,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     let corp_tar = app
         .clone()
         .oneshot(
-            Request::get("/~main/@corp/secret/-/secret-1.0.0.tgz")
+            Request::get("/npm/~main/@corp/secret/-/secret-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -138,7 +144,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     let public_tar = app
         .clone()
         .oneshot(
-            Request::get("/~main/lodash/-/lodash-1.0.0.tgz")
+            Request::get("/npm/~main/lodash/-/lodash-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -151,7 +157,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     // bare host routes identically.
     let bare = app
         .oneshot(
-            Request::get("/lodash/-/lodash-1.0.0.tgz")
+            Request::get("/npm/lodash/-/lodash-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -202,7 +208,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     let matched = app
         .clone()
         .oneshot(
-            Request::get("/~main/@corp/secret")
+            Request::get("/npm/~main/@corp/secret")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -214,7 +220,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     let unclaimed = app
         .clone()
         .oneshot(
-            Request::get("/~main/lodash")
+            Request::get("/npm/~main/lodash")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -226,7 +232,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // an upstream fetch.
     let direct = app
         .oneshot(
-            Request::get("/~corp/lodash")
+            Request::get("/npm/~corp/lodash")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -265,7 +271,7 @@ async fn router_unavailable_source_errors_not_404() {
 
     let response = app
         .oneshot(
-            Request::get("/~main/@corp/secret")
+            Request::get("/npm/~main/@corp/secret")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -377,7 +383,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
         "roles": [],
     });
     let login = || {
-        Request::put("/~corp/-/user/org.couchdb.user:alice")
+        Request::put("/npm/~corp/-/user/org.couchdb.user:alice")
             .header("content-type", "application/json")
             .body(Body::from(serde_json::to_vec(&registration).unwrap()))
             .unwrap()
@@ -394,7 +400,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
         .to_string();
 
     // whoami, profile, and token list answer under the same prefix.
-    for path in ["/~corp/-/whoami", "/~corp/-/npm/v1/user", "/~corp/-/npm/v1/tokens"] {
+    for path in ["/npm/~corp/-/whoami", "/npm/~corp/-/npm/v1/user", "/npm/~corp/-/npm/v1/tokens"] {
         let response = app
             .clone()
             .oneshot(
@@ -412,7 +418,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let tokens = app
         .clone()
         .oneshot(
-            Request::get("/~corp/-/npm/v1/tokens")
+            Request::get("/npm/~corp/-/npm/v1/tokens")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -426,7 +432,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let revoke = app
         .clone()
         .oneshot(
-            Request::delete(format!("/~corp/-/npm/v1/tokens/token/{key}").as_str())
+            Request::delete(format!("/npm/~corp/-/npm/v1/tokens/token/{key}").as_str())
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -450,7 +456,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let logout = app
         .clone()
         .oneshot(
-            Request::delete(format!("/~corp/-/user/token/{token}").as_str())
+            Request::delete(format!("/npm/~corp/-/user/token/{token}").as_str())
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -461,7 +467,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let stale = app
         .clone()
         .oneshot(
-            Request::get("/~corp/-/whoami")
+            Request::get("/npm/~corp/-/whoami")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -472,7 +478,7 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
 
     // No existence oracle: anonymous whoami answers 401 identically whether
     // or not the prefix names a real registry (`npmjs` is defined by config_for).
-    for path in ["/~corp/-/whoami", "/~npmjs/-/whoami"] {
+    for path in ["/npm/~corp/-/whoami", "/npm/~npmjs/-/whoami"] {
         let response = app
             .clone()
             .oneshot(
@@ -496,7 +502,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
     config.identity.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    for path in ["/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
+    for path in ["/npm/~/-/whoami", "/npm/corp/-/npm/v1/tokens", "/npm/~/-/npm/v1/user"] {
         let response = app
             .clone()
             .oneshot(
@@ -515,7 +521,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
     // what a package read of it reports.
     let tarball_shaped = app
         .oneshot(
-            Request::get("/corp/-/whoami")
+            Request::get("/npm/corp/-/whoami")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -536,14 +542,14 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     let app = router(config);
 
     for (method, path) in [
-        ("GET", "/notascope/widget/1.0.0"),
-        ("GET", "/notascope/widget/-/widget-1.0.0.tgz"),
-        ("GET", "/~npmjs/notascope/widget/1.0.0"),
-        ("GET", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
-        ("PUT", "/notascope/widget"),
-        ("PUT", "/~npmjs/notascope/widget"),
-        ("DELETE", "/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
-        ("DELETE", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+        ("GET", "/npm/notascope/widget/1.0.0"),
+        ("GET", "/npm/notascope/widget/-/widget-1.0.0.tgz"),
+        ("GET", "/npm/~npmjs/notascope/widget/1.0.0"),
+        ("GET", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
+        ("PUT", "/npm/notascope/widget"),
+        ("PUT", "/npm/~npmjs/notascope/widget"),
+        ("DELETE", "/npm/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+        ("DELETE", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
     ] {
         let response = app
             .clone()
@@ -569,12 +575,12 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
 
     for (method, path) in [
         // `/{name}` reads and publishes.
-        ("DELETE", "/widget"),
+        ("DELETE", "/npm/widget"),
         // `/{name}/-rev/{rev}` updates and unpublishes.
-        ("GET", "/widget/-rev/1"),
-        ("GET", "/~npmjs/widget/-rev/1"),
+        ("GET", "/npm/widget/-rev/1"),
+        ("GET", "/npm/~npmjs/widget/-rev/1"),
         // Search is a read.
-        ("DELETE", "/-/v1/search"),
+        ("DELETE", "/npm/-/v1/search"),
     ] {
         let response = app
             .clone()
@@ -630,7 +636,7 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
     let tmp = TempDir::new().unwrap();
     let config = config_for(&upstream.url(), tmp.path().to_path_buf());
 
-    for path in ["/foo%23bar", "/foo%3Fbar", "/foo%25bar", "/foo%20bar"] {
+    for path in ["/npm/foo%23bar", "/npm/foo%3Fbar", "/npm/foo%25bar", "/npm/foo%20bar"] {
         let app = router(config.clone());
         let response = app
             .oneshot(
@@ -646,7 +652,7 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
 }
 
 #[tokio::test]
-async fn a_single_npm_ecosystem_answers_at_the_root() {
+async fn a_single_npm_ecosystem_still_answers_under_its_prefix() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"npm-tarball-bytes";
     let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes).await;
@@ -664,7 +670,7 @@ async fn a_single_npm_ecosystem_answers_at_the_root() {
     let doc = app
         .clone()
         .oneshot(
-            Request::get("/npm")
+            Request::get("/npm/npm")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -676,7 +682,7 @@ async fn a_single_npm_ecosystem_answers_at_the_root() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(advertised, "http://example.test/npm/-/npm-10.0.0.tgz");
+    assert_eq!(advertised, "http://example.test/npm/npm/-/npm-10.0.0.tgz");
 
     let fetched = app
         .oneshot(
@@ -696,7 +702,7 @@ async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
     let tmp = TempDir::new().unwrap();
     let config = registry_groups::grouped_config(tmp.path(), "alice");
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config, auth);
     for authenticated in [false, true] {
         let directory = read_registry_directory(&app, authenticated.then_some(&token)).await;

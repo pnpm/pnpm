@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-diagnostics = { workspace = true }
 pnpm-fs = { workspace = true }
+pnpm-lockfile = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-package-manifest = { workspace = true }
 pnpm-reporter = { workspace = true }
@@ -51,6 +52,7 @@ tempfile = { workspace = true }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
+zstd = { workspace = true }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-http = { workspace = true }

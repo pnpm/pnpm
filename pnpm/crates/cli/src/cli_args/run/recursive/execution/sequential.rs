@@ -1,6 +1,6 @@
 use super::{
-    Instant, ProjectExecution, ProjectScripts, RunContext, ScriptRunState, apply_script_result,
-    reenters_running_script, run_stages, runnable_project_script, start_script,
+    ProjectExecution, ProjectScripts, RunContext, ScriptRunState, apply_script_result,
+    reenters_running_script, run_settled_script, runnable_project_script, start_script,
 };
 
 /// Run the task's scripts one at a time, in selection order: the mode a
@@ -49,8 +49,6 @@ fn run_one_script(
     let options = run.options;
     let root = options.node.project.as_path();
     let ctx: RunContext<'_> = options.run_context(run.manifest, root, run.extra_env, run.root_str);
-    let start = Instant::now();
-    let status = run_stages(&ctx, selected, script, options.args.script_args())?;
-    let duration = start.elapsed().as_secs_f64() * 1e3;
-    Ok(apply_script_result(state, &ctx, status, duration))
+    let settled = run_settled_script(&ctx, selected, script, options.args.script_args())?;
+    Ok(apply_script_result(state, &ctx, settled))
 }

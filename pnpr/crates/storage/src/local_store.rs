@@ -3,16 +3,17 @@ mod revision_refs;
 mod hosted_backend;
 
 use super::{
-    Arc, AsyncReadExt, AsyncSeekExt, BlobFinalize, BlobWrite, Body, BoxStream, CachedDocument,
-    CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, Duration, ErrorKind, GetRange,
-    HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend, HostedBlobFile,
-    HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex, HostedRevisionRefWrite,
-    MAX_NAME_COMPONENTS, Path, PathBuf, RangedBlob, RegistryError, Result, SeekFrom, StreamExt,
-    SystemTime, async_trait, create_tmp_file, fs, stream, streaming, unique_tmp_path, write_atomic,
-    write_atomic_new,
+    Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, BlobWrite, Body, BoxStream,
+    CachedDocument, CanonicalPackageName, DOCUMENT_FILE, DocumentStamp, DocumentWrite, Duration,
+    ErrorKind, GetRange, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
+    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
+    HostedRevisionRefWrite, PACKAGES_DIR, Path, PathBuf, RangedBlob, RegistryError, Result,
+    SeekFrom, StreamExt, SystemTime, async_trait, create_tmp_file, decode_segment, encode_segment,
+    fs, stream, streaming, unique_tmp_path, write_atomic, write_atomic_new,
 };
 
-/// One verdaccio-shaped on-disk store rooted at a single directory.
+/// One on-disk store rooted at a single directory, laid out as
+/// [`crate::layout`] describes.
 #[derive(Debug, Clone)]
 pub(super) struct Store {
     pub(super) root: PathBuf,
@@ -64,6 +65,20 @@ impl Store {
             // Stale: treated as a miss so the caller refetches from the upstream
             // (there is no conditional revalidation), so the body isn't read here.
             Ok(Some(CachedDocument::Stale))
+        }
+    }
+
+    pub(super) async fn document_stamp(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<DocumentStamp>> {
+        match fs::metadata(self.document_path(name)).await {
+            Ok(metadata) => Ok(Some(DocumentStamp {
+                modified: metadata.modified().map_err(RegistryError::Io)?,
+                size: metadata.len(),
+            })),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err.into()),
         }
     }
 
@@ -208,89 +223,31 @@ impl Store {
         }
     }
 
-    pub(super) async fn prune_package_index(&self, name: &CanonicalPackageName) -> Result<()> {
-        let root = self.root.join(".package-index");
-        let mut directory = root.join(name.as_str());
-        while directory != root {
-            match fs::remove_dir(&directory).await {
-                Ok(()) => {}
-                Err(err) if err.kind() == ErrorKind::NotFound => {}
-                Err(err) if err.kind() == ErrorKind::DirectoryNotEmpty => break,
-                Err(err) => return Err(err.into()),
-            }
-            directory.pop();
-        }
-        Ok(())
-    }
-
-    pub(super) async fn indexed_package_names(&self) -> Result<Vec<String>> {
-        let mut names = Vec::new();
-        let mut pending = vec![(self.root.join(".package-index"), String::new())];
-        while let Some((dir, name)) = pending.pop() {
-            let Some(mut entries) = read_dir_if_present(&dir).await? else {
-                continue;
-            };
-            while let Some(entry) = entries.next_entry().await? {
-                match self.classify_index_entry(&entry, &name).await? {
-                    IndexEntry::Package => names.push(name.clone()),
-                    IndexEntry::Child(path, child) => pending.push((path, child)),
-                    IndexEntry::Ignored => {}
-                }
-            }
-        }
-        Ok(names)
-    }
-
-    /// What one entry of the `.package-index` tree contributes to the walk.
-    pub(super) async fn classify_index_entry(
-        &self,
-        entry: &fs::DirEntry,
-        name: &str,
-    ) -> Result<IndexEntry> {
-        let component = entry
-            .file_name()
-            .to_string_lossy()
-            .into_owned();
-        if component == ".present" {
-            // A marker whose document is gone is a stale index entry.
-            let present =
-                !name.is_empty() && fs::try_exists(self.root.join(name).join(DOCUMENT_FILE)).await?;
-            return Ok(if present { IndexEntry::Package } else { IndexEntry::Ignored });
-        }
-        if component.starts_with('.') || !entry.file_type().await?.is_dir() {
-            return Ok(IndexEntry::Ignored);
-        }
-        let child = if name.is_empty() { component } else { format!("{name}/{component}") };
-        Ok(IndexEntry::Child(entry.path(), child))
-    }
-
+    /// Every package with a document, decoded and sorted.
     pub(super) async fn list_package_names(&self) -> Result<Vec<String>> {
-        let mut names = self.indexed_package_names().await?;
-        if fs::try_exists(self.root.join(".package-index/.complete")).await? {
-            names.sort();
+        let mut names = Vec::new();
+        let Some(mut entries) = read_dir_if_present(&self.root.join(PACKAGES_DIR)).await? else {
             return Ok(names);
-        }
-        let mut pending = vec![(self.root.clone(), String::new(), 1usize)];
-        while let Some((dir, prefix, depth)) = pending.pop() {
-            let Some(mut entries) = read_dir_if_present(&dir).await? else {
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            let segment = entry.file_name();
+            let Some(name) = segment.to_str().and_then(decode_segment) else {
                 continue;
             };
-            while let Some(entry) = entries.next_entry().await? {
-                match classify_hosted_entry(&entry, &prefix, depth).await {
-                    HostedEntry::Package(name) => names.push(name),
-                    HostedEntry::Child(path, name) => pending.push((path, name, depth + 1)),
-                    HostedEntry::Ignored => {}
-                    HostedEntry::EndOfPackageDir => break,
-                }
+            if entry.file_type().await?.is_dir()
+                && is_regular_file(&entry.path().join(DOCUMENT_FILE)).await?
+            {
+                names.push(name);
             }
         }
         names.sort();
-        names.dedup();
         Ok(names)
     }
 
     pub(super) fn package_dir(&self, name: &CanonicalPackageName) -> PathBuf {
-        self.root.join(name.as_str())
+        self.root
+            .join(PACKAGES_DIR)
+            .join(encode_segment(name.as_str()))
     }
 
     pub(super) fn document_path(&self, name: &CanonicalPackageName) -> PathBuf {
@@ -298,13 +255,17 @@ impl Store {
     }
 
     pub(super) fn blob_path(&self, name: &CanonicalPackageName, filename: &str) -> PathBuf {
-        self.package_dir(name).join(filename)
+        self.package_dir(name)
+            .join(BLOBS_DIR)
+            .join(encode_segment(filename))
     }
 
+    /// Keyed by the digest of the revision's tar. `.revisions/sha512` holds
+    /// blobs a `.tgz` digest named, which this path never serves.
     pub(super) fn revision_blob_path(&self, digest: &str) -> PathBuf {
         self.root
             .join(".revisions")
-            .join("sha512")
+            .join("tar-sha512")
             .join(digest)
     }
 
@@ -365,6 +326,23 @@ impl Store {
         }
     }
 
+    pub(super) async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        let _guard = self.record_write_lock.lock().await;
+        if self.read_record(namespace, key).await?.as_deref() != Some(expected) {
+            return Ok(false);
+        }
+        match fs::remove_file(self.record_path(namespace, key)).await {
+            Ok(()) => Ok(true),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     pub(super) async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         let root = self.root.join(namespace);
         let mut keys = Vec::new();
@@ -386,54 +364,22 @@ impl Store {
     }
 }
 
-/// What one entry of the `.package-index` tree contributes to the index walk.
-pub(super) enum IndexEntry {
-    /// A `.present` marker whose package document is still on disk.
-    Package,
-    /// A nested index directory to walk, with the name it carries.
-    Child(PathBuf, String),
-    /// A stale marker, a dot entry, or a non-directory.
-    Ignored,
+/// Whether `path` is a regular file, not following a symlink.
+pub(super) async fn is_regular_file(path: &Path) -> Result<bool> {
+    Ok(symlink_metadata_if_present(path).await?.is_some_and(|metadata| metadata.is_file()))
 }
 
-/// What one entry of the hosted tree contributes to the legacy walk.
-pub(super) enum HostedEntry {
-    /// A directory holding a package document, under this name.
-    Package(String),
-    /// A directory to walk for a nested package name.
-    Child(PathBuf, String),
-    /// A dot entry, or a file shallow enough to sit beside a package.
-    Ignored,
-    /// A file inside a package directory. Legacy package trees keep blobs
-    /// beside the document, and nested packages are discovered through the
-    /// separate index, so the rest of this directory holds no package.
-    EndOfPackageDir,
+/// Whether `path` is a directory, not following a symlink.
+pub(super) async fn is_real_dir(path: &Path) -> Result<bool> {
+    Ok(symlink_metadata_if_present(path).await?.is_some_and(|metadata| metadata.is_dir()))
 }
 
-/// Classify one entry of the hosted tree during the legacy walk. An entry
-/// whose kind cannot be read is ignored, the same as a non-directory.
-pub(super) async fn classify_hosted_entry(
-    entry: &fs::DirEntry,
-    prefix: &str,
-    depth: usize,
-) -> HostedEntry {
-    let entry_name = entry.file_name();
-    let name = entry_name.to_string_lossy();
-    if name.starts_with('.') {
-        return HostedEntry::Ignored;
+async fn symlink_metadata_if_present(path: &Path) -> Result<Option<std::fs::Metadata>> {
+    match fs::symlink_metadata(path).await {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err.into()),
     }
-    if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
-        return if depth > 1 { HostedEntry::EndOfPackageDir } else { HostedEntry::Ignored };
-    }
-    let path = entry.path();
-    let name = if prefix.is_empty() { name.into_owned() } else { format!("{prefix}/{name}") };
-    if fs::try_exists(path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-        return HostedEntry::Package(name);
-    }
-    if depth < MAX_NAME_COMPONENTS {
-        return HostedEntry::Child(path, name);
-    }
-    HostedEntry::Ignored
 }
 
 /// A record key from the walk's directory prefix and one entry name.

@@ -132,6 +132,7 @@ impl Registry<'_> {
             auth_headers: &self.index.auth,
             retry_opts: self.config.retry_opts(),
             offline: self.config.offline,
+            tar_limits: self.config.tar_limits(),
         };
         if sdist.is_zip() {
             return self.fetch_source_zip::<Reporter>(sdist, fetching, &integrity, &package_id)
@@ -143,6 +144,7 @@ impl Registry<'_> {
         IngestTarballToStore {
             fetching,
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                 integrity: Some(&integrity),
                 unpacked_size: None,
                 file_count: None,

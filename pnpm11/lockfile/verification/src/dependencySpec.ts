@@ -14,9 +14,11 @@ export function versionSatisfies (version: string | undefined, range: string): b
 }
 
 export function getLocalPath (lockfileDep: string): string | null {
-  return lockfileDep.startsWith('link:') || lockfileDep.startsWith('file:')
-    ? lockfileDep.slice(5)
-    : null
+  if (lockfileDep.startsWith('link:') || lockfileDep.startsWith('file:')) {
+    return lockfileDep.slice(5)
+  }
+  const aliasEnd = lockfileDep.indexOf('@file:', 1)
+  return aliasEnd === -1 ? null : lockfileDep.slice(aliasEnd + 6)
 }
 
 export function getDepActualName (lockfileDep: string, defaultName: string): string {

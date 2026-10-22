@@ -39,12 +39,27 @@ impl Request {
                 let Some(response) = self.try_delete_blob(&storage, &key, digest).await? else {
                     continue;
                 };
+                if response.status().is_success() {
+                    self.log_oci_blob_deleted(&key, digest);
+                }
                 return Ok(response);
             }
             Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() })
         }
         .await;
         result.unwrap_or_else(registry_error)
+    }
+
+    fn log_oci_blob_deleted(&self, repository: &CanonicalPackageName, digest: &Digest) {
+        let actor = self.identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "oci.delete_blob",
+            actor = %actor,
+            repository = %repository.as_str(),
+            digest = %digest,
+            "oci blob deleted",
+        );
     }
 
     async fn ensure_blob_unreferenced(
@@ -79,14 +94,8 @@ impl Request {
         digest: &Digest,
     ) -> Result<Option<Response>, RegistryError> {
         let snapshot = storage.read_hosted_document_for_update(key).await?;
-        let mut document = snapshot
-            .as_ref()
-            .map(|stored| ImageDocument::parse(&stored.bytes))
-            .transpose()?
-            .unwrap_or_else(|| ImageDocument::new(key.as_str()));
-        if document.deleting_blob.is_some() {
-            return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
-        }
+        let mut document =
+            parse_deletion_target(snapshot.as_ref().map(|stored| stored.bytes.as_slice()), key)?;
         if storage
             .open_hosted_blob(key, &digest.blob_filename())
             .await?
@@ -126,6 +135,13 @@ async fn clear_deletion_mark(
         let mut document = ImageDocument::parse(bytes.ok_or_else(|| RegistryError::Internal {
             reason: "OCI deletion document disappeared".to_string(),
         })?)?;
+        if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: key.as_str().to_string(),
+                format_version: document.format_version,
+                supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+            });
+        }
         if document.deleting_blob.as_ref() != Some(digest) {
             return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
         }
@@ -134,4 +150,25 @@ async fn clear_deletion_mark(
     })
     .await?;
     Ok(())
+}
+
+fn parse_deletion_target(
+    existing_bytes: Option<&[u8]>,
+    key: &CanonicalPackageName,
+) -> Result<ImageDocument, RegistryError> {
+    let document = existing_bytes
+        .map(ImageDocument::parse)
+        .transpose()?
+        .unwrap_or_else(|| ImageDocument::new(key.as_str()));
+    if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: key.as_str().to_string(),
+            format_version: document.format_version,
+            supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+        });
+    }
+    if document.deleting_blob.is_some() {
+        return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
+    }
+    Ok(document)
 }

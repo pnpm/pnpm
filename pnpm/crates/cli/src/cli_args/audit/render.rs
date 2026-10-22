@@ -59,12 +59,11 @@ pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
     ]);
     builder.push_record(vec![
         "Patched versions".to_string(),
-        advisory.patched_versions
-            .clone()
-            .unwrap_or_else(|| match advisory.patched_versions_unpublished {
-                Some(true) => "None".to_string(),
-                _ => "(unknown)".to_string(),
-            }),
+        match (&advisory.patched_versions, advisory.patched_versions_unpublished) {
+            (Some(patched), _) => patched.clone(),
+            (None, Some(true)) => "None".to_string(),
+            (None, _) => "(unknown)".to_string(),
+        },
     ]);
     builder.push_record(vec!["Paths".to_string(), rendered_paths]);
     builder.push_record(vec!["More info".to_string(), advisory.url.clone()]);

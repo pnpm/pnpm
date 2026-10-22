@@ -12,6 +12,10 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use npm::{sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, recover_publish_journal, router};
+use pnpr_fixtures::MockConfigPresets;
+use pnpr_storage::layout::{
+    local_blob_path, local_document_path, local_package_dir, write_local_layout_marker,
+};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -75,7 +79,7 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 
 /// Lay down the on-disk state a publish leaves behind right after
 /// sealing its journal transaction and before applying it: the staged
-/// tmp tarball in the package directory plus the journal entry. With
+/// tmp tarball in the package's blob directory plus the journal entry. With
 /// `sealed`, the `commit` marker is present too. With `org`, the manifest
 /// records the hosted-org namespace the publish targeted, matching what
 /// an org-routed publish journals.
@@ -91,12 +95,12 @@ fn fabricate_crashed_publish_in(
     tarball: &[u8],
     sealed: bool,
 ) -> PathBuf {
-    let pkg_dir = match org {
-        Some(org) => storage.join(org).join(name),
-        None => storage.join(name),
-    };
-    std::fs::create_dir_all(&pkg_dir).unwrap();
-    let tmp_path = pkg_dir.join(format!("{name}-{version}.tgz.tmp.999.0"));
+    write_local_layout_marker(storage).unwrap();
+    let blob = local_blob_path(storage, org.unwrap_or(""), name, &format!("{name}-{version}.tgz"));
+    std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
+    let mut tmp_name = blob.file_name().unwrap().to_os_string();
+    tmp_name.push(".tmp.999.0");
+    let tmp_path = blob.with_file_name(tmp_name);
     std::fs::write(&tmp_path, tarball).unwrap();
 
     let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
@@ -148,12 +152,15 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     // The package became fully visible: packument and tarball in
     // place, staged tmp file promoted, journal entry consumed.
     let on_disk: Value = serde_json::from_slice(
-        &std::fs::read(storage.join("crash-fwd/package.json")).expect("packument written"),
+        &std::fs::read(local_document_path(&storage, "", "crash-fwd")).expect("packument written"),
     )
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(on_disk["dist-tags"]["latest"], "1.0.0");
-    assert_eq!(std::fs::read(storage.join("crash-fwd/crash-fwd-1.0.0.tgz")).unwrap(), tarball);
+    assert_eq!(
+        std::fs::read(local_blob_path(&storage, "", "crash-fwd", "crash-fwd-1.0.0.tgz")).unwrap(),
+        tarball,
+    );
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
         std::fs::read_dir(storage.join(".pnpr-journal"))
@@ -167,7 +174,7 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     let app = router(static_config(storage));
     let response = app
         .oneshot(
-            Request::get("/crash-fwd")
+            Request::get("/npm/crash-fwd")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -190,16 +197,20 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
     recover_publish_journal(&static_config(storage.clone())).await.unwrap();
 
     let on_disk: Value = serde_json::from_slice(
-        &std::fs::read(storage.join("acme/crash-org/package.json"))
+        &std::fs::read(local_document_path(&storage, "acme", "crash-org"))
             .expect("packument written into the org namespace"),
     )
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
-    assert_eq!(std::fs::read(storage.join("acme/crash-org/crash-org-1.0.0.tgz")).unwrap(), tarball);
+    assert_eq!(
+        std::fs::read(local_blob_path(&storage, "acme", "crash-org", "crash-org-1.0.0.tgz"))
+            .unwrap(),
+        tarball,
+    );
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
-        !storage.join("crash-org").exists(),
-        "nothing must land in the flat root for an org-journaled publish",
+        !local_package_dir(&storage, "", "crash-org").exists(),
+        "nothing must land in the default namespace for an org-journaled publish",
     );
     assert!(
         std::fs::read_dir(storage.join(".pnpr-journal"))
@@ -219,8 +230,8 @@ async fn recovery_rolls_an_unsealed_transaction_back() {
     recover_publish_journal(&static_config(storage.clone())).await.unwrap();
 
     // Nothing of the aborted publish survives.
-    assert!(!storage.join("crash-back/package.json").exists());
-    assert!(!storage.join("crash-back/crash-back-1.0.0.tgz").exists());
+    assert!(!local_document_path(&storage, "", "crash-back").exists());
+    assert!(!local_blob_path(&storage, "", "crash-back", "crash-back-1.0.0.tgz").exists());
     assert!(!tmp_path.exists(), "staged tmp file should be deleted");
     assert!(
         std::fs::read_dir(storage.join(".pnpr-journal"))
@@ -239,17 +250,16 @@ async fn roll_forward_merges_with_versions_published_after_the_crash() {
     let storage = tmp.path().to_path_buf();
     fabricate_crashed_publish(&storage, "crash-merge", "1.0.0", b"old-bytes", true);
     // A newer version landed on disk before recovery ran.
-    let pkg_dir = storage.join("crash-merge");
+    let document = local_document_path(&storage, "", "crash-merge");
     std::fs::write(
-        pkg_dir.join("package.json"),
+        &document,
         serde_json::to_vec_pretty(&packument("crash-merge", "2.0.0", b"new-bytes")).unwrap(),
     )
     .unwrap();
 
     recover_publish_journal(&static_config(storage.clone())).await.unwrap();
 
-    let on_disk: Value =
-        serde_json::from_slice(&std::fs::read(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let on_disk: Value = serde_json::from_slice(&std::fs::read(&document).unwrap()).unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
     assert_eq!(on_disk["versions"]["2.0.0"]["version"], "2.0.0", "newer version must survive");
 }
@@ -278,7 +288,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
             "length": tarball.len(),
         },
     });
-    let request = Request::put("/-/pnpm/v1/publish")
+    let request = Request::put("/npm/-/pnpm/v1/publish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&json!({ "packages": [doc] })).unwrap()))
@@ -286,7 +296,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    assert!(storage.join("residue-pkg/package.json").exists());
+    assert!(local_document_path(&storage, "", "residue-pkg").exists());
     let journal_root = storage.join(".pnpr-journal");
     let leftover: Vec<_> = match std::fs::read_dir(&journal_root) {
         Ok(entries) => entries

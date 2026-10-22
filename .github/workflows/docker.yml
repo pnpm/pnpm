@@ -53,31 +53,16 @@ jobs:
             [0-9]*.[0-9]*.[0-9]*) ;;
             *) echo "invalid version: $version" >&2; exit 1 ;;
           esac
-          major="${version%%.*}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "major=$major" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-
-      - name: Compute image tags
-        id: tags
-        env:
-          VERSION: ${{ steps.meta.outputs.version }}
-          MAJOR: ${{ steps.meta.outputs.major }}
-          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
-        run: |
-          set -eu
-          tags="${IMAGE}:${VERSION}"
-          if [ "$PRERELEASE" != "true" ]; then
-            tags="${tags},${IMAGE}:${MAJOR},${IMAGE}:latest"
-          fi
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: Compute pnpm tarball checksums
         id: checksums
         env:
           VERSION: ${{ steps.meta.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -eu
+          set -euo pipefail
           base="https://github.com/pnpm/pnpm/releases/download/v${VERSION}"
           for pair in amd64:x64 arm64:arm64; do
             key="${pair%:*}"
@@ -86,6 +71,23 @@ jobs:
                    | sha256sum | awk '{print $1}')"
             echo "sha_${key}=${sha}" >> "$GITHUB_OUTPUT"
           done
+          # The Alpine image is built only for release lines that ship musl
+          # tarballs for both architectures. Older lines lack the arm64 one.
+          assets="$(gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          alpine=true
+          for name in x64 arm64; do
+            printf '%s\n' "$assets" | grep -qxF "pnpm-linux-${name}-musl.tar.gz" || alpine=false
+          done
+          echo "alpine=${alpine}" >> "$GITHUB_OUTPUT"
+          if [ "$alpine" = true ]; then
+            for pair in amd64:x64 arm64:arm64; do
+              key="${pair%:*}"
+              name="${pair#*:}"
+              sha="$(curl -fsSL --retry 3 --retry-delay 2 "${base}/pnpm-linux-${name}-musl.tar.gz" \
+                     | sha256sum | awk '{print $1}')"
+              echo "sha_musl_${key}=${sha}" >> "$GITHUB_OUTPUT"
+            done
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -106,10 +108,44 @@ jobs:
           context: ./docker
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
           build-args: |
             PNPM_VERSION=${{ steps.meta.outputs.version }}
             PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_amd64 }}
             PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_arm64 }}
           provenance: mode=max
           sbom: true
+
+      - name: Build and push Alpine
+        if: steps.checksums.outputs.alpine == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ./docker
+          file: ./docker/Dockerfile.alpine
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}-alpine
+          build-args: |
+            PNPM_VERSION=${{ steps.meta.outputs.version }}
+            PNPM_SHA256_AMD64=${{ steps.checksums.outputs.sha_musl_amd64 }}
+            PNPM_SHA256_ARM64=${{ steps.checksums.outputs.sha_musl_arm64 }}
+          provenance: mode=max
+          sbom: true
+
+      # Runs after the builds so that every release published in the same
+      # burst is listed by the time this run decides which tags it may move.
+      - name: Move mutable tags
+        if: steps.meta.outputs.prerelease != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          ALPINE: ${{ steps.checksums.outputs.alpine }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          releases="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                        --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name')"
+          moves="$(.github/scripts/docker-image-tags.sh "$IMAGE" "$VERSION" "$ALPINE" <<< "$releases")"
+          while read -r target source; do
+            [ -n "$target" ] || continue
+            docker buildx imagetools create --tag "$target" "$source"
+          done <<< "$moves"

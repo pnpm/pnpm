@@ -4,7 +4,7 @@ use super::{ImportIndexedDirError, Placement, clear_dir_blocking_file, file_matc
 use pnpm_fs::Host;
 use std::{
     collections::{HashMap, HashSet},
-    fs, io,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -24,7 +24,9 @@ pub(super) struct SymlinkRoots<'a> {
 
 /// Every key of `cas_paths` and each directory above it, the package root
 /// included as `""`.
-pub(super) fn imported_paths(cas_paths: &HashMap<String, PathBuf>) -> HashSet<&str> {
+pub(in crate::import_indexed_dir) fn imported_paths(
+    cas_paths: &HashMap<String, PathBuf>,
+) -> HashSet<&str> {
     let mut imported = HashSet::from([""]);
     for entry in cas_paths.keys() {
         let mut path = entry.as_str();
@@ -37,7 +39,7 @@ pub(super) fn imported_paths(cas_paths: &HashMap<String, PathBuf>) -> HashSet<&s
 
 /// Whether `path` is a symlink or, on Windows, a junction, which
 /// [`fs::FileType::is_symlink`] does not report.
-pub(super) fn is_symlink(path: &Path) -> bool {
+pub(in crate::import_indexed_dir) fn is_symlink(path: &Path) -> bool {
     let Ok(metadata) = fs::symlink_metadata(path) else {
         return false;
     };
@@ -61,7 +63,7 @@ fn validate_symlink_target(
     pkg_root: &Path,
 ) -> Result<PathBuf, ImportIndexedDirError> {
     let link_target = pnpm_fs::read_symlink_dir(store_path)
-        .map(|link| relative_to_link(store_path, link))
+        .map(|link| pnpm_fs::relative_link_target(store_path, link))
         .map_err(|error| {
             ImportIndexedDirError::LinkFile(crate::link_file::LinkFileError::Import {
                 from: store_path.to_path_buf(),
@@ -79,19 +81,6 @@ fn validate_symlink_target(
         });
     }
     Ok(link_target)
-}
-
-/// `link`, a link target read from `link_path`, with an absolute one made
-/// relative to the link's directory. Both sides are canonicalized first:
-/// the directory fetcher lists links under the canonical package root,
-/// while the link text may reach the same place through another path.
-fn relative_to_link(link_path: &Path, link: PathBuf) -> PathBuf {
-    let (true, Some(parent)) = (link.is_absolute(), link_path.parent()) else {
-        return link;
-    };
-    let parent = fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
-    let link = fs::canonicalize(&link).unwrap_or(link);
-    pathdiff::diff_paths(&link, &parent).unwrap_or(link)
 }
 
 /// Recreate the symlink at `store_path` as `target`, reporting whether the
@@ -118,7 +107,7 @@ pub(super) fn place_symlink_entry(
         let final_target = final_link_target(target, &link_target, roots);
         pnpm_fs::symlink_dir_with_contents(&final_target, &link_target, &temp)
     } else {
-        create_file_link(&link_target, store_path, &temp)
+        pnpm_fs::symlink_file_or_copy(&link_target, store_path, &temp)
     };
     if let Err(error) = created {
         let _ = pnpm_fs::remove_dirent(&temp);
@@ -141,26 +130,6 @@ fn imports_link_target(target: &Path, link_target: &Path, roots: SymlinkRoots<'_
         .and_then(Path::to_str)
         .is_some_and(|rel| roots.imported.contains(rel.replace('\\', "/").as_str()))
 }
-
-/// A file symlink has no junction to fall back to, so a process Windows
-/// refuses symlinks gets a copy of the linked file.
-fn create_file_link(link_target: &Path, store_path: &Path, temp: &Path) -> io::Result<()> {
-    let result = pnpm_fs::create_symlink(link_target, temp, false);
-    #[cfg(windows)]
-    {
-        if let Err(error) = &result
-            && error.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD)
-        {
-            return fs::copy(store_path, temp).map(drop);
-        }
-    }
-    #[cfg(not(windows))]
-    let _ = store_path;
-    result
-}
-
-#[cfg(windows)]
-const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
 
 /// The absolute path `link_target` resolves to from `target` once the
 /// written directory has moved to its final place.
@@ -202,5 +171,5 @@ pub(super) fn symlink_matches_store_entry(target: &Path, store_path: &Path) -> b
     else {
         return false;
     };
-    target_link == relative_to_link(store_path, store_link)
+    target_link == pnpm_fs::relative_link_target(store_path, store_link)
 }

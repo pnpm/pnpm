@@ -9,7 +9,7 @@ import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { clone } from 'ramda'
 
 import { removeDeps } from '../uninstall/removeDeps.js'
-import type { InstallOptions, ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
+import type { ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
 import { removesAnyDependency, rootProjectRunsPreinstallEarly } from './installPredicates.js'
 import { installViaPnprServer } from './installViaPnprServer.js'
 import { mergeInstallSelectors } from './mergeInstallSelectors.js'
@@ -50,14 +50,14 @@ interface PnprTarget {
   mutation?: MutatedProject
 }
 
-type PnprMutationOptions = Pick<MutateModulesOptions, 'allProjects' | 'depth' | 'ignoreScripts' | 'includeDirect'>
+type PnprMutationOptions = Pick<MutateModulesOptions, 'allProjects' | 'ignoreScripts'>
 
 /**
  * Whether the pnpr server path can handle this batch of mutations. The pnpr server flow
  * supports installing the manifest as-is (`install`), adding new deps
- * (`installSome`), removing deps (`uninstallSome`), and refreshing registry
- * revisions for a complete project set. Other client-side update behavior
- * (`update`/`updateMatching`/`updateToLatest`) still uses the local resolver.
+ * (`installSome`), and removing deps (`uninstallSome`). Client-side update
+ * behavior (`update`/`updateMatching`/`updateToLatest`) still uses the local
+ * resolver.
  */
 export function canUsePnprForMutations (
   projects: MutatedProject[],
@@ -66,12 +66,6 @@ export function canUsePnprForMutations (
   if (projects.length === 0) return false
   if (!opts.ignoreScripts && removesDepsOfProjectWithUninstallScripts(projects, opts.allProjects)) {
     return false
-  }
-  const refreshesRevisions = projects.some(project =>
-    (project.mutation === 'install' || project.mutation === 'installSome') && project.updatePatches === true
-  )
-  if (refreshesRevisions) {
-    return canRefreshRevisionsViaPnpr(projects, opts)
   }
   return projects.every(isResolvedAsDeclared)
 }
@@ -87,23 +81,6 @@ function removesDepsOfProjectWithUninstallScripts (
     const manifest = manifestsByRootDir.get(project.rootDir)
     return removesAnyDependency(project, manifest) && definesUninstallStage(manifest?.scripts)
   })
-}
-
-function canRefreshRevisionsViaPnpr (projects: MutatedProject[], opts: PnprMutationOptions): boolean {
-  if (projects.some(project =>
-    project.mutation !== 'uninstallSome' &&
-    !canUsePnprForPatchRefresh(opts, project.update)
-  )) return false
-  const { allProjects } = opts
-  if (allProjects == null || projects.length !== allProjects.length) return false
-  const mutatedRootDirs = new Set(projects.map(project => project.rootDir))
-  if (!allProjects.every(project => mutatedRootDirs.has(project.rootDir))) return false
-  return projects.every(project =>
-    project.mutation === 'install' &&
-    project.updatePatches === true &&
-    !project.updateToLatest &&
-    project.updateMatching == null
-  )
 }
 
 function isResolvedAsDeclared (project: MutatedProject): boolean {
@@ -143,23 +120,7 @@ function definesHooks (hooks: unknown[] | unknown | undefined): boolean {
 }
 
 export function canUsePnprForInstall (opts: SingleProjectInstallOptions): boolean {
-  if (opts.updatePatches) {
-    return !opts.updateToLatest &&
-      opts.updateMatching == null &&
-      canUsePnprForPatchRefresh(opts, opts.update)
-  }
   return !opts.update && !opts.updateToLatest && opts.updateMatching == null
-}
-
-function canUsePnprForPatchRefresh (
-  opts: Pick<InstallOptions, 'depth' | 'includeDirect'>,
-  update: boolean | undefined
-): boolean {
-  if (update !== true) return true
-  return opts.depth === Infinity &&
-    opts.includeDirect?.dependencies !== false &&
-    opts.includeDirect?.devDependencies !== false &&
-    opts.includeDirect?.optionalDependencies !== false
 }
 
 /**
@@ -329,12 +290,7 @@ export async function mutateModulesViaPnpr (
   const result = await installViaPnprServer({
     manifest: pnprProjects[0].manifest,
     rootDir: pnprProjects[0].rootDir,
-    opts: {
-      ...opts,
-      updatePatches: projects.every(project =>
-        project.mutation === 'install' && project.updatePatches === true
-      ),
-    },
+    opts,
     allInstallProjects,
     rootProjectPreinstallRan: rootProjectRunsPreinstallEarly(
       projects,

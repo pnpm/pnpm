@@ -19,7 +19,7 @@ pub(in super::super) fn doctor<'a>(
     let cfg: &Config = (ctx.loaders.config)()?;
     Ok(Box::pin(async move {
         let result = args.run(cfg).await?;
-        println!("{}", result.output);
+        pnpm_diagnostics::println!("{}", result.output);
         if result.outcome == DoctorOutcome::Unhealthy {
             #[expect(
                 clippy::exit,
@@ -89,7 +89,7 @@ pub(in super::super) fn shim<'a>(
     // command happens to run in does not get to steer either.
     let config = (ctx.loaders.global_config)()?;
     Ok(Box::pin(async move {
-        print!("{}", args.run(config).await?);
+        pnpm_diagnostics::print!("{}", args.run(config).await?);
         Ok(())
     }))
 }
@@ -98,7 +98,12 @@ pub(in super::super) fn config<'a>(
     ctx: &RunCtx<'a>,
     args: ConfigArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    args.run((ctx.loaders.config)()?, ctx.locations.dir)?;
+    let config = if args.reads_global_config() {
+        (ctx.loaders.global_config)()?
+    } else {
+        (ctx.loaders.config)()?
+    };
+    args.run(config, ctx.locations.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
@@ -156,10 +161,10 @@ pub(in super::super) fn self_update<'a>(
     ctx: &RunCtx<'a>,
     args: SelfUpdateArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    super::super::self_update::reject_externally_managed()?;
-    let config = (ctx.loaders.config_self_update)()?;
     let dir = ctx.locations.dir;
-    Ok(Box::pin(args.run::<CliReporter>(config, dir)))
+    let external_manager = super::super::self_update::find_external_manager()?;
+    let config = (ctx.loaders.config_self_update)()?;
+    Ok(Box::pin(args.run::<CliReporter>(config, dir, external_manager)))
 }
 
 // `setup` makes pnpm available globally: it installs the CLI into the
@@ -230,7 +235,7 @@ pub(in super::super) fn ignored_builds<'a>(
         ctx.locations.manifest_path,
     );
     let output = super::super::ignored_builds::render_ignored_builds(config)?;
-    print!("{output}");
+    pnpm_diagnostics::print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

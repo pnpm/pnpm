@@ -37,11 +37,13 @@ export { createVulnerabilityUpdateMatching } from './vulnerabilityPreferences.js
 
 export type InstallDepsOptions = Pick<Config,
 | 'autoInstallPeers'
+| 'autoInstallPeersFromHighestMatch'
 | 'bail'
 | 'bin'
 | 'catalogs'
 | 'catalogMode'
 | 'catalogPrune'
+| 'configDependencies'
 | 'minimumReleaseAgeExcludePrune'
 | 'trustPolicyExcludePrune'
 | 'dedupePeerDependents'
@@ -52,16 +54,19 @@ export type InstallDepsOptions = Pick<Config,
 | 'virtualStoreOnly'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'externalDependencies'
 | 'forceIgnoresPlatform'
 | 'global'
 | 'globalPnpmfile'
 | 'ignoreCurrentSpecifiers'
 | 'ignorePnpmfile'
+| 'ignoredOptionalDependencies'
 | 'ignoreScripts'
 | 'optimisticRepeatInstall'
 | 'linkWorkspacePackages'
 | 'lockfile'
 | 'lockfileDir'
+| 'peersSuffixMaxLength'
 | 'lockfileOnly'
 | 'modulesDir'
 | 'nodeLinker'
@@ -140,7 +145,6 @@ export type InstallDepsOptions = Pick<Config,
    */
   lockfileCheck?: (prev: LockfileObject, next: LockfileObject) => void
   update?: boolean
-  updatePatches?: boolean
   updateToLatest?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest?: boolean
@@ -150,7 +154,9 @@ export type InstallDepsOptions = Pick<Config,
   workspace?: boolean
   interactiveUpdate?: boolean
   includeOnlyPackageFiles?: boolean
+  pruneDirectDependencies?: boolean
   pruneLockfileImporters?: boolean
+  pruneStore?: boolean
   /**
    * Set to `false` for an install whose projects are not the workspace's own,
    * such as the legacy `pnpm deploy`. The workspace state file then keeps
@@ -207,7 +213,7 @@ export async function installDeps (
  * "Already up to date" when nothing needs to be installed.
  */
 async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): Promise<boolean> {
-  if (opts.update || opts.dedupe || opts.force || params.length !== 0 || !opts.optimisticRepeatInstall) return false
+  if (!canReportAlreadyUpToDate(opts, params)) return false
   if (opts.nodeLinker === 'hoisted' && (opts.hooks?.customFetchers?.length ?? 0) > 0) return false
   const { upToDate, wantedLockfileToRestore } = await checkDepsStatus({
     ...opts,
@@ -230,6 +236,11 @@ async function reportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]
   await assertRecordedBuildsAreApproved(opts)
   globalInfo('Already up to date')
   return true
+}
+
+function canReportAlreadyUpToDate (opts: InstallDepsOptions, params: string[]): boolean {
+  if (!opts.optimisticRepeatInstall || params.length !== 0) return false
+  return !opts.update && !opts.dedupe && !opts.force && !opts.pruneDirectDependencies && !opts.pruneStore
 }
 
 function applyWorkspaceOption (opts: InstallDepsOptions): void {

@@ -14,7 +14,10 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
-use pnpm_lockfile::{LoadLockfileError, Lockfile};
+use pnpm_lockfile::{
+    EnvLockfile, LoadLockfileError, Lockfile, PackageKey, prune_env_lockfile,
+    retain_config_dependencies,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{
     FindWorkspaceDirError, FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project,
@@ -22,8 +25,8 @@ use pnpm_workspace::{
     workspace_package_patterns,
 };
 use pnpm_workspace_manifest_writer::{
-    ResolvedPackageVersions, UpdateWorkspaceManifestError, UpdateWorkspaceManifestOptions,
-    update_workspace_manifest,
+    CatalogReferenceSources, ResolvedPackageVersions, UpdateWorkspaceManifestError,
+    UpdateWorkspaceManifestOptions, update_workspace_manifest,
 };
 use std::path::{Path, PathBuf};
 
@@ -55,6 +58,7 @@ pub(crate) fn write_workspace_catalogs(
     config: &Config,
     workspace_dir: Option<&Path>,
     updated_catalogs: &Catalogs,
+    kept_catalogs: Option<&Catalogs>,
     current_manifest: &PackageManifest,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
     if updated_catalogs.is_empty() && !config.catalog_prune {
@@ -76,7 +80,10 @@ pub(crate) fn write_workspace_catalogs(
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: Some(updated_catalogs),
             catalog_prune: config.catalog_prune,
-            all_projects: &all_projects,
+            catalog_references: CatalogReferenceSources {
+                all_projects: &all_projects,
+                kept_catalogs,
+            },
             ..Default::default()
         },
     )
@@ -89,6 +96,7 @@ pub(crate) fn write_workspace_catalogs_selected(
     config: &Config,
     workspace_dir: &Path,
     updated_catalogs: &Catalogs,
+    kept_catalogs: Option<&Catalogs>,
     projects: &[Project],
 ) -> Result<(), WriteWorkspaceCatalogsError> {
     if updated_catalogs.is_empty() && !config.catalog_prune {
@@ -103,11 +111,48 @@ pub(crate) fn write_workspace_catalogs_selected(
         &UpdateWorkspaceManifestOptions {
             updated_catalogs: Some(updated_catalogs),
             catalog_prune: config.catalog_prune,
-            all_projects: &all_projects,
+            catalog_references: CatalogReferenceSources {
+                all_projects: &all_projects,
+                kept_catalogs,
+            },
             ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
+}
+
+/// The catalog entries `lockfile` records.
+pub(crate) fn lockfile_catalogs(lockfile: &Lockfile) -> Option<Catalogs> {
+    let catalogs = lockfile.catalogs.as_ref()?;
+    Some(
+        catalogs
+            .iter()
+            .map(|(catalog_name, entries)| {
+                let entries = entries
+                    .iter()
+                    .map(|(alias, entry)| (alias.clone(), entry.specifier.clone()))
+                    .collect();
+                (catalog_name.clone(), entries)
+            })
+            .collect(),
+    )
+}
+
+/// The catalog entries of the lockfile at `lockfile_path`, which
+/// `catalogPrune` keeps so a frozen install still matches that lockfile.
+/// `None` when `catalogPrune` is off, when `lockfile` is false (the file
+/// would be stale), or when there is no lockfile.
+pub(crate) fn written_lockfile_catalogs(
+    config: &Config,
+    lockfile_path: Option<&Path>,
+) -> Result<Option<Catalogs>, WriteWorkspaceCatalogsError> {
+    if !config.catalog_prune || !config.lockfile {
+        return Ok(None);
+    }
+    let Some(lockfile_path) = lockfile_path else { return Ok(None) };
+    Lockfile::load_from_path(lockfile_path)
+        .map_err(WriteWorkspaceCatalogsError::LoadLockfile)
+        .map(|lockfile| lockfile.as_ref().and_then(lockfile_catalogs))
 }
 
 fn derive_workspace_dir(
@@ -162,8 +207,11 @@ pub(crate) fn post_install_prune(
         return Ok(());
     };
     let mut resolved = ResolvedPackageVersions::new();
-    record_resolved_package_versions(&lockfile, &mut resolved);
-    prune_unresolved_entries(config, &workspace_dir, &resolved)
+    record_resolved_package_versions(
+        lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+        &mut resolved,
+    );
+    prune_unresolved_entries(config, &workspace_dir, resolved)
 }
 
 /// The post-install exclude prune for a workspace with a lockfile per project
@@ -207,31 +255,45 @@ pub fn prune_against_project_lockfiles(
         else {
             return Ok(());
         };
-        record_resolved_package_versions(&lockfile, &mut resolved);
+        record_resolved_package_versions(
+            lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+            &mut resolved,
+        );
     }
-    prune_unresolved_entries(config, workspace_dir, &resolved)
+    prune_unresolved_entries(config, workspace_dir, resolved)
 }
 
 fn prune_unresolved_entries(
     config: &Config,
     workspace_dir: &Path,
-    resolved: &ResolvedPackageVersions,
+    mut resolved: ResolvedPackageVersions,
 ) -> Result<(), WriteWorkspaceCatalogsError> {
+    if (config.minimum_release_age_exclude_prune || config.trust_policy_exclude_prune)
+        && let Some(mut env) = EnvLockfile::read(config.root_project_manifest_dir(workspace_dir))
+            .map_err(WriteWorkspaceCatalogsError::LoadLockfile)?
+    {
+        retain_config_dependencies(&mut env, |name| {
+            config.config_dependencies
+                .as_ref()
+                .is_some_and(|dependencies| dependencies.contains_key(name))
+        });
+        prune_env_lockfile(&mut env);
+        record_resolved_package_versions(env.snapshots.keys(), &mut resolved);
+    }
     update_workspace_manifest(
         workspace_dir,
         &UpdateWorkspaceManifestOptions {
             prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
             prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
-            resolved_package_versions: Some(resolved),
+            resolved_package_versions: Some(&resolved),
             ..Default::default()
         },
     )
     .map_err(WriteWorkspaceCatalogsError::Write)
 }
 
-/// Adds every package in the lockfile to `resolved` with its resolved
-/// versions.
+/// Adds each snapshot key to `resolved` with its resolved version.
 /// A registry-qualified slot (`<name>@<registryName>:<version>`)
 /// registers the version after the prefix — `PkgVerPeer::version_semver`
 /// treats it as opaque for reuse/preference paths, but here the version
@@ -240,8 +302,11 @@ fn prune_unresolved_entries(
 /// `file:`) register only their name: their presence can still be
 /// confirmed (a bare-name exclude entry survives), but no exact version
 /// can (a versioned entry is pruned).
-fn record_resolved_package_versions(lockfile: &Lockfile, resolved: &mut ResolvedPackageVersions) {
-    for key in lockfile.snapshots.iter().flat_map(|snapshots| snapshots.keys()) {
+fn record_resolved_package_versions<'a>(
+    keys: impl IntoIterator<Item = &'a PackageKey>,
+    resolved: &mut ResolvedPackageVersions,
+) {
+    for key in keys {
         let versions = resolved.entry(key.name.to_string()).or_default();
         let version = key.suffix
             .version_semver()

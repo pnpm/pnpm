@@ -310,16 +310,22 @@ fn slot_contents_complete<Reporter: self::Reporter>(
         markers.keys.insert(snapshot_key.clone());
         return Ok(false);
     }
+    // A current-lockfile record is only written by a completed install,
+    // so it vouches for a slot only this project writes. A global
+    // virtual-store slot is shared: another project's install may have
+    // re-created it after the record was written and been interrupted
+    // halfway (pnpm/pnpm#16642).
+    let record_vouches_for_slot =
+        current_entry_unchanged && !probe.layout.enable_global_virtual_store();
     // The importer populates shared GVS slots in place, so an existing
     // directory may be an import another install is still filling or
     // died halfway through (see `import_into_shared_dir`). Without a
-    // current-lockfile record vouching that a previous install completed
-    // the slot, require the importer's own completion invariant —
-    // pnpm's `pkgExistsAtTargetDir` probes `package.json`, which the
-    // import places last. A rare package whose file map lacks
-    // `package.json` merely re-materializes, and the import then
-    // short-circuits on its actual marker.
-    if !current_entry_unchanged && !probe_slot_entry(&dir.join("package.json"), EntryKind::File)? {
+    // record vouching for the slot, require the importer's own
+    // completion invariant — pnpm's `pkgExistsAtTargetDir` probes
+    // `package.json`, which the import places last. A rare package whose
+    // file map lacks `package.json` merely re-materializes, and the
+    // import then short-circuits on its actual marker.
+    if !record_vouches_for_slot && !probe_slot_entry(&dir.join("package.json"), EntryKind::File)? {
         return Ok(false);
     }
     if !optional_children_match(
@@ -335,11 +341,10 @@ fn slot_contents_complete<Reporter: self::Reporter>(
     // The completion marker only covers the file import: the slot's
     // child symlinks are written concurrently with it (`rayon::join` in
     // `CreateVirtualDirBySnapshot::run`), so a crash can leave a
-    // marker-complete slot with links missing. A current-lockfile record
-    // is only written by a completed install and so vouches for the
-    // links too; without one, probe every child the symlink layout would
-    // have created.
-    if current_entry_unchanged {
+    // marker-complete slot with links missing. Without a record vouching
+    // for the slot, probe every child the symlink layout would have
+    // created.
+    if record_vouches_for_slot {
         return Ok(true);
     }
     regular_children_match(

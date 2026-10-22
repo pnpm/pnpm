@@ -23,31 +23,40 @@ pub use crate::{
     },
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
     npmrc_auth::{BasicAuth, RegistryCreds, is_json_auth_scope, validate_json_auth_registry},
+    source_date_epoch::source_date_epoch,
     store_path::StoreRelocation,
     windows_path_env::{
         UnexpandedWindowsEnvVar, ensure_windows_dir_envs, ensure_windows_home_dir_env,
     },
 };
+pub use boot_config::BootConfig;
 pub use cas::{CAS_LOADER_FILENAME, CAS_MANIFEST_FILENAME};
+pub use cli_layer::CliLayer;
+pub use loading::ConfigLoadFailure;
+pub use network_policy::NetworkPolicy;
 pub use node_linker::{NodeLinkerOptions, NodeLinkerSetting};
 pub use pnpm_matcher as matcher;
 pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
-    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
+    LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
+    PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType,
 };
 pub use settings::{Config, HoistPatterns, MacosBackupConfig};
+pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
 pub use shim_policy::{
     GlobalShims, GlobalShimsSetting, NamedShimPolicy, ShimPolicy, ShimPolicyValue,
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, DEFAULT_CARGO_INDEX_URL, DEFAULT_PYPI_INDEX_URL,
-    DEFAULT_PYTHON_DOWNLOAD_URL, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    MacosBackupSettings, NAMED_UNRECOGNIZED_TASK_SETTINGS, PackageExtension, PeerDependencyMeta,
-    PeerDependencyRules, PnpmfileSetting, PythonSettings, RemoteSideEffectsCacheSettings,
-    TaskSettings, Tool, ToolSettings, UnrecognizedTaskSettings, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    DEFAULT_PYTHON_DOWNLOAD_URL, DEFAULT_RUST_DIST_SERVER, GLOBAL_CONFIG_YAML_FILENAME,
+    LoadWorkspaceYamlError, MacosBackupSettings, NAMED_UNRECOGNIZED_SETTINGS,
+    NodePackageMapSettings, PackageExtension, PackagePermissions, PeerDependencyMeta,
+    PeerDependencyRules, PermissionCapability, PnpmfileSetting, PythonSettings,
+    RemoteCacheSettings, RemoteSideEffectsCacheSettings, SkillsSettings, TaskSettings, Tool,
+    ToolSettings, UnrecognizedSettings, UpdateConfig, UpdateSettings, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds, decided_permissions,
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
@@ -57,14 +66,17 @@ pub use workspace_yaml::{
 };
 
 mod api;
+mod boot_config;
 mod cas;
 mod ci_detection;
+mod cli_layer;
 mod defaults;
 mod env_overlay;
 mod global_bin_check;
 mod node_linker;
 mod npmrc_auth;
 mod override_version_references;
+mod source_date_epoch;
 mod store_path;
 mod windows_path_env;
 mod workspace_yaml;
@@ -75,8 +87,9 @@ use crate::{
         default_fetch_min_speed_ki_bps, default_fetch_retries, default_fetch_retry_factor,
         default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout, default_fetch_timeout,
         default_fetch_warn_timeout_ms, default_hoist_pattern, default_install_state_dir,
-        default_modules_cache_max_age, default_modules_dir, default_public_hoist_pattern,
-        default_store_dir, default_tag_version_prefix, default_user_agent,
+        default_max_tarball_unpacked_size, default_modules_cache_max_age, default_modules_dir,
+        default_public_hoist_pattern, default_store_dir, default_tag_version_prefix,
+        default_user_agent,
     },
     npmrc_auth::NpmrcAuth,
 };
@@ -89,15 +102,15 @@ use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
     create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
-use pnpm_store_dir::StoreDir;
+use pnpm_store_dir::{StoreDir, StoreIndexFormat};
 use pnpm_workspace_state::ConfigDependency;
 use serde::{Deserialize, Serialize};
 use smart_default::SmartDefault;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
+    time::SystemTime,
 };
 
 /// Which path-valued settings the user pinned somewhere in the cascade, as
@@ -164,6 +177,22 @@ impl PackageManagerBootstrap {
 /// `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
 /// setting, so a source that sets either one decides both, or `pnpm config
 /// get` would answer one of the two with the value the install did not use.
+/// `nodePackageMap` supersedes the deprecated spellings; mirror it there so
+/// `config get` answers for them as well.
+fn mirror_node_package_map(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    section: NodePackageMapSettings,
+) {
+    if let Some(mode) = section.mode {
+        target.insert("nodeExperimentalPackageMap".to_string(), mode.loads().into());
+    }
+    if let Some(map_type) = section.map_type
+        && let Ok(map_type) = serde_json::to_value(map_type)
+    {
+        target.insert("nodePackageMapType".to_string(), map_type);
+    }
+}
+
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -187,6 +216,9 @@ fn collect_explicit_settings(
             "enableGlobalVirtualStore".to_string(),
             serde_json::Value::Bool(virtual_store_type.is_global()),
         );
+    }
+    if let Some(section) = settings.node_package_map {
+        mirror_node_package_map(target, section);
     }
     // `audit.level` supersedes the deprecated `auditLevel` spelling; mirror it
     // there so `config get audit-level` answers the way pnpm does.
@@ -281,18 +313,28 @@ mod pnpm_default_parity;
 mod tests;
 
 /// Whether the resolution has to read full packument metadata from a given
-/// registry, as [`Config::requires_full_metadata_for_registry_fn`] answers it.
-pub type NeedsFullMetadataFor = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+/// registry (and whether the dependency is optional), as
+/// [`Config::requires_full_metadata_for_registry_fn`] answers it.
+pub type NeedsFullMetadataFn = dyn Fn(&str, bool) -> bool + Send + Sync;
 
-/// Whether a resolution has to read full packument metadata: trust evidence
-/// (`_npmUser`) is never in the abbreviated form, and a time-based resolution
-/// needs `time`, which a registry may or may not carry there.
+/// Shared handle to a [`NeedsFullMetadataFn`].
+pub type NeedsFullMetadataFor = Arc<NeedsFullMetadataFn>;
+
+/// Whether a resolution has to read full packument metadata: optional
+/// dependencies (`libc`) and trust evidence (`_npmUser`, `dist.attestations`)
+/// are omitted from standard npm abbreviated metadata (though included by
+/// `pnpr`), and a time-based resolution needs `time`, which a registry may or
+/// may not carry there.
 fn full_metadata_policy(
     trust_policy: TrustPolicy,
     time_based: bool,
     supports_time_field: bool,
+    optional: bool,
+    server_type: Option<pnpm_lockfile::RegistryServerType>,
 ) -> bool {
-    trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
+    let is_pnpr = server_type == Some(pnpm_lockfile::RegistryServerType::Pnpr);
+    (!is_pnpr && (optional || trust_policy == TrustPolicy::NoDowngrade))
+        || (time_based && !supports_time_field)
 }
 
 /// Reads one field of the remote tier from the environment, under the name
@@ -323,6 +365,9 @@ mod registry_options;
 mod layout;
 
 mod loading;
+
+mod network_policy;
+mod settings_read;
 
 mod derive_layout;
 

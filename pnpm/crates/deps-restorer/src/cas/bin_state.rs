@@ -16,7 +16,8 @@ pub(super) fn reconcile_bins(sources: &[PackageBinSource], directory: &Path) -> 
     let state = directory
         .parent()
         .expect("bin directory has a parent")
-        .join("cas-bin-names.json");
+        .join(".pnpm")
+        .join(".cas-bin-names.json");
     let previous: BTreeSet<String> = match std::fs::read(&state) {
         Ok(contents) => serde_json::from_slice(&contents)?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeSet::new(),

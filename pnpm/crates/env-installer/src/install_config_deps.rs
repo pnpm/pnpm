@@ -86,6 +86,31 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     Ok(())
 }
 
+/// Whether `node_modules/.pnpm-config` already links every config dependency
+/// to the global virtual store entry derived from `env_lockfile`, and every
+/// host-compatible optional subdependency is materialized. The store path
+/// is keyed by integrity, so a lockfile entry that changed the package bytes
+/// never counts as installed.
+pub(crate) fn config_deps_installed(
+    env_lockfile: &EnvLockfile,
+    opts: &ConfigDepsInstallOptions<'_>,
+) -> Result<bool, ConfigDepError> {
+    let normalized = normalize_from_lockfile(env_lockfile, opts)?;
+    let global_virtual_store_dir = opts.store.dir.links();
+    let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
+    Ok(normalized
+        .iter()
+        .all(|(name, dep)| {
+            let paths = config_dep_paths(name, dep, &config_modules_dir, &global_virtual_store_dir);
+            symlink_points_to(&paths.config_dep_path, &paths.pkg_dir_in_gvs)
+                && optional_subdeps_installed(
+                    opts,
+                    &dep.optional_subdeps,
+                    &global_virtual_store_dir,
+                )
+        }))
+}
+
 async fn materialize_config_dep<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
     logged_methods: &AtomicU8,
@@ -231,6 +256,7 @@ async fn materialize<Reporter: self::Reporter>(
     let cas_paths = IngestTarballToStore {
         fetching: opts.fetching,
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: Some(integrity),
             unpacked_size: None,
             file_count: None,
@@ -239,8 +265,8 @@ async fn materialize<Reporter: self::Reporter>(
         },
         store: pnpm_tarball::ArchiveStoreContext {
             dir: opts.store.dir,
-            index: opts.store_index.clone(),
-            index_writer: opts.store_index_writer.clone(),
+            index: opts.store_index.reader.clone(),
+            index_writer: opts.store_index.writer.clone(),
             verify_integrity: opts.store.verify_integrity,
             strict_pkg_content_check: opts.store.strict_pkg_content_check,
             verified_files_cache: SharedVerifiedFilesCache::default(),
@@ -315,7 +341,7 @@ fn prune_link(path: &Path) {
 
 /// List the immediate child names of `dir`, returning an empty list
 /// when the directory is absent.
-fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
+pub(crate) fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
     let mut names = Vec::new();
     for name in dir_entry_names(dir)? {
         // Skip dot-dirs (`.bin`, `.pnpm`, etc.).
@@ -375,4 +401,6 @@ fn symlink_points_to(link_path: &Path, expected: &Path) -> bool {
 }
 
 mod optional_dependencies;
-use optional_dependencies::{install_optional_subdeps, normalize_from_lockfile};
+use optional_dependencies::{
+    install_optional_subdeps, normalize_from_lockfile, optional_subdeps_installed,
+};

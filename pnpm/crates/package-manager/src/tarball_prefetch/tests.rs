@@ -1,5 +1,13 @@
-use super::{PendingPrefetch, TarballDownload, run_tarball_download, without_store_hits};
+use super::{
+    TarballDownload,
+    lockfile_entries::{
+        PendingPrefetch, registry_entry, without_store_hits, without_verified_rows,
+        without_verified_store_hits,
+    },
+    run_tarball_download,
+};
 use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
     store_index_key,
@@ -27,6 +35,7 @@ fn sample_index() -> PackageFilesIndex {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     }
 }
 
@@ -91,6 +100,7 @@ fn revision_download(
             strict_pkg_content_check: true,
             prefetched_cas_paths: None,
         },
+        progress_reported: None,
         fetching: crate::tarball_prefetch::PrefetchHttpClient {
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),
@@ -101,6 +111,8 @@ fn revision_download(
                 max_timeout: Duration::ZERO,
             },
             offline: false,
+            tar_limits: pnpm_tarball::TarLimits::default(),
+            integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
         },
         package: crate::tarball_prefetch::TarballDownloadPackage {
             id: "revision-pkg@1.0.0".to_string(),
@@ -132,7 +144,7 @@ async fn revision_prefetch_does_not_follow_redirects() {
     let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
     let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
 
-    let err = run_tarball_download(revision_download(
+    let err = run_tarball_download::<SilentReporter>(revision_download(
         store_dir,
         format!("{}/revision.tgz", server.url()),
         integrity,
@@ -158,7 +170,7 @@ async fn revision_prefetch_does_not_retry_a_transient_failure() {
     let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
     let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
 
-    let err = run_tarball_download(revision_download(
+    let err = run_tarball_download::<SilentReporter>(revision_download(
         store_dir,
         format!("{}/revision.tgz", server.url()),
         integrity,
@@ -168,4 +180,82 @@ async fn revision_prefetch_does_not_retry_a_transient_failure() {
 
     assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
     failure.assert_async().await;
+}
+
+/// The store fetch stages what the install itself could fetch, so an
+/// entry whose integrity has nothing to check is an error rather than a
+/// package left out of the store.
+#[test]
+fn an_unfetchable_registry_entry_fails_the_staging() {
+    let lockfile: pnpm_lockfile::Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters: {}\npackages:\n  foo@1.0.0:\n    resolution: {integrity: ''}\nsnapshots:\n  foo@1.0.0: {}\n",
+    )
+    .expect("parse lockfile");
+    let (key, metadata) = lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .iter()
+        .next()
+        .expect("entry");
+    let config = pnpm_config::Config::new().leak();
+
+    let staged = registry_entry(key, metadata, config, None);
+
+    assert!(matches!(
+        staged,
+        Err(pnpm_deps_restorer::InstallPackageBySnapshotError::MissingTarballIntegrity { .. }),
+    ));
+}
+
+/// The store-only fetch has no materialization after it to download a
+/// package whose index row outlived its files, so the verified lookup
+/// treats such a row as missing.
+#[tokio::test]
+async fn a_row_whose_files_are_gone_is_fetched_again() {
+    let store = tempdir().unwrap();
+    let warm = pending("@foo/warm@1.0.0", "sha512-aGVsbG8=");
+    {
+        let idx = StoreIndex::open(store.path()).unwrap();
+        idx.set(&warm.store_key, &sample_index())
+            .unwrap();
+    }
+    let store_dir: &'static StoreDir = Box::leak(Box::new(StoreDir::new(store.path())));
+    let context = pnpm_tarball::ArchiveStoreContext {
+        dir: store_dir,
+        index: StoreIndex::open_readonly(store.path())
+            .map(|idx| Arc::new(std::sync::Mutex::new(idx)))
+            .ok(),
+        index_writer: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        verify_integrity: true,
+        strict_pkg_content_check: true,
+        prefetched_cas_paths: None,
+    };
+    assert!(context.index.is_some(), "readonly index should open after a write");
+
+    let unverified = without_store_hits(
+        context.index.clone(),
+        vec![pending("@foo/warm@1.0.0", "sha512-aGVsbG8=")],
+    )
+    .await;
+    let missing = without_verified_store_hits(&context, true, vec![warm]).await;
+
+    assert!(unverified.is_empty(), "the row alone satisfies the speculative prefetch");
+    assert_eq!(missing.len(), 1, "the files behind the row are gone, so the fetch downloads it");
+}
+
+/// The rows an early verification found in place are not read again.
+#[test]
+fn without_verified_rows_drops_the_entries_the_verification_holds() {
+    let verified_entry = pending("@foo/verified@1.0.0", "sha512-aGVsbG8=");
+    let other = pending("@foo/other@1.0.0", "sha512-d29ybGQ=");
+    let verified = std::collections::HashSet::from([verified_entry.store_key.clone()]);
+
+    let kept = without_verified_rows(Some(&verified), vec![verified_entry, other]);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].package_id, "@foo/other@1.0.0");
+
+    let unfiltered =
+        without_verified_rows(None, vec![pending("@foo/other@1.0.0", "sha512-d29ybGQ=")]);
+    assert_eq!(unfiltered.len(), 1, "no verification leaves every entry to the fetch");
 }

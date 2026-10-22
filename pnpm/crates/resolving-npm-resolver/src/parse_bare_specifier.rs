@@ -16,7 +16,6 @@ use std::collections::HashSet;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pnpm_network::percent_decode_str;
 use pnpm_package_name::is_valid_old_npm_package_name;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use pnpm_resolving_resolver_base::{
@@ -66,7 +65,7 @@ pub fn parse_bare_specifier(
     }
 
     if bare.starts_with(registry)
-        && let Some(pkg) = parse_npm_tarball_url(&bare)
+        && let Some(pkg) = parse_npm_tarball_url(&bare, registry)
     {
         return Some(RegistryPackageSpec {
             name: pkg.name,
@@ -378,27 +377,26 @@ struct NpmTarballUrl {
 }
 
 /// Extract `(name, version)` from an npm tarball URL like
-/// `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. Returns `None`
-/// when the URL doesn't fit the npm tarball layout or the trailing
-/// version segment isn't valid semver.
-fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
+/// `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. The name is read
+/// from the path after the path of `registry`, so a registry served
+/// under a path such as `https://example.com/npm/` adds nothing to the
+/// name. Returns `None` when the URL doesn't fit the npm tarball layout
+/// under `registry` or the trailing version segment isn't valid semver.
+fn parse_npm_tarball_url(url: &str, registry: &str) -> Option<NpmTarballUrl> {
     let parsed = Url::parse(url).ok()?;
     parsed.host_str()?;
-    let path = parsed.path();
-    if path.is_empty() {
-        return None;
-    }
+    let registry = Url::parse(registry).ok()?;
+    let registry_path = registry.path().trim_end_matches('/');
+    let path = parsed.path().strip_prefix(registry_path)?;
     let parts: Vec<&str> = path.split("/-/").collect();
     if parts.len() != 2 {
         return None;
     }
-    let raw_name = parts[0]
-        .strip_prefix('/')
-        .unwrap_or(parts[0]);
+    let raw_name = parts[0].strip_prefix('/')?;
     if raw_name.is_empty() {
         return None;
     }
-    let name = percent_decode_str(raw_name);
+    let name = decode_uri_component(raw_name)?;
     if name.is_empty() {
         return None;
     }
@@ -418,6 +416,29 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
         .and_then(|rest| rest.strip_prefix('-'))?;
     Version::parse(version).ok()?;
     Some(NpmTarballUrl { name, version: version.to_string() })
+}
+
+/// Decode `text` the way JavaScript's `decodeURIComponent` does, which pnpm v11
+/// uses here: a malformed escape or a non-UTF-8 result is a failure, not
+/// something to pass through.
+fn decode_uri_component(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut idx = 0;
+    while idx < bytes.len() {
+        if bytes[idx] == b'%' {
+            let hex = bytes.get(idx + 1..idx + 3)?;
+            if !hex.iter().all(u8::is_ascii_hexdigit) {
+                return None;
+            }
+            decoded.push(u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?);
+            idx += 3;
+        } else {
+            decoded.push(bytes[idx]);
+            idx += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
 }
 
 #[cfg(test)]

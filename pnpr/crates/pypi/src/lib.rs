@@ -118,11 +118,19 @@ impl ProjectFile {
     }
 }
 
+pub const PROJECT_DOCUMENT_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    PROJECT_DOCUMENT_FORMAT_VERSION
+}
+
 /// A project's file listing: the document pnpr stores per hosted project,
 /// and the shape it reads an upstream PEP 691 page into (the page's extra
 /// keys are ignored).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectDocument {
+    #[serde(rename = "formatVersion", default = "default_format_version")]
+    pub format_version: u32,
     pub name: String,
     #[serde(default)]
     pub files: Vec<ProjectFile>,
@@ -131,7 +139,11 @@ pub struct ProjectDocument {
 impl ProjectDocument {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), files: Vec::new() }
+        Self {
+            format_version: PROJECT_DOCUMENT_FORMAT_VERSION,
+            name: name.to_string(),
+            files: Vec::new(),
+        }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {

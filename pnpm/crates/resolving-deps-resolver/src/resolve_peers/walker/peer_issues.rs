@@ -1,10 +1,10 @@
 use super::{
     Arc, ComparablePeerRange, DepPath, HashMap, MissingPeer, MissingPeerInfo, NodeId, ParentChain,
-    ParentPkgInfo, ParentRefs, PeerDep, PeerDependencyIssue, PeerId, ResolvedPackage, SharedChain,
-    Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
+    ParentPkgInfo, ParentRefs, PeerDep, PeerDependencyIssue, PeerId, PeerWalkMode, ResolvedPackage,
+    SharedChain, Walker, link_node_id_as_dep_path, link_path_to_peer_version, peer_id_pair,
 };
 
-impl Walker<'_> {}
+use crate::peer_provider::{PeerScope, ProviderPick, provider_for};
 
 impl Walker<'_> {
     /// `true` when a missing-peer issue for `peer_name` under the
@@ -32,16 +32,22 @@ impl Walker<'_> {
             .entry(peer_name.to_string())
             .or_default()
             .push(issue);
-        if self.traversal.discovery {
-            self.output.missing_ancestor_pkg_ids
-                .entry(peer_name.to_string())
-                .or_default()
-                .push(ancestor_pkg_ids.clone());
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                self.output.missing_ancestor_pkg_ids
+                    .entry(peer_name.to_string())
+                    .or_default()
+                    .push(ancestor_pkg_ids.clone());
+            }
+            PeerWalkMode::Final => {}
         }
     }
 
     pub(in super::super) fn issue_parents(&self, chain: &SharedChain<Arc<str>>) -> ParentChain {
-        if self.traversal.discovery { ParentChain::default() } else { ParentChain(chain.clone()) }
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => ParentChain::default(),
+            PeerWalkMode::Final => ParentChain(chain.clone()),
+        }
     }
 
     #[expect(
@@ -59,20 +65,21 @@ impl Walker<'_> {
         missing: &mut HashMap<String, MissingPeerInfo>,
     ) {
         let raw_range = peer_dep.version.as_str();
-        // The stored range keeps the original scheme (only `workspace:` is
-        // stripped) so it still selects the package to auto-install for a
-        // missing peer, e.g. `work:5.x.x` fetches from the `work` registry.
-        let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
         // The satisfaction check needs a comparable semver range, so
         // named-registry/`npm:` bodies are extracted and opaque specs become `*`.
         let comparable_range = self.comparable_peer_range(raw_range);
         let optional = peer_dep.optional;
 
-        match parent_refs.get(peer_name) {
-            None => {
+        let scope = PeerScope {
+            inherited: parent_refs.get(peer_name),
+            inherited_must_win: || false,
+            locked: None,
+        };
+        match provider_for(raw_range, scope) {
+            ProviderPick::Missing => {
                 missing.insert(
                     peer_name.to_string(),
-                    MissingPeerInfo { range: range_for_match.to_string(), optional },
+                    MissingPeerInfo { range: raw_range.to_string(), optional },
                 );
                 self.record_missing_peer_if_needed(
                     peer_name,
@@ -82,27 +89,41 @@ impl Walker<'_> {
                     &comparable_range,
                 );
             }
-            Some(parent) => {
-                if !comparable_range.satisfies(&parent.version)
-                    && !self.traversal.in_canonical_drain
-                {
-                    let parents = self.issue_parents(chain);
-                    self.output.issues.bad
-                        .entry(peer_name.to_string())
-                        .or_default()
-                        .push(PeerDependencyIssue {
-                            wanted_range: comparable_range.text.clone(),
-                            found_version: parent.version.to_string(),
-                            optional,
-                            parents,
-                            resolved_from: ParentChain::default(),
-                        });
+            ProviderPick::Bound { provider: parent, .. } => {
+                if !comparable_range.satisfies(&parent.version) {
+                    self.record_bad_peer(peer_name, &comparable_range, parent, optional, chain);
                 }
                 if let Some(parent_node_id) = parent.node_id.as_ref() {
                     resolved.insert(peer_name.to_string(), parent_node_id.clone());
                 }
             }
         }
+    }
+
+    /// Report that `parent` provides `peer_name` at a version outside
+    /// `comparable_range`.
+    fn record_bad_peer(
+        &mut self,
+        peer_name: &str,
+        comparable_range: &ComparablePeerRange,
+        parent: &super::ParentRef,
+        optional: bool,
+        chain: &SharedChain<Arc<str>>,
+    ) {
+        if self.traversal.in_canonical_drain {
+            return;
+        }
+        let parents = self.issue_parents(chain);
+        self.output.issues.bad
+            .entry(peer_name.to_string())
+            .or_default()
+            .push(PeerDependencyIssue {
+                wanted_range: comparable_range.text.clone(),
+                found_version: parent.version.to_string(),
+                optional,
+                parents,
+                resolved_from: ParentChain::default(),
+            });
     }
 
     pub(super) fn record_missing_peer_if_needed(
@@ -113,15 +134,13 @@ impl Walker<'_> {
         ancestor_pkg_ids: &SharedChain<Arc<str>>,
         comparable_range: &ComparablePeerRange,
     ) {
-        let raw_range = peer_dep.version.as_str();
-        let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
         let optional = peer_dep.optional;
         if !self.missing_issue_suppressed(ancestor_pkg_ids, peer_name) {
             self.record_missing_issue(
                 peer_name,
                 MissingPeer {
                     wanted_range: comparable_range.text.clone(),
-                    raw_range: range_for_match.to_string(),
+                    raw_range: peer_dep.version.clone(),
                     optional,
                     parents: self.issue_parents(chain),
                 },
@@ -212,9 +231,13 @@ impl Walker<'_> {
         node_id: &NodeId,
         dep_path: &DepPath,
     ) {
-        let retain = !self.traversal.discovery
-            || self.caches.parent_pkgs_of_node.contains_key(node_id)
-            || self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id);
+        let retain = match self.traversal.mode {
+            PeerWalkMode::Final => true,
+            PeerWalkMode::Discovery => {
+                self.caches.parent_pkgs_of_node.contains_key(node_id)
+                    || self.opts.scope.hoisted_peer_provider_node_ids.contains(node_id)
+            }
+        };
         if !retain {
             return;
         }

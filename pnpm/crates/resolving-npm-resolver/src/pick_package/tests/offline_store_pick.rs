@@ -34,8 +34,7 @@ fn offline_ctx<'a>(
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view,

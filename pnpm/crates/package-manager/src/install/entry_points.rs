@@ -1,5 +1,6 @@
 use super::{
-    Install, InstallRunOptions, ProjectMutation, WorkspaceInstallSelection, errors::InstallError,
+    Install, InstallRunOptions, InstallSaveOptions, ProjectMutation, WorkspaceInstallSelection,
+    errors::InstallError,
 };
 use crate::{LockfileVerificationOverride, RebuildOptions, ResolvedPackages};
 use pnpm_config::Config;
@@ -63,6 +64,23 @@ where
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions::default())).await
+    }
+
+    /// Execute `pacquet prune`, enabling extraneous direct-dependency
+    /// removal and optional workspace project selection.
+    pub async fn run_prune<Reporter: self::Reporter + 'static>(
+        self,
+        selection: Option<WorkspaceInstallSelection<'_>>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection,
+            manifests: crate::install::InstallManifestOptions {
+                prune_direct_dependencies: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
     }
 
     /// Execute as a check: the caller compares the lockfile the run
@@ -201,6 +219,36 @@ where
         .await
     }
 
+    pub async fn run_with_known_requires_build<Reporter: self::Reporter + 'static>(
+        self,
+        known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            manifests: crate::install::InstallManifestOptions {
+                known_requires_build,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
+    }
+
+    pub async fn run_selected_with_known_requires_build<Reporter: self::Reporter + 'static>(
+        self,
+        selection: WorkspaceInstallSelection<'_>,
+        known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    ) -> Result<(), InstallError> {
+        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
+            selection: Some(selection),
+            manifests: crate::install::InstallManifestOptions {
+                known_requires_build,
+                ..Default::default()
+            },
+            ..Default::default()
+        }))
+        .await
+    }
+
     /// Execute the install a legacy `pacquet deploy` runs in its target
     /// directory: the deployed manifest is the sole root importer, while
     /// workspace discovery stays anchored at the source workspace so
@@ -243,11 +291,7 @@ where
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
         assert!(self.lockfile_policy.frozen, "run_rebuild requires frozen_lockfile = true");
-        Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            rebuild: Some(rebuild),
-            ..Default::default()
-        }))
-        .await
+        Box::pin(self.run_inner::<Reporter>(rebuild_run_options(rebuild))).await
     }
 
     /// Execute a forced rebuild limited to the selected workspace importers.
@@ -261,9 +305,8 @@ where
             "run_selected_rebuild requires frozen_lockfile = true",
         );
         Box::pin(self.run_inner::<Reporter>(InstallRunOptions {
-            rebuild: Some(rebuild),
             selection: Some(selection),
-            ..Default::default()
+            ..rebuild_run_options(rebuild)
         }))
         .await
     }
@@ -339,5 +382,19 @@ pub(super) fn inject_deploy_dependencies_meta(
             }
             value => *value = serde_json::json!({ "injected": true }),
         }
+    }
+}
+
+/// A rebuild runs the build scripts over the tree as the last install left
+/// it, so it does not record itself as an install: the workspace state keeps
+/// describing the install whose layout the tree has, as in the TypeScript
+/// CLI, where only the install commands write it.
+fn rebuild_run_options<'install, 'selection>(
+    rebuild: RebuildOptions,
+) -> InstallRunOptions<'install, 'selection> {
+    InstallRunOptions {
+        rebuild: Some(rebuild),
+        save: InstallSaveOptions { lockfile: true, workspace_state: false },
+        ..Default::default()
     }
 }

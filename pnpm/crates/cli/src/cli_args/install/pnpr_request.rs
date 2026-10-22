@@ -1,9 +1,10 @@
 use super::{
-    Catalogs, Context, DependencyGroup, InstallFamilySelection, IntoDiagnostic, Lockfile,
-    LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig, ResolveProject,
-    ResolveProjectsOptions, State, discover_workspace_projects,
+    Catalogs, Context, DependencyGroup, Diagnostic, Display, Error, InstallFamilySelection,
+    IntoDiagnostic, Lockfile, LockfileResolution, PathBuf, PnprLink, PnprSession, PublishConfig,
+    ResolveProject, ResolveProjectsOptions, State, discover_workspace_projects,
     get_catalogs_from_workspace_manifest, prefetch_allowed,
 };
+use pnpm_network::normalize_registry_url;
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 
@@ -37,18 +38,16 @@ pub(super) async fn pnpr_request_inputs(
         state.config.patched_dependency_hashes_in_config_order().map_err(miette::Report::new)?;
     let benchmark_registry_override =
         PnprBenchmarkRegistryOverride::from_env(&state.config.registry);
-    let resolve_registry = benchmark_registry_override
-        .as_ref()
-        .map_or_else(
-            || state.config.registry.clone(),
-            |override_| override_.resolve_registry().to_owned(),
-        );
+    let resolve_registry = match &benchmark_registry_override {
+        Some(override_) => override_.resolve_registry().to_owned(),
+        None => state.config.registry.clone(),
+    };
 
     let prefetch_allowed = prefetch_allowed(pnpmfile_hook.as_ref()).await?;
-    let lockfile_path = link.lockfile_path.map_or_else(
-        || lockfile_dir.join(state.config.wanted_lockfile_name()),
-        std::path::Path::to_path_buf,
-    );
+    let lockfile_path = match link.lockfile_path {
+        Some(lockfile_path) => lockfile_path.to_path_buf(),
+        None => lockfile_dir.join(state.config.wanted_lockfile_name()),
+    };
     Ok(PnprRequestInputs {
         overrides,
         patched_dependencies,
@@ -97,6 +96,7 @@ pub(super) fn resolve_projects_options(
             auto_install_peers: Some(state.config.auto_install_peers),
             dedupe_peers: Some(state.config.dedupe_peers),
             exclude_links_from_lockfile: Some(state.config.exclude_links_from_lockfile),
+            add_missing_peer_types: Some(state.config.add_missing_peer_types),
             resolution_mode: state.config.resolution_mode,
         },
         reuse: pnpm_pnpr_client::LockfileReuseOptions {
@@ -109,6 +109,28 @@ pub(super) fn resolve_projects_options(
         },
         verification: verification_policy(state.config),
     }
+}
+
+/// `addMissingPeerTypes` was on, but the lockfile the pnpr server returned
+/// was resolved without it. A server that predates the setting drops it from
+/// the request, and every later install would reject the lockfile.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("The pnpr server resolved the lockfile without the addMissingPeerTypes setting.")]
+#[diagnostic(
+    code(ERR_PNPM_PNPR_SERVER_IGNORED_ADD_MISSING_PEER_TYPES),
+    help("Upgrade the pnpr server, or set addMissingPeerTypes to false.")
+)]
+pub(super) struct AddMissingPeerTypesIgnoredByPnpr;
+
+/// Reject a server lockfile resolved without a setting the request sent.
+pub(super) fn check_pnpr_applied_settings(
+    config: &pnpm_config::Config,
+    returned: Option<&pnpm_lockfile::LockfileSettings>,
+) -> Result<(), AddMissingPeerTypesIgnoredByPnpr> {
+    if config.add_missing_peer_types && !pnpm_lockfile::recorded_add_missing_peer_types(returned) {
+        return Err(AddMissingPeerTypesIgnoredByPnpr);
+    }
+    Ok(())
 }
 
 /// The catalogs the pnpr server resolves `catalog:` specifiers against,
@@ -246,7 +268,7 @@ impl PnprBenchmarkRegistryOverride {
         let resolve_registry = std::env::var(BENCHMARK_PNPR_SERVER_REGISTRY_ENV)
             .ok()
             .filter(|registry| !registry.is_empty())
-            .map(|registry| normalize_registry(&registry))?;
+            .map(|registry| normalize_registry_url(&registry).into_owned())?;
         let tarball_rewrite_from = std::env::var(BENCHMARK_PNPR_TARBALL_REWRITE_FROM_ENV)
             .ok()
             .filter(|registry| !registry.is_empty());
@@ -289,10 +311,10 @@ impl BenchmarkRegistryRewrite {
         Registry: AsRef<str>,
         Registries: IntoIterator<Item = Registry>,
     {
-        let to = normalize_registry(to);
+        let to = normalize_registry_url(to).into_owned();
         let mut from_registries = Vec::new();
         for registry in from {
-            let registry = normalize_registry(registry.as_ref());
+            let registry = normalize_registry_url(registry.as_ref()).into_owned();
             if registry != to && !from_registries.contains(&registry) {
                 from_registries.push(registry);
             }
@@ -306,10 +328,6 @@ impl BenchmarkRegistryRewrite {
             .find_map(|from| url.strip_prefix(from))
             .map_or_else(|| url.to_string(), |suffix| format!("{}{}", self.to, suffix))
     }
-}
-
-fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 pub(super) fn rewrite_resolution_registry(

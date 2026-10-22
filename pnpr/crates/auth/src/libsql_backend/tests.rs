@@ -1,9 +1,10 @@
 use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, params, retry_database_conflicts,
+    UserBackend, UserCreation, UserRemoval, params, retry_database_conflicts,
     schema::{ensure_user_counter, is_transaction_conflict},
-    sha256_hex, with_auth_timeout,
+    with_auth_timeout,
 };
+use crate::token_store::sha256_hex;
 
 /// In-memory libsql database, exercising the same driver and SQL the
 /// networked backend uses without a server.
@@ -54,7 +55,7 @@ async fn add_or_login_rejects_existing_user_with_wrong_password() {
 async fn max_users_disabled_rejects_registration() {
     let backend = local_backend(MaxUsers::Disabled).await;
     let err = backend.add_or_login("alice", "x").await.unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+    assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -260,6 +261,7 @@ async fn registration_cap_self_heals_an_overcounted_counter() {
 #[tokio::test]
 async fn tokens_round_trip_and_revoke() {
     let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.create_user("alice", "x").await.unwrap();
     let token = backend.issue("alice").await.unwrap();
     assert_eq!(
         backend
@@ -376,7 +378,9 @@ async fn registration_transaction_retries_only_remote_lock_conflicts() {
             .with_state((code, Arc::clone(&attempts)));
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
         let db = Builder::new_remote(format!("http://{address}"), String::new())
             .connector(tower::service_fn(move |_| tokio::net::TcpStream::connect(address)))
             .build()
@@ -444,4 +448,136 @@ async fn begin_registration_transaction(conn: &libsql::Connection) -> Result<lib
             .map_err(RegistryError::from)
     })
     .await
+}
+
+#[tokio::test]
+async fn libsql_supports_the_admin_operations() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    crate::tests::assert_admin_round_trip(&backend).await;
+}
+
+#[tokio::test]
+async fn admin_created_users_count_against_the_registration_cap() {
+    let backend = local_backend(MaxUsers::Limited(1)).await;
+    assert_eq!(backend.create_user("alice", "secret").await.unwrap(), UserCreation::Created);
+    let err = backend.add_or_login("bob", "secret").await.unwrap_err();
+    assert!(matches!(err, RegistryError::TooManyUsers { max: 1 }), "{err:?}");
+
+    assert_eq!(backend.delete_user("alice").await.unwrap(), UserRemoval::Removed);
+    assert!(matches!(
+        backend.add_or_login("bob", "secret").await.unwrap(),
+        (UpsertOutcome::Created, _),
+    ));
+}
+
+#[tokio::test]
+async fn a_removed_owner_disables_its_tokens_but_not_their_cleanup() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.create_user("alice", "x").await.unwrap();
+    let token = backend.issue("alice").await.unwrap();
+    backend.delete_user("alice").await.unwrap();
+
+    assert!(
+        backend
+            .lookup(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert!(
+        backend
+            .lookup_record(&token)
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    let listed = backend.list_for_user("alice").await.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert!(
+        backend
+            .revoke_by_key(&listed[0].0)
+            .await
+            .unwrap()
+            .is_some(),
+    );
+}
+
+#[tokio::test]
+async fn sha1_user_authenticates_and_upgrades_to_bcrypt_in_libsql() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    let sha_hash = "{SHA}qUqP5cyxm6YcTAhz05Hph5gvu9M=";
+    backend.conn
+        .execute(
+            "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+            params!["alice", sha_hash],
+        )
+        .await
+        .unwrap();
+
+    let outcome = backend.add_or_login("alice", "test").await.unwrap();
+    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
+
+    let updated = backend
+        .stored_hash("alice")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(updated.starts_with("$2y$") || updated.starts_with("$2b$"));
+    assert_ne!(updated, sha_hash);
+}
+
+#[tokio::test]
+async fn libsql_schema_migrations_runs_and_records_version() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    let mut rows = backend.conn
+        .query("SELECT MAX(version) FROM auth_schema_migrations", ())
+        .await
+        .unwrap();
+    let row = rows
+        .next()
+        .await
+        .unwrap()
+        .expect("row returned");
+    let version: i64 = row.get(0).unwrap();
+    assert_eq!(version, crate::CURRENT_SCHEMA_VERSION);
+}
+
+#[tokio::test]
+async fn libsql_tokens_persist_scopes_and_kind() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.add_or_login("alice", "secret").await.unwrap();
+
+    let new_token = crate::NewToken::new()
+        .with_scopes(Some(vec!["scope:read".to_string(), "scope:write".to_string()]))
+        .with_kind(Some("granular".to_string()));
+    let (raw, record) = backend.issue_token("alice", new_token).await.unwrap();
+    assert_eq!(record.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
+    assert_eq!(record.kind.as_deref(), Some("granular"));
+
+    let looked_up = backend
+        .lookup_record(&raw)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(looked_up.scopes, Some(vec!["scope:read".to_string(), "scope:write".to_string()]));
+    assert_eq!(looked_up.kind.as_deref(), Some("granular"));
+}
+
+#[tokio::test]
+async fn libsql_schema_migrations_refuses_future_version() {
+    let backend = local_backend(MaxUsers::Unlimited).await;
+    backend.conn
+        .execute(
+            "INSERT INTO auth_schema_migrations (version, applied_at) VALUES (999, 123456789)",
+            (),
+        )
+        .await
+        .unwrap();
+
+    let err = super::schema::init_schema(&backend.conn).await.unwrap_err();
+    let err_str = err.to_string();
+    assert!(
+        err_str.contains("newer than supported version"),
+        "expected error about newer version, got: {err_str}",
+    );
 }

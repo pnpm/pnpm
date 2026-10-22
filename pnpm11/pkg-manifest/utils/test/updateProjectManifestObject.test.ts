@@ -1,5 +1,11 @@
 import { expect, test } from '@jest/globals'
-import { createVersionSpecFromResolvedVersion, filterDependenciesByType, guessDependencyType, updateProjectManifestObject } from '@pnpm/pkg-manifest.utils'
+import {
+  createVersionSpecFromResolvedVersion,
+  filterDependenciesByType,
+  guessDependencyType,
+  type PackageSpecObject,
+  updateProjectManifestObject,
+} from '@pnpm/pkg-manifest.utils'
 
 test('createVersionSpecFromResolvedVersion() keeps the explicit equals operator of an exact pin', () => {
   expect(createVersionSpecFromResolvedVersion('3.5.2', 'exact')).toBe('=3.5.2')
@@ -168,6 +174,37 @@ test('writes prototype-conflicting aliases as own data properties without pollut
 
   // Object.prototype hasn't grown a new property.
   expect(Object.getOwnPropertyNames(Object.prototype).sort()).toStrictEqual(protoSnapshotBefore)
+})
+
+test.each(['', '__proto__', 'constructor', 'prototype', 'toString', 'invalidType'])(
+  'rejects prototype pollution or invalid saveType (%s) without polluting Object.prototype',
+  async (badSaveType) => {
+    const protoSnapshotBefore = Object.getOwnPropertyNames(Object.prototype).sort()
+
+    await expect(updateProjectManifestObject('/project', {}, [
+      { alias: 'evil', bareSpecifier: '1.0.0', saveType: badSaveType as unknown as PackageSpecObject['saveType'] },
+    ])).rejects.toMatchObject({
+      code: 'ERR_PNPM_INVALID_SAVE_TYPE',
+    })
+
+    expect(Object.getOwnPropertyNames(Object.prototype).sort()).toStrictEqual(protoSnapshotBefore)
+    expect(Object.hasOwn(Object.prototype, 'evil')).toBe(false)
+  }
+)
+
+test('supports peerDependencies as saveType', async () => {
+  const manifest = await updateProjectManifestObject('/project', {
+    dependencies: {
+      foo: '1.0.0',
+    },
+  }, [
+    { alias: 'foo', bareSpecifier: '^2.0.0', saveType: 'peerDependencies' },
+  ])
+
+  expect(manifest.peerDependencies).toStrictEqual({
+    foo: '^2.0.0',
+  })
+  expect(manifest.dependencies).toStrictEqual({})
 })
 
 test('update existing peerDependencies version range', async () => {

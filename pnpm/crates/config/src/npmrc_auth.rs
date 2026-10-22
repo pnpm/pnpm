@@ -162,8 +162,9 @@ impl NpmrcAuth {
     pub fn from_url_scoped_env<Sys: EnvVar>() -> Self {
         // Merge into one map keyed by the URL-scoped key so each key is applied
         // once. `pnpm_config_` is extended last so it wins over `npm_config_`.
-        let mut npm_scoped: HashMap<String, String> = HashMap::new();
-        let mut pnpm_scoped: HashMap<String, String> = HashMap::new();
+        // Apply npmjs.com fallback keys before explicit npmjs.org keys.
+        let mut npm_scoped: BTreeMap<String, String> = BTreeMap::new();
+        let mut pnpm_scoped: BTreeMap<String, String> = BTreeMap::new();
         for (name, value) in Sys::vars()
             .into_iter()
             .filter(|(_, value)| !value.is_empty())
@@ -179,8 +180,7 @@ impl NpmrcAuth {
         let mut auth = NpmrcAuth::default();
         for (key, value) in npm_scoped {
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_entry_mut(uri);
-                apply_creds_field(entry, suffix, value);
+                auth.apply_uri_creds_field(uri, suffix, &value);
             }
         }
         auth
@@ -204,11 +204,16 @@ impl NpmrcAuth {
     ) {
         if let Some(registry) = self.routes.default.take() {
             declared.registry = true;
-            config.registry =
-                if registry.ends_with('/') { registry } else { format!("{registry}/") };
+            config.registry = pnpm_network::normalize_registry_url(&registry).into_owned();
         }
         declared.scopes.extend(self.routes.scoped.keys().cloned());
         config.registries_by_scope.append(&mut self.routes.scoped);
+        self.move_warnings_to(config);
+    }
+
+    /// Move the warnings raised while reading the sources onto
+    /// [`Config::npmrc_warnings`].
+    pub fn move_warnings_to(&mut self, config: &mut Config) {
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
             config.npmrc_warnings.push(message);
@@ -263,12 +268,6 @@ impl NpmrcAuth {
         self.tls.apply_tls_and_local_address(config);
         self.build_auth_headers(config).expect("valid credentials in test .npmrc");
     }
-}
-
-/// Normalize a registry URL for the purposes of nerf-darting: ensure a
-/// single trailing slash.
-fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 #[cfg(test)]

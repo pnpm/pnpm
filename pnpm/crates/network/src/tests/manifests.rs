@@ -64,7 +64,7 @@ fn for_installs_falls_back_to_bundled_roots_without_a_system_trust_store() {
 fn node_extra_ca_certs_do_not_hide_an_empty_system_trust_store() {
     use super::{Arc, NoProxyMatcher};
     use crate::{
-        client_builder::{ClientBuildInputs, build_platform_client},
+        client_builder::{ClientBuildInputs, ClientVariant, build_platform_client},
         native_dns_resolver,
     };
 
@@ -85,7 +85,8 @@ fn node_extra_ca_certs_do_not_hide_an_empty_system_trust_store() {
         redirect_guard: None,
         dns_resolver: native_dns_resolver(),
     };
-    let platform = build_platform_client(&inputs, &TlsConfig::default(), false)
+    let variant = ClientVariant { forbid_redirects: false, decode_content: true };
+    let platform = build_platform_client(&inputs, &TlsConfig::default(), variant)
         .expect("default TLS config applies cleanly");
     assert!(platform.is_err(), "an extra root must not stand in for the system trust store");
 

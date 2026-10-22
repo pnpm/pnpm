@@ -134,17 +134,14 @@ test('single dependency', async () => {
     expect(stdout.toString()).toContain('hello from foo')
   }
 
-  projects.foo.writePackageJson(manifests.foo)
-
-  // if the mtime of one manifest file changes but its content doesn't, pnpm run should update the packages list then run the script normally
+  // a manifest file rewritten with the content it was installed with needs no check
+  rewriteWithSameContent(path.join(projects.foo.dir(), 'package.json'))
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
-    expect(stdout.toString()).not.toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
-    expect(stdout.toString()).toContain('Some manifest files or lockfiles were modified since the last validation. Continuing check.')
-    expect(stdout.toString()).toContain('updating workspace state')
+    expect(stdout.toString()).toContain('No manifest files or lockfiles were modified since the last validation. Exiting check.')
+    expect(stdout.toString()).not.toContain('updating workspace state')
   }
-  // should skip check after pnpm has updated the packages list
   {
     const { stdout } = execPnpmSync([...CONFIG, '--reporter=ndjson', 'start'], { expectSuccess: true })
     expect(stdout.toString()).toContain('hello from root')
@@ -649,6 +646,88 @@ test('filtered install', async () => {
   }
 })
 
+// https://github.com/pnpm/tasks/issues/138
+test('filtered install with a lockfile per project', async () => {
+  const manifests: Record<string, ProjectManifest> = {
+    root: {
+      name: 'root',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from root',
+      },
+    },
+    foo: {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from foo',
+      },
+    },
+    bar: {
+      name: 'bar',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+      scripts: {
+        start: 'echo hello from bar',
+      },
+    },
+  }
+
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: manifests.root,
+    },
+    manifests.foo,
+    manifests.bar,
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'], sharedWorkspaceLockfile: false })
+
+  await execPnpm([...CONFIG, '--filter=foo', 'install'])
+
+  // The projects the filtered install left out have no lockfile, which a
+  // command covering only the installed project is not held to.
+  {
+    const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.foo.dir(), expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+
+  // A command running in a project the filtered install left out is held.
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.bar.dir() })
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
+  }
+
+  await execPnpm([...CONFIG, 'install'])
+  fs.rmSync(path.join(projects.bar.dir(), 'pnpm-lock.yaml'))
+
+  // A deleted project lockfile is reported where the command runs, and
+  // nowhere else.
+  {
+    const { stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.foo.dir(), expectSuccess: true })
+    expect(stdout.toString()).toContain('hello from foo')
+  }
+  {
+    const { status, stdout } = execPnpmSync([...CONFIG, 'start'], { cwd: projects.bar.dir() })
+    expect(status).not.toBe(0)
+    expect(stdout.toString()).toMatch(/Cannot find a lockfile in \S+[\\/]bar(\s|$)/)
+  }
+})
+
 // https://github.com/pnpm/pnpm/issues/16322
 test('filtered install accepts a touched lockfile with unchanged contents', async () => {
   preparePackages([
@@ -685,6 +764,81 @@ test('filtered install accepts a touched lockfile with unchanged contents', asyn
 
   const { stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'], { expectSuccess: true })
   expect(stdout.toString()).toContain('hello from foo')
+})
+
+// https://github.com/pnpm/pnpm/issues/17011
+test('verification-triggered installs retain a relative workspace store from a project directory', async () => {
+  const projects = preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { location: 'packages/app', package: { name: 'app', dependencies: { '@pnpm.e2e/foo': '100.0.0' } } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['packages/*'] })
+  await execPnpm(['install', '--store-dir=.store'])
+  projects.app.writePackageJson({
+    name: 'app',
+    dependencies: { '@pnpm.e2e/foo': '100.0.0', '@pnpm.e2e/bar': '100.0.0' },
+  })
+  await execPnpm(['install', '--store-dir=.store', '--lockfile-only'])
+
+  const cwd = path.resolve('packages/app')
+  execPnpmSync(['--store-dir=.store', '--config.verify-deps-before-run=install', 'exec', 'node', '-e', '0'], {
+    cwd,
+    expectSuccess: true,
+  })
+  expect(fs.existsSync(path.join(cwd, 'node_modules/@pnpm.e2e/bar'))).toBe(true)
+  expect(fs.existsSync(path.join(cwd, '.store'))).toBe(false)
+  execPnpmSync(['--store-dir=.store', ...CONFIG, 'exec', 'node', '-e', '0'], { cwd, expectSuccess: true })
+})
+
+test('a filtered command for a project another filtered install left behind after a pull', async () => {
+  const manifest = (name: string, dependencies: Record<string, string>): ProjectManifest => ({
+    name,
+    private: true,
+    dependencies,
+    scripts: { start: `echo hello from ${name}` },
+  })
+  const projects = preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    manifest('foo', { '@pnpm.e2e/foo': '100.0.0' }),
+    manifest('bar', { '@pnpm.e2e/foo': '100.0.0' }),
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['install'])
+
+  // what a `git pull` brings in: both manifests and the lockfile change
+  for (const name of ['foo', 'bar'] as const) {
+    projects[name].writePackageJson(manifest(name, { '@pnpm.e2e/foo': '100.0.0', '@pnpm.e2e/bar': '100.0.0' }))
+  }
+  await execPnpm(['install', '--lockfile-only'])
+  execPnpmSync(['--config.verify-deps-before-run=install', '--filter=foo', 'start'], { expectSuccess: true })
+  expect(fs.existsSync('bar/node_modules/@pnpm.e2e/bar')).toBe(false)
+
+  const { status, stdout } = execPnpmSync([...CONFIG, '--filter=bar', 'start'])
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
+
+  execPnpmSync(['--config.verify-deps-before-run=install', '--filter=bar', 'start'], { expectSuccess: true })
+  expect(fs.existsSync('bar/node_modules/@pnpm.e2e/bar')).toBe(true)
+  execPnpmSync([...CONFIG, '--filter=bar', 'start'], { expectSuccess: true })
+})
+
+// `cp -p`, `rsync -a`, an archive extraction, or a Docker `COPY` of an older
+// file leave the mtime where it was.
+test('a manifest edit that kept its mtime', async () => {
+  const projects = preparePackages([
+    { location: '.', package: { name: 'root', private: true } },
+    { name: 'foo', private: true, dependencies: { '@pnpm.e2e/foo': '100.0.0' }, scripts: { start: 'echo hello from foo' } },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm(['install'])
+
+  const { mtime } = fs.statSync('foo/package.json')
+  projects.foo.writePackageJson({ name: 'foo', private: true, dependencies: { '@pnpm.e2e/bar': '100.0.0' }, scripts: { start: 'echo hello from foo' } })
+  fs.utimesSync('foo/package.json', mtime, mtime)
+
+  const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'start'])
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
 })
 
 test('filtered exec installs only the selected projects', async () => {
@@ -854,6 +1008,66 @@ test('filtered exec with --workspace-root installs the workspace root', async ()
   expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
 })
 
+// A filtered install that prunes direct dependencies leaves the workspace
+// root alone, so the state must not record the root as installed, and a later
+// command that selects the root must not treat its dependencies as up to date.
+test('a filtered install that prunes direct dependencies does not vouch for the workspace root', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        private: true,
+        dependencies: {
+          '@pnpm.e2e/foo': '=100.0.0',
+        },
+      },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: {
+        '@pnpm.e2e/foo': '=100.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm(['--filter=foo', '--config.prune-direct-dependencies=true', 'install'])
+
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeFalsy()
+  expect(fs.existsSync(path.resolve('foo/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: true,
+    validation: expect.objectContaining({
+      manifests: { foo: expect.any(String) },
+    }),
+  }))
+
+  const errorResult = execPnpmSync(['--filter=foo', '--workspace-root', '--config.verify-deps-before-run=error', 'exec', 'node', '-e', '0'])
+  expect(errorResult.status).not.toBe(0)
+  expect(errorResult.stdout.toString()).toContain('Workspace package root has dependencies but was not installed')
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: true,
+    validation: expect.objectContaining({
+      manifests: { foo: expect.any(String) },
+    }),
+  }))
+
+  execPnpmSync(['--filter=foo', '--workspace-root', '--config.verify-deps-before-run=install', 'exec', 'node', '-e', '0'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  expect(loadWorkspaceState(process.cwd())).toStrictEqual(expect.objectContaining({
+    filteredInstall: false,
+    validation: expect.objectContaining({
+      manifests: {
+        '.': expect.any(String),
+        foo: expect.any(String),
+      },
+    }),
+  }))
+})
+
 // A filtered install leaves the projects it did not select without a modules
 // directory, so the next filtered command has to install the project it selects
 // instead of treating the recorded state as up to date
@@ -930,6 +1144,80 @@ test('exec installs a workspace dependency of the selected project after a filte
 
   expect(result.stdout.toString()).toContain('foo-ok')
   expect(fs.existsSync(path.resolve('bar/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+})
+
+// Under dedicated lockfiles with `injectWorkspacePackages`, an injected
+// `workspace:*` dependency is a copy inside the dependent project that its own
+// install covers, whereas an explicit `link:` dependency remains a symlink
+// whose target project must still be installed
+// (https://github.com/pnpm/tasks/issues/179).
+test('exec holds a link: dependency under dedicated lockfiles with injectWorkspacePackages', async () => {
+  const projects = preparePackages([
+    {
+      location: '.',
+      package: { name: 'root', private: true },
+    },
+    {
+      name: 'foo',
+      private: true,
+      dependencies: { bar: 'workspace:*' },
+    },
+    {
+      name: 'bar',
+      private: true,
+      dependencies: { '@pnpm.e2e/foo': '=100.0.0' },
+    },
+    {
+      name: 'baz',
+      private: true,
+      dependencies: { '@pnpm.e2e/foo': '=100.0.0' },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    injectWorkspacePackages: true,
+  })
+
+  execPnpmSync(['--filter=foo', 'install'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('bar/node_modules'))).toBeFalsy()
+
+  const injectedResult = execPnpmSync([
+    ...CONFIG,
+    '--filter=foo',
+    'exec',
+    'node',
+    '-e',
+    "console.log('injected-ok')",
+  ], { expectSuccess: true })
+  expect(injectedResult.stdout.toString()).toContain('injected-ok')
+
+  projects.foo.writePackageJson({
+    name: 'foo',
+    private: true,
+    dependencies: {
+      bar: 'workspace:*',
+      baz: 'link:../baz',
+    },
+  })
+  execPnpmSync(['--filter=foo', 'install'], { expectSuccess: true })
+  expect(fs.existsSync(path.resolve('baz/node_modules'))).toBeFalsy()
+
+  const { status, stdout } = execPnpmSync([...CONFIG, '--filter=foo', 'exec', 'node', '-e', '0'])
+  expect(status).not.toBe(0)
+  expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
+
+  const linkedResult = execPnpmSync([
+    '--config.verify-deps-before-run=install',
+    '--filter=foo',
+    'exec',
+    'node',
+    '-e',
+    "console.log('linked-ok')",
+  ], { expectSuccess: true })
+  expect(linkedResult.stdout.toString()).toContain('linked-ok')
+  expect(fs.existsSync(path.resolve('baz/node_modules/@pnpm.e2e/foo'))).toBeTruthy()
+  execPnpmSync([...CONFIG, '--filter=foo', 'exec', 'node', '-e', '0'], { expectSuccess: true })
 })
 
 // A negated selector reaches the install the gate spawns unchanged, so the
@@ -1208,6 +1496,9 @@ test('should check for outdated catalogs', async () => {
         [path.resolve('foo')]: { name: 'foo', version: '0.0.0' },
         [path.resolve('bar')]: { name: 'bar', version: '0.0.0' },
       },
+      validation: expect.objectContaining({
+        manifests: { '.': expect.any(String), foo: expect.any(String), bar: expect.any(String) },
+      }),
     })
   }
 
@@ -1307,3 +1598,7 @@ test('failed to install dependencies', async () => {
     expect(stdout.toString()).toContain('ERR_PNPM_VERIFY_DEPS_BEFORE_RUN')
   }
 })
+
+function rewriteWithSameContent (filePath: string): void {
+  fs.writeFileSync(filePath, fs.readFileSync(filePath))
+}

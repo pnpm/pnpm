@@ -103,10 +103,9 @@ pub fn write_package_map(
     let mut contents = serde_json::to_vec(&lockfile_to_package_map(lockfile, opts))
         .map_err(WritePackageMapError::Serialize)?;
     contents.push(b'\n');
-    // Hardened atomic write (temp file + rename): never follows a symlink an
-    // attacker (or a crashed prior install) may have pre-seeded at the target,
-    // and never leaves a torn file a concurrent reader could observe.
-    pnpm_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
+    // Never follows a symlink pre-seeded at the target, and never exposes a
+    // partly written map to the tools that read it.
+    pnpm_fs::ensure_file_atomically(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
         .map_err(WritePackageMapError::Write)
 }
 
@@ -120,10 +119,9 @@ pub fn write_hoisted_package_map(
         serde_json::to_vec(&dependencies_graph_to_package_map(lockfile, graph, opts))
             .map_err(WritePackageMapError::Serialize)?;
     contents.push(b'\n');
-    // Hardened atomic write (temp file + rename): never follows a symlink an
-    // attacker (or a crashed prior install) may have pre-seeded at the target,
-    // and never leaves a torn file a concurrent reader could observe.
-    pnpm_fs::ensure_file(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
+    // Never follows a symlink pre-seeded at the target, and never exposes a
+    // partly written map to the tools that read it.
+    pnpm_fs::ensure_file_atomically(&opts.modules_dir.join(PACKAGE_MAP_FILENAME), &contents, None)
         .map_err(WritePackageMapError::Write)
 }
 

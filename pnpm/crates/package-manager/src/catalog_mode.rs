@@ -24,6 +24,7 @@ use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
 use pnpm_resolving_npm_resolver::calc_version_range;
+use pnpm_tool_protocol::is_tool_specifier;
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -113,10 +114,10 @@ pub(crate) fn decide_catalog_outcome(
     dep: &CatalogModeDep<'_>,
     prefix: &str,
 ) -> Result<CatalogDecisionOutcome, CatalogVersionMismatchError> {
-    // A `runtime:` specifier round-trips to `devEngines.runtime` through
+    // A `tool:` / `runtime:` specifier round-trips to `devEngines.runtime` through
     // the manifest writer; promoting it into a catalog would strand it in
     // `devDependencies`. Skip it, matching pnpm.
-    if dep.bare_specifier.starts_with("runtime:") {
+    if is_tool_specifier(dep.bare_specifier) {
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 

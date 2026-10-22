@@ -1,5 +1,5 @@
 use super::{
-    DOCKER_CONTENT_DIGEST, Digest, ErrorCode, Manifest, Request, api_version, error,
+    DOCKER_CONTENT_DIGEST, Digest, ErrorCode, Manifest, Request, ResponseBody, api_version, error,
     registry_error, server_error,
 };
 use crate::server::{
@@ -68,7 +68,7 @@ impl Request {
         if upstream.caches()
             && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl).await?
         {
-            return manifest_response(bytes, self.method == Method::HEAD).map(Some);
+            return manifest_response(bytes, ResponseBody::for_method(&self.method)).map(Some);
         }
         if self.method == Method::HEAD
             && let Some(answered) = head_proxy_manifest(upstream, key, reference).await?
@@ -89,7 +89,7 @@ impl Request {
         if upstream.caches() {
             storage.write_upstream_document(&namespace, key, &bytes).await?;
         }
-        manifest_response(bytes, self.method == Method::HEAD).map(Some)
+        manifest_response(bytes, ResponseBody::for_method(&self.method)).map(Some)
     }
 
     async fn read_verified_proxy_manifest(
@@ -145,7 +145,7 @@ impl Request {
         if upstream.caches()
             && let Some((file, len)) = storage.open_upstream_blob(namespace, key, &filename).await?
         {
-            return Ok(cached_blob_response(file, len, self.method == Method::HEAD));
+            return Ok(cached_blob_response(file, len, ResponseBody::for_method(&self.method)));
         }
         if self.method == Method::HEAD {
             return head_proxy_blob(upstream, key, digest).await;
@@ -178,12 +178,15 @@ impl Request {
     }
 }
 
-fn cached_blob_response(file: tokio::fs::File, len: u64, head: bool) -> Response {
-    let body = if head { Body::empty() } else { streaming::stream_file(file) };
+fn cached_blob_response(file: tokio::fs::File, len: u64, body: ResponseBody) -> Response {
+    let body = match body {
+        ResponseBody::Omitted => Body::empty(),
+        ResponseBody::Sent => streaming::stream_file(file),
+    };
     tarball_response(body, Some(len))
 }
 
-fn manifest_response(bytes: Vec<u8>, head: bool) -> Result<Response, RegistryError> {
+fn manifest_response(bytes: Vec<u8>, body: ResponseBody) -> Result<Response, RegistryError> {
     let manifest = Manifest::parse(&bytes, None)
         .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
     Ok(Response::builder()
@@ -191,7 +194,10 @@ fn manifest_response(bytes: Vec<u8>, head: bool) -> Result<Response, RegistryErr
         .header(header::CONTENT_TYPE, manifest.media_type())
         .header(header::CONTENT_LENGTH, bytes.len())
         .header(DOCKER_CONTENT_DIGEST, Digest::of(&bytes).to_string())
-        .body(if head { Body::empty() } else { Body::from(bytes) })
+        .body(match body {
+            ResponseBody::Omitted => Body::empty(),
+            ResponseBody::Sent => Body::from(bytes),
+        })
         .unwrap_or_else(|_| server_error()))
 }
 

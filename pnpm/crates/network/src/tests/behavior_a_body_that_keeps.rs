@@ -188,6 +188,50 @@ async fn max_sockets_caps_concurrent_sockets_per_origin() {
     .expect("the origin's slot should be free after the first guard drops");
 }
 
+/// A saturated origin hands its next free `maxSockets` slot to a queued
+/// metadata request before a download that queued earlier, so resolution
+/// does not wait behind the tarballs of packages it already resolved.
+#[tokio::test]
+async fn max_sockets_serves_queued_metadata_before_queued_downloads() {
+    use std::sync::{Arc, Mutex};
+
+    let client = Arc::new(ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)));
+    let held = client.acquire_for_url("https://registry.example.com/held").await;
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let download = tokio::spawn({
+        let (client, order) = (Arc::clone(&client), Arc::clone(&order));
+        async move {
+            let _slot =
+                client.acquire_for_url_with_priority("https://registry.example.com/a.tgz", 100)
+                    .await;
+            order.lock().unwrap().push("download");
+        }
+    });
+    wait_for_socket_waiters(&client, "https://registry.example.com", 1).await;
+    let metadata = tokio::spawn({
+        let (client, order) = (Arc::clone(&client), Arc::clone(&order));
+        async move {
+            let _slot = client.acquire_for_url("https://registry.example.com/pkg").await;
+            order.lock().unwrap().push("metadata");
+        }
+    });
+    wait_for_socket_waiters(&client, "https://registry.example.com", 2).await;
+    drop(held);
+    metadata.await.unwrap();
+    download.await.unwrap();
+    assert_eq!(*order.lock().unwrap(), vec!["metadata", "download"]);
+}
+
+async fn wait_for_socket_waiters(client: &ThrottledClient, origin: &str, count: usize) {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while client.origin_limits.sockets.queued_waiters(origin) < count {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("the requests queue at the maxSockets cap");
+}
+
 /// Without a `maxSockets` cap, many concurrent requests to one origin all
 /// acquire immediately (bounded only by the global concurrency semaphore).
 #[tokio::test]

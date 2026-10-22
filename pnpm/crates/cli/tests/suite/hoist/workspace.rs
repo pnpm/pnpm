@@ -227,6 +227,74 @@ pub(super) fn hoist_workspace_packages_links_projects_by_name() {
     }
 }
 
+/// `hoistWorkspacePackages` (default on) under the isolated linker: a
+/// filtered *first* install still links every workspace project by
+/// name into the private hoisted modules dir, not only the selected
+/// ones. The hoist plan is built from the package map, which holds
+/// every importer, so filtering the install must not shrink it.
+#[test]
+fn isolated_linker_hoists_unselected_projects_on_a_filtered_first_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "root", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+    write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\n");
+
+    let app_dir = workspace.join("packages/app");
+    fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+    fs::write(
+        app_dir.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write packages/app/package.json");
+
+    let lib_dir = workspace.join("packages/lib");
+    fs::create_dir_all(&lib_dir).expect("mkdir packages/lib");
+    fs::write(
+        lib_dir.join("package.json"),
+        serde_json::json!({ "name": "lib", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/lib/package.json");
+
+    let other_dir = workspace.join("packages/other");
+    fs::create_dir_all(&other_dir).expect("mkdir packages/other");
+    fs::write(
+        other_dir.join("package.json"),
+        serde_json::json!({ "name": "other", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write packages/other/package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["--filter", "app", "install"])
+        .assert()
+        .success();
+
+    for (name, dir) in [("app", &app_dir), ("lib", &lib_dir), ("other", &other_dir)] {
+        let name_link = workspace.join("node_modules/.pnpm/node_modules").join(name);
+        assert!(
+            is_symlink_or_junction(&name_link).unwrap(),
+            "workspace project {name} must be hoisted at {name_link:?}",
+        );
+        assert_eq!(
+            fs::canonicalize(&name_link).unwrap(),
+            fs::canonicalize(dir).unwrap(),
+            "the name-link for {name} must point at the project directory",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
 /// TS: `hoist packages which is in the dependencies tree of the
 /// selected projects` (`hoist.ts:587`): with `hoistPattern: '*'` and a
 /// lockfile that pins a different `@pnpm.e2e/foo` per project, a subset
@@ -997,6 +1065,72 @@ fn hoisted_node_linker_links_a_filtered_project_into_root() {
     );
 
     drop((root, mock_instance));
+}
+
+/// Under `nodeLinker: hoisted`, a filtered install keeps the root links
+/// and bins of the projects it did not select, with or without an
+/// earlier install.
+#[test]
+fn hoisted_node_linker_keeps_unselected_projects_linked_into_root() {
+    for install_first in [true, false] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({ "name": "root", "private": true }).to_string(),
+        )
+        .expect("write root package.json");
+        write_workspace_yaml(&workspace, "packages:\n  - 'packages/*'\nnodeLinker: hoisted\n");
+        let app_dir = workspace.join("packages/app");
+        fs::create_dir_all(&app_dir).expect("mkdir packages/app");
+        fs::write(
+            app_dir.join("package.json"),
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" },
+            })
+            .to_string(),
+        )
+        .expect("write packages/app/package.json");
+        let lib_dir = workspace.join("packages/lib");
+        fs::create_dir_all(&lib_dir).expect("mkdir packages/lib");
+        fs::write(
+            lib_dir.join("package.json"),
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "bin": { "lib-cli": "./cli.js" },
+            })
+            .to_string(),
+        )
+        .expect("write packages/lib/package.json");
+        fs::write(lib_dir.join("cli.js"), "#!/usr/bin/env node\n")
+            .expect("write packages/lib/cli.js");
+
+        if install_first {
+            pacquet_in(&workspace)
+                .with_args(["install"])
+                .assert()
+                .success();
+        }
+        pacquet_in(&workspace)
+            .with_args(["--filter", "app", "add", "@foo/no-deps@1.0.0"])
+            .assert()
+            .success();
+
+        let lib_link = workspace.join("node_modules/lib");
+        assert!(lib_link.exists(), "{lib_link:?} is missing (install_first: {install_first})");
+        assert_eq!(fs::canonicalize(&lib_link).unwrap(), fs::canonicalize(&lib_dir).unwrap());
+        assert!(
+            workspace.join("node_modules/.bin/lib-cli").exists(),
+            "the lib-cli bin is missing (install_first: {install_first})",
+        );
+
+        drop((root, mock_instance));
+    }
 }
 
 /// Under `nodeLinker: hoisted`, a root `link:` dependency takes its name

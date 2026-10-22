@@ -1,0 +1,8 @@
+# A workspace of its own: the UI's packages come from bit.cloud's registry,
+# which the repository workspace must not resolve `@pnpm/*` from.
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude:
+  - '@pnpm/*'
+allowBuilds:
+  '@parcel/watcher': false
+  esbuild: true

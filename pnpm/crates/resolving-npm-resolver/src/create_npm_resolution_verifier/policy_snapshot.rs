@@ -43,6 +43,7 @@ pub(super) fn build_policy_snapshot(
     map.insert("revisionHistoryBinding".to_string(), JsonValue::Bool(true));
     // Same cache identity rule for the missing-integrity structural check.
     map.insert("integrityRequired".to_string(), JsonValue::Bool(true));
+    map.insert("variationResolutionsVerified".to_string(), JsonValue::Bool(true));
     map.insert(
         "namedRegistriesRouting".to_string(),
         JsonValue::String(opts.named_registries_routing.to_string()),

@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 
 [dependencies]
 pnpm-python-installer = { workspace = true }
+pnpm-rust-toolchain = { workspace = true }
 pnpm-package-name = { workspace = true }
 cargo-util-schemas = { workspace = true }
 pnpm-auth-commands = { workspace = true }
@@ -65,6 +66,7 @@ pnpm-patching = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
 pnpm-registry = { workspace = true }
 pnpm-reporter = { workspace = true }
+pnpm-resolving-deps-resolver = { workspace = true }
 pnpm-resolving-default-resolver = { workspace = true }
 pnpm-resolving-git-resolver = { workspace = true }
 pnpm-resolving-local-resolver = { workspace = true }
@@ -77,6 +79,7 @@ pnpm-tarball = { workspace = true }
 pnpm-text-sanitize = { workspace = true }
 pnpm-diagnostics = { workspace = true }
 pnpm-directory-fetcher = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 pnpm-versioning = { workspace = true }
 pnpm-workspace = { workspace = true }
 pnpm-workspace-manifest-writer = { workspace = true }
@@ -109,6 +112,7 @@ rayon = { workspace = true }
 rustc-hash = { workspace = true }
 reflink-copy = { workspace = true }
 regex = { workspace = true }
+regress = { workspace = true, features = ["utf16"] }
 rmp-serde = { workspace = true }
 same-file = { workspace = true }
 serde = { workspace = true }
@@ -146,6 +150,7 @@ libc = { workspace = true }
 pnpm-network-web-auth-testing = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pnpr = { workspace = true }
+pnpr-fixtures = { workspace = true }
 
 assert_cmd = { workspace = true }
 command-extra = { workspace = true }

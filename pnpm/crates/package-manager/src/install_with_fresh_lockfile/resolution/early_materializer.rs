@@ -15,7 +15,7 @@ pub(in super::super) fn start_early_materialization<Reporter: self::Reporter + '
     early_materialization_eligible(EarlyMaterializationFit {
         config: install.drivers.config,
         node_linker: install.execution.node_linker,
-        lockfile_only: install.execution.lockfile_only,
+        lockfile_only: install.execution.lockfile_only(),
         materializes_subset: setup.shape.materializes_subset,
         is_hoisted: setup.shape.is_hoisted,
         has_custom_fetcher: setup.chain.custom_fetcher_session.is_some(),

@@ -12,10 +12,10 @@ import loudRejection from 'loud-rejection'
 
 import { checkForUpdates } from './checkForUpdates.js'
 import { checkSudo } from './checkSudo.js'
-import { type Command, NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds } from './cmd/index.js'
+import { type Command, configDependencyReconciliationCommands, NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds } from './cmd/index.js'
 import { formatUnknownOptionsError } from './formatError.js'
 import { getConfig, installConfigDepsAndLoadHooks, isSingleSettingRead } from './getConfig.js'
-import { handlePackageManagerAndRuntimes, shouldSkipPmHandling } from './packageManagerCheck.js'
+import { handlePackageManagerAndRuntimes, shouldSkipPmHandling, switchPastUnreadableConfig } from './packageManagerCheck.js'
 import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
 import { parseCliArgs } from './parseCliArgs.js'
 import { initReporter, type ReporterType } from './reporter/index.js'
@@ -41,13 +41,10 @@ const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set',
 
 loudRejection()
 
-// This prevents the program from crashing when the pipe's read side closes early
-// (e.g., when running `pnpm config list | head`)
+// When the reader of stdout is gone (e.g., `pnpm outdated | head`), the rest of
+// the output is dropped. The command still finishes and exits with its own code.
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
-  if (err.code === 'EPIPE') {
-    // eslint-disable-next-line n/no-process-exit -- the reader is gone, so there is nothing left to print to
-    process.exit(0)
-  }
+  if (err.code === 'EPIPE') return
   throw err
 })
 
@@ -61,6 +58,10 @@ type CommandConfig = Config & {
 interface LoadedConfig {
   config: CommandConfig
   context: ConfigContext
+}
+
+interface CommandConfigLoad extends LoadedConfig {
+  allSettingsRead: boolean
 }
 
 interface CommandResult {
@@ -138,25 +139,19 @@ async function readCommandConfig (
   parsedCliArgs: ParsedCliArgsWithBuiltIn,
   rejectUnknownOptions: boolean
 ): Promise<LoadedConfig | undefined> {
-  const { cmd, params: cliParams, options: cliOptions, unknownOptions, workspaceDir, rawCliConfig } = parsedCliArgs
+  const { cmd, options: cliOptions, unknownOptions } = parsedCliArgs
   const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
-  if (cmd === 'link' && cliParams.length === 0) {
-    cliOptions.global = true
-  }
-  let { config, context } = await getConfig(cliOptions, {
-    excludeReporter: false,
-    // When we just want to print the location of the global bin directory,
-    // we don't need the write permission to it. Related issue: pnpm/pnpm#2700
-    globalDirShouldAllowWrite: cmd !== 'root' && cmd !== 'prefix',
-    skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
-    workspaceDir,
-    rawCliConfig,
-    onlyInheritDlxSettingsFromLocal: cmd === 'dlx' || cmd === 'create',
-    forSelfUpdate: cmd === 'self-update',
-    printWarnings: !isSingleSettingRead(cmd, cliParams),
-  }) as LoadedConfig
-  if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams, cliOptions.location)) {
-    await handlePackageManagerAndRuntimes({ cmd, cliOptions, config, context, rejectUnknownOptions })
+  applyGlobalScope(parsedCliArgs, isConfigCommand)
+  let { config, context, allSettingsRead } = await loadConfigOrSwitchToPinnedPnpm(parsedCliArgs, isConfigCommand)
+  if (handlesPackageManager(parsedCliArgs)) {
+    await handlePackageManagerAndRuntimes({
+      cmd,
+      cliOptions,
+      config,
+      context,
+      rejectUnknownOptions,
+      recordPinWithoutSwitch: allSettingsRead,
+    })
   }
   if (rejectUnknownOptions) {
     printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
@@ -170,10 +165,70 @@ async function readCommandConfig (
   // hit the pnpm/pnpm#10684 crash via any of these three entry points.
   ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
     tolerateConfigDependenciesErrors: isConfigCommand,
+    reconcileConfigDependencies: cmd != null && configDependencyReconciliationCommands.has(cmd),
     forSelfUpdate: cmd === 'self-update',
   }) as LoadedConfig)
   applyInvocationToConfig(config, parsedCliArgs)
   return { config, context }
+}
+
+/**
+ * Loads the config for the command. A load that fails first gives the pnpm
+ * the project pins a chance to run instead, since it may read what this one
+ * cannot: no setting may keep a project from the pnpm it pins.
+ */
+async function loadConfigOrSwitchToPinnedPnpm (
+  parsedCliArgs: ParsedCliArgsWithBuiltIn,
+  isConfigCommand: boolean
+): Promise<CommandConfigLoad> {
+  const { cmd, params: cliParams, options: cliOptions, workspaceDir, rawCliConfig } = parsedCliArgs
+  const getConfigOpts = {
+    excludeReporter: false,
+    // When we just want to print the location of the global bin directory,
+    // we don't need the write permission to it. Related issue: pnpm/pnpm#2700
+    globalDirShouldAllowWrite: cmd !== 'root' && cmd !== 'prefix',
+    skipGlobalBinDirCheck: envSubcommandSkipsGlobalBinCheck(cmd, cliParams),
+    workspaceDir,
+    rawCliConfig,
+    onlyInheritDlxSettingsFromLocal: cmd === 'dlx' || cmd === 'create',
+    forSelfUpdate: cmd === 'self-update',
+    ignoreProjectNpmrc: isGlobalConfigCommand(isConfigCommand, cliOptions),
+    printWarnings: !isSingleSettingRead(cmd, cliParams),
+  }
+  try {
+    return { ...await getConfig(cliOptions, getConfigOpts) as LoadedConfig, allSettingsRead: true }
+  } catch (err: unknown) {
+    if (!handlesPackageManager(parsedCliArgs)) throw err
+    const loadReadableConfig = async () => await getConfig(cliOptions, { ...getConfigOpts, skipUnreadableSettings: true, printWarnings: false }) as LoadedConfig
+    // `pnpm --version` needs no setting outside the pin check.
+    if (cmd == null && cliOptions.version === true) return { ...await loadReadableConfig(), allSettingsRead: false }
+    await switchPastUnreadableConfig(loadReadableConfig, cliOptions)
+    throw err
+  }
+}
+
+function handlesPackageManager ({ cmd, params, options }: ParsedCliArgsWithBuiltIn): boolean {
+  return cmd !== 'setup' && !shouldSkipPmHandling(cmd, params, options.location)
+}
+
+/**
+ * `pnpm link` without arguments links into the global directory.
+ *
+ * `--global` on a config command is the same request as `--location=global`.
+ * It names the global config files and does not load the config of a global
+ * install.
+ */
+function applyGlobalScope ({ cmd, params, options }: ParsedCliArgsWithBuiltIn, isConfigCommand: boolean): void {
+  if (cmd === 'link' && params.length === 0) {
+    options.global = true
+  } else if (isConfigCommand && options.global === true) {
+    options.location ??= 'global'
+    delete options.global
+  }
+}
+
+function isGlobalConfigCommand (isConfigCommand: boolean, cliOptions: ParsedCliArgsWithBuiltIn['options']): boolean {
+  return isConfigCommand && cliOptions.location === 'global'
 }
 
 function applyInvocationToConfig (config: CommandConfig, parsedCliArgs: ParsedCliArgsWithBuiltIn): void {

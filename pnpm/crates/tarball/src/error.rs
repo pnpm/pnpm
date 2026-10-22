@@ -233,6 +233,58 @@ pub enum TarballError {
         )
     )]
     UnexpectedPkgContentInStore { hint: String },
+
+    /// The response declared a `Content-Encoding` that pnpm did not offer
+    /// in its `Accept-Encoding`.
+    #[from(ignore)]
+    #[display(
+        "{} was served with Content-Encoding {encoding:?}, which pnpm cannot decode",
+        redact_url_for_display(url)
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_CONTENT_ENCODING))]
+    UnsupportedContentEncoding { url: String, encoding: String },
+
+    /// The response's content coding did not decode, for example a zstd frame
+    /// whose window exceeds the 8 MiB limit.
+    #[from(ignore)]
+    #[display(
+        "Failed to decode the {encoding} content coding of {}: {reason}",
+        redact_url_for_display(url)
+    )]
+    #[diagnostic(code(ERR_PNPM_TARBALL_CONTENT_ENCODING))]
+    ContentDecode { url: String, encoding: &'static str, reason: String },
+
+    /// The decoded body is neither a gzip stream nor a tar archive, such as an
+    /// HTML page served with a success status.
+    #[from(ignore)]
+    #[display("The response is neither a gzip nor a tar archive")]
+    #[diagnostic(code(ERR_PNPM_TARBALL_UNRECOGNIZED))]
+    UnrecognizedArchive,
+
+    /// A `.tgz` whose integrity names its tar does not decode in full, so
+    /// it has no tar to check. Every gzip member must decode cleanly, with
+    /// nothing after the tar's end-of-archive record.
+    #[from(ignore)]
+    #[display("{} does not decode to a complete tar: {reason}", redact_url_for_display(url))]
+    #[diagnostic(code(ERR_PNPM_TARBALL_INCOMPLETE_TAR))]
+    IncompleteTar {
+        #[error(not(source))]
+        url: String,
+        #[error(not(source))]
+        reason: String,
+    },
+
+    /// The decoded archive overran the decoded-output budget before its
+    /// hash could be checked.
+    #[from(ignore)]
+    #[display("The archive is larger than pnpm accepts: {_0}")]
+    #[diagnostic(
+        code(ERR_PNPM_TARBALL_TOO_LARGE),
+        help(
+            "If the package is legitimately this large, raise the maxTarballUnpackedSize setting."
+        )
+    )]
+    ArchiveLimit(#[error(not(source))] crate::ArchiveLimit),
 }
 
 impl TarballError {

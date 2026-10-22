@@ -73,8 +73,8 @@ async fn network_error_display_includes_reqwest_inner_chain() {
 async fn packages_under_orgs_should_work() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
     let cas_files = IngestTarballToStore {
-fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false},
-package: crate::TarballPackage {integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
+fetching: crate::ArchiveFetchOptions {http_client: &ThrottledClient::default(),auth_headers: &AuthHeaders::default(),retry_opts: test_retry_opts(),offline: false, tar_limits: crate::TarLimits::default()},
+package: crate::TarballPackage {integrity_kind: crate::IntegrityKind::Resource,integrity: Some(&integrity("sha512-dj7vjIn1Ar8sVXj2yAXiMNCJDmS9MQ9XMlIecX2dIzzhjSHCyKo4DdXjXMs7wKW2kj6yvVRSpuQjOZ3YLrh56w==")),unpacked_size: Some(16697),file_count: None,url: "https://registry.npmjs.org/@fastify/error/-/error-3.3.0.tgz",id: "@fastify/error@3.3.0"},
 store: crate::ArchiveStoreContext {dir: store_path,index: None,index_writer: None,verify_integrity: true,strict_pkg_content_check: true,verified_files_cache: SharedVerifiedFilesCache::default(),prefetched_cas_paths: None},
 
 
@@ -148,8 +148,10 @@ async fn store_row_holding_another_package_fails_the_read() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&pkg_integrity),
             unpacked_size: None,
             file_count: None,
@@ -304,8 +306,10 @@ async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
                 auth_headers: &auth_headers,
                 retry_opts: test_retry_opts(),
                 offline: true,
+                tar_limits: crate::TarLimits::default(),
             },
             package: crate::TarballPackage {
+                integrity_kind: crate::IntegrityKind::Resource,
                 integrity: None,
                 unpacked_size: None,
                 file_count: None,
@@ -416,6 +420,7 @@ async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
                 ]),
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .unwrap();
@@ -429,8 +434,10 @@ async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
             auth_headers: &auth_headers,
             retry_opts: test_retry_opts(),
             offline: true,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&package_integrity),
             unpacked_size: None,
             file_count: None,
@@ -505,6 +512,7 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
                 )]),
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .unwrap();
@@ -515,8 +523,10 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: true,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&integrity),
             unpacked_size: None,
             file_count: None,
@@ -569,8 +579,10 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
             auth_headers: &AuthHeaders::default(),
             retry_opts: test_retry_opts(),
             offline: true,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -634,8 +646,12 @@ async fn retries_then_succeeds_on_transient_5xx() {
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",
@@ -680,8 +696,10 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
             auth_headers: &auth_headers,
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&expected),
             unpacked_size: None,
             file_count: None,
@@ -761,8 +779,10 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
             auth_headers: &auth_headers,
             retry_opts: test_retry_opts(),
             offline: false,
+            tar_limits: crate::TarLimits::default(),
         },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: Some(&expected),
             unpacked_size: None,
             file_count: None,
@@ -823,8 +843,12 @@ async fn fails_fast_on_404() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",

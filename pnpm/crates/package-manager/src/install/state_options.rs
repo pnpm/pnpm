@@ -19,11 +19,12 @@ pub(crate) struct ApplyPriorState {
     pub(crate) is_inconsistent: bool,
     /// See [`RecordedWorkspace::moved`].
     pub(crate) tree_moved: bool,
+    pub(crate) prune_direct_dependencies: bool,
 }
 
 pub(crate) struct ApplyProjectSelection<'a> {
     pub(crate) importers: SelectedImporters<'a>,
-    pub(crate) workspace_packages: Option<pnpm_resolving_resolver_base::WorkspacePackages>,
+    pub(crate) workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     pub(crate) workspace_root: PathBuf,
     pub(crate) included: IncludedDependencies,
     pub(crate) node_linker: NodeLinker,
@@ -127,6 +128,7 @@ pub(crate) struct CompletionWorkspace<'a> {
     pub(crate) catalogs: Option<&'a Catalogs>,
     pub(crate) workspace_root: &'a Path,
     pub(crate) workspace_manifest_dir: &'a Path,
+    pub(crate) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 }
 
 #[derive(Clone, Copy)]
@@ -141,6 +143,8 @@ pub(crate) struct SelectedImporters<'a> {
     pub(crate) requested_ids: Option<&'a HashSet<String>>,
     pub(crate) real_ids: &'a HashSet<String>,
     pub(crate) manifests: &'a [(PathBuf, &'a PackageManifest)],
+    /// [`Self::manifests`] before `packageExtensions` and `readPackage`.
+    pub(crate) declared_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(crate) ignore_manifest_check: bool,
 }
 
@@ -194,4 +198,15 @@ pub(crate) struct RecordedWorkspace<'a> {
     /// Its bins may still name where it was.
     pub(crate) moved: bool,
     pub(crate) projects: &'a [(PathBuf, &'a PackageManifest)],
+}
+
+/// Why a run materializes no `node_modules`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ResolveOnly {
+    /// `--lockfile-only` or `--dry-run`: nothing is fetched either.
+    LockfileOnly,
+    /// `enableModulesDir: false`: the registry packages the host can install
+    /// are fetched into the store.
+    /// See `RunMode::fetches_into_store` in the run module.
+    FetchIntoStore,
 }

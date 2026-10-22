@@ -1,21 +1,17 @@
-use super::sanitize;
+use crate::cli_args::registry_client::apply_auth_and_otp;
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
-    send_with_retry,
+    RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials, send_with_retry,
 };
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use registry::{
-    TeamInfo, UserInfo, apply_auth_and_otp, auth_header_for_registry, build_http_client,
-    fetch_team_members, fetch_teams, normalize_registry_url, org_team_url,
+    auth_header_for_registry, fetch_team_members, fetch_teams, org_team_url,
     registry_error_from_response, registry_for_scope, registry_operation_error, team_url,
     team_user_url,
 };
-use reqwest::Response;
-use serde::Deserialize;
+use render::{render_members, render_teams};
 use std::collections::HashMap;
 
 #[derive(Debug, Args)]
@@ -173,6 +169,7 @@ struct TeamContext<'a> {
     http_client: ThrottledClient,
     retry_opts: RetryOpts,
     registries: HashMap<String, String>,
+    registry_override: Option<&'a str>,
     otp: Option<String>,
     parseable: bool,
     json: bool,
@@ -228,20 +225,22 @@ impl TeamArgs {
         }
     }
 
-    fn context<'a>(&self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry));
-        }
-        let redirect_guard = self.otp.as_ref().map(|_| registry::redirect_guard(&registries));
+    fn context<'a>(&'a self, config: &'a Config) -> miette::Result<TeamContext<'a>> {
+        let registries = crate::cli_args::registry_client::resolve_registries_with_override(
+            config,
+            self.registry.as_deref(),
+        );
+        let http_client = crate::cli_args::registry_client::build_registry_client_with_otp_guard(
+            config,
+            self.otp.as_deref(),
+            registries.values().map(String::as_str),
+        )?;
         Ok(TeamContext {
             config,
-            http_client: build_http_client(config, redirect_guard.as_ref())?,
+            http_client,
             retry_opts: config.retry_opts(),
             registries,
+            registry_override: self.registry.as_deref(),
             otp: self.otp.clone(),
             parseable: self.parseable,
             json: self.json,
@@ -384,78 +383,8 @@ async fn team_ls(context: &TeamContext<'_>, params: &[String]) -> miette::Result
     }
 }
 
-fn render_teams(
-    scope: &str,
-    teams: &[TeamInfo],
-    parseable: bool,
-    json: bool,
-) -> miette::Result<String> {
-    if json {
-        let names: Vec<&str> = teams
-            .iter()
-            .map(|team| team.name.as_str())
-            .collect();
-        return serde_json::to_string_pretty(&names)
-            .into_diagnostic()
-            .map_err(|source| registry_operation_error("serializing teams as JSON", source));
-    }
-
-    if parseable {
-        let lines: Vec<&str> = teams
-            .iter()
-            .map(|team| team.name.as_str())
-            .collect();
-        return Ok(lines.join("\n"));
-    }
-
-    if teams.is_empty() {
-        return Ok(format!("@{scope} has no teams"));
-    }
-
-    let mut lines = vec![format!("@{scope} has the following teams:")];
-    for team in teams {
-        lines.push(format!("  @{scope}:{}", team.name));
-    }
-    Ok(lines.join("\n"))
-}
-
-fn render_members(
-    scope: &str,
-    team: &str,
-    members: &[UserInfo],
-    parseable: bool,
-    json: bool,
-) -> miette::Result<String> {
-    if json {
-        let names: Vec<&str> = members
-            .iter()
-            .map(|member| member.name.as_str())
-            .collect();
-        return serde_json::to_string_pretty(&names)
-            .into_diagnostic()
-            .map_err(|source| registry_operation_error("serializing members as JSON", source));
-    }
-
-    if parseable {
-        let lines: Vec<&str> = members
-            .iter()
-            .map(|member| member.name.as_str())
-            .collect();
-        return Ok(lines.join("\n"));
-    }
-
-    if members.is_empty() {
-        return Ok(format!("@{scope}:{team} has no members"));
-    }
-
-    let mut lines = vec![format!("@{scope}:{team} has the following members:")];
-    for member in members {
-        lines.push(format!("  {}", member.name));
-    }
-    Ok(lines.join("\n"))
-}
-
 #[cfg(test)]
 mod tests;
 
 mod registry;
+mod render;

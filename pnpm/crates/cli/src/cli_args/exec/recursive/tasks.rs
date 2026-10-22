@@ -4,6 +4,7 @@ use super::{
     TaskCompletion, TaskGraph, TaskKey, TaskNode, count_failures, filtered_projects_dependencies,
     reverse_task_graph, spawn_exec_task, write_recursive_summary,
 };
+use crate::cli_args::reporter::script_output_colors;
 
 /// Everything one project's exec run reads and records.
 pub(super) struct ExecTaskContext<'a> {
@@ -192,7 +193,7 @@ pub(super) fn project_dep_path(root: &Path, dir: &Path, show_prefix: bool) -> Op
 
 pub(super) fn project_output(dep_path: Option<&str>, emit: fn(&LogEvent)) -> ScriptOutput<'_> {
     match dep_path {
-        Some(dep_path) => ScriptOutput::Streamed { dep_path, emit },
+        Some(dep_path) => ScriptOutput::Streamed { dep_path, emit, color: script_output_colors() },
         None => ScriptOutput::Inherit,
     }
 }

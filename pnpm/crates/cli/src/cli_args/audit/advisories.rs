@@ -1,12 +1,12 @@
 use super::{
     AuditError, AuditGraph, AuditReport, AuditVulnerabilityCounts, BTreeMap, Config,
-    ConfigAuditLevel, DepKind, Duration, Edge, EnvLockfile, GraphImporter, HashMap, HashSet,
-    Include, Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions, PeerSatisfactionEdges,
-    Range, RawBulkAdvisory, RetryOpts, bulk_response_to_audit_report, empty_packages,
-    empty_snapshots, env_roots, fetch_publish_times, importer_roots, lockfile_to_audit_request,
-    normalize_ghsa_id, normalize_registry, pick_registry_for_package, redact_url_userinfo,
-    sanitize_response_body, send_with_retry,
+    ConfigAuditLevel, DepKind, Edge, EnvLockfile, GraphImporter, HashMap, HashSet, Include,
+    Lockfile, PackageKey, PackumentPublishInfo, PeerEdgeOptions, PeerSatisfactionEdges, Range,
+    RawBulkAdvisory, bulk_response_to_audit_report, empty_packages, empty_snapshots, env_roots,
+    fetch_publish_times, importer_roots, lockfile_to_audit_request, normalize_ghsa_id,
+    pick_registry_for_package, sanitize_response_body, send_with_retry,
 };
+use pnpm_network::{normalize_registry_url, redact_url_credentials};
 
 pub(super) async fn audit(
     lockfile: &Lockfile,
@@ -16,24 +16,24 @@ pub(super) async fn audit(
     http_client: &pnpm_network::ThrottledClient,
 ) -> Result<AuditReport, AuditError> {
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile, include);
-    let registry = normalize_registry(&config.registry);
+    let registry = normalize_registry_url(&config.registry).into_owned();
     let body = serde_json::to_vec(&audit_request.request)
         .expect("audit request is a map of package names to version strings");
     let authorization = config.auth_headers.for_url(&registry);
-    let request_url = redact_url_userinfo(&format!("{registry}-/npm/v1/security/advisories/bulk"));
-    let (_, response) =
-        send_with_retry(http_client, &request_url, retry_opts_from_config(config), |client| {
-            let mut request = client
-                .post(&request_url)
-                .header("content-type", "application/json")
-                .body(body.clone());
-            if let Some(value) = &authorization {
-                request = request.header("authorization", value);
-            }
-            request
-        })
-        .await
-        .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
+    let request_url =
+        redact_url_credentials(&format!("{registry}-/npm/v1/security/advisories/bulk"));
+    let (_, response) = send_with_retry(http_client, &request_url, config.retry_opts(), |client| {
+        let mut request = client
+            .post(&request_url)
+            .header("content-type", "application/json")
+            .body(body.clone());
+        if let Some(value) = &authorization {
+            request = request.header("authorization", value);
+        }
+        request
+    })
+    .await
+    .map_err(|source| AuditError::Network { url: request_url.clone(), source })?;
 
     let status = response.status().as_u16();
     let raw_body = response
@@ -72,15 +72,6 @@ fn parse_bulk_advisories(
             url: url.to_string(),
             body: sanitize_response_body(&parsed.to_string()),
         })
-}
-
-pub(super) fn retry_opts_from_config(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
 }
 
 /// Corrects inferred `patched_versions` ranges against the registry: the

@@ -5,6 +5,26 @@ title: pnpm pack
 
 Create a tarball from a package.
 
+## Files included in the tarball
+
+Use the `files` field in `package.json` to select files and directories. Patterns
+support extglobs such as `lib/!(*.test.js)` and `@(dist|lib)`. A `files` field
+replaces the root `.npmignore` or `.gitignore`; ignore files inside selected
+subdirectories still apply. An explicitly named file or internal symlink is
+included even when its parent directory is excluded.
+
+Brace ranges expand to individual values. For example, `part{1..3}.js`
+matches `part1.js`, `part2.js`, and `part3.js`, and `part{a..c}.js` matches
+`parta.js`, `partb.js`, and `partc.js`. Ranges support descending values,
+steps such as `part{1..5..2}.js`, and zero padding such as `part{01..03}.js`.
+A zero step uses the default increment of 1. Padding in a step such as
+`part{1..10..02}.js` also pads the results to the wider endpoint's width.
+These ranges also work in `.npmignore` and `.gitignore`.
+
+Without `files`, pnpm reads `.npmignore`, falling back to `.gitignore`.
+Negated ignore patterns can re-include default exclusions such as `*.orig` and
+`npm-debug.log`. Root lockfiles and `.npmrc` stay excluded.
+
 ## Options
 
 ### --recursive, -r
@@ -45,7 +65,7 @@ Does everything a normal run does, except actually packing the tarball. Useful f
 
 Added in: v11.3.0
 
-Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.
+Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
 
 ## Life Cycle Scripts
 

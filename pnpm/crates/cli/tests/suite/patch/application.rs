@@ -269,8 +269,23 @@ fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
 /// (`patch.ts:269`).
 #[test]
 fn install_level_modified_patch_is_reapplied() {
-    let (root, workspace, npmrc_info) =
-        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    assert_modified_patch_is_reapplied("");
+}
+
+/// The hoisted linker leaves a package already in place alone, a patched
+/// one included. The edited patch changes the `patch_hash` in its dep
+/// path, which is what sends it to the linker again.
+#[test]
+fn install_level_modified_patch_is_reapplied_with_hoisted_linker() {
+    assert_modified_patch_is_reapplied("nodeLinker: hoisted\n");
+}
+
+fn assert_modified_patch_is_reapplied(extra_yaml: &str) {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_yaml(
+        "is-positive@1.0.0",
+        "is-positive@1.0.0.patch",
+        extra_yaml,
+    );
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();

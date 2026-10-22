@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { normalizeRegistriesByScope } from '@pnpm/config.normalize-registries'
+import { withCollapsedVariants } from '@pnpm/deps.path'
 import { readModulesManifest } from '@pnpm/installing.modules-yaml'
 import {
   getLockfileImporterId,
@@ -61,6 +62,7 @@ export interface ImporterInfo {
 }
 
 interface WalkContext {
+  lockfileDir: string
   reverseMap: Map<string, ReverseEdge[]>
   graph: DependencyGraph
   importers: Record<string, ProjectSnapshot>
@@ -72,6 +74,16 @@ interface WalkContext {
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
   expanded: Set<string>
+}
+
+const dependentNodeImporterIds = new WeakMap<DependentNode, string>()
+
+export function setDependentNodeImporterId (node: DependentNode, importerId: string): void {
+  dependentNodeImporterIds.set(node, importerId)
+}
+
+export function getDependentNodeImporterId (node: DependentNode): string | undefined {
+  return dependentNodeImporterIds.get(node)
 }
 
 type NameFormatter = (info: { name: string, version: string, manifest: DependencyManifest }) => string | undefined
@@ -87,6 +99,7 @@ interface BuildDependentsTreeOptions {
   lockfile: LockfileObject
   nameFormatter?: NameFormatter
   resolvePeersFromWorkspaceRoot?: boolean
+  nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
 }
 
 export async function buildDependentsTree (
@@ -117,9 +130,13 @@ export async function buildDependentsTree (
     wantedPackages: currentPackages,
     storeDir,
     storeIndex,
+    nodeLinker: modules?.nodeLinker ?? opts.nodeLinker,
+    hoistedLocations: modules?.hoistedLocations && withCollapsedVariants(modules.hoistedLocations),
+    lockfileDir: opts.lockfileDir,
   })
 
   const trees = collectMatchedTrees(search, {
+    lockfileDir: opts.lockfileDir,
     reverseMap,
     graph,
     importers: opts.lockfile.importers,
@@ -233,7 +250,7 @@ function searchPackage (
   return false
 }
 
-function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
+export function compareDependentsTrees (left: DependentsTree, right: DependentsTree): number {
   const nameCmp = lexCompare(left.name, right.name)
   if (nameCmp !== 0) return nameCmp
   const versionCmp = semver.valid(left.version) && semver.valid(right.version)
@@ -282,11 +299,14 @@ function resolvePackageNodes (
     wantedPackages: PackageSnapshots
     storeDir?: string
     storeIndex?: StoreIndex
+    nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+    hoistedLocations?: Record<string, string[]>
+    lockfileDir: string
   }
 ): Map<string, { path: string, readManifest: () => DependencyManifest }> {
   const resolved = new Map<string, { path: string, readManifest: () => DependencyManifest }>()
 
-  function walk (serialized: string, parentDir: string | undefined): void {
+  function walk (serialized: string, parentDir: string | undefined, importerDir: string): void {
     const node = graph.nodes.get(serialized)
     if (!node) return
     for (const edge of node.edges) {
@@ -300,20 +320,20 @@ function resolvePackageNodes (
         alias: edge.alias,
         currentPackages,
         depTypes: {},
-        linkedPathBaseDir: opts.modulesDir, // This might need adjustment for linked deps?
+        linkedPathBaseDir: importerDir,
         parentDir,
         ref: edge.target.nodeId.depPath,
         skipped: new Set(),
       })
 
       resolved.set(childSerialized, { path: pkgInfo.path, readManifest })
-      walk(childSerialized, pkgInfo.path)
+      walk(childSerialized, pkgInfo.path, importerDir)
     }
   }
 
   for (const [serialized, node] of graph.nodes) {
     if (node.nodeId.type === 'importer') {
-      walk(serialized, undefined)
+      walk(serialized, undefined, path.join(opts.lockfileDir, node.nodeId.importerId))
     }
   }
 
@@ -351,13 +371,16 @@ function walkReverse (
 function createCircularDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | undefined {
   const parentNode = ctx.graph.nodes.get(edge.parentSerialized)
   if (parentNode?.nodeId.type === 'importer') {
-    const info = ctx.importerInfoMap.get(parentNode.nodeId.importerId)
+    const importerId = parentNode.nodeId.importerId
+    const info = ctx.importerInfoMap.get(importerId)
     if (!info) return undefined
-    return {
+    const node: DependentNode = {
       name: info.name,
       version: info.version,
       circular: true,
     }
+    setDependentNodeImporterId(node, path.join(ctx.lockfileDir, importerId))
+    return node
   }
   if (parentNode?.nodeId.type !== 'package') return undefined
   const snapshot = ctx.currentPackages[parentNode.nodeId.depPath]
@@ -376,11 +399,13 @@ function createDependent (edge: ReverseEdge, ctx: WalkContext): DependentNode | 
     const importerId = parentNodeId.importerId
     const info = ctx.importerInfoMap.get(importerId) ?? { name: importerId, version: '' }
     const depField = getDepFieldForAlias(edge.alias, ctx.importers[importerId])
-    return {
+    const node: DependentNode = {
       name: info.name,
       version: info.version,
       depField,
     }
+    setDependentNodeImporterId(node, path.join(ctx.lockfileDir, importerId))
+    return node
   }
   if (parentNodeId.type === 'package') {
     return createPackageDependent(edge, parentNodeId.depPath, ctx)

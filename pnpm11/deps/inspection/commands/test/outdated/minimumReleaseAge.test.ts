@@ -12,7 +12,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 const testFixtures = fixtures(import.meta.dirname)
 const hasOutdatedDepsFixture = testFixtures.find('has-outdated-deps')
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 const OUTDATED_OPTIONS = {
   cacheDir: 'cache',

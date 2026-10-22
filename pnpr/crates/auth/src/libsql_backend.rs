@@ -14,37 +14,34 @@
 //! [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199)).
 //!
 //! The SQL is identical to the local backend — the `tokens` table reuses
-//! [`super::token_store::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
+//! [`super::token_store::sqlite::TOKENS_TABLE_SQL`] verbatim — so a database can be migrated
 //! between the two. Users, which the local backend keeps in an htpasswd
 //! file, live in a `users` table here ([`super::USERS_TABLE_SQL`]).
 
-use super::token_store::{mint_token, unix_seconds};
+mod connector;
 mod schema;
+mod tokens;
+mod user_admin;
+use connector::{LibsqlConnector, is_plain_http};
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
 };
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex, token_timestamp_from_sql, validate_username, verify_returning_user,
-    with_auth_timeout,
+    DEFAULT_BCRYPT_COST, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
+    UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash,
+    verify_returning_user, with_auth_timeout,
 };
+use crate::validation::validate_username;
 use async_trait::async_trait;
 use libsql::{
     Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
 };
+use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
-
-/// The `tokens` columns selected (in order) by every token read, so
-/// [`row_to_keyed_record`] can decode any of them the same way.
-const TOKEN_COLUMNS: &str =
-    "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
+use std::{sync::atomic::AtomicU64, time::Duration};
 
 /// Deadline for request-path auth reads, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -60,7 +57,7 @@ const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 pub struct LibsqlAuth {
     _db: Database,
     conn: Connection,
-    /// Per-process secret seeding [`mint_token`]. Need not match other
+    /// Per-process secret seeding [`crate::token_store::mint_token`]. Need not match other
     /// replicas: tokens are looked up by their stored hash, never
     /// re-derived, so each replica minting with its own secret is safe.
     secret: [u8; 32],
@@ -90,11 +87,23 @@ impl LibsqlAuth {
     /// primary — always fresh, but a network round-trip on the auth hot
     /// path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
+        if settings.auth_token.is_some()
+            && is_plain_http(&settings.url)
+            && !is_url_secure_for_credentials(&settings.url)
+        {
+            return Err(RegistryError::InvalidConfig {
+                reason: "backend.libsql.authToken requires an https:// or libsql:// url, or \
+                         http:// on a loopback host"
+                    .to_string(),
+            });
+        }
+        let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
         let auth_token = settings.auth_token.clone().unwrap_or_default();
         let db = match &settings.replica_path {
             Some(path) => {
                 let mut builder =
-                    Builder::new_remote_replica(path, settings.url.clone(), auth_token);
+                    Builder::new_remote_replica(path, settings.url.clone(), auth_token)
+                        .connector(connector);
                 let interval = settings.sync_interval_secs.unwrap_or(
                     LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS,
                 );
@@ -106,7 +115,11 @@ impl LibsqlAuth {
             None => {
                 with_auth_timeout(
                     DEFAULT_STARTUP_TIMEOUT,
-                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
+                    Box::pin(
+                        Builder::new_remote(settings.url.clone(), auth_token)
+                            .connector(connector)
+                            .build(),
+                    ),
                 )
                 .await?
             }
@@ -160,6 +173,14 @@ impl LibsqlAuth {
         })
         .await
     }
+
+    async fn check_db_readiness(&self) -> Result<()> {
+        with_auth_timeout::<_, LibsqlError>(self.timeout, async {
+            self.conn.query("SELECT 1;", ()).await?;
+            Ok(())
+        })
+        .await
+    }
 }
 
 #[async_trait]
@@ -171,6 +192,30 @@ impl UserBackend for LibsqlAuth {
     ) -> Result<(UpsertOutcome, String)> {
         let hash = tokio::sync::OnceCell::new();
         retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash)).await
+    }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        self.list_usernames().await
+    }
+
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        self.stored_hash(username).await
+    }
+
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
+        self.insert_user_for_admin(username, password).await
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
+        self.update_password(username, password).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
+        self.remove_user(username).await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 
@@ -184,7 +229,12 @@ impl LibsqlAuth {
         validate_username(username)?;
 
         if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+            return self.verify_and_maybe_upgrade(username, password, stored).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         // Brand-new user. The cheap pre-check avoids the (expensive) hash
@@ -298,7 +348,7 @@ impl LibsqlAuth {
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
         if let Some(stored) = self.stored_hash(username).await? {
-            return verify_returning_user(username, password, stored).await;
+            return self.verify_and_maybe_upgrade(username, password, stored).await;
         }
         let MaxUsers::Limited(max) = self.max_users else {
             return Err(RegistryError::RegistrationDisabled);
@@ -316,100 +366,27 @@ impl LibsqlAuth {
         let Some(stored) = self.stored_hash(username).await? else {
             return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         };
-        verify_returning_user(username, password, stored).await
-    }
-}
-
-#[async_trait]
-impl TokenBackend for LibsqlAuth {
-    async fn issue(&self, username: &str) -> Result<String> {
-        let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
-        let raw = mint_token(&self.secret, nonce, username);
-        let token_hash = sha256_hex(raw.as_bytes());
-        let now = unix_seconds() as i64;
-        self.conn.execute(
-            "INSERT INTO tokens
-                 (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-             VALUES (?1, ?2, ?3, ?3, 0, '[]')",
-            params![token_hash, username, now],
-        )
-        .await?;
-        Ok(raw)
+        self.verify_and_maybe_upgrade(username, password, stored).await
     }
 
-    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
-        let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(
-                "SELECT username FROM tokens WHERE token_hash = ?1",
-                params![token_hash],
+    async fn verify_and_maybe_upgrade(
+        &self,
+        username: &str,
+        password: &str,
+        stored: String,
+    ) -> Result<(UpsertOutcome, String)> {
+        let (outcome, user) =
+            verify_returning_user(username, password, stored.clone(), DEFAULT_BCRYPT_COST).await?;
+        if is_sha_hash(&stored) {
+            let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            self.conn.execute(
+                "UPDATE users SET bcrypt_hash = ?1 WHERE username = ?2 AND bcrypt_hash = ?3",
+                params![new_hash, username, stored],
             )
             .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
-        })
-        .await
+        }
+        Ok((outcome, user))
     }
-
-    async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![key]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
-        })
-        .await
-    }
-
-    async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
-        let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        with_auth_timeout::<_, RegistryError>(self.timeout, async {
-            let mut rows = self.conn.query(&query, params![username]).await?;
-            let mut out = Vec::new();
-            while let Some(row) = rows.next().await? {
-                out.push(row_to_keyed_record(&row)?);
-            }
-            Ok(out)
-        })
-        .await
-    }
-
-    async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
-        let Some(record) = self.find_by_key(key).await? else {
-            return Ok(None);
-        };
-        self.conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await?;
-        Ok(Some(record))
-    }
-}
-
-/// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
-/// record)` pair.
-fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
-    let token_hash: String = row.get(0)?;
-    let username: String = row.get(1)?;
-    let created_at: i64 = row.get(2)?;
-    let last_used_at: i64 = row.get(3)?;
-    let readonly: i64 = row.get(4)?;
-    let cidr_json: String = row.get(5)?;
-    let cidr_whitelist: Vec<String> = serde_json::from_str(&cidr_json)
-        .map_err(|err| RegistryError::Internal {
-            reason: format!("token {token_hash} has an unreadable cidr_whitelist: {err}"),
-        })?;
-    Ok((
-        token_hash,
-        TokenRecord {
-            username,
-            created_at: token_timestamp_from_sql(created_at),
-            last_used_at: token_timestamp_from_sql(last_used_at),
-            readonly: readonly != 0,
-            cidr_whitelist,
-        },
-    ))
 }
 
 #[cfg(test)]

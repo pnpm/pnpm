@@ -128,7 +128,7 @@ pub fn copy_file_atomic(source_path: &Path, target_path: &Path) -> io::Result<()
 /// Windows keeps it behind an open handle, which `same-file` compares.
 /// A path that has since been replaced, removed, or turned into a
 /// symlink answers `false`.
-fn path_still_names(created: &fs::File, path: &Path) -> bool {
+pub(crate) fn path_still_names(created: &fs::File, path: &Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;

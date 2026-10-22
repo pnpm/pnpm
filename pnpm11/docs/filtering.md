@@ -76,7 +76,7 @@ To ONLY select a package's dependents (both direct and non-direct), prefix the
 package name with an ellipsis followed by a chevron. For instance, this will
 run tests for all packages dependent on `foo`:
 
-```text
+```sh
 pnpm --filter "...^foo" test
 ```
 
@@ -112,7 +112,7 @@ pnpm --filter "...{packages/**}[origin/master]..." <cmd>
 Or you may select all packages from a directory with names matching the given
 pattern:
 
-```text
+```sh
 pnpm --filter "@babel/*{components/**}" <cmd>
 pnpm --filter "@babel/*{components/**}[origin/master]" <cmd>
 pnpm --filter "...@babel/*{components/**}[origin/master]" <cmd>

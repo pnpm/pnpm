@@ -41,7 +41,7 @@ export type PartialResolvedPackage = Pick<ResolvedPackage,
 | 'id'
 | 'pkgIdWithPatchHash'
 | 'name'
-| 'peerDependencies'
+| 'peers'
 | 'version'
 >
 

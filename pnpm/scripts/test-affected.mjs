@@ -32,6 +32,7 @@ const WORKSPACE_WIDE = [
  */
 const EXTERNAL_TEST_INPUTS = [
   { prefix: 'fixtures/', packages: ['pnpm-deps-restorer'] },
+  { prefix: 'pnpm11/config/reader/src/', packages: ['pnpm-config'] },
   { prefix: 'pnpm11/installing/deps-installer/test/fixtures/patch-pkg/', packages: ['pnpm-cli'] },
   { prefix: 'pnpm11/deps/compliance/commands/test/sbom/fixtures/', packages: ['pnpm-cli'] },
 ]

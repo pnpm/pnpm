@@ -13,24 +13,31 @@ pub use auth::{
     nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
     redact_npm_auth_key, redact_url_credentials, redact_url_for_display,
 };
-pub use client_builder::{RedirectGuard, default_network_concurrency, native_dns_resolver};
+pub use certificates::bundled_root_certs;
+pub use client_builder::{default_network_concurrency, native_dns_resolver};
 pub use error_chain::{is_permanent_error, walk_reqwest_chain};
-pub use limited_body::{LimitedBody, read_limited_body};
+pub use limited_body::{BodyChunks, LimitedBody, read_limited_body, read_self_delimiting_body};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
+pub use redirect_guard::{RedirectGuard, origins_redirect_guard};
 pub use retry::{
     RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
 };
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
-pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
+pub use url_encoding::{
+    canonicalize_npm_registry_url, encode_package_name, encode_uri_component, escaped_package_name,
+    normalize_registry_url, percent_decode_str,
+};
 
 mod address_guard;
 mod auth;
 mod error_chain;
+mod host_socket_limit;
 mod limited_body;
 mod origin_gate;
 mod priority_semaphore;
 mod proxy;
+mod redirect_guard;
 mod registry_limit;
 mod retry;
 #[cfg(test)]
@@ -40,6 +47,7 @@ mod token_helper;
 
 mod url_encoding;
 
+use host_socket_limit::HostSocketLimit;
 use origin_gate::{OriginLimits, OriginPermit};
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
@@ -52,13 +60,13 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     num::NonZeroUsize,
     ops::Deref,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock},
     time::{Duration, Instant},
 };
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::Semaphore;
 
 /// Fallback `User-Agent` for the install client's no-config
 /// constructors ([`ThrottledClient::new_for_installs`]) and for the case where a
@@ -186,13 +194,13 @@ impl Default for NetworkSettings {
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,
-    default_clients: ClientPair,
+    default_clients: ClientSet,
     /// Per-registry clients keyed by nerf-darted URI. Empty when no
     /// `//host/:cert=…` / `:key=…` / `:ca=…` / `:cafile=…` /
     /// `:certfile=…` / `:keyfile=…` `.npmrc` entries are present —
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
-    per_registry: tls::PerRegistryMap<ClientPair>,
+    per_registry: tls::PerRegistryMap<ClientSet>,
     /// Per-origin socket cap (the `maxSockets` setting), proxy socket cap,
     /// and the cap a fetch timeout lowers to one request.
     origin_limits: OriginLimits,
@@ -201,76 +209,6 @@ pub struct ThrottledClient {
     fetch_warn_timeout: Duration,
     fetch_min_speed_ki_bps: u64,
     warning_handler: std::sync::RwLock<fn(&str)>,
-}
-
-#[derive(Debug)]
-struct ClientPair {
-    follow_redirects: Client,
-    no_redirects: Client,
-}
-
-impl ClientPair {
-    fn select(&self, follow_redirects: bool) -> &Client {
-        if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
-    }
-}
-
-/// How the `maxSockets` configuration maps to a per-origin cap.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HostSocketCap {
-    Default,
-    Disabled,
-    Explicit(NonZeroUsize),
-}
-
-/// Per-origin concurrent-connection cap, mirroring undici's `connections`
-/// option (the `maxSockets` setting pnpm applies per registry origin).
-///
-/// When an explicit limit is configured, every origin is capped. When
-/// uncapped (the default), direct origins are bounded only by the global
-/// concurrency semaphore, while proxied origins share a cap of
-/// [`DEFAULT_MAX_SOCKETS`] to avoid exhausting proxy connection backlogs
-/// or tripping proxy rate limits.
-///
-/// Each distinct origin gets its own [`Semaphore`], minted on first
-/// request to that origin. Acquired *before* the global
-/// [`ThrottledClient::semaphore`] so a request waiting on a saturated
-/// origin does not hold a global concurrency slot.
-#[derive(Debug)]
-struct HostSocketLimit {
-    cap: HostSocketCap,
-    per_origin: Mutex<HashMap<String, Arc<Semaphore>>>,
-}
-
-impl HostSocketLimit {
-    fn new(setting: Option<usize>) -> Self {
-        let cap = match setting {
-            None => HostSocketCap::Default,
-            Some(0) => HostSocketCap::Disabled,
-            Some(n) => HostSocketCap::Explicit(
-                NonZeroUsize::new(n).expect("non-zero value expected for n > 0"),
-            ),
-        };
-        Self { cap, per_origin: Mutex::new(HashMap::new()) }
-    }
-
-    /// Acquire an owned permit for `origin`, or `None` when uncapped.
-    async fn acquire(&self, origin: &str, is_proxied: bool) -> Option<OwnedSemaphorePermit> {
-        let limit_num = match self.cap {
-            HostSocketCap::Disabled => return None,
-            HostSocketCap::Explicit(max) => max.get(),
-            HostSocketCap::Default if is_proxied => DEFAULT_MAX_SOCKETS,
-            HostSocketCap::Default => return None,
-        };
-        let semaphore = {
-            let mut map = self.per_origin.lock().expect("host-socket-limit mutex poisoned");
-            Arc::clone(
-                map.entry(origin.to_string())
-                    .or_insert_with(|| Arc::new(Semaphore::new(limit_num))),
-            )
-        };
-        Some(semaphore.acquire_owned().await.expect("host-socket semaphore is never closed"))
-    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -333,24 +271,33 @@ pub struct ThrottledClientGuard<'a> {
     /// The per-origin `maxSockets` permit, held for the same request lifetime
     /// as `permit`. `None` when no `maxSockets` cap is configured or the URL
     /// had no parseable origin.
-    host_permit: Option<OwnedSemaphorePermit>,
+    host_permit: Option<Permit>,
     /// Counts the request against its origin's timeout cap. `None` when the
     /// URL had no parseable origin.
     origin_permit: Option<OriginPermit>,
     client: &'a Client,
+    acquired_at: Instant,
 }
 
 /// A response that retains the global and per-origin permits through body reads.
 pub struct ThrottledResponse {
     response: reqwest::Response,
     _permit: Permit,
-    _host_permit: Option<OwnedSemaphorePermit>,
+    _host_permit: Option<Permit>,
     _origin_permit: Option<OriginPermit>,
     body_timeout: Duration,
     received_at: Instant,
 }
 
 impl ThrottledClientGuard<'_> {
+    /// When the guard got its last concurrency permit. Time a request spent
+    /// queued for its permits is pnpm's own scheduling, so a measurement of
+    /// how long the registry took to answer starts here.
+    #[must_use]
+    pub fn acquired_at(&self) -> Instant {
+        self.acquired_at
+    }
+
     /// Transfer both concurrency permits to the response body owner.
     #[must_use]
     pub fn retain_for_body(
@@ -477,7 +424,8 @@ impl ThrottledClient {
             permit,
             host_permit: None,
             origin_permit: None,
-            client: &self.default_clients.follow_redirects,
+            client: self.default_clients.select(true, true),
+            acquired_at: Instant::now(),
         }
     }
 
@@ -526,6 +474,20 @@ impl ThrottledClient {
         priority: u64,
     ) -> ThrottledClientGuard<'_> {
         self.acquire_for_url_with_priority_and_redirects(url, priority, false).await
+    }
+
+    /// [`Self::acquire_for_url_with_priority`] for an archive download. The
+    /// client sends no `Accept-Encoding` and leaves the response's
+    /// `Content-Encoding` in place, so the caller negotiates and decodes the
+    /// content coding itself.
+    pub async fn acquire_archive_for_url_with_priority(
+        &self,
+        url: &str,
+        priority: u64,
+        follow_redirects: bool,
+    ) -> ThrottledClientGuard<'_> {
+        self.acquire_with_client(url, priority, |clients| clients.select(follow_redirects, false))
+            .await
     }
 }
 
@@ -620,15 +582,17 @@ impl Default for ThrottledClient {
 mod certificates;
 #[cfg(target_vendor = "apple")]
 use certificates::is_platform_verifier_available;
-use certificates::{
-    AppliedTls, TrustRoots, apply_tls, bundled_root_certs, load_node_extra_ca_certs, merge_tls,
-};
+use certificates::{AppliedTls, TrustRoots, apply_tls, load_node_extra_ca_certs, merge_tls};
+
+mod client_set;
+use client_set::{ClientPair, ClientSet, OwnedClientInputs};
 
 mod client_builder;
 use client_builder::{
-    CappedDnsResolver, ClientBuildInputs, MAX_REDIRECT_HOPS, build_client_with_root_fallback,
+    CappedDnsResolver, ClientBuildInputs, ClientVariant, build_client_with_root_fallback,
     configured_proxy, is_redirect_status,
 };
+use redirect_guard::MAX_REDIRECT_HOPS;
 
 mod requests;
 

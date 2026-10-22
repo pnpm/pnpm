@@ -404,6 +404,20 @@ fn compact_history_detects_trust_evidence_without_a_full_manifest() {
     assert!(matches!(error, TrustViolation::TrustDowngrade { .. }), "got {error:?}");
 }
 
+#[test]
+fn compact_history_keeps_same_day_publish_order_for_trust_checks() {
+    let meta = make_package(
+        "acme",
+        &[
+            ("1.0.0", "2025-01-01T01:00:00.000Z", Evidence::StagedPublish),
+            ("1.1.0", "2025-01-01T20:00:00.000Z", Evidence::None),
+        ],
+    );
+    let err = fail_if_trust_downgraded(&meta, "1.1.0", &TrustCheckOptions::default())
+        .expect_err("same-day staged evidence must remain the trust baseline");
+    assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
+}
+
 mod ignore_missing_time_field {
     use pnpm_registry::Package;
 

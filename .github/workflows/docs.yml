@@ -40,10 +40,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: pnpm/pnpm.io
-          ref: 0e0816fcf8497addd287a46ffc700802ad026535 # pnpm.io documentation importer
+          ref: f5c920521d391d229912b7363ccaa629f671a846 # pnpm.io documentation importer
           path: website
           persist-credentials: false
-      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      - uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           runtime: node@22
           install: false

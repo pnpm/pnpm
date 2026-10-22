@@ -313,22 +313,6 @@ pub(crate) fn normalize_ghsa_id(ghsa_id: &str) -> String {
     format!("{}{}", trimmed[..dash].to_ascii_uppercase(), trimmed[dash..].to_ascii_lowercase())
 }
 
-pub(crate) fn normalize_registry(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
-pub(crate) fn redact_url_userinfo(url: &str) -> String {
-    let Ok(mut parsed) = reqwest::Url::parse(url) else {
-        return url.to_string();
-    };
-    if parsed.username().is_empty() && parsed.password().is_none() {
-        return url.to_string();
-    }
-    let _ = parsed.set_username("");
-    let _ = parsed.set_password(None);
-    parsed.to_string()
-}
-
 pub(crate) fn truncate_chars(value: &str, max_chars: usize) -> String {
     value.chars().take(max_chars).collect()
 }

@@ -1,9 +1,11 @@
+use futures_util::TryStreamExt as _;
+
 use super::{
-    Arc, AsyncReadExt, AsyncSeekExt, BlobFinalize, Body, BoxStream, CanonicalPackageName,
-    DocumentWrite, ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
-    HostedDocumentVersion, HostedRevisionRefWrite, Path, PathBuf, RangedBlob, Result, SeekFrom,
-    Store, StreamExt, async_trait, create_tmp_file, fs, read_dir_if_present, stream, streaming,
-    write_atomic,
+    Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, Body, BoxStream,
+    CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, ErrorKind, GetRange, HostedBackend,
+    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefWrite,
+    PACKAGES_DIR, Path, PathBuf, RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait,
+    decode_segment, fs, read_dir_if_present, stream, streaming,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -11,21 +13,12 @@ use super::{
 /// is promoted by rename.
 #[async_trait]
 impl HostedBackend for Store {
-    async fn rebuild_package_index(&self) -> Result<()> {
-        let complete = self.root.join(".package-index/.complete");
-        if fs::try_exists(&complete).await? {
-            return Ok(());
-        }
-        let index = self.root.join(".package-index");
-        let mut files = self.list_blob_files();
-        while let Some(file) = files.next().await {
-            let file = file?;
-            let Some(name) = file.path.strip_suffix("/package.json") else { continue };
-            let marker_dir = index.join(name);
-            fs::create_dir_all(&marker_dir).await?;
-            write_index_marker(&marker_dir.join(".present")).await?;
-        }
-        write_atomic(&complete, b"").await
+    async fn check_readiness(&self) -> Result<()> {
+        fs::create_dir_all(&self.root).await
+            .map_err(|err| super::RegistryError::StorageUnavailable {
+                reason: format!("storage root '{}' is not accessible: {err}", self.root.display()),
+            })?;
+        Ok(())
     }
 
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
@@ -49,19 +42,7 @@ impl HostedBackend for Store {
         bytes: &[u8],
         _version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
-        let marker = self.root
-            .join(".package-index")
-            .join(name.as_str())
-            .join(".present");
-        let indexed = fs::try_exists(&marker).await?;
-        write_atomic(&marker, b"").await?;
-        if let Err(err) = Store::write_document(self, name, bytes).await {
-            if !indexed {
-                fs::remove_file(&marker).await?;
-                self.prune_package_index(name).await?;
-            }
-            return Err(err);
-        }
+        Store::write_document(self, name, bytes).await?;
         Ok(DocumentWrite::Written)
     }
 
@@ -117,38 +98,64 @@ impl HostedBackend for Store {
     }
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let removed = Store::remove_package(self, name).await?;
-        match fs::remove_dir_all(self.root.join(".package-index").join(name.as_str())).await {
-            Ok(()) => {}
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(err.into()),
-        }
-        self.prune_package_index(name).await?;
-        Ok(removed)
+        Store::remove_package(self, name).await
     }
 
     fn list_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
-        let root = &self.root;
-        stream::try_unfold(
-            (true, Vec::<fs::ReadDir>::new()),
-            move |(first, mut directories)| async move {
-                if first {
-                    let Some(entries) = read_dir_if_present(root).await? else {
-                        return Ok(None);
-                    };
-                    directories.push(entries);
-                }
-                let Some(file) = next_blob_file(root, &mut directories).await? else {
-                    return Ok(None);
-                };
-                Ok(Some((file, (false, directories))))
-            },
-        )
-        .boxed()
+        let packages = self.root.join(PACKAGES_DIR);
+        stream::once(async move { package_dirs(&packages).await })
+            .map_ok(|dirs| {
+                stream::iter(dirs)
+                    .then(|(name, dir)| package_files(name, dir))
+                    .map_ok(|files| stream::iter(files.into_iter().map(Ok)))
+            })
+            .try_flatten()
+            .try_flatten()
+            .boxed()
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
         Store::list_package_names(self).await
+    }
+
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>> {
+        let blobs_dir = self.package_dir(name).join(BLOBS_DIR);
+        let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {
+            return Ok(Vec::new());
+        };
+        let mut list = Vec::new();
+        while let Some(entry) = blobs.next_entry().await? {
+            let metadata = entry.metadata().await?;
+            if let Some(blob) = entry
+                .file_name()
+                .to_str()
+                .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
+                .and_then(decode_segment)
+                && metadata.is_file()
+            {
+                list.push(blob);
+            }
+        }
+        list.sort();
+        Ok(list)
+    }
+
+    async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
+        let mut dirs = Vec::new();
+        let Some(mut entries) = read_dir_if_present(&self.root).await? else {
+            return Ok(dirs);
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            if entry.file_type().await?.is_dir() {
+                dirs.push(
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned(),
+                );
+            }
+        }
+        Ok(dirs)
     }
 
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
@@ -207,86 +214,84 @@ impl HostedBackend for Store {
         Store::remove_record(self, namespace, key).await
     }
 
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool> {
+        Store::remove_record_if_current(self, namespace, key, expected).await
+    }
+
     async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
         Store::list_record_keys(self, namespace).await
     }
 }
 
-/// The next file below `root`, walking the directory stack depth-first.
-async fn next_blob_file(
-    root: &Path,
-    directories: &mut Vec<fs::ReadDir>,
-) -> Result<Option<HostedBlobFile>> {
-    while let Some(entries) = directories.last_mut() {
-        let Some(entry) = entries.next_entry().await? else {
-            directories.pop();
-            continue;
-        };
-        if entry
-            .file_name()
-            .to_string_lossy()
-            .starts_with('.')
-        {
-            continue;
-        }
-        let kind = entry.file_type().await?;
-        if kind.is_dir() {
-            directories.push(fs::read_dir(entry.path()).await?);
-        } else if kind.is_file() {
-            return blob_file(root, &entry).await.map(Some);
-        }
-    }
-    Ok(None)
-}
-
-async fn blob_file(root: &Path, entry: &fs::DirEntry) -> Result<HostedBlobFile> {
-    let metadata = entry.metadata().await?;
-    let path = entry
-        .path()
-        .strip_prefix(root)
-        .expect("entry is below the store root")
-        .to_string_lossy()
-        .replace('\\', "/");
-    Ok(HostedBlobFile { path, modified: metadata.modified()?, size: metadata.len() })
-}
-
-/// Publishes an empty index marker by rename, as `write_atomic` does, so a
-/// symlink planted at the marker path is replaced rather than followed. It
-/// does not `sync_all` the marker: on Apple platforms that is `F_FULLFSYNC`,
-/// which also flushes the drive cache at about 4 ms alone and 19 ms under
-/// load, once per package, and the `F_FULLFSYNC` that publishes `.complete`
-/// afterwards flushes the drive cache for every marker written before it.
-async fn write_index_marker(path: &Path) -> Result<()> {
-    let (file, tmp) = create_tmp_file(path).await?;
-    let published = match flush_to_device(file).await {
-        Ok(()) => fs::rename(&tmp, path).await,
-        Err(err) => Err(err),
+/// Every package directory below `packages`, with its decoded name.
+async fn package_dirs(packages: &Path) -> Result<Vec<(String, PathBuf)>> {
+    let mut dirs = Vec::new();
+    let Some(mut entries) = read_dir_if_present(packages).await? else {
+        return Ok(dirs);
     };
-    if let Err(err) = published {
-        let _ = fs::remove_file(&tmp).await;
-        return Err(err.into());
+    while let Some(entry) = entries.next_entry().await? {
+        // `file_type` does not follow a symlink, so a link cannot lead the
+        // inventory, and the deletions that act on it, out of the store.
+        if !entry.file_type().await?.is_dir() {
+            continue;
+        }
+        if let Some(name) = entry
+            .file_name()
+            .to_str()
+            .and_then(decode_segment)
+        {
+            dirs.push((name, entry.path()));
+        }
     }
-    Ok(())
+    Ok(dirs)
 }
 
-/// `fsync` without the drive-cache flush that `sync_all` adds on Apple
-/// platforms; `sync_all` everywhere else.
-async fn flush_to_device(file: fs::File) -> std::io::Result<()> {
-    #[cfg(target_vendor = "apple")]
-    {
-        let file = file.into_std().await;
-        tokio::task::spawn_blocking(move || {
-            use std::os::fd::AsRawFd as _;
-            // SAFETY: `file` keeps the descriptor open for the whole call.
-            if unsafe { libc::fsync(file.as_raw_fd()) } == 0 {
-                Ok(())
-            } else {
-                Err(std::io::Error::last_os_error())
-            }
-        })
-        .await
-        .map_err(std::io::Error::other)?
+/// The document and blobs of the package `name` in `dir`.
+async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>> {
+    let mut files = Vec::new();
+    match fs::symlink_metadata(dir.join(DOCUMENT_FILE)).await {
+        Ok(metadata) if metadata.is_file() => files.push(blob_file(&name, None, &metadata)?),
+        Ok(_) => {}
+        Err(err) if err.kind() == ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
     }
-    #[cfg(not(target_vendor = "apple"))]
-    file.sync_all().await
+    let blobs_dir = dir.join(BLOBS_DIR);
+    let Some(mut blobs) = read_dir_if_present(&blobs_dir).await? else {
+        return Ok(files);
+    };
+    if !super::is_real_dir(&blobs_dir).await? {
+        return Ok(files);
+    }
+    while let Some(entry) = blobs.next_entry().await? {
+        let metadata = entry.metadata().await?;
+        // A blob being staged sits beside its final name until it is promoted.
+        if let Some(blob) = entry
+            .file_name()
+            .to_str()
+            .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
+            .and_then(decode_segment)
+            && metadata.is_file()
+        {
+            files.push(blob_file(&name, Some(blob), &metadata)?);
+        }
+    }
+    Ok(files)
+}
+
+fn blob_file(
+    package: &str,
+    blob: Option<String>,
+    metadata: &std::fs::Metadata,
+) -> Result<HostedBlobFile> {
+    Ok(HostedBlobFile {
+        package: package.to_string(),
+        blob,
+        modified: metadata.modified()?,
+        size: metadata.len(),
+    })
 }

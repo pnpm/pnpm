@@ -44,7 +44,10 @@ describe('fetchAuthToken', () => {
     )
   })
 
-  test('encodes package name in URL', async () => {
+  test.each([
+    'https://registry.example/npm/private',
+    'https://registry.example/npm/private/',
+  ])('preserves registry path and encodes package name: %s', async (registry) => {
     const mockFetch = jest.fn<AuthTokenContext['fetch']>(async () => ({
       ok: true,
       status: 200,
@@ -59,7 +62,7 @@ describe('fetchAuthToken', () => {
     await fetchAuthToken({ context, idToken, packageName, registry })
 
     expect(mockFetch).toHaveBeenCalledWith(
-      `${registry}/-/npm/v1/oidc/token/exchange/package/${packageName.replace('/', '%2f')}`,
+      'https://registry.example/npm/private/-/npm/v1/oidc/token/exchange/package/@scope%2fpackage',
       expect.anything()
     )
   })

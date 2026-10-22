@@ -4,4 +4,4 @@ import { pathToFileURL } from 'node:url'
 
 import { registerStoreLoader } from './index.mjs'
 
-registerStoreLoader(pathToFileURL(path.resolve(process.env.PNPM_LOADER_MANIFEST ?? '.pnpm-store.json')))
+registerStoreLoader(pathToFileURL(path.resolve(process.env.PNPM_LOADER_MANIFEST ?? 'node_modules/.pnpm/.store-manifest.json')))

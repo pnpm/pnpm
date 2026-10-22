@@ -36,6 +36,7 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     attempt: u32,
     revision_addressed: bool,
     if_none_match: Option<&str>,
+    content_coding: ArchiveContentCoding,
 ) -> Result<(ThrottledClientGuard<'client>, reqwest::Response, ArchiveResponseMeta), TarballError> {
     let if_none_match = if_none_match.filter(|etag| !etag.trim().is_empty());
     if !auth_headers.allows_fetch(package_url) {
@@ -43,18 +44,26 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
             url: pnpm_network::redact_url_credentials(package_url),
         });
     }
-    let client = if revision_addressed {
-        http_client.acquire_for_url_without_redirects_with_priority(package_url, priority).await
-    } else {
-        http_client.acquire_for_url_with_priority(package_url, priority).await
+    let client = match content_coding {
+        ArchiveContentCoding::Negotiated => {
+            http_client.acquire_archive_for_url_with_priority(
+                package_url,
+                priority,
+                !revision_addressed,
+            )
+            .await
+        }
+        ArchiveContentCoding::DecodedByClient if revision_addressed => {
+            http_client.acquire_for_url_without_redirects_with_priority(package_url, priority).await
+        }
+        ArchiveContentCoding::DecodedByClient => {
+            http_client.acquire_for_url_with_priority(package_url, priority).await
+        }
     };
     let sent = send_archive_request(
         http_client,
         &client,
-        package_url,
-        package_id,
-        auth_headers,
-        if_none_match,
+        ArchiveRequest { package_url, package_id, auth_headers, if_none_match, content_coding },
     )
     .await;
     // Failed connects are attempts too; the reporter's counter starts at one.
@@ -146,23 +155,37 @@ async fn check_archive_status(
     Ok(response)
 }
 
+/// Who removes an archive response's content coding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ArchiveContentCoding {
+    /// The fetcher offers its own `Accept-Encoding` and decodes the body.
+    Negotiated,
+    /// The HTTP client decodes the body, as it does for metadata.
+    DecodedByClient,
+}
+
+#[derive(Clone, Copy)]
+struct ArchiveRequest<'a> {
+    package_url: &'a str,
+    package_id: &'a str,
+    auth_headers: &'a AuthHeaders,
+    if_none_match: Option<&'a str>,
+    content_coding: ArchiveContentCoding,
+}
+
 async fn send_archive_request(
     http_client: &ThrottledClient,
     client: &ThrottledClientGuard<'_>,
-    package_url: &str,
-    package_id: &str,
-    auth_headers: &AuthHeaders,
-    if_none_match: Option<&str>,
+    archive: ArchiveRequest<'_>,
 ) -> Result<reqwest::Response, reqwest::Error> {
     let mut attempt = 0;
     loop {
-        let request =
-            build_archive_request(client, package_url, package_id, auth_headers, if_none_match);
+        let request = build_archive_request(client, archive);
         let error = match request.send().await {
             Ok(response) => return Ok(response),
             Err(error) => error,
         };
-        http_client.downscale_on_timeout(package_url, &error);
+        http_client.downscale_on_timeout(archive.package_url, &error);
         let delay = retry_backoff_for_error(&error, attempt).ok_or(error)?;
         attempt += 1;
         if !delay.is_zero() {
@@ -173,17 +196,28 @@ async fn send_archive_request(
 
 fn build_archive_request(
     client: &ThrottledClientGuard<'_>,
-    package_url: &str,
-    package_id: &str,
-    auth_headers: &AuthHeaders,
-    if_none_match: Option<&str>,
+    archive: ArchiveRequest<'_>,
 ) -> reqwest::RequestBuilder {
+    let ArchiveRequest {
+        package_url,
+        package_id,
+        auth_headers,
+        if_none_match,
+        content_coding,
+    } = archive;
     let mut request = client.get(package_url);
     if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
         request = request.header("authorization", value);
     }
     if let Some(etag) = if_none_match {
         request = request.header(reqwest::header::IF_NONE_MATCH, etag);
+    }
+    // Browser networking owns `Accept-Encoding` and decodes the body itself.
+    if content_coding == ArchiveContentCoding::Negotiated && cfg!(not(target_family = "wasm")) {
+        request = request.header(
+            reqwest::header::ACCEPT_ENCODING,
+            crate::content_coding::ARCHIVE_ACCEPT_ENCODING,
+        );
     }
     request
 }

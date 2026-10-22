@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/peer-scope-host",
+  "version": "2.0.0",
+  "dependencies": {
+    "@pnpm.e2e/peer-scope-plugin": "^1.0.0"
+  }
+}

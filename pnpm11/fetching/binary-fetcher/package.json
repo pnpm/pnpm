@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.binary-fetcher",
-  "version": "1102.0.18",
+  "version": "1102.0.21",
   "description": "A fetcher for binary archives",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
     "@pnpm/error": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "is-subdir": "catalog:",
     "rename-overwrite": "catalog:",

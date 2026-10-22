@@ -923,6 +923,13 @@ importers:
         specifier: '1.2.0'
         version: '1.2.0'
 
+packages:
+
+  lodash@1.0.0:
+    resolution: {integrity: sha512-YWJj}
+  minimist@1.2.0:
+    resolution: {integrity: sha512-YWJj}
+
 snapshots:
 
   lodash@1.0.0: {}
@@ -961,3 +968,5 @@ fn stderr(output: &Output) -> String {
 mod signatures;
 
 mod fixes;
+
+mod fix_update;

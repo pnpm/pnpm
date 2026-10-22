@@ -47,7 +47,7 @@ Nothing reads the map without this setting, so pnpm does not write one. An insta
 
 CLI and environment configuration use the kebab-case name `node-experimental-package-map`.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeExperimentalPackageMap: true
 ```
 
@@ -65,7 +65,7 @@ Controls how `node_modules/.package-map.json` is generated.
 
 CLI and environment configuration use the kebab-case name `node-package-map-type`.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodePackageMapType: loose
 ```
 
@@ -107,6 +107,8 @@ detected, pnpm aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
 
 The directory with links to the store. All direct and indirect dependencies of
 the project are linked into this directory.
+
+Dependencies installed from a URL or local path get a hash suffix on their directory name when the part after the scheme contains `+`, `#`, `:`, `?`, or another character that is not allowed in file names. This keeps distinct URLs in separate directories.
 
 This is a useful setting that can solve issues with long paths on Windows. If
 you have some dependencies with very long paths, you can select a virtual store
@@ -185,7 +187,7 @@ Added in: v11.23.0
 
 Names where the virtual store lives — one store per project, or one store per machine.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 virtualStoreType: global
 ```
 
@@ -257,7 +259,7 @@ the phantom dependencies (recommended).
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 hoistPattern:
 - "*eslint*"
 - "*babel*"
@@ -267,7 +269,7 @@ You may also exclude patterns from hoisting using `!`.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 hoistPattern:
 - "*types*"
 - "!@types/react"
@@ -291,7 +293,7 @@ resolve dependencies properly.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
 - "*plugin*"
 ```
@@ -303,7 +305,7 @@ You may also exclude patterns from hoisting using `!`.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
 - "*types*"
 - "!@types/react"
@@ -328,7 +330,7 @@ Because `hoistPattern` defaults to `['*']` and `publicHoistPattern` to `[]`, the
 
 This is how a tool that resolves packages by name from the workspace root finds a project of the workspace. The usual case is ESLint loading a plugin that is developed in the same monorepo:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
   - "*eslint*"
 ```

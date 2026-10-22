@@ -464,6 +464,68 @@ test('createVersionsOverrider() overrides dependencies with bare relative tarbal
   })
 })
 
+test('createVersionsOverrider() overrides dependencies with workspace relative path for workspace package', () => {
+  const rootDir = process.cwd()
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'workspace:./packages/qar',
+    },
+  ], rootDir)
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, path.join(rootDir, 'packages', 'deep', 'pkg'))).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:../../qar',
+    },
+  })
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  }, rootDir)).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:./packages/qar',
+    },
+  })
+})
+
+test('createVersionsOverrider() keeps a workspace relative path as declared for a package without a directory', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'qar',
+      },
+      newBareSpecifier: 'workspace:./packages/qar',
+    },
+  ], process.cwd())
+  expect(overrider({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: '3.0.0',
+    },
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.2.0',
+    dependencies: {
+      qar: 'workspace:./packages/qar',
+    },
+  })
+})
+
 test('createVersionsOverrider() does not rewrite remote tarball URLs', () => {
   const rootDir = process.cwd()
   const overrider = createVersionsOverrider([
@@ -691,6 +753,28 @@ test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() 
     peerDependenciesMeta: { kept: { optional: true } },
   })
   expect(manifest.peerDependencies).toStrictEqual({ 'unwanted-peer': '^1.0.0', kept: '^2.0.0' })
+  expect(manifest.peerDependenciesMeta).toStrictEqual({
+    'unwanted-peer': { optional: true },
+    kept: { optional: true },
+  })
+})
+
+test.each(['unwanted-peer', 'my-app>unwanted-peer'])('createVersionsOverrider() removes an optional peer declared only in peerDependenciesMeta with %s', (selector) => {
+  const overrider = createVersionsOverrider(parseOverrides({ [selector]: '-' }, {}), process.cwd())
+  const manifest = {
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependenciesMeta: Object.freeze({
+      'unwanted-peer': { optional: true },
+      kept: { optional: true },
+    }),
+  }
+
+  expect(overrider(manifest)).toStrictEqual({
+    name: 'my-app',
+    version: '1.0.0',
+    peerDependenciesMeta: { kept: { optional: true } },
+  })
   expect(manifest.peerDependenciesMeta).toStrictEqual({
     'unwanted-peer': { optional: true },
     kept: { optional: true },

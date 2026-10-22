@@ -1,6 +1,42 @@
 import { expect, test } from '@jest/globals'
 
-import { getHoistableOptionalPeers, getLockfileOnlyVersions, hoistPeers } from '../lib/hoistPeers.js'
+import { getHoistableOptionalPeers, getLockfileOnlyVersions, getOptionalPeerSpecifier, hoistPeers } from '../lib/hoistPeers.js'
+
+test.each([
+  ['foo', 'workspace:*'],
+  ['alias', 'workspace:foo@*'],
+])('getOptionalPeerSpecifier preserves the workspace provider %s', (alias, normalizedBareSpecifier) => {
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '1.0.0',
+    workspaceRootDeps: [{ alias, pkgName: 'foo', normalizedBareSpecifier }],
+    rootDepVersions: new Map([[alias, '1.0.0']]),
+  })).toBe(normalizedBareSpecifier)
+})
+
+test.each([
+  ['workspace:*', '1.0.0'],
+  ['workspace:*', undefined],
+  ['^2.0.0', '2.0.0'],
+  ['file:../foo', '2.0.0'],
+  [undefined, '2.0.0'],
+])('getOptionalPeerSpecifier retains the selected version for root %s at %s', (normalizedBareSpecifier, rootVersion) => {
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '2.0.0',
+    workspaceRootDeps: [{ alias: 'foo', pkgName: 'foo', normalizedBareSpecifier }],
+    rootDepVersions: new Map(rootVersion == null ? [] : [['foo', rootVersion]]),
+  })).toBe('2.0.0')
+})
+
+test('getOptionalPeerSpecifier retains the selected version without a root provider', () => {
+  expect(getOptionalPeerSpecifier({
+    name: 'foo',
+    version: '2.0.0',
+    workspaceRootDeps: [],
+    rootDepVersions: new Map(),
+  })).toBe('2.0.0')
+})
 
 test('hoistPeers picks an already available prerelease version', () => {
   expect(hoistPeers({
@@ -576,4 +612,38 @@ test('getHoistableOptionalPeers keeps candidates unbounded when the workspace ro
   ])).toStrictEqual({
     postcss: '9.0.0',
   })
+})
+
+function pickOptionalPeer (
+  candidates: string[],
+  { locked, lockfileOnly }: { locked?: string[], lockfileOnly?: string[] }
+): string | undefined {
+  return getHoistableOptionalPeers(
+    { peer: ['*'] },
+    { peer: Object.fromEntries(candidates.map((version) => [version, 'version' as const])) },
+    [],
+    () => true,
+    {
+      lockedVersions: locked == null ? undefined : new Map([['peer', new Set(locked)]]),
+      lockfileOnlyVersions: lockfileOnly == null ? undefined : new Map([['peer', new Set(lockfileOnly)]]),
+    }
+  ).peer
+}
+
+test('getHoistableOptionalPeers keeps the version the importer locked', () => {
+  expect(pickOptionalPeer(['1.0.0', '2.0.0'], { locked: ['1.0.0'] })).toBe('1.0.0')
+})
+
+// https://github.com/pnpm/pnpm/issues/14895
+test('getHoistableOptionalPeers ignores a locked version no longer in the graph', () => {
+  expect(pickOptionalPeer(['1.0.0'], { locked: ['2.0.0'] })).toBe('1.0.0')
+})
+
+// https://github.com/pnpm/pnpm/issues/16443
+test('getHoistableOptionalPeers prefers a version this run resolved over a stale locked one', () => {
+  expect(pickOptionalPeer(['1.0.0', '1.0.1'], { locked: ['1.0.1'], lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
+})
+
+test('getHoistableOptionalPeers prefers a version this run resolved over one only the lockfile holds, with nothing locked', () => {
+  expect(pickOptionalPeer(['1.0.0', '1.0.1'], { lockfileOnly: ['1.0.1'] })).toBe('1.0.0')
 })

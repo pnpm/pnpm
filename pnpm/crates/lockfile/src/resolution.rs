@@ -2,9 +2,11 @@ pub use git_hosted::is_git_hosted_tarball_url;
 pub use registry::{
     RegistryContext, RegistryOptions, RegistryServerType, TarballUrlOptions,
     integrity_addressed_registry_tarball_url, is_integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_server_type, registry_supports_time_field,
+    npm_tarball_url, pick_registry_for_package, registry_for_package, registry_server_type,
+    registry_supports_time_field,
 };
 
+use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
 use pipe_trait::Pipe;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
@@ -65,7 +67,8 @@ pub struct RegistryResolution {
 /// Largest registry revision every pnpm implementation can represent exactly.
 pub const MAX_TARBALL_REVISION: u64 = 9_007_199_254_740_991;
 
-/// A positive registry artifact revision in JavaScript's safe-integer range.
+/// A registry artifact revision in JavaScript's safe-integer range. Revision
+/// 0 is the original artifact.
 #[derive(
     Debug, Display, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Into,
 )]
@@ -83,7 +86,7 @@ impl TryFrom<u64> for TarballRevision {
     type Error = InvalidTarballRevisionError;
 
     fn try_from(revision: u64) -> Result<Self, Self::Error> {
-        if (1..=MAX_TARBALL_REVISION).contains(&revision) {
+        if revision <= MAX_TARBALL_REVISION {
             Ok(Self(revision))
         } else {
             Err(InvalidTarballRevisionError { revision })
@@ -92,7 +95,7 @@ impl TryFrom<u64> for TarballRevision {
 }
 
 #[derive(Debug, Display, Error, Clone, Copy)]
-#[display("tarball revision {revision} is not a positive integer at most {MAX_TARBALL_REVISION}")]
+#[display("tarball revision {revision} is not an integer at most {MAX_TARBALL_REVISION}")]
 pub struct InvalidTarballRevisionError {
     pub revision: u64,
 }
@@ -422,6 +425,23 @@ impl LockfileResolution {
             .filter(|integrity| !integrity.hashes.is_empty())
     }
 
+    /// Which hash this resolution's `integrity` names when the lockfile's
+    /// package tarball entries pin `configured`. A registry revision always
+    /// pins its tar. Git-hosted archives, like every resolution that is not
+    /// a package tarball, keep the resource's hash.
+    #[must_use]
+    pub fn integrity_target(&self, configured: IntegrityTarget) -> IntegrityTarget {
+        match self {
+            LockfileResolution::Registry(RegistryResolution { revision: Some(_), .. })
+            | LockfileResolution::Tarball(TarballResolution { revision: Some(_), .. }) => {
+                IntegrityTarget::Tar
+            }
+            LockfileResolution::Registry(_) => configured,
+            LockfileResolution::Tarball(tarball) if !tarball.is_git_hosted() => configured,
+            _ => IntegrityTarget::Resource,
+        }
+    }
+
     /// Convert an in-memory resolution into the form written to the lockfile.
     ///
     /// For a registry tarball whose URL is reconstructible from `name`,
@@ -461,9 +481,8 @@ impl LockfileResolution {
         // `/download/` URLs).
         let rebuildable = !git_hosted
             && !tarball.tarball.starts_with("file:")
-            && (integrity_addressed
+            && (tarball.revision.is_some()
                 || (!opts.include_tarball_url
-                    && tarball.revision.is_none()
                     && is_canonical_registry_tarball_url(
                         &tarball.tarball,
                         name,

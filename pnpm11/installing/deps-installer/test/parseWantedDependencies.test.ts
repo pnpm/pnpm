@@ -11,6 +11,43 @@ const defaults = {
   optionalDependencies: {},
 }
 
+test.each(['jsr:@foo/bar', 'pnpm/test-git-fetch#8b333f12d5357f4f25a654c305c826294cb073bf'])(
+  'preserves an aliasless selector when the manifest keeps its specifiers: %s',
+  (bareSpecifier) => {
+    const result = parseWantedDependencies([bareSpecifier], {
+      ...defaults,
+      currentBareSpecifiers: { undefined: '^1.0.0' },
+      readonlySpecifiers: { undefined: '^2.0.0' },
+      hookRemovedAliases: new Set(['undefined']),
+      readonlyManifest: true,
+    })
+
+    expect(result).toStrictEqual({
+      wantedDependencies: [{
+        alias: undefined,
+        bareSpecifier,
+        dev: false,
+        optional: false,
+        prevSpecifier: undefined,
+        saveCatalogName: undefined,
+      }],
+      outsideKeptRange: [],
+      supersededByKeptRange: [],
+      removedByHook: [],
+    })
+  }
+)
+
+test('does not add aliasless selectors when new dependencies are disabled', () => {
+  const { wantedDependencies } = parseWantedDependencies(['jsr:@foo/bar'], {
+    ...defaults,
+    allowNew: false,
+    currentBareSpecifiers: {},
+  })
+
+  expect(wantedDependencies).toStrictEqual([])
+})
+
 test('a requested version that the kept range excludes is reported instead of applied', () => {
   const { wantedDependencies, outsideKeptRange } = parseWantedDependencies(['semver@7.8.5'], {
     ...defaults,

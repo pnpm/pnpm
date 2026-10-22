@@ -50,6 +50,53 @@ fn fix_lockfile_merges_git_conflicts() {
     drop((root, mock_instance));
 }
 
+/// <https://github.com/pnpm/pnpm/issues/16618>
+#[test]
+fn fix_lockfile_repairs_an_importer_reference_with_no_snapshot() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "is-positive": "^3.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let locked = fs::read_to_string(&lockfile_path).expect("read lockfile");
+    assert!(locked.contains("        version: 3.1.0\n"), "{locked}");
+    fs::write(
+        &lockfile_path,
+        locked.replace("        version: 3.1.0\n", "        version: 3.0.0\n"),
+    )
+    .expect("write lockfile with a dangling importer reference");
+
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    repaired.verify_importer_snapshot_links().expect("every importer reference has a snapshot");
+    assert!(
+        fs::read_to_string(&lockfile_path)
+            .expect("read repaired lockfile")
+            .contains("        version: 3.1.0\n"),
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn fix_lockfile_regenerates_broken_metadata_without_changing_locked_versions() {
     let CommandTempCwd {
@@ -249,6 +296,72 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
             .iter()
             .all(|key| { repaired_snapshots.get(key).is_some_and(|snapshot| snapshot.optional) }),
     );
+
+    drop((root, mock_instance));
+}
+
+fn locked_package<'a>(
+    lockfile: &'a pnpm_lockfile::Lockfile,
+    package_key: &str,
+) -> &'a pnpm_lockfile::PackageMetadata {
+    lockfile.packages
+        .as_ref()
+        .expect("packages")
+        .get(&package_key.parse().expect("parse package key"))
+        .unwrap_or_else(|| panic!("missing package {package_key}"))
+}
+
+/// Record a deprecation notice the registry metadata does not carry, so only
+/// the lockfile can supply it.
+fn record_lockfile_only_deprecation(lockfile_path: &std::path::Path, package_key: &str) {
+    let mut lockfile = pnpm_lockfile::Lockfile::load_from_path(lockfile_path)
+        .expect("load lockfile")
+        .expect("lockfile present");
+    let metadata = lockfile.packages
+        .as_mut()
+        .expect("packages")
+        .get_mut(&package_key.parse().expect("parse package key"))
+        .unwrap_or_else(|| panic!("missing package {package_key}"));
+    metadata.deprecated = Some("locked deprecation".to_string());
+    lockfile.save_to_path(lockfile_path).expect("write lockfile");
+}
+
+#[test]
+fn fix_lockfile_preserves_has_bin_and_deprecated() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info: AddMockedRegistry { mock_instance, .. },
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let pkg_json = serde_json::json!({
+        "dependencies": {
+            "is-positive": "1.0.0",
+            "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+        },
+    });
+    fs::write(workspace.join("package.json"), pkg_json.to_string()).expect("write package.json");
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    record_lockfile_only_deprecation(&lockfile_path, "is-positive@1.0.0");
+
+    new_pacquet_command(&workspace)
+        .with_args(["install", "--fix-lockfile", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let repaired = pnpm_lockfile::Lockfile::load_from_path(&lockfile_path)
+        .expect("load repaired lockfile")
+        .expect("repaired lockfile");
+    assert_eq!(
+        locked_package(&repaired, "is-positive@1.0.0").deprecated.as_deref(),
+        Some("locked deprecation"),
+    );
+    assert_eq!(locked_package(&repaired, "@pnpm.e2e/hello-world-js-bin@1.0.0").has_bin, Some(true));
 
     drop((root, mock_instance));
 }

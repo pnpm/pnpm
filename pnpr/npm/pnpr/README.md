@@ -11,14 +11,24 @@ Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under
 ## Install
 
 ```sh
-pnpm add -g @pnpm/pnpr
+pnpm add -g @pnpm/pnpr@next
 ```
+
+Until the first stable release, every pnpr version is a prerelease published
+under the `next` dist-tag, so install `@pnpm/pnpr@next`.
 
 The wrapper resolves to the native binary published under
 `@pnpm/pnpr.<platform>-<arch>` (e.g. `@pnpm/pnpr.linux-x64`). Prebuilt
 binaries are available for `linux-x64`, `linux-arm64`, `linux-x64-musl`,
 `linux-arm64-musl`, `darwin-x64`, `darwin-arm64`, `win32-x64`, and
 `win32-arm64`.
+
+To browse the server in a web browser, also install the web UI. pnpr serves it
+at `/-/ui/`:
+
+```sh
+pnpm add -g @pnpm/pnpr@next,@pnpm/pnpr-ui@next
+```
 
 ## Usage
 
@@ -32,7 +42,7 @@ It listens on `127.0.0.1:7677` and proxies `https://registry.npmjs.org/`
 by default. Point a client at it with:
 
 ```sh
-pnpm config set registry http://127.0.0.1:7677/
+pnpm config set registry http://127.0.0.1:7677/npm/
 ```
 
 ### Install accelerator
@@ -90,28 +100,29 @@ variable (e.g. `RUST_LOG=debug pnpr`).
 
 ## Configuration
 
-`pnpr` uses a [verdaccio](https://verdaccio.org/docs/configuration)-shaped
-YAML config. A minimal example:
+`pnpr` uses a YAML config. A minimal example:
 
 ```yaml
 storage: ./storage
 
-uplinks:
+registries:
+  local:
+    type: hosted
+    packages:
+      '@mycompany/*':
+        access: $authenticated
+        publish: $authenticated
+
   npmjs:
+    type: upstream
     url: https://registry.npmjs.org/
+    public: true
 
-packages:
-  '@*/*':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
+  main:
+    type: router
+    sources: [local, npmjs]
 
-  '**':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
+defaultRegistry: main
 ```
 
 Pass it with `-c`:
@@ -189,16 +200,13 @@ s3:
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
 
-uplinks:
+registries:
   npmjs:
+    type: upstream
     url: https://registry.npmjs.org/
+    public: true
 
-packages:
-  '**':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
+defaultRegistry: npmjs
 ```
 
 ```sh

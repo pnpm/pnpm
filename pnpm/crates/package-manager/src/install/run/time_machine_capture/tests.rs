@@ -32,13 +32,14 @@ fn captures_unselected_workspace_projects_reached_by_workspace_dependencies() {
             (workspace_dir.clone(), &workspace_manifest),
             (unrelated_dir.clone(), &unrelated_manifest),
         ],
-        importers: crate::install::run::workspace::ImporterSelection {
+        importers: crate::install::run::importer_selection::ImporterSelection {
             real_importer_ids: HashSet::new(),
             filtered_install: true,
             requested_importer_ids: None,
         },
         prune_stale_importers: false,
         project_scripts_current: false,
+        dependency_manifests: None,
     };
 
     assert_eq!(

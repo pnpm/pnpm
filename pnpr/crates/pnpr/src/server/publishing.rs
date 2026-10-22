@@ -1,8 +1,11 @@
 pub(super) use attachments::{
     StagedPublish, ValidatedPublish, stage_publish, validate_publish_doc,
 };
+pub(super) use tombstones::check_publish_tombstone;
 
 mod attachments;
+mod manifest;
+mod tombstones;
 
 use std::collections::{BTreeSet, HashSet};
 
@@ -21,18 +24,19 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
-    HostedDocumentForUpdate, HostedDocumentVersion, Storage,
+    HostedDocumentVersion, Storage,
     journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
-        PendingAttachment, extract_attachments, merge_manifest, now_iso,
-        stream_decode_verify_and_write,
+        PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
+        write_sigstore_bundle,
     },
 };
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize, authorized_upstream, default_registry_target, documents::RegistryDocuments,
-    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
+    authorize_package, authorized_upstream, default_registry_target, documents::RegistryDocuments,
+    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target, tar_integrity_of,
+    tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -145,7 +149,7 @@ pub(super) fn registry_visible_to_caller(
             // whether the caller may learn the registry exists at all.
             Some(Registry::Hosted { .. }) => state.inner.config.routing.hosted
                 .get(name)
-                .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
+                .is_some_and(|hosted| hosted.rules.default_access_admits(identity)),
             Some(Registry::Upstream { .. }) => true,
             Some(Registry::Router { .. }) | None => false,
         };

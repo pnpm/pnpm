@@ -18,6 +18,11 @@ export interface PackageManagerHandlingOptions {
   config: Config
   context: ConfigContext
   rejectUnknownOptions: boolean
+  /**
+   * False when the config was read past settings that could not be read: the
+   * lockfile is then written only by a switch to another pnpm.
+   */
+  recordPinWithoutSwitch: boolean
 }
 
 /**
@@ -57,7 +62,7 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
     // Corepack owns version switching; pnpm only switches versions when
     // the user is running pnpm directly.
     await tolerateWhenPrintingVersion(printingVersion, async () => {
-      await switchCliVersion(config, context)
+      await switchCliVersion(config, context, { recordPinWithoutSwitch: opts.recordPinWithoutSwitch })
     })
     return
   }
@@ -69,10 +74,40 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
   // it only writes to the lockfile when the project opted in (via
   // `devEngines.packageManager`, or a v12+ `packageManager` pin).
   checkPackageManager(pm, { config, underCorepack: isExecutedByCorepack() })
-  if (!opts.rejectUnknownOptions) {
+  if (!opts.rejectUnknownOptions && opts.recordPinWithoutSwitch) {
     await tolerateWhenPrintingVersion(printingVersion, async () => {
       await syncEnvLockfile(config, context)
     })
+  }
+}
+
+/**
+ * Switches to the pnpm the project pins when the configuration fails to load:
+ * the pinned pnpm reads the configuration itself, and may understand what
+ * this one rejects. No setting may keep a project from the pnpm it pins.
+ * `loadReadable` loads the configuration without what this pnpm cannot read,
+ * so the machine's own settings, such as its `pmOnFail`, registry, and
+ * credentials, still apply. Returns when there is no pin to switch to or the
+ * switch cannot happen, leaving the original failure to be reported.
+ */
+export async function switchPastUnreadableConfig (
+  loadReadable: () => Promise<{ config: Config, context: ConfigContext }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- option values have command-specific types
+  cliOptions: Record<string, any>
+): Promise<void> {
+  if (cliOptions.global || isExecutedByCorepack()) return
+  let loaded: { config: Config, context: ConfigContext }
+  try {
+    loaded = await loadReadable()
+  } catch {
+    return
+  }
+  const pm = loaded.context.wantedPackageManager
+  if (pm?.name !== 'pnpm' || pm.onFail !== 'download') return
+  try {
+    await switchCliVersion(loaded.config, loaded.context, { recordPinWithoutSwitch: false })
+  } catch {
+    // The configuration's own failure is the one to report.
   }
 }
 

@@ -1,9 +1,9 @@
 use super::{
-    Action, Body, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode, ImageDocument, Method,
-    OciPublication, Refusal, RegistryError, RegistrySource, Request, Response, StatusCode,
-    authorize, collect_body, created, error, header, hosted_manifest_response, insert_header,
-    method_not_allowed, no_content, read_hosted_document, read_manifest_bytes, registry_error,
-    unknown_repository,
+    Action, Body, CanonicalPackageName, DOCUMENT_WRITE_RETRIES, Digest, DocumentUpdate, ErrorCode,
+    ImageDocument, Method, OciPublication, Refusal, RegistryError, RegistrySource, Request,
+    Response, ResponseBody, StatusCode, authorize, collect_body, created, error, header,
+    hosted_manifest_response, insert_header, method_not_allowed, no_content, read_hosted_document,
+    read_manifest_bytes, registry_error, unknown_repository,
 };
 
 impl Request {
@@ -54,7 +54,8 @@ impl Request {
             Ok(None) => return error(ErrorCode::ManifestUnknown, "no such manifest"),
             Err(err) => return registry_error(err),
         };
-        let response = hosted_manifest_response(bytes, entry, self.method == Method::HEAD);
+        let response =
+            hosted_manifest_response(bytes, entry, ResponseBody::for_method(&self.method));
         self.caller_scoped(Some(repo.key.as_str()), response)
     }
 
@@ -105,22 +106,29 @@ impl Request {
         let outcome = repo.storage.update_hosted_document_with_retry(
             &repo.key,
             DOCUMENT_WRITE_RETRIES,
-            |existing| {
-                let Some(bytes) = existing else { return Ok(None) };
-                let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
-                let removed = match Digest::parse(reference) {
-                    Ok(digest) => document.remove_manifest(&digest),
-                    Err(_) => document.remove_tag(reference),
-                };
-                Ok(removed.then(|| document.to_bytes()))
-            },
+            |existing| remove_manifest_or_tag(existing, &repo.key, reference),
         )
         .await;
         match outcome {
-            Ok(DocumentUpdate::Written) => no_content(StatusCode::ACCEPTED),
+            Ok(DocumentUpdate::Written) => {
+                self.log_oci_manifest_deleted(repo.key.as_str(), reference);
+                no_content(StatusCode::ACCEPTED)
+            }
             Ok(_) => error(ErrorCode::ManifestUnknown, "no such manifest or tag"),
             Err(err) => registry_error(err),
         }
+    }
+
+    fn log_oci_manifest_deleted(&self, repository: &str, reference: &str) {
+        let actor = self.identity.username().unwrap_or("-");
+        tracing::info!(
+            target: "pnpr::audit",
+            action = "oci.delete_manifest",
+            actor = %actor,
+            repository = %repository,
+            reference = %reference,
+            "oci manifest deleted",
+        );
     }
 
     pub(super) async fn manifest_publication(
@@ -142,4 +150,25 @@ impl Request {
             self.state.inner.config.http.oci.max_manifest_bytes,
         )
     }
+}
+
+fn remove_manifest_or_tag(
+    bytes: Option<&[u8]>,
+    key: &CanonicalPackageName,
+    reference: &str,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    let Some(bytes) = bytes else { return Ok(None) };
+    let mut document = ImageDocument::parse(bytes).map_err(RegistryError::Json)?;
+    if document.format_version > pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION {
+        return Err(RegistryError::DocumentFormatTooNew {
+            document: key.as_str().to_string(),
+            format_version: document.format_version,
+            supported_version: pnpr_oci::IMAGE_DOCUMENT_FORMAT_VERSION,
+        });
+    }
+    let removed = match Digest::parse(reference) {
+        Ok(digest) => document.remove_manifest(&digest),
+        Err(_) => document.remove_tag(reference),
+    };
+    Ok(removed.then(|| document.to_bytes()))
 }

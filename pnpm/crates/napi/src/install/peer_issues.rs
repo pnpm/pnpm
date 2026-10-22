@@ -7,6 +7,7 @@ use super::{
 pub async fn get_peer_dependency_issues(
     options: PeerIssuesOptions,
 ) -> napi::Result<serde_json::Value> {
+    pnpm_package_manager::configure_rayon_pool();
     let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()

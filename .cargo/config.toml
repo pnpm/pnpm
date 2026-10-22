@@ -11,17 +11,7 @@ rustflags = ["-C", "link-arg=-B.github/scripts/rust-lld"]
 rustflags = ["--cfg", "tokio_unstable"]
 
 # >>> pnpm-managed cargo sources >>>
-[source.crates-io]
-replace-with = "pnpm-crates-io"
-
-[source.pnpm-crates-io]
-directory = ".pnpm/crates/crates-io"
-
-[source.pnpm-git]
-directory = ".pnpm/crates/git"
-
-[source."git+https://github.com/pnpm/node-semver-rs?rev=3d74d6b7f4de1de2006cf2f7663aac09de65b1f6"]
-git = "https://github.com/pnpm/node-semver-rs"
-rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6"
-replace-with = "pnpm-git"
+[[include]]
+path = "../.pnpm/crates/config.toml"
+optional = true
 # <<< pnpm-managed cargo sources <<<

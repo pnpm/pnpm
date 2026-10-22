@@ -25,7 +25,9 @@
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 
-pub use tarball_resolver::{PriorTarballEntry, TarballFetchContext, TarballResolver};
+pub use tarball_resolver::{
+    PriorTarballEntry, TarballFetchContext, TarballResolver, remote_tarball_id,
+};
 
 mod http_cache;
 mod tarball_resolver;

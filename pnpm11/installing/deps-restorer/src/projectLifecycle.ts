@@ -80,6 +80,7 @@ function createScriptsOptions (opts: HeadlessOptions): RunLifecycleHooksConcurre
     preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
     extraEnv: opts.extraEnv,
     configByUri: opts.configByUri,
+    includeOnlyPackageFiles: !opts.deployAllFiles,
     resolveSymlinksInInjectedDirs: opts.resolveSymlinksInInjectedDirs,
     scriptsPrependNodePath: opts.scriptsPrependNodePath,
     scriptShell: opts.scriptShell,

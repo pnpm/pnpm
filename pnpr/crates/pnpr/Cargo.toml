@@ -1,7 +1,8 @@
 [package]
 name = "pnpr"
 description = "pnpm-compatible npm registry server"
-version = "0.1.0-alpha.14"
+version = "0.1.0-alpha.16"
+publish = false
 authors = ["pnpm contributors"]
 edition.workspace = true
 license-file = "../../LICENSE.md"
@@ -35,7 +36,7 @@ backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", 
 pnpr-auth = { workspace = true }
 pnpr-cargo = { workspace = true }
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
 pnpr-oci = { workspace = true }
 pnpr-osv = { workspace = true }
 pnpr-package-name = { workspace = true }
@@ -53,6 +54,7 @@ pnpm-catalogs-types = { workspace = true }
 pnpm-config = { workspace = true }
 pnpm-config-dir = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
+pnpm-diagnostics = { workspace = true }
 pnpm-env-replace = { workspace = true }
 pnpm-fs = { workspace = true }
 pnpm-lockfile = { workspace = true }
@@ -75,6 +77,7 @@ chrono = { workspace = true }
 clap = { workspace = true, features = ["env"] }
 dashmap = { workspace = true }
 derive_more = { workspace = true }
+dialoguer = { workspace = true, features = ["password"] }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
@@ -88,6 +91,7 @@ pep440_rs = { workspace = true }
 pep508_rs = { workspace = true }
 p256 = { workspace = true }
 object_store = { workspace = true }
+percent-encoding = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
 serde = { workspace = true }
@@ -104,6 +108,7 @@ tracing-subscriber = { workspace = true, features = ["json"] }
 url = { workspace = true }
 wax = { workspace = true }
 zip = { workspace = true }
+zstd = { workspace = true }
 
 [dev-dependencies]
 chrono = { workspace = true }
@@ -112,6 +117,7 @@ walkdir = { workspace = true }
 tar = { workspace = true }
 pipe-trait = { workspace = true }
 pnpm-testing-utils = { workspace = true }
+pnpr-fixtures = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }

@@ -1,8 +1,9 @@
 use super::{
-    FrozenScope, InstallError, InstallFrozenLockfile, Lockfile, LockfileEntries,
-    MaterializationInputs, MaterializationOutput, Reporter, allow_builds_changed_since,
-    announce_headless_install, map_frozen_lockfile_error, previously_skipped, prior_unbuilt_builds,
-    settle_frozen_verification,
+    FrozenScope, HashSet, InstallError, InstallFrozenLockfile, Lockfile, LockfileEntries,
+    MaterializationInputs, MaterializationOutput, MaterializationWorkspace, Materialized, Reporter,
+    allow_builds_changed_since, anchored_project_manifests, announce_headless_install,
+    frozen_project_anchor_ids, initial_materialization_ids, map_frozen_lockfile_error,
+    previously_skipped, prior_unbuilt_builds, settle_frozen_verification,
 };
 
 impl<'a> MaterializationInputs<'a, '_> {
@@ -44,6 +45,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                 manifest.skipped.clone()
             }),
             lockfile_verification_override: frozen_verification_override,
+            known_requires_build: self.resolution.known_requires_build.take(),
         }
     }
 
@@ -80,14 +82,14 @@ impl<'a> MaterializationInputs<'a, '_> {
                 ),
                 unbuilt_builds: prior_unbuilt_builds,
                 previously_skipped,
-                prune_orphans: self.modules.prune_orphans,
+                prune: self.modules.prune,
                 relink_every_slot_bin: self.modules.relink_every_slot_bin,
             },
             projects: pnpm_deps_restorer::FrozenProjectInputs {
                 workspace_root: self.workspace.workspace_root,
                 requester: self.execution.prefix,
                 dependency_groups: &self.workspace.dependency_groups,
-                groups: &scope.groups,
+                groups: &scope.installer_groups,
                 manifests: &scope.project_manifests,
                 package_map_manifests: self.workspace.project_manifests,
             },
@@ -144,5 +146,71 @@ impl<'a> MaterializationInputs<'a, '_> {
             // is the same gate, just run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
         Ok(MaterializationOutput::from_frozen(frozen_result, scope.groups))
+    }
+}
+
+impl<'a> MaterializationWorkspace<'a> {
+    fn frozen_scope(
+        &self,
+        lockfile: &Lockfile,
+        hoisted_prior: Option<&Lockfile>,
+        groups: crate::GroupSelection,
+        ignore_manifest_check: bool,
+    ) -> FrozenScope<'a> {
+        let skipped = crate::SkippedSnapshots::new();
+        let closure = if let Some(selected) = self.requested_importer_ids {
+            crate::selected_materialization_closure(
+                lockfile,
+                self.workspace_root,
+                selected,
+                hoisted_prior,
+                &groups,
+                &skipped,
+            )
+        } else {
+            let ids = (!ignore_manifest_check).then_some(self.real_importer_ids);
+            let initial = initial_materialization_ids(lockfile, ids, None);
+            crate::materialization_closure(
+                lockfile,
+                self.workspace_root,
+                &initial,
+                &groups,
+                &skipped,
+            )
+        };
+        let anchors = frozen_project_anchor_ids(
+            self.requested_importer_ids,
+            self.real_importer_ids,
+            &closure,
+        );
+        let project_manifests =
+            anchored_project_manifests(self.project_manifests, self.workspace_root, &anchors);
+        let installer_groups = if self.requested_importer_ids.is_some() && hoisted_prior.is_some() {
+            crate::GroupSelection::all()
+        } else {
+            groups.clone()
+        };
+        FrozenScope { closure, project_manifests, groups, installer_groups }
+    }
+}
+
+impl MaterializationOutput {
+    fn from_frozen(
+        frozen_result: pnpm_deps_restorer::InstallFrozenLockfileOutput,
+        groups: crate::GroupSelection,
+    ) -> Self {
+        MaterializationOutput {
+            materialized: Materialized {
+                hoisted: frozen_result.hoisted,
+                ignored_builds: frozen_result.ignored_builds,
+                deferred_builds: frozen_result.deferred_builds,
+
+                install_skipped: frozen_result.skipped,
+                peer_issue_importer_ids: HashSet::new(),
+                fresh_lockfile: None,
+                groups: Some(groups),
+            },
+            store_index_teardown: frozen_result.store_index_teardown,
+        }
     }
 }

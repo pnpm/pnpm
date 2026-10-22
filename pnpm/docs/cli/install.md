@@ -7,6 +7,8 @@ Aliases: `i`
 
 `pnpm install` is used to install all dependencies for a project.
 
+Package manifests and archive metadata larger than 64 MiB are rejected.
+
 In a CI environment, installation fails if a lockfile is present but needs an
 update. To allow lockfile updates in CI, run `pnpm install --no-frozen-lockfile`.
 
@@ -131,7 +133,7 @@ Fix broken lockfile entries automatically.
 
 Added in: v11.4.0
 
-Refresh the locked tarball integrity values from what the registry currently serves, when a downloaded tarball's hash doesn't match the integrity recorded in `pnpm-lock.yaml`.
+Re-resolve every locked package and record the integrity the registry reports now in `pnpm-lock.yaml`. Use it when a registry rewrote its tarballs, or after a registry starts serving [tars](../registries.md#tar-registries).
 
 By default, since v11.4.0, an integrity mismatch is a hard failure: `pnpm install` exits with `ERR_PNPM_TARBALL_INTEGRITY` rather than silently re-resolving from the registry and overwriting the locked integrity. This protects projects that ship a committed lockfile from a compromised registry, proxy, or republished version substituting attacker-controlled content on a clean machine.
 
@@ -188,7 +190,7 @@ the installation progress.
 * **silent** - no output is logged to the console, not even fatal errors
 * **default** - the default reporter when the stdout is TTY
 * **append-only** - the output is always appended to the end. No cursor manipulations are performed
-* **ndjson** - the most verbose reporter. Prints all logs in [ndjson](https://github.com/ndjson/ndjson-spec) format
+* **ndjson** - the most verbose reporter. Prints all logs in [ndjson](https://github.com/ndjson/ndjson-spec) format. Fatal error records include the error code. Dependency resolution errors also include the parent packages in `pkgsStack`.
 
 If you want to change what type of information is printed, use the [loglevel] setting.
 

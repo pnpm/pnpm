@@ -1,4 +1,6 @@
-use super::{CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome};
+use super::{
+    CheckboxChoice, CheckboxItem, CheckboxPrompt, CheckboxTheme, KeyOutcome, in_active_cyan,
+};
 use console::{Key, strip_ansi_codes};
 
 fn separator(text: &str) -> CheckboxItem<&'static str> {
@@ -171,17 +173,23 @@ fn the_answer_names_the_selection_by_its_short_form() {
 #[test]
 fn the_theme_picks_the_icons() {
     let mut prompt = grouped_prompt()
-        .theme(CheckboxTheme {
-            checked: "●".to_string(),
-            unchecked: "○".to_string(),
-            highlight_active: false,
-        });
+        .theme(CheckboxTheme { checked: "●".to_string(), unchecked: "○".to_string() });
 
     press(&mut prompt, &[Key::Char(' ')]);
 
     let lines = frame_lines(&prompt);
     assert_eq!(lines[3], "❯● foo 1.0.0 ❯ 2.0.0");
     assert_eq!(lines[4], " ○ bar 1.0.0 ❯ 2.0.0");
+}
+
+#[test]
+fn the_active_row_cyan_survives_the_rows_own_resets() {
+    let line = "❯○ foo 1.0.0 ❯ 2.\u{1b}[32m1.0\u{1b}[39m \u{1b}[1mweb\u{1b}[0m https://example.com";
+
+    assert_eq!(
+        in_active_cyan(line),
+        "\u{1b}[36m❯○ foo 1.0.0 ❯ 2.\u{1b}[32m1.0\u{1b}[39m\u{1b}[36m \u{1b}[1mweb\u{1b}[0m\u{1b}[36m https://example.com\u{1b}[39m",
+    );
 }
 
 /// The page scrolls to keep the cursor on it. When the rows directly

@@ -5,7 +5,7 @@ use pnpm_lockfile_preferred_versions::add_weight_to_version_selector;
 use pnpm_resolving_deps_resolver::{ResolveWorkspaceResult, UpdateTargets};
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight,
+    VersionSelectorWithWeight, pinned_by_lockfile,
 };
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -87,9 +87,7 @@ fn prefer_candidate(preferred: &mut Arc<PreferredVersions>, name: &str, version:
         .get(name)
         .and_then(|selectors| selectors.get(version))
     {
-        Some(VersionSelectorEntry::Weighted(entry))
-            if entry.weight >= EXISTING_VERSION_SELECTOR_WEIGHT =>
-        {
+        Some(VersionSelectorEntry::Weighted(entry)) if pinned_by_lockfile(entry.weight) => {
             return false;
         }
         Some(existing) => {

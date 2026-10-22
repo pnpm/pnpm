@@ -6,6 +6,27 @@ use super::{
 };
 
 #[test]
+fn dependency_type_validation_covers_all_groups() {
+    for field in ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] {
+        for valid in [json!({ "local-dep": "link:./dep" }), json!([]), json!(null), json!("x")] {
+            let (manifest, _dir) = manifest_from_json(json!({ (field): valid }));
+            manifest.validate_dependency_types().expect("manifest should be valid");
+        }
+
+        for invalid in [json!({ "local-dep": 42 }), json!({ "local-dep": null })] {
+            let (manifest, _dir) = manifest_from_json(json!({ (field): invalid }));
+            let err = manifest
+                .validate_dependency_types()
+                .expect_err("non-string specifier should be rejected");
+            let PackageManifestError::InvalidAttribute(message) = err else {
+                panic!("expected InvalidAttribute, got {err:?}");
+            };
+            assert!(message.contains(field), "{message}");
+        }
+    }
+}
+
+#[test]
 fn should_add_dependency() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
@@ -383,6 +404,29 @@ fn convert_dependencies_runtime_writes_devengines_runtime() {
             "runtime": {
                 "name": "node",
                 "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn convert_dependencies_tool_writes_devengines_runtime() {
+    let mut manifest = json!({
+        "devDependencies": {
+            "bun": "tool:1.3.0",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "bun",
+                "version": "1.3.0",
                 "onFail": "download",
             },
         })),

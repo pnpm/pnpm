@@ -2,58 +2,61 @@
 //! install, skip the entire pipeline.
 //!
 //! The install logs "Already up to date" when nothing has changed,
-//! before any of the install setup runs. The check keys off
-//! `<workspace_root>/node_modules/.pnpm-workspace-state-v1.json`'s
-//! `lastValidatedTimestamp` against each project's `package.json`
-//! mtime without parsing the lockfile or touching the verifier cache or
-//! resolver state. A lockfile modified after the last validation is
-//! scanned with a bounded buffer for merge conflict markers before the
-//! shortcut may continue.
+//! before any of the install setup runs. The check compares the content
+//! digests [`validation`] recorded in
+//! `<workspace_root>/node_modules/.pnpm-workspace-state-v1.json` with the
+//! manifests and the lockfile, without parsing the lockfile or touching the
+//! verifier cache or resolver state while every project is still proven
+//! installed. A lockfile modified after the last validation is scanned with
+//! a bounded buffer for merge conflict markers before the shortcut may
+//! continue.
 
 pub(crate) mod conflict_markers;
 pub(crate) mod deps_status;
+pub(crate) mod freshness;
 pub(crate) mod local_file_deps;
 pub(crate) mod manifest_agreement;
 pub(crate) mod settings;
 pub(crate) mod timestamps;
+pub(crate) mod validation;
 pub(crate) use conflict_markers::{
     LockfileConflictCheckFailure, first_lockfile_requiring_conflict_safe_install,
 };
 pub(crate) use current_lockfile::materialized_shape_matches;
 pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
+pub(crate) use freshness::Scope;
 pub(crate) use local_file_deps::{
     FrozenLocalTarballCheck, frozen_local_tarballs_to_verify, has_local_file_dep_requiring_install,
     has_local_file_override, has_local_file_package_extension,
 };
-pub(crate) use manifest_agreement::{
-    ManifestStat, modified_manifests_match_lockfile, stat_manifests, unstatted_manifests,
-};
-pub(crate) use modules_dirs::hoisted_project_modules_dir;
+pub(crate) use manifest_agreement::{ManifestStat, held_projects_match_lockfile};
+pub use manifest_source::RepeatInstallManifests;
+pub(crate) use modules_dirs::{hoisted_project_modules_dir, project_id};
 pub(crate) use relocation::recorded_elsewhere;
 pub(crate) use settings::{
     catalogs_cache_matches, current_settings_with_catalogs, first_setting_drift,
-    recorded_supported_architectures_match, settings_match,
+    recorded_supported_architectures_match,
 };
 pub(crate) use timestamps::{
-    FileMtime, file_mtime, file_mtime_from_metadata, filesystem_now_ms,
-    filesystem_now_ms_in_modules, lockfile_modified_since, manifest_drift_reference_ms,
-    modified_at_or_after, mtime_ms, refreshed_validation_baseline_ms, validation_baseline_ms,
-    wanted_lockfile_mtime,
+    file_mtime, file_mtime_from_metadata, filesystem_now_ms_in_modules,
+    filesystem_now_ns_in_modules, last_validated_timestamp, lockfile_modified_since,
+    modified_at_or_after,
 };
 
 mod current_lockfile;
+mod manifest_source;
 mod modules_dirs;
 mod relocation;
 mod settle;
+use freshness::{
+    Gate, GatePolicy, MissingWantedLockfile, NewerPatch, RecordedGroups, Stale, check_freshness,
+};
 use modules_dirs::{
-    direct_dependency_link_dangling, first_project_missing_modules_dir,
-    first_selected_project_missing_from_current_lockfile,
-    first_selected_project_missing_modules_dir, modules_dirs_present,
+    SelectedReach, direct_dependency_link_dangling, first_project_missing_modules_dir,
+    first_selected_project_missing_modules_dir,
 };
 use settle::{
-    current_lockfile_file_has_content, current_lockfile_unusable_with_non_empty_wanted,
-    early_repeat_verdict, project_structure_matches, settle_repeat_install,
-    wanted_lockfile_file_has_content,
+    current_lockfile_file_has_content, project_structure_matches, wanted_lockfile_file_has_content,
 };
 
 use std::{
@@ -87,21 +90,6 @@ pub enum Decision {
     /// diagnostic string surfaced via `tracing::debug!` for
     /// diagnosability without contaminating the reporter stream.
     Skipped { reason: &'static str },
-}
-
-/// How the check learns whether a project manifest may have changed since
-/// the previous install validated it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ManifestFreshness {
-    /// The manifests are the `package.json` files on disk: one whose mtime
-    /// is no newer than the recorded `lastValidatedTimestamp` is unchanged,
-    /// and only a newer one is content-checked against the lockfile.
-    Mtime,
-    /// The manifests were supplied in memory (the Node-API binding). Nothing
-    /// on disk records when they changed, and a `package.json` may not even
-    /// exist at the project root, so every one is content-checked against
-    /// the wanted lockfile.
-    Content,
 }
 
 /// Inputs to [`check_optimistic_repeat_install`].
@@ -147,7 +135,7 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// `pnpm.overrides` before the lockfile settings comparison.
     pub catalogs: &'a Catalogs,
     pub layout: RepeatInstallLayout<'a>,
-    pub manifest_freshness: ManifestFreshness,
+    pub manifests: RepeatInstallManifests<'a>,
 }
 
 #[derive(Clone, Copy)]
@@ -167,14 +155,13 @@ pub struct RepeatInstallLayout<'a> {
 /// `config.optimistic_repeat_install` is `false`.
 #[must_use]
 pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>) -> Decision {
-    check_optimistic_repeat_install_ignoring(check, &[])
+    check_optimistic_repeat_install_in(check, Scope::Workspace)
 }
 
-/// Run the workspace-state freshness fast path while excluding selected
-/// pnpm workspace-state setting keys from the drift comparison.
-pub(crate) fn check_optimistic_repeat_install_ignoring(
+/// [`check_optimistic_repeat_install`] for an install covering `scope`.
+pub(crate) fn check_optimistic_repeat_install_in(
     check: &OptimisticRepeatInstallCheck<'_>,
-    ignored_workspace_state_settings: &[&str],
+    scope: Scope<'_>,
 ) -> Decision {
     if let Some(reason) = config_blocks_fast_path(check.config) {
         return Decision::Skipped { reason };
@@ -185,123 +172,67 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
     let Ok(Some(state)) = load_workspace_state(check.workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
+    check_optimistic_repeat_install_with_state(check, state, scope)
+}
+
+pub(crate) fn check_optimistic_repeat_install_with_state(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: WorkspaceState,
+    scope: Scope<'_>,
+) -> Decision {
     let (state, moved) =
         relocation::relocated_state(&state, check.workspace_root, check.project_manifests)
             .map_or((state, false), |relocated| (relocated, true));
-    let blocked = state_blocks_fast_path(check, &state, ignored_workspace_state_settings, moved);
-    if let Some(reason) = blocked {
-        return Decision::Skipped { reason };
-    }
-    // The fast-path conclusion: walk every manifest and report up to
-    // date when none have an mtime newer than
-    // `workspaceState.lastValidatedTimestamp`. The walk has to
-    // succeed (read errors mean we can't *prove* freshness, so fall
-    // through).
-    let Some(drift) = ManifestDrift::stat(check, &state) else {
-        return Decision::Skipped { reason: "failed to stat a project manifest" };
+    let policy = GatePolicy {
+        gate: Gate::Install,
+        ignored_settings: &[],
+        check_local_file_deps: true,
+        check_dangling_direct_links: true,
+        missing_wanted_lockfile: MissingWantedLockfile::Restore,
+        newer_patch: NewerPatch::Refuse,
+        dedupe_peers: check.config.dedupe_peers,
+        recorded_groups: RecordedGroups::Current,
     };
-    if moved {
-        return relocation::moved_tree_decision(check, &state, &drift);
+    match check_freshness(check, &state, moved, &policy, scope) {
+        Ok(()) => Decision::UpToDate,
+        Err(stale) => Decision::Skipped { reason: skip_reason(&stale) },
     }
-    let modified = drift.modified();
-    if let Some(decision) = early_repeat_verdict(check, &modified, drift.lockfile_modified) {
-        return decision;
-    }
-    // A newer mtime alone doesn't invalidate: the modified-manifests
-    // branch re-checks the *content* against the wanted lockfile so a
-    // rewrite that left the dependency fields intact — `touch`, a
-    // `scripts` edit, `npm pkg set/delete` — still reports up to date.
-    // When only the lockfile changed, every project is validated rather
-    // than just the modified ones.
-    let projects_to_check = drift.projects_to_check(modified);
-    let filesystem_now =
-        check.is_workspace_install.then(|| filesystem_now_ms(check.workspace_root)).flatten();
-    match modified_manifests_match_lockfile(
-        check,
-        &state,
-        &projects_to_check,
-        check.config.dedupe_peers,
-    ) {
-        Ok(loaded_current) => {
-            match settle_repeat_install(check, &state, loaded_current, filesystem_now, false) {
-                Ok(()) => Decision::UpToDate,
-                Err(reason) => Decision::Skipped { reason },
-            }
+}
+
+/// The diagnostic reason the fast path is skipped for.
+fn skip_reason(stale: &Stale) -> &'static str {
+    match stale {
+        Stale::UnrecordedFilteredState => "the previous install was filtered",
+        Stale::LockfileConflict { .. } => {
+            "a changed lockfile contains or cannot be checked for merge conflict markers"
         }
-        Err(reason) => Decision::Skipped { reason },
-    }
-}
-
-/// Every project manifest's mtime against the timestamp that proves it
-/// unchanged, and whether the wanted lockfile itself moved since the last
-/// validation.
-pub(crate) struct ManifestDrift<'a> {
-    stats: Vec<ManifestStat<'a>>,
-    //// A lockfile-only change — `git checkout`/stash-restore of just
-    //// `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
-    //// untouched but still invalidates the install. Probe the wanted
-    //// lockfile's mtime before the manifest-mtime exit so a lockfile
-    //// modification is not missed. A missing lockfile reports `false`
-    //// here — it is handled by the existence and stand-in gates, not
-    //// treated as a modification.
-    pub(crate) lockfile_modified: bool,
-    /// Per [`manifest_drift_reference_ms`].
-    manifest_reference_ms: i64,
-}
-
-impl<'a> ManifestDrift<'a> {
-    /// `None` when a manifest cannot be stat'd, which leaves freshness
-    /// unprovable. In-memory manifests ([`ManifestFreshness::Content`]) are
-    /// not stat'd: each one counts as possibly modified, so the content
-    /// re-check covers them all.
-    pub(crate) fn stat(
-        check: &OptimisticRepeatInstallCheck<'a>,
-        state: &WorkspaceState,
-    ) -> Option<Self> {
-        let lockfile_mtime = wanted_lockfile_mtime(check.workspace_root, check.config);
-        let stats = match check.manifest_freshness {
-            ManifestFreshness::Mtime => stat_manifests(check.project_manifests)?,
-            ManifestFreshness::Content => unstatted_manifests(check.project_manifests),
-        };
-        Some(Self {
-            stats,
-            lockfile_modified: lockfile_mtime.is_some_and(|mtime| {
-                lockfile_modified_since(mtime, state.last_validated_timestamp)
-            }),
-            manifest_reference_ms: manifest_drift_reference_ms(
-                check.config,
-                check.is_workspace_install,
-                state.last_validated_timestamp,
-                lockfile_mtime,
-            ),
-        })
-    }
-
-    pub(crate) fn modified(&self) -> Vec<&ManifestStat<'a>> {
-        self.stats
-            .iter()
-            .filter(|stat| stat.possibly_modified_since(self.manifest_reference_ms))
-            .collect()
-    }
-
-    /// The projects the content check covers: every one when the lockfile
-    /// itself changed, else the modified ones.
-    pub(crate) fn projects_to_check<'s>(
-        &'s self,
-        modified: Vec<&'s ManifestStat<'a>>,
-    ) -> Vec<&'s ManifestStat<'a>> {
-        if self.lockfile_modified { self.stats.iter().collect() } else { modified }
+        Stale::LocalFileDep(reason) | Stale::MoveRefused(reason) | Stale::Content(reason) => reason,
+        Stale::SettingChanged(_) => "settings drift",
+        Stale::ConfigDependencies => "config dependencies drift",
+        Stale::CatalogsCache => "catalogs cache outdated",
+        Stale::ProjectStructure => "workspace project list changed",
+        Stale::MissingModulesDir(_) => "project has dependencies but no node_modules directory",
+        Stale::DanglingDirectLink => "a direct dependency link points to a missing target",
+        Stale::MissingBranchLockfile => "the branch lockfile is missing",
+        Stale::Pnpmfile(_) => "a pnpmfile changed since the last validation",
+        Stale::Unprovable => "the lockfile cannot be read",
+        Stale::NothingInstalled => "current lockfile missing",
+        Stale::ProjectNotInstalled(_) => "a project with dependencies was never installed",
+        Stale::NoLockfile => "wanted lockfile missing",
     }
 }
 
 /// The configuration alone can rule the fast path out, before anything is
 /// read from disk.
-fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
+pub(crate) fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
         return Some("CAS installation requires manifest verification");
     }
     if !config.optimistic_repeat_install {
         return Some("optimistic_repeat_install disabled");
+    }
+    if config.prune_direct_dependencies {
+        return Some("prune_direct_dependencies enabled");
     }
     // The merge has to run, and it rewrites the wanted lockfile and
     // deletes the per-branch ones — neither of which any fast path does.
@@ -309,33 +240,6 @@ fn config_blocks_fast_path(config: &Config) -> Option<&'static str> {
         return Some("the git branch lockfiles have to be merged");
     }
     None
-}
-
-/// The first reason the recorded workspace state cannot prove this install is
-/// a no-op. `moved` marks a state [`relocation::relocated_state`] re-keyed.
-fn state_blocks_fast_path(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    ignored_workspace_state_settings: &[&str],
-    moved: bool,
-) -> Option<&'static str> {
-    // A filtered install refreshes `lastValidatedTimestamp` while
-    // materializing only the projects it selected, so its state cannot
-    // prove anything about the rest of the workspace: an unselected
-    // project's manifest edit is already older than the recorded
-    // timestamp. Every install must re-validate once against a state a
-    // filtered install wrote — pnpm's `ignoreFilteredInstallCache`.
-    if state.filtered_install {
-        return Some("the previous install was filtered");
-    }
-    if first_lockfile_requiring_conflict_safe_install(check, state.last_validated_timestamp)
-        .is_some()
-    {
-        return Some("a changed lockfile contains or cannot be checked for merge conflict markers");
-    }
-    local_file_blocks_fast_path(check)
-        .or_else(|| settings_block_fast_path(check, state, ignored_workspace_state_settings))
-        .or_else(|| lockfile_inputs_block_fast_path(check, state, moved))
 }
 
 /// A local file dependency's contents can change with nothing in the manifest
@@ -375,112 +279,6 @@ fn local_file_blocks_fast_path(check: &OptimisticRepeatInstallCheck<'_>) -> Opti
     None
 }
 
-fn settings_block_fast_path(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    ignored_workspace_state_settings: &[&str],
-) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck {
-        config,
-        project_manifests,
-        catalogs,
-        layout:
-            crate::RepeatInstallLayout {
-                node_linker,
-                included,
-                supported_architectures,
-                ..
-            },
-        ..
-    } = check;
-    if !settings_match(
-        state,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        ignored_workspace_state_settings,
-    ) {
-        return Some("settings drift");
-    }
-    if !catalogs_cache_matches(state.settings.catalogs.as_ref(), catalogs) {
-        return Some("catalogs cache outdated");
-    }
-    if !project_structure_matches(state, project_manifests) {
-        return Some("workspace project list changed");
-    }
-    if !modules_dirs_present(check, state) {
-        return Some("project has dependencies but no node_modules directory");
-    }
-    if direct_dependency_link_dangling(check) {
-        return Some("a direct dependency link points to a missing target");
-    }
-    None
-}
-
-/// The lockfile and the resolution inputs beside the manifests: a missing
-/// lockfile the current one may not stand in for, an edited patch, an edited
-/// pnpmfile. The patch mtimes of a `moved` tree come from where it was
-/// validated, so its patches are left to the content proof, which hashes
-/// them.
-fn lockfile_inputs_block_fast_path(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    moved: bool,
-) -> Option<&'static str> {
-    let &OptimisticRepeatInstallCheck {
-        workspace_root,
-        config,
-        is_workspace_install,
-        ..
-    } = check;
-    // Single-project installs require a lockfile to even attempt the
-    // fast path. The single-project branch raises
-    // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
-    // stat is absent, which resolves to not-up-to-date.
-    // Workspace installs skip this existence gate — the workspace
-    // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
-    // scan `continue`s on ENOENT, and the missing lockfile is restored
-    // from the current one rather than failing). The mtime side of that
-    // probe is handled by `ManifestDrift::stat` in the caller.
-    // The current lockfile is not a stand-in for a missing *branch*
-    // lockfile: it records what the previous branch's install
-    // materialized, and pnpm refuses the substitution for the same
-    // reason.
-    if config.use_git_branch_lockfile
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-    {
-        return Some("the branch lockfile is missing");
-    }
-    if !is_workspace_install
-        && !workspace_root.join(config.wanted_lockfile_name()).exists()
-        && !current_lockfile_file_has_content(&config.install_state_dir)
-    {
-        return Some("wanted lockfile missing");
-    }
-    // A patch file edited in place keeps the same `patchedDependencies`
-    // key→path entry (so `settings_match` can't see the change) but
-    // changes the patched output and the patch hash. This check runs
-    // before the manifest-modified exit so the patch reason wins when
-    // both a patch and a manifest are newer than the last validation.
-    if !moved && patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
-        return Some("a patch file is newer than the last validation");
-    }
-    // A pnpmfile added, removed, or edited in place can change
-    // resolution (readPackage rewrites, custom resolvers, a
-    // `shouldRefreshResolution` verdict) without touching any manifest,
-    // so it must defeat the mtime fast path.
-    if pnpmfiles_modified_since(
-        workspace_root,
-        config,
-        &state.pnpmfiles,
-        state.last_validated_timestamp,
-    ) {
-        return Some("a pnpmfile changed since the last validation");
-    }
-    None
-}
-
 pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
     let value = manifest.value();
     [value.get("dependencies"), value.get("devDependencies"), value.get("optionalDependencies")]
@@ -492,6 +290,36 @@ pub(crate) fn manifest_has_runtime_deps(manifest: &PackageManifest) -> bool {
         })
 }
 
+/// Whether the manifest declares at least one peer that is not marked
+/// optional. The caller decides whether `autoInstallPeers` fetches them.
+pub(crate) fn manifest_has_required_peers(manifest: &PackageManifest) -> bool {
+    let Some(peers) = manifest
+        .value()
+        .get("peerDependencies")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return false;
+    };
+    let meta = manifest
+        .value()
+        .get("peerDependenciesMeta")
+        .and_then(serde_json::Value::as_object);
+    peers
+        .keys()
+        .any(|name| !peer_dependency_is_optional(meta, name))
+}
+
+fn peer_dependency_is_optional(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+    name: &str,
+) -> bool {
+    meta.and_then(|meta| meta.get(name))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|entry| entry.get("optional"))
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+}
+
 fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String> {
     manifest
         .value()
@@ -500,27 +328,41 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
         .map(ToString::to_string)
 }
 
-/// Whether any configured patch file's mtime is newer than the last
-/// validation. A patch that can't be stat'd is treated as not-modified,
-/// leaving a genuinely missing patch to surface on the full install
-/// path. Patch paths are resolved against `workspace_root` (the
-/// `pnpm-workspace.yaml` dir, where `patchedDependencies` is declared),
-/// matching how [`Config::patched_dependency_hashes`] resolves them.
-fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64) -> bool {
-    let Some(patches) = config.patched_dependencies.as_ref() else {
-        return false;
-    };
-    patches
-        .values()
-        .any(|rel_or_abs| {
-            let candidate = Path::new(rel_or_abs);
-            let path = if candidate.is_absolute() {
-                candidate.to_path_buf()
-            } else {
-                workspace_root.join(candidate)
-            };
-            file_mtime(&path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
-        })
+/// Whether the file at `path` may have changed at or after `cutoff_ms`. Only
+/// a state without validation records, which has no content digests, is
+/// judged this way. A file that can't be stat'd is treated as not modified, leaving a
+/// genuinely missing one to surface on the full install path.
+fn patch_modified_since(path: &Path, cutoff_ms: i64) -> bool {
+    file_mtime(path).is_some_and(|mtime| modified_at_or_after(mtime, cutoff_ms))
+}
+
+/// The first project `scope` holds that needs a modules directory and lacks
+/// one. A state that leaves some project unproven, such as one a filtered
+/// install wrote, holds only the selected projects to it.
+fn first_held_project_missing_modules_dir(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    scope: Scope<'_>,
+) -> Option<String> {
+    match scope {
+        Scope::Selected(selected) if state.filtered_install => {
+            first_selected_project_missing_modules_dir(
+                check,
+                state,
+                selected,
+                SelectedReach::SelectedOnly,
+            )
+        }
+        Scope::Command(selected) if state.filtered_install => {
+            first_selected_project_missing_modules_dir(
+                check,
+                state,
+                selected,
+                SelectedReach::WithWorkspaceDeps,
+            )
+        }
+        _ => first_project_missing_modules_dir(check, state),
+    }
 }
 
 /// The pnpmfile list recorded in the workspace state and compared by
@@ -531,46 +373,47 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path, config: &Config) -> Vec<S
     if config.ignore_pnpmfile {
         return Vec::new();
     }
-    pnpm_hooks::finder::find_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
+    crate::find_install_pnpmfiles(config, workspace_root)
         .into_iter()
         .map(|path| path.to_string_lossy().into_owned())
         .collect()
 }
 
-/// Whether the pnpmfiles changed since the last validation: the
-/// recorded pnpmfile list must match the current one, every recorded
-/// pnpmfile must still exist, and none may be newer than the last
-/// validation.
-fn pnpmfiles_modified_since(
-    workspace_root: &Path,
-    config: &Config,
-    previous: &[String],
-    cutoff_ms: i64,
-) -> bool {
-    pnpmfiles_drift(workspace_root, config, previous, cutoff_ms).is_some()
-}
-
-/// [`pnpmfiles_modified_since`] with the drift spelled out in pnpm's
-/// issue wording, for the verify-deps-before-run gate's user-facing
-/// messages.
+/// How the pnpmfiles changed since the last validation, in pnpm's issue
+/// wording: the recorded list must match the current one, and every recorded
+/// pnpmfile must still exist with the content it was validated with.
 fn pnpmfiles_drift(
     workspace_root: &Path,
     config: &Config,
-    previous: &[String],
-    cutoff_ms: i64,
+    state: &WorkspaceState,
 ) -> Option<String> {
     let current = current_pnpmfiles(workspace_root, config);
-    if current != previous {
+    if current != state.pnpmfiles {
         return Some("The list of pnpmfiles changed.".to_string());
     }
+    let recorded = state.validation.as_ref();
+    let digests = validation::FileDigests::new(recorded);
     current
         .iter()
         .find_map(|path| {
-            let Some(mtime) = file_mtime(Path::new(path)) else {
-                return Some(format!(r#"pnpmfile at "{path}" was removed"#));
+            let removed = || format!(r#"pnpmfile at "{path}" was removed"#);
+            let modified = || format!(r#"pnpmfile at "{path}" was modified"#);
+            let then = recorded.and_then(|recorded| recorded.files.get(path));
+            let Some(then) = then else {
+                // A state without validation records has no digests.
+                let mtime = file_mtime(Path::new(path)).map_or_else(|| Err(removed()), Ok);
+                return match mtime {
+                    Err(removed) => Some(removed),
+                    Ok(mtime) => {
+                        modified_at_or_after(mtime, state.last_validated_timestamp).then(modified)
+                    }
+                };
             };
-            modified_at_or_after(mtime, cutoff_ms)
-                .then(|| format!(r#"pnpmfile at "{path}" was modified"#))
+            match digests.of(Path::new(path)) {
+                validation::FileDigest::Absent => Some(removed()),
+                validation::FileDigest::Unreadable => Some(modified()),
+                validation::FileDigest::Present(now) => (then.digest != now.digest).then(modified),
+            }
         })
 }
 

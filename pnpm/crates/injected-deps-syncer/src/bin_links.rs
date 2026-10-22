@@ -10,18 +10,15 @@ use std::{
     sync::Arc,
 };
 
-use crate::SyncInjectedDepsError;
+use crate::{BinLinkSettings, SyncInjectedDepsError, injection_records::InjectedCopy};
 
 /// Package and workspace locations for updating binary links.
 pub(crate) struct SyncBinLinks<'a> {
     pub(crate) pkg_root_dir: &'a Path,
-    pub(crate) resolved_targets: &'a [PathBuf],
+    pub(crate) copies: &'a [InjectedCopy],
     pub(crate) workspace_dir: &'a Path,
     pub(crate) previous_bin_names: &'a [String],
-    pub(crate) hoisted_bin_dir: Option<&'a Path>,
-    pub(crate) ignored_directories: &'a [PathBuf],
-    pub(crate) modules_dir_name: &'a std::ffi::OsStr,
-    pub(crate) extend_node_path: bool,
+    pub(crate) settings: &'a BinLinkSettings<'a>,
 }
 
 #[derive(Clone, Copy)]
@@ -60,27 +57,27 @@ pub(crate) fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjected
     let manifest = Arc::new(manifest);
     let link_options = workspace_link_options(opts);
 
-    for target_dir in opts.resolved_targets {
-        sync_target_bins(target_dir, &manifest, opts, &stale_bin_names, &link_options)?;
+    for copy in opts.copies {
+        sync_target_bins(copy, &manifest, &stale_bin_names, &link_options)?;
     }
 
     relink_project_bins(opts, has_bins, &stale_bin_names)
 }
 
 fn sync_target_bins(
-    target_dir: &Path,
+    copy: &InjectedCopy,
     manifest: &Arc<serde_json::Value>,
-    opts: &SyncBinLinks<'_>,
     stale_bin_names: &[&String],
     link_options: &LinkBinsOptions,
 ) -> Result<(), SyncInjectedDepsError> {
+    let target_dir = copy.dir.as_path();
     let Some(parent_modules_dir) = target_dir.parent() else {
         return Ok(());
     };
     remove_stale_bins(RemoveStaleBins {
         target_dir,
         parent_modules_dir,
-        hoisted_bin_dir: opts.hoisted_bin_dir,
+        hoisted_bin_dir: copy.hoisted_bin_dir.as_deref(),
         stale_bin_names,
     })?;
 
@@ -99,9 +96,9 @@ fn sync_target_bins(
 fn workspace_link_options(opts: &SyncBinLinks<'_>) -> LinkBinsOptions {
     LinkBinsOptions {
         relocatable_root: Some(opts.workspace_dir.to_path_buf()),
-        project_modules_dir_name: (opts.extend_node_path
-            && opts.modules_dir_name != "node_modules")
-            .then(|| opts.modules_dir_name.to_owned()),
+        project_modules_dir_name: (opts.settings.extend_node_path
+            && opts.settings.modules_dir_name != "node_modules")
+            .then(|| opts.settings.modules_dir_name.to_owned()),
         ..LinkBinsOptions::default()
     }
 }
@@ -118,7 +115,7 @@ fn relink_project_bins(
         opts.workspace_dir,
         &FindWorkspaceProjectsOpts {
             patterns: None,
-            ignored_directories: opts.ignored_directories.to_vec(),
+            ignored_directories: opts.settings.ignored_directories.clone(),
         },
     )
     .map_err(|error| SyncInjectedDepsError::FindProjects { error })?;
@@ -126,7 +123,7 @@ fn relink_project_bins(
     for project in projects {
         relink_single_project_bins(
             &project.root_dir,
-            opts.modules_dir_name,
+            opts.settings.modules_dir_name,
             &link_options,
             stale_bin_names,
         )?;

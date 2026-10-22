@@ -22,7 +22,9 @@ pub(super) fn parse_staged_list_query(query: &str) -> StagedListQuery {
         let decoded = percent_decode(value);
         match key {
             "page" => parsed.page = decoded.parse().unwrap_or(parsed.page),
-            "perPage" => parsed.per_page = decoded.parse().unwrap_or(parsed.per_page),
+            "perPage" => {
+                parsed.per_page = decoded.parse().unwrap_or(parsed.per_page);
+            }
             "package" if !decoded.is_empty() => parsed.package = Some(decoded),
             _ => {}
         }

@@ -1,7 +1,13 @@
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
 use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 
-use super::{super::test_support::manifest_result, extract_children};
+use super::{
+    super::test_support::manifest_result, DependencySpec, extract_children,
+    extract_peer_dependencies,
+};
+use crate::resolved_tree::PeerDep;
+use pnpm_catalogs_types::Catalogs;
+use rustc_hash::FxHashSet as HashSet;
 
 #[test]
 fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
@@ -18,7 +24,12 @@ fn dependency_engines_runtime_is_walked_as_a_runtime_dependency() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("node".to_string(), "runtime:22.19.0".to_string(), false, false)],
+        vec![DependencySpec {
+            alias: "node".to_string(),
+            bare_specifier: "runtime:22.19.0".to_string(),
+            optional: false,
+            injected: false
+        }],
     );
 }
 
@@ -65,7 +76,12 @@ fn bundled_dependencies_are_not_walked() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false, false)],
+        vec![DependencySpec {
+            alias: "regular-dep".to_string(),
+            bare_specifier: "^2.0.0".to_string(),
+            optional: false,
+            injected: false
+        }],
     );
 }
 
@@ -79,7 +95,12 @@ fn bundle_dependencies_spelling_is_honored() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("regular-dep".to_string(), "^2.0.0".to_string(), false, false)],
+        vec![DependencySpec {
+            alias: "regular-dep".to_string(),
+            bare_specifier: "^2.0.0".to_string(),
+            optional: false,
+            injected: false
+        }],
     );
 }
 
@@ -94,7 +115,12 @@ fn bundled_dependencies_true_bundles_every_dependency() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("three".to_string(), "^3.0.0".to_string(), true, false)],
+        vec![DependencySpec {
+            alias: "three".to_string(),
+            bare_specifier: "^3.0.0".to_string(),
+            optional: true,
+            injected: false
+        }],
     );
 }
 
@@ -112,7 +138,12 @@ fn bundled_dependencies_true_also_drops_the_optional_duplicate() {
     }));
     assert_eq!(
         extract_children(&result).unwrap(),
-        vec![("optional-only".to_string(), "^3.0.0".to_string(), true, false)],
+        vec![DependencySpec {
+            alias: "optional-only".to_string(),
+            bare_specifier: "^3.0.0".to_string(),
+            optional: true,
+            injected: false
+        }],
     );
 }
 
@@ -127,8 +158,18 @@ fn dependencies_meta_marks_children_as_injected() {
     assert_eq!(
         extract_children(&result).unwrap(),
         vec![
-            ("injected".to_string(), "workspace:*".to_string(), false, true),
-            ("linked".to_string(), "workspace:*".to_string(), false, false),
+            DependencySpec {
+                alias: "injected".to_string(),
+                bare_specifier: "workspace:*".to_string(),
+                optional: false,
+                injected: true
+            },
+            DependencySpec {
+                alias: "linked".to_string(),
+                bare_specifier: "workspace:*".to_string(),
+                optional: false,
+                injected: false
+            },
         ],
     );
 }
@@ -163,5 +204,43 @@ fn deprecated_pkg_name_ver_falls_back_to_the_manifest() {
     assert_eq!(
         super::deprecated_pkg_name_ver(&result(serde_json::json!({ "name": "git-pkg" }))),
         None,
+    );
+}
+
+#[test]
+fn only_taken_peers_are_dereferenced_from_catalogs() {
+    let result = manifest_result(serde_json::json!({
+        "name": "lib",
+        "version": "1.0.0",
+        "dependencies": { "foo": "catalog:" },
+        "peerDependencies": { "foo": "catalog:", "bar": "catalog:" },
+    }));
+    let catalogs = Catalogs::from([(
+        "default".to_string(),
+        std::collections::BTreeMap::from([
+            ("foo".to_string(), "^1.0.0".to_string()),
+            ("bar".to_string(), "^2.0.0".to_string()),
+        ]),
+    )]);
+    let peer = |version: &str| PeerDep { version: version.to_string(), optional: false };
+
+    let peer_set =
+        extract_peer_dependencies(&result, &HashSet::default(), Some(&catalogs)).unwrap();
+
+    assert_eq!(
+        peer_set
+            .declared()
+            .iter()
+            .collect::<Vec<_>>(),
+        [(&"bar".to_string(), &peer("catalog:")), (&"foo".to_string(), &peer("catalog:"))],
+        "the lockfile records the peers as the manifest writes them",
+    );
+    assert_eq!(
+        peer_set
+            .taken()
+            .iter()
+            .collect::<Vec<_>>(),
+        [(&"bar".to_string(), &peer("^2.0.0"))],
+        "the unshadowed `foo` dependency supplies the package itself",
     );
 }

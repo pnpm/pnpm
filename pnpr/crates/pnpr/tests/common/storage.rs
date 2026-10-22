@@ -1,5 +1,5 @@
-//! Builds a verdaccio-shaped `storage` directory in a `TempDir` for the
-//! static-serve tests. The packuments carry the rich publish metadata a real
+//! Builds a hosted `storage` directory in a `TempDir` for the static-serve
+//! tests. The packuments carry the rich publish metadata a real
 //! verdaccio/npm registry emits (`_attachments`, `_uplinks`, `_distfiles`,
 //! `users`, per-version `_nodeVersion`, `_id`, `contributors`) so the tests can
 //! assert that pnpr rewrites tarball URLs and strips those fields in
@@ -8,6 +8,7 @@
 
 use std::path::Path;
 
+use pnpr_storage::layout::{local_blob_path, local_document_path, write_local_layout_marker};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
@@ -20,6 +21,7 @@ const TIMESTAMP: &str = "2020-01-01T00:00:00.000Z";
 /// and `@pnpm.e2e/needs-auth` (used by the auth-policy tests).
 pub fn build_storage() -> TempDir {
     let dir = TempDir::new().expect("create temp storage dir");
+    write_local_layout_marker(dir.path()).expect("write layout marker");
     write_package(dir.path(), "@foo/no-deps", "no-deps-1.0.0.tgz", no_deps_packument());
     write_package(
         dir.path(),
@@ -30,17 +32,31 @@ pub fn build_storage() -> TempDir {
     dir
 }
 
+/// The object key, below the configured prefix, of a hosted-store path built
+/// by the `pnpr_storage::layout::local_*` helpers on an empty root.
+pub fn object_key(relative: &Path) -> String {
+    relative
+        .components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .expect("keys are UTF-8")
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 #[expect(
     clippy::needless_pass_by_value,
     reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
 )]
 fn write_package(storage: &Path, name: &str, tarball: &str, packument: Value) {
-    let package_dir = storage.join(name);
-    std::fs::create_dir_all(&package_dir).expect("create package dir");
-    std::fs::write(package_dir.join("package.json"), serde_json::to_vec(&packument).unwrap())
-        .expect("write packument");
-    std::fs::write(package_dir.join(tarball), format!("fake {name} tarball"))
-        .expect("write tarball");
+    let document = local_document_path(storage, "", name);
+    let blob = local_blob_path(storage, "", name, tarball);
+    std::fs::create_dir_all(blob.parent().unwrap()).expect("create package dir");
+    std::fs::write(document, serde_json::to_vec(&packument).unwrap()).expect("write packument");
+    std::fs::write(blob, format!("fake {name} tarball")).expect("write tarball");
 }
 
 fn no_deps_packument() -> Value {

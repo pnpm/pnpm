@@ -44,7 +44,7 @@ describe('Bash', () => {
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -53,7 +53,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -71,7 +71,7 @@ esac
       },
       oldSettings: '',
       newSettings: `case ":$PATH:" in
-  *":${pnpmHomeDir}:"*) ;;
+  ":${pnpmHomeDir}:"*) ;;
   *) export PATH="${pnpmHomeDir}:$PATH" ;;
 esac`,
     })
@@ -79,7 +79,7 @@ esac`,
     expect(configContent).toBe(`
 # pnpm
 case ":$PATH:" in
-  *":${pnpmHomeDir}:"*) ;;
+  ":${pnpmHomeDir}:"*) ;;
   *) export PATH="${pnpmHomeDir}:$PATH" ;;
 esac
 # pnpm end
@@ -100,7 +100,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME/bin:"*) ;;
+  ":$PNPM_HOME/bin:"*) ;;
   *) export PATH="$PNPM_HOME/bin:$PATH" ;;
 esac`,
     })
@@ -109,7 +109,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME/bin:"*) ;;
+  ":$PNPM_HOME/bin:"*) ;;
   *) export PATH="$PNPM_HOME/bin:$PATH" ;;
 esac
 # pnpm end
@@ -130,7 +130,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac`,
     })
@@ -139,7 +139,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac
 # pnpm end
@@ -158,7 +158,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -166,7 +166,7 @@ esac`,
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -177,7 +177,7 @@ esac
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -192,12 +192,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -206,7 +206,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -216,7 +216,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -232,7 +232,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -248,12 +248,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -262,7 +262,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -275,7 +275,7 @@ export PNPM_HOME="duplicate_block"
 # pnpm
 export PNPM_HOME="old_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -293,13 +293,37 @@ ${duplicateSection}
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
 # content between sections that must not be deleted
 ${duplicateSection}
 # after sections`)
+  })
+  it('should replace the block written by an earlier version without overwrite (pnpm/pnpm#16635)', async () => {
+    fs.writeFileSync(configFile, `
+# pnpm
+export PNPM_HOME="${pnpmHomeDir}"
+case ":$PATH:" in
+  *":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac
+# pnpm end`, 'utf8')
+    const report = await addDirToPosixEnvPath(pnpmHomeDir, {
+      proxyVarName: 'PNPM_HOME',
+      proxyVarSubDir: 'bin',
+      configSectionName: 'pnpm',
+    })
+    expect(report.configFile?.changeType).toBe('modified')
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(`
+# pnpm
+export PNPM_HOME="${pnpmHomeDir}"
+case ":$PATH:" in
+  ":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac
+# pnpm end`)
   })
 })
 
@@ -326,7 +350,7 @@ describe('Zsh', () => {
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -335,7 +359,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -346,7 +370,7 @@ esac
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -361,12 +385,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -375,7 +399,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -399,7 +423,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -410,7 +434,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -441,7 +465,7 @@ describe('ksh', () => {
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -450,7 +474,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -471,7 +495,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac`,
     })
@@ -480,7 +504,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac
 # pnpm end
@@ -499,7 +523,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -507,7 +531,7 @@ esac`,
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -518,7 +542,7 @@ esac
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -533,12 +557,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -547,7 +571,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -557,7 +581,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -573,7 +597,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -589,12 +613,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -603,7 +627,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -640,7 +664,7 @@ describe('Dash', () => {
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -649,7 +673,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -670,7 +694,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac`,
     })
@@ -679,7 +703,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac
 # pnpm end
@@ -698,7 +722,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -706,7 +730,7 @@ esac`,
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -717,7 +741,7 @@ esac
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -732,12 +756,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -746,7 +770,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -756,7 +780,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -772,7 +796,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -788,12 +812,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -802,7 +826,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -839,7 +863,7 @@ describe('sh', () => {
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -848,7 +872,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -869,7 +893,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac`,
     })
@@ -878,7 +902,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  *":$PNPM_HOME:") ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
 esac
 # pnpm end
@@ -897,7 +921,7 @@ esac
       oldSettings: '',
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -905,7 +929,7 @@ esac`,
     expect(configContent).toBe(`# pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
@@ -916,7 +940,7 @@ esac
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -931,12 +955,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -945,7 +969,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -955,7 +979,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -971,7 +995,7 @@ esac
 # pnpm
 export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`, 'utf8')
@@ -987,12 +1011,12 @@ esac
       },
       oldSettings: `export PNPM_HOME="pnpm_home"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
       newSettings: `export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac`,
     })
@@ -1001,7 +1025,7 @@ esac`,
 # pnpm
 export PNPM_HOME="${pnpmHomeDir}"
 case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
+  ":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end`)
@@ -1030,7 +1054,7 @@ describe('Fish', () => {
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end`,
     })
@@ -1038,7 +1062,7 @@ end`,
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end
 # pnpm end
@@ -1059,7 +1083,7 @@ end
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- "$PNPM_HOME/bin" $PATH
+if test "$PATH[1]" != "$PNPM_HOME/bin"
   set -gx PATH "$PNPM_HOME/bin" $PATH
 end`,
     })
@@ -1067,7 +1091,7 @@ end`,
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- "$PNPM_HOME/bin" $PATH
+if test "$PATH[1]" != "$PNPM_HOME/bin"
   set -gx PATH "$PNPM_HOME/bin" $PATH
 end
 # pnpm end
@@ -1085,14 +1109,14 @@ end
         changeType: 'appended',
       },
       oldSettings: '',
-      newSettings: `if not string match -q -- "${pnpmHomeDir}" $PATH
+      newSettings: `if test "$PATH[1]" != "${pnpmHomeDir}"
   set -gx PATH "${pnpmHomeDir}" $PATH
 end`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`
 # pnpm
-if not string match -q -- "${pnpmHomeDir}" $PATH
+if test "$PATH[1]" != "${pnpmHomeDir}"
   set -gx PATH "${pnpmHomeDir}" $PATH
 end
 # pnpm end
@@ -1113,7 +1137,7 @@ end
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[-1]" != "$PNPM_HOME"
   set -gx PATH $PATH "$PNPM_HOME"
 end`,
     })
@@ -1121,7 +1145,7 @@ end`,
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[-1]" != "$PNPM_HOME"
   set -gx PATH $PATH "$PNPM_HOME"
 end
 # pnpm end
@@ -1139,14 +1163,14 @@ end
       },
       oldSettings: '',
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end`,
     })
     const configContent = fs.readFileSync(configFile, 'utf8')
     expect(configContent).toBe(`# pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end
 # pnpm end
@@ -1157,7 +1181,7 @@ end
     fs.writeFileSync(configFile, `
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end
 # pnpm end`, 'utf8')
@@ -1171,11 +1195,11 @@ end
         changeType: 'skipped',
       },
       oldSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end`,
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end`,
     })
@@ -1183,7 +1207,7 @@ end`,
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end
 # pnpm end`)
@@ -1207,7 +1231,7 @@ set -gx PATH "$PNPM_HOME" $PATH
     fs.writeFileSync(configFile, `
 # pnpm
 set -gx PNPM_HOME "pnpm_home"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end
 # pnpm end`, 'utf8')
@@ -1222,11 +1246,11 @@ end
         changeType: 'modified',
       },
       oldSettings: `set -gx PNPM_HOME "pnpm_home"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end`,
       newSettings: `set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
 end`,
     })
@@ -1234,8 +1258,31 @@ end`,
     expect(configContent).toBe(`
 # pnpm
 set -gx PNPM_HOME "${pnpmHomeDir}"
-if not string match -q -- $PNPM_HOME $PATH
+if test "$PATH[1]" != "$PNPM_HOME"
   set -gx PATH "$PNPM_HOME" $PATH
+end
+# pnpm end`)
+  })
+  it('should replace the block written by an earlier version without overwrite (pnpm/pnpm#16635)', async () => {
+    fs.mkdirSync('.config/fish', { recursive: true })
+    fs.writeFileSync(configFile, `
+# pnpm
+set -gx PNPM_HOME "${pnpmHomeDir}"
+if not string match -q -- "$PNPM_HOME/bin" $PATH
+  set -gx PATH "$PNPM_HOME/bin" $PATH
+end
+# pnpm end`, 'utf8')
+    const report = await addDirToPosixEnvPath(pnpmHomeDir, {
+      proxyVarName: 'PNPM_HOME',
+      proxyVarSubDir: 'bin',
+      configSectionName: 'pnpm',
+    })
+    expect(report.configFile?.changeType).toBe('modified')
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(`
+# pnpm
+set -gx PNPM_HOME "${pnpmHomeDir}"
+if test "$PATH[1]" != "$PNPM_HOME/bin"
+  set -gx PATH "$PNPM_HOME/bin" $PATH
 end
 # pnpm end`)
   })

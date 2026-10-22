@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-package-name = { workspace = true }
+pnpm-catalogs-protocol-parser = { workspace = true }
 pnpm-matcher = { workspace = true }
 rustc-hash = { workspace = true }
 pnpm-cmd-shim = { workspace = true }
@@ -37,6 +38,7 @@ pnpm-real-hoist = { workspace = true }
 pnpm-reporter = { workspace = true }
 pnpm-resolving-npm-resolver = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
+pnpm-text-sanitize = { workspace = true }
 pnpm-store-dir = { workspace = true }
 pnpm-tarball = { workspace = true }
 pnpm-workspace = { workspace = true }
@@ -73,6 +75,7 @@ junction = { workspace = true }
 mockito = { workspace = true }
 p256 = { workspace = true }
 pretty_assertions = { workspace = true }
+same-file = { workspace = true }
 serde-saphyr = { workspace = true }
 sha2 = { workspace = true }
 tar = { workspace = true }
@@ -86,6 +89,9 @@ libc = { workspace = true }
 same-file = { workspace = true }
 sysinfo = { workspace = true }
 windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+pnpm-fs = { workspace = true, features = ["test"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { workspace = true, features = ["net", "signal"] }

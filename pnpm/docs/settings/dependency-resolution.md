@@ -15,7 +15,7 @@ Note that the overrides field can only be set at the root of the project.
 
 An example of the `overrides` field:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 overrides:
   "foo": "^1.0.0"
   "quux": "npm:@myorg/quux@^1.0.0"
@@ -42,7 +42,7 @@ You may also reference a named catalog with `catalog:<name>`. See [Catalogs](../
 
 If you find that your use of a certain package doesn't require one of its dependencies, you may use `-` to remove it. For example, if package `foo@1.0.0` requires a large package named `bar` for a function that you don't use, removing it could reduce install time:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 overrides:
   "foo@1.0.0>bar": "-"
 ```
@@ -96,7 +96,7 @@ overrides:
 
 The `packageExtensions` fields offer a way to extend the existing package definitions with additional information. For example, if `react-redux` should have `react-dom` in its `peerDependencies` but it has not, it is possible to patch `react-redux` using `packageExtensions`:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   react-redux:
     peerDependencies:
@@ -105,7 +105,7 @@ packageExtensions:
 
 The keys in `packageExtensions` are package names or package names and semver ranges, so it is possible to patch only some versions of a package:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   react-redux@1:
     peerDependencies:
@@ -116,7 +116,7 @@ The following fields may be extended using `packageExtensions`: `dependencies`, 
 
 A bigger example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 packageExtensions:
   express@1:
     optionalDependencies:
@@ -146,7 +146,7 @@ This setting allows muting deprecation warnings of specific packages.
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 allowedDeprecatedVersions:
   express: "1"
   request: "*"
@@ -164,7 +164,7 @@ Settings in this section tune the [`pnpm update`](../cli/update.md) and [`pnpm o
 
 Sometimes you can't update a dependency. For instance, the latest version of the dependency started to use ESM but your project is not yet in ESM. Annoyingly, such a package will always be printed out by the `pnpm outdated` command and updated, when running `pnpm update --latest`. However, you may list packages that you don't want to upgrade in the `ignoreDeps` field:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 update:
   ignoreDeps:
   - load-json-file
@@ -211,7 +211,7 @@ You can specify architectures for which you'd like to install optional dependenc
 
 For example, the following configuration tells to install optional dependencies for Windows x64:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 supportedArchitectures:
   os:
   - win32
@@ -221,7 +221,7 @@ supportedArchitectures:
 
 Whereas this configuration will install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 supportedArchitectures:
   os:
   - win32
@@ -278,7 +278,7 @@ transitive optional dependencies. Equivalent to
 
 If an optional dependency has its name included in this array, it will be skipped. For example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 ignoredOptionalDependencies:
 - fsevents
 - "@esbuild/*"
@@ -309,11 +309,11 @@ Added in: v10.16.0
 
 To reduce the risk of installing compromised or defective packages, you can delay the installation of newly published versions. In most cases, malicious releases are discovered and removed from the registry within an hour.
 
-`minimumReleaseAge` defines the minimum number of minutes that must pass after a version is published before pnpm will install it. This applies to **all dependencies**, including transitive ones.
+`minimumReleaseAge` defines the minimum number of minutes that must pass after a version is published before pnpm will install it. This applies to **all dependencies**, including transitive ones. It does not apply to a [config dependency](../config-dependencies.md) pinned with `version+integrity`.
 
 For example, the following setting ensures that only packages released at least one day ago can be installed:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 ```
 
@@ -328,7 +328,7 @@ If you set `minimumReleaseAge` but need certain dependencies to always install t
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - webpack
@@ -341,7 +341,7 @@ Added in: v10.17.0
 
 You may also use patterns. For instance, allow all packages from your org:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - '@myorg/*'
@@ -351,7 +351,7 @@ Added in: v10.19.0
 
 You may also exempt specific versions (or a list of specific versions using a disjunction with `||`). This allows pinning exceptions to mature-time rules:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
 - nx@21.6.5
@@ -365,7 +365,7 @@ Added in: v11.22.0
 * Default: **false**
 * Type: **Boolean**
 
-When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`minimumReleaseAgeExclude`](#minimumreleaseageexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Name patterns (`@myorg/*`) are always kept.
+When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`minimumReleaseAgeExclude`](#minimumreleaseageexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Name patterns (`@myorg/*`) are always kept. Pruning also checks resolved configuration dependencies and their transitive dependencies.
 
 The cleanup is skipped when the install's lockfile does not cover the whole workspace ([`sharedWorkspaceLockfile: false`](../workspaces.md#sharedworkspacelockfile)), since entries another project still needs would look stale. Comments on the entries that are kept survive the rewrite.
 
@@ -378,7 +378,7 @@ Added in: v11.0.0
 
 When `true`, pnpm skips the [`minimumReleaseAge`](#minimumreleaseage) check for a package whose registry metadata does not include the `time` field (some private registries and mirrors omit it). Set to `false` to fail resolution in that case instead of installing the package.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAgeIgnoreMissingTime: false
 ```
 
@@ -397,7 +397,7 @@ Controls how pnpm behaves when no version of a dependency satisfies the [`minimu
 
 The default depends on whether you configured `minimumReleaseAge` yourself: if you set it explicitly (in `pnpm-workspace.yaml`, in the global `config.yaml`, through a `PNPM_CONFIG_*` variable, or on the command line), strict mode is on by default so the setting is enforced. The built-in default of `minimumReleaseAge` (1440 minutes) is non-strict for backward compatibility.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 minimumReleaseAgeStrict: true
 ```
 
@@ -410,6 +410,8 @@ Added in: v10.21.0
 
 When set to `no-downgrade`, pnpm will fail if a package's trust level has decreased compared to previous releases. For example, if a package was previously published by a trusted publisher but now only has provenance or no trust evidence, installation will fail. This helps prevent installing potentially compromised versions. Trust checks are based solely on publish date, not semver. A package cannot be installed if any earlier-published version had stronger trust evidence. Starting in v10.24.0, prerelease versions are ignored when evaluating trust evidence for a non-prerelease install, so a trusted prerelease cannot block a stable release that lacks trust evidence.
 
+The check also covers the pnpm version a project pins in `packageManager` or `devEngines.packageManager`. pnpm fails before it switches to that version or records it in the lockfile.
+
 ### trustPolicyExclude
 
 Added in: v10.22.0
@@ -421,7 +423,7 @@ A list of package selectors that should be excluded from the trust policy check.
 
 For example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 trustPolicy: no-downgrade
 trustPolicyExclude:
   - 'chokidar@4.0.3'
@@ -445,7 +447,7 @@ Added in: v12.4.0
 * Default: **false**
 * Type: **Boolean**
 
-When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`trustPolicyExclude`](#trustpolicyexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Name patterns (`@myorg/*`) are always kept.
+When set to `true`, `pnpm install`, `pnpm add`, `pnpm update`, `pnpm remove`, and `pnpm dedupe` prune the entries of [`trustPolicyExclude`](#trustpolicyexclude) in `pnpm-workspace.yaml` that the freshly written lockfile no longer resolves: a version that is gone is dropped (an entry is removed once none of its versions remain), and an entry for a package that is no longer in the lockfile is removed too. Name patterns (`@myorg/*`) are always kept. Pruning also checks resolved configuration dependencies and their transitive dependencies.
 
 The cleanup is skipped when the install's lockfile does not cover the whole workspace ([`sharedWorkspaceLockfile: false`](../workspaces.md#sharedworkspacelockfile)), since entries another project still needs would look stale. Comments on the entries that are kept survive the rewrite.
 
@@ -486,7 +488,7 @@ Added in: v11.0.0
 
 Declares the registries the project installs from. Since v11.23.0, each registry is declared once, keyed by its URL, with everything pnpm knows about it in the entry: the `scopes` routed to it, the bare-specifier `prefix` it answers to, how the server lays out tarball URLs (`serverType`, `supportsTimeField`), and how many requests pnpm keeps in flight to it (`networkConcurrency`). The full description of each field is on the dedicated [Registries](../registries.md) page.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 registries:
   https://npm.corp.example.com/:
     serverType: artifactory
@@ -496,7 +498,7 @@ registries:
 
 The older shape, mapping scopes to URLs, is still accepted. The `default` key sets the main registry (equivalent to the `registry` `.npmrc` setting), and scoped keys configure registries for specific package scopes:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 registries:
   default: https://registry.npmjs.org/
   "@my-org": https://private.example.com/
@@ -504,6 +506,10 @@ registries:
 ```
 
 The two shapes cannot be mixed in one map.
+
+pnpm normalizes `https://registry.npmjs.com/` to `https://registry.npmjs.org/`. Credentials configured for either hostname at the registry root apply to the canonical registry. HTTP URLs, custom ports, and registry subpaths are unchanged.
+
+For URL-scoped environment credentials, an explicit `registry.npmjs.org` entry takes precedence over a `registry.npmjs.com` entry.
 
 Since v11.11.0, this setting may also be defined in the [global configuration file](../cli/config.md) (`config.yaml`), which is useful for registries that should apply to every project on the machine rather than to a single repository. Ecosystem indexes, routes (`scopes` and `prefix`), and `networkConcurrency` are read from there; `serverType` and `supportsTimeField` shape the lockfile, so they are read only from `pnpm-workspace.yaml` — see [where the setting may live](../registries.md#where-the-setting-may-live).
 
@@ -567,7 +573,7 @@ The built-in URLs are also the prefixes that a tarball URL recorded in the lockf
 
 #### Reserved alias names
 
-Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
+Since v11.20.0, an alias that shadows a reserved dependency specifier prefix (`file`, `link`, `workspace`, `runtime`, `npm`, `jsr`, `git`, `github`, `gitlab`, `bitbucket`, `catalog`, `custom`, `http`, `https`, `ssh`) is rejected with `ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME`. Since v12.5.0, `pkg` is also reserved, regardless of case, for Package URLs. Since v12.13.0, `tool` is reserved for [provisioned tools](../package-sources.md#provisioned-tools). Previously such an alias was silently shadowed by the corresponding resolver. An alias must also start with a letter and contain only letters, digits, `.`, `_`, and `-`.
 
 #### Named registries in the lockfile
 
@@ -596,6 +602,25 @@ There is no setting to keep the old behavior — the old shape is the vulnerabil
 Every non-built-in alias that the lockfile references must stay declared — through `prefix` in [`registries`](#registries) or through `namedRegistries`. Reading an entry whose alias is gone fails with `ERR_PNPM_MISSING_NAMED_REGISTRY` rather than falling back to the default registry, since that would fetch a different package. Renaming an alias re-resolves the packages that used it.
 
 Tarball URLs that follow the standard registry layout are no longer written to the lockfile for named-registry packages; they are recomputed from the alias's declared URL on demand.
+
+### pnprServer
+
+* Default: **null**
+* Type: **String**
+
+URL of a [pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) server.
+
+When set, `pnpm install` offloads dependency resolution to the remote pnpr server. pnpm sends its workspace manifests and registry configuration to the server, and the server resolves the dependency graph against those registries, streaming back resolved package metadata frames as it walks the graph so pnpm can download tarballs in parallel. Once resolution finishes, the server returns the complete lockfile and pnpm links `node_modules` locally.
+
+Public packages are fetched directly from their respective registries in parallel. Private packages configured through pnpr are fetched from its registry endpoint using server-side upstream credentials; client upstream registry credentials are not sent to the pnpr server.
+
+```yaml title="pnpm-workspace.yaml"
+pnprServer: https://pnpr.example.com/
+```
+
+This can also be configured via the `--config.pnprServer=<url>` command-line option or the `PNPM_CONFIG_PNPR_SERVER` environment variable.
+
+When `pnprServer` is set, authentication headers configured for the pnpr server URL in `.npmrc` (for example, `//pnpr.example.com/:_authToken=...`) are automatically sent to authenticate requests to the server.
 
 ### autoDedupe
 

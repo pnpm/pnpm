@@ -10,9 +10,13 @@ const MAX_PROGRAM_HEADERS_SIZE: usize = 1024 * 1024;
 const MAX_INTERPRETER_SIZE: usize = 4096;
 
 /// Detect libc implementation from the ELF interpreter
-/// (`/proc/self/exe` `PT_INTERP`).
+/// (`PT_INTERP`) of the running executable.
 pub fn detect() -> Option<Implementation> {
-    let interpreter = read_elf_interpreter(&mut File::open("/proc/self/exe").ok()?)?;
+    // Open the resolved path, not `/proc/self/exe`: QEMU user-mode emulation
+    // answers that open with a stale descriptor number that may belong to
+    // another open file, which closing the result would then close.
+    let executable = std::env::current_exe().ok()?;
+    let interpreter = read_elf_interpreter(&mut File::open(executable).ok()?)?;
     classify_interpreter(&interpreter)
 }
 

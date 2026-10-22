@@ -14,6 +14,8 @@ mod optional_progress;
 
 mod reporting;
 
+mod loaded_prefetch;
+
 use super::CreateVirtualStore;
 use pnpm_lockfile::{
     GitResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
@@ -21,6 +23,22 @@ use pnpm_lockfile::{
 };
 use pnpm_reporter::SilentReporter;
 use std::{collections::HashMap, fs, sync::atomic::AtomicU8};
+
+thread_local! {
+    static PREFETCH_STARTS: std::cell::RefCell<Vec<Vec<String>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Called by [`super::CasPrefetch::start`]. Per thread, so a test on a
+/// current-thread runtime sees only its own prefetches.
+pub(super) fn record_prefetch_start(keys: &[String]) {
+    PREFETCH_STARTS.with_borrow_mut(|starts| starts.push(keys.to_vec()));
+}
+
+/// The store-index keys of every prefetch this thread started.
+fn take_prefetch_starts() -> Vec<Vec<String>> {
+    PREFETCH_STARTS.take()
+}
 
 fn name(text: &str) -> PkgName {
     PkgName::parse(text).expect("parse pkg name")
@@ -168,6 +186,7 @@ impl SeededStoreInstall {
                     files,
                     side_effects,
                     remote_side_effects_quarantine: None,
+                    tar_integrity: None,
                 },
             )
             .expect("seed store index");
@@ -222,10 +241,13 @@ impl SeededStoreInstall {
                 skipped: &skipped,
                 include_optional: true,
                 supported_architectures: None,
+                known_requires_build: None,
+                known_bins: None,
             },
             ctx: &crate::InstallContext {
                 caches: crate::InstallCaches {
                     logged_methods: &logged_methods,
+                    swap_lock: None,
                     git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                     materialized_graph: std::sync::Arc::default(),
                     dir_clone_cache: None,

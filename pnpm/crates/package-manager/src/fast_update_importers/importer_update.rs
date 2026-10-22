@@ -282,7 +282,9 @@ pub(super) fn add_importer_edge(
     {
         return false;
     }
-    if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names) {
+    if is_directory_dependency(&alias.to_string(), specifier, &plan.workspace_package_names)
+        || plan.peer_names.contains(alias)
+    {
         return false;
     }
     let Ok(range) = Range::parse(specifier) else {

@@ -73,16 +73,12 @@ fn from_default_yaml_parses_bundled_file() {
     assert!(config.routing.upstreams.contains_key("npmjs"));
     assert_eq!(config.routing.upstreams["npmjs"].url, "https://registry.npmjs.org/");
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
-    // The bundled file routes fixture scopes, the fixture packages living in
-    // real npm scopes, and test-published names to the local hosted org, and
-    // everything else — including the rest of those real scopes — to npmjs.
-    for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
-        assert_eq!(
-            config.routing.registries.resolve_default(Ecosystem::Npm, local),
-            Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
-            "{local} must be hosted",
-        );
-    }
+    assert_eq!(config.routing.registries.default_registry(), Some("npmjs"));
+    assert!(config.routing.hosted.contains_key("local"));
+    assert_eq!(config.logs.level, LogLevel::Info);
+    assert!(!config.has_configured_secret);
+    assert_eq!(config.resolution_cache_secret.len(), 32);
+    // The bundled file defaults to npmjs, proxying public npm packages.
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
             config.routing.registries.resolve_default(Ecosystem::Npm, upstream),
@@ -90,6 +86,13 @@ fn from_default_yaml_parses_bundled_file() {
             "{upstream} must proxy npm",
         );
     }
+    assert_eq!(
+        config.routing.registries.resolve("local", Ecosystem::Npm, "my-pkg"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
+    );
+    let rules = &config.routing.hosted["local"].rules;
+    assert!(!rules.access_admits("my-pkg", &super::Identity::Anonymous));
+    assert!(rules.access_admits("my-pkg", &super::Identity::user("alice")));
 }
 
 #[test]
@@ -102,9 +105,7 @@ fn default_yaml_const_matches_what_from_default_parses() {
 }
 
 #[test]
-fn from_yaml_str_ignores_unknown_sections() {
-    // Sections we don't implement (`auth`, `web`, `plugins`, etc.)
-    // must parse silently so existing config files work untouched.
+fn from_yaml_str_rejects_unknown_sections() {
     let yaml = "\
 storage: ./s
 auth:
@@ -112,15 +113,28 @@ auth:
     file: ./htpasswd
 web:
   enable: false
-plugins: ../node_modules
-secret: a-sufficiently-long-secret-value
-upstreams:
-  npmjs:
-    url: https://registry.npmjs.org/
 ";
-    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    // The unimplemented sections parse silently and the config is usable.
-    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("unknown field `web`"));
+}
+
+#[test]
+fn from_yaml_str_rejects_removed_blocks_with_migration_guidance() {
+    let bad_upstreams = "storage: ./s\nupstreams: {}\n";
+    let err = Config::from_yaml_str(bad_upstreams, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `upstreams:` block was removed"));
+
+    let bad_uplinks = "storage: ./s\nuplinks: {}\n";
+    let err = Config::from_yaml_str(bad_uplinks, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `uplinks:` block is not supported"));
+
+    let bad_packages = "storage: ./s\npackages: {}\n";
+    let err = Config::from_yaml_str(bad_packages, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `packages:` block was removed"));
+
+    let bad_groups = "storage: ./s\ngroups: {}\n";
+    let err = Config::from_yaml_str(bad_groups, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("the top-level `groups:` block was removed"));
 }
 
 #[test]
@@ -184,7 +198,6 @@ fn logs_default_when_yaml_omits_block() {
 fn log_json_format_parses() {
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   type: stdout
   format: json
@@ -244,8 +257,6 @@ fn config_file_in_resolved_file_round_trips_through_from_yaml() {
     let yaml = format!(
         "\
 storage: {storage}
-upstreams:
-  npmjs: {{ url: https://registry.npmjs.org/ }}
 log:
   type: stdout
   format: json
@@ -296,7 +307,6 @@ fn yaml_log_block_with_no_type_field_uses_default_log_type() {
     // to reflect the supplied format/level).
     let yaml = "\
 storage: ./s
-upstreams: {}
 log:
   format: json
   level: warn
@@ -374,4 +384,212 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
     // A too-short `secret:` is a config error rather than a weak HMAC key.
     let short = Config::from_yaml_str("secret: short", Path::new("/x"), listen(), None);
     assert!(matches!(short, Err(RegistryError::InvalidConfig { .. })));
+}
+
+#[test]
+fn config_rejects_unknown_fields_across_subsystems() {
+    let cases = [
+        ("top-level", "unknownField: value\n", "unknown field `unknownField`"),
+        ("auth", "auth:\n  unknownAuth: true\n", "unknown field `unknownAuth`"),
+        ("auth.htpasswd", "auth:\n  htpasswd:\n    unknownHt: true\n", "unknown field `unknownHt`"),
+        ("auth.tokens", "auth:\n  tokens:\n    unknownTok: true\n", "unknown field `unknownTok`"),
+        ("backend", "backend:\n  unknownBackend: {}\n", "unknown field `unknownBackend`"),
+        (
+            "backend.libsql",
+            "backend:\n  libsql:\n    url: libsql://x\n    unknownLibsql: 1\n",
+            "unknown field `unknownLibsql`",
+        ),
+        (
+            "backend.postgres",
+            "backend:\n  postgres:\n    url: postgres://x\n    unknownPg: 1\n",
+            "unknown field `unknownPg`",
+        ),
+        ("s3", "s3:\n  bucket: b\n  unknownS3: 1\n", "unknown field `unknownS3`"),
+        ("osv", "osv:\n  unknownOsv: 1\n", "unknown field `unknownOsv`"),
+        ("log", "log:\n  unknownLog: 1\n", "unknown field `unknownLog`"),
+        ("routes", "routes:\n  unknownRoutes: 1\n", "unknown field `unknownRoutes`"),
+        ("cors", "cors:\n  unknownCors: 1\n", "unknown field `unknownCors`"),
+        ("ui", "ui:\n  unknownUi: 1\n", "unknown field `unknownUi`"),
+        ("resolver", "resolver:\n  unknownResolver: 1\n", "unknown field `unknownResolver`"),
+        (
+            "hosted registry",
+            "registries:\n  h:\n    type: hosted\n    unknownReg: 1\n",
+            "a registry with type hosted, upstream, or router",
+        ),
+        (
+            "upstream registry",
+            "registries:\n  u:\n    type: upstream\n    url: https://x/\n    public: true\n    unknownUpstream: 1\n",
+            "a registry with type hosted, upstream, or router",
+        ),
+        (
+            "router registry",
+            "registries:\n  r:\n    type: router\n    unknownRouter: 1\n",
+            "a registry with type hosted, upstream, or router",
+        ),
+    ];
+    for (name, yaml, expected_snippet) in cases {
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .expect_err(&format!("expected {name} to reject unknown field"));
+        assert!(
+            err.to_string().contains(expected_snippet),
+            "expected {name} error to contain {expected_snippet:?}, got {err}",
+        );
+    }
+}
+
+#[test]
+fn config_accepts_camel_case_and_snake_case_aliases() {
+    let yaml = "\
+storage: ./storage
+packument_ttl: 42s
+request_timeout: 55s
+trusted_proxies: [127.0.0.1]
+trusted_proxy_header: x-real-ip
+cors:
+  allowed_origins: ['https://example.com']
+routes:
+  allowed_private_networks: ['10.0.0.0/8']
+auth:
+  htpasswd:
+    max_users: 10
+backend:
+  libsql:
+    url: libsql://test.db
+    auth_token: secret
+    replica_path: ./replica.db
+    sync_interval: 15s
+registries:
+  npm:
+    type: hosted
+    teams_managed_by: api
+    rules_managed_by: api
+  remote:
+    type: upstream
+    url: https://registry.npmjs.org/
+    access: [$all]
+    max_fails: 4
+    fail_timeout: 25s
+    max_age: 12m
+    auth:
+      type: bearer
+      token: secret-token
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.http.packument_ttl, std::time::Duration::from_secs(42));
+    assert_eq!(config.http.request_timeout, Some(std::time::Duration::from_secs(55)));
+    assert_eq!(config.http.trusted_proxies.len(), 1);
+    assert_eq!(config.http.trusted_proxy_header, crate::TrustedProxyHeader::XRealIp);
+    assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(10));
+    match &config.identity.backend {
+        crate::BackendConfig::Libsql(settings) => {
+            assert_eq!(settings.sync_interval_secs, Some(15));
+            assert_eq!(settings.auth_token.as_deref(), Some("secret"));
+        }
+        other => panic!("expected libsql, got {other:?}"),
+    }
+    let hosted = &config.routing.hosted["npm"];
+    assert_eq!(hosted.teams_managed_by, crate::Management::Api);
+    assert_eq!(hosted.rules_managed_by, crate::Management::Api);
+    let upstream = &config.routing.upstreams["remote"];
+    assert_eq!(upstream.requests.max_fails, 4);
+    assert_eq!(upstream.requests.fail_timeout, std::time::Duration::from_secs(25));
+    assert_eq!(upstream.maxage, Some(std::time::Duration::from_mins(12)));
+}
+
+#[test]
+fn secret_bearing_fields_reject_unresolved_env_vars() {
+    let cases = [
+        ("secret", "secret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        ("secrets.cache", "secrets:\n  cache: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        ("secrets.oci", "secrets:\n  oci: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        (
+            "s3.secretAccessKey",
+            "s3:\n  bucket: b\n  secretAccessKey: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        ("auth.scim.token", "auth:\n  scim:\n    token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        (
+            "auth.oidc.clientSecret",
+            "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      login:\n        clientSecret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n        users: []\n",
+        ),
+        (
+            "backend.libsql.authToken",
+            "backend:\n  libsql:\n    url: libsql://x\n    authToken: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "upstream.auth.token",
+            "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    auth:\n      type: bearer\n      token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "grouped.upstream.auth.token",
+            "registries:\n  npm:\n    ext:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "upstream.headers.authorization",
+            "registries:\n  ext:\n    type: upstream\n    url: https://registry.npmjs.org/\n    access: [$all]\n    headers:\n      Authorization: Bearer ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "grouped.nested.named.type.auth.token",
+            "registries:\n  npm:\n    type:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+        (
+            "grouped.nested.named.url.auth.token",
+            "registries:\n  npm:\n    url:\n      type: upstream\n      url: https://registry.npmjs.org/\n      access: [$all]\n      auth:\n        type: bearer\n        token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
+        ),
+    ];
+
+    for (field, yaml) in cases {
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+        match err {
+            RegistryError::InvalidConfig { reason } => {
+                assert!(
+                    reason.contains("references unset environment variable"),
+                    "expected unset env var error for {field}, got: {reason}",
+                );
+            }
+            other => panic!("expected InvalidConfig for {field}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn secret_bearing_fields_accept_resolved_fallback_env_vars() {
+    let yaml = "\
+secret: ${PNPR_TEST_UNSET_KEY:-my-fallback-secret-at-least-32-bytes}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.has_configured_secret);
+    assert_eq!(config.resolution_cache_secret.as_ref(), b"my-fallback-secret-at-least-32-bytes");
+}
+
+#[test]
+fn independent_secrets_configuration_and_derivation() {
+    let yaml = "\
+secrets:
+  cache: my-explicit-cache-secret-32-bytes
+  oci: my-explicit-oci-secret-32-bytes!!
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.has_configured_secret);
+    assert_eq!(config.cache_secret.as_ref(), b"my-explicit-cache-secret-32-bytes");
+    assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
+
+    let master_yaml = "secret: master-secret-at-least-32-bytes-long";
+    let master_config =
+        Config::from_yaml_str(master_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(master_config.has_configured_secret);
+    assert_eq!(master_config.cache_secret.as_ref(), b"master-secret-at-least-32-bytes-long");
+    assert_ne!(master_config.oci_secret.as_ref(), master_config.cache_secret.as_ref());
+    assert_eq!(master_config.oci_secret.len(), 32);
+}
+
+#[test]
+fn oci_only_secret_does_not_flag_configured_cache_secret() {
+    let yaml = "\
+secrets:
+  oci: my-explicit-oci-secret-32-bytes!!
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.has_configured_secret);
+    assert_eq!(config.oci_secret.as_ref(), b"my-explicit-oci-secret-32-bytes!!");
+    assert_eq!(config.cache_secret.len(), 32);
 }

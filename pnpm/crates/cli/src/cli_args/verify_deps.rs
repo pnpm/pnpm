@@ -197,15 +197,40 @@ fn locked_install(
         );
         (None, false)
     });
-    if !waited {
-        return spawn_install(dir, config, install_args, reporter);
-    }
-    match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
-        Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
-            install_args.extend(install_selection_args(config));
-            spawn_install(dir, config, &install_args, reporter)
+    let install_args = if waited {
+        match check_deps_status_before_run_at(dir, config, selected_project_dirs) {
+            Some(RunDepsStatus::Outdated { mut install_args, .. }) => {
+                install_args.extend(install_selection_args(config));
+                install_args
+            }
+            _ => return Ok(()),
         }
-        _ => Ok(()),
+    } else {
+        install_args.to_vec()
+    };
+    if spawn_install(dir, config, &install_args, reporter)? {
+        warn_if_still_outdated(dir, selected_project_dirs, config, reporter);
+    }
+    Ok(())
+}
+
+/// Warn when the install the gate spawned left the dependencies out of date,
+/// since every later command then installs again.
+fn warn_if_still_outdated(
+    dir: &Path,
+    selected_project_dirs: &[&Path],
+    config: &Config,
+    reporter: ReporterType,
+) {
+    if let Some(RunDepsStatus::Outdated { issue, .. }) =
+        check_deps_status_before_run_at(dir, config, selected_project_dirs)
+    {
+        warn(
+            matches!(reporter, ReporterType::Silent),
+            &format!(
+                "The install that ran before the script left node_modules out of date, so the next run installs again. {issue}",
+            ),
+        );
     }
 }
 
@@ -234,14 +259,14 @@ fn acquire_install_lock(root: &Path) -> io::Result<(Option<DirLock>, bool)> {
 ///
 /// An install that exits with an error only warns, so a sandbox with a
 /// read-only store or no network can still run its scripts. An interrupted
-/// install aborts the command.
+/// install aborts the command. Returns whether the install succeeded.
 #[expect(clippy::exit, reason = "an interrupted spawned install must stop the command")]
 fn spawn_install(
     dir: &Path,
     config: &Config,
     install_args: &[String],
     reporter: ReporterType,
-) -> miette::Result<()> {
+) -> miette::Result<bool> {
     let exe = pnpm_executor::current_pnpm_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
     command
@@ -266,14 +291,14 @@ fn spawn_install(
     }
     let status = command.status().into_diagnostic()?;
     if status.success() {
-        return Ok(());
+        return Ok(true);
     }
     // The child already reported its own failure.
     if is_interrupted(status) {
         exit(1);
     }
     warn(matches!(reporter, ReporterType::Silent), FAILED_INSTALL_WARNING);
-    Ok(())
+    Ok(false)
 }
 
 const FAILED_INSTALL_WARNING: &str = r#"The install that runs before scripts failed, so your node_modules may be out of sync with your lockfile. Set "verifyDepsBeforeRun: false" to skip this install."#;
@@ -303,7 +328,7 @@ fn warn(silent: bool, message: &str) {
     }
     let colors =
         Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
-    eprintln!("{} {message}", colors.warn_label());
+    pnpm_diagnostics::eprintln!("{} {message}", colors.warn_label());
 }
 
 #[expect(clippy::exit, reason = "an interrupted prompt exits 1, like pnpm's ExitPromptError")]
@@ -373,13 +398,77 @@ pub(crate) fn with_dependencies(selector: &str) -> String {
     }
 }
 
-/// The command line's `--config.*` tokens, which the install inherits.
+/// The command line's setting overrides, which the install inherits.
 /// They stay out of the prompt, which could otherwise print a credential
 /// such as `--config.//registry.example/:_authToken=...`.
 fn install_config_args(config: &Config) -> impl Iterator<Item = String> {
-    config.raw_cli_config
+    let raw = config.cli.npmrc_tokens
         .iter()
-        .map(|(key, value)| format!("--config.{key}={value}"))
+        .map(|(key, value)| {
+            let resolved = match pnpm_config::naming_cases::to_kebab_case(key).as_str() {
+                "lockfile-dir" => config.lockfile_dir.as_deref().map(Path::display),
+                "store-dir" if !value.is_empty() => Some(config.store_dir.root().display()),
+                "state-dir" if !value.is_empty() => Some(config.state_dir.display()),
+                "global-dir" => config.global_dir.as_deref().map(Path::display),
+                _ => None,
+            };
+            match resolved {
+                Some(path) => format!("--config.{key}={path}"),
+                None => format!("--config.{key}={value}"),
+            }
+        });
+    let npmrc_auth_file = config.npmrc_auth_file
+        .as_deref()
+        .map(resolve_against_current_dir)
+        .map(|path| format!("--npmrc-auth-file={}", path.display()));
+    let ignore_workspace =
+        config.workspace_search_skipped.then(|| "--ignore-workspace".to_string());
+    let workspace_packages = cli_list_args(
+        config,
+        "workspacePackagePatterns",
+        "workspace-packages",
+        config.workspace_package_patterns.as_deref().unwrap_or_default(),
+    );
+    let test_pattern = cli_list_args(config, "testPattern", "test-pattern", &config.test_pattern);
+    let changed_files_ignore_pattern = cli_list_args(
+        config,
+        "changedFilesIgnorePattern",
+        "changed-files-ignore-pattern",
+        &config.changed_files_ignore_pattern,
+    );
+    raw.chain(npmrc_auth_file)
+        .chain(ignore_workspace)
+        .chain(workspace_packages)
+        .chain(test_pattern)
+        .chain(changed_files_ignore_pattern)
+}
+
+/// `values` as one `--<flag>=<value>` each when the command line set the
+/// `setting`, else nothing: a value from the workspace manifest or the
+/// environment reaches the install on its own.
+fn cli_list_args<'a>(
+    config: &'a Config,
+    setting: &str,
+    flag: &'a str,
+    values: &'a [String],
+) -> impl Iterator<Item = String> + 'a {
+    config.cli_settings
+        .contains(setting)
+        .then_some(values)
+        .into_iter()
+        .flatten()
+        .map(move |value| format!("--{flag}={value}"))
+}
+
+fn resolve_against_current_dir(path: &Path) -> std::path::PathBuf {
+    if path.is_relative() {
+        match std::env::current_dir() {
+            Ok(cwd) => cwd.join(path),
+            Err(_) => path.to_path_buf(),
+        }
+    } else {
+        path.to_path_buf()
+    }
 }
 
 #[cfg(test)]

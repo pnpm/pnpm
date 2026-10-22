@@ -93,6 +93,7 @@ fn test_is_same_source() {
     use crate::add::source::is_same_source;
     assert!(is_same_source("github:foo-org/skills#main", "github:foo-org/skills#v1", "skills"));
     assert!(!is_same_source("github:foo-org/skills", "github:vercel-labs/skills", "skills"));
+    assert!(is_same_source("gist:abc123", "https://gist.github.com/foo/abc123", "abc123"));
     assert!(is_same_source("^1.0.0", "^2.0.0", "express"));
     assert!(!is_same_source("^1.0.0", "github:vercel-labs/skills", "skills"));
     assert!(is_same_source("npm:foo@1.0.0", "npm:foo@2.0.0", "my-foo"));

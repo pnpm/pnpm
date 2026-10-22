@@ -1,4 +1,7 @@
-use super::{HashMap, HashSet, PackageFilesIndex, StoreIndex, StoreIndexError, decode_index_value};
+use super::{
+    Backend, HashMap, HashSet, PackageFilesIndex, StoreIndex, StoreIndexError, decode_index_value,
+};
+use rusqlite::Connection;
 
 /// Per-query placeholder cap for [`StoreIndex::get_many`]. `SQLite`'s
 /// `SQLITE_MAX_VARIABLE_NUMBER` defaulted to 999 before 3.32.0 and is
@@ -38,43 +41,44 @@ impl StoreIndex {
     ///
     /// Cost is one `Vec<u8>` allocation + memcpy per read, dwarfed by
     /// the `SQLite` query and disk I/O.
+    ///
+    /// A key with no row of its own reads the row it is an alias of.
     pub fn get(&self, key: &str) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
-        let row: Option<Vec<u8>> = self.conn
-            .query_row("SELECT data FROM package_index WHERE key = ?", [key], |row| {
-                row.get::<_, Vec<u8>>(0)
-            })
-            .map(Some)
-            .or_else(|err| match err {
-                rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                other => Err(StoreIndexError::Read { source: other }),
-            })?;
-
+        let row = match self.get_raw(key)? {
+            Some(row) => Some(row),
+            None => match self.alias_target(key)? {
+                Some(target) => self.get_raw(&target)?,
+                None => None,
+            },
+        };
         let Some(bytes) = row else { return Ok(None) };
         decode_index_value(&bytes).map(Some)
+    }
+
+    fn get_raw(&self, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_get(conn, key),
+            Backend::Files(files) => files.get(key),
+        }
     }
 
     /// Look up the first package-files index whose key ends with `\t{pkg_id}`.
     ///
     /// This is for read-only inspection commands that only know the local
     /// package id and must not resolve against a registry to recover the
-    /// integrity half of the key.
+    /// integrity half of the key. A per-file index has no key order to
+    /// search, so every entry is read.
     pub fn get_by_pkg_id(
         &self,
         pkg_id: &str,
     ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
-        let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
-        let row: Option<Vec<u8>> = self.conn
-            .query_row(
-                r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
-                [pattern],
-                |row| row.get::<_, Vec<u8>>(0),
-            )
-            .map(Some)
-            .or_else(|err| match err {
-                rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                other => Err(StoreIndexError::Read { source: other }),
-            })?;
-
+        let row = match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_get_by_pkg_id(conn, pkg_id)?,
+            Backend::Files(files) => {
+                let suffix = format!("\t{pkg_id}");
+                files.first_matching(|key| key.ends_with(&suffix))?
+            }
+        };
         let Some(bytes) = row else { return Ok(None) };
         decode_index_value(&bytes).map(Some)
     }
@@ -130,37 +134,42 @@ impl StoreIndex {
     /// [`SharedReadonlyStoreIndex`](super::SharedReadonlyStoreIndex) lock serialises N installs back to
     /// one thread; doing it after the lock releases lets each prefetch
     /// fan out across the rayon pool.
+    ///
+    /// A key with no row of its own returns the row it is an alias of,
+    /// under the requested key.
     pub fn get_many_raw(&self, keys: &[String]) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
-        let mut out = Vec::with_capacity(keys.len());
-        if keys.is_empty() {
-            return Ok(out);
+        let mut rows = self.get_many_rows(keys)?;
+        let found: HashSet<&str> = rows
+            .iter()
+            .map(|(key, _)| key.as_str())
+            .collect();
+        let missing: Vec<String> = keys
+            .iter()
+            .filter(|key| !found.contains(key.as_str()))
+            .cloned()
+            .collect();
+        let aliases = self.alias_targets(&missing)?;
+        if aliases.is_empty() {
+            return Ok(rows);
         }
-        for chunk in keys.chunks(GET_MANY_CHUNK) {
-            // Build a `?,?,...?` list whose length matches `chunk`. The
-            // only thing interpolated into `sql` is this fixed-shape
-            // placeholder string — no caller-supplied bytes ever reach
-            // the SQL text. The keys themselves flow through
-            // `rusqlite::params_from_iter` below, which routes them via
-            // SQLite's prepared-statement parameter binding (the same
-            // path every other site in this file uses). Keep the two
-            // lines in lock-step: if the placeholder count or the params
-            // iterator ever stop matching `chunk.len()`, that's the bug
-            // to look at — not SQL injection.
-            let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
-            let sql = format!("SELECT key, data FROM package_index WHERE key IN ({placeholders})");
-            let mut stmt = self.conn
-                .prepare(&sql)
-                .map_err(|source| StoreIndexError::Read { source })?;
-            let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
-            let rows = stmt
-                .query_map(params, |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
-                .map_err(|source| StoreIndexError::Read { source })?;
-            for row in rows {
-                let row = row.map_err(|source| StoreIndexError::Read { source })?;
-                out.push(row);
+        let targets: Vec<String> = aliases.values().cloned().collect();
+        let by_target: HashMap<String, Vec<u8>> = self
+            .get_many_rows(&targets)?
+            .into_iter()
+            .collect();
+        for (alias, target) in aliases {
+            if let Some(bytes) = by_target.get(&target) {
+                rows.push((alias, bytes.clone()));
             }
         }
-        Ok(out)
+        Ok(rows)
+    }
+
+    fn get_many_rows(&self, keys: &[String]) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => sqlite_get_many_raw(conn, keys),
+            Backend::Files(files) => files.get_many(keys),
+        }
     }
 
     /// Visit every raw `package_index` row without first collecting the
@@ -172,7 +181,11 @@ impl StoreIndex {
     where
         VisitError: From<StoreIndexError>,
     {
-        let mut stmt = self.conn
+        let conn = match &self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(files) => return files.for_each(visit),
+        };
+        let mut stmt = conn
             .prepare("SELECT key, data FROM package_index")
             .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
         let rows = stmt
@@ -191,7 +204,41 @@ impl StoreIndex {
     /// posture) as [`Self::get_many_raw`], but selects only the key column,
     /// so no row data is copied — for callers that decide *whether* to do
     /// work per key and leave reading the row to a later pass.
+    ///
+    /// A key with no row of its own is contained when the row it is an
+    /// alias of is.
     pub fn contains_many(&self, keys: &[String]) -> Result<HashSet<String>, StoreIndexError> {
+        let mut out = self.contains_rows(keys)?;
+        let missing: Vec<String> = keys
+            .iter()
+            .filter(|key| !out.contains(*key))
+            .cloned()
+            .collect();
+        let aliases = self.alias_targets(&missing)?;
+        if aliases.is_empty() {
+            return Ok(out);
+        }
+        let targets: Vec<String> = aliases.values().cloned().collect();
+        let present = self.contains_rows(&targets)?;
+        out.extend(
+            aliases
+                .into_iter()
+                .filter(|(_, target)| present.contains(target))
+                .map(|(alias, _)| alias),
+        );
+        Ok(out)
+    }
+
+    fn contains_rows(&self, keys: &[String]) -> Result<HashSet<String>, StoreIndexError> {
+        let conn = match &self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(files) => {
+                return Ok(files
+                    .contains_many(keys)?
+                    .into_iter()
+                    .collect());
+            }
+        };
         let mut out = HashSet::with_capacity(keys.len());
         if keys.is_empty() {
             return Ok(out);
@@ -199,7 +246,7 @@ impl StoreIndex {
         for chunk in keys.chunks(GET_MANY_CHUNK) {
             let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
             let sql = format!("SELECT key FROM package_index WHERE key IN ({placeholders})");
-            let mut stmt = self.conn
+            let mut stmt = conn
                 .prepare(&sql)
                 .map_err(|source| StoreIndexError::Read { source })?;
             let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
@@ -222,13 +269,16 @@ impl StoreIndex {
     pub fn set(&self, key: &str, value: &PackageFilesIndex) -> Result<(), StoreIndexError> {
         let buf = crate::msgpackr_records::encode_package_files_index(value)
             .map_err(|source| StoreIndexError::Encode { source })?;
-        self.conn
-            .execute(
-                "INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)",
-                rusqlite::params![key, buf],
-            )
-            .map(|_| ())
-            .map_err(|source| StoreIndexError::Write { source })
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => conn
+                .execute(
+                    "INSERT OR REPLACE INTO package_index (key, data) VALUES (?1, ?2)",
+                    rusqlite::params![key, buf],
+                )
+                .map(|_| ())
+                .map_err(|source| StoreIndexError::Write { source }),
+            Backend::Files(files) => files.set(key, &buf),
+        }
     }
 
     /// Insert-or-replace a batch of rows in a single transaction.
@@ -240,6 +290,8 @@ impl StoreIndex {
     ///
     /// `SQLite` errors during the transaction roll it back before returning,
     /// so a partial apply never leaves the index in a half-written state.
+    /// A per-file index writes each row on its own, so a failed row leaves
+    /// the others written.
     /// A per-row msgpack encoding error is logged at `warn!` and skipped
     /// — one malformed [`PackageFilesIndex`] shouldn't cost every other row
     /// in the batch the chance to commit, matching the "best-effort
@@ -269,7 +321,11 @@ impl StoreIndex {
             return Ok(());
         }
 
-        let tx = self.conn
+        let conn = match &mut self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(files) => return files.set_many(&encoded),
+        };
+        let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|source| StoreIndexError::Write { source })?;
         {
@@ -285,9 +341,23 @@ impl StoreIndex {
             .map_err(|source| StoreIndexError::Write { source })
     }
 
-    /// `true` iff a row with this key exists.
+    /// `true` iff a row with this key exists, directly or through an alias.
     pub fn contains_key(&self, key: &str) -> Result<bool, StoreIndexError> {
-        let exists = self.conn
+        if self.contains_row(key)? {
+            return Ok(true);
+        }
+        match self.alias_target(key)? {
+            Some(target) => self.contains_row(&target),
+            None => Ok(false),
+        }
+    }
+
+    fn contains_row(&self, key: &str) -> Result<bool, StoreIndexError> {
+        let conn = match &self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(files) => return files.contains(key),
+        };
+        let exists = conn
             .query_row("SELECT 1 FROM package_index WHERE key = ?", [key], |_| Ok(()))
             .map(|()| true)
             .or_else(|err| match err {
@@ -300,7 +370,18 @@ impl StoreIndex {
     /// Collect every key in `package_index`. Useful for tests and store-prune.
     /// Buffers to avoid holding a statement borrow across the returned vector.
     pub fn keys(&self) -> Result<Vec<String>, StoreIndexError> {
-        let mut stmt = self.conn
+        let conn = match &self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(files) => {
+                let mut out = Vec::new();
+                files.for_each(|key, _| {
+                    out.push(key);
+                    Ok::<(), StoreIndexError>(())
+                })?;
+                return Ok(out);
+            }
+        };
+        let mut stmt = conn
             .prepare("SELECT key FROM package_index")
             .map_err(|source| StoreIndexError::Read { source })?;
         let rows = stmt
@@ -313,12 +394,25 @@ impl StoreIndex {
         Ok(out)
     }
 
-    /// Delete a batch of package-index rows in one transaction.
+    /// Delete a batch of package-index rows in one transaction, then
+    /// shrink `index.db`.
+    ///
+    /// `index.db` uses `auto_vacuum=NONE`, so freed pages stay in the file
+    /// until a `VACUUM`. In WAL mode the main file shrinks only at the
+    /// checkpoint after it, which a concurrent reader can defer.
     pub fn delete_many(&mut self, keys: &[String]) -> Result<(), StoreIndexError> {
         if keys.is_empty() {
             return Ok(());
         }
-        let tx = self.conn
+        let conn = match &mut self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(files) => {
+                return keys
+                    .iter()
+                    .try_for_each(|key| files.remove(key));
+            }
+        };
+        let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|source| StoreIndexError::Write { source })?;
         {
@@ -331,6 +425,81 @@ impl StoreIndex {
             }
         }
         tx.commit()
+            .map_err(|source| StoreIndexError::Write { source })?;
+        conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")
             .map_err(|source| StoreIndexError::Write { source })
     }
+
+    /// The `SQLite` connection of an index known to use that backend.
+    #[cfg(test)]
+    pub(crate) fn sqlite_conn(&self) -> &Connection {
+        match &self.backend {
+            Backend::Sqlite { conn, .. } => conn,
+            Backend::Files(_) => panic!("the store index is not an SQLite database"),
+        }
+    }
+}
+
+fn sqlite_get(conn: &Connection, key: &str) -> Result<Option<Vec<u8>>, StoreIndexError> {
+    conn.query_row("SELECT data FROM package_index WHERE key = ?", [key], |row| {
+        row.get::<_, Vec<u8>>(0)
+    })
+    .map(Some)
+    .or_else(|err| match err {
+        rusqlite::Error::QueryReturnedNoRows => Ok(None),
+        other => Err(StoreIndexError::Read { source: other }),
+    })
+}
+
+fn sqlite_get_by_pkg_id(
+    conn: &Connection,
+    pkg_id: &str,
+) -> Result<Option<Vec<u8>>, StoreIndexError> {
+    let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
+    conn.query_row(
+        r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
+        [pattern],
+        |row| row.get::<_, Vec<u8>>(0),
+    )
+    .map(Some)
+    .or_else(|err| match err {
+        rusqlite::Error::QueryReturnedNoRows => Ok(None),
+        other => Err(StoreIndexError::Read { source: other }),
+    })
+}
+
+fn sqlite_get_many_raw(
+    conn: &Connection,
+    keys: &[String],
+) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
+    let mut out = Vec::with_capacity(keys.len());
+    if keys.is_empty() {
+        return Ok(out);
+    }
+    for chunk in keys.chunks(GET_MANY_CHUNK) {
+        // Build a `?,?,...?` list whose length matches `chunk`. The
+        // only thing interpolated into `sql` is this fixed-shape
+        // placeholder string — no caller-supplied bytes ever reach
+        // the SQL text. The keys themselves flow through
+        // `rusqlite::params_from_iter` below, which routes them via
+        // SQLite's prepared-statement parameter binding (the same
+        // path every other site in this file uses). Keep the two
+        // lines in lock-step: if the placeholder count or the params
+        // iterator ever stop matching `chunk.len()`, that's the bug
+        // to look at — not SQL injection.
+        let placeholders = std::iter::repeat_n("?", chunk.len()).collect::<Vec<_>>().join(",");
+        let sql = format!("SELECT key, data FROM package_index WHERE key IN ({placeholders})");
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|source| StoreIndexError::Read { source })?;
+        let params = rusqlite::params_from_iter(chunk.iter().map(String::as_str));
+        let rows = stmt
+            .query_map(params, |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
+            .map_err(|source| StoreIndexError::Read { source })?;
+        for row in rows {
+            let row = row.map_err(|source| StoreIndexError::Read { source })?;
+            out.push(row);
+        }
+    }
+    Ok(out)
 }

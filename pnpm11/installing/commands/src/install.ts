@@ -112,6 +112,7 @@ export { help } from './installHelp.js'
 
 export type InstallCommandOptions = Pick<Config,
 | 'autoInstallPeers'
+| 'autoInstallPeersFromHighestMatch'
 | 'bail'
 | 'bin'
 | 'catalogs'
@@ -127,6 +128,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'enableGlobalVirtualStore'
 | 'engineStrict'
 | 'excludeLinksFromLockfile'
+| 'externalDependencies'
 | 'forceIgnoresPlatform'
 | 'frozenLockfile'
 | 'global'
@@ -135,6 +137,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'hoistingLimits'
 | 'publicHoistPattern'
 | 'ignorePnpmfile'
+| 'ignoredOptionalDependencies'
 | 'ignoreScripts'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'
@@ -145,6 +148,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'modulesDir'
 | 'nodeLinker'
 | 'patchedDependencies'
+| 'peersSuffixMaxLength'
 | 'preferFrozenLockfile'
 | 'preferWorkspacePackages'
 | 'production'
@@ -191,7 +195,7 @@ export type InstallCommandOptions = Pick<Config,
 | 'rootProjectManifestDir'
 | 'allProjectsGraph'
 | 'selectedProjectsGraph'
-> & CreateStoreControllerOptions & Partial<Pick<Config, 'globalPkgDir'>> & {
+> & CreateStoreControllerOptions & Partial<Pick<Config, 'filter' | 'filterProd' | 'globalPkgDir'>> & {
   argv: {
     cooked?: string[]
     original: string[]

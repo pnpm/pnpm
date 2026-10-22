@@ -47,7 +47,7 @@ const testFixtures = fixtures(import.meta.dirname)
 const basePatchOption = {
   pnpmHomeDir: '',
   configByUri: {},
-  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+  registriesByScope: { default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/` },
   userConfig: {},
   virtualStoreDir: 'node_modules/.pnpm',
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -1347,27 +1347,30 @@ describe('patch and commit in workspaces', () => {
     expect(fs.existsSync('project-2/node_modules/is-positive/license')).toBe(false)
   })
 
-  test('patch and patch-commit should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  test('patch, patch-commit, and patch-remove should work with shared-workspace-lockfile=false', async () => {
+    const workspaceDir = process.cwd()
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
       storeDir,
       allProjects,
       allProjectsGraph,
-      dir: process.cwd(),
+      dir: workspaceDir,
       lockfileDir: undefined,
       selectedProjectsGraph,
-      workspaceDir: process.cwd(),
+      workspaceDir,
       saveLockfile: true,
       sharedWorkspaceLockfile: false,
     })
-    if (path.basename(process.cwd()) !== 'project-1') {
-      process.chdir('./project-1')
-    }
+    const project1Dir = path.join(workspaceDir, 'project-1')
+    process.chdir(project1Dir)
     const output = await patch.handler({
       ...defaultPatchOption,
-      dir: process.cwd(),
+      dir: project1Dir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
     }, ['is-positive@1.0.0'])
     const patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1384,54 +1387,162 @@ describe('patch and commit in workspaces', () => {
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-      dir: process.cwd(),
-      rootProjectManifestDir: process.cwd(),
+      dir: project1Dir,
+      rootProjectManifestDir: workspaceDir,
       cacheDir,
       storeDir,
-      lockfileDir: process.cwd(),
-      workspaceDir: process.cwd(),
+      lockfileDir: undefined,
+      workspaceDir,
       saveLockfile: true,
       frozenLockfile: false,
       fixLockfile: true,
       sharedWorkspaceLockfile: false,
     }, [patchDir])
 
-    const { manifest } = await readProjectManifest(process.cwd())
+    const { manifest } = await readProjectManifest(project1Dir)
     expect((manifest as Record<string, unknown>)['pnpm']).toBeUndefined()
-    const workspaceManifest = await readWorkspaceManifest(process.cwd())
+    expect(fs.existsSync(path.join(project1Dir, 'pnpm-workspace.yaml'))).toBe(false)
+    expect(fs.existsSync(path.join(project1Dir, 'patches'))).toBe(false)
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
     expect(workspaceManifest!.patchedDependencies).toStrictEqual({
       'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
     })
-    const patchContent = fs.readFileSync('patches/is-positive@1.0.0.patch', 'utf8')
+    const patchFilePath = path.join(workspaceDir, 'patches/is-positive@1.0.0.patch')
+    const patchContent = fs.readFileSync(patchFilePath, 'utf8')
     expect(patchContent).toContain('diff --git')
     expect(patchContent).toContain('// test patching')
-    expect(fs.readFileSync('./node_modules/is-positive/index.js', 'utf8')).toContain('// test patching')
-    expect(fs.existsSync('./node_modules/is-positive/license')).toBe(false)
-    expect(fs.readFileSync('../project-2/node_modules/is-positive/index.js', 'utf8')).not.toContain('// test patching')
-    expect(fs.existsSync('../project-2/node_modules/is-positive/license')).toBe(true)
+    expect(fs.readFileSync(path.join(project1Dir, 'node_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(project1Dir, 'node_modules/is-positive/license'))).toBe(false)
+    expect(fs.readFileSync(path.join(workspaceDir, 'project-2/node_modules/is-positive/index.js'), 'utf8')).toContain('// test patching')
+    expect(fs.existsSync(path.join(workspaceDir, 'project-2/node_modules/is-positive/license'))).toBe(false)
+
+    await patchRemove.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: project1Dir,
+      rootProjectManifestDir: workspaceDir,
+      cacheDir,
+      storeDir,
+      lockfileDir: undefined,
+      workspaceDir,
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+      patchedDependencies: {
+        'is-positive@1.0.0': patchFilePath,
+      },
+    }, ['is-positive@1.0.0'])
+
+    expect(fs.existsSync(patchFilePath)).toBe(false)
+    const workspaceManifestAfterRemove = await readWorkspaceManifest(workspaceDir)
+    expect(workspaceManifestAfterRemove?.patchedDependencies).toBeUndefined()
+    expect(fs.readFileSync(path.join(project1Dir, 'node_modules/is-positive/index.js'), 'utf8')).not.toContain('// test patching')
+    expect(fs.existsSync(path.join(project1Dir, 'node_modules/is-positive/license'))).toBe(true)
   })
 
-  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
-    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  test('patch and patch-commit from workspace root should work with shared-workspace-lockfile=false', async () => {
+    const workspaceDir = process.cwd()
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
       storeDir,
       allProjects,
       allProjectsGraph,
-      dir: process.cwd(),
+      dir: workspaceDir,
       lockfileDir: undefined,
       selectedProjectsGraph,
-      workspaceDir: process.cwd(),
+      workspaceDir,
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+    })
+
+    const output = await patch.handler({
+      ...defaultPatchOption,
+      dir: workspaceDir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
+    }, ['hi@0.0.0'])
+    const patchDir = getPatchDirFromPatchOutput(output)
+    expect(fs.existsSync(patchDir)).toBe(true)
+
+    fs.appendFileSync(path.join(patchDir, 'index.js'), '\n// patched from workspace root\n', 'utf8')
+    await patchCommit.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      allProjectsGraph,
+      selectedProjectsGraph,
+      dir: workspaceDir,
+      rootProjectManifestDir: workspaceDir,
+      cacheDir,
+      storeDir,
+      lockfileDir: undefined,
+      workspaceDir,
+      saveLockfile: true,
+      frozenLockfile: false,
+      fixLockfile: true,
+      sharedWorkspaceLockfile: false,
+    }, [patchDir])
+
+    const workspaceManifest = await readWorkspaceManifest(workspaceDir)
+    expect(workspaceManifest!.patchedDependencies).toStrictEqual({
+      'hi@0.0.0': 'patches/hi@0.0.0.patch',
+    })
+    expect(fs.readFileSync(path.join(workspaceDir, 'project-1/node_modules/hi/index.js'), 'utf8')).toContain('// patched from workspace root')
+  })
+
+  test('install with shared-workspace-lockfile=false fails when a patch is unused across all workspace projects', async () => {
+    const workspaceDir = process.cwd()
+    const patchFilePath = path.join(workspaceDir, 'patches/non-existent@1.0.0.patch')
+    fs.mkdirSync(path.dirname(patchFilePath), { recursive: true })
+    fs.writeFileSync(patchFilePath, 'diff --git a/index.js b/index.js\n', 'utf8')
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+    await expect(install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: workspaceDir,
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir,
+      saveLockfile: true,
+      sharedWorkspaceLockfile: false,
+      patchedDependencies: {
+        'non-existent@1.0.0': patchFilePath,
+      },
+    })).rejects.toThrow('The following patches were not used: non-existent@1.0.0')
+  })
+
+  test('reusing existing patch file should work with shared-workspace-lockfile=false', async () => {
+    const workspaceDir = process.cwd()
+    const { allProjects, allProjectsGraph, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(workspaceDir, [])
+    await install.handler({
+      ...DEFAULT_OPTS,
+      cacheDir,
+      storeDir,
+      allProjects,
+      allProjectsGraph,
+      dir: workspaceDir,
+      lockfileDir: undefined,
+      selectedProjectsGraph,
+      workspaceDir,
       saveLockfile: true,
       sharedWorkspaceLockfile: false,
     })
 
     // patch project-1
-    process.chdir('./project-1')
+    const project1Dir = path.join(workspaceDir, 'project-1')
+    process.chdir(project1Dir)
     let output = await patch.handler({
       ...defaultPatchOption,
-      dir: process.cwd(),
+      dir: project1Dir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
     }, ['is-positive@1.0.0'])
     let patchDir = getPatchDirFromPatchOutput(output)
 
@@ -1440,19 +1551,19 @@ describe('patch and commit in workspaces', () => {
     fs.unlinkSync(path.join(patchDir, 'license'))
 
     // patch-commit
-    let workspaceManifest = await readWorkspaceManifest(process.cwd())
+    let workspaceManifest = await readWorkspaceManifest(workspaceDir)
     await patchCommit.handler({
       ...DEFAULT_OPTS,
       allProjects,
       allProjectsGraph,
       selectedProjectsGraph,
-      dir: process.cwd(),
-      rootProjectManifestDir: process.cwd(),
+      dir: project1Dir,
+      rootProjectManifestDir: workspaceDir,
       patchedDependencies: workspaceManifest?.patchedDependencies,
       cacheDir,
       storeDir,
-      lockfileDir: process.cwd(),
-      workspaceDir: process.cwd(),
+      lockfileDir: undefined,
+      workspaceDir,
       saveLockfile: true,
       frozenLockfile: false,
       fixLockfile: true,
@@ -1465,11 +1576,17 @@ describe('patch and commit in workspaces', () => {
 
     // re-patch project-1
     fs.rmSync(patchDir, { recursive: true })
-    workspaceManifest = await readWorkspaceManifest(process.cwd())
+    workspaceManifest = await readWorkspaceManifest(workspaceDir)
+    const resolvedPatchedDependencies = Object.fromEntries(
+      Object.entries(workspaceManifest?.patchedDependencies ?? {}).map(([key, relPath]) => [key, path.resolve(workspaceDir, relPath)])
+    )
     output = await patch.handler({
       ...defaultPatchOption,
-      dir: process.cwd(),
-      patchedDependencies: workspaceManifest?.patchedDependencies,
+      dir: project1Dir,
+      workspaceDir,
+      sharedWorkspaceLockfile: false,
+      allProjects,
+      patchedDependencies: resolvedPatchedDependencies,
     }, ['is-positive@1.0.0'])
     patchDir = getPatchDirFromPatchOutput(output)
     expect(fs.existsSync(patchDir)).toBe(true)

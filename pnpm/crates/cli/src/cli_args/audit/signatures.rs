@@ -11,18 +11,18 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-use super::{bold, red, retry_opts_from_config, sanitize_response_body};
-use base64::Engine as _;
+use super::{bold, red, sanitize_response_body};
 use owo_colors::{OwoColorize, Stream};
-use p256::{
-    ecdsa::{Signature, VerifyingKey, signature::Verifier},
-    pkcs8::DecodePublicKey,
-};
 use pnpm_config::Config;
 use pnpm_network::{
     ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
     walk_reqwest_chain,
 };
+mod keys;
+mod tar_binding;
+
+use keys::{key_is_expired, verify_one};
+
 use registry::{
     PackageSignature, Packument, RegistryKey, fetch_packument, fetch_registry_keys, parse_timestamp,
 };
@@ -32,6 +32,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 /// One installed package to check, already routed to the registry it was
 /// installed from.
 pub(super) struct SignaturePackage {
+    pub integrity: Option<String>,
+    /// Whether `integrity` is the hash of the package's tar, which no
+    /// registry signature covers directly.
+    pub pins_tar: bool,
     pub name: String,
     pub registry: String,
     pub version: String,
@@ -118,12 +122,14 @@ pub(super) enum SignaturesError {
 /// packages that needed it, mirroring pnpm's per-package `catch`.
 pub(super) async fn verify_signatures(
     packages: &[SignaturePackage],
-    config: &Config,
+    config: &'static Config,
     http_client: &ThrottledClient,
 ) -> Result<SignatureVerificationResult, SignaturesError> {
     let keys_by_registry = fetch_keys_by_registry(packages, config, http_client).await?;
     let packuments =
         fetch_needed_packuments(packages, &keys_by_registry, config, http_client).await;
+    let tar_ties =
+        tar_binding::tie_tar_integrities(packages, &packuments, config, http_client).await;
 
     let mut result = SignatureVerificationResult::default();
     for pkg in packages {
@@ -140,7 +146,10 @@ pub(super) async fn verify_signatures(
             Some(Ok(None)) | None => {}
             Some(Ok(Some(packument))) => {
                 result.audited += 1;
-                process_version(pkg, packument, keys, &mut result);
+                let tie = pkg.pins_tar
+                    .then(|| tar_ties.get(&tar_binding::tie_key(pkg)))
+                    .flatten();
+                process_version(pkg, packument, keys, tie, &mut result);
             }
         }
     }
@@ -196,45 +205,51 @@ async fn fetch_needed_packuments(
     futures_util::future::join_all(packument_fetches).await.into_iter().collect()
 }
 
+/// `tie` is the signed integrity a tar-pinning entry was tied to, or why it
+/// could not be.
 fn process_version(
     pkg: &SignaturePackage,
     packument: &Packument,
     keys: &[RegistryKey],
+    tie: Option<&Result<String, String>>,
     result: &mut SignatureVerificationResult,
 ) {
     let version = packument.versions.get(&pkg.version);
-    let published_at = packument.time
-        .get(&pkg.version)
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
+    let Some(integrity) = pkg.integrity.clone() else {
+        let reason = format!("Missing lockfile integrity for {}@{}", pkg.name, pkg.version);
+        result.invalid.push(issue(pkg, None, None, Some(reason)));
+        return;
+    };
     let dist = version.and_then(|version| version.dist.as_ref());
-    let integrity = dist.and_then(|dist| dist.integrity.clone());
     let resolved = dist.and_then(|dist| dist.tarball.clone());
     let raw_signatures = dist.and_then(|dist| dist.signatures.as_ref());
 
     let Some(signatures) = parse_signatures(raw_signatures) else {
-        result.invalid.push(issue(pkg, integrity, resolved, Some(malformed_reason(pkg))));
+        result.invalid.push(issue(pkg, Some(integrity), resolved, Some(malformed_reason(pkg))));
         return;
     };
 
     if version.is_none() {
         let reason = format!("Missing registry metadata for {}@{}", pkg.name, pkg.version);
-        result.invalid.push(issue(pkg, None, None, Some(reason)));
+        result.invalid.push(issue(pkg, Some(integrity), None, Some(reason)));
         return;
     }
-    let Some(integrity) = integrity else {
-        result.missing.push(issue(pkg, None, resolved, None));
-        return;
-    };
     if signatures.is_empty() {
         result.missing.push(issue(pkg, Some(integrity), resolved, None));
         return;
     }
 
+    let signed = match tar_binding::signed_integrity(pkg, tie, integrity) {
+        Ok(signed) => signed,
+        Err(reason) => {
+            result.invalid.push(issue(pkg, pkg.integrity.clone(), resolved, Some(reason)));
+            return;
+        }
+    };
     match verify_package_signatures(
         pkg,
-        &integrity,
-        published_at.as_deref(),
+        &signed,
+        packument.time.get(&pkg.version).and_then(serde_json::Value::as_str),
         resolved.as_deref(),
         &signatures,
         keys,
@@ -315,29 +330,6 @@ fn verify_package_signatures(
         resolved.map(str::to_string),
         Some(most_telling_failure(pkg, &failures)),
     ))
-}
-
-fn key_is_expired(key: &RegistryKey, published_time: Option<i64>) -> bool {
-    // Key expiry is a consistency check, not a security boundary: the
-    // publish time comes from the same unauthenticated packument as the
-    // signatures. A missing or unparsable publish time therefore keeps the
-    // key usable — the signature check below is what gates acceptance.
-    match (key.expires.as_deref().and_then(parse_timestamp), published_time) {
-        (Some(expires), Some(published)) => published >= expires,
-        _ => false,
-    }
-}
-
-/// Verify one base64 ECDSA-P256 signature over `message` against a base64
-/// SPKI public key. Any malformed key material or signature bytes count as a
-/// non-match rather than an error, so one bad key can't abort the audit.
-fn verify_one(public_key_base64: &str, message: &str, signature_base64: &str) -> bool {
-    let engine = base64::engine::general_purpose::STANDARD;
-    let Ok(key_der) = engine.decode(public_key_base64) else { return false };
-    let Ok(verifying_key) = VerifyingKey::from_public_key_der(&key_der) else { return false };
-    let Ok(signature_der) = engine.decode(signature_base64) else { return false };
-    let Ok(signature) = Signature::from_der(&signature_der) else { return false };
-    verifying_key.verify(message.as_bytes(), &signature).is_ok()
 }
 
 fn most_telling_failure(pkg: &SignaturePackage, failures: &[String]) -> String {

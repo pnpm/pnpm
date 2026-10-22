@@ -632,10 +632,10 @@ async fn resolve_registry_fixture(
             full_metadata: false,
             needs_full_metadata_for: None,
             filter_metadata: false,
+            registry_options_by_url: std::sync::Arc::default(),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: true,
         },
         store_view: None,

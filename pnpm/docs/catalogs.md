@@ -78,7 +78,7 @@ Catalogs are defined in the `pnpm-workspace.yaml` file. There are two ways to de
 
 If you have an existing workspace that you want to migrate to using catalogs, you can use the following [codemod](https://go.codemod.com/pnpm-catalog):
 
-```
+```sh
 pnpx codemod pnpm/catalog
 ```
 
@@ -186,7 +186,7 @@ For example,
 {
   "name": "@example/components",
   "dependencies": {
-    "react": "catalog:react18",
+    "react": "catalog:react18"
   }
 }
 ```
@@ -197,7 +197,7 @@ Will become the following on publish.
 {
   "name": "@example/components",
   "dependencies": {
-    "react": "^18.3.1",
+    "react": "^18.3.1"
   }
 }
 ```

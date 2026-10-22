@@ -23,7 +23,7 @@ pub(super) use publication::{OciPublication, authorize_publication};
 
 mod response;
 use response::{
-    accepted, api_version, created, hosted_manifest_response, insert_header, json,
+    ResponseBody, accepted, api_version, created, hosted_manifest_response, insert_header, json,
     method_not_allowed, no_content, range_not_satisfiable, ranged_blob_response, registry_error,
     server_error, unknown_repository,
 };
@@ -104,13 +104,11 @@ const API_VERSION_HEADER: &str = "docker-distribution-api-version";
 /// on the retry; one that does not have any carries on unauthenticated.
 const CHALLENGE: &str = r#"Basic realm="pnpr""#;
 
-pub(super) fn routes(prefixed: bool) -> Router<AppState> {
+pub(super) fn routes() -> Router<AppState> {
     // The root is this surface's own addition: a client derives the API root
-    // from the image reference's host, so `/v2/` answers there whether or not
-    // the ecosystem is prefixed.
+    // from the image reference's host and cannot be pointed at a prefix.
     let mut bases = vec![String::new()];
-    bases.extend(mount_bases(ECOSYSTEM, prefixed));
-    bases.dedup();
+    bases.extend(mount_bases(ECOSYSTEM));
     let mut router = Router::new();
     for base in bases {
         router = router

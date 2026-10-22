@@ -32,6 +32,8 @@ pub(super) fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 ///   TypeScript CLI.
 /// - `tagVersionPrefix`: `""` removes the default `"v"` prefix from version
 ///   tags.
+/// - `nodeOptions`: `""` disables options from lower-priority settings while
+///   leaving the child process's inherited `NODE_OPTIONS` intact.
 pub(super) fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());

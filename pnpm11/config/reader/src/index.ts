@@ -89,12 +89,25 @@ interface GetConfigOptions {
   env?: Record<string, string | undefined>
   onlyInheritDlxSettingsFromLocal?: boolean
   ignoreLocalSettings?: boolean
+  /** Skip the project `.npmrc`, as npm does in global mode. */
+  ignoreProjectNpmrc?: boolean
   /**
    * Set by `self-update`: skip the project `pnpm-workspace.yaml`'s settings
    * that govern whether the pnpm binary may be replaced. See
    * `SELF_UPDATE_SKIPPED_SETTINGS`.
    */
   forSelfUpdate?: boolean
+  /** Collects warnings as they are found, so they survive a failed load. */
+  warnings?: string[]
+  /**
+   * Leave out each source this pnpm cannot read, which a newer pnpm may
+   * write in a shape this one rejects: the global config.yaml, `_auth`, and
+   * the settings of `pnpm-workspace.yaml`. The project `.npmrc` is left out
+   * too. Every other source still applies, so a repository that breaks its
+   * own files cannot drop the machine's settings. Only for switching to the
+   * pnpm a project pins when a full load fails.
+   */
+  skipUnreadableSettings?: boolean
 }
 
 interface GetConfigResult {
@@ -132,7 +145,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
   pnpmConfig.rootProjectManifestDir = pnpmConfig.lockfileDir ?? pnpmConfig.workspaceDir ?? pnpmConfig.dir
   const workspaceManifestRegistries = opts.ignoreLocalSettings
     ? undefined
-    : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate })
+    : await applyLocalSettings(state, { forSelfUpdate: opts.forSelfUpdate, skipUnreadableSettings: opts.skipUnreadableSettings })
   resolveRegistriesByScope(state, { ...initialRegistries, globalYamlRegistries, workspaceManifestRegistries })
 
   const maxSocketsFromEnv = applyEnvVarSettings(state)
@@ -144,7 +157,7 @@ export async function getConfig (opts: GetConfigOptions): Promise<GetConfigResul
 }
 
 async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions): Promise<GetConfigResult> {
-  const { onlyInheritDlxSettingsFromLocal: _, ...localOpts } = opts
+  const { onlyInheritDlxSettingsFromLocal: _, warnings = [], ...localOpts } = opts
   const globalCfgOpts: typeof localOpts = {
     ...localOpts,
     ignoreLocalSettings: true,
@@ -153,10 +166,20 @@ async function getConfigInheritingDlxSettingsFromLocal (opts: GetConfigOptions):
       dir: os.homedir(),
     },
   }
-  const [final, localSrc] = await Promise.all([getConfig(globalCfgOpts), getConfig(localOpts)])
+  const globalWarnings: string[] = []
+  const localWarnings: string[] = []
+  const results = await Promise.allSettled([
+    getConfig({ ...globalCfgOpts, warnings: globalWarnings }),
+    getConfig({ ...localOpts, warnings: localWarnings }),
+  ])
+  // Both loads read the user-level config, so they report its warnings twice.
+  warnings.push(...new Set([...globalWarnings, ...localWarnings]))
+  const [final, localSrc] = results.map((result) => {
+    if (result.status === 'rejected') throw result.reason
+    return result.value
+  })
   inheritDlxConfig(final, localSrc)
-  final.warnings.push(...localSrc.warnings)
-  return final
+  return { ...final, warnings }
 }
 
 function assertNoHoistConflicts (cliOptions: CliOptions): void {
@@ -184,12 +207,13 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
   const env = opts.env ?? process.env
   const defaultOptions = createDefaultOptions(opts.workspaceDir)
   const configDir = getConfigDir(process)
-  const globalYamlConfig = await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  const globalYamlConfig = await readGlobalYamlConfig(configDir, opts)
   const npmrcResult = loadNpmrcConfig({
     cliOptions,
     defaultOptions: defaultOptions as Record<string, unknown>,
     dir: cliOptions.dir as string | undefined,
     workspaceDir: opts.workspaceDir,
+    ignoreProjectNpmrc: opts.ignoreProjectNpmrc || opts.skipUnreadableSettings,
     npmrcAuthFile: getNpmrcAuthFile({ cliOptions, env, globalYamlConfig }),
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,
@@ -197,6 +221,8 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     // Only the global config yaml may supply `_auth` (deleted from
     // `globalYamlConfig` later so it isn't flagged as an unknown setting).
     globalConfigAuth: (globalYamlConfig as unknown as Record<string, unknown> | undefined)?._auth,
+    warnings: opts.warnings,
+    skipUnreadableAuth: opts.skipUnreadableSettings,
   })
 
   const configFromCliOpts = Object.fromEntries(Object.entries(cliOptions)
@@ -222,6 +248,15 @@ async function loadConfigSources (opts: GetConfigOptions, cliOptions: CliOptions
     warnings: npmrcResult.warnings,
   }
   return { configDir, state, globalDepsBuildConfig, globalYamlConfig }
+}
+
+async function readGlobalYamlConfig (configDir: string, opts: GetConfigOptions): Promise<WorkspaceManifest | undefined> {
+  try {
+    return await readWorkspaceManifest(configDir, GLOBAL_CONFIG_YAML_FILENAME)
+  } catch (err: unknown) {
+    if (!opts.skipUnreadableSettings) throw err
+    return undefined
+  }
 }
 
 /**

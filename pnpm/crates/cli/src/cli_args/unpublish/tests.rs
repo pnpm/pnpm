@@ -59,6 +59,22 @@ fn tarball_pathname_strips_the_registry_path_prefix() {
     )
     .expect("a pathname");
     assert_eq!(pathname, "pkg/-/pkg-1.0.0.tgz");
+
+    // A registry mounted under a path without trailing slash also strips correctly.
+    let pathname = tarball_pathname(
+        "https://registry.example.com/npm/pkg/-/pkg-1.0.0.tgz",
+        "https://registry.example.com/npm",
+    )
+    .expect("a pathname");
+    assert_eq!(pathname, "pkg/-/pkg-1.0.0.tgz");
+
+    // Sibling paths sharing a prefix do not match across path segment boundary.
+    let pathname = tarball_pathname(
+        "https://registry.example.com/npm2/pkg/-/pkg-1.0.0.tgz",
+        "https://registry.example.com/npm",
+    )
+    .expect("a pathname");
+    assert_eq!(pathname, "npm2/pkg/-/pkg-1.0.0.tgz");
 }
 
 /// The packument round-trips unknown fields and drops the `CouchDB` metadata

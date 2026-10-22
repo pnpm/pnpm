@@ -59,9 +59,9 @@ addons remain subject to WebContainer limitations.
 WebContainer's bundled npm applies its own package compatibility replacements.
 This runtime does not use those private integrations. Select
 WebAssembly alternatives explicitly when a dependency normally downloads native
-code. For example, a Vite project can use these entries in `pnpm-workspace.yaml`:
+code. For example, a Vite project can use these entries:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 overrides:
   esbuild: npm:esbuild-wasm@^0.27.0
   rollup: npm:@rollup/wasm-node@^4.43.1

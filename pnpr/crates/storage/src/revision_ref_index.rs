@@ -3,9 +3,23 @@ use super::{
     integrity_addressed_tarball_integrity,
 };
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+pub const REVISION_INDEX_FORMAT_VERSION: u32 = 1;
+
+const fn default_format_version() -> u32 {
+    REVISION_INDEX_FORMAT_VERSION
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct HostedRevisionRefIndex {
+    #[serde(rename = "formatVersion", default = "default_format_version")]
+    pub(super) format_version: u32,
     pub(super) refs: Vec<HostedRevisionRefIndexEntry>,
+}
+
+impl Default for HostedRevisionRefIndex {
+    fn default() -> Self {
+        Self { format_version: REVISION_INDEX_FORMAT_VERSION, refs: Vec::new() }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,6 +40,13 @@ pub enum HostedRevisionRefWrite {
 impl HostedRevisionRefIndex {
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let index: Self = serde_json::from_slice(bytes)?;
+        if index.format_version > REVISION_INDEX_FORMAT_VERSION {
+            return Err(RegistryError::DocumentFormatTooNew {
+                document: "hosted revision reference index".to_string(),
+                format_version: index.format_version,
+                supported_version: REVISION_INDEX_FORMAT_VERSION,
+            });
+        }
         if index.refs.len() > MAX_HOSTED_REVISION_REFS {
             return Err(RegistryError::RevisionReferenceLimit { limit: MAX_HOSTED_REVISION_REFS });
         }

@@ -12,7 +12,7 @@ use std::{
 fn should_list_registries() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     fs::create_dir_all(cache_dir.join("registry.npmjs.org")).unwrap();
     fs::create_dir_all(cache_dir.join("registry.yarnpkg.com")).unwrap();
 
@@ -37,7 +37,7 @@ fn should_list_registries() {
 fn should_list_registries_as_decoded_urls() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     for registry in ["https://registry.npmjs.org/", "https://npm.example:8443/team/a/"] {
         let registry_name =
             pnpm_resolving_npm_resolver::mirror::get_registry_name(registry).unwrap();
@@ -62,7 +62,7 @@ fn should_list_registries_as_decoded_urls() {
 fn should_list_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -87,7 +87,7 @@ fn should_list_packages() {
 fn should_list_only_files_not_directories() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -129,7 +129,7 @@ fn should_list_only_files_not_directories() {
 fn should_delete_packages() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
 
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -252,6 +252,55 @@ fn should_prune_registries_written_before_the_scheme_joined_the_key() {
     }
 }
 
+/// The mirror roots of the previous cache layout are unread by this version,
+/// whatever their registry keys look like, and so are its descriptor-scoped
+/// roots.
+#[test]
+fn should_prune_every_registry_of_the_legacy_roots() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+
+    let live = pnpm_resolving_npm_resolver::mirror::get_registry_name(LIVE_REGISTRY).unwrap();
+    let legacy_meta_dirs = pnpm_resolving_npm_resolver::mirror::LEGACY_META_DIRS;
+    for meta_dir in legacy_meta_dirs {
+        for registry_name in [live.as_str(), "registry.npmjs.org"] {
+            let dir = cwd.npmrc_info.cache_dir.join(meta_dir).join(registry_name);
+            fs::create_dir_all(&dir).unwrap();
+            fs::write(dir.join("is-positive.jsonl"), "{}").unwrap();
+        }
+    }
+    let legacy_private_root = pnpm_resolving_npm_resolver::mirror::LEGACY_PRIVATE_META_ROOT;
+    let private_mirror = cwd.npmrc_info.cache_dir
+        .join(legacy_private_root)
+        .join("abc123/metadata")
+        .join(&live);
+    fs::create_dir_all(&private_mirror).unwrap();
+
+    let output = cwd.pacquet
+        .with_arg("cache")
+        .with_arg("prune")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let pruned: Vec<&str> = stdout.lines().collect();
+    let mut expected: Vec<String> = legacy_meta_dirs
+        .iter()
+        .flat_map(|meta_dir| {
+            [format!("{meta_dir}/{live}"), format!("{meta_dir}/registry.npmjs.org")]
+        })
+        .chain([format!("{legacy_private_root}/abc123")])
+        .collect();
+    expected.sort();
+    assert_eq!(pruned, expected);
+    for meta_dir in legacy_meta_dirs {
+        let root = cwd.npmrc_info.cache_dir.join(meta_dir);
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 0, "expected {root:?} to be emptied");
+    }
+}
+
 /// The deletion rests on the shape of a directory name, and the cache is shared
 /// with any other pnpm on the machine, so a user has to be able to see the list
 /// before committing to it.
@@ -337,7 +386,7 @@ fn should_prune_the_readable_roots_when_another_root_cannot_be_read() {
     let stderr = String::from_utf8_lossy(&output.stderr);
 
     // The trailing quote of the debug-printed path pins which root is named:
-    // `v11/metadata` is otherwise a prefix of the two roots that did not fail.
+    // `v12/metadata` is otherwise a prefix of the two roots that did not fail.
     let sealed_root = format!(r#"{}":"#, pnpm_resolving_npm_resolver::mirror::ABBREVIATED_META_DIR);
     assert!(stderr.contains(&sealed_root), "failure must name the unreadable root, got: {stderr}");
     assert!(
@@ -427,7 +476,7 @@ fn should_refuse_to_prune_through_a_symlinked_metadata_root() {
 /// A path is its own prefix, so a root linked back to the cache directory
 /// satisfies a containment check written as one. Prune would then list that
 /// directory's own children and take every one of them for a stale registry
-/// key, `v11` and the rest of the cache included.
+/// key, `v12` and the rest of the cache included.
 #[cfg(unix)]
 #[test]
 fn should_refuse_to_prune_a_metadata_root_linked_to_the_cache_directory() {
@@ -515,7 +564,7 @@ fn should_prune_nothing_when_every_registry_is_readable() {
 #[test]
 fn should_view_package_cache() {
     let cwd = CommandTempCwd::init().add_mocked_registry();
-    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
     let url_str = cwd.npmrc_info.mock_instance.url();
     let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
     fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
@@ -552,6 +601,59 @@ fn should_view_package_cache() {
     assert!(info.get("cachedVersions").is_some());
     assert!(info.get("nonCachedVersions").is_some());
     assert!(info.get("cachedAt").is_some());
+}
+
+/// A damaged file is what the resolver refuses to read, so `cache view`
+/// must not report the versions around the damage as cached.
+#[test]
+fn should_omit_a_package_whose_cache_file_is_damaged() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v12").join("metadata");
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let registry_name = pnpm_resolving_npm_resolver::mirror::get_registry_name(url_str).unwrap();
+    fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
+
+    let meta: pnpm_registry::Package = serde_json::from_str(
+        r#"{
+            "name": "is-positive",
+            "dist-tags": {"latest": "1.0.0"},
+            "versions": {
+                "1.0.0": {
+                    "name": "is-positive",
+                    "version": "1.0.0",
+                    "dist": {"integrity": "sha512-BBBBBBBBBBBB", "tarball": "https://r/is-positive-1.0.0.tgz"}
+                }
+            }
+        }"#,
+    )
+    .unwrap();
+    let mirror = cache_dir.join(&registry_name).join("is-positive.jsonl");
+    pnpm_resolving_npm_resolver::mirror::save_meta_indexed(&mirror, &meta, None, false).unwrap();
+
+    // An unescaped quote inside the integrity string: the same number of
+    // bytes, so the index spans still address this fragment, but its own
+    // bytes no longer parse.
+    let mut bytes = fs::read(&mirror).unwrap();
+    let marker = b"sha512-BBBB";
+    let at = bytes
+        .windows(marker.len())
+        .position(|window| window == marker)
+        .unwrap();
+    bytes[at + 3] = b'"';
+    fs::write(&mirror, &bytes).unwrap();
+
+    let output = cwd.pacquet
+        .with_args(["cache", "view", "is-positive"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let key = registry_name.replace('+', ":");
+    assert!(json.get(&key).is_none(), "damaged cache file should be omitted, got {stdout}");
 }
 
 #[test]
@@ -596,7 +698,7 @@ fn import_populates_metadata_cache() {
     let registry_name =
         pnpm_resolving_npm_resolver::mirror::get_registry_name(mock_instance.url()).unwrap();
     let cache_metadata_dir = cache_dir
-        .join("v11")
+        .join("v12")
         .join("metadata")
         .join(&registry_name);
 
@@ -655,7 +757,7 @@ fn prune_help_says_older_versions_depend_on_pruned_dirs() {
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("pnpm 11.26 and earlier, and pnpm 12.3 and earlier, depend on these"),
+        stdout.contains("Older pnpm versions depend on these directories"),
         "help should say older versions depend on the pruned directories: {stdout}",
     );
     drop(root);

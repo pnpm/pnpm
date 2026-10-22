@@ -2,7 +2,12 @@
 //! ls-remote runner into a single [`Resolver`] the dispatcher can
 //! compose into the default-resolver chain.
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 
 use pnpm_git_fetcher::{GitManifestQuery, read_git_manifest};
 use pnpm_lockfile::{GitResolution, LockfileResolution, TarballResolution};
@@ -14,6 +19,7 @@ use pnpm_resolving_resolver_base::{
 };
 use pnpm_store_dir::{StoreDir, StoreIndexWriter};
 use pnpm_tarball::{FetchTarballForResolution, RetryOpts};
+use tokio::sync::OnceCell;
 
 use crate::{
     create_git_hosted_pkg_id::create_git_hosted_pkg_id,
@@ -74,6 +80,7 @@ pub struct GitFetchContext {
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
+    pub tar_limits: pnpm_tarball::TarLimits,
     /// Hosts that opt into `git init` + `git fetch --depth 1` instead
     /// of a full clone, for the repos with no archive endpoint. Mirrors
     /// `Config::git_shallow_hosts`.
@@ -92,15 +99,20 @@ pub struct GitFetchContext {
 /// resolution to fill `manifest` (and `integrity`, for a host archive)
 /// — see [`GitFetchContext`]. `None` (unit tests, and the resolve-only
 /// NAPI entry point) keeps the manifest-less shape.
+///
+/// Each specifier is resolved at most once per resolver: every later
+/// request for it, concurrent or not, reuses that resolution. A failed
+/// resolution is not kept, so the next request retries it.
 pub struct GitResolver<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> {
     probe: Arc<Probe>,
     runner: Arc<Runner>,
     fetch_context: Option<GitFetchContext>,
+    resolved: Mutex<HashMap<String, Arc<OnceCell<ResolveResult>>>>,
 }
 
 impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<Probe, Runner> {
     pub fn new(probe: Arc<Probe>, runner: Arc<Runner>) -> Self {
-        Self { probe, runner, fetch_context: None }
+        Self { probe, runner, fetch_context: None, resolved: Mutex::default() }
     }
 
     /// Attach the store/network handles that let resolution read the
@@ -140,7 +152,24 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
     ) -> Result<Option<ResolveResult>, ResolveError> {
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else { return Ok(None) };
         let Some(partial) = parse_bare_specifier(bare) else { return Ok(None) };
-        let spec = partial.finalize();
+        let cell = Arc::clone(
+            self.resolved
+                .lock()
+                .expect("git resolution cache lock poisoned")
+                .entry(bare.to_string())
+                .or_default(),
+        );
+        let resolved =
+            cell.get_or_try_init(|| self.resolve_spec(partial.finalize(), wanted_dependency))
+                .await?;
+        Ok(Some(ResolveResult { alias: wanted_dependency.alias.clone(), ..resolved.clone() }))
+    }
+
+    async fn resolve_spec(
+        &self,
+        spec: HostedPackageSpec,
+        wanted_dependency: &WantedDependency,
+    ) -> Result<ResolveResult, ResolveError> {
         let auth_headers =
             self.fetch_context.as_ref().map(|ctx| ctx.auth_headers.as_ref());
         if let Some(auth_headers) = auth_headers
@@ -154,7 +183,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
         let mut result =
             build_resolve_result(spec, &probe, self.runner.as_ref(), wanted_dependency).await?;
         self.read_package_metadata(&mut result).await?;
-        Ok(Some(result))
+        Ok(result)
     }
 
     /// Fill `manifest` from the package the git dep points at and compute an
@@ -250,12 +279,15 @@ async fn read_archive(
     // `resolved → found_in_store → imported` event ordering.
     FetchTarballForResolution {
         http_client: &ctx.http_client,
-        store_dir: ctx.store_dir,
-        store_index_writer: ctx.store_index_writer.clone(),
+        store: pnpm_tarball::ResolutionStore {
+            dir: ctx.store_dir,
+            index_writer: ctx.store_index_writer.clone(),
+        },
         // A git host's archive URL is the package's only identifier at
         // this point — its name is what this fetch is here to learn —
         // and such archives carry no scoped-registry auth or pinned hash.
         package: pnpm_tarball::TarballPackage {
+            integrity_kind: pnpm_tarball::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -264,6 +296,7 @@ async fn read_archive(
         },
         auth_headers: &ctx.auth_headers,
         retry_opts: ctx.retry_opts,
+        tar_limits: ctx.tar_limits,
         // `#path:/packages/foo` points at one directory of the repo; the
         // archive spans the whole repo, so its root `package.json` is
         // the repo's, not this package's.

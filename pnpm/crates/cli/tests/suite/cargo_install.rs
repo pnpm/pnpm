@@ -281,6 +281,60 @@ fn install_keeps_the_source_a_named_registry_dependency_declares() {
     assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
 }
 
+/// A packager builds a checkout with Cargo alone, after `pnpm install` has
+/// written `.cargo/config.toml` and without the `.pnpm` directory.
+#[test]
+fn cargo_builds_the_checkout_without_the_vendored_sources() {
+    let mut registry = mockito::Server::new();
+    let archive = crate_archive("demo", "1.0.0");
+    let checksum = format!("{:x}", Sha256::digest(&archive));
+    let _config_mock = registry
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({ "dl": format!("{}/dl/{{crate}}/{{version}}", registry.url()) })
+                .to_string(),
+        )
+        .create();
+    let _index_mock = registry
+        .mock("GET", "/de/mo/demo")
+        .with_body(format!(
+            "{}\n",
+            serde_json::json!({
+                "name": "demo",
+                "vers": "1.0.0",
+                "deps": [],
+                "cksum": checksum,
+                "features": {},
+                "yanked": false,
+                "v": 1,
+            }),
+        ))
+        .create();
+    let _download_mock = registry
+        .mock("GET", "/dl/demo/1.0.0")
+        .with_body(&archive)
+        .create();
+    let root = cargo_workspace(&registry.url(), "demo = \"1\"\n", "pub use demo::answer;\n");
+    install_in(&root, &["install"]);
+    fs::remove_dir_all(root.path().join(".pnpm")).unwrap();
+    let cargo_home = TempDir::new().unwrap();
+    fs::write(
+        cargo_home.path().join("config.toml"),
+        format!(
+            "[source.crates-io]\nreplace-with = \"mock\"\n\n[source.mock]\nregistry = \"sparse+{}/\"\n",
+            registry.url(),
+        ),
+    )
+    .unwrap();
+
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_env("CARGO_HOME", cargo_home.path())
+        .with_args(["check", "--locked"])
+        .assert()
+        .success();
+}
+
 #[test]
 fn offline_install_without_registry_crates_never_reads_the_registry_config() {
     let root = cargo_workspace("https://registry.example.test/index/", "", "");
@@ -288,7 +342,7 @@ fn offline_install_without_registry_crates_never_reads_the_registry_config() {
     install_in(&root, &["install", "--offline"]);
 
     assert!(root.path().join("Cargo.lock").is_file());
-    let config = std::fs::read_to_string(root.path().join(".cargo/config.toml"))
+    let config = std::fs::read_to_string(root.path().join(".pnpm/crates/config.toml"))
         .expect("read managed Cargo configuration");
     assert!(config.contains(r#"registry = "sparse+https://registry.example.test/index/""#));
 }
@@ -458,7 +512,7 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
             .join(".pnpm/crates/git/sibling-1.0.0/src/lib.rs")
             .is_file(),
     );
-    let config = fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap();
+    let config = fs::read_to_string(root.path().join(".pnpm/crates/config.toml")).unwrap();
     assert!(
         config.contains(&format!(r#"[source."git+{repository_url}?rev={commit}"]"#)),
         "{config}",

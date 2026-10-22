@@ -1,0 +1,4 @@
+nodeLinker: hoisted
+catalogs:
+  shared:
+    '@pnpm.e2e/foo': 100.0.0

@@ -23,6 +23,7 @@ fn preloaded_repair_preserves_the_merge_view() {
         "  pkg@1.0.0:"
         "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
         "    deprecated: stale"
+        "    engines: {node: '>=14'}"
     })
     .expect("parse preloaded lockfile");
     let lazy = LazyLockfile::preloaded(Some(lockfile));
@@ -36,7 +37,7 @@ fn preloaded_repair_preserves_the_merge_view() {
         seed.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .is_some_and(|metadata| metadata.deprecated.is_none()),
+            .is_some_and(|metadata| metadata.engines.is_none()),
     );
 
     let merge = MaybeLazyLockfile::Repair(&lazy)
@@ -118,6 +119,7 @@ fn normal_load_does_not_fill_the_repair_cache() {
             "  pkg@1.0.0:"
             "    resolution: {integrity: sha512-TIE61hcgbI/SlJh/0c1sT1SZbBlpg7WiZcs65WPJhoIZQPhH1SCpcGA7LgrVXT15lwN3HV4GQM/MJ9aKEn3Qfg==}"
             "    deprecated: stale"
+            "    engines: {node: '>=14'}"
         },
     )
     .expect("write pnpm-lock.yaml");
@@ -144,7 +146,7 @@ fn normal_load_does_not_fill_the_repair_cache() {
         repaired.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .is_some_and(|metadata| metadata.deprecated.is_none()),
+            .is_some_and(|metadata| metadata.engines.is_none()),
     );
 
     let merge = MaybeLazyLockfile::Repair(&lazy)
@@ -191,11 +193,12 @@ fn repair_merge_preserves_valid_metadata_when_strict_parsing_fails() {
         .expect("repair load succeeds")
         .expect("repair lockfile");
     assert!(repaired.settings.is_none());
-    assert!(
+    assert_eq!(
         repaired.packages
             .as_ref()
             .and_then(|packages| packages.get(&package_key))
-            .is_some_and(|metadata| metadata.deprecated.is_none()),
+            .and_then(|metadata| metadata.deprecated.as_deref()),
+        Some("stale"),
     );
     assert!(
         repaired.snapshots

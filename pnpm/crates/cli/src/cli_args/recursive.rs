@@ -7,9 +7,7 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
-pub use dependencies::{
-    filtered_projects_dependencies, projects_with_workspace_dependencies, sequence_graph,
-};
+pub use dependencies::{filtered_projects_dependencies, projects_to_verify, sequence_graph};
 pub use execution_args::RecursiveExecutionArgs;
 pub use importer_selection::{selected_workspace_importer_ids, selectors_narrow_the_run};
 pub use summary::{ExecutionStatus, Status, count_failures, write_recursive_summary};
@@ -20,10 +18,7 @@ mod execution_args;
 mod importer_selection;
 mod unmatched;
 
-use crate::cli_args::{
-    catalogs::{configured_catalogs, workspace_catalogs},
-    verify_deps::with_dependencies,
-};
+use crate::cli_args::catalogs::{configured_catalogs, workspace_catalogs};
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -93,8 +88,8 @@ pub fn find_resume_root(
 /// returning them alongside the package patterns that selected them.
 /// Shared by recursive `run` / `exec` / `pack` so all discover the same
 /// set before [`select_recursive_projects`] narrows it. The patterns feed
-/// the root-only guard of [`AutoExcludeRoot`]; `None` means no
-/// `pnpm-workspace.yaml` was found.
+/// [`keeps_workspace_root`]; `None` means no `pnpm-workspace.yaml` was
+/// found or `--ignore-workspace` is set.
 ///
 /// The patterns come from `config.workspace_package_patterns`, already
 /// resolved from `--workspace-packages` or the manifest's `packages`.
@@ -148,83 +143,6 @@ impl<'a> RecursiveSelection<'a> {
     pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
         self.all.as_ref().unwrap_or(&self.selected)
     }
-}
-
-/// The projects a gated recursive command holds to the modules-directory
-/// requirement: `project_dirs` themselves, plus, while the workspace shares
-/// one lockfile, every workspace dependency they reach that the install the
-/// gate spawns selects.
-///
-/// That install selects the dependencies of the selected projects, so a
-/// workspace dependency without a modules directory leaves the selection out
-/// of date too. A negated selector reaches the install unchanged, so a
-/// dependency it excludes is not required; `project_dirs` themselves always
-/// are. With a lockfile per project the spawned
-/// install selects nothing beyond the project it installs, so the selection
-/// alone is what the check inspects. `prefix` is where the command's path
-/// selectors resolve.
-pub fn projects_to_verify<'dirs>(
-    project_dirs: impl IntoIterator<Item = &'dirs Path>,
-    selection: &RecursiveSelection<'_>,
-    config: &Config,
-    prefix: &Path,
-) -> miette::Result<Vec<PathBuf>> {
-    if !config.verify_deps_before_run.is_enabled() {
-        return Ok(Vec::new());
-    }
-    if !config.shares_one_lockfile() {
-        return Ok(project_dirs
-            .into_iter()
-            .map(Path::to_path_buf)
-            .collect());
-    }
-    let project_dirs: Vec<&Path> = project_dirs.into_iter().collect();
-    let mut projects = projects_with_workspace_dependencies(
-        project_dirs.iter().copied(),
-        selection.full_graph(),
-        selection.prod_all.as_ref(),
-        &selection.prod_only_selected,
-    );
-    if has_negated_selector(config) {
-        let mut kept = install_selected_projects(selection, config, prefix)?;
-        kept.extend(project_dirs.iter().map(|dir| dir.to_path_buf()));
-        projects.retain(|project_dir| kept.contains(project_dir));
-    }
-    Ok(projects)
-}
-
-fn has_negated_selector(config: &Config) -> bool {
-    config.filter
-        .iter()
-        .chain(&config.filter_prod)
-        .any(|selector| selector.starts_with('!'))
-}
-
-/// The projects the install the gate spawns selects, evaluated against the
-/// graphs the command's own selection was drawn from.
-fn install_selected_projects(
-    selection: &RecursiveSelection<'_>,
-    config: &Config,
-    prefix: &Path,
-) -> miette::Result<HashSet<PathBuf>> {
-    let walk_opts = recursive_filter_options(config, prefix);
-    let filter = with_dependencies_selectors(&config.filter);
-    let mut installed: HashSet<PathBuf> =
-        filter_against(selection.full_graph(), &filter, None, false, prefix, &walk_opts)?
-            .into_iter()
-            .collect();
-    if let Some(prod_all) = &selection.prod_all {
-        let filter_prod = with_dependencies_selectors(&config.filter_prod);
-        installed.extend(filter_against(prod_all, &filter_prod, None, true, prefix, &walk_opts)?);
-    }
-    Ok(installed)
-}
-
-fn with_dependencies_selectors(selectors: &[String]) -> Vec<String> {
-    selectors
-        .iter()
-        .map(|selector| with_dependencies(selector))
-        .collect()
 }
 
 /// Build the `--filter`-selected workspace projects the recursive command
@@ -380,6 +298,14 @@ pub fn no_projects_matched_message(workspace_dir: &Path) -> String {
     format!(r#"No projects matched the filters in "{}""#, workspace_dir.display())
 }
 
+/// Print [`no_projects_matched_message`] for a command invoked in `prefix`.
+pub fn print_no_projects_matched(config: &Config, prefix: &Path) {
+    pnpm_diagnostics::println!(
+        "{}",
+        no_projects_matched_message(notice_workspace_dir(config, prefix)),
+    );
+}
+
 /// The lockfile importer ids of `selection`'s projects, in selection
 /// order. The ids key the lockfile's `importers` map, so a lockfile-driven
 /// command (`licenses`, `sbom`) can narrow its walk to what `--filter` /
@@ -484,7 +410,7 @@ impl AutoExcludeRoot<'_> {
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
-        if config.include_workspace_root {
+        if keeps_workspace_root(config, *workspace_patterns) {
             return None;
         }
         // An inclusion selector already pins the selected set, so the
@@ -494,13 +420,6 @@ impl AutoExcludeRoot<'_> {
             .chain(config.filter_prod.iter())
             .any(|filter| !filter.starts_with('!'))
         {
-            return None;
-        }
-        // A root-only workspace (patterns === ['.']) has no non-root project
-        // to keep, so excluding the root would empty the selection. Absent
-        // patterns mean no `pnpm-workspace.yaml`.
-        let patterns = (*workspace_patterns)?;
-        if is_root_only_patterns(patterns) {
             return None;
         }
         Some(format!("!{{{}}}", relative_workspace_dir(config, prefix)))
@@ -515,6 +434,19 @@ fn relative_workspace_dir(config: &Config, prefix: &Path) -> String {
         .map(|path| path.to_string_lossy().into_owned())
         .filter(|path| !path.is_empty())
         .unwrap_or_else(|| ".".to_string())
+}
+
+/// Whether a selection that names no project keeps the workspace root. It
+/// does when any of these hold:
+///
+/// - `includeWorkspaceRoot` is set.
+/// - `workspace_patterns` lists only the root, so excluding it would empty
+///   the selection.
+/// - `workspace_patterns` is `None`: there is no `pnpm-workspace.yaml`, or
+///   `--ignore-workspace` is set and the root is kept alongside every
+///   nested project.
+pub(crate) fn keeps_workspace_root(config: &Config, workspace_patterns: Option<&[String]>) -> bool {
+    config.include_workspace_root || workspace_patterns.is_none_or(is_root_only_patterns)
 }
 
 /// Whether the workspace enumerates the root project only.

@@ -16,6 +16,7 @@ pnpm-fs = { workspace = true }
 pnpm-network = { workspace = true }
 pnpm-network-web-auth = { workspace = true }
 pnpm-reporter = { workspace = true }
+pnpm-text-sanitize = { workspace = true }
 pnpm-workspace-manifest-writer = { workspace = true }
 
 derive_more = { workspace = true }

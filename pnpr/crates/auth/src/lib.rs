@@ -1,3 +1,6 @@
+#![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
+#![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
+
 //! User and token storage for the registry.
 //!
 //! Auth state is split into two record stores, each behind a narrow
@@ -27,16 +30,28 @@
 //! doesn't grant access on its own.
 
 pub mod oidc;
+pub mod schema;
+pub(crate) mod validation;
 
-pub use token_store::{TokenRecord, TokenStore};
+pub use htpasswd::{
+    is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt, write_atomic,
+};
+pub use identify::identify;
+pub use owned_tokens::OwnedTokens;
+pub use schema::CURRENT_SCHEMA_VERSION;
+pub use token_store::{NewToken, TokenRecord, TokenStore};
+pub use user_store::UserStore;
+pub use validation::MAX_PASSWORD_BYTES;
 
 mod htpasswd;
-use htpasswd::{
-    hash_bcrypt, parse_htpasswd, serialize_htpasswd, verify_returning_user, write_atomic,
-};
+use htpasswd::{dummy_verify, hash_bcrypt, serialize_htpasswd, verify_returning_user};
 
 mod token_store;
-use token_store::{fresh_secret, sha256_hex};
+use token_store::{fresh_secret, sha256_hex, unix_seconds};
+
+mod identify;
+mod owned_tokens;
+mod user_store;
 
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
@@ -50,7 +65,7 @@ use sqlx_backend::mysql::MysqlAuth;
 #[cfg(feature = "backend-postgres")]
 use sqlx_backend::postgres::PostgresAuth;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -83,50 +98,6 @@ where
     }
 }
 
-pub(crate) const MAX_USERNAME_CHARS: usize = 255;
-
-pub(crate) fn validate_username(username: &str) -> Result<()> {
-    if username.is_empty() {
-        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
-    }
-    if username.chars().count() > MAX_USERNAME_CHARS {
-        return Err(RegistryError::BadRequest {
-            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-        });
-    }
-    let reason = rejected_username_reason(username);
-    match reason {
-        Some(reason) => Err(RegistryError::BadRequest { reason: reason.to_string() }),
-        None => Ok(()),
-    }
-}
-
-/// Why a username of an acceptable length is still not one pnpr will store.
-fn rejected_username_reason(username: &str) -> Option<&'static str> {
-    let trimmed = username.trim_matches(char::is_whitespace);
-    if trimmed.len() != username.len() {
-        return Some("username must not start or end with whitespace");
-    }
-    if username.starts_with('#') {
-        return Some("username must not start with '#'");
-    }
-    if username.contains(':') {
-        return Some("username must not contain ':'");
-    }
-    if username.chars().any(char::is_control) {
-        return Some("username must not contain control characters");
-    }
-    None
-}
-
-pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
-    timestamp.max(0) as u64
-}
-
-pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
-    i64::try_from(timestamp).unwrap_or(i64::MAX)
-}
-
 /// Bundle of the user store and the token store, each a trait object
 /// so the rest of the server doesn't have to know whether auth is
 /// file-backed, in-memory, or networked. Built once at startup by
@@ -135,6 +106,13 @@ pub(crate) fn token_timestamp_to_sql(timestamp: u64) -> i64 {
 pub struct AuthState {
     pub users: Arc<dyn UserBackend>,
     pub tokens: Arc<dyn TokenBackend>,
+}
+
+/// The outcome of [`AuthState::put_user`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserPut {
+    Created,
+    PasswordChanged,
 }
 
 impl std::fmt::Debug for AuthState {
@@ -154,10 +132,43 @@ impl AuthState {
     /// All-in-memory auth state that enforces the resolved registration cap.
     #[must_use]
     pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
-        Self {
-            users: Arc::new(UserStore::in_memory_with_max_users(max_users)),
-            tokens: Arc::new(TokenStore::in_memory()),
+        let users = Arc::new(UserStore::in_memory_with_max_users(max_users));
+        let tokens = OwnedTokens::new(TokenStore::in_memory(), Arc::clone(&users));
+        Self { users, tokens: Arc::new(tokens) }
+    }
+
+    /// Revoke every token `username` holds. Returns how many were revoked.
+    pub async fn revoke_all_tokens(&self, username: &str) -> Result<usize> {
+        let held = self.tokens.list_for_user(username).await?;
+        for (key, _) in &held {
+            self.tokens.revoke_by_key(key).await?;
         }
+        Ok(held.len())
+    }
+
+    /// Create `username` with `password`, or change the password of the
+    /// account that exists. Tokens a removed account left under the name are
+    /// revoked first, so they never reach the new account. `None` means
+    /// another writer removed the account between the two steps.
+    pub async fn put_user(&self, username: &str, password: &str) -> Result<Option<UserPut>> {
+        if self.users.password_hash(username).await?.is_none() {
+            self.revoke_all_tokens(username).await?;
+        }
+        match self.users.create_user(username, password).await? {
+            UserCreation::Created => Ok(Some(UserPut::Created)),
+            UserCreation::NameTaken => match self.users.set_password(username, password).await? {
+                PasswordChange::Changed => Ok(Some(UserPut::PasswordChanged)),
+                // Another caller removed the user between the two calls.
+                PasswordChange::NoSuchUser => Ok(None),
+            },
+        }
+    }
+
+    /// Check that the auth backends (users and tokens) are reachable and ready.
+    pub async fn check_readiness(&self) -> Result<()> {
+        self.users.check_readiness().await?;
+        self.tokens.check_readiness().await?;
+        Ok(())
     }
 
     /// Build the auth state from the resolved config. A configured SQL
@@ -238,14 +249,15 @@ impl AuthState {
     }
 
     fn load_local(auth: &AuthConfig) -> Result<Self> {
-        let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
-            Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
-            None => Arc::new(UserStore::in_memory_with_max_users(auth.htpasswd.max_users)),
+        let users = Arc::new(match auth.htpasswd.file.clone() {
+            Some(path) => UserStore::open(path, auth.htpasswd.max_users)?,
+            None => UserStore::in_memory_with_max_users(auth.htpasswd.max_users),
+        });
+        let tokens = match auth.tokens.file.clone() {
+            Some(path) => TokenStore::open(path)?,
+            None => TokenStore::in_memory(),
         };
-        let tokens: Arc<dyn TokenBackend> = match auth.tokens.file.clone() {
-            Some(path) => Arc::new(TokenStore::open(path)?),
-            None => Arc::new(TokenStore::in_memory()),
-        };
+        let tokens = Arc::new(OwnedTokens::new(tokens, Arc::clone(&users)));
         Ok(Self { users, tokens })
     }
 }
@@ -261,10 +273,10 @@ fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
     }
 }
 
-/// Username + password record store. The only operation is
-/// [`Self::add_or_login`] (npm `adduser` / `login`), which verifies a
-/// password and mints a bearer token. pnpr does not verify Basic
-/// credentials on requests, so there is no per-request password check.
+/// Username + password record store. Clients reach it through
+/// [`Self::add_or_login`] (npm `adduser` / `login`); the other operations
+/// back the admin API. pnpr does not verify Basic credentials on requests,
+/// so there is no per-request password check.
 #[async_trait]
 pub trait UserBackend: Send + Sync {
     /// Add a new user or verify a returning one. On success, returns
@@ -275,6 +287,30 @@ pub trait UserBackend: Send + Sync {
     /// `TooManyUsers`.
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
+
+    /// Every stored username, sorted.
+    async fn list_users(&self) -> Result<Vec<String>>;
+
+    /// The stored bcrypt hash of `username`, or `None` when there is no
+    /// such user. The hash is salted, so it differs for every account and
+    /// every password set: equal hashes mean the same account with the same
+    /// password.
+    async fn password_hash(&self, username: &str) -> Result<Option<String>>;
+
+    /// Create `username` on an administrator's behalf. Not bound by the
+    /// self-registration cap.
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation>;
+
+    /// Replace the password of `username`.
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange>;
+
+    /// Remove `username`. The user's tokens are not touched.
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
+
+    /// Check that the user store backend is reachable and ready to process requests.
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// Bearer-token record store. The hot read is [`Self::lookup`]
@@ -282,24 +318,55 @@ pub trait UserBackend: Send + Sync {
 /// request); the rest back the `/-/npm/v1/tokens` CRUD endpoints.
 #[async_trait]
 pub trait TokenBackend: Send + Sync {
-    /// Mint a fresh token for `username`, persist its hash, and return
+    /// Check that the token store backend is reachable and ready to process requests.
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Mint a fresh token for `username` with custom settings, persist its hash,
+    /// and return the raw token and the stored record.
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)>;
+
+    /// Mint a default read-write token for `username`, persist its hash, and return
     /// the raw token. The raw token is never stored.
-    async fn issue(&self, username: &str) -> Result<String>;
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
+        Ok(raw)
+    }
 
     /// Resolve a raw token back to its username. `Ok(None)` means the
-    /// token was never issued (or was revoked); `Err` means the backing
+    /// token was never issued, was revoked, or expired; `Err` means the backing
     /// store failed — never conflate the two, or a store outage reads as
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
     /// Resolve a raw token to its full record — the username plus the
-    /// `readonly` / `cidr_whitelist` restrictions that [`Self::lookup`]
-    /// drops. The request-time restriction gate needs those, so it goes
-    /// through here. `Ok(None)` for a token that was never issued (or was
-    /// revoked); `Err` only for a backing-store failure, never conflated
-    /// with "no such token".
+    /// `readonly`, `cidr_whitelist`, and `expires_at` restrictions that
+    /// [`Self::lookup`] drops. Returns `Ok(None)` for a token that was never
+    /// issued, was revoked, or expired.
     async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
-        self.find_by_key(&sha256_hex(raw.as_bytes())).await
+        let now = unix_seconds();
+        let record = self.find_by_key(&sha256_hex(raw.as_bytes())).await?;
+        if let Some(ref r) = record
+            && r.expires_at.is_some_and(|exp| exp <= now)
+        {
+            return Ok(None);
+        }
+        Ok(record)
+    }
+
+    /// Update the last-used timestamp of the token identified by `key`.
+    async fn touch_key(&self, _key: &str, _now: u64) -> Result<()> {
+        Ok(())
+    }
+
+    /// Update the last-used timestamp of the token by raw bearer token value.
+    async fn touch(&self, raw: &str, now: u64) -> Result<()> {
+        self.touch_key(&sha256_hex(raw.as_bytes()), now).await
     }
 
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
@@ -331,145 +398,8 @@ pub trait TokenBackend: Send + Sync {
 /// feel sluggish.
 const DEFAULT_BCRYPT_COST: u32 = 10;
 
-/// File-backed (or in-memory) htpasswd store.
-#[derive(Debug)]
-pub struct UserStore {
-    /// `username -> bcrypt hash`. The hash string carries its own
-    /// version and cost (`$2y$10$...`) so we never need to remember
-    /// per-record metadata.
-    users: Mutex<HashMap<String, String>>,
-    path: Option<PathBuf>,
-    max_users: MaxUsers,
-    bcrypt_cost: u32,
-}
-
-impl UserStore {
-    /// In-memory store with no on-disk persistence and open registration.
-    /// Used by registry-mock-compatible programmatic routers.
-    #[must_use]
-    pub fn in_memory() -> Self {
-        Self::in_memory_with_max_users(MaxUsers::Unlimited)
-    }
-
-    /// In-memory store that enforces the resolved registration cap.
-    #[must_use]
-    pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
-        Self {
-            users: Mutex::new(HashMap::new()),
-            path: None,
-            max_users,
-            bcrypt_cost: DEFAULT_BCRYPT_COST,
-        }
-    }
-
-    /// File-backed store. The file is parsed up front so a malformed
-    /// htpasswd surfaces as a startup error rather than a silent
-    /// empty user list. A missing file is OK — it's created on the
-    /// first registration.
-    pub fn open(path: PathBuf, max_users: MaxUsers) -> Result<Self> {
-        Self::open_with_cost(path, max_users, DEFAULT_BCRYPT_COST)
-    }
-
-    /// Like [`Self::open`] but with a configurable bcrypt cost — used
-    /// by tests that want sub-100ms hashing.
-    pub fn open_with_cost(path: PathBuf, max_users: MaxUsers, bcrypt_cost: u32) -> Result<Self> {
-        let users = match std::fs::read_to_string(&path) {
-            Ok(raw) => parse_htpasswd(&raw)
-                .map_err(|reason| RegistryError::InvalidHtpasswdFile {
-                    path: path.display().to_string(),
-                    reason,
-                })?,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => HashMap::new(),
-            Err(err) => return Err(err.into()),
-        };
-        Ok(Self { users: Mutex::new(users), path: Some(path), max_users, bcrypt_cost })
-    }
-
-    /// Reject registration before spending time hashing a new password.
-    fn check_registration_capacity(&self) -> Result<()> {
-        match self.max_users {
-            MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
-            MaxUsers::Limited(max) => {
-                let current = self.users
-                    .lock()
-                    .expect("UserStore mutex poisoned")
-                    .len() as u64;
-                if current >= max {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-            }
-            MaxUsers::Unlimited => {}
-        }
-        Ok(())
-    }
-
-    async fn persist(&self, body: String) -> Result<()> {
-        let Some(path) = self.path.clone() else {
-            return Ok(());
-        };
-        tokio::task::spawn_blocking(move || write_atomic(&path, body.as_bytes())).await??;
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl UserBackend for UserStore {
-    /// * Unknown username, registration allowed → bcrypt the password,
-    ///   insert, persist, return `Created`.
-    /// * Known username, password matches → return `LoggedIn`.
-    /// * Known username, password wrong → `Unauthenticated`.
-    /// * Unknown username, registration disabled or capped →
-    ///   `RegistrationDisabled` / `TooManyUsers`.
-    async fn add_or_login(
-        &self,
-        username: &str,
-        password: &str,
-    ) -> Result<(UpsertOutcome, String)> {
-        validate_username(username)?;
-
-        let existing_hash = {
-            let users = self.users.lock().expect("UserStore mutex poisoned");
-            users.get(username).cloned()
-        };
-        if let Some(stored) = existing_hash {
-            return verify_returning_user(username, password, stored).await;
-        }
-
-        self.check_registration_capacity()?;
-
-        let hash = hash_bcrypt(password.to_string(), self.bcrypt_cost).await?;
-        enum NextStep {
-            Persist(String),
-            VerifyExisting(String),
-        }
-        let next_step = {
-            let mut users = self.users.lock().expect("UserStore mutex poisoned");
-            match (users.get(username).cloned(), self.max_users) {
-                (Some(stored), _) => NextStep::VerifyExisting(stored),
-                // Re-check under the lock because another registration may
-                // have filled the store while we were hashing.
-                (None, MaxUsers::Limited(max)) if users.len() as u64 >= max => {
-                    return Err(RegistryError::TooManyUsers { max });
-                }
-                (None, _) => {
-                    users.insert(username.to_string(), hash);
-                    NextStep::Persist(serialize_htpasswd(&users))
-                }
-            }
-        };
-        match next_step {
-            NextStep::Persist(snapshot) => {
-                self.persist(snapshot).await?;
-                Ok((UpsertOutcome::Created, username.to_string()))
-            }
-            NextStep::VerifyExisting(stored) => {
-                verify_returning_user(username, password, stored).await
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpsertOutcome {
     /// The user didn't exist; we created the account.
     Created,
@@ -477,56 +407,44 @@ pub enum UpsertOutcome {
     LoggedIn,
 }
 
-impl Default for UserStore {
-    fn default() -> Self {
-        Self::in_memory()
-    }
+/// What [`UserBackend::create_user`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserCreation {
+    /// The name was free; the account is stored.
+    Created,
+    /// The name was taken, so the account it names is untouched.
+    NameTaken,
 }
 
-/// Identify the caller behind an HTTP request. Inspects the
-/// `Authorization` header and resolves it to a username via the token
-/// store. Only `Bearer` tokens are honored: pnpr does not accept Basic
-/// credentials on requests.
-///
-/// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
-/// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
-/// all parse the same.
-/// `Ok(None)` covers every "no usable credentials" case — a missing or
-/// malformed header, a non-`Bearer` scheme (including legacy `Basic`), or a
-/// token that simply doesn't match. `Err` is reserved for a failure of the
-/// backing store (e.g. the networked auth DB is unreachable) so the caller
-/// can return a 5xx instead of a misleading 401.
-pub async fn identify(
-    header_value: Option<&str>,
-    tokens: &dyn TokenBackend,
-) -> Result<Option<String>> {
-    let Some(value) = header_value.map(str::trim) else {
-        return Ok(None);
-    };
-    let mut parts = value.splitn(2, ' ');
-    let Some(scheme) = parts.next() else {
-        return Ok(None);
-    };
-    let Some(credentials) = parts.next().map(str::trim) else {
-        return Ok(None);
-    };
-    if scheme.eq_ignore_ascii_case("Bearer") {
-        return tokens.lookup(credentials).await;
-    }
-    Ok(None)
+/// What [`UserBackend::set_password`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PasswordChange {
+    /// The account's password is the new one.
+    Changed,
+    /// There is no such account, so no password was stored.
+    NoSuchUser,
+}
+
+/// What [`UserBackend::delete_user`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserRemoval {
+    /// The account is gone.
+    Removed,
+    /// There was no such account.
+    NoSuchUser,
 }
 
 /// `users` table DDL — only shared-database backends need it, since
 /// the local backend keeps users in an htpasswd file. One bcrypt hash
 /// per username, the same `$2y$...` string the htpasswd file would hold.
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
-const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
+pub(crate) const USERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS users (
     username     VARCHAR(255) PRIMARY KEY,
     bcrypt_hash  TEXT NOT NULL
 )";
 
 #[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
-const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
+pub(crate) const AUTH_COUNTERS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS auth_counters (
     name   VARCHAR(64) PRIMARY KEY,
     value  BIGINT NOT NULL
 )";

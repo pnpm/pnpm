@@ -92,7 +92,11 @@ function filterKeptVersions (
   for (const version in versions) {
     if (!Object.hasOwn(versions, version)) continue
     if (keep(version)) {
-      keptVersions[version] = versions[version]
+      // Copy the property descriptor, not the value: a lazily-loaded packument
+      // (see npm-resolver's mirrorLayout module) backs each version with a
+      // getter that parses its manifest on first access, and reading the value
+      // here would parse every kept version of every packument up front.
+      Object.defineProperty(keptVersions, version, Object.getOwnPropertyDescriptor(versions, version)!)
     }
   }
   return keptVersions
@@ -116,7 +120,9 @@ function resolveKeptDistTags (
   for (const tag in allDistTags) {
     if (!Object.hasOwn(allDistTags, tag)) continue
     const distTagVersion = allDistTags[tag]
-    if (keptVersions[distTagVersion]) {
+    // `in`, not a value read: presence is all that matters, and reading the
+    // value would hydrate a lazily-loaded manifest for nothing.
+    if (distTagVersion in keptVersions) {
       keptDistTags[tag] = distTagVersion
       continue
     }

@@ -1,7 +1,7 @@
 use super::{
     Command, FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache,
-    choose_bins_with, get_bins_from_package_manifest, link_chosen_bins,
+    choose_bins_with, link_chosen_bins,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -33,7 +33,7 @@ impl PreparedPackageBins {
 
     #[must_use]
     pub fn new<Sys: FsWalkFiles>(source: PackageBinSource) -> Self {
-        let commands = get_bins_from_package_manifest::<Sys>(&source.manifest, &source.location);
+        let commands = source.resolve_commands::<Sys>();
         Self { source, commands: commands.into() }
     }
 }
@@ -62,10 +62,8 @@ where
                 cached.source.location == package.location
                     && Arc::ptr_eq(&cached.source.manifest, &package.manifest)
             })
-            .map_or_else(
-                || get_bins_from_package_manifest::<Sys>(&package.manifest, &package.location),
-                |cached| cached.commands.to_vec(),
-            )
+            .map(|cached| cached.commands.to_vec())
+            .unwrap_or_else(|| package.resolve_commands::<Sys>())
     });
     link_chosen_bins::<Sys>(chosen, bins_dir, options, &ShimTargetCache::default()).map(|_| ())
 }

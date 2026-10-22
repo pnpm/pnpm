@@ -9,12 +9,12 @@ or two:
 
 | Document | Contents |
 | --- | --- |
-| The **env lockfile** (first, when present) | [Config dependencies] and the pnpm version resolved for the project, under `configDependencies` and `packageManagerDependencies`, with the `packages` and `snapshots` entries they need |
+| The **boot document** (first, when present) | [Config dependencies] and the pnpm version resolved for the project, under `configDependencies` and `packageManagerDependencies`, with the `packages` and `snapshots` entries they need |
 | The **project lockfile** (last, always present) | The project's own dependency graph: `importers` with their `dependencies`, and the matching `packages` and `snapshots` |
 
 Both documents declare the same `lockfileVersion`. That field describes the
 schema of the entries inside a document, not how many documents the file
-contains, so it does not change when the env document appears.
+contains, so it does not change when the boot document appears.
 
 This page is for tools that read `pnpm-lock.yaml` — vulnerability scanners,
 SBOM generators, dependency graph builders, and dependency update bots. If you
@@ -67,13 +67,13 @@ That depends on what your tool is for:
   anything that asks "what does this project depend on": the **last** document.
 - **Everything the lockfile installs** — vulnerability scanners and SBOM
   generators: **every** document. Config dependencies are real npm packages,
-  installed into `node_modules/.pnpm-config`, and they appear only in the env
+  installed into `node_modules/.pnpm-config`, and they appear only in the boot
   document.
 
 Either way, load the file with a multi-document API. A single-document one
 (`load()` in js-yaml, `yaml.safe_load` in Python, `yaml.Unmarshal` into one
 value in Go) either raises an error or silently gives you the first document —
-which, in a two-document lockfile, is the env document.
+which, in a two-document lockfile, is the boot document.
 
 ### The project's dependency graph
 
@@ -90,7 +90,7 @@ This is correct for both shapes, and for every `pnpm-lock.yaml` pnpm has ever
 written.
 
 If you would rather detect the layout than always take the last document, a
-file whose first line is `---` has an env document. pnpm writes that leading
+file whose first line is `---` has a boot document. pnpm writes that leading
 marker only when it writes two documents.
 
 ### Everything the lockfile installs
@@ -112,7 +112,7 @@ importer and loses whichever graph it held.
 Since v12.0.0, a `packages:` entry may carry a `revision` field
 beside its integrity:
 
-```yaml
+```yaml title="pnpm-lock.yaml"
 packages:
   lodash@4.17.21:
     resolution:
@@ -120,18 +120,33 @@ packages:
       revision: 1
 ```
 
-It says that the bytes are a registry **replacement artifact**, fetched from the
-registry's integrity-addressed route rather than the canonical
-`name@version` URL. An entry with no `revision` field is revision 0 — the
-original — which is what every entry pnpm has ever written means, so a lockfile
-that has adopted no replacements is unchanged. See [Registry
-revisions](./registry-revisions.md).
+It says that the package is a registry revision, fetched from the registry's
+integrity-addressed route rather than the canonical `name@version` URL.
+`revision: 0` is the original, and a positive number is a replacement. An entry
+with no `revision` field is an ordinary entry outside the revision protocol. See
+[Registry revisions](./registry-revisions.md).
 
-A tool that reads integrity values should treat `revision` as ordinary metadata:
-`integrity` is still a standard Subresource Integrity value pinning the exact
-bytes.
+A tool that reads integrity values should treat `revision` as ordinary metadata.
+`integrity` is still a standard Subresource Integrity value, and for a revision
+it pins the uncompressed tar rather than a `.tgz`.
 
-## Why the env document comes first
+## Which hash `integrity` pins
+
+The `integrity` of a package tarball entry pins the resource at its tarball URL,
+after HTTP content decoding. That is a `.tgz` on most registries and a tar on
+[tar registries](./registries.md#tar-registries). With
+[`lockfile.integrityTarget: tar`](./settings/store.md#lockfileintegritytarget),
+it pins the uncompressed tar of every registry package, `tarball:` URL, and
+`file:` tarball, and the lockfile records that in its `settings`:
+
+```yaml title="pnpm-lock.yaml"
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+  integrityTarget: tar
+```
+
+## Why the boot document comes first {#why-the-env-document-comes-first}
 
 pnpm has to know which pnpm version to switch to, and which plugins to load,
 before it can do anything else — including before it has any reason to parse a
@@ -141,7 +156,7 @@ the whole file.
 
 ## When a lockfile has two documents
 
-The env document is written when either of these applies:
+The boot document is written when either of these applies:
 
 - The project has [config dependencies]. Their integrity checksums are project
   content and are always recorded.
@@ -167,7 +182,7 @@ bumped without regenerating the lockfile no longer passes CI. Run
 :::caution
 
 A tool that reads only the first document of a two-document lockfile does not
-fail loudly. The env document is a structurally valid lockfile — it just
+fail loudly. The boot document is a structurally valid lockfile — it just
 describes an importer with no `dependencies`. Such a tool reports that the
 project has no dependencies, and therefore no vulnerabilities, and a CI gate
 built on it passes.
@@ -178,9 +193,9 @@ If you scan pnpm projects:
 
 - **Read every document**, as described above. A tool that reads only the
   project document misses the config dependencies; a tool that reads only the
-  env document misses everything else.
+  boot document misses everything else.
 - **Verify your scanner against a two-document lockfile before you trust its
-  output.** "It reported something" is not a sufficient check here: the env
+  output.** "It reported something" is not a sufficient check here: the boot
   document does contain packages, so a broken reader emits a plausible-looking
   result listing pnpm's own binaries.
 - [`pnpm audit`] reads the lockfile correctly in both shapes and needs no

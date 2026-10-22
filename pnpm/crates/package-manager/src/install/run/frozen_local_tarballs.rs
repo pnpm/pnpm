@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path};
 
-use super::{super::map_frozen_lockfile_error, InstallError, dispatch::Settled};
+use super::{super::map_frozen_lockfile_error, InstallError, settled::Settled};
 
 async fn detect_host(
     settled: &Settled<'_, '_>,
@@ -112,7 +112,7 @@ async fn verify_frozen_tarballs(settled: Settled<'_, '_>) -> Result<(), InstallE
         },
     );
 
-    verify_integrity(targets).await
+    verify_integrity(targets, lockfile.integrity_target().into()).await
 }
 
 /// Whether a local tarball a project depends on was replaced since the
@@ -124,6 +124,7 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
         return false;
     }
     let workspace_root = settled.projects.workspace.dirs.workspace_root.clone();
+    let kind = lockfile.integrity_target().into();
     let resolutions: Vec<_> = direct_package_keys(
         lockfile,
         &installed_importer_ids(settled, lockfile),
@@ -139,7 +140,9 @@ async fn local_tarballs_changed(settled: Settled<'_, '_>) -> bool {
     }
     tokio::task::spawn_blocking(move || {
         use rayon::prelude::*;
-        resolutions.par_iter().any(|resolution| local_tarball_changed(&workspace_root, resolution))
+        resolutions
+            .par_iter()
+            .any(|resolution| local_tarball_changed(&workspace_root, resolution, kind))
     })
     .await
     .expect("detect changed local tarballs task panicked")
@@ -180,6 +183,7 @@ fn direct_package_keys(
 fn local_tarball_changed(
     workspace_root: &Path,
     resolution: &pnpm_lockfile::LockfileResolution,
+    kind: pnpm_tarball::IntegrityKind,
 ) -> bool {
     let pnpm_lockfile::LockfileResolution::Tarball(resolution) = resolution else { return false };
     let Some(path) =
@@ -191,7 +195,7 @@ fn local_tarball_changed(
         .as_ref()
         .filter(|integrity| !integrity.hashes.is_empty())
         .is_none_or(|integrity| {
-            pnpm_tarball::verify_local_file_integrity(&path, integrity).is_err()
+            pnpm_tarball::verify_local_file_integrity(&path, integrity, kind).is_err()
         })
 }
 
@@ -233,6 +237,7 @@ fn is_local_file_tarball(resolution: &pnpm_lockfile::LockfileResolution) -> bool
 
 async fn verify_integrity(
     targets: Vec<(std::path::PathBuf, ssri::Integrity)>,
+    kind: pnpm_tarball::IntegrityKind,
 ) -> Result<(), InstallError> {
     if targets.is_empty() {
         return Ok(());
@@ -242,7 +247,7 @@ async fn verify_integrity(
         targets
             .into_par_iter()
             .try_for_each(|(path, integrity)| {
-                pnpm_tarball::verify_local_file_integrity(&path, &integrity)
+                pnpm_tarball::verify_local_file_integrity(&path, &integrity, kind)
             })
     })
     .await

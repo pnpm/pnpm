@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { decodeRegistry, encodeRegistry, type PackageMeta } from '@pnpm/resolving.npm-resolver'
+import { decodeRegistry, encodeRegistry, loadMeta, type PackageMeta } from '@pnpm/resolving.npm-resolver'
 import { StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import { glob } from 'tinyglobby'
 
@@ -13,7 +13,7 @@ interface CachedVersions {
 }
 
 interface CachedMetaFile {
-  metaObject: PackageMeta | null
+  metaObject: PackageMeta
   mtime: Date
 }
 
@@ -27,8 +27,9 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   const storeIndex = new StoreIndex(opts.storeDir)
   try {
     for (const filePath of metaFilePaths) {
-      const metaFile = readCachedMetaFile(path.join(opts.cacheDir, filePath))
-      if (!metaFile?.metaObject) continue
+      // eslint-disable-next-line no-await-in-loop -- sequential, so only one packument is held in memory at a time
+      const metaFile = await readCachedMetaFile(path.join(opts.cacheDir, filePath))
+      if (metaFile == null) continue
       const { metaObject, mtime } = metaFile
       metaFilesByPath[decodeRegistry(getTopLevelDir(filePath))] = {
         ...partitionVersionsByStorePresence(storeIndex, metaObject),
@@ -42,23 +43,17 @@ export async function cacheView (opts: { cacheDir: string, storeDir: string, reg
   return JSON.stringify(metaFilesByPath, null, 2)
 }
 
-function readCachedMetaFile (fullPath: string): CachedMetaFile | undefined {
+async function readCachedMetaFile (fullPath: string): Promise<CachedMetaFile | undefined> {
+  // Every version is read, so hydrate up front: the loader then reports a
+  // damaged mirror as a miss instead of throwing partway through, and the
+  // file is skipped like an unreadable one.
+  const metaObject = await loadMeta(fullPath, { hydrateEagerly: true })
+  if (metaObject == null) return undefined
   try {
-    const raw = fs.readFileSync(fullPath, 'utf8')
-    const mtime = fs.statSync(fullPath).mtime
-    return { metaObject: parseCachedMeta(raw), mtime }
+    return { metaObject, mtime: fs.statSync(fullPath).mtime }
   } catch {
     return undefined
   }
-}
-
-function parseCachedMeta (raw: string): PackageMeta | null {
-  const newlineIdx = raw.indexOf('\n')
-  if (newlineIdx !== -1) {
-    // NDJSON format: line 1 = headers, line 2 = metadata
-    return JSON.parse(raw.slice(newlineIdx + 1)) as PackageMeta
-  }
-  return JSON.parse(raw) as PackageMeta
 }
 
 function partitionVersionsByStorePresence (
@@ -68,7 +63,8 @@ function partitionVersionsByStorePresence (
   const cachedVersions: string[] = []
   const nonCachedVersions: string[] = []
   for (const [version, manifest] of Object.entries(metaObject.versions)) {
-    if (!manifest.dist.integrity) continue
+    // A version without a manifest (a fragment of the wrong shape) is skipped.
+    if (!manifest?.dist?.integrity) continue
     const key = storeIndexKey(manifest.dist.integrity, `${manifest.name}@${manifest.version}`)
     if (storeIndex.has(key)) {
       cachedVersions.push(version)

@@ -102,9 +102,9 @@ test('cached metadata reports NO_OFFLINE_META without registry access when offli
   getMockAgent().assertNoPendingInterceptors()
 })
 
-test('cached metadata names the pre-rename mirror when offline metadata exists only under the old layout', async () => {
+test('cached metadata names the legacy mirror when offline metadata exists only under the old layout', async () => {
   const cacheDir = temporaryDirectory()
-  const legacyMirrorDir = path.join(cacheDir, FULL_META_DIR, 'registry.npmjs.org')
+  const legacyMirrorDir = path.join(cacheDir, 'v11/metadata-full', 'https%3A+registry.npmjs.org')
   fs.mkdirSync(legacyMirrorDir, { recursive: true })
   const legacyMirror = path.join(legacyMirrorDir, 'is-positive.jsonl')
   fs.writeFileSync(legacyMirror, '{}\n{}')

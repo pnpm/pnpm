@@ -109,6 +109,41 @@ fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
 }
 
 #[test]
+fn reuses_a_locked_runtime_the_widened_range_still_admits() {
+    let lockfile = single_dep_lockfile("node", "runtime:26.10.0", "runtime:26.10.0");
+    let key = reusable_importer_dep(&lockfile, ".", "node", "runtime:^26")
+        .expect("locked 26.10.0 satisfies ^26");
+    assert_eq!(key.to_string(), "node@runtime:26.10.0");
+}
+
+#[test]
+fn fresh_resolves_a_runtime_range_that_excludes_the_locked_version() {
+    let lockfile = single_dep_lockfile("node", "runtime:^26", "runtime:26.10.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^27").is_none());
+}
+
+#[test]
+fn fresh_resolves_an_unchanged_runtime_range_the_locked_version_left() {
+    let lockfile = single_dep_lockfile("node", "runtime:^26", "runtime:27.0.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^26").is_none());
+    let lockfile = single_dep_lockfile("node", "runtime:26.10.0", "runtime:26.11.1");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:26.10.0").is_none());
+}
+
+#[test]
+fn reuses_a_locked_runtime_under_an_unchanged_non_range_selector() {
+    let lockfile = single_dep_lockfile("node", "runtime:lts", "runtime:24.11.0");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:lts").is_some());
+}
+
+#[test]
+fn reuses_a_locked_runtime_only_from_the_same_release_channel() {
+    let lockfile = single_dep_lockfile("node", "runtime:rc/24.0.0-rc.4", "runtime:24.0.0-rc.4");
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:rc/^24.0.0-rc.3").is_some());
+    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^24.0.0-rc.3").is_none());
+}
+
+#[test]
 fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
     let specifier = "git+file:///repo#main";
     let resolved = "git+file:///repo#0123456789012345678901234567890123456789";
@@ -433,6 +468,17 @@ fn prior_child_key_applies_the_satisfies_gate() {
     assert!(super::prior_child_key(&prerelease_snapshot, "bar", "^21.0.0").is_none());
 }
 
+/// Covers <https://github.com/pnpm/pnpm/issues/16654>.
+#[test]
+fn prior_child_key_rejects_an_alias_ref_for_a_bare_range() {
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "optionalDependencies": { "bar": "@scope/bar@1.2.0" },
+    }))
+    .expect("parse snapshot entry");
+
+    assert!(super::prior_child_key(&snapshot, "bar", "^1.0.0").is_none());
+}
+
 #[test]
 fn reduce_named_registry_spec_matches_registry_and_package_name() {
     let key_name: PkgName = "@scope/old".parse().unwrap();
@@ -492,4 +538,16 @@ fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
             },
         }),
     );
+}
+
+/// A named-registry spec that names no package names the alias, so the gate
+/// does not reuse another package recorded under the alias.
+#[test]
+fn locked_child_admits_a_bare_named_registry_spec_only_for_the_alias_package() {
+    let alias: PkgName = "foo".parse().expect("parse alias");
+    let other: PkgNameVerPeer = "bar@work:1.2.0".parse().expect("parse key");
+    assert_eq!(super::locked_child_admits(&alias, &other, "work:^1.0.0"), Some(false));
+    assert_eq!(super::locked_child_admits(&alias, &other, "work:bar@^1.0.0"), Some(true));
+    let own: PkgNameVerPeer = "foo@work:1.2.0".parse().expect("parse key");
+    assert_eq!(super::locked_child_admits(&alias, &own, "work:^1.0.0"), Some(true));
 }

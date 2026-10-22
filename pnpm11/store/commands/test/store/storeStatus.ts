@@ -10,7 +10,7 @@ import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 import { temporaryDirectory } from 'tempy'
 
-const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
 
 // Use an empty config dir to ensure the subprocess is not affected by

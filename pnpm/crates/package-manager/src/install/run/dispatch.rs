@@ -1,42 +1,20 @@
 use super::{
     super::{
         ContextLog, FreshnessCheckError, FreshnessScope, InstallError, InstallRunOptions, Lockfile,
-        LogEvent, LogLevel, PackageManifest, PathBuf, PrepareModulesStateInputs,
-        PreparedModulesState, Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
+        LogEvent, LogLevel, PackageManifest, PrepareModulesStateInputs, PreparedModulesState,
+        Reporter, Stage, StageLog, SummaryLog, check_lockfile_freshness,
         lockfile_freshness::{
             LockfileFreshnessInputs, UnresolvedOptionalDependency, check_importer_manifests_exist,
         },
         map_frozen_lockfile_error, prepare_modules_state, verify_lockfile_eagerly,
     },
-    InstallOwned, InstallView, RunMode, Verification,
-    lockfile_load::Loaded,
+    Verification,
     manifests::{RootHooksScope, run_root_hooks},
     reject_frozen_with_update_checksums, run_pre_uninstall_hooks,
+    settled::{Settled, SettledProjects},
     up_to_date_scripts::finish_prepared,
-    wanted::Lockfiles,
-    workspace::{InstallScope, InstallWorkspace},
 };
-use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::{SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason};
-
-/// Everything the run has settled before it dispatches.
-#[derive(Clone, Copy)]
-pub(super) struct Settled<'r, 'a> {
-    pub(super) install: InstallView<'a>,
-    pub(super) owned: &'r InstallOwned,
-    pub(super) mode: &'r RunMode,
-    pub(super) loaded: &'r Loaded<'a>,
-    pub(super) lockfiles: &'r Lockfiles<'a>,
-    pub(super) verification: &'r Verification,
-    pub(super) projects: SettledProjects<'r, 'a>,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct SettledProjects<'r, 'a> {
-    pub(super) workspace: &'r InstallWorkspace<'a>,
-    pub(super) scope: &'r InstallScope<'a>,
-    pub(super) project_manifests: &'r [(PathBuf, &'a PackageManifest)],
-}
 
 /// Which path the install takes, and the modules state it starts from.
 pub(super) struct Dispatched<'install> {
@@ -90,7 +68,7 @@ pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
         prefer_frozen_lockfile: mode.prefer_frozen_lockfile || settled.trusts_dedupe_record(),
         lockfile: lockfiles.wanted.get(),
         lockfile_synthesized_from_current: lockfiles.wanted.synthesized_from_current(),
-        freshness: settled.freshness_inputs(),
+        freshness: settled.freshness_inputs().for_rebuild(options.rebuild.as_ref()),
     })
     .await?;
 
@@ -196,7 +174,7 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
             catalogs: &workspace.catalogs,
             manifests: project_manifests,
             prefix: &workspace.prefix,
-            workspace_packages: workspace.workspace_packages.as_ref(),
+            workspace_packages: workspace.workspace_packages.as_deref(),
         },
         repeat: crate::install::state_options::RepeatInstallPolicy {
             frozen: decided.take_frozen_path,
@@ -346,7 +324,7 @@ async fn frozen_path<Reporter: self::Reporter>(
     // remains without a manifest does.
     let freshness = LockfileFreshnessInputs {
         scope: FreshnessScope {
-            allow_unresolved_optional_dependencies: true,
+            frozen_lockfile: true,
             prune_stale_importers: false,
             ..dispatch.freshness.scope
         },
@@ -365,16 +343,7 @@ async fn frozen_path<Reporter: self::Reporter>(
 fn no_project_has_dependencies(manifests: &[(String, &PackageManifest)]) -> bool {
     manifests
         .iter()
-        .all(|(_, manifest)| {
-            manifest
-                .dependencies([
-                    DependencyGroup::Prod,
-                    DependencyGroup::Dev,
-                    DependencyGroup::Optional,
-                ])
-                .next()
-                .is_none()
-        })
+        .all(|(_, manifest)| !crate::optimistic_repeat_install::manifest_has_runtime_deps(manifest))
 }
 fn report_unresolved_optional_dependencies<Reporter: self::Reporter>(
     skipped: &[UnresolvedOptionalDependency],
@@ -443,7 +412,9 @@ pub(super) async fn auto_frozen_path(
         Err(
             error @ (FreshnessCheckError::InvalidCatalog(_)
             | FreshnessCheckError::InvalidOverrides(_)
-            | FreshnessCheckError::CalcPatchHashes(_)),
+            | FreshnessCheckError::CalcPatchHashes(_)
+            | FreshnessCheckError::InvalidPackageExtensionSelector(_)
+            | FreshnessCheckError::ReadPackageHook(_)),
         ) => Err(error.into()),
     }
 }
@@ -479,19 +450,11 @@ impl<'r> Settled<'r, '_> {
             projects: SettledProjects { workspace, scope, .. },
             ..
         } = self;
-        LockfileFreshnessInputs {
-            lockfile_dir: &workspace.dirs.workspace_root,
-            manifests: &lockfiles.manifest_freshness_inputs,
-            workspace_packages: workspace.workspace_packages.as_ref(),
-            config: install.context.config,
-            catalogs: &workspace.catalogs,
-            pnpmfile_hook: loaded.pnpmfile_hook.as_ref(),
-            scope: FreshnessScope {
-                ignore_manifest_check: install.lockfile_policy.ignore_manifest_check,
-                prune_stale_importers: scope.prune_stale_importers,
-                allow_missing_dependency_free_importers: true,
-                allow_unresolved_optional_dependencies: false,
-            },
-        }
+        super::wanted::freshness_inputs(
+            install,
+            (workspace, scope),
+            loaded,
+            &lockfiles.manifest_freshness_inputs,
+        )
     }
 }

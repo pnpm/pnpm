@@ -12,7 +12,10 @@
  * vs require) are preserved. Every entry pnpm puts on `NODE_PATH` ends in
  * `node_modules`, which is why the parent walk finds the entry's packages:
  * the resolver checks `<parent dir>/node_modules`, and the entry's parent
- * dir maps straight back to the entry itself.
+ * dir maps straight back to the entry itself. Node.js merges the context
+ * passed to `nextResolve` into the object every hook in the chain shares, so
+ * the hook puts the importer's `parentURL` back after the retry for the
+ * hooks that run before it.
  *
  * Any `--import` flag makes Node.js run the main entry point through the
  * ESM loader, which rejects file extensions that only CommonJS require
@@ -48,12 +51,17 @@ export async function resolve (specifier, context, nextResolve) {
     return markUnknownEntryPointAsCommonJs(await nextResolve(specifier, context), context)
   } catch (originalError) {
     if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
-    for (const nodePath of nodePaths) {
-      try {
-        return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-      } catch (fallbackError) {
-        if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+    const { parentURL } = context
+    try {
+      for (const nodePath of nodePaths) {
+        try {
+          return await nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+        } catch (fallbackError) {
+          if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+        }
       }
+    } finally {
+      context.parentURL = parentURL
     }
     throw originalError
   }
@@ -72,12 +80,17 @@ if (registerHooks) {
         return markUnknownEntryPointAsCommonJs(nextResolve(specifier, context), context)
       } catch (originalError) {
         if (originalError?.code !== 'ERR_MODULE_NOT_FOUND' || !isBareSpecifier(specifier)) throw originalError
-        for (const nodePath of nodePaths) {
-          try {
-            return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
-          } catch (fallbackError) {
-            if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+        const { parentURL } = context
+        try {
+          for (const nodePath of nodePaths) {
+            try {
+              return nextResolve(specifier, { ...context, parentURL: pathToFileURL(nodePath + '/x').href })
+            } catch (fallbackError) {
+              if (fallbackError?.code !== 'ERR_MODULE_NOT_FOUND') throw fallbackError
+            }
           }
+        } finally {
+          context.parentURL = parentURL
         }
         throw originalError
       }

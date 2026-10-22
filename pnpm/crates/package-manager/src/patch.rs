@@ -1,6 +1,8 @@
+pub use verify_projects::{VerifyProjectPatchesError, verify_patches_against_project_lockfiles};
+
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, InstallPackageBySnapshotError, import_indexed_dir,
-    retry_config::retry_opts_from_config, tarball_url_and_integrity,
+    tarball_url_and_integrity,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -69,6 +71,8 @@ pub enum PatchTargetError {
     #[diagnostic(code(ERR_PNPM_PATCH_VERSION_NOT_FOUND))]
     VersionNotFound { requested: String, hint: String },
 }
+
+mod verify_projects;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -221,8 +225,11 @@ impl WritePackageForPatch<'_> {
 
         let store_index =
             StoreIndex::open_shared(&self.config.store_dir, self.config.frozen_store).await;
-        let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&self.config.store_dir, self.config.frozen_store);
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn_for(
+            &self.config.store_dir,
+            self.config.frozen_store,
+            self.config.store_index_format,
+        );
 
         let result = self.import_for_patch::<Reporter>(
             &metadata.resolution,
@@ -246,14 +253,18 @@ impl WritePackageForPatch<'_> {
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<(), WritePackageForPatchError> {
-        let cas_paths = self.download_for_patch::<Reporter>(
-            tarball_url,
+        let package = pnpm_tarball::TarballPackage {
+            integrity_kind: resolution
+                .integrity_target(self.config.lockfile_integrity_target)
+                .into(),
             integrity,
-            package_id,
-            store_index,
-            store_index_writer,
-        )
-        .await?;
+            unpacked_size: None,
+            file_count: None,
+            url: tarball_url,
+            id: package_id,
+        };
+        let cas_paths =
+            self.download_for_patch::<Reporter>(package, store_index, store_index_writer).await?;
         let cas_paths = git_hosted_cas_paths::<Reporter>(
             self.config,
             resolution,
@@ -273,9 +284,7 @@ impl WritePackageForPatch<'_> {
     }
     async fn download_for_patch<Reporter: self::Reporter>(
         &self,
-        tarball_url: &str,
-        integrity: Option<&ssri::Integrity>,
-        package_id: &str,
+        package: pnpm_tarball::TarballPackage<'_>,
         store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
         store_index_writer: &Arc<StoreIndexWriter>,
     ) -> Result<Arc<std::collections::HashMap<String, PathBuf>>, WritePackageForPatchError> {
@@ -283,16 +292,11 @@ impl WritePackageForPatch<'_> {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
                 auth_headers: &self.config.auth_headers,
-                retry_opts: retry_opts_from_config(self.config),
+                retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
+                tar_limits: self.config.tar_limits(),
             },
-            package: pnpm_tarball::TarballPackage {
-                integrity,
-                unpacked_size: None,
-                file_count: None,
-                url: tarball_url,
-                id: package_id,
-            },
+            package,
             store: pnpm_tarball::ArchiveStoreContext {
                 dir: &self.config.store_dir,
                 index: store_index,

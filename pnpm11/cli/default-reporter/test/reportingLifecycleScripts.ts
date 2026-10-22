@@ -1049,3 +1049,63 @@ Running ${POSTINSTALL} for registry.npmjs.org/bar/1.0.0: ${childOutputColor('bar
 function failedAt (wd: string) {
   return chalk.red(`Failed in 1s at ${wd}`)
 }
+
+test('keeps only the colors of streamed script output', async () => {
+  const RED = '\u001B[31m'
+  const DEFAULT_COLOR = '\u001B[39m'
+  const output$ = toOutput$({
+    context: { argv: ['run'] },
+    reportingOptions: {
+      hideLifecyclePrefix: true,
+      streamLifecycleOutput: true,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/colors',
+    line: `\u001B[1A\u001B[2K${RED}error${DEFAULT_COLOR}\u0007 TS2322\u001B]8;;https://example.com\u0007link\u001B]8;;\u0007 \u009D8;;https://example.com\u009Cdocs\u009D8;;\u009C`,
+    stage: 'build',
+    stdio: 'stdout',
+    wd: 'packages/colors',
+  })
+
+  expect.assertions(1)
+
+  const output = await firstValueFrom(output$.pipe(take(1), map(normalizeNewline)))
+  expect(output).toBe(chalk.level > 0 ? `${RED}error${DEFAULT_COLOR} TS2322link docs\u001B[0m` : 'error TS2322link docs')
+})
+
+test.each([0, 1] as const)('renders streamed colors and cancelled control strings at color level %s', async (colorLevel) => {
+  const previousColorLevel = chalk.level
+  chalk.level = colorLevel
+  try {
+    const red = '\u001B[31m'
+    const reset = '\u001B[0m'
+    const colored = `${red}error${reset}`
+    const cases = [
+      ['plain\t🙂', 'plain\t🙂'],
+      [colored.repeat(20), colorLevel > 0 ? colored.repeat(20) + reset : 'error'.repeat(20)],
+      [`\u009Dhidden${colored}`, colorLevel > 0 ? colored + reset : 'error'],
+      [`again ${colored}`, colorLevel > 0 ? `again ${colored}${reset}` : 'again error'],
+    ]
+    const output$ = toOutput$({
+      context: { argv: ['run'] },
+      reportingOptions: { hideLifecyclePrefix: true, streamLifecycleOutput: true },
+      streamParser: createStreamParser(),
+    })
+    for (const [line] of cases) {
+      lifecycleLogger.debug({
+        depPath: 'packages/colors',
+        line,
+        stage: 'build',
+        stdio: 'stdout',
+        wd: 'packages/colors',
+      })
+    }
+    const output = await firstValueFrom(output$.pipe(skip(cases.length - 1), take(1), map(normalizeNewline)))
+    expect(output).toBe(cases.map(([, expected]) => expected).join('\n'))
+  } finally {
+    chalk.level = previousColorLevel
+  }
+})

@@ -1,4 +1,7 @@
-use crate::_utils::{append_workspace_yaml_key, set_minimum_release_age, write_fake_bin};
+use crate::_utils::{
+    append_workspace_yaml_key, read_v11_bundle_path, set_minimum_release_age, v11_in,
+    write_fake_bin,
+};
 use command_extra::CommandExtra;
 use pnpm_config::WorkspaceSettings;
 use pnpm_lockfile::EnvLockfile;
@@ -6,9 +9,9 @@ use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
 use std::{
     collections::BTreeMap,
-    fs,
+    fs, io,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 #[test]
@@ -22,6 +25,49 @@ fn version_flag_prints_the_bare_version() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
+
+    drop(root);
+}
+
+/// A reader that closed stdout, as `pnpm --version | true` does, has all
+/// the output it wants, so pnpm exits 0 instead of aborting
+/// (pnpm/tasks#132).
+#[test]
+fn version_flag_exits_zero_when_stdout_is_closed() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let output = pacquet
+        .with_arg("--version")
+        .with_stdout(Stdio::from(stdout_writer))
+        .output()
+        .expect("run pacquet --version");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(String::from_utf8_lossy(&output.stderr), "");
+
+    drop(root);
+}
+
+/// A stdout that refuses the write for another reason than a closed pipe
+/// leaves the output incomplete, so the command fails.
+#[test]
+#[cfg(target_os = "linux")]
+fn version_flag_fails_when_stdout_is_full() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .expect("open /dev/full");
+
+    let output = pacquet
+        .with_arg("--version")
+        .with_stdout(Stdio::from(full))
+        .output()
+        .expect("run pacquet --version");
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("failed to write to stdout"), "{stderr}");
 
     drop(root);
 }
@@ -160,10 +206,14 @@ fn unknown_option_goes_to_the_pinned_pnpm() {
     fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
         .expect("write package.json");
 
-    for command in ["install", "i"] {
+    for args in [
+        ["install", "--only-the-pinned-pnpm-knows"],
+        ["i", "--only-the-pinned-pnpm-knows"],
+        ["--only-the-pinned-pnpm-knows", "install"],
+    ] {
         let output = test_command(pacquet_in(&workspace), root.path())
             .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-            .args([command, "--only-the-pinned-pnpm-knows"])
+            .args(args)
             .output()
             .expect("run pacquet with an unknown option");
         dbg!(&output);
@@ -171,11 +221,11 @@ fn unknown_option_goes_to_the_pinned_pnpm() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
             !stderr.contains("unexpected argument"),
-            "{command}: this pnpm rejected it: {stderr}",
+            "{args:?}: this pnpm rejected it: {stderr}",
         );
         assert!(
             stdout.contains("Unknown option: 'only-the-pinned-pnpm-knows'"),
-            "{command}: the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
+            "{args:?}: the pinned pnpm should have parsed the command line; stdout:\n{stdout}",
         );
     }
 
@@ -667,6 +717,353 @@ fn engine_shim(links: &Path) -> PathBuf {
         .into_iter()
         .next()
         .expect("one engine is installed")
+}
+
+#[cfg(unix)]
+struct SwitchCase<'a> {
+    manifest: &'a str,
+    workspace_yaml: Option<&'a str>,
+    registry_from_user_npmrc: bool,
+    env_extra: Option<(&'a str, &'a str)>,
+    cli_args: &'a [&'a str],
+    expected_stdout: &'a str,
+}
+
+#[cfg(unix)]
+fn switch_cases() -> [SwitchCase<'static>; 7] {
+    [
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"download"}}}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"error"}}}"#,
+            workspace_yaml: Some("pmOnFail: download\n"),
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: true,
+            env_extra: None,
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"error"}}}"#,
+            workspace_yaml: Some("pmOnFail: error\n"),
+            registry_from_user_npmrc: false,
+            env_extra: Some(("pnpm_config_pm_on_fail", "download")),
+            cli_args: &["--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"99.0.0","onFail":"error"}}}"#,
+            workspace_yaml: Some("pmOnFail: error\n"),
+            registry_from_user_npmrc: false,
+            env_extra: Some(("pnpm_config_pm_on_fail", "error")),
+            cli_args: &["--pm-on-fail=download", "--version"],
+            expected_stdout: "99.0.0\n",
+        },
+        SwitchCase {
+            manifest: r#"{"packageManager":"pnpm@99.0.0"}"#,
+            workspace_yaml: None,
+            registry_from_user_npmrc: false,
+            env_extra: None,
+            cli_args: &["install", "--only-the-future-pnpm-knows"],
+            expected_stdout: "99.0.0:install --only-the-future-pnpm-knows\n",
+        },
+    ]
+}
+
+#[cfg(unix)]
+fn assert_version_switch_case(
+    root: &Path,
+    registry_url: &str,
+    case_idx: usize,
+    cli_label: &str,
+    v11_bundle: Option<&std::ffi::OsStr>,
+    case: &SwitchCase<'_>,
+) {
+    let case_dir = root.join(format!("case-{case_idx}-{cli_label}"));
+    let workspace = case_dir.join("workspace");
+    fs::create_dir_all(&workspace).expect("create case workspace");
+    fs::write(workspace.join("package.json"), case.manifest).expect("write package.json");
+    let mut ws_yaml =
+        String::from("storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n");
+    if let Some(extra) = case.workspace_yaml {
+        ws_yaml.push_str(extra);
+    }
+    fs::write(workspace.join("pnpm-workspace.yaml"), ws_yaml).expect("write pnpm-workspace.yaml");
+    if case.registry_from_user_npmrc {
+        fs::write(case_dir.join(".npmrc"), format!("registry={registry_url}\n"))
+            .expect("write user .npmrc");
+    }
+
+    let base_cmd = match v11_bundle {
+        Some(bundle) => v11_in(bundle, &workspace),
+        None => pacquet_in(&workspace),
+    };
+    let mut cmd = test_command(base_cmd, &case_dir);
+    if case.registry_from_user_npmrc {
+        cmd.env("PNPM_CONFIG_NPMRC_AUTH_FILE", case_dir.join(".npmrc"));
+    } else {
+        cmd.env("PNPM_CONFIG_REGISTRY", registry_url);
+    }
+    cmd.env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+        .env("HTTPS_PROXY", "http://127.0.0.1:9/")
+        .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+        .args(case.cli_args);
+    if let Some((k, v)) = case.env_extra {
+        cmd.env(k, v);
+    }
+    let output = cmd.output().expect("run pnpm version switch");
+    let cli_args = case.cli_args;
+    assert!(
+        output.status.success(),
+        "case {case_idx} ({cli_label}, {cli_args:?}) failed:\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        case.expected_stdout,
+        "case {case_idx} ({cli_label}, {cli_args:?}) stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
+#[cfg(unix)]
+fn synthetic_99_script() -> &'static str {
+    concat!(
+        "#!/bin/sh\n",
+        "case \" $* \" in\n",
+        "  *\" --version \"*|*\" -v \"*) echo \"99.0.0\" ;;\n",
+        "  *) echo \"99.0.0:$*\" ;;\n",
+        "esac\n",
+    )
+}
+
+/// Switching upward to a newer pnpm release (`99.0.0`) works across every
+/// setting source (`packageManager`, `devEngines.packageManager`,
+/// `pnpm-workspace.yaml`, `.npmrc`, env var, CLI flag) and forwards flags
+/// that only the newer release knows (pnpm/tasks#141, pnpm/tasks#144).
+#[test]
+#[cfg(unix)]
+fn switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() {
+    let CommandTempCwd { root, .. } = CommandTempCwd::init();
+    let registry =
+        start_registry_with_synthetic_pnpm(root.path(), "99.0.0", synthetic_99_script().as_bytes());
+
+    for (case_idx, case) in switch_cases().iter().enumerate() {
+        assert_version_switch_case(root.path(), registry.url(), case_idx, "v12", None, case);
+    }
+
+    drop((root, registry));
+}
+
+/// The TypeScript v11 CLI switches upward to a newer pnpm release (`99.0.0`)
+/// across every setting source (`packageManager`, `devEngines.packageManager`,
+/// `pnpm-workspace.yaml`, `.npmrc`, env var, CLI flag) and forwards flags
+/// that only the newer release knows (pnpm/tasks#141, pnpm/tasks#144).
+#[test]
+#[cfg(unix)]
+#[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
+fn v11_switches_up_to_a_newer_pnpm_across_setting_sources_and_unknown_options() {
+    let v11_bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
+    let CommandTempCwd { root, .. } = CommandTempCwd::init();
+    let registry =
+        start_registry_with_synthetic_pnpm(root.path(), "99.0.0", synthetic_99_script().as_bytes());
+
+    for (case_idx, case) in switch_cases().iter().enumerate() {
+        assert_version_switch_case(
+            root.path(),
+            registry.url(),
+            case_idx,
+            "v11",
+            Some(&v11_bundle),
+            case,
+        );
+    }
+
+    drop((root, registry));
+}
+
+/// The TypeScript v11 CLI (and any additional outer CLI binaries listed in
+/// `PNPM_TEST_OUTER_CLIS`) switches up to the compiled v12 `pnpm` binary
+/// (`HEAD`) served from local `pnpr`, and the delegated v12 binary executes
+/// without re-switching.
+#[test]
+#[ignore = "requires PNPM_V11_BUNDLE; run with --run-ignored all in the convergence job"]
+fn v11_switches_up_to_head_binary_from_local_registry() {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    let v11_bundle = read_v11_bundle_path().expect("PNPM_V11_BUNDLE must be set");
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let head_bin_path = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .get_program()
+        .to_os_string();
+    #[cfg(unix)]
+    let head_bytes = {
+        // Wrap the debug binary in a tiny exec trampoline so the fixture tarball
+        // does not pack ~600 MB of unstripped DWARF debug info (which exceeds
+        // Node.js's `ERR_STRING_TOO_LONG` limit during unpacking).
+        format!("#!/bin/sh\nexec '{}' \"$@\"\n", Path::new(&head_bin_path).display()).into_bytes()
+    };
+    #[cfg(windows)]
+    let head_bytes = fs::read(&head_bin_path).expect("read compiled pnpm binary");
+    let head_version = pnpm_config::PNPM_VERSION;
+    let registry = start_registry_with_synthetic_pnpm(root.path(), head_version, &head_bytes);
+
+    fs::write(
+        workspace.join("package.json"),
+        format!(r#"{{"name":"app","version":"1.0.0","packageManager":"pnpm@{head_version}"}}"#),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "storeDir: ../store\ncacheDir: ../cache\nenableGlobalVirtualStore: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".npmrc"),
+        format!("registry={}\nstore-dir=../store\ncache-dir=../cache\n", registry.url()),
+    )
+    .expect("write .npmrc");
+
+    let mut outer_runners: Vec<(String, Command)> =
+        vec![("v11-bundle".to_string(), v11_in(&v11_bundle, &workspace))];
+    if let Ok(extra_clis) = std::env::var("PNPM_TEST_OUTER_CLIS") {
+        for raw_entry in extra_clis.split(';') {
+            let entry = raw_entry.trim();
+            if entry.is_empty() {
+                continue;
+            }
+            let cmd =
+                Command::new(entry).with_current_dir(&workspace).without_ambient_pnpm_config();
+            outer_runners.push((entry.to_string(), cmd));
+        }
+    }
+
+    for (idx, (label, base_cmd)) in outer_runners.into_iter().enumerate() {
+        let runner_root = root
+            .path()
+            .join(format!("outer-runner-{idx}"));
+        fs::create_dir_all(&runner_root).expect("create outer runner root");
+        let output = test_command(base_cmd, &runner_root)
+            .env("PNPM_CONFIG_REGISTRY", registry.url())
+            .env("PNPM_CONFIG_HTTPS_PROXY", "http://127.0.0.1:9/")
+            .env("HTTPS_PROXY", "http://127.0.0.1:9/")
+            .env("PNPM_CONFIG_NO_PROXY", "127.0.0.1,localhost")
+            .env("NO_PROXY", "127.0.0.1,localhost")
+            .env("PNPM_CONFIG_FETCH_RETRIES", "0")
+            .arg("--version")
+            .output()
+            .expect("run outer CLI --version switching to HEAD");
+        assert!(
+            output.status.success(),
+            "{label} -> HEAD --version failed:\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"),
+            format!("{head_version}\n"),
+            "{label} stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+    }
+
+    drop((root, registry));
+}
+
+fn start_registry_with_synthetic_pnpm(
+    root: &Path,
+    version: &str,
+    binary_bytes: &[u8],
+) -> pnpm_testing_utils::registry::TestRegistry {
+    let platform = pnpm_graph_hasher::host_platform();
+    let arch = pnpm_graph_hasher::host_arch();
+    let libc = pnpm_graph_hasher::host_libc();
+    let normalized_arch = if platform == "win32" && arch == "ia32" { "x86" } else { arch };
+    let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
+    let target = format!("{platform}-{normalized_arch}{libc_suffix}");
+    let platform_pkg = format!("@pnpm/exe.{target}");
+    let exe_name = if platform == "win32" { "pnpm.exe" } else { "pnpm" };
+
+    let packages_dir = root.join(format!("synthetic-packages-{version}"));
+    let pnpm_dir = packages_dir.join("pnpm").join(version);
+    let exe_dir = packages_dir
+        .join("@pnpm")
+        .join(format!("exe.{target}"))
+        .join(version);
+    fs::create_dir_all(&pnpm_dir).expect("create synthetic pnpm package dir");
+    fs::create_dir_all(&exe_dir).expect("create synthetic @pnpm/exe.<target> package dir");
+
+    fs::write(
+        pnpm_dir.join("package.json"),
+        serde_json::json!({
+            "name": "pnpm",
+            "version": version,
+            "bin": {
+                "pnpm": "pnpm",
+                "pn": "pn",
+                "pnpx": "pnpx",
+                "pnx": "pnx",
+            },
+            "optionalDependencies": {
+                platform_pkg: version,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write synthetic pnpm package.json");
+    for bin_name in ["pnpm", "pn", "pnpx", "pnx"] {
+        fs::write(pnpm_dir.join(bin_name), "#!/bin/sh\necho placeholder\nexit 1\n")
+            .expect("write placeholder bin");
+    }
+
+    fs::write(
+        exe_dir.join("package.json"),
+        serde_json::json!({
+            "name": format!("@pnpm/exe.{target}"),
+            "version": version,
+            "os": [platform],
+            "cpu": [arch],
+        })
+        .to_string(),
+    )
+    .expect("write synthetic @pnpm/exe.<target> package.json");
+    let exe_path = exe_dir.join(exe_name);
+    fs::write(&exe_path, binary_bytes).expect("write synthetic platform binary");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(&exe_path, fs::Permissions::from_mode(0o755))
+            .expect("set executable bit on synthetic platform binary");
+    }
+
+    let storage_dir = root.join(format!("synthetic-storage-{version}"));
+    pnpr_fixtures::build_storage_at(&packages_dir, &storage_dir);
+    pnpm_testing_utils::registry::TestRegistry::start_static_with_storage(&storage_dir)
 }
 
 fn write_dev_engine_pin(workspace: &Path, version: &str) {

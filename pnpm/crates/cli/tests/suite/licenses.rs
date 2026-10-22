@@ -144,6 +144,116 @@ snapshots:
 }
 
 #[test]
+fn licenses_requires_a_lockfile() {
+    let project = tempfile::tempdir().expect("create project");
+    fs::write(project.path().join("package.json"), "{}").expect("write manifest");
+
+    let output = pacquet_in(project.path())
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_LICENSES_NO_LOCKFILE"), "{stderr}");
+    assert!(stderr.contains("No pnpm-lock.yaml found"), "{stderr}");
+}
+
+#[test]
+fn licenses_renders_empty_results_in_the_requested_format() {
+    let project = tempfile::tempdir().expect("create project");
+    fs::write(project.path().join("package.json"), "{}").expect("write manifest");
+    fs::write(
+        project.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .: {}\n",
+    )
+    .expect("write lockfile");
+
+    for (arguments, expected) in [
+        (vec!["licenses", "list"], "No licenses in packages found\n"),
+        (vec!["licenses", "list", "--json"], "{}\n"),
+        (vec!["licenses", "list", "--prod"], "No licenses in packages found\n"),
+    ] {
+        let output = pacquet_in(project.path())
+            .args(arguments)
+            .output()
+            .expect("run licenses");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    }
+}
+
+#[test]
+fn licenses_renders_empty_results_when_no_recursive_projects_match() {
+    for workspace_settings in ["", "sharedWorkspaceLockfile: false\n"] {
+        let workspace = tempfile::tempdir().expect("create workspace");
+        fs::write(workspace.path().join("package.json"), "{}").expect("write root manifest");
+        fs::write(
+            workspace.path().join("pnpm-workspace.yaml"),
+            format!("packages:\n  - packages/*\n{workspace_settings}"),
+        )
+        .expect("write workspace manifest");
+        let project = workspace.path().join("packages/alpha");
+        fs::create_dir_all(&project).expect("create workspace project");
+        fs::write(project.join("package.json"), r#"{"name":"alpha"}"#)
+            .expect("write project manifest");
+
+        for (json, expected) in [(false, "No licenses in packages found\n"), (true, "{}\n")] {
+            let mut command = pacquet_in(workspace.path());
+            command.args(["--filter", "no-such-pkg", "--recursive", "licenses", "list"]);
+            if json {
+                command.arg("--json");
+            }
+            let output = command.output().expect("run licenses");
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+        }
+    }
+}
+
+#[test]
+fn licenses_does_not_use_root_dependencies_for_an_unrecorded_workspace_project() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    let project = workspace.path().join("new-pkg");
+    fs::create_dir(&project).expect("create project");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages:\n  - new-pkg\n")
+        .expect("write workspace manifest");
+    fs::write(workspace.path().join("package.json"), "{}").expect("write root manifest");
+    fs::write(project.join("package.json"), r#"{"name":"new-pkg"}"#)
+        .expect("write project manifest");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      alpha:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  alpha@1.0.0:\n    resolution: {integrity: sha512-alpha}\nsnapshots:\n  alpha@1.0.0: {}\n",
+    )
+    .expect("write lockfile");
+    let package_dir = workspace.path().join("node_modules/.pnpm/alpha@1.0.0/node_modules/alpha");
+    fs::create_dir_all(&package_dir).expect("create package directory");
+    fs::write(
+        package_dir.join("package.json"),
+        r#"{"name":"alpha","version":"1.0.0","license":"MIT"}"#,
+    )
+    .expect("write package manifest");
+
+    let output = pacquet_in(&project)
+        .args(["licenses", "list", "--json"])
+        .output()
+        .expect("run licenses");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "{}\n");
+
+    assert_eq!(
+        listed_names(workspace.path(), &["--recursive", "licenses", "list", "--json"]),
+        ["alpha"],
+    );
+
+    let output = pacquet_in(workspace.path())
+        .args(["licenses", "list", "--dev"])
+        .output()
+        .expect("run licenses for dev dependencies");
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "No licenses in packages found\n");
+}
+
+#[test]
 fn licenses_reads_global_store_metadata_with_a_manifest_selected_runtime() {
     let CommandTempCwd {
         pacquet,
@@ -285,32 +395,66 @@ snapshots:
     )
     .expect("write lockfile");
 
-    let listed_names = |args: &[&str]| -> Vec<String> {
-        let output = pacquet_in(&workspace.path().join("bar"))
-            .args(args)
-            .output()
-            .expect("run licenses");
-        assert!(
-            output.status.success(),
-            "licenses should succeed: {}",
-            String::from_utf8_lossy(&output.stderr),
-        );
-        let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
-            .iter()
-            .map(|package| {
-                package["name"]
-                    .as_str()
-                    .expect("package name")
-                    .to_string()
-            })
-            .collect()
-    };
+    let project_dir = workspace.path().join("bar");
+    assert_eq!(listed_names(&project_dir, &["licenses", "list", "--json"]), ["zeta"]);
+    assert_eq!(
+        listed_names(&project_dir, &["--recursive", "licenses", "list", "--json"]),
+        ["alpha", "zeta"],
+    );
+}
 
-    assert_eq!(listed_names(&["licenses", "list", "--json"]), ["zeta"]);
-    assert_eq!(listed_names(&["--recursive", "licenses", "list", "--json"]), ["alpha", "zeta"]);
+#[test]
+fn licenses_lists_transitive_optional_dependencies_under_prod() {
+    let workspace = tempfile::tempdir().expect("create workspace");
+    fs::write(
+        workspace.path().join("package.json"),
+        json!({ "dependencies": { "alpha": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.path().join("pnpm-lock.yaml"),
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  alpha@1.0.0:
+    resolution: {integrity: sha512-alpha}
+  native@1.0.0:
+    resolution: {integrity: sha512-native}
+snapshots:
+  alpha@1.0.0:
+    optionalDependencies:
+      native: 1.0.0
+  native@1.0.0:
+    optional: true
+",
+    )
+    .expect("write lockfile");
+    for name in ["alpha", "native"] {
+        let package_dir = workspace
+            .path()
+            .join(format!("node_modules/.pnpm/{name}@1.0.0/node_modules/{name}"));
+        fs::create_dir_all(&package_dir).expect("create package directory");
+        fs::write(
+            package_dir.join("package.json"),
+            json!({ "name": name, "version": "1.0.0", "license": "MIT" }).to_string(),
+        )
+        .expect("write package manifest");
+    }
+
+    assert_eq!(
+        listed_names(workspace.path(), &["licenses", "list", "--json", "--prod"]),
+        ["alpha", "native"],
+    );
+    assert_eq!(
+        listed_names(workspace.path(), &["licenses", "list", "--json", "--prod", "--no-optional"]),
+        ["alpha"],
+    );
 }
 
 fn hoisted_project(recorded_dep_path: &str) -> tempfile::TempDir {
@@ -378,9 +522,10 @@ snapshots:
     workspace
 }
 
-fn listed_paths(workspace: &tempfile::TempDir) -> Value {
-    let output = pacquet_in(workspace.path())
-        .args(["licenses", "list", "--json"])
+/// The `MIT` group of `pnpm licenses list --json` run with `args` in `dir`.
+fn listed_mit_packages(dir: &Path, args: &[&str]) -> Vec<Value> {
+    let output = pacquet_in(dir)
+        .args(args)
         .output()
         .expect("run licenses");
     assert!(
@@ -389,10 +534,27 @@ fn listed_paths(workspace: &tempfile::TempDir) -> Value {
         String::from_utf8_lossy(&output.stderr),
     );
     let report: Value = serde_json::from_slice(&output.stdout).expect("parse licenses JSON");
+    report["MIT"]
+        .as_array()
+        .expect("MIT group")
+        .clone()
+}
+
+fn listed_names(dir: &Path, args: &[&str]) -> Vec<String> {
+    listed_mit_packages(dir, args)
+        .iter()
+        .map(|package| {
+            package["name"]
+                .as_str()
+                .expect("package name")
+                .to_string()
+        })
+        .collect()
+}
+
+fn listed_paths(workspace: &tempfile::TempDir) -> Value {
     Value::Array(
-        report["MIT"]
-            .as_array()
-            .expect("MIT group")
+        listed_mit_packages(workspace.path(), &["licenses", "list", "--json"])
             .iter()
             .map(|package| package["paths"][0].clone())
             .collect(),
@@ -923,10 +1085,8 @@ snapshots:
         is_positive_paths
             .iter()
             .find(|(listed, _)| listed == version)
-            .map_or_else(
-                || panic!("is-positive@{version} missing from {is_positive_paths:?}"),
-                |(_, path)| path.clone(),
-            )
+            .map(|(_, path)| path.clone())
+            .unwrap_or_else(|| panic!("is-positive@{version} missing from {is_positive_paths:?}"))
     };
     assert_eq!(
         dunce::canonicalize(path_of("3.1.0")).expect("canonicalize reported path"),

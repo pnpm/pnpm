@@ -3,8 +3,9 @@ import path from 'node:path'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
+import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { type ProjectsList, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { type ProjectsList, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 
 import type { InstallDepsOptions } from './installDeps.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
@@ -37,39 +38,90 @@ export async function updateSingleProjectWorkspaceState (
   { opts, allProjects, manifest, updatedCatalogs }: SingleProjectWorkspaceStateUpdate
 ): Promise<void> {
   if (!shouldSaveWorkspaceState(opts)) return
+  const installedProjectDirs = [opts.dir]
+  const filteredInstall = isFilteredInstall(allProjects, installedProjectDirs)
   await updateWorkspaceState({
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
     settings: withUpdatedCatalogs(opts, updatedCatalogs),
-    workspaceDir: opts.workspaceDir ?? opts.lockfileDir ?? opts.dir,
+    workspaceDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     pnpmfiles: opts.pnpmfile,
-    filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+    filteredInstall,
     configDependencies: opts.configDependencies,
+    validation: await stateValidation({ ...opts, installedProjectDirs }, filteredInstall),
   })
 }
 
 export async function recursiveInstallThenUpdateWorkspaceState (
   allProjects: Project[],
   params: string[],
-  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'saveWorkspaceState'>,
+  opts: RecursiveOptions & WorkspaceStateSettings & Pick<InstallDepsOptions, 'lockfileCheck' | 'saveWorkspaceState'>,
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
-  if (shouldSaveWorkspaceState(opts)) {
+  if (recursiveResult.installedProjectDirs.length > 0 && shouldSaveWorkspaceState(opts)) {
+    const filteredInstall = isFilteredInstall(allProjects, recursiveResult.installedProjectDirs)
     await updateWorkspaceState({
       allProjects,
       settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
-      workspaceDir: opts.workspaceDir,
+      workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
       pnpmfiles: opts.pnpmfile,
-      filteredInstall: allProjects.length !== Object.keys(opts.selectedProjectsGraph ?? {}).length,
+      filteredInstall,
       configDependencies: opts.configDependencies,
+      validation: await stateValidation({
+        ...opts,
+        dir: opts.workspaceDir,
+        installedProjectDirs: recursiveResult.installedProjectDirs,
+      }, filteredInstall),
     })
   }
   return recursiveResult.dryRunResult
 }
 
-function shouldSaveWorkspaceState (opts: Pick<InstallDepsOptions, 'lockfileOnly' | 'saveWorkspaceState'>): boolean {
-  return !opts.lockfileOnly && opts.saveWorkspaceState !== false
+function isFilteredInstall (allProjects: Project[], installedProjectDirs: string[]): boolean {
+  const installedDirs = new Set(installedProjectDirs)
+  return allProjects.some((project) => !installedDirs.has(project.rootDir))
+}
+
+/** The projects and shared inputs this install proved up to date. */
+interface StateValidationInputs {
+  dir: string
+  installedProjectDirs: string[]
+  lockfileDir?: string
+  workspaceDir?: string
+  sharedWorkspaceLockfile?: boolean
+  useGitBranchLockfile?: boolean
+  mergeGitBranchLockfiles?: boolean
+  patchedDependencies?: Record<string, string>
+  pnpmfile: string[]
+}
+
+async function stateValidation (
+  opts: StateValidationInputs,
+  filteredInstall: boolean
+): Promise<StateValidationOptions | undefined> {
+  const lockfileDir = opts.lockfileDir ?? opts.workspaceDir ?? opts.dir
+  return {
+    lockfileDir,
+    wantedLockfileName: await getWantedLockfileName({
+      useGitBranchLockfile: opts.useGitBranchLockfile,
+      mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      cwd: lockfileDir,
+    }),
+    sharedInputs: sharedInputPaths(lockfileDir, opts.patchedDependencies, opts.pnpmfile),
+    vouchedProjects: filteredInstall ? opts.installedProjectDirs : undefined,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+  }
+}
+
+/**
+ * A check-only install (`pnpm dedupe --check`, `--dry-run`) links nothing, so
+ * it proves nothing installed.
+ */
+function shouldSaveWorkspaceState (
+  opts: Pick<InstallDepsOptions, 'dryRun' | 'lockfileCheck' | 'lockfileOnly' | 'saveWorkspaceState'>
+): boolean {
+  return !opts.lockfileOnly && opts.lockfileCheck == null && opts.dryRun !== true && opts.saveWorkspaceState !== false
 }
 
 /**

@@ -1,17 +1,16 @@
+use crate::cli_args::package_spec::PackageSpec;
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
 use pnpm_config::Config;
 use pnpm_lockfile::{
     Lockfile, LockfileResolution, PackageMetadata, PkgName, ProjectSnapshot, ResolvedDependencySpec,
 };
-use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_store_dir::{
     PackageFilesIndex, StoreIndex, StoreIndexError, git_hosted_store_index_key, store_index_key,
 };
 use serde_json::Value;
 use std::{
     collections::HashSet,
-    io::Write as _,
     path::{Path, PathBuf},
 };
 
@@ -29,20 +28,17 @@ impl CatIndexArgs {
         dir: &Path,
         config: impl FnOnce() -> Result<&'a Config>,
     ) -> Result<()> {
-        let parsed = parse_wanted_dependency(&self.wanted_dependency);
-        let Some(alias) = parsed.alias else {
-            return Err(miette::miette!(
-                r#"Cannot parse the "{}" selector"#,
-                self.wanted_dependency
-            ));
-        };
+        let parsed = PackageSpec::parse(&self.wanted_dependency)
+            .ok_or_else(|| {
+                miette::miette!(r#"Cannot parse the "{}" selector"#, self.wanted_dependency)
+            })?;
 
         let config = config()?;
         let lockfile_dir = lockfile_dir(config, dir);
-        let requested_bare = parsed.bare_specifier.as_deref();
-        let keys = lockfile_store_index_keys(&lockfile_dir, dir, &alias, requested_bare)
+        let requested_bare = parsed.version.as_deref();
+        let keys = lockfile_store_index_keys(&lockfile_dir, dir, &parsed.name, requested_bare)
             .wrap_err("load package key from lockfile")?;
-        let fallback_pkg_ids = fallback_pkg_ids(&alias, requested_bare);
+        let fallback_pkg_ids = fallback_pkg_ids(&parsed.name, requested_bare);
         let store_dir = config.store_dir.root().to_path_buf();
         let frozen_store = config.frozen_store;
 
@@ -73,9 +69,7 @@ fn print_sorted_index(pkg_files_index: &PackageFilesIndex) -> Result<()> {
     let json = serde_json::to_string_pretty(&value)
         .into_diagnostic()
         .wrap_err("render package index JSON")?;
-    let mut stdout = std::io::stdout();
-    let _ = writeln!(stdout, "{json}");
-    let _ = stdout.flush();
+    pnpm_diagnostics::println!("{json}");
 
     Ok(())
 }
@@ -238,7 +232,7 @@ fn read_package_index(
     keys: Vec<String>,
     fallback_pkg_ids: Vec<String>,
 ) -> std::result::Result<Option<PackageFilesIndex>, StoreIndexError> {
-    if !store_dir.join("index.db").exists() {
+    if !StoreIndex::exists(store_dir) {
         return Ok(None);
     }
     let store_index = if frozen_store {

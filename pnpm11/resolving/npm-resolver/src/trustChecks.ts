@@ -194,8 +194,11 @@ function detectStrongestTrustEvidenceBeforeDate (
   const filter: TrustHistoryFilter = { beforeDate, excludePrerelease: options.excludePrerelease }
   let best: TrustEvidence | undefined
 
-  for (const versionEntry of Object.entries(meta.versions)) {
-    const trustEvidence = readEarlierTrustEvidence(meta, versionEntry, filter)
+  // Keys, not entries: a lazily-loaded packument parses a manifest only when
+  // its value is read, and most versions fail the date filter first.
+  for (const version in meta.versions) {
+    if (!Object.hasOwn(meta.versions, version)) continue
+    const trustEvidence = readEarlierTrustEvidence(meta, version, filter)
     if (!trustEvidence) continue
     if (trustEvidence === 'stagedPublish') return trustEvidence
     if (best === undefined || TRUST_RANK[trustEvidence] > TRUST_RANK[best]) {
@@ -208,7 +211,7 @@ function detectStrongestTrustEvidenceBeforeDate (
 
 function readEarlierTrustEvidence (
   meta: PackageMetaWithTime,
-  [version, manifest]: [string, PackageInRegistry],
+  version: string,
   filter: TrustHistoryFilter
 ): TrustEvidence | undefined {
   if (filter.excludePrerelease && semver.prerelease(version, true)) return undefined
@@ -218,7 +221,8 @@ function readEarlierTrustEvidence (
   const publishedAt = new Date(ts)
   if (!(publishedAt < filter.beforeDate)) return undefined
 
-  return getTrustEvidence(manifest)
+  const manifest = meta.versions[version]
+  return manifest == null ? undefined : getTrustEvidence(manifest)
 }
 
 export function getTrustEvidence (manifest: PackageInRegistry): TrustEvidence | undefined {

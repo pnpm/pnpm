@@ -1,11 +1,12 @@
 pub(crate) use environment::script_environment;
 pub(crate) use execution::exec_scripts_prepend_node_path;
 pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
+pub(crate) use injected_sync::project_modules_dirs;
 pub(super) use listing::ScriptSelector;
 
 use super::{
     exec::{ExecArgs, ExecDirs, ExecError},
-    reporter::{ReporterType, reporter_emit, suppresses_info_output},
+    reporter::{ReporterType, reporter_emit, script_output_colors, suppresses_info_output},
 };
 use clap::Args;
 use derive_more::{Display, Error};
@@ -32,7 +33,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
 use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use recursive::RecursiveRunOutcome;
-use regex::Regex;
+use regress::Regex;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -209,7 +210,7 @@ impl RunArgs {
         super::verify_deps::verify_deps_before_run(dir, &[dir], config, reporter)?;
         let Some((script_name, args)) = self.script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
-            println!("{}", render_project_commands(manifest.value(), None));
+            pnpm_diagnostics::println!("{}", render_project_commands(manifest.value(), None));
             return Ok(());
         };
         let manifest = match read_project_manifest_only(dir) {
@@ -268,7 +269,11 @@ impl RunArgs {
             extra_env: &extra_env,
             silent: suppresses_info_output(reporter),
             output: if interleaved {
-                ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
+                ScriptOutput::Streamed {
+                    dep_path: &dep_path,
+                    emit: reporter_emit(reporter),
+                    color: script_output_colors(),
+                }
             } else {
                 ScriptOutput::Inherit
             },
@@ -372,5 +377,7 @@ mod tests;
 mod execution;
 
 mod injected_sync;
+
+mod lifecycle_failure;
 
 mod listing;

@@ -5,8 +5,7 @@ use super::{
     pick_registry_for_package, signatures,
 };
 use crate::cli_args::recursive::{
-    no_projects_matched_message, notice_workspace_dir, selected_workspace_importer_ids,
-    selectors_narrow_the_run,
+    print_no_projects_matched, selected_workspace_importer_ids, selectors_narrow_the_run,
 };
 use std::borrow::Cow;
 
@@ -26,8 +25,7 @@ pub(super) fn select_audited_importers<'lockfile>(
     let selected =
         selected_workspace_importer_ids(state.config, state.project_dir(), state.lockfile_dir())?;
     if selected.is_empty() {
-        let workspace_dir = notice_workspace_dir(state.config, state.project_dir());
-        println!("{}", no_projects_matched_message(workspace_dir));
+        print_no_projects_matched(state.config, state.project_dir());
         return Ok(None);
     }
     let mut missing: Vec<&str> = selected
@@ -63,13 +61,10 @@ pub(super) fn signature_packages(
         return Ok(None);
     };
     let lockfile = lockfile.as_ref();
-    let env_lockfile = EnvLockfile::read(lockfile_dir)
-        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
+    let env_lockfile = read_audit_env_lockfile(lockfile_dir)?;
     let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
-    let registries: HashMap<String, String> = state.config
-        .resolved_registries()
-        .into_iter()
-        .collect();
+    let env_lockfile = env_lockfile.as_ref();
+    let registries = resolved_registries(state);
     Ok(Some(
         audit_request.request
             .iter()
@@ -77,12 +72,68 @@ pub(super) fn signature_packages(
                 let registry = pick_registry_for_package(&registries, name, None);
                 versions
                     .iter()
-                    .map(move |version| signatures::SignaturePackage {
-                        name: name.clone(),
-                        registry: registry.clone(),
-                        version: version.clone(),
+                    .flat_map(move |version| {
+                        let name = name.clone();
+                        let version = version.clone();
+                        let registry = registry.clone();
+                        signature_integrities(&format!("{name}@{version}"), lockfile, env_lockfile)
+                            .into_iter()
+                            .map(move |(integrity, pins_tar)| signatures::SignaturePackage {
+                                integrity,
+                                pins_tar,
+                                name: name.clone(),
+                                registry: registry.clone(),
+                                version: version.clone(),
+                            })
                     })
             })
             .collect(),
     ))
+}
+
+fn resolved_registries(state: &State) -> HashMap<String, String> {
+    state.config
+        .resolved_registries()
+        .into_iter()
+        .collect()
+}
+
+fn read_audit_env_lockfile(lockfile_dir: &std::path::Path) -> miette::Result<Option<EnvLockfile>> {
+    EnvLockfile::read(lockfile_dir)
+        .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))
+}
+
+fn signature_integrities(
+    package_id: &str,
+    lockfile: &Lockfile,
+    env_lockfile: Option<&EnvLockfile>,
+) -> Vec<(Option<String>, bool)> {
+    let Ok(key) = package_id.parse::<pnpm_lockfile::PackageKey>() else {
+        return vec![(None, false)];
+    };
+    let pins_tar = |package: &pnpm_lockfile::PackageMetadata, target| {
+        package.resolution.integrity_target(target) == pnpm_lockfile::IntegrityTarget::Tar
+    };
+    let mut integrities: Vec<(Option<String>, bool)> = lockfile.packages
+        .as_ref()
+        .and_then(|packages| packages.get(&key))
+        .map(|package| (package, pins_tar(package, lockfile.integrity_target())))
+        .into_iter()
+        .chain(
+            env_lockfile
+                .and_then(|env| env.packages.get(&key))
+                .map(|package| {
+                    (package, pins_tar(package, pnpm_lockfile::IntegrityTarget::Resource))
+                }),
+        )
+        .map(|(package, pins_tar)| {
+            (package.resolution.integrity().map(ToString::to_string), pins_tar)
+        })
+        .collect();
+    if integrities.is_empty() {
+        integrities.push((None, false));
+    }
+    integrities.sort_unstable();
+    integrities.dedup();
+    integrities
 }

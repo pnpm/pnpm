@@ -114,19 +114,16 @@ function writeRustKeyAssets (keys) {
 
 function renderRust (keys) {
   const entries = keys.map(({ fingerprint }) =>
-    `    NodeReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: include_str!("node_release_keys/${fingerprint}.asc"),\n    },`).join('\n')
+    `    TrustedReleaseKey {\n        fingerprint: "${fingerprint}",\n        armored_key: include_str!("node_release_keys/${fingerprint}.asc"),\n    },`).join('\n')
   return `// GENERATED - the Node.js release team's OpenPGP public keys, mirrored from
 // <https://github.com/nodejs/release-keys> (keys.list + keys/<fingerprint>.asc).
 //
 // Used to verify the signature of a Node.js release's SHASUMS256.txt before
 // trusting its hashes. Refresh with:
 //   node crypto/shasums-file/scripts/update-node-release-keys.mjs --update
-pub(crate) struct NodeReleaseKey {
-    pub(crate) fingerprint: &'static str,
-    pub(crate) armored_key: &'static str,
-}
+use crate::TrustedReleaseKey;
 
-pub(crate) const NODE_RELEASE_KEYS: &[NodeReleaseKey] = &[
+pub(crate) const NODE_RELEASE_KEYS: &[TrustedReleaseKey] = &[
 ${entries}
 ];
 `

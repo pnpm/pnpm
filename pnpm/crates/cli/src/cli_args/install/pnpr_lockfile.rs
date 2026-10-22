@@ -16,6 +16,7 @@ pub(super) async fn link_pnpr_lockfile<Reporter: self::Reporter + 'static>(
     selection: Option<&InstallFamilySelection>,
     link: PnprLink<'_>,
     lockfile: &Lockfile,
+    known_requires_build: Option<std::collections::HashMap<pnpm_lockfile::PackageKey, bool>>,
     pnpmfile_hook: Option<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 ) -> miette::Result<()> {
     let install = {
@@ -33,9 +34,13 @@ pub(super) async fn link_pnpr_lockfile<Reporter: self::Reporter + 'static>(
     };
     match selection {
         Some(selection) => {
-            Box::pin(install.run_selected::<Reporter>(workspace_install_selection(selection))).await
+            Box::pin(install.run_selected_with_known_requires_build::<Reporter>(
+                workspace_install_selection(selection),
+                known_requires_build,
+            ))
+            .await
         }
-        None => install.run::<Reporter>().await,
+        None => install.run_with_known_requires_build::<Reporter>(known_requires_build).await,
     }
     .wrap_err("linking dependencies resolved via the pnpr server")
 }
@@ -214,22 +219,17 @@ pub(super) async fn install_from_local_lockfile<Reporter: self::Reporter + 'stat
     let lockfile_verification_override =
         local_lockfile_verification(state, pnpr_server, link, local)?;
 
-    let install = {
-        let mut base_install = state.install(link.dependency_groups.clone());
-        base_install.lockfile_policy.frozen = true;
-        base_install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
-        base_install.lockfile_policy.trust = true;
-        base_install.execution.skip_runtimes = link.skip_runtimes;
-        base_install.execution.node_linker = link.node_linker;
-        base_install.execution.lockfile_only = link.lockfile.only;
-        base_install.context.lockfile_path = link.lockfile_path;
-        base_install.context.lockfile = MaybeLazyLockfile::Loaded(Some(local.lockfile));
-        base_install.projects.supported_architectures = link
-            .supported_architectures
-            .clone();
-        base_install.projects.pnpmfile_hook_override = local.pnpmfile_hook.clone();
-        base_install
-    };
+    let mut install = state.install(link.dependency_groups.clone());
+    install.lockfile_policy.frozen = true;
+    install.lockfile_policy.ignore_manifest_check = link.lockfile.ignore_manifest_check;
+    install.lockfile_policy.trust = true;
+    install.execution.skip_runtimes = link.skip_runtimes;
+    install.execution.node_linker = link.node_linker;
+    install.execution.lockfile_only = link.lockfile.only;
+    install.context.lockfile_path = link.lockfile_path;
+    install.context.lockfile = MaybeLazyLockfile::Loaded(Some(local.lockfile));
+    install.projects.supported_architectures = link.supported_architectures.clone();
+    install.projects.pnpmfile_hook_override = local.pnpmfile_hook.clone();
 
     let result = match (selection, lockfile_verification_override) {
         (Some(selection), Some(lockfile_verification_override)) => {
@@ -280,6 +280,7 @@ async fn prefetch_local_lockfile(
         &state.tarball_mem_cache,
         None,
         &local.lockfile_dir.to_string_lossy(),
+        None,
     )
     .await;
     prefetcher.prefetch_lockfile(
@@ -363,13 +364,13 @@ fn selected_prefetch_lockfile(
     config: &pnpm_config::Config,
 ) -> Option<Lockfile> {
     local.selection_importer_ids.map(|(_, selected_importer_ids)| {
-        let hoisted_importer_ids = matches!(link.node_linker, NodeLinker::Hoisted).then(|| {
+        let hoisted_ids = matches!(link.node_linker, NodeLinker::Hoisted).then(|| {
             local.lockfile.importers
                 .keys()
                 .cloned()
-                .collect::<std::collections::HashSet<_>>()
+                .collect()
         });
-        let initial_importer_ids = hoisted_importer_ids.as_ref().unwrap_or(selected_importer_ids);
+        let initial_importer_ids = hoisted_ids.as_ref().unwrap_or(selected_importer_ids);
         materialization_closure(
             local.lockfile,
             local.lockfile_dir,

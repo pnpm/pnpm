@@ -68,6 +68,10 @@ pub enum ScriptOutput<'a> {
         /// the project directory; `pnpm exec` names the package.
         dep_path: &'a str,
         emit: fn(&LogEvent),
+        /// Set `FORCE_COLOR=1` for the child unless the environment already
+        /// sets it. Piped output is not a terminal, so most tools would
+        /// otherwise drop their colors.
+        color: bool,
     },
 }
 
@@ -112,7 +116,9 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     };
     child_env.insert("npm_lifecycle_script".to_string(), command.run.clone());
 
-    if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
+    request_colors(&mut child_env, opts.output);
+
+    if let ScriptOutput::Streamed { dep_path, emit, .. } = opts.output {
         let wd = opts.pkg_root.to_string_lossy().into_owned();
         let streamed = StreamedScript { dep_path, stage: opts.invocation.stage, wd: &wd, emit };
         return run_streamed(opts, &shell, &command, &child_env, streamed, emulate);
@@ -138,6 +144,13 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     }
 
     run_in_shell(opts, &shell, &command, &child_env)
+}
+
+/// Apply the `color` request of [`ScriptOutput::Streamed`].
+fn request_colors(child_env: &mut HashMap<String, String>, output: ScriptOutput<'_>) {
+    if matches!(output, ScriptOutput::Streamed { color: true, .. }) {
+        child_env.entry("FORCE_COLOR".to_string()).or_insert_with(|| "1".to_string());
+    }
 }
 
 /// The script's environment: the parent's, the `npm_*` lifecycle variables,

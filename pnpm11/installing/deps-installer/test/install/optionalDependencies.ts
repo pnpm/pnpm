@@ -167,7 +167,7 @@ test('skip optional dependencies whose names declare unsupported platforms when 
   await new Promise<void>((resolve) => {
     server.listen(0, resolve)
   })
-  const registryProxy = `http://localhost:${(server.address() as AddressInfo).port}/`
+  const registryProxy = `http://localhost:${(server.address() as AddressInfo).port}/npm/`
   try {
     await install({
       dependencies: {
@@ -269,7 +269,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
   await new Promise<void>((resolve) => {
     server.listen(0, resolve)
   })
-  const registryProxy = `http://localhost:${(server.address() as AddressInfo).port}/`
+  const registryProxy = `http://localhost:${(server.address() as AddressInfo).port}/npm/`
   try {
     // dedupe re-resolves every package from registry metadata, so it hits the
     // stale packuments even though the lockfile already pins the versions.
@@ -291,7 +291,7 @@ test('fail on an optional dependency that cannot be resolved when the lockfile h
 // is missing from the version list even though other packages already
 // reference it. Everything else is forwarded to the registry mock.
 function createVersionHidingRegistryProxy (pkgNames: string[], hiddenVersion: string): http.Server {
-  const hiddenPkgPaths = new Set(pkgNames.map((pkgName) => `/${pkgName}`))
+  const hiddenPkgPaths = new Set(pkgNames.map((pkgName) => `/npm/${pkgName}`))
   return http.createServer((req, res) => {
     forwardHidingVersion({ hiddenPkgPaths, hiddenVersion }, req, res).catch((err) => {
       res.writeHead(500, { 'content-type': 'text/plain' })

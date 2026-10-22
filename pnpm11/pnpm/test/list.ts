@@ -349,4 +349,49 @@ test('fails with WORKSPACE_DIR_NOT_FOUND when workspace directory does not exist
   expect(result.stdout.toString()).toContain('ERR_PNPM_WORKSPACE_DIR_NOT_FOUND')
 })
 
+test('list shows correct package path when nodeLinker is hoisted', async () => {
+  prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  await execPnpm(['install', '--config.node-linker=hoisted'])
+
+  const { stdout } = execPnpmSync(['list', '--json', '--depth', '1'])
+  const result = JSON.parse(stdout.toString())
+  expect(result[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].path).toBe(
+    path.resolve('node_modules/@pnpm.e2e/pkg-with-1-dep')
+  )
+  expect(
+    result[0].dependencies['@pnpm.e2e/pkg-with-1-dep'].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep'].path
+  ).toBe(
+    path.resolve('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')
+  )
+})
+
+test('why from workspace root without -r inspects projects with separate lockfiles', async () => {
+  preparePackages([
+    {
+      location: 'packages/project-1',
+      package: { name: 'project-1', version: '1.0.0', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+    },
+    {
+      location: 'packages/project-2',
+      package: { name: 'project-2', version: '1.0.0', dependencies: { '@pnpm.e2e/pkg-with-1-dep': '100.0.0' } },
+    },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['packages/*'],
+    sharedWorkspaceLockfile: false,
+  })
+  await execPnpm(['install'])
+
+  const { stdout } = execPnpmSync(['why', '@pnpm.e2e/dep-of-pkg-with-1-dep'], { expectSuccess: true })
+  const output = stdout.toString()
+  expect(output).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
+  expect(output).toContain('project-1@1.0.0')
+  expect(output).toContain('project-2@1.0.0')
+  expect(output).toContain('Found 1 version of @pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
 

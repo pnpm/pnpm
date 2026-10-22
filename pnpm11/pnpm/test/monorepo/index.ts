@@ -2485,6 +2485,76 @@ test('an injected dependency with a postinstall script is hard linked when share
   }
 })
 
+test('an injected dependency keeps only the files listed in its manifest when sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      files: ['index.js'],
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/index.js', 'module.exports = 1', 'utf8')
+  fs.writeFileSync('shared/tsconfig.json', '{}', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
+test('an injected dependency built by prepare keeps only the files listed in its manifest', async () => {
+  preparePackages([
+    {
+      name: 'shared',
+      version: '1.0.0',
+      files: ['index.js'],
+      scripts: {
+        prepare: 'node -e "require(\'fs\').writeFileSync(\'index.js\', \'built\')"',
+      },
+    },
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        shared: 'workspace:*',
+      },
+      dependenciesMeta: {
+        shared: {
+          injected: true,
+        },
+      },
+    },
+  ])
+  fs.writeFileSync('shared/tsconfig.json', '{}', 'utf8')
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    dedupeInjectedDeps: false,
+    strictDepBuilds: false,
+  })
+
+  execPnpmSync(['install'])
+
+  expect(fs.readFileSync('app/node_modules/shared/index.js', 'utf8')).toBe('built')
+  expect(fs.readdirSync('app/node_modules/shared').sort()).toStrictEqual(['index.js', 'package.json'])
+})
+
 test('an injected dependency that publishes from a directory built by prepare gets the built content when sharedWorkspaceLockfile is false', async () => {
   preparePackages([
     {
@@ -2579,6 +2649,43 @@ test('pnpm install --frozen-lockfile fails when an injected workspace package ve
 
   await expect(
     execPnpm(['install', '--frozen-lockfile'])
+  ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
+})
+
+test('pnpm install --frozen-lockfile fails when a dependency of an injected workspace package changes and sharedWorkspaceLockfile is false', async () => {
+  preparePackages([
+    {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: {
+        lib: 'workspace:*',
+      },
+    },
+    {
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    sharedWorkspaceLockfile: false,
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+  })
+
+  await execPnpm(['install'])
+  await execPnpm(['--filter=app', 'install', '--frozen-lockfile'])
+
+  const libManifest = JSON.parse(fs.readFileSync('lib/package.json', 'utf8'))
+  libManifest.dependencies['is-positive'] = '3.1.0'
+  fs.writeFileSync('lib/package.json', JSON.stringify(libManifest, null, 2))
+
+  await expect(
+    execPnpm(['--filter=app', 'install', '--frozen-lockfile'])
   ).rejects.toThrow('ERR_PNPM_OUTDATED_LOCKFILE')
 })
 

@@ -11,7 +11,7 @@ Runs a script defined in the package's manifest file.
 
 Let's say you have a `watch` script configured in your `package.json`, like so:
 
-```json
+```json title="package.json"
 "scripts": {
     "watch": "webpack --watch"
 }
@@ -39,6 +39,12 @@ pnpm run "/^watch:/"
 
 The selector must be written as a regular expression literal — that is, wrapped in slashes — and quoted, so the shell does not mangle it. A plain string is always treated as a literal script name, and a script whose name matches the argument exactly takes precedence over regex matching.
 
+The pattern uses JavaScript regular expression syntax, including lookahead and lookbehind. Run every `hello:` script except `hello:b`:
+
+```sh
+pnpm run "/^hello:(?!b$).*$/"
+```
+
 Matching is not anchored, so `"/build:.*/"` also matches `prebuild:web`. Anchor the pattern with `^` and `$` when you need an exact prefix.
 
 Matched scripts run in lexicographical order, so the selection is deterministic regardless of the order the scripts appear in `package.json`. Since v12.2.0 they run concurrently, up to [`--workspace-concurrency`](./recursive.md#--workspace-concurrency), with each script's output prefixed by its name. To run them strictly one at a time, add [`--sequential`](#--sequential--s).
@@ -55,7 +61,7 @@ long as you have a package installed, you can use it in a script like a regular
 command. For example, if you have `eslint` installed, you can write up a script
 like so:
 
-```json
+```json title="package.json"
 "lint": "eslint src --fix"
 ```
 
@@ -73,6 +79,7 @@ These environment variables may be used to get contextual information about the 
 These are the environment variables created by pnpm:
 
 * **npm_command** - contains the name of the executed command. If the executed command is `pnpm run`, then the value of this variable will be "run-script".
+* **FORCE_COLOR** - set to `1` when pnpm prints the script's output itself and pnpm's own output is in color. pnpm prints the output itself with [`--stream`](#--stream) or [`--parallel`](#--parallel), or when several scripts run at once. A `FORCE_COLOR` that is already set is kept.
 
 ## Options
 
@@ -195,7 +202,7 @@ Record the result of the scripts executions into a `pnpm-exec-summary.json` file
 
 An example of a `pnpm-exec-summary.json` file:
 
-```json
+```json title="pnpm-exec-summary.json"
 {
   "executionStatus": {
     "/Users/zoltan/src/pnpm/pnpm/cli/command": {
@@ -207,6 +214,7 @@ An example of a `pnpm-exec-summary.json` file:
       "duration": 1865.914958
     }
   }
+}
 ```
 
 Possible values of `status` are: 'passed', 'queued', 'running'.

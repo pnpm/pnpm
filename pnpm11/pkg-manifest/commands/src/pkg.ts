@@ -9,6 +9,7 @@ import {
   setObjectValueByPropertyPathString,
 } from '@pnpm/object.property-path'
 import type { ProjectManifest } from '@pnpm/types'
+import HostedGit from 'hosted-git-info'
 import { renderHelp } from 'render-help'
 
 import { assignReportKeys } from './reportKeys.js'
@@ -181,25 +182,39 @@ async function pkgFix (opts: PkgCommandOptions): Promise<void> {
   const { manifest, writeProjectManifest } = await readProjectManifest(opts.dir)
   const untypedManifest = manifest as ProjectManifest & Record<string, unknown>
 
-  if ('name' in untypedManifest && typeof untypedManifest.name !== 'string') {
-    delete untypedManifest.name
-  }
-
-  if ('version' in untypedManifest && typeof untypedManifest.version !== 'string') {
-    delete untypedManifest.version
-  }
-
+  removeIllTypedField(untypedManifest, 'name', (value) => typeof value === 'string')
+  removeIllTypedField(untypedManifest, 'version', (value) => typeof value === 'string')
   for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'scripts'] as const) {
-    if (field in untypedManifest && !isPlainObject(untypedManifest[field])) {
-      delete untypedManifest[field]
-    }
+    removeIllTypedField(untypedManifest, field, isPlainObject)
   }
+  removeIllTypedField(untypedManifest, 'bin', (value) => typeof value === 'string' || isPlainObject(value))
 
-  if ('bin' in untypedManifest && typeof untypedManifest.bin !== 'string' && !isPlainObject(untypedManifest.bin)) {
-    delete untypedManifest.bin
-  }
+  normalizeRepository(untypedManifest)
 
   await writeProjectManifest(manifest)
+}
+
+function removeIllTypedField (
+  manifest: Record<string, unknown>,
+  field: string,
+  isWellTyped: (value: unknown) => boolean
+): void {
+  if (field in manifest && !isWellTyped(manifest[field])) {
+    delete manifest[field]
+  }
+}
+
+// Mirrors the fixRepositoryField step of npm's `pkg fix`.
+function normalizeRepository (manifest: Record<string, unknown>): void {
+  if (typeof manifest.repository === 'string' && manifest.repository !== '') {
+    manifest.repository = { type: 'git', url: manifest.repository }
+  }
+  const repository = manifest.repository
+  if (!isPlainObject(repository) || typeof repository.url !== 'string') return
+  const hosted = HostedGit.fromUrl(repository.url)
+  // A gist has no owner, but any other host renders an ownerless shortcut such as `github:skills` as a broken URL.
+  if (hosted == null || (hosted.user == null && hosted.type !== 'gist')) return
+  repository.url = hosted.getDefaultRepresentation() === 'shortcut' ? hosted.https() : hosted.toString()
 }
 
 function isPlainObject (value: unknown): value is Record<string, unknown> {

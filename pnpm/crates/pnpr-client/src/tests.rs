@@ -103,6 +103,7 @@ async fn the_resolve_request_carries_the_catalogs_and_the_whole_policy() {
             "autoInstallPeers": false,
             "dedupePeers": true,
             "excludeLinksFromLockfile": false,
+            "addMissingPeerTypes": true,
             "resolutionMode": "time-based",
             "minimumReleaseAge": 1440,
             "minimumReleaseAgeExclude": ["@acme/*"],
@@ -240,7 +241,7 @@ async fn a_project_transform_header_preserves_streaming_prefetch() {
     })
     .await;
 
-    assert!(matches!(result, Err(PnprClientError::Server(_))));
+    assert!(matches!(result, Err(PnprClientError::Server { .. })));
     assert_eq!(prefetched, ["acme@1.0.0"]);
 }
 
@@ -288,6 +289,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
             auto_install_peers: Some(false),
             dedupe_peers: Some(true),
             exclude_links_from_lockfile: Some(false),
+            add_missing_peer_types: Some(true),
             resolution_mode: ResolutionMode::TimeBased,
         },
         reuse: crate::LockfileReuseOptions {
@@ -434,7 +436,7 @@ fn structural_violations_keep_their_code_and_hint() {
 
 #[test]
 fn a_package_frame_parses_its_fetch_hint() {
-    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3}"#;
+    let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42,"revision":3,"requiresBuild":false}"#;
     let Frame::Package {
         id,
         name,
@@ -444,6 +446,7 @@ fn a_package_frame_parses_its_fetch_hint() {
         unpacked_size,
         file_count,
         revision,
+        requires_build,
     } = parse_frame(line).expect("frame parses")
     else {
         panic!("expected a package frame");
@@ -456,11 +459,12 @@ fn a_package_frame_parses_its_fetch_hint() {
     assert_eq!(unpacked_size, Some(123456));
     assert_eq!(file_count, Some(42));
     assert_eq!(revision, Some(TarballRevision::try_from(3).unwrap()));
+    assert_eq!(requires_build, Some(false));
 }
 
 #[test]
 fn package_frames_reject_invalid_revisions() {
-    for revision in [0, 9_007_199_254_740_992_u64] {
+    for revision in ["-1", "9007199254740992"] {
         let line = format!(
             r#"{{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","revision":{revision}}}"#,
         );
@@ -490,6 +494,7 @@ fn an_untyped_frame_is_a_protocol_error() {
 async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
     let client = PnprClient::new("http://example.invalid");
     let request = super::PublishPipelineRunRequest {
+        org: "acme".to_string(),
         workspace: "demo".to_string(),
         run_id: "100-run".to_string(),
         summary: json!({}),
@@ -521,6 +526,7 @@ async fn pipeline_report_redirects_are_not_followed() {
         .await;
     let client = PnprClient::new(server.url());
     let request = super::PublishPipelineRunRequest {
+        org: "acme".to_string(),
         workspace: "demo".to_string(),
         run_id: "100-run".to_string(),
         summary: json!({}),
@@ -535,4 +541,161 @@ async fn pipeline_report_redirects_are_not_followed() {
     );
     redirect.assert_async().await;
     destination.assert_async().await;
+}
+
+#[tokio::test]
+async fn negotiates_v0_when_supported_by_handshake() {
+    let mut server = mockito::Server::new_async().await;
+    let handshake_mock = server
+        .mock("GET", "/-/pnpr")
+        .with_body(
+            json!({
+                "pnpr": {
+                    "versions": [0],
+                    "fixLockfile": [0]
+                }
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+
+    let options = resolve_projects_options();
+    let done = json!({
+        "type": "done",
+        "lockfile": matching_transform_lockfile(&options),
+        "appliedPolicies": {
+            "autoInstallPeers": false,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": false,
+            "addMissingPeerTypes": true,
+            "frozenLockfile": false,
+            "resolutionMode": "time-based",
+            "minimumReleaseAge": 1440,
+            "trustPolicy": "no-downgrade"
+        }
+    });
+
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{done}\n"))
+        .create_async()
+        .await;
+
+    let client = PnprClient::new(server.url());
+    let version = client.negotiated_resolver_version().await.expect("negotiation succeeds");
+    assert_eq!(version, 0);
+
+    let outcome = client.resolve_projects(options).await.expect("resolve succeeds with v0");
+
+    assert!(outcome.applied_policies.is_some());
+    handshake_mock.assert_async().await;
+    resolve_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn structured_error_codes_are_preserved() {
+    let mut server = mockito::Server::new_async().await;
+    let error_frame = json!({
+        "type": "error",
+        "message": "outdated lockfile",
+        "code": "ERR_PNPM_OUTDATED_LOCKFILE"
+    });
+
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{error_frame}\n"))
+        .create_async()
+        .await;
+
+    let err = PnprClient::new(server.url())
+        .resolve_projects(resolve_projects_options())
+        .await
+        .unwrap_err();
+
+    match err {
+        PnprClientError::Server { message, code } => {
+            assert_eq!(message, "outdated lockfile");
+            assert_eq!(code.as_deref(), Some("ERR_PNPM_OUTDATED_LOCKFILE"));
+        }
+        other => panic!("expected PnprClientError::Server, got {other:?}"),
+    }
+    resolve_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn unknown_frames_are_ignored() {
+    let mut server = mockito::Server::new_async().await;
+    let warning_frame = json!({
+        "type": "warning",
+        "message": "new version available"
+    });
+    let options = resolve_projects_options();
+    let done_frame = json!({
+        "type": "done",
+        "lockfile": matching_transform_lockfile(&options),
+        "appliedPolicies": {
+            "autoInstallPeers": false,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": false,
+            "addMissingPeerTypes": true,
+            "frozenLockfile": false,
+            "resolutionMode": "time-based",
+            "minimumReleaseAge": 1440,
+            "trustPolicy": "no-downgrade"
+        }
+    });
+
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{warning_frame}\n{done_frame}\n"))
+        .create_async()
+        .await;
+
+    let outcome = PnprClient::new(server.url())
+        .resolve_projects(options)
+        .await
+        .expect("unknown frame should be ignored without error");
+
+    assert_eq!(outcome.lockfile.lockfile_version.to_string(), "9.0");
+    resolve_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fails_when_server_ignores_trust_policy() {
+    let mut server = mockito::Server::new_async().await;
+    let mut opts = resolve_projects_options();
+    opts.verification.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
+
+    let done = json!({
+        "type": "done",
+        "lockfile": matching_transform_lockfile(&opts),
+        "appliedPolicies": {
+            "autoInstallPeers": true,
+            "dedupePeers": true,
+            "excludeLinksFromLockfile": false,
+            "addMissingPeerTypes": false,
+            "frozenLockfile": false,
+            "resolutionMode": "highest",
+            "trustPolicy": "off"
+        }
+    });
+
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{done}\n"))
+        .create_async()
+        .await;
+
+    let err = PnprClient::new(server.url()).resolve_projects(opts).await.unwrap_err();
+
+    assert!(
+        matches!(err, PnprClientError::Protocol(ref msg) if msg.contains("trustPolicy")),
+        "expected error when server ignores trustPolicy, got: {err}",
+    );
+    resolve_mock.assert_async().await;
 }

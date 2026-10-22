@@ -37,6 +37,20 @@ pub enum PickPackageError {
         #[help]
         hint: Option<String>,
     },
+    /// `ERR_PNPM_CORRUPT_METADATA_MIRROR`: a bypassing refetch — the
+    /// last available remedy for a mirror fragment that fails to
+    /// decode — rewrote the mirror and the fragment is still
+    /// undecodable.
+    #[display(
+        "Metadata mirror for {spec_name}@{spec_fetch_spec} is still unreadable after a bypassing refetch ({pkg_mirror:?})"
+    )]
+    #[diagnostic(code(ERR_PNPM_CORRUPT_METADATA_MIRROR))]
+    CorruptMetadataMirror {
+        #[error(not(source))]
+        spec_name: String,
+        spec_fetch_spec: String,
+        pkg_mirror: PathBuf,
+    },
     /// Underlying picker error (no versions, unpublished, missing
     /// time, etc.). The picker errors are described on
     /// [`PickPackageFromMetaError`].

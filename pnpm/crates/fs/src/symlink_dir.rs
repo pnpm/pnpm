@@ -39,9 +39,10 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     }
     #[cfg(windows)]
     {
-        let original = to_native_separators(original);
-        let link = to_native_separators(link);
-        windows::create(&original, &link)
+        let result = windows::create(&to_native_separators(original), &to_native_separators(link));
+        #[cfg(feature = "test")]
+        crate::test_support::notify_attempt(link, &result);
+        result
     }
 }
 

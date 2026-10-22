@@ -1,7 +1,7 @@
 import { parseBareSpecifier } from '@pnpm/resolving.npm-resolver'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type {
   ExtendedWantedDependency,
   ResolutionContext,
@@ -101,7 +101,6 @@ export function getResolveDependencyOptions (
     proceed: extendedWantedDep.proceed || plan.updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
     update: getUpdateMode(extendedWantedDep.wantedDependency, plan.update, options.updateToLatest),
-    updatePatches: options.updatePatches,
     updateChecksums: ctx.updateChecksums,
     updateDepth: plan.updateDepth,
     updateRequested: plan.updateRequested,

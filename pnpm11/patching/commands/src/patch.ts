@@ -67,7 +67,9 @@ export type PatchCommandOptions = Pick<Config,
 | 'modulesDir'
 | 'virtualStoreDir'
 | 'sharedWorkspaceLockfile'
+| 'workspaceDir'
 > & Pick<ConfigContext,
+| 'allProjects'
 | 'rootProjectManifest'
 > & CreateStoreControllerOptions & {
   editDir?: string
@@ -87,6 +89,9 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
     lockfileDir,
     modulesDir: opts.modulesDir,
     virtualStoreDir: opts.virtualStoreDir,
+    workspaceDir: opts.workspaceDir,
+    sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
+    allProjects: opts.allProjects,
   })
 
   const quote = isWindows() ? '"' : "'"
@@ -112,7 +117,7 @@ export async function handler (opts: PatchCommandOptions, params: string[]): Pro
       patchedDep,
       patchedDir: editDir,
       patchedDependencies: opts.patchedDependencies,
-      lockfileDir,
+      lockfileDir: opts.workspaceDir ?? lockfileDir,
     })
   }
 

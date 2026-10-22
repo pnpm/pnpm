@@ -63,6 +63,7 @@ napi-build = { workspace = true }
 mockito = { workspace = true }
 pretty_assertions = { workspace = true }
 pnpm-testing-utils = { workspace = true }
+rayon = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]

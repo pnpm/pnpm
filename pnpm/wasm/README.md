@@ -14,7 +14,6 @@ at compile time.
 From the repository root, with workspace dependencies installed:
 
 ```sh
-rustup toolchain install nightly-2026-08-27 --profile minimal --target wasm32-wasip1-threads
 export WASI_SDK_PATH=/path/to/wasi-sdk-34.0
 export WABT_PATH=/path/to/wabt-1.0.42
 pnpm build:pnpm:wasm
@@ -28,8 +27,10 @@ node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-runtime target/wasm-ru
 `stage.mjs` writes the `@pnpm/wasm` package to `pnpm/npm/wasm`, which the
 release jobs publish. `pack.mjs` packs the same package as `target/pnpm-wasm.tgz`.
 
-The full build uses the pinned nightly because `cap-primitives` requires unstable
-WASI filesystem APIs. Native builds retain the repository's stable toolchain.
+The build scripts run the pinned nightly with `pnx --package=rust@<channel>`, so
+pnpm installs it with the `wasm32-wasip1-threads` target. The full build needs a
+nightly because `cap-primitives` requires unstable WASI filesystem APIs. Native
+builds retain the repository's stable toolchain.
 Download and extract [WASI SDK 34](https://github.com/WebAssembly/wasi-sdk/releases/tag/wasi-sdk-34)
 before setting `WASI_SDK_PATH`; the build checks its version and does not download
 a compiler. The SDK also builds bundled SQLite with threading enabled.

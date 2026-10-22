@@ -61,7 +61,12 @@ fn bin_source(
     let hash = format!("{:x}", Sha256::digest(id.as_bytes()));
     let root = package.root
         .clone()
-        .unwrap_or_else(|| inputs.root.join(".pnpm-loader").join(&hash));
+        .unwrap_or_else(|| {
+            inputs.config
+                .store_loader_dir(inputs.root)
+                .join(".pnpm-loader")
+                .join(&hash)
+        });
     let metadata = read_manifest(package, &manifest.store_dir, &root)?;
     if package.resolution.as_deref() == Some("node") {
         return Ok(Some(PackageBinSource::new(root, Arc::new(metadata))));
@@ -76,7 +81,11 @@ fn bin_source(
     let mut bins = serde_json::Map::new();
     for (index, command) in commands.iter().enumerate() {
         let filename = format!("{index}.mjs");
-        write_entry(inputs.root, &entry_dir.join(&filename), &command.path)?;
+        write_entry(
+            &inputs.config.store_loader_dir(inputs.root),
+            &entry_dir.join(&filename),
+            &command.path,
+        )?;
         bins.insert(command.name.clone(), filename.into());
     }
     metadata["bin"] = bins.into();
@@ -100,8 +109,8 @@ fn package_bins(
     })
 }
 
-fn write_entry(root: &Path, path: &Path, target: &Path) -> io::Result<()> {
-    let loader = file_url(&root.join(LOADER_FILENAME))?;
+fn write_entry(loader_dir: &Path, path: &Path, target: &Path) -> io::Result<()> {
+    let loader = file_url(&loader_dir.join(LOADER_FILENAME))?;
     let target = serde_json::to_string(target)?;
     let loader = serde_json::to_string(&loader)?;
     let source = format!(

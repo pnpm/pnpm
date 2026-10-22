@@ -7,6 +7,8 @@ mod catalogs;
 
 mod store;
 
+mod modules_dir_disabled;
+
 mod frozen_policy;
 
 mod frozen_dispatch;
@@ -155,7 +157,7 @@ fn scoped_package_body(registry_url: &str) -> String {
     )
 }
 
-/// Unit tests for [`super::build_projects_map`] / [`super::build_workspace_state`].
+/// Unit tests for [`super::build_projects_map`] / [`super::workspace_state::build_workspace_state`].
 /// The `projects` map must contain one entry per project in the list,
 /// keyed on the project root dir. Pacquet's `build_projects_map`
 /// derives the list directly from `project_manifests`, so a fresh
@@ -254,7 +256,6 @@ async fn run_purge_regression_install_with_lockfile(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: true,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -343,7 +344,6 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -460,7 +460,6 @@ async fn fresh_lockfile_only_with_overrides(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -562,7 +561,6 @@ async fn fresh_lockfile_only_with_compatibility_db(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -663,7 +661,6 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -766,7 +763,6 @@ async fn install_workspace_member_with_pnpmfile(
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

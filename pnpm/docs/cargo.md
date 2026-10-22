@@ -43,9 +43,14 @@ pnpm writes the dependency into `Cargo.toml` without reformatting anything else 
 2. Resolves the graph against the sparse index and writes a deterministic `Cargo.lock`. When `Cargo.lock` is already there, it is used as-is.
 3. Verifies each locked `.crate` archive against its checksum and unpacks it into pnpm's store.
 4. Links the store slots into a Cargo [directory source](https://doc.rust-lang.org/cargo/reference/source-replacement.html) under `.pnpm/crates/crates-io`, generating the `.cargo-checksum.json` files Cargo expects.
-5. Writes a source-replacement block into `.cargo/config.toml`, between the markers `# >>> pnpm-managed cargo sources >>>` and `# <<< pnpm-managed cargo sources <<<`. Anything you wrote outside those markers is left alone.
+5. Writes the source replacement for those crates into `.pnpm/crates/config.toml`.
+6. Adds an optional `[[include]]` of that file to `.cargo/config.toml`, between the markers `# >>> pnpm-managed cargo sources >>>` and `# <<< pnpm-managed cargo sources <<<`. Anything you wrote outside those markers is left alone. If you list your own includes, write them as `[[include]]` tables too.
 
-`cargo build` then compiles offline against the vendored sources. pnpm does not compile anything itself.
+A crate that an earlier install unpacked into the store is linked as it is, without comparing its files with the store again. [`verifyStoreIntegrity`](./settings/store.md#verifystoreintegrity) applies when a crate is unpacked. `pnpm install --force` unpacks every crate again.
+
+`cargo build` then compiles offline against the vendored sources. pnpm does not compile anything itself. Cargo 1.95 and later read the include.
+
+Without `.pnpm`, for example in a fresh clone, Cargo skips the include and fetches crates from their registry as usual.
 
 Crates are recorded in `Cargo.lock`, never in `pnpm-lock.yaml`. The two lockfiles stay independent.
 
@@ -99,6 +104,35 @@ settings from the workspace Git configuration and `GIT_ALLOW_PROTOCOL`. Unsuppor
 ## Faster resolution through pnpr
 
 With [`pnprServer`](/pnpr/install-acceleration) set, pnpm asks the server to resolve the Cargo graph instead of fetching one sparse-index file per crate. A server that does not answer for Cargo makes pnpm fall back to resolving locally.
+
+## Rust toolchain
+
+Added in: v12.11.0
+
+`pnpm install` installs the Rust toolchain that the workspace's [toolchain file](https://rust-lang.github.io/rustup/overrides.html#the-toolchain-file) names. pnpm reads `rust-toolchain.toml`, or the older `rust-toolchain`, the way rustup does. Each Cargo manifest uses the nearest file at or above it inside the repository.
+
+```toml title="rust-toolchain.toml"
+[toolchain]
+channel = "1.95.0"
+components = ["rust-src"]
+targets = ["wasm32-unknown-unknown"]
+```
+
+* `channel` accepts a version (`1.95.0` or `1.95`), `stable`, `beta`, `nightly`, or a dated channel such as `nightly-2026-01-01`.
+* `profile` accepts `minimal` (`rustc`, `cargo`, and the standard library) and `default`, which adds `rustfmt` and `clippy`. pnpm leaves out `rust-docs` unless `components` lists it.
+* `components` and `targets` add components and standard libraries for other targets.
+* A file that sets `path`, sets no `channel`, names a toolchain linked with `rustup toolchain link`, or asks for another profile such as `complete` is left to rustup. So is a machine Rust publishes no toolchain for.
+* On Windows, pnpm installs the toolchain for rustup's default host, which `rustup set default-host` changes. Without one, it installs the MSVC toolchain for the machine's architecture, as rustup does.
+
+pnpm verifies the release manifest against the Rust release signing key and checks every download against the hash the manifest lists. The toolchain is stored once per machine under `rust` in the [store](./settings/store.md#storedir) and linked into `.pnpm/rust` beside the toolchain file.
+
+`pnpm run`, `pnpm exec`, and the `cargo` commands pnpm runs during an install use the linked toolchain. A machine without rustup can build the workspace with `pnpm exec cargo build` or with a script. To run a different release for one command, such as a nightly, use [`pnx --package=rust@<channel>`](./cli/pnx.md#running-a-rust-release).
+
+A channel that moves, such as `stable`, is checked once a day, so a new release is installed when it comes out. Offline, or when the server cannot be reached, pnpm uses the newest release of the channel already in the store. Pin a version to avoid the check.
+
+`pnpm add rust@1.95` writes the toolchain file for you. `pnpm add -g rust` installs a toolchain globally and makes the bare `cargo`, `rustc`, and the other Rust tools in your shell run the toolchain the project's toolchain file names, and the global one elsewhere. On a machine with rustup, `pnpm shim add rust` does the same without a global toolchain. See [Adding the Rust toolchain](./cli/add.md#adding-the-rust-toolchain) and [`pnpm shim`](./cli/shim.md#how-a-version-is-chosen).
+
+[`runtimeOnFail`](./settings/cli.md#runtimeonfail) set to `error`, `warn`, or `ignore` turns this off and leaves the toolchain to rustup. A distribution that builds a package with its own Rust toolchain can run `pnpm install --config.runtime-on-fail=ignore`. Download toolchains from a mirror with [`tools.rust.mirror`](./settings/cli.md#tools).
 
 ## Settings
 

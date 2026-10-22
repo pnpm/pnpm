@@ -24,7 +24,6 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(
@@ -52,7 +51,6 @@ storage: ./s
 auth:
   htpasswd:
     file: ./htpasswd
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
@@ -67,7 +65,6 @@ auth:
     file: ./htpasswd
   tokens:
     file: /var/lib/pnpr/tokens.sqlite
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(
@@ -84,7 +81,6 @@ auth:
   htpasswd:
     file: ./htpasswd
     max_users: -1
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Disabled);
@@ -98,7 +94,6 @@ auth:
   htpasswd:
     file: ./htpasswd
     max_users: 5
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert_eq!(config.identity.auth.htpasswd.max_users, super::super::MaxUsers::Limited(5));
@@ -122,18 +117,26 @@ registries:
     // Omitted `access` falls back to the registry-level default...
     assert!(
         rules
+            .snapshot()
             .for_package("@team/x")
             .access
             .allows(&user("team")),
     );
     assert!(
         !rules
+            .snapshot()
             .for_package("@team/x")
             .access
             .allows(&user("carol")),
     );
     // ...while the more specific key overrides it.
-    assert!(rules.for_package("@team/open").access.allows(&Identity::Anonymous));
+    assert!(
+        rules
+            .snapshot()
+            .for_package("@team/open")
+            .access
+            .allows(&Identity::Anonymous),
+    );
 }
 
 #[test]
@@ -142,7 +145,8 @@ fn rule_usernames_grant_per_user_access() {
     let config = hosted_rules_config(
         "      '@team/*':\n        access: [alice, bob]\n        publish: alice\n",
     );
-    let team = config.routing.hosted["local"].rules.for_package("@team/x");
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let team = table.for_package("@team/x");
     assert!(team.access.allows(&user("alice")));
     assert!(team.access.allows(&user("bob")));
     assert!(!team.access.allows(&user("carol")));
@@ -200,7 +204,8 @@ registries:
         access: platform
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let access = config.routing.hosted["local"].rules.for_package("@team/x").access;
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let access = table.for_package("@team/x").access;
     assert!(access.allows(&Identity::user("platform")));
     assert!(!access.allows(&Identity::user("alice")));
 }
@@ -233,7 +238,8 @@ registries:
 #[test]
 fn rule_scalar_access_value_is_one_token() {
     let config = hosted_rules_config("      '@team/*':\n        access: alice\n");
-    let access = config.routing.hosted["local"].rules.for_package("@team/x").access;
+    let table = config.routing.hosted["local"].rules.snapshot();
+    let access = table.for_package("@team/x").access;
     assert!(access.allows(&user("alice")));
     assert!(!access.allows(&user("bob")));
 }
@@ -314,4 +320,157 @@ fn team_declarations_are_validated() {
             "unexpected error for {yaml:?}: {err}",
         );
     }
+}
+
+#[test]
+fn auth_admins_are_usernames() {
+    let yaml = "storage: ./s\nauth:\n  admins: [alice]\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.identity.is_admin(&user("alice")));
+    assert!(!config.identity.is_admin(&user("bob")));
+    assert!(!config.identity.is_admin(&Identity::Anonymous));
+
+    let yaml = "storage: ./s\nauth:\n  admins: [$authenticated]\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a built-in group is not an admin");
+    assert!(err.to_string().contains("auth.admins"), "{err}");
+}
+
+#[test]
+fn is_reserved_name_identifies_admins_oidc_and_workload_users() {
+    let yaml = "\
+storage: ./s
+auth:
+  admins: [admin_alice]
+  oidc:
+    - name: provider1
+      issuer: https://issuer.example.com
+      audience: pnpr
+      login:
+        users:
+          - subject: sub-123
+            username: oidc_bob
+      workloads:
+        - identity:
+            subject: repo:pnpm/pnpm
+            username: workload_carol
+          registry: local
+          packages: ['@pnpm/*']
+registries:
+  local:
+    type: hosted
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.identity.is_reserved_name("admin_alice"));
+    assert!(config.identity.is_reserved_name("oidc_bob"));
+    assert!(config.identity.is_reserved_name("workload_carol"));
+    assert!(!config.identity.is_reserved_name("dan"));
+}
+
+#[test]
+fn teams_managed_by_is_hosted_only() {
+    let hosted = "storage: ./s\nregistries:\n  local:\n    type: hosted\n    teamsManagedBy: api\n";
+    let config = Config::from_yaml_str(hosted, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.routing.hosted["local"].teams_managed_by, super::super::Management::Api);
+
+    let upstream = "storage: ./s\nregistries:\n  up:\n    type: upstream\n    \
+                    url: https://registry.npmjs.org/\n    public: true\n    teamsManagedBy: api\n";
+    Config::from_yaml_str(upstream, Path::new("/x"), listen(), None)
+        .expect_err("an upstream has no roster to manage");
+
+    for eco in ["cargo", "pypi", "oci"] {
+        let yaml = format!(
+            "storage: ./s\nregistries:\n  local:\n    type: hosted\n    ecosystem: {eco}\n    teamsManagedBy: api\n",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("teamsManagedBy: api is only valid for npm");
+        match err {
+            RegistryError::InvalidConfig { reason } => {
+                assert!(
+                    reason.contains("only available for npm registries"),
+                    "unexpected error for {eco}: {reason}",
+                );
+            }
+            other => panic!("expected InvalidConfig for {eco}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn unpublish_rule_rejected_on_cargo_and_pypi_but_accepted_on_oci() {
+    for eco in ["cargo", "pypi"] {
+        let yaml = format!(
+            "storage: ./s\nregistries:\n  local:\n    type: hosted\n    ecosystem: {eco}\n    packages:\n      pkg:\n        unpublish: $authenticated\n",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("unpublish is not supported on cargo/pypi");
+        match err {
+            RegistryError::InvalidConfig { reason } => {
+                assert!(
+                    reason.contains("does not support unpublishing"),
+                    "unexpected error for {eco}: {reason}",
+                );
+            }
+            other => panic!("expected InvalidConfig for {eco}, got {other:?}"),
+        }
+    }
+
+    let oci_yaml = "storage: ./s\nregistries:\n  images:\n    type: hosted\n    ecosystem: oci\n    packages:\n      image:\n        unpublish: $authenticated\n";
+    let oci_config = Config::from_yaml_str(oci_yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(oci_config.routing.hosted.contains_key("images"));
+}
+
+#[test]
+fn owners_token_rejected_in_read_access_and_accepted_in_publish() {
+    let bad_package_access = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    packages:
+      '**':
+        access: $owners
+        publish: $authenticated
+";
+    let err = Config::from_yaml_str(bad_package_access, Path::new("/x"), listen(), None)
+        .expect_err("$owners cannot be used for read access");
+    assert!(err.to_string().contains("$owners"), "{err}");
+
+    let bad_registry_access = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    access: $owners
+";
+    let err = Config::from_yaml_str(bad_registry_access, Path::new("/x"), listen(), None)
+        .expect_err("$owners cannot be used for registry access");
+    assert!(err.to_string().contains("$owners"), "{err}");
+
+    let good_publish_unpublish = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    packages:
+      '**':
+        access: $all
+        publish: $owners
+        unpublish: $owners
+";
+    let config =
+        Config::from_yaml_str(good_publish_unpublish, Path::new("/x"), listen(), None).unwrap();
+    let snapshot = config.routing.hosted["local"].rules.snapshot();
+    assert!(
+        snapshot.rules()[0].publish
+            .as_ref()
+            .unwrap()
+            .references_owners(),
+    );
+    assert!(
+        snapshot.rules()[0].unpublish
+            .as_ref()
+            .unwrap()
+            .references_owners(),
+    );
 }

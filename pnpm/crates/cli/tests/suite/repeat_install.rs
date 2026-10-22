@@ -18,6 +18,10 @@ use pnpm_testing_utils::{
 };
 use std::{fs, path::Path};
 
+const IS_POSITIVE_PATCH: &str = include_str!(
+    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
+);
+
 /// `version` field of the `package.json` under `workspace/relative`.
 pub(crate) fn version_of(workspace: &Path, relative: &str) -> String {
     let text = fs::read_to_string(workspace.join(relative).join("package.json"))
@@ -168,6 +172,98 @@ fn repeat_install_does_not_rerun_a_failed_optional_build() {
     assert!(second.status.success(), "{stdout}");
     assert!(stdout.contains("Already up to date"), "{stdout}");
     assert!(!stdout.contains("postinstall"), "the failed build must not rerun: {stdout}");
+
+    drop((root, mock_instance));
+}
+
+/// An install that cannot take the repeat-install fast path leaves the slots
+/// it does not import again as they are. A built or patched package keeps
+/// its files, and its build does not run again
+/// ([#16705](https://github.com/pnpm/pnpm/issues/16705)).
+#[test]
+fn repeat_install_keeps_the_built_and_patched_slots_it_leaves_in_place() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write the patch");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    // A project the root install does not include makes every install a
+    // filtered one, which the fast path refuses.
+    yaml.push_str(
+        "packages:\n  - project\nrecursiveInstall: false\n\
+         allowBuilds:\n  '@pnpm.e2e/postinstall-writes-outside-package': true\n  \
+         '@pnpm.e2e/pre-and-postinstall-scripts-example': true\n\
+         patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+    );
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/postinstall-writes-outside-package": "1.0.0",
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("project")).expect("create the project dir");
+    fs::write(
+        workspace.join("project/package.json"),
+        serde_json::json!({
+            "name": "project",
+            "version": "1.0.0",
+            "dependencies": { "is-negative": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write project/package.json");
+
+    // The postinstall appends one byte per run.
+    let log = root.path().join("outside-log");
+    fs::write(&log, "").expect("create the log");
+    let log_env = log.to_string_lossy().into_owned();
+    pacquet
+        .with_arg("install")
+        .with_env("PNPM_E2E_OUTSIDE_LOG", &log_env)
+        .assert()
+        .success();
+    let runs = || fs::read_to_string(&log).expect("read the log").len();
+    assert_eq!(runs(), 1, "the first install runs the postinstall");
+
+    let built = workspace.join(
+        "node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js",
+    );
+    let patched = workspace.join("node_modules/is-positive/index.js");
+    assert!(
+        fs::read_to_string(&patched).expect("read the patched file").contains("// patched"),
+        "the first install applies the patch",
+    );
+    let built_witness = SameFileWitness::take(&built, root.path());
+    let patched_witness = SameFileWitness::take(&patched, root.path());
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .with_env("PNPM_E2E_OUTSIDE_LOG", &log_env)
+        .assert()
+        .success();
+
+    assert_eq!(runs(), 1, "the repeat install must not run the postinstall again");
+    assert!(built_witness.is_intact(), "the built slot must not be imported again");
+    assert!(patched_witness.is_intact(), "the patched slot must not be imported again");
 
     drop((root, mock_instance));
 }

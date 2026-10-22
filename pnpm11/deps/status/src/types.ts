@@ -8,6 +8,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'catalogs'
 | 'dedupeDirectDeps'
 | 'excludeLinksFromLockfile'
+| 'ignoreCompatibilityDb'
 | 'ignorePnpmfile'
 | 'injectWorkspacePackages'
 | 'linkWorkspacePackages'

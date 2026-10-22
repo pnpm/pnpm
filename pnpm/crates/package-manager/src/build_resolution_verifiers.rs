@@ -24,8 +24,6 @@ use pnpm_resolving_npm_resolver::{
 };
 use pnpm_resolving_resolver_base::{PlannedCanonicalFetches, ResolutionVerifier};
 
-use crate::retry_config::retry_opts_from_config;
-
 /// Error from [`build_resolution_verifiers`]. Wraps the inner error so
 /// the install command can route the diagnostic code without
 /// re-wrapping.
@@ -94,6 +92,7 @@ pub fn build_resolution_verifiers(
     let opts = CreateNpmResolutionVerifierOptions {
         registries,
         registries_by_prefix,
+        registry_options_by_url: Some(config.registry_options_by_url.clone()),
         now: None,
         release_age: pnpm_resolving_npm_resolver::VerificationReleaseAgeOptions {
             minimum_minutes: config.resolved_minimum_release_age(),
@@ -117,7 +116,7 @@ pub fn build_resolution_verifiers(
             cache_dir: Some(config.cache_dir.clone()),
             meta_cache,
             offline: config.offline,
-            retry_opts: retry_opts_from_config(config),
+            retry_opts: config.retry_opts(),
         },
         artifacts: pnpm_resolving_npm_resolver::VerificationArtifacts {
             observed_stats: observed_dist_stats,

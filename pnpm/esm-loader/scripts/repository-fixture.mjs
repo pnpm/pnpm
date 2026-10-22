@@ -21,7 +21,7 @@ export async function prepareRepository (repo, options = {}) {
   if (options.fullRepository) copyDirectory(repo, path.join(root, 'repo'))
   else copyWorkspaces(state)
   await bundleLoader(root)
-  fs.writeFileSync(path.join(root, '.pnpm-store.json'), JSON.stringify(state.manifest))
+  fs.writeFileSync(path.join(root, '.store-manifest.json'), JSON.stringify(state.manifest))
   fs.writeFileSync(path.join(root, 'repository-source.json'), JSON.stringify({ repo, packages: Object.fromEntries([...state.ids].map(([directory, id]) => [id, directory])) }))
   fs.writeFileSync(path.join(root, 'missing-dependencies.json'), JSON.stringify(state.missing, null, 2))
   fs.writeFileSync(path.join(root, 'repo/run-jest.cjs'), "require('jest').run(process.argv.slice(2))\n")

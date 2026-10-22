@@ -5,17 +5,16 @@ import { isError, PnpmError } from '@pnpm/error'
 import type { EnvLockfile } from '@pnpm/lockfile.fs'
 import type { ResolvedDependencies } from '@pnpm/lockfile.types'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
-import type { createNpmResolver } from '@pnpm/resolving.npm-resolver'
 import type { DependencyManifest, RegistriesByScope } from '@pnpm/types'
 import semver from 'semver'
 
-type ResolveFromNpm = ReturnType<typeof createNpmResolver>['resolveFromNpm']
+import type { ResolveConfigDep } from './createConfigDepResolvers.js'
 
 export interface ResolveOptionalSubdepsOpts {
   envLockfile: EnvLockfile
   lockfileDir: string
   registriesByScope: RegistriesByScope
-  resolveFromNpm: ResolveFromNpm
+  resolveFromNpm: ResolveConfigDep
 }
 
 export async function resolveOptionalSubdeps (
@@ -92,7 +91,7 @@ async function tryResolveOptionalSubdep (
   ctx: OptionalSubdepContext,
   subdepName: string,
   subdepSpec: string
-): Promise<{ resolution: Awaited<ReturnType<ResolveFromNpm>> } | undefined> {
+): Promise<{ resolution: Awaited<ReturnType<ResolveConfigDep>> } | undefined> {
   const { opts, parentManifest, parentName } = ctx
   try {
     // `optional: true` opts into full registry metadata so the resolver
@@ -105,10 +104,10 @@ async function tryResolveOptionalSubdep (
     })
     return { resolution }
   } catch (err: unknown) {
-    // Trust-downgrade is a security signal that must fail the install even
-    // for optional deps; everything else mirrors npm's optionalDependencies
-    // semantics — log and skip.
-    if (isError(err) && 'code' in err && err.code === 'ERR_PNPM_TRUST_DOWNGRADE') {
+    // Trust-downgrade and release-age violations are security signals that
+    // must fail the install even for optional deps; everything else mirrors
+    // npm's optionalDependencies semantics — log and skip.
+    if (isError(err) && 'code' in err && (err.code === 'ERR_PNPM_TRUST_DOWNGRADE' || err.code === 'ERR_PNPM_BAD_CONFIG_DEP')) {
       throw err
     }
     skippedOptionalDependencyLogger.debug({

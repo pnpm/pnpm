@@ -46,6 +46,9 @@ pub(crate) struct ResolverFetchContext<'a> {
     /// Whether a resolved tarball is prefetched — `false` for a run
     /// whose install pass will never ask for those bytes.
     pub prefetch: bool,
+    /// Where a run that fetches into the store keeps the download tasks
+    /// the prefetch spawns, to wait for them.
+    pub tracked: Option<&'a Arc<crate::PrefetchDownloads>>,
 }
 
 pub(crate) struct ResolverRegistryContext<'a> {
@@ -103,17 +106,6 @@ impl<'a> ImporterVersionSeeds<'a> {
 }
 
 pub(crate) struct FreshLockfilePrior<'a> {
-    /// The previous run's lockfile importer entries, threaded into the
-    /// pnpm/pnpm#10433 guard so an untouched workspace dependency keeps
-    /// its prior `link:` entry. `None` on a first install.
-    pub importers: Option<&'a HashMap<String, pnpm_lockfile::ProjectSnapshot>>,
-    /// How this install reuses the prior resolution (from the `pacquet
-    /// update` seed policy), also consumed by the pnpm/pnpm#10433 guard.
-    pub scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
-    /// Per-importer update scopes (the `ByImporter` policy of a recursive
-    /// update), so the guard honors `pacquet update <name> --recursive`
-    /// targeting per importer rather than the workspace-wide default.
-    pub scopes_by_importer: BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
     /// The previous run's lockfile: its `packages:` seed the reuse and its
     /// `time:` is layered under this run's. `None` on a first install.
     pub lockfile: Option<&'a Lockfile>,

@@ -14,7 +14,7 @@ import type { DependencyRequest } from './requestDependencyPackage.js'
 import type { PkgAddress } from './resolutionTypes.js'
 import {
   detectNamedRegistryCollision,
-  detectRegistryRevisionConflict,
+  getPeerSet,
   getResolvedPackage,
   pkgIsLeaf,
 } from './resolvedPackage.js'
@@ -63,7 +63,9 @@ export function addResolvedPackageToGraph (request: DependencyRequest, resolved:
     addNewResolvedPackage(request, resolved, parentIsInstallable)
   } else {
     mergeIntoResolvedPackage(request, pkgResponse)
-    if (!childrenResolution.isOwner) {
+    if (childrenResolution.isOwner) {
+      installOwnerPeerDependencies(request, resolved)
+    } else {
       placeNodeOfResolvedPackage(request, resolved, node)
     }
   }
@@ -104,6 +106,17 @@ function addNewResolvedPackage (
   })
 }
 
+/**
+ * Splits the package into children and peers the way its children owner
+ * reads it. Which dependencies the package's own peers shadow depends on the
+ * parent scope, so a package first recorded by one occurrence and owned by
+ * another must take its peers from the owner. Otherwise a dependency that is
+ * also an optional peer can end up as neither.
+ */
+function installOwnerPeerDependencies ({ ctx }: DependencyRequest, { pkg, pkgResponse }: ResolvedPackageSource): void {
+  ctx.resolvedPkgsById[pkgResponse.body.id].peers = getPeerSet(pkg)
+}
+
 // Report deprecated packages only on first occurrence.
 function reportDeprecatedPackage ({ ctx, options }: DependencyRequest, { pkg, pkgResponse }: ResolvedPackageSource): void {
   if (
@@ -123,7 +136,6 @@ function reportDeprecatedPackage ({ ctx, options }: DependencyRequest, { pkg, pk
 function mergeIntoResolvedPackage ({ ctx, options, wantedDependency }: DependencyRequest, pkgResponse: PackageResponse): void {
   const resolvedPkg = ctx.resolvedPkgsById[pkgResponse.body.id]
   detectNamedRegistryCollision(resolvedPkg, pkgResponse)
-  detectRegistryRevisionConflict(resolvedPkg, pkgResponse)
   resolvedPkg.prod = resolvedPkg.prod || !wantedDependency.dev && !wantedDependency.optional
   resolvedPkg.dev = resolvedPkg.dev || wantedDependency.dev
   resolvedPkg.optional = resolvedPkg.optional && (wantedDependency.optional || options.parentPkg.optional)
@@ -177,7 +189,7 @@ function toPkgAddress (
     childrenResolutionId: childrenResolution.id,
     pkgId: pkgResponse.body.id,
     rootDir,
-    missingPeers: getMissingPeers(resolvedPkg.peerDependencies),
+    missingPeers: getMissingPeers(resolvedPkg.peers.taken),
     optional: resolvedPkg.optional,
     version: resolvedPkg.version,
     saveCatalogName: wantedDependency.saveCatalogName,

@@ -22,7 +22,7 @@ pub(super) fn warn_about_unlisted_dotenv_files<Reporter: self::Reporter>(
         .get("files")
         .and_then(Value::as_array)
         .map_or(&[][..], Vec::as_slice);
-    let is_listed = named_in_files(pkg_dir, files_field);
+    let is_listed = named_in_files(files_field);
     let unlisted: Vec<&str> = files_map
         .keys()
         .filter_map(|name| name.strip_prefix("package/"))
@@ -59,7 +59,7 @@ pub(super) fn is_dotenv_file(path: &str) -> bool {
 /// `files` semantics. A directory entry such as `dist` that merely
 /// contains the file does not count, and neither does a dotenv glob
 /// rooted elsewhere.
-pub(super) fn named_in_files(pkg_dir: &Path, files_field: &[Value]) -> impl Fn(&str) -> bool {
+pub(super) fn named_in_files(files_field: &[Value]) -> impl Fn(&str) -> bool {
     let dotenv_entries: Vec<Value> = files_field
         .iter()
         .filter(|entry| {
@@ -72,12 +72,8 @@ pub(super) fn named_in_files(pkg_dir: &Path, files_field: &[Value]) -> impl Fn(&
         })
         .cloned()
         .collect();
-    let matcher = build_files_matcher(pkg_dir, &dotenv_entries);
-    move |path| {
-        matcher
-            .as_ref()
-            .is_some_and(|matcher| matcher.matched(path, false).is_ignore())
-    }
+    let matcher = build_files_matcher(&dotenv_entries);
+    move |path| matcher.includes(path)
 }
 
 fn basename(path: &str) -> &str {

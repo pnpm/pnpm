@@ -1,0 +1,8 @@
+{
+  "name": "@pnpm.e2e/aliases-optional-peer-of-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/bravo-dep": "npm:@pnpm.e2e/foo@1.2.0",
+    "@pnpm.e2e/has-optional-peer-range-also-in-deps": "1.0.0"
+  }
+}

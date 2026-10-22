@@ -1,20 +1,21 @@
 use super::{
     AuditConfig, AuditLevel, BTreeMap, BTreeSet, CargoSettings, CatalogMode, ColorMode,
     ConfigDependency, Ecosystem, EnvVar, GlobalShims, HashMap, HoistingLimits, Host, IndexMap,
-    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapType, PackageImportMethod,
-    PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig, PythonSettings,
-    RegistryOptions, RemoteSideEffectsCacheSettings, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, SmartDefault, StoreDir, Tool, ToolSettings,
-    TrustPolicy, VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir,
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_git_shallow_hosts, default_hoist_pattern, default_install_state_dir,
+    InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
+    PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
+    PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
+    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
+    SmartDefault, StoreDir, StoreIndexFormat, SystemTime, Tool, ToolSettings, TrustPolicy,
+    VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
+    default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
+    default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
+    default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
+    default_hoist_pattern, default_install_state_dir, default_max_tarball_unpacked_size,
     default_modules_cache_max_age, default_modules_dir, default_peers_suffix_max_length,
     default_public_hoist_pattern, default_registry, default_state_dir, default_store_dir,
     default_tag_version_prefix, default_unsafe_perm, default_user_agent,
     default_virtual_store_dir_max_length, default_workspace_concurrency, is_ci, npmrc_auth,
-    side_effects_cache_remote_env, workspace_yaml,
+    side_effects_cache_remote_env, source_date_epoch, workspace_yaml,
 };
 
 /// The two hoist patterns as one value, for
@@ -62,6 +63,11 @@ pub struct Config {
     /// configuration.
     #[default(_code = "is_ci()")]
     pub ci: bool,
+
+    /// The time from `SOURCE_DATE_EPOCH`, recorded in place of the current
+    /// time in `.modules.yaml` and `.pnpm-workspace-state-v1.json`.
+    #[default(_code = "source_date_epoch()")]
+    pub source_date_epoch: Option<SystemTime>,
 
     /// Whether the default reporter renders dependency and download progress.
     #[default = true]
@@ -174,6 +180,12 @@ pub struct Config {
     /// workspace manifest or it is clean.
     pub workspace_key_issues: WorkspaceKeyIssues,
 
+    /// The include index of the project's `pnpm-workspace.yaml`: which file
+    /// or config dependency owns each delegated setting, and the config
+    /// entries read from the included config dependencies. `None` when the
+    /// manifest includes nothing.
+    pub workspace_includes: Option<std::sync::Arc<pnpm_workspace::WorkspaceIncludes>>,
+
     pub npmrc_warnings: Vec<String>,
 
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
@@ -247,6 +259,10 @@ pub struct Config {
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
 
+    /// Whether to prune direct dependencies that were removed from `package.json`,
+    /// and leave unselected workspace projects untouched during a filtered install.
+    pub prune_direct_dependencies: bool,
+
     /// The location where all packages are saved on disk. Share a
     /// writable store only between mutually trusted users, jobs, and
     /// processes.
@@ -257,6 +273,12 @@ pub struct Config {
     /// do not use the package store. Store consumers must load configuration
     /// with this disabled to select a store on the project's volume.
     pub skip_store_dir_resolution: bool,
+
+    /// Which settings the load reads. Anything but
+    /// [`SettingsRead::All`](crate::SettingsRead::All) is only for the configuration that decides
+    /// whether to switch to the pnpm the project pins, and that carries the
+    /// switch out.
+    pub settings_read: crate::SettingsRead,
 
     /// Whether [`skip_store_dir_resolution`](Self::skip_store_dir_resolution)
     /// left the default store unplaced, still on the home volume.
@@ -288,10 +310,8 @@ pub struct Config {
     /// Package names excluded from loaded linking; their complete trees use the global virtual store.
     pub node_linker_excluded: Vec<String>,
 
-    /// When true, pacquet writes `node_modules/.package-map.json` for
-    /// Node's `--experimental-package-map` loader flag. Default
-    /// `false`, matching pnpm's opt-in setting.
-    pub node_experimental_package_map: bool,
+    /// `nodePackageMap.mode`, or the deprecated `nodeExperimentalPackageMap`.
+    pub node_package_map_mode: NodePackageMapMode,
 
     /// Selects the package-map dependency surface.
     pub node_package_map_type: NodePackageMapType,
@@ -325,8 +345,9 @@ pub struct Config {
     #[default(_code = "default_enable_global_virtual_store()")]
     pub enable_global_virtual_store: bool,
 
-    /// Layout defaults restored when a hook switches away from the loaded linker.
-    pub loaded_layout_defaults: Option<(PathBuf, bool)>,
+    /// The `enableGlobalVirtualStore` value restored when a hook switches
+    /// away from the loaded linker, which forces it on.
+    pub global_virtual_store_before_loaded: Option<bool>,
 
     /// The shared package store used when [`Self::enable_global_virtual_store`]
     /// is on. Derived by [`Self::apply_global_virtual_store_derivation`] from
@@ -601,6 +622,11 @@ pub struct Config {
     /// `lockfile.includeResolutionSettings` setting.
     pub lockfile_include_resolution_settings: bool,
 
+    /// Which hash the `integrity` of a package tarball entry in the lockfile
+    /// names. The `lockfile.integrityTarget` setting, recorded in the
+    /// lockfile's `settings` when it is `tar`.
+    pub lockfile_integrity_target: pnpm_lockfile::IntegrityTarget,
+
     /// The base URL of the npm package registry (trailing slash included).
     #[default(_code = "default_registry()")]
     pub registry: String, // TODO: use Url type (compatible with reqwest)
@@ -801,6 +827,11 @@ pub struct Config {
     /// manifests are patched during resolution.
     pub ignore_compatibility_db: bool,
 
+    /// When `true`, every peer dependency `X` of a dependency also makes
+    /// `@types/X` an optional peer of it, unless the package already
+    /// declares `@types/X`. The `addMissingPeerTypes` setting; default `false`.
+    pub add_missing_peer_types: bool,
+
     /// When enabled, dependencies of the root workspace project are used to resolve peer
     /// dependencies of any projects in the workspace. It is a useful feature as you can install
     /// your peer dependencies only in the root of the workspace, and you can be sure that all
@@ -864,6 +895,10 @@ pub struct Config {
     /// The `frozenStore` / `--frozen-store` setting (default `false`).
     pub frozen_store: bool,
 
+    /// How a store without a package index yet keeps one: the
+    /// `storeIndexFormat` setting. See [`StoreIndexFormat`].
+    pub store_index_format: StoreIndexFormat,
+
     /// pnpm's `--force`. Refetch every package and re-materialize every
     /// slot, changed or not, and lift [`engine_strict`](Self::engine_strict)
     /// so an `engines` mismatch on a required package warns instead of
@@ -919,6 +954,13 @@ pub struct Config {
     /// Consume via [`Config::side_effects_cache_read`] and
     /// [`Config::side_effects_cache_write`].
     pub side_effects_cache_readonly: bool,
+
+    /// `name[@version]` patterns of packages whose builds bypass the
+    /// side-effects cache: pnpm neither restores them from it nor saves
+    /// them to it, locally or remotely, and gives them a project's own
+    /// global-virtual-store slot. The `sideEffectsCache.exclude` setting,
+    /// for builds whose output depends on the environment they run in.
+    pub side_effects_cache_exclude: Option<Vec<String>>,
 
     /// How many times pacquet retries a failed tarball fetch on transient
     /// errors before giving up. The `fetchRetries` setting (default `2`).
@@ -985,6 +1027,12 @@ pub struct Config {
     #[default(_code = "default_fetch_min_speed_ki_bps()")]
     pub fetch_min_speed_ki_bps: u64,
 
+    /// Ceiling, in bytes, on the summed size of the files one package
+    /// archive may unpack to. The `maxTarballUnpackedSize` setting (default
+    /// 4 GiB). A tar's `dist.unpackedSize` can only lower it.
+    #[default(_code = "default_max_tarball_unpacked_size()")]
+    pub max_tarball_unpacked_size: u64,
+
     /// Value of the `User-Agent` header sent on every registry request.
     /// The `userAgent` setting; the default is the
     /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
@@ -993,13 +1041,14 @@ pub struct Config {
     pub user_agent: String,
 
     /// URL of a `pnpr` server. When set, `pacquet install` offloads
-    /// dependency resolution and file fetching to the server: it sends
-    /// its own registry configuration, the server resolves against those
-    /// registries and streams back the files the local store is missing,
-    /// and `node_modules` is then linked locally from the
-    /// server-produced lockfile (like server-side rendering — the
-    /// compute runs remotely, the result is materialized locally).
-    /// `None` runs the normal local resolution flow.
+    /// dependency resolution to the server: it sends its own registry
+    /// configuration, the server resolves against those registries and
+    /// streams back resolved package metadata frames as it walks the graph
+    /// so the client can prefetch tarballs in parallel, and `node_modules`
+    /// is then linked locally from the server-produced lockfile (the
+    /// resolution compute runs remotely, tarball downloads and layout
+    /// materialization run locally). `None` runs the normal local resolution
+    /// flow.
     pub pnpr_server: Option<String>,
 
     /// Cargo dependency management declared by the workspace.
@@ -1009,6 +1058,10 @@ pub struct Config {
     pub tools: BTreeMap<Tool, ToolSettings>,
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
+
+    /// `remoteCache`. Boxed so the section does not grow every future that
+    /// holds a `Config`. Read it through [`Config::remote_cache_settings`].
+    pub remote_cache: Option<Box<RemoteCacheSettings>>,
 
     /// `sideEffectsCache.read` and `.write` as declared, which
     /// [`Config::side_effects_cache_read`] and
@@ -1107,9 +1160,24 @@ pub struct Config {
     /// Default empty.
     pub allow_builds: HashMap<String, bool>,
 
+    /// The `skills` decisions of `permissions` in `pnpm-workspace.yaml`:
+    /// package names (or `name@version`, or a pkgId) mapped to whether
+    /// pnpm links the agent skills the package ships.
+    pub allow_skills: HashMap<String, bool>,
+
+    /// `skills.dirs` from `pnpm-workspace.yaml`: the agent skill
+    /// directories, relative to the workspace root, that replace the
+    /// detected ones. `Some(empty)` turns agent skills off.
+    pub skills_dirs: Option<Vec<String>>,
+
+    /// Set by [`Config::disable_agent_skills`] for an install no project
+    /// agent reads. Unlike `skills.dirs: []`, it is never recorded in the
+    /// workspace state. Default `false`.
+    pub agent_skills_disabled: bool,
+
     /// `dangerouslyAllowAllBuilds` from `pnpm-workspace.yaml`. When
-    /// `true`, every package may run lifecycle scripts regardless of
-    /// `allow_builds`. Default `false` to match pnpm v11.
+    /// `true`, every package may run lifecycle scripts except the ones
+    /// `allow_builds` sets to `false`. Default `false` to match pnpm v11.
     pub dangerously_allow_all_builds: bool,
 
     /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
@@ -1150,6 +1218,11 @@ pub struct Config {
     /// tarballs to become available. Zero disables the check.
     pub publish_wait_timeout: u64,
 
+    /// `provenance` (`--provenance` / `--no-provenance`). Whether `pnpm
+    /// publish` attaches a provenance attestation. Unset lets trusted
+    /// publishing decide from the package's visibility.
+    pub provenance: Option<bool>,
+
     /// `tagVersionPrefix` (`--tag-version-prefix`). Prefix prepended to the
     /// version when `pnpm version` creates its git tag, and stripped when
     /// `pnpm version from-git` reads the version back from the latest tag.
@@ -1176,7 +1249,7 @@ pub struct Config {
     /// (`sh` on POSIX, `cmd.exe` on Windows).
     pub script_shell: Option<String>,
 
-    /// `nodeOptions` from `pnpm-workspace.yaml`. When set, it is exported
+    /// `nodeOptions` from `pnpm-workspace.yaml`. When nonempty, it is exported
     /// as `NODE_OPTIONS` to scripts and `pnpm exec` child processes.
     pub node_options: Option<String>,
 
@@ -1270,14 +1343,14 @@ pub struct Config {
 
     /// `--filter` selectors, one raw selector string per entry
     /// (`@scope/*`, `./pkg`, `foo...`, `!bar`, ...), parsed by
-    /// `pnpm-workspace-projects-filter`. A CLI-only array: not a
-    /// `.npmrc` / `pnpm-workspace.yaml` key, so only the CLI layer
-    /// populates it.
+    /// `pnpm-workspace-projects-filter`. Not a `.npmrc` /
+    /// `pnpm-workspace.yaml` key: only the CLI layer and the
+    /// `updateConfig` hooks populate it.
     pub filter: Vec<String>,
 
     /// `--filter-prod` selectors. Same shape as [`Self::filter`], but
     /// each selector follows production dependencies only when its
-    /// dependency walk runs. A CLI-only array.
+    /// dependency walk runs. Populated the same way.
     pub filter_prod: Vec<String>,
 
     /// `--workspace-root` / `-w`: run the command on the root workspace
@@ -1434,6 +1507,19 @@ pub struct Config {
     /// pnpm forwards verbatim to the verifier.
     #[default(_code = "Some(24 * 60)")]
     pub minimum_release_age: Option<u64>,
+
+    /// The `bootConfig` block of the workspace manifest. See
+    /// [`Config::for_boot`].
+    pub boot_config: Option<Box<crate::BootConfig>>,
+
+    /// The boot settings as configured below the workspace manifest, which
+    /// [`Config::for_boot`] falls back to for a setting a config dependency
+    /// owns.
+    pub boot_inherited: Box<crate::BootConfig>,
+
+    /// The boot settings the environment and the command line give, which
+    /// [`Config::for_boot`] applies over `bootConfig`.
+    pub boot_overrides: Box<crate::BootConfig>,
 
     /// Glob-style `name[@version]` patterns that opt specific packages
     /// out of the [`minimum_release_age`] check. Empty / `None` means
@@ -1730,23 +1816,15 @@ pub struct Config {
     /// `--config.<key>` override and bare setting flag, `registry` for
     /// `--registry`, `storeDir` / `stateDir` for `--store-dir` /
     /// `--state-dir`. A `--config.@<scope>:registry` override is recorded
-    /// under that `@<scope>:registry` key. Recorded by the CLI as it layers
-    /// the flags onto the loaded config; the `updateConfig` hooks cannot
+    /// under that `@<scope>:registry` key. Recorded as the command-line
+    /// settings are applied; the `updateConfig` hooks cannot
     /// change these settings, since the command line outranks every other
     /// layer.
     pub cli_settings: BTreeSet<String>,
 
-    /// The `--config.<setting>=<value>` values the command line carries
-    /// for settings the CLI has no handling of its own for, keyed by
-    /// kebab-case name. The CLI seeds them before [`Config::current`], which
-    /// applies them above `PNPM_CONFIG_*` and before the derivations that
-    /// read the final settings, such as the lockfile-dir anchoring and the
-    /// global virtual store.
-    pub cli_setting_values: BTreeMap<String, String>,
-
-    /// Every `--config.<key>=<value>` token of the command line, as given
-    /// and in argv order, for forwarding to a child pnpm the command spawns.
-    pub raw_cli_config: Vec<(String, String)>,
+    /// What the command line sets, seeded by the CLI before
+    /// [`Config::current`].
+    pub cli: crate::CliLayer,
 
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`](crate::config_types::is_ini_config_key) holds: `registry`, `@scope:registry`,
@@ -1762,6 +1840,12 @@ pub struct Config {
 }
 
 impl Config {
+    /// The decoded-output budget archives are extracted under.
+    #[must_use]
+    pub fn tar_limits(&self) -> pnpm_tarball::TarLimits {
+        pnpm_tarball::TarLimits::new(self.max_tarball_unpacked_size)
+    }
+
     /// Whether this install materializes every snapshot the lockfile
     /// names, `cpu` / `os` / `libc` / `engines` notwithstanding: `--force`
     /// under [`force_ignores_platform`](Self::force_ignores_platform).
@@ -1775,37 +1859,6 @@ impl Config {
     /// required package warns instead of failing the install.
     pub fn effective_engine_strict(&self) -> bool {
         self.engine_strict && !self.force
-    }
-
-    /// Where the builds of one tool are downloaded from, as
-    /// `tools.<name>.mirror` names it, without the trailing slash a
-    /// caller joins onto.
-    #[must_use]
-    pub fn tool_mirror(&self, tool: Tool) -> Option<&str> {
-        self.tools
-            .get(&tool)?
-            .mirror
-            .as_deref()
-            .map(|mirror| mirror.trim_end_matches('/'))
-    }
-
-    /// Where each line of a tool's builds is downloaded from, as
-    /// `tools.<name>.channels` names them. A line it does not name is
-    /// left to [`Self::tool_mirror`].
-    #[must_use]
-    pub fn tool_channel_mirrors(&self, tool: Tool) -> HashMap<String, String> {
-        self.tools
-            .get(&tool)
-            .and_then(|tool| tool.channels.as_ref())
-            .map(|channels| {
-                channels
-                    .iter()
-                    .map(|(channel, mirror)| {
-                        (channel.clone(), mirror.trim_end_matches('/').to_string())
-                    })
-                    .collect()
-            })
-            .unwrap_or_default()
     }
 
     #[must_use]
@@ -1839,3 +1892,4 @@ impl Config {
 
 mod cache;
 mod patches;
+mod tools;

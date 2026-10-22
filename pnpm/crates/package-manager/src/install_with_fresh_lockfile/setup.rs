@@ -6,12 +6,15 @@ use super::{
     seed_policy::{UpdateSeedPolicy, update_reuse_scopes},
     start_early_materialization,
 };
+
+mod stores;
 use crate::store_init::init_store_dir_best_effort;
 use pnpm_config::{Config, NodeLinker, TrustPolicy};
 use pnpm_lockfile::Lockfile;
 use pnpm_network::AuthHeaders;
 use pnpm_reporter::Reporter;
 use std::{collections::BTreeMap, path::Path, sync::Arc};
+use stores::open_stores;
 
 /// What the setup phase hands the resolve phase: the registries, the
 /// pick policy, the store handles and the resolver chain, plus what the
@@ -140,12 +143,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     // progress emitted by resolve-time prefetches: `CreateVirtualStore`
     // still emits `resolved` later, but skips duplicate `fetched` /
     // `found_in_store` statuses for keys already reported here.
-    let stores = resolver_setup::open_store_index_handles(
-        install.drivers.config,
-        store_dir,
-        resolver_setup::StoreCaches::new(progress_reported, owned.fetching.fetch_caches.as_ref()),
-    )
-    .await;
+    let stores = open_stores(install, owned, progress_reported, store_dir).await;
 
     let chain = build_fresh_resolver_chain::<Reporter>(
         install,
@@ -158,7 +156,7 @@ pub(super) async fn set_up_resolvers<Reporter: self::Reporter + 'static>(
     )
     .await?;
     Ok(ResolverSetup {
-        workspace_packages: owned.projects.workspace_packages.take().map(Arc::new),
+        workspace_packages: owned.projects.workspace_packages.take(),
         completion_observer: resolution_observer,
         observer,
         shape,
@@ -188,10 +186,9 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
             tarballs: &owned.fetching.tarball_mem_cache,
             auth_headers: &access.auth_headers,
             progress_reported: &stores.caches.progress_reported,
-            prefetch: prefetch_downloads(
-                install.execution.lockfile_only,
-                shape.materializes_subset,
-            ),
+            prefetch: install.execution.fetches_into_store()
+                || prefetch_downloads(install.execution.lockfile_only(), shape.materializes_subset),
+            tracked: owned.fetching.prefetch_downloads.as_ref(),
         },
         hooks: crate::install_with_fresh_lockfile::resolution_inputs::ResolverChainHooks {
             pnpmfile: owned.pnpmfile_hook_override.take(),
@@ -424,7 +421,9 @@ pub(super) async fn pnpmfile_checksum(
 }
 /// Whether the resolver prefetches the tarball of each package it resolves.
 /// A lockfile-only resolve never fetches, and see
-/// [`InstallShape::materializes_subset`] for the other case.
+/// [`InstallShape::materializes_subset`] for the other case. A run that
+/// fetches into the store (`FreshInstallExecution::fetches_into_store`)
+/// prefetches regardless: the prefetch is its fetch.
 pub(super) fn prefetch_downloads(lockfile_only: bool, materializes_subset: bool) -> bool {
     !lockfile_only && !materializes_subset
 }

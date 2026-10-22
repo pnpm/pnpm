@@ -1,3 +1,5 @@
+pub use selectors::{ParsedSelector, parse_update_param};
+
 pub(crate) use latest::is_workspace_local_path_specifier;
 
 mod install;
@@ -43,7 +45,9 @@ use pnpm_catalogs_config::InvalidCatalogsConfigurationError;
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
+use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
+use pnpm_resolving_deps_resolver::UpdateTargets;
 use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_tarball::MemCache;
 use std::{
@@ -310,6 +314,11 @@ pub struct UpdateSelection<'a> {
     pub workspace_packages: Option<&'a WorkspacePackages>,
     /// `--interactive`: whether the update was invoked interactively.
     pub interactive: bool,
+    /// Narrows an update without selectors to the locked versions these
+    /// targets cover, so every other dependency keeps its locked version, as
+    /// pnpm's `updateMatching` does. `None` leaves the choice to
+    /// [`Self::packages`].
+    pub targets: Option<&'a UpdateTargets>,
 }
 
 #[derive(Clone, Copy)]
@@ -321,11 +330,11 @@ pub struct UpdateVersionOptions {
     /// `--patches`: refresh registry revisions while retaining every locked
     /// package version and leaving manifest specifiers unchanged.
     pub patches: bool,
-    /// `--save-exact` / `-E`: write the resolved version without a range
-    /// operator when rewriting the manifest under `--latest`. Only applies
-    /// to dependencies whose current specifier has no recoverable pin; an
-    /// existing `^`/`~`/exact range is preserved over this default.
-    pub save_exact: bool,
+    /// The range operator written when a manifest specifier is rewritten,
+    /// from `--save-exact` and the `saveExact` / `savePrefix` settings. Only
+    /// applies to dependencies whose current specifier has no recoverable
+    /// pin; an existing `^`/`~`/exact range is preserved over this default.
+    pub range_spec_style: RangeSpecStyle,
     /// `--save` (default) / `--no-save`. When `false`, `package.json` on
     /// disk is left untouched, so its specifiers stay authoritative:
     /// `pnpm-lock.yaml` still updates, but only within the ranges the

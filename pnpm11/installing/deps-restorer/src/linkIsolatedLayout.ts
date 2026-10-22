@@ -1,8 +1,6 @@
 import { promises as fs } from 'node:fs'
 
 import { stageLogger } from '@pnpm/core-loggers'
-import * as dp from '@pnpm/deps.path'
-import { isError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import { hoist, pruneStaleWorkspaceHoists } from '@pnpm/installing.linking.hoist'
 import { logger } from '@pnpm/logger'
@@ -10,11 +8,13 @@ import type { DepPath, HoistedDependencies, ProjectId } from '@pnpm/types'
 import { equals } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph, LinkedDependencies } from './context.js'
+import { getDirectDependencyAliases } from './directDependencyAliases.js'
 import { limitModulesDirReads } from './limits.js'
 import { linkAllBins } from './linkAllBins.js'
 import { linkAllModules } from './linkAllModules.js'
 import { linkAllPkgs } from './linkAllPkgs.js'
 import { symlinkDirectDependencies } from './symlinkDirectDependencies.js'
+import { unlinkIfSymlink } from './unlinkIfSymlink.js'
 import { getHoistedWorkspacePackages, workspaceHoistPointsToProject } from './workspaceHoists.js'
 
 export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: HeadlessDepGraph): Promise<LinkedDependencies> {
@@ -40,9 +40,6 @@ export async function linkIsolatedLayout (ctx: HeadlessContext, depGraph: Headle
         })
       },
     })
-  }
-  if ((ctx.currentLockfile != null) && !equals(depGraph.importerIds.sort(), Object.keys(depGraph.filteredLockfile.importers).sort())) {
-    Object.assign(depGraph.filteredLockfile.packages!, ctx.currentLockfile.packages)
   }
   return {
     heldBackBinsDirs: [],
@@ -124,21 +121,6 @@ async function unlinkFetchFailedChildren (depNodes: HeadlessDepGraph['depNodes']
   ))
 }
 
-async function unlinkIfSymlink (link: string): Promise<void> {
-  const stats = await fs.lstat(link).catch((err: unknown) => {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
-    throw err
-  })
-  if (!stats?.isSymbolicLink()) return
-  // A non-recursive unlink: an entry that stopped being a link since the
-  // check is a directory, which unlink refuses to remove.
-  try {
-    await fs.unlink(link)
-  } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-  }
-}
-
 function shouldHoistDependencies ({ opts, skipPostImportLinking }: HeadlessContext): boolean {
   return opts.ignorePackageManifest !== true && !skipPostImportLinking && (opts.hoistPattern != null || opts.publicHoistPattern != null)
 }
@@ -171,7 +153,7 @@ async function hoistIntoModulesDirs (
   return await hoist({
     extraNodePath: opts.extraNodePaths,
     graph: depGraph.graph,
-    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases(ctx) : undefined,
+    directDependencyAliases: opts.hoistWorkspacePackages ? getDirectDependencyAliases({ include: opts.include, skipRuntimes: opts.skipRuntimes, skipped: ctx.skipped, wantedLockfile: ctx.wantedLockfile }) : [],
     directDepsByImporterId: Object.fromEntries(Object.entries(depGraph.directDependenciesByImporterId).map(([projectId, deps]) => [
       projectId,
       new Map(Object.entries(deps)),
@@ -194,33 +176,6 @@ async function hoistIntoModulesDirs (
     ),
     skipped: opts.skipped,
   }) ?? {}
-}
-
-/**
- * The aliases of every importer in the wanted lockfile, not only the selected
- * ones, so that a filtered install hoists the same packages as a full one.
- */
-function getDirectDependencyAliases ({ opts, skipped, wantedLockfile }: HeadlessContext): string[] {
-  return Object.values(wantedLockfile.importers).flatMap((importer) => {
-    const refs = {
-      ...(opts.include.devDependencies ? importer.devDependencies : {}),
-      ...(opts.include.dependencies ? importer.dependencies : {}),
-      ...(opts.include.dependencies && opts.include.optionalDependencies ? importer.optionalDependencies : {}),
-    }
-    return Object.entries(refs)
-      .filter(entry => isHoistableDirectDependencyAlias(entry, opts, skipped))
-      .map(([alias]) => alias)
-  })
-}
-
-function isHoistableDirectDependencyAlias (
-  [alias, ref]: [string, string],
-  opts: HeadlessContext['opts'],
-  skipped: Set<DepPath>
-): boolean {
-  if (opts.skipRuntimes && ref.startsWith('runtime:')) return false
-  const depPath = dp.refToRelative(ref, alias)
-  return depPath != null && !skipped.has(depPath)
 }
 
 async function findPriorWorkspaceProjectIds (

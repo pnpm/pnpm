@@ -35,7 +35,7 @@ pnpm tasks status
 
 If no concurrency groups are currently in use, pnpm outputs:
 
-```
+```text
 No concurrency groups are in use.
 ```
 
@@ -47,7 +47,7 @@ pnpm tasks status cargo typescript
 
 When group names are specified, pnpm outputs the status of only those groups, including idle groups:
 
-```
+```text
 cargo
   running
     build:native  12s
@@ -75,6 +75,6 @@ pnpm pm tasks status
 
 ## See also
 
-* [Workspace task orchestration](../workspace-task-orchestration.md#concurrency-groups)
+* [Workspace task orchestration](../workspace-task-orchestration.md#concurrencygroups)
 * [Task priority](../workspace-task-orchestration.md#task-priority)
 * [pnpm pm](./pm.md)

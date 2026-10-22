@@ -17,6 +17,7 @@ import { canUsePnprForInstall, pnpmfileHookPnprCannotRun } from './pnpr.js'
 
 export type { BeforeLifecycleScriptsResult }
 export { IgnoredBuildsError } from './ignoredBuilds.js'
+export { verifyPatchesOfLockfiles } from './lockfileState.js'
 export { mutateModules } from './mutateModules.js'
 export type {
   DependenciesMutation,
@@ -53,14 +54,13 @@ export async function install (
     })
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations, dryRunResult } = await mutateModules(
     [
       {
         mutation: 'install',
         pruneDirectDependencies: opts.pruneDirectDependencies,
         rootDir,
         update: opts.update,
-        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updateToLatest: opts.updateToLatest,
         updatePackageManifest: opts.updatePackageManifest,
@@ -76,7 +76,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations, dryRunResult }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations, dryRunResult }
 }
 
 export async function mutateModulesInSingleProject (
@@ -93,7 +93,6 @@ export async function mutateModulesInSingleProject (
       {
         ...project,
         update: maybeOpts.update,
-        updatePatches: maybeOpts.updatePatches,
         updateToLatest: maybeOpts.updateToLatest,
         updateMatching: maybeOpts.updateMatching,
         updatePackageManifest: maybeOpts.updatePackageManifest,
@@ -112,6 +111,7 @@ export async function mutateModulesInSingleProject (
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
     newLockfile: result.newLockfile,
+    wantedLockfile: result.wantedLockfile,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
     dryRunResult: result.dryRunResult,
   }
@@ -130,7 +130,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, resolutionPolicyViolations } = await mutateModules(
+  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -142,7 +142,6 @@ export async function addDependenciesToPackage (
         rootDir,
         targetDependenciesField: opts.targetDependenciesField,
         update: opts.update,
-        updatePatches: opts.updatePatches,
         updateMatching: opts.updateMatching,
         updatePackageManifest: opts.updatePackageManifest,
         updateToLatest: opts.updateToLatest,
@@ -160,5 +159,5 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, resolutionPolicyViolations }
+  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, newLockfile, wantedLockfile, resolutionPolicyViolations }
 }

@@ -1,6 +1,7 @@
 //! Modification times, and the baseline a recorded validation is compared against.
 
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf, SystemTime, fs};
+use pnpm_modules_yaml::Clock;
 
 pub(crate) const NANOS_PER_MILLI: i64 = 1_000_000;
 
@@ -8,9 +9,8 @@ pub(crate) const NANOS_PER_SEC: i64 = 1_000_000_000;
 
 /// A file's mtime, kept at full nanosecond precision. The recorded
 /// `lastValidatedTimestamp` is only millisecond-precise (it is a
-/// filesystem mtime truncated to ms — see
-/// [`crate::install::build_workspace_state`]), but the comparison against
-/// it must not be: pacquet installs are fast enough that a lockfile
+/// filesystem mtime truncated to ms, per [`validation_baseline_ms`]), but
+/// the comparison against it must not be: pacquet installs are fast enough that a lockfile
 /// written by one install and a manifest edited moments later can share
 /// the same millisecond, so a millisecond-granular comparison would miss
 /// the edit and wrongly keep the fast path. Comparing the file's
@@ -120,14 +120,19 @@ pub(crate) fn validation_baseline_ms(
 /// the state file for the first time. `None` when the probe cannot be
 /// created or stat'd, leaving the caller with the mtime-derived
 /// baseline.
-pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
-    filesystem_now_ms_in_modules(&workspace_root.join("node_modules"))
+pub(crate) fn filesystem_now_ms_in_modules(parent: &Path) -> Option<i64> {
+    filesystem_now_in_modules(parent).map(|mtime| mtime.ms)
 }
 
-pub(crate) fn filesystem_now_ms_in_modules(parent: &Path) -> Option<i64> {
+/// [`filesystem_now_ms_in_modules`] at nanosecond precision.
+pub(crate) fn filesystem_now_ns_in_modules(parent: &Path) -> Option<i64> {
+    filesystem_now_in_modules(parent).map(|mtime| mtime.ns)
+}
+
+fn filesystem_now_in_modules(parent: &Path) -> Option<FileMtime> {
     fs::create_dir_all(parent).ok()?;
     let probe = tempfile::tempfile_in(parent).ok()?;
-    file_mtime_from_metadata(&probe.metadata().ok()?).map(|mtime| mtime.ms)
+    file_mtime_from_metadata(&probe.metadata().ok()?)
 }
 
 /// The `lastValidatedTimestamp` to record once an install or a
@@ -163,43 +168,23 @@ pub(crate) fn refreshed_validation_baseline_ms(baseline_ms: i64, now_ms: Option<
     now_ms.map_or(baseline_ms, |now| baseline_ms.max(now))
 }
 
-/// [`FileMtime`] of the wanted lockfile —
-/// `<workspace_root>/pnpm-lock.yaml`, or the per-branch name when
-/// git-branch lockfiles are on. `None` when it is absent.
-pub(crate) fn wanted_lockfile_mtime(workspace_root: &Path, config: &Config) -> Option<FileMtime> {
-    file_mtime(&workspace_root.join(config.wanted_lockfile_name()))
-}
-
-/// The timestamp a project manifest's mtime is measured against to decide
-/// whether the manifest may have changed since the last install: the
-/// recorded `lastValidatedTimestamp` for a workspace install, the
-/// effective wanted lockfile's mtime — `pnpm-lock.yaml`, or the current
-/// `<install_state_dir>/lock.yaml` standing in for it — for a
-/// single-project one. Both match what pnpm's `checkDepsStatus` compares
-/// against on the corresponding path.
-///
-/// `lastValidatedTimestamp` is recorded once the install has committed
-/// everything, later than both the manifests it read and the lockfile it
-/// wrote, so on the single-project path it would bless a manifest edit the
-/// lockfile does not contain
-/// ([#14890](https://github.com/pnpm/pnpm/issues/14890)). The lockfile's
-/// own mtime carries no such gap.
-///
-/// With neither lockfile on disk the recorded timestamp stands in; the
-/// missing-lockfile gates decide that case.
-pub(crate) fn manifest_drift_reference_ms(
+/// The [`refreshed_validation_baseline_ms`] of the validated files, lowered
+/// to `SOURCE_DATE_EPOCH` when it is set. Never raised to it: a later value
+/// would hide manifest edits made before that time.
+pub(crate) fn last_validated_timestamp<Sys: Clock>(
+    workspace_root: &Path,
     config: &Config,
-    is_workspace_install: bool,
-    last_validated_timestamp: i64,
-    wanted_lockfile_mtime: Option<FileMtime>,
+    project_manifests: &[(PathBuf, &PackageManifest)],
+    filesystem_now_ms: Option<i64>,
 ) -> i64 {
-    if is_workspace_install {
-        return last_validated_timestamp;
-    }
-    wanted_lockfile_mtime
-        .map(|mtime| mtime.ms)
-        .or_else(|| mtime_ms(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME)))
-        .unwrap_or(last_validated_timestamp)
+    let validated = refreshed_validation_baseline_ms(
+        validation_baseline_ms(workspace_root, config, project_manifests)
+            .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+        filesystem_now_ms,
+    );
+    config.source_date_epoch.map_or(validated, |epoch| {
+        validated.min(pnpm_workspace_state::millis_since_epoch(epoch))
+    })
 }
 
 /// Whether the lockfile's `subject` mtime post-dates `reference_ms`.

@@ -74,7 +74,6 @@ pub(super) struct ImporterHoistSelection {
     /// [`TreeCtx::preferred_versions_for_names`] — instead of
     /// maintaining a per-importer copy of the whole run history.
     pub(super) preferred_versions: Arc<PreferredVersions>,
-    pub(super) locked_names: Arc<HashSet<String>>,
     pub(super) locked_versions: Arc<HashMap<String, HashSet<String>>>,
     pub(super) override_bare_specifier: Option<Arc<DependencyOverrider>>,
 }
@@ -109,7 +108,6 @@ impl super::ImporterHoistState {
             },
             selection: ImporterHoistSelection {
                 preferred_versions: settings.all_preferred_versions,
-                locked_names: locked.names,
                 locked_versions: locked.versions,
                 override_bare_specifier: settings.override_bare_specifier,
             },

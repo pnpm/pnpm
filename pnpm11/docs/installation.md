@@ -118,7 +118,7 @@ If pnpm is broken and you cannot fix it by reinstalling, you might need to remov
 
 Let's assume you have the following error when running `pnpm install`:
 
-```
+```text
 C:\src>pnpm install
 internal/modules/cjs/loader.js:883
   throw err;
@@ -139,7 +139,7 @@ Error: Cannot find module 'C:\Users\Bence\AppData\Roaming\npm\pnpm-global\4\node
 First, try to find the location of pnpm by running: `which pnpm`. If you're on Windows, run `where.exe pnpm.*`.
 You'll get the location of the pnpm command, for instance:
 
-```
+```text
 $ which pnpm
 /c/Program Files/nodejs/pnpm
 ```
@@ -151,7 +151,7 @@ Once done, install pnpm again and it should work as expected.
 
 To update to the newest pnpm 11, run the [`self-update`] command with the major:
 
-```
+```sh
 pnpm self-update 11
 ```
 

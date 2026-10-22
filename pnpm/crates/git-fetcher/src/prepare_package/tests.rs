@@ -347,6 +347,22 @@ fn safe_join_path_rejects_an_escape_behind_a_leading_slash() {
     assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
 }
 
+#[cfg(unix)]
+#[test]
+fn safe_join_path_rejects_symlink_escape() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    let outside = tempdir().unwrap();
+    let outside_sub = outside.path().join("sub");
+    std::fs::create_dir_all(&outside_sub).unwrap();
+
+    let symlink = root.join("external_link");
+    std::os::unix::fs::symlink(outside.path(), &symlink).unwrap();
+
+    let err = safe_join_path(root, Some("external_link/sub")).unwrap_err();
+    assert!(matches!(err, PreparePackageError::InvalidPath { .. }));
+}
+
 #[test]
 fn safe_join_path_accepts_empty_sub_dir() {
     let dir = tempdir().unwrap();

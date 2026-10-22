@@ -5,7 +5,7 @@ use pnpm_patching::{
     PatchGroup, PatchGroupRecord, PatchInput, get_patch_info, group_patched_dependencies, parse_key,
 };
 use segments::split_suffix;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// The version a patch was matched against, when the lockfile records one.
 ///
@@ -403,6 +403,51 @@ fn is_registry_version(suffix: &PkgVerPeer) -> bool {
 /// cannot change the answer.
 fn patch_selects_on_version(group: Option<&PatchGroup>) -> bool {
     group.is_some_and(|group| !group.exact.is_empty() || !group.range.is_empty())
+}
+
+/// Bucket `hashes` the way the resolver buckets configured patches.
+///
+/// The patch file path is left out: callers here only match keys and hashes,
+/// and the hashes `pnpm_config::Config::patched_dependency_hashes` or the
+/// lockfile already hold are the only payload needed, so no patch file is read
+/// twice.
+///
+/// `None` for a key whose version segment is neither a version nor a range,
+/// leaving `ERR_PNPM_PATCH_NON_SEMVER_RANGE` to the resolver.
+#[must_use]
+pub fn patch_groups_from_hashes(hashes: &BTreeMap<String, String>) -> Option<PatchGroupRecord> {
+    group_patched_dependencies(
+        hashes
+            .iter()
+            .map(|(key, hash)| {
+                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+            }),
+    )
+    .ok()
+}
+
+/// The patch keys in `patch_groups` that match a package the lockfile records,
+/// matched the way the resolver matches them.
+///
+/// `None` when a locked package matches more than one configured range, so the
+/// caller falls back and lets the resolver raise `ERR_PNPM_PATCH_KEY_CONFLICT`
+/// instead of quietly picking a winner.
+#[must_use]
+pub fn applied_patch_keys<'a>(
+    lockfile: &Lockfile,
+    patch_groups: &'a PatchGroupRecord,
+) -> Option<BTreeSet<&'a str>> {
+    let Some(snapshots) = lockfile.snapshots.as_ref() else {
+        return Some(BTreeSet::new());
+    };
+    let mut applied = BTreeSet::new();
+    for key in snapshots.keys() {
+        let (name, version) = name_version_from_package_key(key, lockfile.packages.as_ref());
+        if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
+            applied.insert(info.key.as_str());
+        }
+    }
+    Some(applied)
 }
 
 mod segments;

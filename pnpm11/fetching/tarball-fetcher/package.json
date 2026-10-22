@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.tarball-fetcher",
-  "version": "1102.1.7",
+  "version": "1102.1.10",
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
     "pnpm",
@@ -41,6 +41,7 @@
     "@pnpm/fs.graceful-fs": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/retry": "catalog:",

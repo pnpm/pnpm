@@ -45,7 +45,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -55,7 +55,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/foo/-/foo-1.0.0.tgz",
+        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], sha1_hex_of(tarball));
     assert_eq!(body["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(tarball));
@@ -63,7 +63,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
     let cached = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -148,7 +148,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     let get = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -169,7 +169,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
         .oneshot(
             Request::builder()
                 .method("HEAD")
-                .uri("/foo")
+                .uri("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -188,7 +188,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     let no_time = app
         .clone()
         .oneshot(
-            Request::get("/bare")
+            Request::get("/npm/bare")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -204,7 +204,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     let unparsable = app
         .clone()
         .oneshot(
-            Request::get("/garbled")
+            Request::get("/npm/garbled")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -267,7 +267,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let first = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -284,7 +284,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let cached = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -300,7 +300,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let vulnerable_manifest = app
         .clone()
         .oneshot(
-            Request::get("/foo/1.1.0")
+            Request::get("/npm/foo/1.1.0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -311,7 +311,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let safe_manifest = app
         .clone()
         .oneshot(
-            Request::get("/foo/1.0.0")
+            Request::get("/npm/foo/1.0.0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -323,7 +323,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
 
     let dist_tags = app
         .oneshot(
-            Request::get("/-/package/foo/dist-tags")
+            Request::get("/npm/-/package/foo/dist-tags")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -400,7 +400,7 @@ async fn osv_filters_packument_identity_mismatches() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -422,7 +422,7 @@ async fn osv_filters_packument_identity_mismatches() {
     let vulnerable_key_manifest = app
         .clone()
         .oneshot(
-            Request::get("/foo/1.1.0")
+            Request::get("/npm/foo/1.1.0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -432,7 +432,7 @@ async fn osv_filters_packument_identity_mismatches() {
     let vulnerable_manifest_version = app
         .clone()
         .oneshot(
-            Request::get("/foo/safe-key")
+            Request::get("/npm/foo/safe-key")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -442,7 +442,7 @@ async fn osv_filters_packument_identity_mismatches() {
 
     let dist_tags = app
         .oneshot(
-            Request::get("/-/package/foo/dist-tags")
+            Request::get("/npm/-/package/foo/dist-tags")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -476,7 +476,7 @@ async fn packument_is_refetched_after_ttl_expires() {
     let r1 = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -490,7 +490,7 @@ async fn packument_is_refetched_after_ttl_expires() {
 
     let r2 = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -519,7 +519,7 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
 
     let response = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .header("accept-encoding", "gzip")
                 .body(Body::empty())
                 .unwrap(),
@@ -543,10 +543,68 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
     let body: Value = serde_json::from_slice(&decoded).unwrap();
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/foo/-/foo-1.0.0.tgz",
+        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
     );
 
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let response = app
+        .oneshot(
+            Request::get("/npm/foo")
+                .header("accept-encoding", "zstd,gzip,deflate")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-encoding")
+            .and_then(|value| value.to_str().ok()),
+        Some("zstd"),
+    );
+    let body = decode_zstd(&body_bytes(response.into_body()).await).await;
+    assert_eq!(
+        body["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
+    );
+
+    mock.assert_async().await;
+}
+
+/// Decodes through reqwest's zstd support, as the workspace has no standalone
+/// zstd decoder.
+async fn decode_zstd(compressed: &[u8]) -> Value {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/")
+        .with_header("content-encoding", "zstd")
+        .with_body(compressed)
+        .create_async()
+        .await;
+    reqwest::get(server.url()).await
+        .expect("fetch the zstd body")
+        .json()
+        .await
+        .expect("decode the zstd body as JSON")
 }
 
 #[tokio::test]
@@ -566,7 +624,7 @@ async fn packument_is_not_gzipped_without_accept_encoding() {
 
     let response = app
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )

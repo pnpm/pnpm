@@ -11,7 +11,7 @@ Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>
 
 Usage:
 
-```
+```sh
 pnpm patch <pkg name>@<version>
 ```
 
@@ -51,7 +51,7 @@ This field is added/updated automatically when you run [pnpm patch-commit]. It d
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 patchedDependencies:
   express@4.18.1: patches/express@4.18.1.patch
 ```
@@ -66,7 +66,7 @@ A special case: the version range `*` behaves like a name-only patch but does no
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 patchedDependencies:
   foo: patches/foo-1.patch
   foo@^2.0.0: patches/foo-2.patch
@@ -81,7 +81,7 @@ Avoid overlapping version ranges. If you need to specialize a sub-range, explici
 
 Example:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 patchedDependencies:
   # Specialized sub-range
   "foo@2.2.0-2.8.0": patches/foo.2.2.0-2.8.0.patch
@@ -100,7 +100,7 @@ Added in: v10.7.0 (Previously named `allowNonAppliedPatches`)
 
 When `true`, installation won't fail if some of the patches from the `patchedDependencies` field were not applied.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 patchedDependencies:
   express@4.18.1: patches/express@4.18.1.patch
 allowUnusedPatches: true

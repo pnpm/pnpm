@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1101.2.7",
+  "version": "1101.2.10",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",
@@ -54,6 +54,7 @@
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/installing.client": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/installing.deps-resolver": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.peer-edges": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",

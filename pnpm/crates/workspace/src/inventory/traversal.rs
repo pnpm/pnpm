@@ -75,22 +75,43 @@ fn read_children(
     visit_file: &mut impl FnMut(PathBuf, &OsStr),
     pending: &mut Vec<PathBuf>,
 ) -> Result<(), FindWorkspaceInventoryError> {
-    if let Some(entries) = read_directory(directory, workspace_root, before_read)? {
-        for entry in entries {
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(error) if is_ignorable_discovery_error(&error) => continue,
-                Err(source) => {
-                    return Err(FindWorkspaceInventoryError::ReadEntry {
-                        path: directory.path.clone(),
-                        source,
-                    });
-                }
-            };
-            collect_entry(directory, &entry, ignored, pending, visit_file)?;
+    let Some(entries) = read_directory(directory, workspace_root, before_read)? else {
+        return Ok(());
+    };
+    let mut children = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => children.push(entry),
+            Err(error) if is_ignorable_discovery_error(&error) => continue,
+            Err(source) => {
+                return Err(FindWorkspaceInventoryError::ReadEntry {
+                    path: directory.path.clone(),
+                    source,
+                });
+            }
         }
     }
+    if directory.path != workspace_root && children.iter().any(marks_separate_checkout) {
+        return Ok(());
+    }
+    for entry in &children {
+        collect_entry(directory, entry, ignored, pending, visit_file)?;
+    }
     Ok(())
+}
+
+/// A nested pnpm workspace or git clone, which installs on its own. Only a
+/// `.git` directory counts: a submodule's `.git` is a file, and a submodule is
+/// content of the outer checkout.
+fn marks_separate_checkout(entry: &fs::DirEntry) -> bool {
+    let Ok(file_type) = entry.file_type() else {
+        return false;
+    };
+    match entry.file_name().to_str() {
+        Some("pnpm-workspace.yaml") => file_type.is_file(),
+        Some(".git") => file_type.is_dir(),
+        _ => false,
+    }
 }
 
 fn read_directory(

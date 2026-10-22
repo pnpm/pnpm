@@ -1,13 +1,14 @@
+pub use error::StoreIndexError;
+pub use files::INDEX_DIR;
+pub use format::StoreIndexFormat;
 pub use writer::StoreIndexWriter;
 
 use crate::StoreDir;
-use derive_more::{Display, Error};
-use miette::Diagnostic;
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -15,21 +16,34 @@ use std::{
 };
 use url::Url;
 
-/// SQLite-backed per-package index that pnpm v11 stores alongside the CAFS
-/// blobs. In the pacquet layout the file lives at
-/// `<store-root>/v11/index.db` — call [`StoreIndex::open_in`] with a
-/// [`StoreDir`] to hit that path, or [`StoreIndex::open`] with any directory
-/// to drop `index.db` right inside it (used by tests and tools).
+/// Per-package index that pnpm v11 stores alongside the CAFS blobs. By
+/// default it is an `SQLite` database at `<store-root>/v11/index.db` — call
+/// [`StoreIndex::open_in`] with a [`StoreDir`] to hit that path, or
+/// [`StoreIndex::open`] with any directory to drop `index.db` right inside it
+/// (used by tests and tools).
 ///
 /// Each row keys a package by its tarball integrity plus a package identifier
 /// and stores a msgpack-encoded [`PackageFilesIndex`]. The schema and PRAGMAs
 /// below match pnpm v11's on-disk index format so that the two tools can read
 /// each other's entries.
+///
+/// A store that has a [`INDEX_DIR`] directory keeps one file per row
+/// there instead, for stores on a filesystem shared by several machines
+/// (`storeIndexFormat: files`). Every open detects the layout.
 pub struct StoreIndex {
-    conn: Connection,
-    // Fields drop in order: close SQLite before releasing its process lease.
-    #[cfg(target_os = "wasi")]
-    _lease: Arc<wasi_lease::IndexLease>,
+    backend: Backend,
+}
+
+enum Backend {
+    Sqlite {
+        conn: Connection,
+        // Fields drop in order: close SQLite before releasing its process
+        // lease and before restoring the store root's mtime.
+        #[cfg(target_os = "wasi")]
+        _lease: Arc<wasi_lease::IndexLease>,
+        _root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
+    },
+    Files(files::FilesIndex),
 }
 
 /// Shared handle to a read-only [`StoreIndex`] that can be cheaply cloned and
@@ -39,104 +53,14 @@ pub struct StoreIndex {
 /// then hands off to per-file work without holding the lock.
 pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 
-/// Error type of [`StoreIndex`].
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum StoreIndexError {
-    #[cfg(target_os = "wasi")]
-    #[display("Failed to coordinate access to index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_INDEX_LEASE))]
-    Lease {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Store-index writer is unavailable")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITER_UNAVAILABLE))]
-    WriterUnavailable,
-
-    #[display("Failed to create directory for index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_DIR))]
-    CreateDir {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to create index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_CREATE_FILE))]
-    CreateFile {
-        path: PathBuf,
-        #[error(source)]
-        source: std::io::Error,
-    },
-
-    #[display("Failed to open index.db at {path:?}: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_OPEN))]
-    Open {
-        path: PathBuf,
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    /// The store path could not be turned into the `file:` URI that the
-    /// immutable open requires (see [`StoreIndex::open_immutable`]).
-    #[display("Failed to build a file: URI for index.db at {path:?}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_FILE_URI))]
-    FileUri {
-        path: PathBuf,
-        #[error(source)]
-        source: Option<std::io::Error>,
-    },
-
-    #[display("Failed to initialize index.db schema: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_INIT_SCHEMA))]
-    InitSchema {
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    #[display("Failed to read from index.db: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_READ))]
-    Read {
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    #[display("Failed to write to index.db: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_WRITE))]
-    Write {
-        #[error(source)]
-        source: rusqlite::Error,
-    },
-
-    #[display("Failed to encode PackageFilesIndex as msgpackr records: {source}")]
-    #[diagnostic(transparent)]
-    Encode {
-        #[error(source)]
-        source: crate::msgpackr_records::EncodeError,
-    },
-
-    #[display("Failed to decode PackageFilesIndex from msgpack: {source}")]
-    #[diagnostic(code(ERR_PNPM_STORE_DIR_STORE_INDEX_DECODE))]
-    Decode {
-        #[error(source)]
-        source: rmp_serde::decode::Error,
-    },
-
-    #[display("Failed to transcode msgpackr-records payload to plain msgpack: {source}")]
-    #[diagnostic(transparent)]
-    Transcode {
-        #[error(source)]
-        source: crate::msgpackr_records::DecodeError,
-    },
-}
-
 impl StoreIndex {
     /// Open (or create) the `index.db` under `store_dir` and configure the
     /// same PRAGMAs pnpm v11 uses.
     pub fn open(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        if let Some(index) = StoreIndex::detect_files(store_dir) {
+            return Ok(index);
+        }
+        let root_mtime = root_mtime::acquire(store_dir);
         pnpm_fs::file_mode::create_dir_all_inheriting_mode(store_dir)
             .map_err(|source| StoreIndexError::CreateDir {
                 path: store_dir.to_path_buf(),
@@ -168,13 +92,30 @@ impl StoreIndex {
             ) WITHOUT ROWID;
             ",
         )
+        .and_then(|()| conn.execute_batch(aliases::CREATE_ALIAS_TABLE))
         .map_err(|source| StoreIndexError::InitSchema { source })?;
 
-        Ok(StoreIndex {
+        Ok(StoreIndex::sqlite(
             conn,
             #[cfg(target_os = "wasi")]
-            _lease: lease,
-        })
+            lease,
+            Some(root_mtime),
+        ))
+    }
+
+    fn sqlite(
+        conn: Connection,
+        #[cfg(target_os = "wasi")] lease: Arc<wasi_lease::IndexLease>,
+        root_mtime: Option<Arc<root_mtime::RootMtimeGuard>>,
+    ) -> Self {
+        StoreIndex {
+            backend: Backend::Sqlite {
+                conn,
+                #[cfg(target_os = "wasi")]
+                _lease: lease,
+                _root_mtime: root_mtime,
+            },
+        }
     }
 
     /// Open the `index.db` that lives directly under a [`StoreDir`]'s root.
@@ -197,18 +138,23 @@ impl StoreIndex {
     /// an immediate `SQLITE_BUSY` — i.e. a spurious cache miss that
     /// triggers a full re-download. 5 s matches the writer side.
     pub fn open_readonly(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        if let Some(index) = StoreIndex::detect_files(store_dir) {
+            return Ok(index);
+        }
         let db_path = store_dir.join("index.db");
+        let root_mtime = root_mtime::acquire(store_dir);
         #[cfg(target_os = "wasi")]
         let lease = wasi_lease::acquire(&db_path, true)?;
         let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
             .map_err(|source| StoreIndexError::Open { path: db_path.clone(), source })?;
         conn.busy_timeout(std::time::Duration::from_secs(5))
             .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex {
+        Ok(StoreIndex::sqlite(
             conn,
             #[cfg(target_os = "wasi")]
-            _lease: lease,
-        })
+            lease,
+            Some(root_mtime),
+        ))
     }
 
     /// Open an existing `index.db` from a store that is complete and
@@ -229,6 +175,9 @@ impl StoreIndex {
     /// No `busy_timeout` is set because an immutable connection takes no
     /// locks for it to wait on.
     pub fn open_immutable(store_dir: &Path) -> Result<Self, StoreIndexError> {
+        if let Some(index) = StoreIndex::detect_files(store_dir) {
+            return Ok(index);
+        }
         let db_path = store_dir.join("index.db");
         #[cfg(target_os = "wasi")]
         let lease = wasi_lease::acquire(&db_path, false)?;
@@ -238,11 +187,12 @@ impl StoreIndex {
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
         )
         .map_err(|source| StoreIndexError::Open { path: db_path, source })?;
-        Ok(StoreIndex {
+        Ok(StoreIndex::sqlite(
             conn,
             #[cfg(target_os = "wasi")]
-            _lease: lease,
-        })
+            lease,
+            None,
+        ))
     }
 
     /// Read-only counterpart to [`StoreIndex::open_in`].
@@ -252,9 +202,9 @@ impl StoreIndex {
 
     /// Open a read-only index wrapped in `Arc<Mutex<…>>` so it can be shared
     /// across the many cache lookups an install performs. Returns `None` if
-    /// `index.db` does not yet exist under the store — a first-time install
-    /// against an empty store — since there is nothing to read back and every
-    /// lookup would be a miss anyway.
+    /// the store has no index yet — a first-time install against an empty
+    /// store — since there is nothing to read back and every lookup would be
+    /// a miss anyway.
     ///
     /// Reusing one connection avoids reopening the `SQLite` database (and
     /// redoing its PRAGMAs) on every package, which otherwise scales
@@ -321,7 +271,7 @@ impl StoreIndex {
         open: fn(&Path) -> Result<Self, StoreIndexError>,
     ) -> Option<SharedReadonlyStoreIndex> {
         let store_root = store_dir.root();
-        if !store_root.join("index.db").exists() {
+        if !StoreIndex::exists(store_root) {
             return None;
         }
         open(store_root)
@@ -416,6 +366,13 @@ pub struct PackageFilesIndex {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_side_effects_quarantine: Option<HashMap<String, Vec<String>>>,
+
+    /// Integrity of the tar the row's archive holds: the row's own integrity
+    /// for a tar, the hash of the whole decoded gzip stream for a `.tgz`.
+    /// `None` when that tar is unknown, such as for a `.tgz` that does not
+    /// decode in full.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tar_integrity: Option<String>,
 }
 
 /// Value of [`PackageFilesIndex::files`]. Matches pnpm v11's per-file
@@ -566,6 +523,18 @@ mod tests;
 mod writer;
 
 mod queries;
+
+mod aliases;
+
+mod error;
+
+mod files;
+
+mod format;
+
+mod root_mtime;
+
+mod shared;
 
 #[cfg(target_os = "wasi")]
 mod wasi_lease;

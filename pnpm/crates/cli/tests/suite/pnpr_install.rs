@@ -22,7 +22,8 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_files, is_symlink_or_junction},
 };
-use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig};
+use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig, UserBackend};
+use pnpr_fixtures::MockConfigPresets;
 use reqwest::header::HeaderMap;
 use sha2::{Digest, Sha256};
 use std::{
@@ -42,21 +43,27 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 /// Start an in-process pnpr with the fast-path endpoints on a detached
 /// thread, allowlisting `registry_url` as a public route so the client may
 /// resolve against it (off-allowlist registries are rejected at the request
-/// boundary); returns its base URL and a pre-seeded bearer token.
+/// boundary); returns its base URL and a pre-seeded bearer token, whose
+/// owner is a pre-seeded account because pnpr honors only such tokens.
 fn start_pnpr(registry_url: &str) -> (String, String) {
     let registry_url = registry_url.to_string();
     let server = PnprServer::bind("pnpr");
     let tokens_path = server.storage.join("tokens.db");
+    let htpasswd_path = server.storage.join("htpasswd");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("token setup runtime");
     let token = runtime.block_on(async {
+        let users = pnpr::UserStore::open(htpasswd_path.clone(), pnpr::MaxUsers::Disabled)
+            .expect("open user store");
+        users.create_user("pacquet-test", "password").await.expect("store pnpr test account");
         let tokens = pnpr::TokenStore::open(tokens_path.clone()).expect("open token store");
         tokens.issue("pacquet-test").await.expect("issue pnpr test token")
     });
 
     let addr = server.serve(move |config| {
+        config.identity.auth.htpasswd.file = Some(htpasswd_path);
         config.identity.auth.tokens.file = Some(tokens_path);
         config.routing.route_policy.public.push(pnpr::PublicRoute {
             registry: Some(registry_url),
@@ -86,13 +93,7 @@ fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
             )
             .with_ecosystem(name, ecosystem);
         });
-    // The server's root is its npm alias; every other ecosystem is
-    // addressed under its own prefix.
-    if ecosystem == Ecosystem::Npm {
-        format!("http://{addr}")
-    } else {
-        format!("http://{addr}/{ecosystem}/")
-    }
+    format!("http://{addr}/{ecosystem}/")
 }
 
 /// A bound port and storage directory waiting for [`Self::serve`] to start
@@ -187,7 +188,7 @@ fn point_npmrc_registry_at(npmrc_path: &Path, registry_url: &str) {
         .lines()
         .map(|line| {
             if line.starts_with("registry=") {
-                format!("registry={registry_url}/")
+                format!("registry={}/", registry_url.trim_end_matches('/'))
             } else {
                 line.to_string()
             }
@@ -220,18 +221,34 @@ fn revision_fixture_tarball_with_value(value: &str) -> Vec<u8> {
     gzip.finish().expect("finish package tarball")
 }
 
+/// The integrity a registry revision pins: the hash of the tar `tarball`
+/// decodes to.
+fn revision_integrity(tarball: &[u8]) -> ssri::Integrity {
+    let mut tar = Vec::new();
+    std::io::Read::read_to_end(&mut flate2::read::GzDecoder::new(tarball), &mut tar)
+        .expect("decode revision tarball");
+    ssri::IntegrityOpts::new()
+        .algorithm(ssri::Algorithm::Sha512)
+        .chain(&tar)
+        .result()
+}
+
+/// A revision-aware packument selecting `tarball` as `revision`. Its history
+/// holds an original revision 0, `history`, and the selected record.
 fn revision_packument(
     upstream: &mockito::Server,
     tarball: &[u8],
     revision: u64,
     history: &[(&ssri::Integrity, u64)],
 ) -> (ssri::Integrity, serde_json::Value) {
-    let integrity = ssri::IntegrityOpts::new()
-        .algorithm(ssri::Algorithm::Sha512)
-        .chain(tarball)
-        .result();
+    let integrity = revision_integrity(tarball);
     let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
-    let revisions = history
+    let original = revision_integrity(&revision_fixture_tarball_with_value("original"));
+    let revisions = std::iter::once((&original, 0))
+        .filter(|_| revision != 0)
+        .chain(history.iter().copied())
+        .collect::<Vec<_>>();
+    let revisions = revisions
         .iter()
         .map(|(integrity, revision)| {
             let path = integrity_addressed_tarball_path(integrity).unwrap();

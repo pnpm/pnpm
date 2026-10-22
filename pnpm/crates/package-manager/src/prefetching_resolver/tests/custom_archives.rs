@@ -53,6 +53,8 @@ async fn git_archive_manifests_are_cached_by_subdirectory() {
             pnpm_tarball::CachedTarball {
                 files: Arc::new(files),
                 manifest: Some(json!({"name": "root"})),
+                requires_build: None,
+                bins: None,
             },
         )))),
     );
@@ -337,7 +339,13 @@ async fn unpinned_git_manifest_recovery_publishes_the_install_cache_key() {
     assert_eq!(metadata.manifest.unwrap()["dependencies"]["ms"], json!("2.1.2"));
     std::fs::remove_file(&path).unwrap();
     let files = resolver.ctx
-        .tarball_download(&source_url, "git-package@1.0.0", None, None, None)
+        .tarball_download(
+            &source_url,
+            "git-package@1.0.0",
+            (None, pnpm_tarball::IntegrityKind::Resource),
+            None,
+            None,
+        )
         .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&resolver.ctx.mem_cache)
         .await
         .unwrap();

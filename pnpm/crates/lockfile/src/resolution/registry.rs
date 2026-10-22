@@ -13,6 +13,9 @@ use super::{
 ///   unencoded one. A faithful mirror or caching proxy of it is this.
 /// - [`RegistryServerType::Artifactory`] — repeats the scope in a scoped
 ///   package's tarball filename.
+/// - [`RegistryServerType::Pnpr`] — serves a version's tarball at the package
+///   identifier under the registry, `<registry>/<name>@<version>`. The body may
+///   be a `.tgz` or a tar; the fetcher tells them apart by content.
 ///
 /// Only layouts pnpm can rebuild a URL for belong here. A registry that serves
 /// tarballs from a content-derived path (GitHub Packages
@@ -24,6 +27,7 @@ use super::{
 pub enum RegistryServerType {
     Npm,
     Artifactory,
+    Pnpr,
 }
 
 /// Non-secret, per-registry settings from the `registries` setting.
@@ -76,8 +80,8 @@ pub fn registry_server_type(
 }
 
 /// Whether `registry`'s abbreviated metadata carries the `time` field, per its
-/// own declaration. [`None`] when it does not declare one, which leaves the
-/// answer to the `registrySupportsTimeField` setting.
+/// own declaration or its declared `serverType: pnpr`. [`None`] when neither
+/// applies, which leaves the answer to the `registrySupportsTimeField` setting.
 ///
 /// Keyed like [`registry_server_type`], which is why the query is normalized
 /// the same way.
@@ -91,11 +95,13 @@ pub fn registry_supports_time_field(
     } else {
         Cow::Owned(format!("{registry}/"))
     };
-    registry_options_by_url
+    let options = registry_options_by_url
         .get(key.as_ref())
         .copied()
-        .unwrap_or_default()
-        .supports_time_field
+        .unwrap_or_default();
+    options.supports_time_field.or_else(|| {
+        (options.server_type == Some(RegistryServerType::Pnpr)).then_some(true)
+    })
 }
 
 /// A declared server type wins; otherwise the built-in layout of a known
@@ -188,16 +194,27 @@ pub fn npm_tarball_url(name: &str, version: &str, opts: TarballUrlOptions<'_>) -
     let TarballUrlOptions { registry, server_type } = opts;
     let registry =
         if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
+    // The pnpr layout addresses the version by its exact key, build metadata
+    // included; `.tgz` filenames drop it.
+    if server_type == Some(RegistryServerType::Pnpr) {
+        return format!("{registry}{name}@{version}");
+    }
+    let version = version
+        .split_once('+')
+        .map(|(base, _)| base)
+        .unwrap_or(version);
     // Artifactory keeps the scope in the filename of a scoped package's tarball
     // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
     let filename_name = match server_type {
         Some(RegistryServerType::Artifactory) => name,
-        Some(RegistryServerType::Npm) | None => match name.strip_prefix('@') {
-            Some(scoped) => scoped.split_once('/').map_or(name, |(_, bare)| bare),
+        _ => match name.strip_prefix('@') {
+            Some(scoped) => scoped
+                .split_once('/')
+                .map(|(_, bare)| bare)
+                .unwrap_or(name),
             None => name,
         },
     };
-    let version = version.split_once('+').map_or(version, |(base, _)| base);
     format!("{registry}{name}/-/{filename_name}-{version}.tgz")
 }
 
@@ -239,19 +256,25 @@ pub fn pick_registry_for_package(
     pkg_name: &str,
     bare_specifier: Option<&str>,
 ) -> String {
+    registry_for_package(registries, pkg_name, bare_specifier).to_owned()
+}
+
+/// [`pick_registry_for_package`], borrowing the URL from `registries`.
+#[must_use]
+pub fn registry_for_package<'a>(
+    registries: &'a HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> &'a str {
     let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
         Some(target) => scope_of(target),
         None => scope_of(pkg_name),
     };
-    if let Some(scope) = scope
-        && let Some(url) = registries.get(scope)
-    {
-        return url.clone();
-    }
-    registries
-        .get("default")
-        .cloned()
-        .unwrap_or_default()
+    scope
+        .and_then(|scope| registries.get(scope))
+        .or_else(|| registries.get("default"))
+        .map(String::as_str)
+        .unwrap_or("")
 }
 
 fn scope_of(name: &str) -> Option<&str> {

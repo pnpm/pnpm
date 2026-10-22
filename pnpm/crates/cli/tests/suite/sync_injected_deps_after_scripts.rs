@@ -122,6 +122,51 @@ fn a_listed_script_refreshes_every_injected_copy() {
     drop((mock_instance, root));
 }
 
+/// The install copies only the files the manifest lists, so the sync after
+/// the script adds none of the others.
+#[test]
+fn a_listed_script_refreshes_only_the_files_the_manifest_lists() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_workspace(&workspace, "syncInjectedDepsAfterScripts:\n  - build\n");
+    fs::write(
+        workspace.join("project-1/package.json"),
+        serde_json::json!({
+            "name": "project-1",
+            "version": "1.0.0",
+            "files": ["distribution"],
+            "scripts": { "build": "node build.cjs" },
+        })
+        .to_string(),
+    )
+    .expect("write project-1 package.json");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    pacquet_in(&workspace.join("project-1"))
+        .with_args(["run", "build"])
+        .assert()
+        .success();
+
+    let copies = injected_copies(&workspace);
+    assert!(!copies.is_empty(), "the install should have injected project-1 somewhere");
+    for copy in &copies {
+        assert!(copy.join("distribution/generated.js").exists(), "{copy:?}");
+        assert!(!copy.join("build.cjs").exists(), "{copy:?} holds a file `files` leaves out");
+    }
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn an_unlisted_script_leaves_the_injected_copies_alone() {
     let CommandTempCwd {
@@ -430,4 +475,74 @@ fn a_listed_script_removes_the_link_of_a_bin_it_dropped() {
     }
 
     drop((mock_instance, root));
+}
+
+#[test]
+fn a_listed_script_syncs_the_copies_of_a_package_that_publishes_from_a_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    // A `**` pattern would make the built `lib/dist` a workspace project too.
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - app\n  - lib\ndedupeInjectedDeps: false\nsyncInjectedDepsAfterScripts:\n  - build\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    for (dir, manifest) in [
+        (
+            "app",
+            serde_json::json!({
+                "name": "app",
+                "version": "1.0.0",
+                "dependencies": { "lib": "workspace:*" },
+                "dependenciesMeta": { "lib": { "injected": true } },
+            }),
+        ),
+        (
+            "lib",
+            serde_json::json!({
+                "name": "lib",
+                "version": "1.0.0",
+                "publishConfig": { "directory": "dist" },
+                "scripts": { "prepare": "node build.cjs", "build": "node build.cjs" },
+            }),
+        ),
+    ] {
+        fs::create_dir_all(workspace.join(dir)).expect("create a project");
+        fs::write(workspace.join(dir).join("package.json"), manifest.to_string())
+            .expect("write a manifest");
+    }
+    // Replaces dist, so the new files share no inode with the injected copy.
+    fs::write(
+        workspace.join("lib/build.cjs"),
+        "const fs = require('fs')\n\
+         fs.rmSync(__dirname + '/dist', { recursive: true, force: true })\n\
+         fs.mkdirSync(__dirname + '/dist')\n\
+         fs.writeFileSync(__dirname + '/dist/package.json', JSON.stringify({ name: 'lib', version: '1.0.0' }))\n\
+         fs.writeFileSync(__dirname + '/dist/index.js', fs.readFileSync(__dirname + '/src.js'))\n",
+    )
+    .expect("write the build script");
+    fs::write(workspace.join("lib/src.js"), "v1").expect("write the source");
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+    let copy = fs::canonicalize(workspace.join("app/node_modules/lib")).expect("find the copy");
+    assert_eq!(fs::read_to_string(copy.join("index.js")).expect("read the copy"), "v1");
+
+    fs::write(workspace.join("lib/src.js"), "v2").expect("edit the source");
+    pacquet_in(&workspace.join("lib"))
+        .with_args(["run", "build"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(copy.join("index.js")).expect("read the copy"), "v2");
+
+    drop((root, mock_instance));
 }

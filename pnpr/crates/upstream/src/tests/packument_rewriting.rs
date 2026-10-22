@@ -9,9 +9,14 @@ fn rewrites_npm_form_tarball() {
         "name": "foo",
         "versions": {
             "1.0.0": {
+                "version": "1.0.0",
                 "dist": {
                     "tarball": "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
-                    "shasum": "abc"
+                    "shasum": "abc",
+                    "attestations": {
+                        "url": "https://registry.npmjs.org/-/npm/v1/attestations/foo@1.0.0",
+                        "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+                    }
                 }
             }
         }
@@ -23,6 +28,10 @@ fn rewrites_npm_form_tarball() {
         "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["shasum"], "abc");
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["attestations"]["url"],
+        "http://127.0.0.1:4873/-/npm/v1/attestations/foo@1.0.0",
+    );
 }
 
 #[test]
@@ -36,6 +45,9 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
                 "dist": {
                     "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
                     "integrity": format!("sha512-{current_digest}=="),
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "signatures": [{ "keyid": "SHA256:key", "sig": "signature" }],
+                    "npm-signature": "signature",
                     "revision": 2,
                     "revisions": [{
                         "revision": 0,
@@ -74,6 +86,66 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
         doc["versions"]["1.0.0"]["dist"]["revisions"][1]["tarball"],
         format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
     );
+    for source_field in ["shasum", "signatures", "npm-signature"] {
+        assert!(
+            doc["versions"]["1.0.0"]["dist"].get(source_field).is_none(),
+            "a revision omits dist.{source_field}",
+        );
+    }
+}
+
+fn revision_zero_dist(history_revisions: &[u64]) -> serde_json::Value {
+    let digest = "A".repeat(86);
+    let history: Vec<_> = history_revisions
+        .iter()
+        .map(|revision| {
+            json!({
+                "revision": revision,
+                "integrity": format!("sha512-{digest}=="),
+                "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+                "manifest": {},
+            })
+        })
+        .collect();
+    json!({
+        "version": "1.0.0",
+        "dist": {
+            "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+            "integrity": format!("sha512-{digest}=="),
+            "shasum": "0000000000000000000000000000000000000000",
+            "revision": 0,
+            "revisions": history,
+        }
+    })
+}
+
+#[test]
+fn preserves_an_explicit_revision_zero() {
+    let digest = "A".repeat(86);
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let mut doc = revision_zero_dist(&[0]);
+
+    rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
+
+    assert_eq!(doc["dist"]["revision"], 0);
+    assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/-/tarballs/sha512/{digest}"));
+    assert!(doc["dist"].get("shasum").is_none());
+}
+
+#[test]
+fn a_revision_history_must_list_revision_zero_exactly_once() {
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    for history in [&[][..], &[0, 0][..]] {
+        let mut doc = revision_zero_dist(history);
+        rewrite_upstream_tarball_urls(
+            &mut doc,
+            &name,
+            "https://upstream.test/",
+            "http://pnpr.test/",
+        );
+        assert!(doc["dist"].get("revision").is_none(), "{history:?}");
+        assert!(doc["dist"].get("revisions").is_none(), "{history:?}");
+    }
 }
 
 #[test]
@@ -422,4 +494,88 @@ fn coarsens_time_entries_by_age() {
     assert_eq!(time["0.0.1"], "not a date");
     // Synthesized top-level `modified` mirrors the coarsened entry.
     assert_eq!(out["modified"], "2024-03-02");
+}
+
+#[test]
+fn preserves_bundled_dependencies_in_abbreviated_packument() {
+    let doc = json!({
+        "name": "foo",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "bundleDependencies": ["a"],
+                "bundledDependencies": ["b"],
+                "dist": { "tarball": "x/foo-1.0.0.tgz" }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let version = &out["versions"]["1.0.0"];
+    assert_eq!(version["bundleDependencies"], json!(["a"]));
+    assert_eq!(version["bundledDependencies"], json!(["b"]));
+}
+
+#[test]
+fn preserves_minimal_npm_user_in_abbreviated_packument() {
+    let doc = json!({
+        "name": "foo",
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "_npmUser": {
+                    "name": "alice",
+                    "email": "alice@example.com",
+                    "trustedPublisher": { "id": "github-actions" },
+                    "approver": { "id": "bob" }
+                },
+                "dist": { "tarball": "x/foo-1.0.0.tgz" }
+            },
+            "2.0.0": {
+                "version": "2.0.0",
+                "_npmUser": {
+                    "name": "charlie",
+                    "email": "charlie@example.com",
+                    "trustedPublisher": false,
+                    "approver": null
+                },
+                "dist": { "tarball": "x/foo-2.0.0.tgz" }
+            }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let v1 = &out["versions"]["1.0.0"]["_npmUser"];
+    assert_eq!(v1["trustedPublisher"], json!(true));
+    assert_eq!(v1["approver"], json!(true));
+    assert!(v1.get("name").is_none());
+    assert!(v1.get("email").is_none());
+
+    let v2 = &out["versions"]["2.0.0"];
+    assert!(v2.get("_npmUser").is_none());
+}
+
+#[test]
+fn preserves_exact_timestamps_for_same_day_releases_so_trust_order_survives() {
+    let doc = json!({
+        "name": "foo",
+        "time": {
+            "modified": "2024-03-01T18:00:00.000Z",
+            "1.0.0": "2024-01-10T08:00:00.000Z",
+            "1.0.1": "2024-01-10T18:00:00.000Z",
+            "2.0.0": "2024-02-15T12:00:00.000Z"
+        },
+        "versions": {
+            "1.0.0": { "version": "1.0.0", "dist": { "tarball": "x/foo-1.0.0.tgz" } },
+            "1.0.1": { "version": "1.0.1", "dist": { "tarball": "x/foo-1.0.1.tgz" } },
+            "2.0.0": { "version": "2.0.0", "dist": { "tarball": "x/foo-2.0.0.tgz" } }
+        }
+    });
+
+    let out = abbreviate_packument(&doc, now());
+    let time = &out["time"];
+    assert_eq!(time["1.0.0"], "2024-01-10T08:00:00.000Z");
+    assert_eq!(time["1.0.1"], "2024-01-10T18:00:00.000Z");
+    assert_eq!(time["2.0.0"], "2024-02-16");
+    assert_eq!(time["modified"], "2024-03-02");
 }

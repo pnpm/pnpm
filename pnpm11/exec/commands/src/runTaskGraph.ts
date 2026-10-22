@@ -27,7 +27,7 @@ import { suppressesScriptEcho } from './createLifecycleOpts.js'
 import { existsInDir } from './existsInDir.js'
 import { getExecutionDuration, writeRecursiveSummary } from './recursiveSummary.js'
 import type { RecursiveRunOpts } from './runRecursive.js'
-import { runScript, type RunScriptOptions } from './runScript.js'
+import { projectLockfilesOf, runScript, type RunScriptOptions } from './runScript.js'
 import type { TaskRunState } from './taskRunState.js'
 
 export interface RunTaskGraphOptions {
@@ -233,7 +233,9 @@ async function runProjectScript (
   const { opts } = ctx
   const lifecycleOpts = await createTaskLifecycleOpts(ctx, node, manifest)
   const runScriptOptions: RunScriptOptions = {
+    deployAllFiles: opts.deployAllFiles,
     enablePrePostScripts: opts.enablePrePostScripts ?? false,
+    projectLockfiles: projectLockfilesOf(opts),
     syncInjectedDepsAfterScripts: opts.syncInjectedDepsAfterScripts,
     workspaceDir: opts.workspaceDir,
   }

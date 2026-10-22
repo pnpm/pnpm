@@ -1,11 +1,11 @@
-use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageManifests, VirtualStoreLayout};
+use crate::{AllowBuildPolicy, CasPathsByPkgId, PackageBins, PackageManifests, VirtualStoreLayout};
 use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_store_dir::StoreIndexWriter;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
@@ -44,6 +44,7 @@ pub struct LinkLockfiles<'a> {
 
 pub struct LinkPackageData<'a> {
     pub package_manifests: &'a PackageManifests,
+    pub package_bins: Option<&'a PackageBins>,
     /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
     /// gating the importer bin pass's use of `package_manifests` — see
     /// [`crate::link_direct_dep_bins_prefetched`]. `None` when the
@@ -52,9 +53,16 @@ pub struct LinkPackageData<'a> {
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PruneTreeOptions<'a> {
+    pub orphans: bool,
+    pub direct_dependencies: bool,
+    pub importer_ids: Option<&'a std::collections::HashSet<String>>,
+}
+
 #[derive(Clone, Copy)]
 pub struct PriorLinkState<'a> {
-    pub prune_orphans: bool,
+    pub prune: PruneTreeOptions<'a>,
     pub hoisted_dependencies: Option<&'a crate::HoistedDependencies>,
     /// `hoistedLocations` recorded by the previous install's
     /// `.modules.yaml`; lets the hoisted linker leave packages that are
@@ -94,7 +102,8 @@ pub struct HoistedProjects<'a> {
     pub manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Every real importer manifest represented in the full hoisted graph.
     /// The shared package map needs all project names for self-reference
-    /// entries even though direct links are limited to selected anchors.
+    /// entries, and the root links of workspace projects need every
+    /// project, even though direct links are limited to selected anchors.
     pub package_map_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub walker_lockfile_dir: &'a Path,
@@ -158,6 +167,8 @@ pub struct BuildPhaseGraph<'a> {
     /// `ignoreScripts`, only these can add new `pendingBuilds`; the
     /// install orchestrator separately carries forward existing entries.
     pub materialized_snapshots: &'a [PackageKey],
+    /// See [`crate::BuildGraphInputs::build_scope`].
+    pub build_scope: Option<&'a HashSet<PackageKey>>,
 }
 
 #[derive(Clone, Copy)]
@@ -177,9 +188,19 @@ pub struct BuildPhasePolicy<'a> {
 #[derive(Clone, Copy)]
 pub struct BuildPhaseCache<'a> {
     pub maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
+    pub diffs_by_snapshot: &'a crate::SideEffectsBySnapshot,
     pub requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
     pub engine_name: Option<&'a str>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
+}
+
+impl<'a> BuildPhaseCache<'a> {
+    pub(crate) fn side_effects(&self) -> crate::CachedSideEffects<'a> {
+        crate::CachedSideEffects {
+            overlays: Some(self.maps_by_snapshot),
+            rows: Some(self.diffs_by_snapshot),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

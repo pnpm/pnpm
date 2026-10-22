@@ -353,6 +353,25 @@ fn dash_override_deletes_optional_peer_metadata() {
 }
 
 #[test]
+fn dash_override_deletes_an_optional_peer_declared_only_in_metadata() {
+    for selector in ["unwanted-peer", "my-app>unwanted-peer"] {
+        let overrides = parsed(&[(selector, "-")]);
+        let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+        let original = std::sync::Arc::new(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "peerDependenciesMeta": {
+                "unwanted-peer": { "optional": true },
+                "kept": { "optional": true },
+            },
+        }));
+        let updated = overrider.apply_to_arc(original, None);
+
+        assert_eq!(updated["peerDependenciesMeta"], json!({ "kept": { "optional": true } }));
+    }
+}
+
+#[test]
 fn convergence_override_rewrites_only_edges_its_version_satisfies() {
     let overrides = parsed(&[("form-data@", "4.0.6")]);
     let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
@@ -589,6 +608,39 @@ fn bare_tarball_override_is_reanchored_against_pkg_dir() {
         Some("../../tarballs/foo.tgz"),
         "a bare tarball override names the workspace's directory, not the package's",
     );
+}
+
+/// The shape pnpm/pnpm#17010 reports: a `workspace:` path moves with the
+/// file that declared it, the way its `link:` spelling does.
+#[test]
+fn workspace_path_override_is_reanchored_against_pkg_dir() {
+    let overrides = parsed(&[("foo", "workspace:./packages/foo")]);
+    let root_dir = PathBuf::from("/workspace");
+    let overrider = VersionsOverrider::new(&overrides, &root_dir);
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, Some(&root_dir.join("packages/deep/app")));
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("workspace:../../foo"));
+}
+
+#[test]
+fn workspace_path_override_is_kept_as_declared_without_a_pkg_dir() {
+    let overrides = parsed(&[("foo", "workspace:./packages/foo")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-dep",
+        "version": "1.0.0",
+        "dependencies": { "foo": "^0.1" },
+    }));
+    overrider.apply(&mut manifest, None);
+
+    assert_eq!(dep_spec(&manifest, "dependencies", "foo"), Some("workspace:./packages/foo"));
 }
 
 /// The shapes the resolver chain claims before the local resolver keep

@@ -2,12 +2,19 @@ mod stale_peer_pins;
 
 use self::stale_peer_pins::release_stale_peer_pins;
 use super::{
-    DependencyGroup, InitializedImporters, PassSettings, ResolveImporterError,
-    ResolveImporterOptions, ResolveWorkspaceResult, Resolver, WorkspaceImporter,
-    WorkspaceResolveOptions, WorkspaceTreeCtx, finish, init_importers, run_hoist_rounds,
-    share_root_deps, sorted_importers, time_cutoff,
+    ResolveWorkspaceResult,
+    finish::finish,
+    hoist_waves::run_hoist_rounds,
+    importers::{InitializedImporters, init_importers, share_root_deps, sorted_importers},
+    options::{PassSettings, WorkspaceImporter, WorkspaceResolveOptions},
+    time_based::time_cutoff,
 };
-use pnpm_resolving_resolver_base::PreferredVersions;
+use crate::{
+    resolve_dependency_tree::WorkspaceTreeCtx,
+    resolve_importer::{ResolveImporterError, ResolveImporterOptions},
+};
+use pnpm_package_manifest::DependencyGroup;
+use pnpm_resolving_resolver_base::{PreferredVersions, Resolver};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// A dependency tree before automatic peer installation and peer-context resolution.

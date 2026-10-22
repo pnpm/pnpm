@@ -1,5 +1,5 @@
 name: WebAssembly toolchain
-description: Install the pinned Rust, WASI SDK and WABT tools for WebContainers
+description: Install the pinned WASI SDK and WABT tools for WebContainers
 
 outputs:
   wasi-sdk-path:
@@ -16,7 +16,6 @@ runs:
       id: toolchain
       shell: bash
       run: |
-        rustup toolchain install nightly-2026-08-27 --profile minimal --target wasm32-wasip1-threads
         mkdir -p "$RUNNER_TEMP/wasm-tools"
         cd "$RUNNER_TEMP/wasm-tools"
         curl --fail --location --retry 3 --output wasi-sdk.tar.gz https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz

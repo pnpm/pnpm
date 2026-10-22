@@ -1,5 +1,31 @@
 # @pnpm-private/updater
 
+## 1100.0.35
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/lockfile.fs@1100.2.14
+  - @pnpm/types@1102.1.2
+  - @pnpm/workspace.projects-reader@1101.1.5
+  - @pnpm/workspace.workspace-manifest-reader@1100.3.0
+
+## 1100.0.34
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/workspace.projects-reader@1101.1.4
+
+## 1100.0.33
+
+### Patch Changes
+
+- Updated dependencies:
+  - @pnpm/lockfile.fs@1100.2.13
+  - @pnpm/workspace.projects-reader@1101.1.3
+  - @pnpm/workspace.workspace-manifest-reader@1100.2.2
+
 ## 1100.0.32
 
 ### Patch Changes

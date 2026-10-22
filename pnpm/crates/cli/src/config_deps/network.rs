@@ -1,4 +1,4 @@
-use pnpm_config::Config;
+use pnpm_config::{Config, NetworkPolicy};
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
@@ -12,6 +12,7 @@ pub(super) struct EnvironmentNetwork {
     pub(super) registries: HashMap<String, String>,
     pub(super) retry_opts: RetryOpts,
     pub(super) offline: bool,
+    pub(super) tar_limits: pnpm_tarball::TarLimits,
 }
 
 impl EnvironmentNetwork {
@@ -34,10 +35,12 @@ impl EnvironmentNetwork {
                 full_metadata: config.requires_full_metadata_for_resolution(),
                 needs_full_metadata_for: None,
                 filter_metadata: config.requires_full_metadata_for_resolution(),
+                registry_options_by_url: std::sync::Arc::new(
+                    config.registry_options_by_url.clone(),
+                ),
             },
             cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-                offline: self.offline,
-                prefer_offline: config.prefer_offline,
+                network: NetworkPolicy::from_settings(self.offline, config.prefer_offline),
                 ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             },
             store_view: pnpm_resolving_npm_resolver::OfflineStoreView::open_for_offline(

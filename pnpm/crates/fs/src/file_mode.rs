@@ -30,6 +30,20 @@ pub fn store_entry_mode(executable: bool, umask: u32) -> u32 {
     (if executable { EXEC_MODE } else { BASE_FILE_MODE }) & !umask & 0o777
 }
 
+/// Whether a store inode of `mode` can be linked where [`store_entry_mode`]
+/// gives `desired`.
+///
+/// Group- and other-write may be missing, and group-write may be extra:
+/// a store write takes those bits from its shard directory
+/// ([`inherited_file_mode`]), not from the umask, and the shared inode
+/// already grants them through the store. Every other bit must match, so a
+/// store populated under a wider umask is still not linked (pnpm/pnpm#3807).
+#[must_use]
+pub fn store_inode_mode_is_linkable(mode: u32, desired: u32) -> bool {
+    const GROUP_OTHER_WRITE: u32 = 0o022;
+    (mode ^ desired) & 0o777 & !GROUP_OTHER_WRITE == 0 && mode & !desired & 0o002 == 0
+}
+
 /// The process's current umask, read once: the CLI never changes it, and
 /// the import hot path would otherwise pay two `umask(2)` syscalls per
 /// file.

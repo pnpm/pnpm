@@ -12,6 +12,8 @@ import { execPnpm } from '../utils/index.js'
 
 test('installing a bzip2 compressed tarball from URL', async () => {
   const project = prepareEmpty()
+  fs.writeFileSync('package.json', '{}')
+  const storeDir = path.resolve('../store')
   const bz2Fixture = path.resolve(import.meta.dirname, '../../../store/cafs/test/fixtures/package.tar.bz2')
   const bz2Data = fs.readFileSync(bz2Fixture)
 
@@ -28,7 +30,7 @@ test('installing a bzip2 compressed tarball from URL', async () => {
   const url = `http://127.0.0.1:${address.port}/package.tar.bz2`
 
   try {
-    await execPnpm(['add', url])
+    await execPnpm(['add', url, '--store-dir', storeDir])
     expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
 
     const lockfile = project.readLockfile()
@@ -38,7 +40,7 @@ test('installing a bzip2 compressed tarball from URL', async () => {
     })
 
     rimrafSync('node_modules')
-    await execPnpm(['install', '--frozen-lockfile'])
+    await execPnpm(['install', '--frozen-lockfile', '--store-dir', storeDir])
     expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
@@ -47,22 +49,24 @@ test('installing a bzip2 compressed tarball from URL', async () => {
 
 test('installing a bzip2 compressed tarball from local file', async () => {
   const project = prepareEmpty()
+  fs.writeFileSync('package.json', '{}')
+  const storeDir = path.resolve('../store')
   const bz2Fixture = path.resolve(import.meta.dirname, '../../../store/cafs/test/fixtures/package.tar.bz2')
 
-  await execPnpm(['add', bz2Fixture])
+  await execPnpm(['add', bz2Fixture, '--store-dir', storeDir])
   expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
 
   const lockfile = project.readLockfile()
   expect(lockfile.importers['.'].dependencies?.['test-bzip2-pkg']).toBeDefined()
 
   rimrafSync('node_modules')
-  await execPnpm(['install', '--frozen-lockfile'])
+  await execPnpm(['install', '--frozen-lockfile', '--store-dir', storeDir])
   expect(loadJsonFileSync<{ version: string }>('node_modules/test-bzip2-pkg/package.json').version).toBe('1.2.3')
 })
 
 test.each(['3.1.0', '1.0.0'])('adding a new unnamed tarball URL replaces the existing dependency with version %s', async (newVersion) => {
   const project = prepareEmpty()
-  const tarballUrl = (version: string) => `http://127.0.0.1:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-${version}.tgz`
+  const tarballUrl = (version: string) => `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-${version}.tgz`
   const oldTarball = tarballUrl('1.0.0')
   const newTarball = `${tarballUrl(newVersion)}?revision=2`
   await execPnpm(['add', oldTarball])

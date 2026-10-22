@@ -168,7 +168,7 @@ Options to pass through to Node.js via the `NODE_OPTIONS` environment variable. 
 
 To preserve existing `NODE_OPTIONS` you can reference the existing environment variable using `${NODE_OPTIONS}` in your configuration:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeOptions: "${NODE_OPTIONS:- } --experimental-vm-modules"
 ```
 
@@ -200,7 +200,7 @@ Added in: v10.26.0
 
 A map of package matchers to explicitly allow (`true`) or disallow (`false`) script execution.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 allowBuilds:
   esbuild: true
   core-js: false
@@ -212,7 +212,7 @@ allowBuilds:
 
 **Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency — the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or, since v11.11.0, by its repository URL:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 allowBuilds:
   # Approves any commit from this repository
   'foo@git+ssh://git@example.com/org/foo.git': true
@@ -238,7 +238,7 @@ The following settings have been removed in v11 and replaced by `allowBuilds`: `
 
 Before:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 onlyBuiltDependencies:
   - electron
 neverBuiltDependencies:
@@ -249,7 +249,7 @@ ignoredBuiltDependencies:
 
 After:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 allowBuilds:
   electron: true
   core-js: false

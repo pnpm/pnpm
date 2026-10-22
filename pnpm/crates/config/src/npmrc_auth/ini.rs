@@ -1,8 +1,9 @@
 use super::{
-    Cow, EnvVar, NpmrcAuth, Path, apply_creds_field, apply_tls_field, env_replace_lossy,
-    expand_inline_pem, is_auth_value_key, normalize_registry_url, parse_bool, redact_npm_auth_key,
+    Cow, EnvVar, NpmrcAuth, NpmrcRoutes, Path, apply_creds_field, apply_tls_field,
+    env_replace_lossy, expand_inline_pem, is_auth_value_key, parse_bool, redact_npm_auth_key,
     resolve_cafile, split_ini_creds_key, split_ssl_key,
 };
+use pnpm_network::{canonicalize_npm_registry_url, normalize_registry_url};
 
 #[derive(Clone, Copy)]
 struct ParseOptions {
@@ -95,6 +96,30 @@ impl NpmrcAuth {
             npmrc_dir,
             ParseOptions { expand_auth_value_env: true, expand_request_destination_env: true },
         )
+    }
+
+    /// Read the command line's settings
+    /// ([`CliLayer::npmrc_tokens`](crate::CliLayer::npmrc_tokens)) as the
+    /// top `.npmrc` layer. Values are used as given: the shell has expanded them.
+    /// Unscoped credentials pin to [`CliLayer::registry`](crate::CliLayer::registry) when set, else to
+    /// the tokens' own `registry`.
+    pub fn from_cli_config(cli: &crate::CliLayer) -> Self {
+        let mut auth = NpmrcAuth::default();
+        for (key, value) in &cli.npmrc_tokens {
+            if crate::config_types::is_ini_config_key(key) {
+                auth.raw_ini_config.insert(key.clone(), value.clone());
+            }
+            // The empty base leaves a relative `cafile` to the current directory.
+            auth.apply_ini_entry(key, value.clone(), Path::new(""));
+        }
+        if let Some(registry) = &cli.registry {
+            auth.routes.default = Some(registry.clone());
+        }
+        auth.rescope_unscoped("<command line>");
+        // `Config::apply_cli_registries` applies the routes over the
+        // workspace yaml, which the `.npmrc` routes rank below.
+        auth.routes = NpmrcRoutes::default();
+        auth
     }
 
     fn from_ini_with_options<Sys: EnvVar>(
@@ -206,15 +231,17 @@ impl NpmrcAuth {
             return;
         }
         if let Some(scope) = scoped_registry_key(key) {
-            self.routes.scoped.insert(scope.to_string(), normalize_registry_url(&value));
+            self.routes.scoped.insert(
+                scope.to_string(),
+                normalize_registry_url(&value).into_owned(),
+            );
             return;
         }
         if self.apply_network_key(key, &value, npmrc_dir) {
             return;
         }
         if let Some((uri, suffix)) = split_ini_creds_key(key) {
-            let entry = self.creds_entry_mut(uri);
-            apply_creds_field(entry, suffix, value);
+            self.apply_uri_creds_field(uri, suffix, &value);
             return;
         }
         if let Some((uri, field, is_file)) = split_ssl_key(key) {
@@ -256,11 +283,16 @@ impl NpmrcAuth {
         } else {
             expand_inline_pem(value)
         };
-        let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
-        apply_tls_field(entry, field, resolved);
+        let canonical_uri = canonicalize_npm_registry_url(uri);
+        let alias = (canonical_uri != uri).then_some(canonical_uri.as_ref());
+        for uri in std::iter::once(uri).chain(alias) {
+            let entry = self.tls.by_uri.entry(uri.to_owned()).or_default();
+            apply_tls_field(entry, field, resolved.clone());
+        }
     }
 
     pub(super) fn warn_ignored_request_destination_env(&mut self, key: &str) {
+        let key = redact_npm_auth_key(key);
         self.warnings.push(format!(
             "Ignored project-level request destination {key:?}: environment variables are not expanded in repository-controlled registry or proxy URLs.",
         ));

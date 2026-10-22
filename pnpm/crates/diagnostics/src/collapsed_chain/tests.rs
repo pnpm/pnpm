@@ -1,4 +1,4 @@
-use super::{Collapsed, CollapsingHandler};
+use super::{Collapsed, CollapsingHandler, collapsed_message};
 use miette::{Diagnostic, MietteHandlerOpts, ReportHandler};
 use std::{error::Error, fmt};
 
@@ -121,6 +121,37 @@ fn a_context_prefixed_wrapper_absorbs_its_cause() {
             "Failed to resolve dependency tree: No matching version found for is-odd@99.99.99"
                 .to_string(),
         ],
+    );
+}
+
+/// A wrapper that leads with its cause and adds context on the lines
+/// below repeats the cause in full, so the cause folds away.
+#[test]
+fn a_context_suffixed_wrapper_absorbs_its_cause() {
+    let leaf = Leaf {
+        message: "No matching version found\n\nFailed to resolve is-odd@99",
+        source: Some(Box::new(Leaf { message: "No matching version found", source: None })),
+    };
+
+    let collapsed = Collapsed::new(&leaf);
+
+    assert_eq!(
+        messages(&collapsed),
+        vec!["No matching version found\n\nFailed to resolve is-odd@99".to_string()],
+    );
+}
+
+#[test]
+fn the_collapsed_message_names_each_distinct_cause_once() {
+    let leaf = Leaf {
+        message: "installing dependencies",
+        source: Some(Box::new(Leaf { message: "tarball server returned HTTP 404", source: None })),
+    };
+    let wrapped = Wrapper { inner: Wrapper { inner: leaf } };
+
+    assert_eq!(
+        collapsed_message(&wrapped),
+        "installing dependencies: tarball server returned HTTP 404",
     );
 }
 

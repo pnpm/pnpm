@@ -8,11 +8,13 @@
 //! metadata from the file an index publishes beside it, and downloads the
 //! wheel only when there is no such file.
 
+use crate::tokens::issue_token;
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use pnpr::{AuthState, Config, PublicRoute, router_with_auth};
+use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use std::{
     io::Write as _,
@@ -179,7 +181,7 @@ async fn a_project_resolves_from_the_metadata_files_an_index_publishes() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -233,7 +235,7 @@ async fn a_wheel_is_read_when_the_index_publishes_no_metadata_file() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -276,7 +278,7 @@ async fn a_second_resolve_reads_the_cached_index() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -326,7 +328,7 @@ async fn a_metadata_file_that_is_not_what_the_index_vouched_for_is_refused() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -374,7 +376,7 @@ async fn metadata_describing_another_distribution_is_refused() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -412,7 +414,7 @@ async fn a_project_page_that_is_not_one_is_not_cached() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -460,7 +462,7 @@ async fn an_index_url_keeps_its_query_on_every_read() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -511,7 +513,7 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -588,7 +590,7 @@ async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -669,7 +671,7 @@ async fn an_unsatisfiable_project_is_reported_as_one() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),
@@ -699,7 +701,7 @@ async fn an_off_allowlist_index_is_refused() {
     let index = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
 
     let response = app
@@ -715,7 +717,7 @@ async fn a_requirement_naming_a_url_is_refused() {
     let index = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for(tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(index.url()),

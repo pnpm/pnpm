@@ -6,11 +6,17 @@
 
 #[cfg(unix)]
 use crate::_utils::terminal::{Terminal, spawn_without_terminal};
+use crate::_utils::{CHILD_DEADLINE, wait_for_child};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
 use serde_json::{Value, json};
-use std::{collections::HashMap, fs, path::Path, process::Command};
+use std::{
+    collections::HashMap,
+    fs,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 /// Write a `pnpm-workspace.yaml` listing `names` as packages, plus a
 /// `package.json` per name under its own subdirectory of `workspace`.
@@ -109,6 +115,27 @@ setTimeout(sample, 20)
 ",
     )
     .expect("write concurrency probe");
+}
+
+/// Each run waits, for up to 30 seconds, until `count` runs are running at
+/// once, and writes `all-running` when they are.
+fn write_all_running_probe(workspace: &Path, count: usize) -> [String; 2] {
+    let source = format!(
+        r"const fs = require('fs')
+const path = require('path')
+const marker = path.join('..', 'running-' + path.basename(process.cwd()))
+fs.mkdirSync(marker)
+const deadline = Date.now() + 30000
+const poll = () => {{
+  const running = fs.readdirSync('..').filter((entry) => entry.startsWith('running-'))
+  if (running.length === {count}) fs.writeFileSync('../all-running', '')
+  else if (!fs.existsSync('../all-running') && Date.now() < deadline) return setTimeout(poll, 20)
+  fs.rmdirSync(marker)
+}}
+poll()
+",
+    );
+    write_exec_probe(workspace, "await-all-running.cjs", &source)
 }
 
 /// A program that records its own process group and its parent's, for
@@ -314,6 +341,26 @@ fn recursive_exec_respects_workspace_concurrency() {
 }
 
 #[test]
+fn recursive_exec_accepts_infinite_workspace_concurrency() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+    let probe = write_all_running_probe(&workspace, 3);
+
+    pacquet
+        .with_args(["--workspace-concurrency=Infinity", "-r", "exec"])
+        .with_args(probe)
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("all-running").exists(),
+        "Infinity should run all three commands at once",
+    );
+
+    drop(root);
+}
+
+#[test]
 fn recursive_exec_no_sort_makes_reverse_and_resume_no_ops() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["z-first", "m-middle", "a-last"]);
@@ -348,17 +395,17 @@ fn recursive_exec_no_sort_makes_reverse_and_resume_no_ops() {
 fn parallel_recursive_exec_has_no_workspace_concurrency_cap() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
-    write_concurrency_probe(&workspace);
+    let probe = write_all_running_probe(&workspace, 3);
 
     pacquet
         .with_args(["--parallel", "exec"])
-        .with_args(CONCURRENCY_PROBE_ARGS)
+        .with_args(probe)
         .assert()
         .success();
 
     assert!(
-        workspace.join("exceeded-concurrency").exists(),
-        "--parallel should start all three commands together",
+        workspace.join("all-running").exists(),
+        "--parallel should run all three commands at once",
     );
 
     drop(root);
@@ -587,14 +634,12 @@ const name = require('path').basename(process.cwd())
 const mark = () => fs.writeFileSync('ran.txt', '')
 if (name === 'a-slow-1' || name === 'c-slow-2') {
   mark()
-  setTimeout(() => fs.writeFileSync('completed.txt', ''), 5000)
+  setTimeout(() => process.exit(0), Number(process.env.HOLD_MS))
 } else if (name === 'b-fails') {
-  let waited = 0
   const poll = () => {
     if (fs.existsSync('../a-slow-1/ran.txt') && fs.existsSync('../c-slow-2/ran.txt')) {
       process.exit(1)
     }
-    if ((waited += 1) >= 500) process.exit(2)
     setTimeout(poll, 10)
   }
   poll()
@@ -604,21 +649,29 @@ if (name === 'a-slow-1' || name === 'c-slow-2') {
 ",
     );
 
-    let output = pacquet
+    // The exec ending is the proof: these probes stop only when cancelled,
+    // and pnpm waits for the commands it started.
+    let hold_ms = (CHILD_DEADLINE * 2).as_millis();
+    let stderr_path = workspace.join("exec.stderr");
+    let mut run = pacquet
         .with_args(["--workspace-concurrency=3", "--no-sort", "--report-summary", "-r", "exec"])
         .with_args(probe)
-        .output()
+        .env("HOLD_MS", hold_ms.to_string())
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&stderr_path).expect("create the exec output"))
+        .spawn()
         .expect("spawn pacquet");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let status = wait_for_child(&mut run);
+    let stderr = fs::read_to_string(&stderr_path).expect("read the exec output");
     eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "the failing project should fail the exec");
+    assert!(!status.success(), "the failing project should fail the exec");
     for name in ["a-slow-1", "c-slow-2"] {
         assert!(
-            !workspace
+            workspace
                 .join(name)
-                .join("completed.txt")
+                .join("ran.txt")
                 .exists(),
-            "bail should interrupt {name}'s five-second command",
+            "{name} must have started, or a `running` summary entry proves nothing",
         );
     }
 

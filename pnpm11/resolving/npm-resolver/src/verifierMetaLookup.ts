@@ -9,6 +9,7 @@ import {
   fetchAbbreviatedMetadataCached,
   fetchFullMetadataCached,
 } from './fetchFullMetadataCached.js'
+import { isMalformedMirrorFragmentError } from './metaMirror.js'
 import type { PackageMetaCache } from './pickPackage.js'
 import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta } from './pickPackage.js'
 
@@ -71,21 +72,12 @@ export interface PublishedAtLookupContext {
   fullMetaForTrustCache: Map<string, Promise<PackageMeta>>
 }
 
-export interface RegistryArtifact {
-  revision: unknown
-  integrity: unknown
-  tarball: unknown
-}
-
-export interface RegistryArtifactHistory {
-  current: RegistryArtifact
-  revisions: RegistryArtifact[]
-}
-
 interface AbbreviatedMetaProjection {
   modified?: string
-  /** version → current and historical registry artifacts. */
-  versionArtifacts?: Map<string, RegistryArtifactHistory>
+  /** version → `dist.tarball`. */
+  versionTarballs?: Map<string, unknown>
+  /** Versions whose metadata selects a registry revision. */
+  revisionVersions?: Set<string>
 }
 
 /**
@@ -179,7 +171,7 @@ export function fetchFullMetaForTrust (
 function projectTrustMeta (meta: PackageMeta): PackageMeta {
   const versions: Record<string, PackageInRegistry> = {}
   for (const [version, manifest] of Object.entries(meta.versions ?? {})) {
-    versions[version] = projectTrustManifest(manifest)
+    if (manifest != null) versions[version] = projectTrustManifest(manifest)
   }
   return {
     name: meta.name,
@@ -309,7 +301,7 @@ async function tryAbbreviatedModifiedShortcut (
   const modifiedMs = Date.parse(modified)
   if (Number.isNaN(modifiedMs)) return undefined
   if (modifiedMs >= context.cutoffMs) return undefined
-  if (!meta?.versionArtifacts?.has(version)) return undefined
+  if (!meta?.versionTarballs?.has(version)) return undefined
   return modified
 }
 
@@ -324,8 +316,9 @@ export function fetchAbbreviatedMeta (
     // Fast path: the resolver's per-install LRU already holds this
     // packument from its own pickPackage pass — abbreviated or full.
     const shared = readSharedMeta(context.sharedMetaCache, registry, name)
-    if (shared != null) {
-      cachedPromise = Promise.resolve({ meta: projectAbbreviatedMeta(shared) })
+    const sharedProjection = shared != null ? projectSharedMeta(shared) : undefined
+    if (sharedProjection != null) {
+      cachedPromise = Promise.resolve({ meta: sharedProjection })
     } else {
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
@@ -340,6 +333,19 @@ export function fetchAbbreviatedMeta (
     context.abbreviatedMetaCache.set(cacheKey, cachedPromise)
   }
   return cachedPromise
+}
+
+/**
+ * `undefined` when the shared packument holds a corrupt mirror fragment, so
+ * the lookup falls through to its own fetch, which repairs the mirror.
+ */
+function projectSharedMeta (meta: PackageMeta): ReturnType<typeof projectAbbreviatedMeta> | undefined {
+  try {
+    return projectAbbreviatedMeta(meta)
+  } catch (err: unknown) {
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
+  }
 }
 
 function readSharedMeta (
@@ -405,39 +411,25 @@ function validateSharedMeta (meta: PackageMeta | undefined, name: string): Packa
 function projectAbbreviatedMeta (meta: PackageMeta): AbbreviatedMetaProjection {
   return {
     modified: meta.modified,
-    versionArtifacts: meta.versions ? projectVersionArtifacts(meta.versions) : undefined,
+    versionTarballs: meta.versions ? projectVersionTarballs(meta.versions) : undefined,
+    revisionVersions: meta.versions ? projectRevisionVersions(meta.versions) : undefined,
   }
 }
 
-function projectVersionArtifacts (
-  versions: Record<string, PackageInRegistry>
-): Map<string, RegistryArtifactHistory> {
-  const versionArtifacts = new Map<string, RegistryArtifactHistory>()
+function projectRevisionVersions (versions: Record<string, PackageInRegistry>): Set<string> {
+  const revisionVersions = new Set<string>()
   for (const [version, manifest] of Object.entries(versions)) {
-    versionArtifacts.set(version, projectArtifactHistory(manifest))
+    if (manifest?.dist?.revision != null || manifest?.dist?.revisions != null) revisionVersions.add(version)
   }
-  return versionArtifacts
+  return revisionVersions
 }
 
-function projectArtifactHistory (manifest: PackageInRegistry): RegistryArtifactHistory {
-  return {
-    current: {
-      revision: manifest.dist?.revision,
-      integrity: manifest.dist?.integrity,
-      tarball: manifest.dist?.tarball,
-    },
-    revisions: Array.isArray(manifest.dist?.revisions)
-      ? manifest.dist.revisions.map(projectRegistryArtifact)
-      : [],
+function projectVersionTarballs (versions: Record<string, PackageInRegistry>): Map<string, unknown> {
+  const versionTarballs = new Map<string, unknown>()
+  for (const [version, manifest] of Object.entries(versions)) {
+    if (manifest != null) versionTarballs.set(version, manifest.dist?.tarball)
   }
-}
-
-function projectRegistryArtifact (artifact: RegistryArtifact): RegistryArtifact {
-  return {
-    revision: artifact.revision,
-    integrity: artifact.integrity,
-    tarball: artifact.tarball,
-  }
+  return versionTarballs
 }
 
 function readLocalMetaTime (

@@ -13,7 +13,7 @@ fn audit_signatures_reports_verified_packages() {
     } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
-    let integrity = "sha512-abc";
+    let integrity = "sha512-YWJj";
     let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
     let keys_mock = keys_mock(&mut registry, &public_key_b64(&key)).create();
     let packument_mock = registry
@@ -39,13 +39,117 @@ fn audit_signatures_reports_verified_packages() {
 }
 
 #[test]
+fn audit_signatures_cannot_cover_missing_or_different_lockfile_integrity() {
+    for resolution in
+        ["{tarball: https://registry.example/signed-pkg.tgz}", "{integrity: sha512-ZGVm}", "env"]
+    {
+        let CommandTempCwd {
+            mut pacquet, workspace, root: _root, ..
+        } = CommandTempCwd::init();
+        let mut registry = mockito::Server::new();
+        let key = signing_key();
+        let integrity = "sha512-YWJj";
+        let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
+        let keys_mock = keys_mock(&mut registry, &public_key_b64(&key)).create();
+        let packument_mock = registry
+            .mock("GET", "/signed-pkg")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(packument_body(
+                "signed-pkg",
+                "1.0.0",
+                integrity,
+                &signatures_json(&signature),
+            ))
+            .create();
+        write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
+        let lockfile_path = workspace.join("pnpm-lock.yaml");
+        let original = fs::read_to_string(&lockfile_path).unwrap();
+        let lockfile = if resolution == "env" {
+            format!(
+                "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies:\n      signed-pkg:\n        specifier: 1.0.0\n        version: 1.0.0\npackages:\n  signed-pkg@1.0.0:\n    resolution: {{integrity: sha512-ZGVm}}\nsnapshots:\n  signed-pkg@1.0.0: {{}}\n---\n{original}",
+            )
+        } else {
+            original.replace("{integrity: sha512-YWJj}", resolution)
+        };
+        fs::write(&lockfile_path, &lockfile).unwrap();
+        let output = pacquet
+            .args(["audit", "signatures", "--json"])
+            .output()
+            .unwrap();
+        assert_failure(&output);
+        assert_eq!(fs::read_to_string(&lockfile_path).unwrap(), lockfile);
+        let result: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
+        assert_eq!(result["verified"], i32::from(resolution == "env"));
+        assert_eq!(
+            result["invalid"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1,
+        );
+        keys_mock.assert();
+        packument_mock.assert();
+    }
+}
+
+#[test]
+fn audit_signatures_skips_runtime_entries() {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let key = signing_key();
+    let integrity = "sha512-YWJj";
+    let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
+    let keys_mock = keys_mock(&mut registry, &public_key_b64(&key)).create();
+    let packument_mock = registry
+        .mock("GET", "/signed-pkg")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_body("signed-pkg", "1.0.0", integrity, &signatures_json(&signature)))
+        .create();
+    let node_packument_mock = registry
+        .mock("GET", "/node")
+        .expect(0)
+        .create();
+    write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path)
+        .unwrap()
+        .replace(
+            "        version: '1.0.0'\n",
+            "        version: '1.0.0'\n    devDependencies:\n      node:\n        specifier: runtime:24.0.0\n        version: runtime:24.0.0\n",
+        )
+        .replace(
+            "packages:\n",
+            "packages:\n\n  node@runtime:24.0.0:\n    resolution:\n      type: variations\n      variants:\n        - resolution:\n            archive: tarball\n            bin:\n              node: bin/node\n            integrity: sha256-AAAA\n            type: binary\n            url: https://nodejs.org/download/release/v24.0.0/node-v24.0.0-linux-x64.tar.gz\n          targets:\n            - cpu: x64\n              os: linux\n",
+        )
+        .replace("snapshots:\n", "snapshots:\n\n  node@runtime:24.0.0: {}\n");
+    fs::write(lockfile_path, lockfile).unwrap();
+
+    let output = pacquet
+        .args(["audit", "signatures", "--json"])
+        .output()
+        .expect("run audit signatures");
+
+    assert_success(&output);
+    let result: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
+    assert_eq!(result["audited"], 1);
+    assert_eq!(result["verified"], 1);
+    keys_mock.assert();
+    packument_mock.assert();
+    node_packument_mock.assert();
+}
+
+#[test]
 fn audit_signatures_filter_checks_only_the_selected_projects() {
     let CommandTempCwd {
         mut pacquet, workspace, root: _root, ..
     } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
-    let integrity = "sha512-abc";
+    let integrity = "sha512-YWJj";
     let signature = sign_b64(&key, &format!("minimist@1.2.0:{integrity}"));
     let keys_mock = keys_mock(&mut registry, &public_key_b64(&key)).create();
     let selected_mock = registry
@@ -83,7 +187,7 @@ fn audit_signatures_json_reports_counts() {
     } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
     let key = signing_key();
-    let integrity = "sha512-abc";
+    let integrity = "sha512-YWJj";
     let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
     let keys_mock = keys_mock(&mut registry, &public_key_b64(&key)).create();
     let packument_mock = registry
@@ -137,7 +241,7 @@ fn audit_signatures_flags_missing_signature() {
         .mock("GET", "/signed-pkg")
         .with_status(200)
         .with_header("content-type", "application/json")
-        .with_body(packument_body("signed-pkg", "1.0.0", "sha512-abc", "[]"))
+        .with_body(packument_body("signed-pkg", "1.0.0", "sha512-YWJj", "[]"))
         .create();
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
@@ -173,7 +277,7 @@ fn audit_signatures_flags_invalid_signature() {
         .with_body(packument_body(
             "signed-pkg",
             "1.0.0",
-            "sha512-abc",
+            "sha512-YWJj",
             &signatures_json(&signature),
         ))
         .create();
@@ -285,7 +389,7 @@ fn audit_signatures_follows_a_keys_redirect_with_the_target_tls_settings() {
         mut pacquet, workspace, root: _root, ..
     } = CommandTempCwd::init();
     let key = signing_key();
-    let integrity = "sha512-abc";
+    let integrity = "sha512-YWJj";
     let signature = sign_b64(&key, &format!("signed-pkg@1.0.0:{integrity}"));
     let keys_server = TrustedTlsServer::start(&keys_body(&public_key_b64(&key)));
     let mut registry = mockito::Server::new();
@@ -512,6 +616,11 @@ importers:
       {name}:
         specifier: '1.0.0'
         version: '1.0.0'
+
+packages:
+
+  {name}@1.0.0:
+    resolution: {{integrity: sha512-YWJj}}
 
 snapshots:
 

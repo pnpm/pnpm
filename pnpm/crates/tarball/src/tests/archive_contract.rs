@@ -40,6 +40,7 @@ async fn archive_requests_preserve_the_deployments_redirect_guard() {
         0,
         false,
         None,
+        crate::archive_request::ArchiveContentCoding::Negotiated,
     )
     .await;
     let error = result.err().expect("off-allowlist redirect must fail");
@@ -88,7 +89,15 @@ async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
         RetryOpts { retries: u32::MAX, ..fast_retry_opts() },
         |attempt| {
             crate::archive_request::request_archive::<RecordingReporter>(
-                &client, &url, "fixture", &auth, 0, attempt, false, None,
+                &client,
+                &url,
+                "fixture",
+                &auth,
+                0,
+                attempt,
+                false,
+                None,
+                crate::archive_request::ArchiveContentCoding::Negotiated,
             )
         },
     )
@@ -186,6 +195,7 @@ async fn archive_network_errors_remove_urls_from_the_source_chain() {
         u32::MAX,
         false,
         None,
+        crate::archive_request::ArchiveContentCoding::Negotiated,
     )
     .await;
     let error = result.err().expect("closed port must fail");
@@ -243,6 +253,7 @@ async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
         0,
         false,
         None,
+        crate::archive_request::ArchiveContentCoding::Negotiated,
     )
     .await
     .unwrap();
@@ -273,6 +284,7 @@ async fn archive_requests_accept_not_modified_only_when_sending_a_validator() {
             0,
             false,
             if_none_match,
+            crate::archive_request::ArchiveContentCoding::Negotiated,
         )
         .await;
         assert_eq!(result.is_ok(), accepted, "{if_none_match:?}");
@@ -300,6 +312,7 @@ async fn archive_response_meta_joins_repeated_cache_control_fields() {
         0,
         false,
         None,
+        crate::archive_request::ArchiveContentCoding::Negotiated,
     )
     .await
     .unwrap();
@@ -402,8 +415,10 @@ async fn formats_share_projection_offline_replay_and_missing_blob_validation() {
                     auth_headers: &auth,
                     retry_opts: fast_retry_opts(),
                     offline: false,
+                    tar_limits: crate::TarLimits::default(),
                 },
                 package: crate::TarballPackage {
+                    integrity_kind: crate::IntegrityKind::Resource,
                     integrity: Some(&integrity),
                     unpacked_size: None,
                     file_count: None,
@@ -479,8 +494,10 @@ async fn formats_share_retry_classification_and_never_publish_failed_integrity()
                     auth_headers: &auth,
                     retry_opts: fast_retry_opts(),
                     offline: false,
+                    tar_limits: crate::TarLimits::default(),
                 },
                 package: crate::TarballPackage {
+                    integrity_kind: crate::IntegrityKind::Resource,
                     integrity: Some(&integrity),
                     unpacked_size: None,
                     file_count: None,
@@ -553,6 +570,7 @@ async fn zip_download_limits_cover_content_lengths_and_chunked_bodies() {
             None,
             None,
             Some(16),
+            crate::TarLimits::default(),
         )
         .await
         .unwrap_err();
@@ -593,6 +611,7 @@ async fn request_archive_quick_retries_transient_connection_reset() {
         0,
         false,
         None,
+        crate::archive_request::ArchiveContentCoding::Negotiated,
     )
     .await;
 

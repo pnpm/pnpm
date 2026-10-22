@@ -1,19 +1,21 @@
 use super::{
     CasIndexes, CasPrefetch, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
-    CreateVirtualStoreStoreContext, LinkPlan, WantedEntries,
+    CreateVirtualStoreStoreContext, LinkPlan, PrefetchTask, WantedEntries,
     cache_keys::{SlotReuse, SnapshotCacheKey},
+    cas::{retain_fetch_pass_rows, retained_cache_keys},
     cold::{ColdBatch, ColdBatchState, ColdInputs, run_cold_batch, unlink_fetch_failed_children},
     create_build_marker_source, init_store_dir_unless_frozen, nothing_to_materialize, partition,
     publish_planned_canonical_fetches, removed_aliases_by_key,
     slot_linking::LinkSlotsParallel,
     snapshot_plan,
-    warm::{WarmLinkBatch, enforce_cached_git_prepare_policy, link_warm_batch},
+    warm::{WarmLinkBatch, link_warm_batch},
 };
 use crate::{InstallPackageBySnapshot, install_package_by_snapshot::runtime_platform_selector};
 use pnpm_config::NodeLinker;
-use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, PlatformSelector};
+use pnpm_lockfile::{
+    LockfileEntries, PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry,
+};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
 use pnpm_tarball::PrefetchResult;
 use std::{
     collections::{HashMap, HashSet},
@@ -28,11 +30,24 @@ impl<'a> CreateVirtualStore<'a> {
     pub(super) async fn run_inner<Reporter: self::Reporter>(
         &mut self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
+        // Boxed for `clippy::large_futures`: every install awaits this future.
+        Box::pin(self.run_retaining::<Reporter>(None)).await.map(|(output, _)| output)
+    }
+
+    /// [`Self::run_inner`], also returning the settled prefetch of
+    /// `retained` for a later pass over those snapshots. See
+    /// [`retain_fetch_pass_rows`].
+    pub(super) async fn run_retaining<Reporter: self::Reporter>(
+        &mut self,
+        retained: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    ) -> Result<(CreateVirtualStoreOutput, Option<CasPrefetch>), CreateVirtualStoreError> {
         let Some(wanted) = self.wanted()? else {
-            return Ok(nothing_to_materialize(self.is_hoisted()));
+            return Ok((nothing_to_materialize(self.is_hoisted()), None));
         };
         let prefetch = self.prefetch(wanted).await;
         let marker_source = self.prepare_store().await?;
+        let retained_keys =
+            retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
         let planned = plan.survivors.len();
         let prefetched = self.settle_prefetch(
@@ -54,7 +69,17 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await?;
         self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
-        Ok(output)
+        let handoff = retained_keys.map(|cache_keys| {
+            let mut rows = prefetched;
+            retain_fetch_pass_rows(&mut rows, &cache_keys, &output);
+            CasPrefetch {
+                store_index: prefetch.store_index,
+                verified_files_cache: prefetch.verified_files_cache,
+                cache_keys,
+                task: PrefetchTask::Settled(Box::new(rows)),
+            }
+        });
+        Ok((output, handoff))
     }
 
     /// `pnpm:stats added` fires one event per project once the
@@ -87,6 +112,18 @@ impl<'a> CreateVirtualStore<'a> {
         }));
     }
 
+    fn rebuilds<'p>(
+        &'p self,
+        plan: &'p snapshot_plan::SnapshotPlan<'a>,
+    ) -> partition::Rebuilds<'p> {
+        partition::Rebuilds {
+            markers: &plan.marker_rebuilds,
+            allow_build_policy: self.ctx.allow_build_policy,
+            known_requires_build: self.selection.known_requires_build,
+            known_bins: self.selection.known_bins,
+        }
+    }
+
     async fn materialize_plan<Reporter: self::Reporter>(
         &self,
         wanted: WantedEntries<'a>,
@@ -99,7 +136,7 @@ impl<'a> CreateVirtualStore<'a> {
             &plan.survivors,
             &plan.skipped_entries,
             prefetched,
-            &plan.marker_rebuilds,
+            &self.rebuilds(&plan),
             self.ctx.linker.kind,
         );
 
@@ -127,13 +164,12 @@ impl<'a> CreateVirtualStore<'a> {
             &links,
             marker_source.map(tempfile::NamedTempFile::path),
         )?;
-        let fetch_failed = self.download_cold::<Reporter>(
+        let fetch_failed = self.download_and_apply_side_effects::<Reporter>(
             ColdInputs { wanted, store, prefetched, marker_source, links: &links },
             &mut partition,
             &mut indexes,
         )
         .await?;
-        self.apply_side_effects(wanted, &mut partition, &indexes.shared_base).await;
 
         // The writer is owned by the caller now. They drop their
         // sender and await the join handle after the build phase
@@ -143,7 +179,9 @@ impl<'a> CreateVirtualStore<'a> {
 
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
-            side_effects_maps_by_snapshot: partition.side_effects_maps_by_snapshot,
+            package_bins: partition.package_bins,
+            side_effects_maps_by_snapshot: partition.side_effects.maps,
+            side_effects_by_snapshot: partition.side_effects.diffs,
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
             materialized_snapshots: plan.materialized_keys(),
             fetch_failed,
@@ -234,83 +272,6 @@ impl<'a> CreateVirtualStore<'a> {
         })
     }
 
-    /// A joined-task failure degrades to an empty result: every lookup
-    /// misses and the snapshots fall through to their per-snapshot
-    /// path, the same shape as a store with no index.
-    async fn settle_prefetch(
-        &self,
-        task: tokio::task::JoinHandle<PrefetchResult>,
-        verified_files_cache: &SharedVerifiedFilesCache,
-        packages: &HashMap<PackageKey, PackageMetadata>,
-        plan: &mut snapshot_plan::SnapshotPlan<'_>,
-    ) -> Result<PrefetchResult, CreateVirtualStoreError> {
-        let prefetched = task.await.unwrap_or_else(|error| {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "warm-cache prefetch task failed; treating every lookup as a miss",
-            );
-            PrefetchResult::default()
-        });
-        let prefetched = self.verify_imported_rows(prefetched, verified_files_cache, plan).await;
-        enforce_cached_git_prepare_policy(
-            &mut plan.survivors,
-            packages,
-            &prefetched,
-            self.ctx.allow_build_policy,
-            self.ctx.config.ignore_scripts,
-            plan.has_git_hosted_survivor,
-        )?;
-        Ok(prefetched)
-    }
-
-    /// Run the files checks the prefetch deferred for the rows whose
-    /// files this install may import: every survivor, and every skipped
-    /// snapshot whose row carries a side-effects overlay, which the
-    /// build phase's cache hit materializes into the slot. A row whose
-    /// CAFS files have gone missing is dropped and re-fetched. The other
-    /// skipped snapshots keep their rows unchecked: nothing imports
-    /// their files, and their manifests and `requiresBuild` flags come
-    /// from the row itself.
-    async fn verify_imported_rows(
-        &self,
-        mut prefetched: PrefetchResult,
-        verified_files_cache: &SharedVerifiedFilesCache,
-        plan: &snapshot_plan::SnapshotPlan<'_>,
-    ) -> PrefetchResult {
-        if prefetched.pending_checks.is_empty() {
-            return prefetched;
-        }
-        let imported_keys = imported_cache_keys(plan, &prefetched);
-        let store_dir: &'static StoreDir = &self.ctx.config.store_dir;
-        let verified_files_cache = SharedVerifiedFilesCache::clone(verified_files_cache);
-        tokio::task::spawn_blocking(move || {
-            let verify_start = std::time::Instant::now();
-            let failed = prefetched.verify_rows(
-                imported_keys.iter().map(String::as_str),
-                store_dir,
-                &verified_files_cache,
-            );
-            tracing::debug!(
-                target: "pacquet::download",
-                rows = imported_keys.len(),
-                failed,
-                verify_ms = verify_start.elapsed().as_millis() as u64,
-                "store rows of the imported snapshots verified",
-            );
-            prefetched
-        })
-        .await
-        .unwrap_or_else(|error| {
-            tracing::warn!(
-                target: "pacquet::install",
-                ?error,
-                "store-row verification task failed; treating every lookup as a miss",
-            );
-            PrefetchResult::default()
-        })
-    }
-
     fn link_plan(&self, plan: &snapshot_plan::SnapshotPlan<'_>) -> LinkPlan<'a> {
         let config = self.ctx.config;
         LinkPlan {
@@ -331,6 +292,7 @@ impl<'a> CreateVirtualStore<'a> {
                     config,
                     self.ctx.caches.logged_methods,
                     self.ctx.requester,
+                    self.ctx.caches.swap_lock,
                 ),
                 link: crate::VirtualStoreLinkOptions {
                     layout: self.ctx.linker.layout,
@@ -377,10 +339,59 @@ impl<'a> CreateVirtualStore<'a> {
     /// written and each download's CAS index is the only output, folded
     /// into [`CasIndexes::by_pkg_id`]; the isolated linker's slot import
     /// has already happened by the time the download future returns.
-    async fn download_cold<Reporter: self::Reporter>(
+    async fn download_and_apply_side_effects<Reporter: self::Reporter>(
         &self,
         inputs: ColdInputs<'_, 'a>,
         partition: &mut partition::Partition<'_>,
+        indexes: &mut CasIndexes,
+    ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
+        let side_effects_ctx = partition::PartitionSideEffectsContext {
+            config: self.ctx.config,
+            wanted: inputs.wanted,
+            allow_build_policy: self.ctx.allow_build_policy,
+            store_index_writer: self.fetching.store_index_writer,
+            importers: self.importers,
+        };
+        if !crate::shared_side_effects::cold_shared_packages_have_known_requires_build(
+            &partition.cold,
+            inputs.links.shared_packages.as_ref(),
+            &partition.requires_build_by_snapshot,
+        ) {
+            let fetch_failed = self.download_cold::<Reporter>(
+                inputs,
+                &partition.cold,
+                (&mut partition.package_manifests, &mut partition.package_bins),
+                &mut partition.requires_build_by_snapshot,
+                indexes,
+            )
+            .await?;
+            partition.apply_side_effects(side_effects_ctx, &indexes.shared_base).await;
+            return Ok(fetch_failed);
+        }
+        let prepared = partition.prepare_side_effects(side_effects_ctx, &indexes.shared_base).await;
+        let download_future = self.download_cold::<Reporter>(
+            inputs,
+            &partition.cold,
+            (&mut partition.package_manifests, &mut partition.package_bins),
+            &mut partition.requires_build_by_snapshot,
+            indexes,
+        );
+        let resolve_future = crate::shared_side_effects::resolve_prepared_side_effects(
+            prepared,
+            &partition.side_effects.quarantine,
+        );
+        let (fetch_failed, resolved) = tokio::join!(download_future, resolve_future);
+        let fetch_failed = fetch_failed?;
+        partition.finish_side_effects(resolved, side_effects_ctx, &indexes.shared_base).await;
+        Ok(fetch_failed)
+    }
+
+    async fn download_cold<Reporter: self::Reporter>(
+        &self,
+        inputs: ColdInputs<'_, 'a>,
+        cold: &[(&'a PackageKey, &'a SnapshotEntry)],
+        (package_manifests, package_bins): (&mut super::PackageManifests, &mut super::PackageBins),
+        requires_build_by_snapshot: &mut super::RequiresBuildBySnapshot,
         indexes: &mut CasIndexes,
     ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
         let runtime_platform_selector =
@@ -389,7 +400,7 @@ impl<'a> CreateVirtualStore<'a> {
         let mut cold_cas_paths = Vec::new();
         run_cold_batch::<Reporter>(
             ColdBatch {
-                cold: &partition.cold,
+                cold,
                 installer: self.cold_installer(&inputs, &runtime_platform_selector),
                 reuse: self.slot_reuse(inputs.wanted.packages),
                 marker_source: inputs.marker_source,
@@ -399,7 +410,9 @@ impl<'a> CreateVirtualStore<'a> {
             },
             &mut ColdBatchState {
                 fetch_failed: &mut fetch_failed,
-                requires_build_by_snapshot: &mut partition.requires_build_by_snapshot,
+                package_manifests,
+                package_bins,
+                requires_build_by_snapshot,
                 shared_base_cas_paths: &mut indexes.shared_base,
             },
             &mut cold_cas_paths,
@@ -441,48 +454,4 @@ impl<'a> CreateVirtualStore<'a> {
             link_concurrency_probe: self.link_concurrency_probe,
         }
     }
-
-    async fn apply_side_effects(
-        &self,
-        wanted: WantedEntries<'a>,
-        partition: &mut partition::Partition<'_>,
-        base_cas_paths: &crate::shared_side_effects::BaseCasPaths,
-    ) {
-        crate::shared_side_effects::apply_shared_side_effects(
-            crate::shared_side_effects::ApplySharedSideEffectsOptions {
-                cached: crate::shared_side_effects::SharedSideEffectsCacheRows {
-                    base_cas_paths,
-                    by_snapshot: &partition.side_effects_by_snapshot,
-                    quarantine_by_snapshot: &partition.remote_side_effects_quarantine_by_snapshot,
-                    store_index_keys_by_snapshot: &partition.store_index_keys_by_snapshot,
-                },
-                config: self.ctx.config,
-                snapshots: wanted.snapshots,
-                packages: wanted.packages,
-                requires_build_by_snapshot: &partition.requires_build_by_snapshot,
-                allow_build_policy: self.ctx.allow_build_policy,
-
-                side_effects_maps_by_snapshot: &mut partition.side_effects_maps_by_snapshot,
-
-                store_index_writer: self.fetching.store_index_writer,
-            },
-            self.importers,
-        )
-        .await;
-    }
-}
-pub(super) fn imported_cache_keys(
-    plan: &snapshot_plan::SnapshotPlan<'_>,
-    prefetched: &PrefetchResult,
-) -> Vec<String> {
-    plan.survivors
-        .iter()
-        .filter_map(|(_, _, cache_key)| cache_key.clone())
-        .chain(
-            plan.skipped_entries
-                .iter()
-                .filter_map(|(_, _, cache_key)| cache_key.clone())
-                .filter(|cache_key| prefetched.side_effects_maps.contains_key(cache_key)),
-        )
-        .collect()
 }

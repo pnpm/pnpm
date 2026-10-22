@@ -1,15 +1,31 @@
 use super::super::{
     Host, InstallError, LogEvent, LogLevel, OptimisticRepeatInstallCheck,
     OptimisticRepeatInstallDecision, PnpmLog, Reporter, SummaryLog, UpdateSeedPolicy,
-    check_optimistic_repeat_install, gvs_build_marker_present,
-    gvs_build_markers_may_require_recovery, unapproved_recorded_ignored_builds,
+    gvs_build_marker_present, gvs_build_markers_may_require_recovery,
+    unapproved_recorded_ignored_builds,
 };
 use pnpm_config::Config;
+use pnpm_store_dir::StoreOperationLock;
 use std::path::Path;
+
+/// Take the store lock the install holds for its whole run, inside a
+/// `pacquet::install` span of its own: a lock another process holds is a
+/// wait nothing else reports.
+pub(super) fn lock_store(config: &Config) -> Result<StoreOperationLock, InstallError> {
+    let _span = tracing::debug_span!(target: "pacquet::install", "lock_store").entered();
+    if config.frozen_store {
+        config.store_dir.lock_for_frozen_use()
+    } else {
+        config.store_dir.lock_for_use()
+    }
+    .map_err(InstallError::StoreLock)
+}
 
 /// Everything the optimistic repeat-install short-circuit consults.
 pub(super) struct UpToDateCheck<'a> {
     pub(super) workspace: OptimisticRepeatInstallCheck<'a>,
+    /// The projects the install covers.
+    pub(super) scope: crate::optimistic_repeat_install::Scope<'a>,
     pub(super) mutation: crate::ProjectMutation,
     pub(super) update_seed_policy: &'a UpdateSeedPolicy,
     pub(super) frozen_lockfile: bool,
@@ -38,11 +54,9 @@ pub(super) struct UpToDateCheck<'a> {
 /// when the lockfile is missing or stale. It only skips the projects' own
 /// lifecycle scripts when nothing changed.
 ///
-/// A `--filter` narrowing does not disqualify the run: the check validates the
-/// whole workspace (`project_manifests` covers every project even when only a
-/// subset is selected), and it refuses a workspace state a filtered install
-/// wrote, so "nothing changed" still means every selected project is
-/// materialized.
+/// A `--filter` narrowing does not disqualify the run: the check holds the
+/// selected projects and the workspace projects they depend on, which is all a
+/// filtered install would materialize.
 pub(super) fn repeat_install_verdict(
     check: &UpToDateCheck<'_>,
 ) -> Result<RepeatInstallVerdict, InstallError> {
@@ -57,13 +71,22 @@ pub(super) fn repeat_install_verdict(
         return Ok(RepeatInstallVerdict::Changed);
     }
     if let OptimisticRepeatInstallDecision::Skipped { reason } =
-        check_optimistic_repeat_install(&check.workspace)
+        crate::optimistic_repeat_install::check_optimistic_repeat_install_in(
+            &check.workspace,
+            check.scope,
+        )
     {
         tracing::debug!(
             target: "pacquet::install",
             reason,
             "repeat-install fast path skipped; running the full install",
         );
+        return Ok(RepeatInstallVerdict::Changed);
+    }
+    if crate::agent_skills::agent_skill_targets_changed(
+        check.workspace.config,
+        check.workspace.workspace_root,
+    ) {
         return Ok(RepeatInstallVerdict::Changed);
     }
     if check.frozen_lockfile {
@@ -102,35 +125,58 @@ pub(super) enum RepeatInstallVerdict {
 pub(super) fn build_state_allows_short_circuit(
     check: &UpToDateCheck<'_>,
 ) -> Result<bool, InstallError> {
-    if gvs_build_markers_may_require_recovery(check.workspace.config) {
-        match check.workspace.lockfile.get() {
-            Ok(Some(wanted)) => {
-                if gvs_build_marker_present(
-                    wanted,
-                    check.workspace.config,
-                    check.workspace.workspace_root,
-                    check.effective_node_version,
-                ) {
-                    return Ok(false);
-                }
-            }
-            Ok(None) => {}
-            Err(_) => return Ok(false),
-        }
+    if gvs_build_markers_complete(
+        check.workspace.config,
+        check.workspace.lockfile,
+        check.workspace.workspace_root,
+        check.effective_node_version,
+    )
+    .is_err()
+    {
+        return Ok(false);
     }
-    if !check.workspace.config.strict_dep_builds {
+    check_strict_dep_builds_for_fast_path(check.workspace.config)
+}
+
+/// `Err` names what stops the fast path: a build marker the full install has
+/// to recover, or a wanted lockfile it cannot read to look for one.
+pub(in crate::install) fn gvs_build_markers_complete(
+    config: &Config,
+    lockfile: pnpm_lockfile::MaybeLazyLockfile<'_>,
+    lockfile_root: &Path,
+    effective_node_version: Option<&str>,
+) -> Result<(), &'static str> {
+    if !gvs_build_markers_may_require_recovery(config) {
+        return Ok(());
+    }
+    let wanted = lockfile
+        .get()
+        .ok()
+        .flatten()
+        .ok_or(
+            "the wanted lockfile cannot be read to look for global virtual store build markers",
+        )?;
+    if gvs_build_marker_present(wanted, config, lockfile_root, effective_node_version) {
+        return Err("a global virtual store build marker needs recovery");
+    }
+    Ok(())
+}
+
+/// Whether `strictDepBuilds` allows the fast path to stand.
+pub(in crate::install) fn check_strict_dep_builds_for_fast_path(
+    config: &Config,
+) -> Result<bool, InstallError> {
+    if !config.strict_dep_builds {
         return Ok(true);
     }
-    match pnpm_modules_yaml::read_modules_layout::<Host>(&check.workspace.config.modules_dir) {
-        Ok(Some(modules)) => {
-            match unapproved_recorded_ignored_builds(&modules, check.workspace.config) {
-                Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds { package_names }),
-                Ok(None) => Ok(true),
-                // Unreadable state or a malformed `allowBuilds`: can't trust the
-                // fast path, run the full install.
-                Err(_) => Ok(false),
-            }
-        }
+    match pnpm_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+        Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
+            Ok(Some(package_names)) => Err(InstallError::IgnoredBuilds { package_names }),
+            Ok(None) => Ok(true),
+            // Unreadable state or a malformed `allowBuilds`: can't trust the
+            // fast path, run the full install.
+            Err(_) => Ok(false),
+        },
         Ok(None) => Ok(true),
         Err(_) => Ok(false),
     }
@@ -185,14 +231,26 @@ pub(super) fn report_already_up_to_date<Reporter: self::Reporter>(
 /// slots of an unregistered project.
 ///
 /// Best-effort: a registry write failure shouldn't fail the install, so it is
-/// surfaced as `tracing::warn!` instead. Loaded installs require durable
-/// registration because their blobs have no project hardlinks to protect them.
+/// surfaced as `tracing::warn!` instead. Loaded installs register the
+/// directory holding their store manifest, which prune reads, and require
+/// durable registration because their blobs have no project hardlinks to
+/// protect them.
+/// A frozen store is externally managed and must not receive registry writes.
 pub(crate) fn register_workspace_in_store(
     config: &Config,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
+    if config.frozen_store && config.node_linker == pnpm_config::NodeLinker::Loaded {
+        return Ok(());
+    }
     if config.node_linker == pnpm_config::NodeLinker::Loaded {
-        return pnpm_store_dir::register_loaded_project(&config.store_dir, workspace_root)
+        let loader_dir = config.store_loader_dir(workspace_root);
+        std::fs::create_dir_all(&loader_dir)
+            .map_err(|error| InstallError::CreateStoreLoaderDir {
+                dir: loader_dir.clone(),
+                error,
+            })?;
+        return pnpm_store_dir::register_loaded_project(&config.store_dir, &loader_dir)
             .map_err(InstallError::RegisterLoadedProject);
     }
     if config.frozen_store && !config.enable_global_virtual_store {
@@ -237,6 +295,7 @@ impl super::RunExecution<'_> {
             RepeatInstallVerdict::Unchanged | RepeatInstallVerdict::UnchangedFrozen => false,
         };
         if changed
+            || self.malformed_declaration_blocks_repeat_install(scope)
             || pnpmfile_hook_override_changed(embedder_hooks, self.install.context.lockfile).await
         {
             return Ok(RepeatInstallVerdict::Changed);

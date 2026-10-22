@@ -187,6 +187,88 @@ test('switchCliVersion records the version minimumReleaseAge allows for a range 
   expect(spawnPnpm).not.toHaveBeenCalled()
 })
 
+test('switchCliVersion records no pin for the running pnpm when told to record only a switch', async () => {
+  mockPackageManager.version = '11.1.0'
+  readEnvLockfile.mockResolvedValue(null)
+  isPackageManagerResolved.mockReturnValue(false)
+  const context = {
+    rootProjectManifestDir: '/repo',
+    wantedPackageManager: { fromDevEngines: true, name: 'pnpm', onFail: 'download', version: '^11.0.0' },
+  } as unknown as ConfigContext
+
+  await switchCliVersion({} as Config, context, { recordPinWithoutSwitch: false })
+
+  expect(maturePnpmVersionForRange).not.toHaveBeenCalled()
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(spawnPnpm).not.toHaveBeenCalled()
+})
+
+test('switchCliVersion leaves a locked running pnpm unrecorded when told to record only a switch', async () => {
+  mockPackageManager.version = '11.13.1'
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+  isPackageManagerResolved.mockReturnValue(false)
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { fromDevEngines: true, name: 'pnpm', onFail: 'download', version: '^11.13.0' },
+  } as unknown as ConfigContext
+
+  await switchCliVersion({} as Config, context, { recordPinWithoutSwitch: false })
+
+  expect(resolvePackageManagerIntegrities).not.toHaveBeenCalled()
+  expect(installPnpmToStore).not.toHaveBeenCalled()
+})
+
+test('switchCliVersion still records the pin it switches to when told to record only a switch', async () => {
+  readEnvLockfile.mockResolvedValue(envLockfileFor('11.13.1'))
+  isPackageManagerResolved.mockReturnValue(false)
+  resolvePackageManagerIntegrities.mockResolvedValue(envLockfileFor('11.13.1'))
+  const context = {
+    rootProjectManifestDir: '/project',
+    wantedPackageManager: { fromDevEngines: true, name: 'pnpm', onFail: 'download', version: '^11.13.0' },
+  } as unknown as ConfigContext
+
+  const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never)
+  try {
+    await switchCliVersion({ rawConfig: {} } as unknown as Config, context, { recordPinWithoutSwitch: false })
+  } finally {
+    exit.mockRestore()
+  }
+
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('11.13.1', expect.objectContaining({ save: true }))
+  expect(installPnpmToStore).toHaveBeenCalledWith('11.13.1', expect.anything())
+})
+
+test('switchCliVersion resolves the pinned pnpm under the trust policy (pnpm/pnpm#16319)', async () => {
+  const exit = jest.spyOn(process, 'exit').mockImplementation(((code?: string | number | null | undefined) => {
+    throw new Error(`exit ${code ?? 0}`)
+  }) as typeof process.exit)
+  readEnvLockfile.mockResolvedValue(null)
+
+  await expect(switchCliVersion({
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['pnpm@9.3.0'],
+    trustPolicyIgnoreAfter: 1440,
+    virtualStoreDirMaxLength: 120,
+  } as unknown as Config, {
+    rootProjectManifestDir: '/repo',
+    wantedPackageManager: {
+      fromDevEngines: true,
+      name: 'pnpm',
+      onFail: 'download',
+      version: '9.3.0',
+    },
+  } as unknown as ConfigContext)).rejects.toThrow('exit 0')
+
+  expect(resolvePackageManagerIntegrities).toHaveBeenCalledWith('9.3.0', expect.objectContaining({
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['pnpm@9.3.0'],
+    trustPolicyIgnoreAfter: 1440,
+  }))
+
+  exit.mockRestore()
+})
+
 test('switchCliVersion records nothing and keeps running when the release-age lookup fails (#16431)', async () => {
   mockPackageManager.version = '11.1.0'
   readEnvLockfile.mockResolvedValue(null)

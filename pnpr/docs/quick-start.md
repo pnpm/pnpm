@@ -11,7 +11,7 @@ a locally-hosted registry, an upstream like npmjs — is declared explicitly and
 claims the package names it serves, and a router resolves each name to exactly
 one of them. Save this as `pnpr.yaml`:
 
-```yaml
+```yaml title="pnpr.yaml"
 storage: ./storage
 
 auth:
@@ -58,22 +58,22 @@ pnpr -c ./pnpr.yaml
 ```
 
 It listens on `127.0.0.1:7677`. (Running plain `pnpr` with no config works
-too, but the bundled default config is shaped for pnpm's own test registry —
-for anything real, pass your own config.)
+too, using the minimal production default that proxies npmjs and provides
+a local hosted registry at `/npm/~local/`.)
 
 ## Point a client at it
 
 Configure pnpm (or npm/yarn) to use the local server as its registry:
 
 ```sh
-pnpm config set registry http://127.0.0.1:7677/
+pnpm config set registry http://127.0.0.1:7677/npm/
 ```
 
 Now `pnpm install` fetches packages through pnpr. Packages proxied from the
 upstream are cached, so subsequent installs are served locally.
 
 Each registry is also directly addressable at
-`http://127.0.0.1:7677/~<name>/` — for example, you can point just your scope
+`http://127.0.0.1:7677/npm/~<name>/` — for example, you can point just your scope
 at the hosted registry instead of using the router.
 
 ## Publish a package
@@ -81,8 +81,8 @@ at the hosted registry instead of using the router.
 Create a user and publish:
 
 ```sh
-pnpm login --registry http://127.0.0.1:7677/
-pnpm publish --registry http://127.0.0.1:7677/
+pnpm login --registry http://127.0.0.1:7677/npm/
+pnpm publish --registry http://127.0.0.1:7677/npm/
 ```
 
 The publish routes through the router to the `local` hosted registry —
@@ -94,5 +94,9 @@ claims, is rejected.
 - [CLI reference](cli.md) — every flag `pnpr` accepts.
 - [Configuration](configuration.md) — write your own config: registries,
   access rules, and auth.
+- [Reverse proxy and TLS](tls-and-reverse-proxy.md) — set up Nginx, Caddy, Traefik, or a cloud load balancer for production.
+- [Webhooks and event notifications](webhooks.md) — stream audit events and storage notifications to external webhooks.
+- [Backup and restore](backup-and-restore.md) — snapshot and restore package storage and user records.
 - [Install acceleration](install-acceleration.md) — let pnpr resolve your
   dependency graph to speed up installs.
+

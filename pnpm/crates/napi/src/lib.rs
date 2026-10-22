@@ -66,6 +66,12 @@ pub fn engine_version() -> &'static str {
 /// Honor the same `TRACE` env var the pacquet CLI honors: an addon
 /// embedded in a Node host has no `main` of its own, so the subscriber
 /// is installed when the module loads.
+///
+/// Rayon's global thread pool is deliberately NOT initialized here:
+/// `module_init` runs during `dlopen` while the dynamic linker lock is held.
+/// Spawning rayon worker threads here would block waiting for the dynamic
+/// linker lock, deadlocking the process. The pool is configured upon the first
+/// entry point call instead.
 #[napi_derive::module_init]
 fn init_tracing() {
     pnpm_diagnostics::enable_tracing_by_env();
@@ -76,3 +82,5 @@ fn init_tracing() {
 /// self-contained. See the module for the full rationale.
 #[cfg(test)]
 mod napi_runtime_test_stubs;
+#[cfg(test)]
+mod tests;

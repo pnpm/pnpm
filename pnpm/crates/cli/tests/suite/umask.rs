@@ -203,3 +203,46 @@ fn local_directory_dependency_files_keep_their_project_modes() {
 
     drop((root, mock_instance));
 }
+
+/// pnpm/pnpm#16677: a world-writable store gives its entries the group-write
+/// bit and no other-write bit, which differ from the umask `000` modes only in
+/// write bits the store already grants, so they are still hardlinked.
+#[test]
+fn installs_hardlink_from_a_world_writable_store_under_umask_000() {
+    use std::os::unix::fs::MetadataExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    write_project_manifest(
+        &workspace,
+        "root",
+        ManifestDeps { prod: &[EXEC_DEP, PLAIN_DEP], ..ManifestDeps::default() },
+    );
+    fs::create_dir_all(&store_dir).expect("create the store directory");
+    fs::set_permissions(&store_dir, fs::Permissions::from_mode(0o777))
+        .expect("make the store directory world-writable");
+
+    install_with_umask(&workspace, 0o000, &["--package-import-method=hardlink"]);
+
+    let files_dir = store_dir.join(pnpm_store_dir::STORE_VERSION).join("files");
+    let store_inodes: Vec<u64> = walkdir::WalkDir::new(&files_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| {
+            entry
+                .metadata()
+                .expect("stat a store entry")
+                .ino()
+        })
+        .collect();
+    for (rel, mode) in [(EXEC_FILE_REL, 0o775), (PLAIN_FILE_REL, 0o664)] {
+        let installed = workspace.join(rel);
+        assert_eq!(file_mode(&installed), mode, "{rel} carries the store entry's mode");
+        let inode = fs::metadata(&installed).expect("stat").ino();
+        assert!(store_inodes.contains(&inode), "{rel} is hardlinked from the store");
+    }
+
+    drop((root, mock_instance));
+}

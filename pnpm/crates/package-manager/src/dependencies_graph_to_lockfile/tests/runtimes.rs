@@ -3,41 +3,15 @@ use super::{
         DependenciesGraphToLockfileError,
         dependencies_graph_to_lockfile as try_dependencies_graph_to_lockfile,
     },
-    make_file_node, make_node, single_importer_opts, write_manifest,
+    make_node, single_importer_opts, write_manifest,
 };
 use pnpm_deps_path::DepPath;
 use pnpm_lockfile::PackageKey;
 use pnpm_resolving_deps_resolver::DependenciesGraph;
-use pnpm_resolving_resolver_base::ResolveResult;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::json;
 use std::collections::BTreeMap;
 
-// `node_pkg_name` (the guard's `update <name>` scope matcher) reads the
-// structured `name_ver` when the resolver produced one and falls back to
-// the fetched manifest's `name` for directory resolutions, whose
-// `name_ver` is unset.
-#[test]
-fn node_pkg_name_prefers_name_ver_and_falls_back_to_manifest() {
-    let mut node = make_file_node("n", "packages/n");
-    assert_eq!(
-        crate::dependencies_graph_to_lockfile::importers::node_pkg_name(&node),
-        Some("n".to_string()),
-    );
-
-    let resolve_result = ResolveResult {
-        package: pnpm_resolving_resolver_base::ResolvedPackageInfo {
-            name_ver: Some("renamed@1.0.0".parse().expect("parse PkgNameVer")),
-            ..(*node.resolve_result).clone().package
-        },
-        ..(*node.resolve_result).clone()
-    };
-    node.resolve_result = std::sync::Arc::new(resolve_result);
-    assert_eq!(
-        crate::dependencies_graph_to_lockfile::importers::node_pkg_name(&node),
-        Some("renamed".to_string()),
-    );
-}
 /// With several unkeyable nodes, the reported failure must be the first
 /// one in the graph's own iteration order — the parallel node fan-out
 /// folds its results in that order.

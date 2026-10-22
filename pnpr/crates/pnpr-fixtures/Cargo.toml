@@ -15,7 +15,13 @@ base64 = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 flate2 = { workspace = true }
+indexmap = { workspace = true }
 node-semver = { workspace = true }
+pnpr-config = { workspace = true }
+pnpr-policy = { workspace = true }
+pnpr-registry = { workspace = true }
+pnpr-storage = { workspace = true }
+reqwest = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tar = { workspace = true }

@@ -27,7 +27,7 @@ pnpm ss lint "eslint ."
 
 The above is equivalent to manually editing `package.json`:
 
-```json
+```json title="package.json"
 {
   "scripts": {
     "test": "vitest run",

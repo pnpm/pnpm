@@ -141,54 +141,11 @@ pub(in super::super) fn peer_segment_names(dep_path: &DepPath) -> Option<Vec<Str
     let raw = dep_path.as_str();
     let suffix = index_of_dep_path_suffix(raw);
     let peers_index = suffix.peers_index?;
-    let segments = split_peer_suffix_segments(&raw[peers_index..])?;
+    let segments = pnpm_lockfile::split_peer_suffix_segments(&raw[peers_index..])?;
     segments
         .iter()
         .map(|segment| peer_segment_name(segment).map(str::to_string))
         .collect()
-}
-
-/// Splits a peer suffix into its segment bodies. `None` when the suffix is
-/// anything but a flat run of balanced parenthesised groups.
-pub(crate) fn split_peer_suffix_segments(suffix: &str) -> Option<Vec<String>> {
-    let mut split = PeerSuffixSplit::default();
-    for (idx, byte) in suffix.as_bytes().iter().enumerate() {
-        split.push_byte(suffix, idx, *byte)?;
-    }
-    (split.depth == 0).then_some(split.segments)
-}
-
-#[derive(Default)]
-pub(super) struct PeerSuffixSplit {
-    pub(super) segments: Vec<String>,
-    pub(super) depth: i32,
-    pub(super) start: Option<usize>,
-}
-
-impl PeerSuffixSplit {
-    pub(super) fn push_byte(&mut self, suffix: &str, idx: usize, byte: u8) -> Option<()> {
-        match byte {
-            b'(' => {
-                if self.depth == 0 {
-                    self.start = Some(idx + 1);
-                }
-                self.depth += 1;
-            }
-            b')' => {
-                self.depth -= 1;
-                if self.depth < 0 {
-                    return None;
-                }
-                if self.depth == 0 {
-                    let start = self.start.take()?;
-                    self.segments.push(suffix[start..idx].to_string());
-                }
-            }
-            _ if self.depth == 0 => return None,
-            _ => {}
-        }
-        Some(())
-    }
 }
 
 pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
@@ -213,7 +170,7 @@ pub(super) fn peer_segment_name(segment: &str) -> Option<&str> {
 /// `version` is a prerelease and the straight check fails, see whether
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
-pub(in super::super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
+pub(crate) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     let parsed_range = Range::parse(range).ok();
     satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
 }

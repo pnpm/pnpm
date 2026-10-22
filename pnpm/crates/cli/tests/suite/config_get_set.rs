@@ -3,12 +3,22 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd, command_env::CommandTestExt, diagnostics::assert_diagnostic_contains,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, process::Command};
+use std::{
+    fs, io,
+    process::{Command, Stdio},
+};
 
 fn pacquet_in(workspace: &std::path::Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .with_arg("--dir")
+        .with_arg(workspace)
+        .without_ambient_pnpm_config()
 }
 
 #[test]
@@ -82,6 +92,24 @@ fn get_keeps_stdout_to_the_value() {
         .expect("run pacquet get");
     assert!(output.status.success());
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), "hoisted");
+
+    drop(root);
+}
+
+/// `pnpm config list | head -0` closes stdout before pnpm writes the
+/// list; pnpm exits 0 instead of aborting (pnpm/tasks#132).
+#[test]
+fn config_list_exits_zero_when_stdout_is_closed() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let (stdout_reader, stdout_writer) = io::pipe().expect("create stdout pipe");
+    drop(stdout_reader);
+
+    let output = pacquet
+        .with_args(["config", "list"])
+        .with_stdout(Stdio::from(stdout_writer))
+        .output()
+        .expect("run pacquet config list");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
 
     drop(root);
 }
@@ -273,6 +301,69 @@ fn config_get_registries_shows_a_registry_network_concurrency() {
     let registries: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("registries print as JSON");
     assert_eq!(registries["https://npm.corp.example/"]["networkConcurrency"], 4);
+
+    drop(root);
+}
+
+/// `--global` and `--location=global` scope a read to the global config, so
+/// the project's `pnpm-workspace.yaml` and `.npmrc` stay out of it.
+/// <https://github.com/pnpm/pnpm/issues/16598>
+#[test]
+fn global_get_and_list_ignore_the_project_settings() {
+    let CommandTempCwd {
+        pacquet: _pacquet, root, workspace, ..
+    } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "repro", "version": "1.0.0" }"#)
+        .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "minimumReleaseAge: 2880\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join(".npmrc"), "//project.test/:_authToken=project-token\n")
+        .expect("write .npmrc");
+    let config_home = root.path().join("xdg-config");
+    fs::create_dir_all(config_home.join("pnpm")).expect("create global config directory");
+    fs::write(config_home.join("pnpm/config.yaml"), "fetchRetries: 5\n")
+        .expect("write global config");
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(&pnpm_home).expect("create pnpm home");
+    let run = |args: &[&str]| {
+        let output = pacquet_in(&workspace)
+            .with_env("XDG_CONFIG_HOME", &config_home)
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_args(args)
+            .output()
+            .expect("run pacquet");
+        eprintln!("{args:?} stderr={}", String::from_utf8_lossy(&output.stderr));
+        assert!(output.status.success());
+        String::from_utf8(output.stdout)
+            .expect("stdout is UTF-8")
+            .trim_end()
+            .to_string()
+    };
+
+    assert_eq!(run(&["config", "get", "minimumReleaseAge"]), "2880");
+    assert_eq!(run(&["config", "get", "minimumReleaseAge", "--global"]), "undefined");
+    assert_eq!(run(&["config", "get", "minimumReleaseAge", "--location=global"]), "undefined");
+    assert_eq!(run(&["get", "-g", "minimumReleaseAge"]), "undefined");
+    assert_eq!(run(&["config", "get", "minimumReleaseAge", "-g", "--location=project"]), "2880");
+    assert_eq!(run(&["config", "get", "//project.test/:_authToken", "--global"]), "undefined");
+    assert_eq!(run(&["config", "get", "fetchRetries", "--global"]), "5");
+
+    let list = run(&["config", "list", "--global"]);
+    eprintln!("list={list}");
+    assert!(!list.contains(r#"minimumReleaseAge""#));
+    assert!(!list.contains("//project.test/"));
+    assert!(list.contains(r#""fetchRetries": 5"#));
+
+    let from_env_workspace = pacquet_in(root.path())
+        .with_env("XDG_CONFIG_HOME", &config_home)
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("PNPM_CONFIG_WORKSPACE_DIR", &workspace)
+        .with_args(["config", "get", "minimumReleaseAge", "--global"])
+        .output()
+        .expect("run pacquet");
+    eprintln!("stderr={}", String::from_utf8_lossy(&from_env_workspace.stderr));
+    assert!(from_env_workspace.status.success());
+    assert_eq!(String::from_utf8_lossy(&from_env_workspace.stdout).trim_end(), "undefined");
 
     drop(root);
 }

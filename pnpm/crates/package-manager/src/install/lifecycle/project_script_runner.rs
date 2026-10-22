@@ -1,14 +1,16 @@
 use super::{
     super::{
         Config, DependencyGroup, HashMap, HashSet, InstallError, NodeLinker, PackageManifest, Path,
-        PathBuf, Reporter, RunPostinstallHooks, link_project_bins, run_project_lifecycle_stages,
+        PathBuf, Reporter, RunPostinstallHooks, link_project_bins,
+        project_requires_implicit_gyp_build, run_project_lifecycle_stages,
     },
     project_lifecycle_extra_env,
 };
 
 use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_executor::LifecycleScriptError;
-use pnpm_injected_deps_syncer::{SyncInjectedDeps, sync_injected_deps};
+use pnpm_injected_deps_syncer::{BinLinkSettings, SyncInjectedDeps, sync_injected_deps};
+use pnpm_package_manifest::project_manifest_path;
 use std::sync::Mutex;
 
 /// Run `stages` for the project at `project_dir`, with the workspace root
@@ -92,6 +94,7 @@ impl ProjectScriptRunner<'_> {
         } else {
             stages
         };
+        save_manifest_for_implicit_gyp_build(self.config, project_dir, manifest, stages)?;
         if !self.run_without_bin_linking::<Reporter>(project_dir, stages)? {
             return Ok(());
         }
@@ -107,11 +110,17 @@ impl ProjectScriptRunner<'_> {
                 .and_then(serde_json::Value::as_str),
             pkg_root_dir: project_dir,
             workspace_dir: Some(self.workspace_root),
-            modules_dir_name: self.config.modules_dir_name(),
             workspace_modules_dir: &self.config.modules_dir,
-            extend_node_path: self.config.extend_node_path,
+            include_only_package_files: !self.config.deploy_all_files,
             manifest_before_scripts: Some(manifest.value()),
-            ignored_directories: self.config.managed_directories(),
+            // A project with its own lockfile has its copies synced by
+            // `sync_injected_deps_of_modules_dir` once every project is installed.
+            project_modules_dirs: &[],
+            bin_links: BinLinkSettings {
+                modules_dir_name: self.config.modules_dir_name(),
+                extend_node_path: self.config.extend_node_path,
+                ignored_directories: self.config.managed_directories(),
+            },
         })
         .map_err(InstallError::SyncInjectedDeps)
     }
@@ -130,6 +139,32 @@ impl ProjectScriptRunner<'_> {
         )
         .map_err(InstallError::ProjectLifecycleScript)
     }
+}
+
+/// The executor reads the manifest it runs scripts from off disk, so a
+/// standalone project whose scaffold manifest exists only in memory
+/// (see the CLI's state initialization) would lose the implicit
+/// `node-gyp rebuild` its `binding.gyp` calls for. Write the scaffold
+/// first in that one case; any other missing manifest has no scripts
+/// to run and stays missing. A workspace root without a manifest has
+/// no importer and is left alone.
+fn save_manifest_for_implicit_gyp_build(
+    config: &Config,
+    project_dir: &Path,
+    manifest: &PackageManifest,
+    stages: &[&str],
+) -> Result<(), InstallError> {
+    if config.workspace_dir.is_none()
+        && stages.contains(&"install")
+        && !project_manifest_path(project_dir).exists()
+        && project_requires_implicit_gyp_build(project_dir, manifest)
+    {
+        manifest
+            .clone()
+            .save()
+            .map_err(InstallError::SaveProjectManifest)?;
+    }
+    Ok(())
 }
 
 /// Every direct dependency name once, in declaration order across the groups.

@@ -43,18 +43,17 @@ use pnpm_pnpr_client::{
     VerifyLockfileOptions,
 };
 use pnpm_reporter::Reporter;
+use pnpr_config_validation::DryRunIncompatibleWithPnpr;
 use pnpr_lockfile::{
     LocalLockfileInstall, full_workspace_importer_ids, install_from_local_lockfile,
     link_pnpr_lockfile, merge_and_save_pnpr_lockfile, pnpr_lockfile_dir, selection_importer_ids,
 };
 use pnpr_pnpmfile::{check_frozen_pnpmfile, record_pnpmfile};
 use pnpr_request::{
-    PnprBenchmarkRegistryOverride, PnprRequestInputs, pnpr_catalogs, pnpr_request_inputs,
-    resolve_projects_for_pnpr, resolve_projects_options,
+    PnprBenchmarkRegistryOverride, PnprRequestInputs, check_pnpr_applied_settings, pnpr_catalogs,
+    pnpr_request_inputs, resolve_projects_for_pnpr, resolve_projects_options,
 };
-use pnpr_resolution::{
-    DryRunIncompatibleWithPnpr, PnprSession, install_via_pnpr_inner, prefetch_allowed,
-};
+use pnpr_resolution::{PnprSession, install_via_pnpr_inner, prefetch_allowed};
 
 use std::path::PathBuf;
 
@@ -202,13 +201,7 @@ impl InstallArgs {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line, before the `frozenLockfile` setting is layered under it.
     pub(crate) fn frozen_lockfile_flag(&self) -> Option<bool> {
-        if self.lockfile.frozen {
-            Some(true)
-        } else if self.lockfile.no_frozen {
-            Some(false)
-        } else {
-            None
-        }
+        self.lockfile.frozen_flag()
     }
 
     /// Package names allowed to run lifecycle (build) scripts during this install.
@@ -230,7 +223,7 @@ impl InstallArgs {
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
-        state: State,
+        mut state: State,
         selection: Option<InstallFamilySelection>,
     ) -> miette::Result<()> {
         state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
@@ -241,15 +234,17 @@ impl InstallArgs {
             return Err(DryRunIncompatibleWithPnpr.into());
         }
         if let Some(target) = pnpr_target::<Reporter>(&state, &link).await? {
-            return Box::pin(install_via_pnpr_inner::<Reporter>(
-                &state,
-                target,
-                selection.as_ref(),
-                link,
-            ))
-            .await;
+            Box::pin(install_via_pnpr_inner::<Reporter>(&state, target, selection.as_ref(), link))
+                .await?;
+        } else {
+            self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
         }
-        self.run_local::<Reporter>(&state, link, selection.as_ref()).await?;
+        if !self.materialization.dry_run
+            && state.config.workspace_dir.is_none()
+            && !state.manifest.path().exists()
+        {
+            state.manifest.save().wrap_err("saving initialized package.json")?;
+        }
         // Resolution watch senders must close inline; only inert manifest and lockfile data
         // may outlive the command through background destruction.
         pnpm_fs::background_drop((state.lockfile, state.manifest, selection));
@@ -465,6 +460,8 @@ fn prefer_frozen_lockfile_override(
 mod tests;
 
 mod fast_path;
+
+mod pnpr_config_validation;
 
 mod pnpr_pnpmfile;
 

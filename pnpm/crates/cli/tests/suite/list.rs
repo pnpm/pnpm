@@ -624,6 +624,45 @@ fn list_returns_correct_paths_with_global_virtual_store() {
     );
 }
 
+/// Port of upstream's `pnpm list returns correct paths when nodeLinker is hoisted`
+/// (`pnpm/test/list.ts`).
+#[test]
+fn list_returns_correct_paths_with_hoisted_node_linker() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "dependencies": { PKG: "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("nodeLinker: hoisted\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("write workspace yaml");
+    run_ok(&workspace, &["install"]);
+
+    let output = run_ok(&workspace, &["list", "--json", "--depth=Infinity"]);
+    let parsed: Vec<Value> = serde_json::from_str(&output).expect("parse list JSON");
+
+    let pkg_path = parsed[0]["dependencies"][PKG]["path"].as_str().expect("pkg path");
+    let real_pkg = dunce::canonicalize(workspace.join("node_modules").join(PKG))
+        .expect("resolve installed package");
+    assert_eq!(dunce::canonicalize(Path::new(pkg_path)).expect("canonicalize pkg_path"), real_pkg);
+
+    let sub_dep_path =
+        parsed[0]["dependencies"][PKG]["dependencies"][DEP]["path"].as_str().expect("subdep path");
+    let real_sub_dep = dunce::canonicalize(workspace.join("node_modules").join(DEP))
+        .expect("resolve hoisted subdep");
+    assert_eq!(
+        dunce::canonicalize(Path::new(sub_dep_path)).expect("canonicalize sub_dep_path"),
+        real_sub_dep,
+    );
+}
+
 /// Port of upstream's `list in long format`
 /// (`deps/inspection/list/test/index.ts`): `--long` appends the
 /// description, repository, and filesystem path under each node.

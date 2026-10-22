@@ -2,6 +2,7 @@ use super::{
     BTreeMap, BTreeSet, DependencyGroup, PackageManifest, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SpecDiff, StalenessReason, git_specifiers_are_equivalent,
 };
+use pnpm_tool_protocol::tool_specifiers_equal;
 
 /// Verify the on-disk `package.json` is still satisfied by the
 /// lockfile's importer entry for the same project. Returns `Ok(())`
@@ -217,10 +218,10 @@ fn check_field_specs(
             return Err(StalenessReason::DepSpecifierMismatch {
                 field: field_name,
                 name: (*name).to_string(),
-                lockfile: importer_dep.map_or_else(
-                    || "(absent)".to_string(),
-                    |dep| dep.specifier.clone(),
-                ),
+                lockfile: match importer_dep {
+                    Some(dep) => dep.specifier.clone(),
+                    None => "(absent)".to_string(),
+                },
                 manifest: (*manifest_spec).to_string(),
             });
         }
@@ -397,5 +398,7 @@ fn diff_flat_records(
 }
 
 pub(super) fn dependency_specifiers_equal(left: &str, right: &str) -> bool {
-    left == right || git_specifiers_are_equivalent(left, right)
+    left == right
+        || git_specifiers_are_equivalent(left, right)
+        || tool_specifiers_equal(left, right)
 }

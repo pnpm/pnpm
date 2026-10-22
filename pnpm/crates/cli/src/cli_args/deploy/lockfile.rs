@@ -1,5 +1,5 @@
 use super::{
-    Config, Context, DependencyGroup, DeployError, DeployWorkspaceConfig, DirectoryResolution,
+    Config, Context, DependencyGroup, DeployError, DeployWorkspaceSettings, DirectoryResolution,
     HashMap, HashSet, LinkedWorkspaceProject, Lockfile, LockfileResolution, Map, PackageKey,
     PackageManifest, PackageMetadata, Path, PkgName, PkgNameVerPeer, Project, ProjectInfo,
     ProjectPathKey, ProjectSnapshot, ResolveBases, ResolvedDependencyMap, ResolvedDependencySpec,
@@ -7,14 +7,15 @@ use super::{
     convert_package_metadata, convert_resolved_dependency_spec, convert_snapshot,
     create_file_url_key, deploy_peer_edges, deploy_workspace_settings, is_ancestor_path,
     lexical_normalize, omit_peers_of_excluded_dependencies, project_snapshot_to_snapshot_entry,
-    prune_deploy_lockfile_graph, relative_path, same_path, validate_lockfile_local_path,
+    prune_deploy_lockfile_graph, relative_path, same_path,
 };
+use pnpm_tool_protocol::is_tool_specifier;
 
 pub(super) struct DeployFiles {
     pub(super) manifest: Value,
     pub(super) lockfile: Lockfile,
     pub(super) workspace_manifest: Option<Value>,
-    pub(super) workspace_config: DeployWorkspaceConfig,
+    pub(super) workspace_config: DeployWorkspaceSettings,
 }
 
 pub(super) struct ConvertCtx<'a> {
@@ -49,8 +50,7 @@ pub(super) fn create_deploy_files(
     let input_snapshot = lockfile.importers
         .get(project_id)
         .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
-    let deployed_project_root =
-        validate_lockfile_local_path(&lockfile_dir.join(project_id), lockfile_dir)?;
+    let deployed_project_root = lexical_normalize(&lockfile_dir.join(project_id));
     let ctx = ConvertCtx {
         projects_by_path: &selected.projects_by_path,
         deploy_dir,
@@ -149,7 +149,7 @@ fn fill_target_dependencies(
                 .filter(|(name, spec)| {
                     included
                         || deployed.peer_only_dependencies.contains(&name.to_string())
-                        || spec.specifier.starts_with("runtime:")
+                        || is_tool_specifier(&spec.specifier)
                 }),
             deployed.ctx,
             &selected_bases,
@@ -180,9 +180,6 @@ fn converted_deploy_lockfile(
     deploy_lockfile.overrides = None;
     deploy_lockfile.package_extensions_checksum = None;
     deploy_lockfile.pnpmfile_checksum = None;
-    if let Some(settings) = deploy_lockfile.settings.as_mut() {
-        settings.inject_workspace_packages = false;
-    }
     deploy_lockfile.importers =
         HashMap::from([(Lockfile::ROOT_IMPORTER_KEY.to_string(), target_snapshot.clone())]);
     deploy_lockfile.packages = (!packages.is_empty()).then_some(packages);
@@ -212,9 +209,12 @@ fn convert_deploy_packages(
         if importer_path == project_id {
             continue;
         }
-        let project_root =
-            validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
+        let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
+        let (peer_dependencies, peer_dependencies_meta) = selected
+            .project_info(&project_root)
+            .map(|project| project.peer_blocks.clone())
+            .unwrap_or_default();
         packages.insert(
             package_key,
             PackageMetadata {
@@ -230,8 +230,8 @@ fn convert_deploy_packages(
                 has_bin: selected.has_bin(&project_root),
                 prepare: None,
                 bundled_dependencies: None,
-                peer_dependencies: None,
-                peer_dependencies_meta: None,
+                peer_dependencies,
+                peer_dependencies_meta,
             },
         );
     }
@@ -262,8 +262,7 @@ fn convert_deploy_snapshots(
         if importer_path == project_id {
             continue;
         }
-        let project_root =
-            validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
+        let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
         if let Some(project) = selected.project_info(&project_root)
@@ -313,11 +312,13 @@ fn set_manifest_dependencies(
     field: &str,
     dependencies: Option<&ResolvedDependencyMap>,
 ) {
-    let deps = dependencies
+    let mut deps = dependencies
         .into_iter()
         .flatten()
         .map(|(name, spec)| (name.to_string(), Value::String(spec.specifier.clone())))
-        .collect::<Map<_, _>>();
+        .collect::<Vec<_>>();
+    deps.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+    let deps = deps.into_iter().collect::<Map<_, _>>();
     if let Some(object) = manifest.as_object_mut() {
         object.insert(field.to_string(), Value::Object(deps));
     }

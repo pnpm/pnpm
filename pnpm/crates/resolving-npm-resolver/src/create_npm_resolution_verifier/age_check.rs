@@ -178,7 +178,7 @@ impl NpmResolutionVerifier {
     ///    fetched, so a recent `modified` does not have to escalate to
     ///    the per-version fallbacks below.
     /// 3. **On-disk full-meta mirror.** If a previous verification
-    ///    populated `<cache_dir>/v11/metadata-full/.../<name>.jsonl`,
+    ///    populated `<cache_dir>/v12/metadata-full/.../<name>.jsonl`,
     ///    take the per-version timestamp from there with no network.
     /// 4. **Npm attestation endpoint.** Small payload, just this
     ///    version's Sigstore-anchored timestamp. Wins on cold cache
@@ -193,7 +193,7 @@ impl NpmResolutionVerifier {
         if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
             return Ok(Some(value));
         }
-        if self.metadata.registry_supports_time_field
+        if self.supports_time_field(registry)
             && let Some(value) = self.abbreviated_version_time(registry, name, version).await
         {
             return Ok(Some(value));

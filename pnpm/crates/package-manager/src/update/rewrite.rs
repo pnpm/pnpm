@@ -5,9 +5,8 @@ use super::{
     tag_version,
 };
 use crate::{
-    manifest_spec_bumps::split_registry_alias,
-    package_manifest_prefix,
-    runtime_specifier::{RUNTIME_PROTOCOL, node_runtime_version_spec},
+    manifest_spec_bumps::split_registry_alias, package_manifest_prefix,
+    runtime_specifier::node_runtime_version_spec,
 };
 use node_semver::Version;
 use pnpm_engine_runtime_node_resolver::{
@@ -20,6 +19,7 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_deps_resolver::real_package_name_of;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style, range_of_specifier};
 use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorType};
+use pnpm_tool_protocol::{RUNTIME_PROTOCOL, is_tool_specifier, strip_tool_protocol};
 
 /// What one matched direct dependency is rewritten against.
 pub(super) struct MatchedRewriteInputs<'a, 'ctx, 'borrow> {
@@ -223,7 +223,7 @@ pub(super) fn requested_version_rewrite(
     previous: &str,
     _default_style: RangeSpecStyle,
 ) -> String {
-    if previous.starts_with(RUNTIME_PROTOCOL) {
+    if is_tool_specifier(previous) {
         return requested_runtime_rewrite(alias, requested, previous);
     }
     let Ok(version) = Version::parse(requested) else {
@@ -256,9 +256,8 @@ pub(super) fn requested_version_rewrite(
 /// `devEngines.runtime`. A version the node resolver answers is recorded
 /// through that resolver's own rule.
 fn requested_runtime_rewrite(alias: &str, requested: &str, previous: &str) -> String {
-    // The selector may name the protocol itself (`pnpm update node@runtime:22`),
-    // and the declaration carries it either way.
-    let requested = requested.strip_prefix(RUNTIME_PROTOCOL).unwrap_or(requested);
+    // The selector may name the protocol itself (`pnpm update node@tool:22`).
+    let requested = strip_tool_protocol(requested).unwrap_or(requested);
     let as_requested = || format!("{RUNTIME_PROTOCOL}{requested}");
     let Some(selector) = node_runtime_version_spec(alias, previous) else {
         // A deno or bun declaration records the selector as asked, which is

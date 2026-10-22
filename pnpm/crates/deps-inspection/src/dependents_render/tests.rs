@@ -23,14 +23,9 @@ fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> Dependents
 fn importer(name: &str, version: &str, dep_field: DepField) -> DependentNode {
     DependentNode {
         name: name.to_string(),
-        display_name: None,
         version: version.to_string(),
-        circular: false,
-        peers_suffix_hash: None,
-        deduped: false,
         dep_field: Some(dep_field),
-        dependents: None,
-        manifest: None,
+        ..DependentNode::default()
     }
 }
 
@@ -127,6 +122,25 @@ fn depth_limits_how_deep_the_tree_is_rendered() {
         .count();
     assert_eq!(limited_occurrences, 1);
     assert!(with_depth.contains("mid-a@2.0.0"));
+}
+
+#[test]
+fn maximum_depth_renders_the_same_as_no_depth() {
+    let unlimited = opts(Some(usize::MAX));
+    let none = opts(None);
+
+    assert_eq!(
+        render_dependents_tree(&deep_tree(), &unlimited),
+        render_dependents_tree(&deep_tree(), &none),
+    );
+    assert_eq!(
+        render_dependents_json(&deep_tree(), &unlimited),
+        render_dependents_json(&deep_tree(), &none),
+    );
+    assert_eq!(
+        render_dependents_parseable(&deep_tree(), &unlimited),
+        render_dependents_parseable(&deep_tree(), &none),
+    );
 }
 
 // Port of upstream's 'renders displayName instead of name when provided' (deps/inspection/list/test/renderDependentsTree.test.ts).

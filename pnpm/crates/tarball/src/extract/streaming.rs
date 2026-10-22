@@ -1,8 +1,17 @@
+pub(crate) use gzip_members::stream_extract_gzipped_tarball_with_tar;
+
 use super::{
-    Archive, BuildTriggers, CafsFileInfo, HashMap, IgnoreEntryFilter, PackageFilesIndex, PathBuf,
-    PendingFile, Read, StoreDir, TarballError, clean_archive_entry_path, file_mode,
-    write_pending_files,
+    Archive, BTreeMap, BuildTriggers, CafsFileInfo, ExtractedEntries, GZIP_MAGIC, HashMap,
+    IgnoreEntryFilter, PackageBin, PackageFilesIndex, PathBuf, PendingFile, Read, ScriptRuntime,
+    StoreDir, TAR_BLOCK, TarBudget, TarLimits, TarballError, check_trailer,
+    clean_archive_entry_path, file_mode, is_tar_block, write_pending_files,
 };
+use crate::{
+    ArchiveIntegrity, BodyHasher, IntegrityKind,
+    archive_integrity::{ArchiveHashers, ArchiveVerification},
+    content_coding::ContentCoding,
+};
+use ssri::Integrity;
 
 /// Body chunks in flight between the download loop and the extractor.
 ///
@@ -76,18 +85,205 @@ impl Read for ChannelBytesReader {
     }
 }
 
-/// Gunzips and CAS-writes a download delivered in chunks through `rx`.
-/// This runs on a blocking thread for the lifetime of the download.
-pub(crate) fn stream_extract_gzipped_channel(
+/// Decodes, hashes, and CAS-writes a download delivered in chunks through
+/// `rx`. This runs on a blocking thread for the lifetime of the download.
+pub(crate) fn stream_extract_channel(
     rx: BodyChunkReceiver,
-    store_dir: &StoreDir,
-    ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    extract_tarball_entries_streaming(
-        flate2::read::GzDecoder::new(ChannelBytesReader::new(rx)),
-        store_dir,
-        ignore_file_pattern,
-    )
+    content_coding: ContentCoding,
+    resource: &StreamedResource<'_>,
+) -> ExtractedResource {
+    let package_url = resource.package_url;
+    match content_coding.decode(ChannelBytesReader::new(rx)) {
+        Ok((reader, watch)) => {
+            let extracted = extract_resource_stream(reader, resource);
+            match watch.error(package_url) {
+                Some(error) => ExtractedResource::failed(error),
+                None => extracted,
+            }
+        }
+        Err(error) => ExtractedResource::failed(TarballError::ReadTarballEntries(error)),
+    }
+}
+
+/// What one streamed extraction checks the resource against and writes it to.
+pub(crate) struct StreamedResource<'a> {
+    pub(crate) verification: ArchiveVerification,
+    pub(crate) package_url: &'a str,
+    pub(crate) limits: TarLimits,
+    pub(crate) store_dir: &'a StoreDir,
+    pub(crate) ignore_file_pattern: Option<&'a IgnoreEntryFilter>,
+}
+
+/// The two verdicts on a streamed resource. They are kept apart so the caller
+/// can rank an integrity mismatch above whatever it made the extractor do.
+pub(crate) struct ExtractedResource {
+    pub(crate) integrity: Result<ArchiveIntegrity, TarballError>,
+    pub(crate) extracted: Extraction,
+}
+
+impl ExtractedResource {
+    /// A resource that failed before either verdict could be reached.
+    pub(crate) fn failed(error: TarballError) -> Self {
+        Self {
+            integrity: Err(error),
+            extracted: Err(TarballError::ReadTarballEntries(std::io::Error::other(
+                "the resource was not read",
+            ))),
+        }
+    }
+}
+
+/// Hash `reader`, the resource with any content coding removed, and extract
+/// it as a `.tgz` when it opens with the gzip magic and as a tar otherwise.
+///
+/// The hash covers the whole resource, so what is left after the archive
+/// ends is read too, up to the non-payload limit. A `.tgz` is hashed a second
+/// time as the tar it decodes to, every gzip member of it.
+pub(crate) fn extract_resource_stream(
+    mut reader: impl Read,
+    resource: &StreamedResource<'_>,
+) -> ExtractedResource {
+    let mut head = [0u8; TAR_BLOCK];
+    let head_len = match read_prefix(&mut reader, &mut head) {
+        Ok(head_len) => head_len,
+        Err(error) => return ExtractedResource::failed(error),
+    };
+    let prefix = &head[..head_len];
+    let gzip = prefix.starts_with(&GZIP_MAGIC);
+    let ArchiveHashers { resource: mut resource_hasher, tar } = resource
+        .verification
+        .hashers(gzip);
+    resource_hasher.input(prefix);
+    let mut hashing = HashingReader { inner: reader, hasher: resource_hasher, failure: None };
+    let (extracted, tar) = if !gzip && !prefix.is_empty() && !is_tar_block(prefix) {
+        (Err(TarballError::UnrecognizedArchive), None)
+    } else {
+        resource.extract(prefix.chain(&mut hashing), tar)
+    };
+    finish_resource(hashing, extracted, tar, resource)
+}
+
+impl StreamedResource<'_> {
+    /// Extract `body`, a tar when `tar_hasher` is `None` and a `.tgz`
+    /// otherwise, and hash the tar a `.tgz` decodes to.
+    fn extract(
+        &self,
+        body: impl Read,
+        tar_hasher: Option<BodyHasher>,
+    ) -> (Extraction, Option<Result<Integrity, TarballError>>) {
+        let Some(tar_hasher) = tar_hasher else {
+            let extracted = extract_tarball_entries_streaming(
+                body,
+                self.limits.for_tar(),
+                self.store_dir,
+                self.ignore_file_pattern,
+            );
+            return (extracted, None);
+        };
+        if self.verification.kind == IntegrityKind::Resource {
+            let (extracted, tar) = extract_first_member(
+                body,
+                tar_hasher,
+                self.limits,
+                self.store_dir,
+                self.ignore_file_pattern,
+                self.package_url,
+            );
+            return (extracted, Some(tar));
+        }
+        let mut tar = HashingReader {
+            inner: flate2::read::MultiGzDecoder::new(body),
+            hasher: tar_hasher,
+            failure: None,
+        };
+        let extracted = extract_tarball_entries_streaming(
+            &mut tar,
+            self.limits,
+            self.store_dir,
+            self.ignore_file_pattern,
+        );
+        let tar = finish_tar_of(&extracted, tar, self.limits, self.package_url);
+        (extracted, Some(tar))
+    }
+}
+
+/// The CAFS files, the store row, and precalculated bins of one extraction.
+pub(crate) type Extraction = Result<
+    (HashMap<String, PathBuf>, PackageFilesIndex, Option<BTreeMap<String, PackageBin>>),
+    TarballError,
+>;
+
+/// Drain what follows the archive into its hash and pair the hashes with
+/// the extraction's verdict. A failed drain leaves no hash, and an extraction
+/// error then says why.
+fn finish_resource(
+    mut hashing: HashingReader<impl Read>,
+    extracted: Extraction,
+    tar: Option<Result<Integrity, TarballError>>,
+    resource: &StreamedResource<'_>,
+) -> ExtractedResource {
+    let integrity = match drain_after_archive(&mut hashing, resource.limits.max_non_payload) {
+        Ok(()) => hashing.hasher.finish(resource.package_url),
+        Err(drain) => match extracted {
+            Err(error) => return ExtractedResource::failed(error),
+            Ok(_) => Err(drain),
+        },
+    };
+    let integrity = match resource.verification.finish(integrity, tar, resource.package_url) {
+        Err(TarballError::IncompleteTar { .. }) if extracted.is_err() => {
+            return ExtractedResource::failed(extracted.expect_err(
+                "guarded by extracted.is_err()",
+            ));
+        }
+        other => other,
+    };
+    ExtractedResource { integrity, extracted }
+}
+
+pub(super) fn read_prefix(
+    reader: &mut impl Read,
+    prefix: &mut [u8],
+) -> Result<usize, TarballError> {
+    let mut filled = 0;
+    while filled < prefix.len() {
+        match reader.read(&mut prefix[filled..]) {
+            Ok(0) => break,
+            Ok(len) => filled += len,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(TarballError::ReadTarballEntries(error)),
+        }
+    }
+    Ok(filled)
+}
+
+/// Read the rest of the resource into its hash, failing past `limit`.
+fn drain_after_archive(reader: &mut impl Read, limit: u64) -> Result<(), TarballError> {
+    let drained = std::io::copy(&mut reader.take(limit + 1), &mut std::io::sink())
+        .map_err(TarballError::ReadTarballEntries)?;
+    if drained > limit {
+        return Err(TarballError::ArchiveLimit(super::ArchiveLimit::NonPayload(limit)));
+    }
+    Ok(())
+}
+
+/// Feeds every byte read through it into a [`BodyHasher`], and remembers
+/// the first read error, which a reader above it may swallow.
+struct HashingReader<Inner> {
+    inner: Inner,
+    hasher: BodyHasher,
+    failure: Option<String>,
+}
+
+impl<Inner: Read> Read for HashingReader<Inner> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let len = self.inner
+            .read(buf)
+            .inspect_err(|error| {
+                self.failure.get_or_insert_with(|| error.to_string());
+            })?;
+        self.hasher.input(&buf[..len]);
+        Ok(len)
+    }
 }
 
 /// Ceiling for buffering one tar entry in memory on the streaming
@@ -108,29 +304,8 @@ pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
 /// CAS-write fan-out to pay off.
 pub(super) const STREAM_BATCH_BUDGET_BYTES: usize = 32 * 1024 * 1024;
 
-/// Decompress and extract a gzipped tarball without materializing the
-/// decompressed archive: [`extract_tarball_entries_streaming`] over a
-/// streaming gzip decoder.
-///
-/// The eager [`decompress_gzip`](crate::extract::decompress_gzip) + [`extract_tarball_entries`](crate::extract::extract_tarball_entries) pair
-/// stays the default for small tarballs, where the whole-archive
-/// buffer is cheap and buys zero-copy payload slices plus one big
-/// parallel write phase; [`should_stream_extract`](crate::extract::should_stream_extract) decides which path
-/// a download takes.
-pub(crate) fn stream_extract_gzipped_tarball(
-    gz_data: &[u8],
-    store_dir: &StoreDir,
-    ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    extract_tarball_entries_streaming(
-        flate2::read::GzDecoder::new(gz_data),
-        store_dir,
-        ignore_file_pattern,
-    )
-}
-
 /// Walk a tar stream, writing each regular-file entry into the CAFS
-/// and returning the same outputs as [`extract_tarball_entries`](crate::extract::extract_tarball_entries),
+/// and returning the same outputs as [`extract_tarball_entries_with_bins`](crate::extract::extract_tarball_entries_with_bins),
 /// while holding only a bounded window of the archive in memory.
 ///
 /// Small entries are buffered and flushed in bounded batches through
@@ -145,10 +320,23 @@ pub(crate) fn stream_extract_gzipped_tarball(
 /// classifier treats them the same as an eager-path decode error.
 pub(crate) fn extract_tarball_entries_streaming(
     reader: impl Read,
+    limits: TarLimits,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
-) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedEntries, TarballError> {
+    let budget = TarBudget::new(limits);
+    walk_tar_stream(budget.reader(reader), &budget, store_dir, ignore_file_pattern)
+        .map_err(|error| budget.explain(error))
+}
+
+fn walk_tar_stream(
+    reader: impl Read,
+    budget: &TarBudget,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<ExtractedEntries, TarballError> {
     let mut archive = Archive::new(reader);
+    archive.set_max_metadata_size(Some(crate::MAX_TARBALL_METADATA_BYTES));
     let mut extract = StreamingExtract::new(store_dir);
 
     for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
@@ -156,12 +344,16 @@ pub(crate) fn extract_tarball_entries_streaming(
         if !entry.header().entry_type().is_file() {
             continue;
         }
+        budget.announce_file(entry.size())?;
         let Some(meta) = entry_meta(&entry, ignore_file_pattern)? else {
             continue;
         };
         extract.triggers.add_file(&meta.cleaned_path);
         extract.add_entry(&mut entry, meta)?;
     }
+    check_trailer(archive.into_inner())?;
+    budget.ensure_within()?;
+    budget.check_not_empty()?;
     extract.finish()
 }
 
@@ -210,6 +402,7 @@ pub(super) struct StreamingExtract<'a> {
     pub(super) batch_bytes: usize,
     pub(super) manifest: Option<serde_json::Value>,
     pub(super) triggers: BuildTriggers,
+    pub(super) shebangs: HashMap<String, ScriptRuntime>,
 }
 
 pub(super) fn truncated_entry_error() -> TarballError {
@@ -276,3 +469,7 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
             ))
         })
 }
+
+mod gzip_members;
+
+use gzip_members::{extract_first_member, finish_tar_of};

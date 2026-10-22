@@ -18,7 +18,6 @@ use crate::{
 use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::PreferredVersions;
 use std::{
@@ -41,6 +40,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
             update.config,
             site.catalogs_dir(prepared.workspace_dir_for_catalogs.as_deref()),
             &prepared.updated_catalogs,
+            None,
             selected.projects,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
@@ -48,7 +48,7 @@ pub(super) async fn run_prepared_selected_update<Reporter: self::Reporter + 'sta
 
     let bumps = (!prepared.bump_targets.is_empty()).then(|| ManifestSpecBumps {
         targets: std::mem::take(&mut prepared.bump_targets),
-        range_spec_style: RangeSpecStyle::from_save_options(update.version.save_exact, None),
+        range_spec_style: update.version.range_spec_style,
         applied: Mutex::default(),
     });
     let ignored_builds = run_selected_update_install::<Reporter, _>(
@@ -91,6 +91,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
             update.config,
             prepared.workspace_dir_for_catalogs.as_deref(),
             &prepared.updated_catalogs,
+            None,
             manifest,
         )
         .map_err(UpdateError::WriteWorkspaceManifest)?;
@@ -102,7 +103,7 @@ pub(super) async fn run_prepared_update<Reporter: self::Reporter + 'static>(
             importer_id.clone(),
             std::mem::take(&mut prepared.bump_targets),
         )]),
-        range_spec_style: RangeSpecStyle::from_save_options(update.version.save_exact, None),
+        range_spec_style: update.version.range_spec_style,
         applied: Mutex::default(),
     });
     let ignored_builds = run_update_install::<Reporter, _>(
@@ -338,7 +339,6 @@ impl UpdateOptions<'_> {
                 PolicyExcludes::Forbidden
             },
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         }
     }
 }

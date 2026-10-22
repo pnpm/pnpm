@@ -854,3 +854,86 @@ fn not_modified_varying_on_user_agent_downloads_again() {
 
     drop((root, mock_instance, cache_dir, tarball_server));
 }
+
+/// A linked workspace package's peer is checked against the version in the
+/// remote tarball's manifest, not against its URL.
+#[test]
+fn remote_tarball_peer_of_a_linked_package_uses_the_manifest_version() {
+    for version in ["1.0.0", "2.0.0"] {
+        let CommandTempCwd { workspace, root, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let tarball_path = "/provider.tgz";
+        let mut tarball_server = mockito::Server::new();
+        let _tarball_mocks: Vec<_> = ["HEAD", "GET"]
+            .into_iter()
+            .map(|method| {
+                tarball_server
+                    .mock(method, tarball_path)
+                    .with_body(minimal_tarball("provider", version))
+                    .expect_at_least(0)
+                    .create()
+            })
+            .collect();
+        let tarball_url = format!("{}{tarball_path}", tarball_server.url());
+
+        let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+        fs::write(
+            &workspace_yaml,
+            format!("{yaml}packages:\n  - packages/*\nstrictPeerDependencies: true\n"),
+        )
+        .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
+            .expect("write root package.json");
+        for (name, manifest) in [
+            (
+                "lib",
+                serde_json::json!({
+                    "name": "lib", "version": "1.0.0",
+                    "peerDependencies": { "provider": "^1.0.0" },
+                    "devDependencies": { "provider": &tarball_url },
+                }),
+            ),
+            (
+                "app",
+                serde_json::json!({
+                    "name": "app", "version": "1.0.0",
+                    "dependencies": { "lib": "workspace:*", "provider": &tarball_url },
+                }),
+            ),
+        ] {
+            let project_dir = workspace.join("packages").join(name);
+            fs::create_dir_all(&project_dir).expect("create project directory");
+            fs::write(project_dir.join("package.json"), manifest.to_string())
+                .expect("write project package.json");
+        }
+
+        let install = pacquet_at(&workspace)
+            .with_arg("install")
+            .output()
+            .expect("run install");
+        let check = pacquet_at(&workspace)
+            .with_args(["peers", "check"])
+            .output()
+            .expect("run peers check");
+        for output in [install, check] {
+            let combined = format!(
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+            assert_eq!(
+                output.status.success(),
+                version == "1.0.0",
+                "provider {version}:\n{combined}",
+            );
+            if version == "2.0.0" {
+                assert!(combined.contains("Installed: 2.0.0"), "{combined}");
+            }
+        }
+
+        drop((root, mock_instance, tarball_server));
+    }
+}

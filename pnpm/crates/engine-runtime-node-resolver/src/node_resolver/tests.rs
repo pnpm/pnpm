@@ -4,9 +4,12 @@ use super::{
     exact_release_version, normalize_node_runtime_version_specifier, parse_node_specifier,
     read_musl_assets, read_node_assets_from_mirror,
 };
-use pnpm_lockfile::PlatformAssetResolution;
+use pnpm_lockfile::{LockfileResolution, PlatformAssetResolution, VariationsResolution};
 use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    CurrentPkg, ResolutionRefreshOptions, ResolveOptions, Resolver, UpdateBehavior,
+    WantedDependency,
+};
 use pretty_assertions::assert_eq;
 use std::sync::Arc;
 
@@ -67,6 +70,83 @@ async fn offline_raises_no_offline_nodejs_resolution() {
     );
 }
 
+fn locked_node_opts(update: UpdateBehavior, update_checksums: bool) -> ResolveOptions {
+    ResolveOptions {
+        refresh: ResolutionRefreshOptions {
+            current_pkg: Some(CurrentPkg {
+                id: "node@runtime:26.10.0".into(),
+                name: Some("node".to_string()),
+                version: Some("26.10.0".to_string()),
+                resolution: LockfileResolution::Variations(VariationsResolution {
+                    variants: Vec::new(),
+                }),
+                published_at: None,
+                manifest: None,
+            }),
+            update,
+            update_checksums,
+            ..ResolutionRefreshOptions::default()
+        },
+        ..ResolveOptions::default()
+    }
+}
+
+#[tokio::test]
+async fn keeps_the_locked_runtime_without_network() {
+    let mut resolver = resolver();
+    resolver.offline = true;
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:^26".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off, false))
+        .await
+        .unwrap()
+        .expect("node resolver claims the runtime dependency");
+    assert_eq!(result.id.as_str(), "node@runtime:26.10.0");
+    assert_eq!(result.normalized_bare_specifier, None);
+}
+
+#[tokio::test]
+async fn a_kept_runtime_still_rejects_an_unknown_release_channel() {
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:unknown/^26".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver()
+        .resolve(&wanted, &locked_node_opts(UpdateBehavior::Off, false))
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        err.downcast_ref::<super::NodeResolverError>(),
+        Some(super::NodeResolverError::InvalidReleaseChannel(_)),
+    ));
+}
+
+#[tokio::test]
+async fn update_and_checksum_refresh_re_resolve_the_locked_runtime() {
+    let mut resolver = resolver();
+    resolver.offline = true;
+    let wanted = WantedDependency {
+        alias: Some("node".to_string()),
+        bare_specifier: Some("runtime:^26".to_string()),
+        ..WantedDependency::default()
+    };
+    for opts in [
+        locked_node_opts(UpdateBehavior::Compatible, false),
+        locked_node_opts(UpdateBehavior::Off, true),
+    ] {
+        let err = resolver.resolve(&wanted, &opts).await.unwrap_err();
+        assert!(matches!(
+            err.downcast_ref::<super::NodeResolverError>(),
+            Some(super::NodeResolverError::Offline),
+        ));
+    }
+}
+
 #[test]
 fn parses_node_file_names() {
     let version = "22.0.0";
@@ -121,6 +201,7 @@ fn normalized_runtime_spec_preserves_version_prefix() {
         ("^22", Some("runtime:22.0.0"), "22.11.0"),
         ("rc/^22", None, "^22.11.0"),
         ("22", Some("runtime:^22.0.0-rc.0"), "^22.11.0"),
+        ("22", Some("tool:~22.0.0"), "~22.11.0"),
     ];
     for (version_spec, prev_specifier, expected) in cases {
         assert_eq!(
@@ -163,6 +244,7 @@ async fn resolve_save_specifier_pins_the_picked_version() {
         ("26", Some("runtime:~26.4.0"), "runtime:~26.5.0"),
         ("", None, "runtime:26.5.0"),
         ("lts", None, "runtime:24.13.0"),
+        ("26", Some("tool:^26.4.0"), "runtime:^26.5.0"),
     ];
     for (version_spec, prev_specifier, expected) in cases {
         assert_eq!(
@@ -438,19 +520,13 @@ async fn musl_reader_propagates_a_mirror_server_error() {
 
 #[tokio::test]
 async fn musl_reader_propagates_an_unreachable_mirror() {
-    // Binding and dropping a listener hands back a port the OS just confirmed
-    // free, so the connect is refused instead of answered or left hanging.
-    // `0.0.0.0` fails it at once on Windows too, unlike a refused loopback port.
-    let closed_port = std::net::TcpListener::bind("127.0.0.1:0")
-        .expect("bind an ephemeral port")
-        .local_addr()
-        .expect("read the bound address")
-        .port();
-
+    // No test binds a privileged port, so the connect is refused. A port
+    // freed by dropping an ephemeral listener can be taken by a mock
+    // registry in a parallel test. `0.0.0.0` fails at once on Windows too.
     let err = read_musl_assets(
         &ThrottledClient::new_for_installs(),
         &AuthHeaders::default(),
-        &format!("http://0.0.0.0:{closed_port}/download/release/"),
+        "http://0.0.0.0:1/download/release/",
         "22.11.0",
         None,
     )

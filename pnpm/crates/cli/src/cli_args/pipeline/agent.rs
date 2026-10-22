@@ -11,6 +11,7 @@
 
 use crate::process::Command;
 use pnpm_crypto_hash::create_short_hash;
+use pnpm_fs::LockMode;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -70,13 +71,16 @@ pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Resu
             .join(repo_basename(&invocation.polling.repo)),
         head_file: agent_dir.join("head"),
     };
-    println!(
+    pnpm_diagnostics::println!(
         "Watching {} ({}) every {}s; checkout: {}",
         invocation.polling.repo,
         invocation.polling.branch,
         invocation.polling.interval.as_secs(),
         dirs.checkout.display(),
     );
+    if pnpm_diagnostics::stdout::reader_closed() {
+        return Ok(());
+    }
     watch_revisions(invocation, &dirs)
 }
 
@@ -84,14 +88,16 @@ fn watch_revisions(invocation: &WatchInvocation, dirs: &AgentDirs) -> miette::Re
     loop {
         let result = poll_and_build(invocation, dirs);
         match result {
-            Ok(Some(revision)) => println!("Built {revision}."),
-            Ok(None) => println!("{} is up to date.", invocation.polling.branch),
+            Ok(Some(revision)) => pnpm_diagnostics::println!("Built {revision}."),
+            Ok(None) => pnpm_diagnostics::println!("{} is up to date.", invocation.polling.branch),
             // A failed poll (the remote is briefly unreachable, a fetch
             // hiccup) must not kill a daemon; the next tick retries.
             Err(error) if invocation.polling.once => return Err(error),
-            Err(error) => eprintln!("[WARN] poll failed: {error}"),
+            Err(error) => pnpm_diagnostics::eprintln!("[WARN] poll failed: {error}"),
         }
-        if invocation.polling.once {
+        // A daemon whose log reader left, as in `pnpm pipeline --watch | head -1`,
+        // stops the way a SIGPIPE would stop it.
+        if invocation.polling.once || pnpm_diagnostics::stdout::reader_closed() {
             return Ok(());
         }
         std::thread::sleep(invocation.polling.interval);
@@ -111,7 +117,7 @@ fn poll_and_build(
         return Ok(None);
     }
     materialize(invocation, dirs, &head)?;
-    println!("New revision {head}; running the pipeline…");
+    pnpm_diagnostics::println!("New revision {head}; running the pipeline…");
     run_pipeline_in_checkout(invocation, dirs, &head, last_built.as_deref())?;
     pnpm_fs::write_atomic(&dirs.head_file, head.as_bytes())
         .map_err(|error| miette::miette!("recording the built revision: {error}"))?;
@@ -264,7 +270,7 @@ fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
         .create(true)
         .truncate(false)
         .open(directory.join("lock"))?;
-    pnpm_fs::try_lock_file(&file, true).map_err(std::io::Error::other)?;
+    pnpm_fs::try_lock_file(&file, LockMode::Exclusive).map_err(std::io::Error::other)?;
     Ok(file)
 }
 

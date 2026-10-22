@@ -12,6 +12,14 @@
 # `terminate-after`, whichever profile a run selects.
 slow-timeout = { period = "60s", terminate-after = 5 }
 
+# The convergence and differential harnesses install every configuration row
+# through v12 and, with `PNPM_V11_BUNDLE` set, through v11 too, so their
+# slowest tests outlast the default period on a loaded runner. Same
+# termination policy.
+[[profile.default.overrides]]
+filter = 'test(/^peer_convergence::/) | test(/^pnpm_compatibility::same_/) | test(/^repeat_install_oracle::/) | test(/^injected_freshness_matrix::/)'
+slow-timeout = { period = "120s", terminate-after = 5 }
+
 # One end-to-end test per area of CLI behavior, for a run that finishes in
 # seconds rather than an hour. It answers "is anything grossly broken", not
 # "is this change correct": CI runs the full suite on three platforms before

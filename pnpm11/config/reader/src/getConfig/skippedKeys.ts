@@ -13,6 +13,25 @@ import { CONFIG_CONTEXT_KEY_SET } from './configContext.js'
 export const SCHEMA_DIRECTIVE_KEY = '$schema'
 
 /**
+ * The `pnpm-workspace.yaml` settings that decide whether pnpm switches to the
+ * version a project pins, and where the pin is recorded. They stay in force
+ * when another setting in the file cannot be read.
+ */
+export const PIN_DECISION_SETTINGS: ReadonlySet<string> = new Set([
+  'ci',
+  'color',
+  'frozenLockfile',
+  'globalDir',
+  'lockfile',
+  'lockfileDir',
+  'loglevel',
+  'packages',
+  'pmOnFail',
+  'reporter',
+  'runtimeOnFail',
+] satisfies Array<keyof Config | 'packages'>)
+
+/**
  * Settings the project `pnpm-workspace.yaml` does not contribute to
  * `self-update`'s config.
  *

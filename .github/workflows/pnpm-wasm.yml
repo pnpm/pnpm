@@ -13,7 +13,7 @@ on:
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
       - '.cargo/**'
-      - '__patches__/**'
+      - '.config/pnpm/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -32,8 +32,6 @@ jobs:
     name: Build and run pnpm in WebContainers
     runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 90
-    env:
-      RUSTUP_TOOLCHAIN: nightly-2026-08-27
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,7 +39,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -55,7 +53,7 @@ jobs:
           shared-key: pnpm-wasm-sdk34-wabt1042
 
       - name: Install runtime and browser harness
-        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer
+        run: pnpm install --frozen-lockfile --filter @pnpm-private/wasm-runtime --filter @pnpm-private/ecosystem-e2e-webcontainer --filter @pnpm/esm-loader
 
       - name: Build pnpm and the shared-library probe
         env:
@@ -88,7 +86,7 @@ jobs:
         run: node pnpm/tasks/ecosystem-e2e/webcontainer/run.mjs --wasm-package target/pnpm-wasm.tgz
 
       - name: Upload WASM build outputs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pnpm-wasm
           path: target/pnpm-wasm.tgz

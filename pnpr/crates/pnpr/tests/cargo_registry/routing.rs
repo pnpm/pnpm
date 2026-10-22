@@ -3,6 +3,7 @@ use super::{
     cargo_config, common, crate_archive, find_file, header, json, metadata, publish_body,
     publish_request, router_with_auth, sha256_hex,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
@@ -73,7 +74,7 @@ async fn search_hides_a_private_registry_from_an_anonymous_caller() {
     for url in ["/cargo/api/v1/crates?q=demo", "/cargo/api/v1/crates?browse=true"] {
         let tmp = TempDir::new().unwrap();
         let auth = AuthState::in_memory();
-        let token = auth.tokens.issue("alice").await.unwrap();
+        let token = issue_token(&auth, "alice").await;
         let app = router_with_auth(
             cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$authenticated"),
             auth,
@@ -120,7 +121,7 @@ async fn search_hides_a_private_registry_from_an_anonymous_caller() {
 async fn crate_names_are_case_insensitive_in_the_index_path() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
         auth,
@@ -170,7 +171,7 @@ async fn crate_names_are_case_insensitive_in_the_index_path() {
 async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_reads() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(
         cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$authenticated"),
         auth,
@@ -442,7 +443,7 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, valid_index.as_bytes());
-    let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "package.json").unwrap();
+    let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "document.json").unwrap();
     tokio::fs::write(cached_index, [0xff]).await.unwrap();
     let response = app
         .oneshot(

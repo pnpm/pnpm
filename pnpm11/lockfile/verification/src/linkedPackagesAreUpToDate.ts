@@ -25,7 +25,10 @@ import {
   resolveSpecPath,
   versionSatisfies,
 } from './dependencySpec.js'
-import { localDirectoryDepIsUpToDate } from './localDirectoryDepIsUpToDate.js'
+import {
+  localDirectoryDepIsUpToDate,
+  type LocalDirectoryResolution,
+} from './localDirectoryDepIsUpToDate.js'
 
 export interface CheckLinkedPackagesResult {
   upToDate: boolean
@@ -42,11 +45,15 @@ export interface LinkedPackagesContext {
   injectWorkspacePackages?: boolean
   /**
    * Skips comparing the dependencies of local directory dependencies with
-   * their lockfile snapshots. That comparison errs toward reporting a stale
-   * lockfile, which only costs a re-resolve, so a caller that fails on a
-   * stale verdict skips it.
+   * their lockfile snapshots, for a lockfile whose snapshots already carry
+   * the effects of hooks, overrides, and peer binding, such as the one
+   * `pnpm deploy` writes.
    */
   skipLocalDirectoryDependencies?: boolean
+  /** The settings and hooks the lockfile was resolved with. */
+  resolution?: LocalDirectoryResolution
+  /** See `LocalDirectoryDepContext.hookedManifests`. */
+  hookedManifests?: Map<string, Promise<DependencyManifest | undefined>>
 }
 
 interface ProjectToCheck {
@@ -115,7 +122,11 @@ async function checkLocalDirectoryDependency (
   if (pkgSnapshot == null) {
     return outdated(`The lockfile has no package entry for local directory dependency "${depName}" (${lockfileRef})`)
   }
-  if (!ctx.skipLocalDirectoryDependencies && !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot)) {
+  if (
+    !ctx.skipLocalDirectoryDependencies &&
+    !isDeployDirectoryRef(lockfileRef, pkgSnapshot) &&
+    !await localDirectoryDepIsUpToDate(ctx, pkgSnapshot, dependencyAliases(project.manifest))
+  ) {
     return outdated(`The dependencies of local directory dependency "${depName}" do not match the lockfile`)
   }
   return isWorkspaceRange
@@ -260,6 +271,31 @@ function isLocalDirectoryRef (ref: string): boolean {
   return aliasEnd !== -1 && refIsLocalDirectory(refWithoutSuffix.slice(aliasEnd + 1))
 }
 
+/**
+ * `pnpm deploy` rewrites workspace/link/file directory dependencies to
+ * `<name>@file://...` snapshots whose transitive dependencies have already
+ * been converted from the source workspace lockfile (catalogs, overrides,
+ * packageExtensions, readPackage hooks, and singleton peer bindings).
+ * Comparing those snapshots against the raw on-disk `package.json` in a
+ * post-deploy install or `verifyDepsBeforeRun` check would false-positive
+ * because the deployed directory intentionally drops those source-workspace
+ * settings.
+ */
+function isDeployDirectoryRef (ref: string, pkgSnapshot: PackageSnapshot): boolean {
+  const refWithoutSuffix = removeSuffix(ref)
+  const aliasEnd = refWithoutSuffix.indexOf('@file://', 1)
+  if (aliasEnd === -1) return false
+  const filePath = refWithoutSuffix.slice(aliasEnd + '@file:'.length)
+  if (!refIsLocalDirectory(`file:${filePath}`)) return false
+  const directory = (pkgSnapshot.resolution as DirectoryResolution | undefined)?.directory
+  return filePath.startsWith('///') || filePath !== directory
+}
+
 function outdated (detailedReason: string): CheckLinkedPackagesResult {
   return { upToDate: false, detailedReason }
+}
+
+/** The aliases a project depends on, which supply the peers of its dependencies. */
+function dependencyAliases (manifest: ProjectManifest): Record<string, true> {
+  return Object.fromEntries(DEPENDENCIES_FIELDS.flatMap((depField) => Object.keys(manifest[depField] ?? {}).map((alias) => [alias, true as const])))
 }

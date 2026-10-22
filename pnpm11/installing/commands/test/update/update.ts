@@ -18,22 +18,7 @@ import { DEFAULT_OPTS } from '../utils/index.js'
 
 const execFileAsync = promisify(execFile)
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
-const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
-
-test.each([
-  { dependencies: ['is-positive'], options: { patches: true } },
-  { dependencies: [], options: { latest: true, patches: true } },
-  { dependencies: [], options: { interactive: true, patches: true } },
-  { dependencies: [], options: { global: true, patches: true } },
-])('update --patches rejects selector-based update modes', async ({ dependencies, options }) => {
-  await expect(update.handler({
-    ...DEFAULT_OPTS,
-    ...options,
-    dir: process.cwd(),
-  }, dependencies)).rejects.toMatchObject({
-    code: 'ERR_PNPM_PATCHES_WITH_SELECTOR',
-  })
-})
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 
 test('update ignores lifecycle scripts when --ignore-scripts is used', async () => {
   await using server = await createTestIpcServer()

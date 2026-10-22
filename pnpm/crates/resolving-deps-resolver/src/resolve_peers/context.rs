@@ -2,11 +2,12 @@
 //! map, the shared ancestor chains threaded down the walk, `link:`
 //! node-id remapping, peer-suffix parsing, and range matching.
 
-pub(crate) use peer_specifier::split_peer_suffix_segments;
+pub(crate) use peer_specifier::satisfies_with_prereleases;
 pub(super) use peer_specifier::{
     ComparablePeerRange, importer_relative_link_dep_path, link_node_id_as_dep_path, peer_id_pair,
-    peer_segment_names, remap_link_node_id, satisfies_with_prereleases,
+    peer_segment_names, remap_link_node_id,
 };
+pub(crate) use pnpm_lockfile::split_peer_suffix_segments;
 
 mod peer_specifier;
 use peer_specifier::version_gte;
@@ -294,7 +295,7 @@ impl Walker<'_> {
         parent_pkg: &ResolvedPackage,
     ) -> HashSet<String> {
         let mut conflicting_peers = HashSet::default();
-        for peer_name in parent_pkg.peer_dependencies.keys() {
+        for peer_name in parent_pkg.peer_set.taken().keys() {
             if !self.tree.all_peer_dep_names.contains(peer_name) {
                 continue;
             }
@@ -352,10 +353,10 @@ impl Walker<'_> {
         conflicting_peers: &HashSet<String>,
     ) -> bool {
         let Some(pkg) = self.tree.packages.get(pkg_id) else { return false };
-        pkg.peer_dependencies.contains_key(parent_pkg_name)
+        pkg.peer_set.taken().contains_key(parent_pkg_name)
             && conflicting_peers
                 .iter()
-                .any(|peer| pkg.peer_dependencies.contains_key(peer))
+                .any(|peer| pkg.peer_set.taken().contains_key(peer))
     }
 
     /// The children of a descendant that still inherits the provider, or

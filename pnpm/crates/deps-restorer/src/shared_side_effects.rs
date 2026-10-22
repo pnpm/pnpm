@@ -11,7 +11,10 @@ use persisted::{
 };
 
 mod remote;
-use remote::{RemoteCacheSetup, fetch_remote_artifacts, remote_cache_setup};
+use remote::{
+    ApplyResolvedRemoteArtifacts, RemoteCacheSetup, apply_resolved_remote_artifacts,
+    remote_cache_setup, resolve_remote_artifacts,
+};
 
 mod planning;
 use planning::{CandidatePlan, plan_candidate_groups, plan_eligible_roots};
@@ -20,13 +23,12 @@ use crate::{
     AllowBuildPolicy, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
     SideEffectsBySnapshot, SideEffectsMapsBySnapshot, StoreIndexKeysBySnapshot,
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use pnpm_config::Config;
 use pnpm_lockfile::{PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_pnpr_client::{
-    ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
-    ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints, OwnerScope,
-    PackageIdentity, PnprClient, PublishArtifactRequest, SignedArtifactEnvelope,
+    ARTIFACT_KIND, ArtifactBlobSource, ArtifactCandidate, ArtifactFile, ArtifactManifest,
+    ArtifactPayload, ArtifactPublication, ArtifactSigner, ArtifactStore, ArtifactSubject,
+    CompatibilityConstraints, OwnerScope, PackageIdentity,
 };
 use pnpm_store_dir::{CafsFileInfo, StoreIndexWriter};
 use std::{
@@ -38,10 +40,8 @@ use std::{
 pub(crate) type BaseCasPaths = HashMap<PackageKey, HashMap<String, PathBuf>>;
 
 pub struct SharedSideEffectsPublisher {
-    signer: BuilderSigningKey,
-    authorization: Option<String>,
-    builder_profile: BuilderProfile,
-    client: PnprClient,
+    signer: ArtifactSigner,
+    store: ArtifactStore,
     organization: String,
     packages: HashSet<String>,
     platform: ArtifactPlatform<'static>,
@@ -59,12 +59,37 @@ pub(crate) struct ApplySharedSideEffectsOptions<'a> {
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
 }
 
-/// `importers` are the wanted lockfile's: the root project's runtime pin
-/// picks the Node.js major of the artifacts.
-pub(crate) async fn apply_shared_side_effects(
-    mut options: ApplySharedSideEffectsOptions<'_>,
+pub(crate) struct PreparedSharedSideEffects {
+    setup: RemoteCacheSetup,
+    groups: BTreeMap<String, planning::CandidateGroup>,
+}
+
+pub(crate) struct ResolvedSharedSideEffects {
+    setup: RemoteCacheSetup,
+    groups: BTreeMap<String, planning::CandidateGroup>,
+    resolved: Option<(
+        BTreeMap<String, pnpm_pnpr_client::VerifiedArtifact>,
+        Vec<pnpm_pnpr_client::RejectedArtifact>,
+    )>,
+}
+
+pub(crate) fn cold_shared_packages_have_known_requires_build(
+    cold: &[(&PackageKey, &SnapshotEntry)],
+    shared_packages: Option<&HashSet<&str>>,
+    requires_build_by_snapshot: &RequiresBuildBySnapshot,
+) -> bool {
+    let Some(shared_packages) = shared_packages else { return true };
+    cold.iter()
+        .all(|(snapshot_key, _)| {
+            !shared_packages.contains(snapshot_key.name.to_string().as_str())
+                || requires_build_by_snapshot.contains_key(*snapshot_key)
+        })
+}
+
+pub(crate) async fn prepare_shared_side_effects(
+    options: &mut ApplySharedSideEffectsOptions<'_>,
     importers: &HashMap<String, ProjectSnapshot>,
-) {
+) -> Option<PreparedSharedSideEffects> {
     let persisted_remote = take_persisted_remote_side_effects(
         options.side_effects_maps_by_snapshot,
         options.cached.by_snapshot,
@@ -72,13 +97,11 @@ pub(crate) async fn apply_shared_side_effects(
     if !options.config.side_effects_cache_read() {
         options.side_effects_maps_by_snapshot.clear();
     }
-    let Some(setup) = remote_cache_setup(options.config, importers) else { return };
-
-    let roots = plan_eligible_roots(&options, &setup);
+    let setup = remote_cache_setup(options.config, importers)?;
+    let roots = plan_eligible_roots(options, &setup);
     if roots.is_empty() {
-        return;
+        return None;
     }
-
     let groups = plan_candidate_groups(
         &CandidatePlan {
             config: options.config,
@@ -94,9 +117,60 @@ pub(crate) async fn apply_shared_side_effects(
     )
     .await;
     if groups.is_empty() || options.config.frozen_store {
-        return;
+        return None;
     }
-    fetch_remote_artifacts(&mut options, &setup, &groups).await;
+    Some(PreparedSharedSideEffects { setup, groups })
+}
+
+pub(crate) async fn resolve_prepared_side_effects(
+    prepared: Option<PreparedSharedSideEffects>,
+    quarantine_by_snapshot: &RemoteSideEffectsQuarantineBySnapshot,
+) -> Option<ResolvedSharedSideEffects> {
+    let prepared = prepared?;
+    let resolved =
+        resolve_remote_artifacts(&prepared.setup, &prepared.groups, quarantine_by_snapshot).await;
+    Some(ResolvedSharedSideEffects { setup: prepared.setup, groups: prepared.groups, resolved })
+}
+
+pub(crate) async fn finish_shared_side_effects(
+    resolved: Option<ResolvedSharedSideEffects>,
+    config: &Config,
+    base_cas_paths: &BaseCasPaths,
+    side_effects_maps_by_snapshot: &mut SideEffectsMapsBySnapshot,
+    store_index_writer: &Arc<StoreIndexWriter>,
+) {
+    let Some(resolved) = resolved else { return };
+    apply_resolved_remote_artifacts(
+        ApplyResolvedRemoteArtifacts {
+            config,
+            setup: &resolved.setup,
+            groups: &resolved.groups,
+            base_cas_paths,
+            side_effects_maps_by_snapshot,
+            store_index_writer,
+        },
+        resolved.resolved,
+    )
+    .await;
+}
+
+/// `importers` are the wanted lockfile's: the root project's runtime pin
+/// picks the Node.js major of the artifacts.
+pub(crate) async fn apply_shared_side_effects(
+    mut options: ApplySharedSideEffectsOptions<'_>,
+    importers: &HashMap<String, ProjectSnapshot>,
+) {
+    let prepared = prepare_shared_side_effects(&mut options, importers).await;
+    let resolved =
+        resolve_prepared_side_effects(prepared, options.cached.quarantine_by_snapshot).await;
+    finish_shared_side_effects(
+        resolved,
+        options.config,
+        options.cached.base_cas_paths,
+        options.side_effects_maps_by_snapshot,
+        options.store_index_writer,
+    )
+    .await;
 }
 
 fn non_empty(value: &str) -> Option<&str> {
@@ -107,39 +181,20 @@ pub(crate) fn shared_side_effects_publisher(
     config: &Config,
     importers: &HashMap<String, ProjectSnapshot>,
 ) -> Option<SharedSideEffectsPublisher> {
-    let server = config.pnpr_server.as_deref()?;
-    let settings = config.remote_side_effects_cache.as_ref()?;
+    let packages = &config.remote_side_effects_cache.as_ref()?.packages;
+    let settings = config.remote_cache_settings();
     if settings.publish != Some(true) {
         return None;
     }
     let platform = artifact_platform(importers)?;
-    let private_key = BASE64
-        .decode(settings.private_key.as_ref()?)
-        .ok()?;
-    let key_id = settings.key_id.clone()?;
-    let builder_id = settings.builder_id.clone()?;
-    let organization = non_empty(&settings.org)?.to_string();
-    let environment = settings.build_env.clone().unwrap_or_default();
+    let organization = non_empty(settings.org.as_deref()?)?.to_string();
+    let store = ArtifactStore::from_config(config, &settings).ok()??;
     Some(SharedSideEffectsPublisher {
-        signer: BuilderSigningKey { builder_id, key_id, private_key },
-        authorization: config.auth_headers.for_url(server),
-
-        builder_profile: BuilderProfile {
-            image_digest: settings.image_digest.clone(),
-            architecture_baseline: settings.architecture_baseline
-                .clone()
-                .unwrap_or_else(|| pnpm_graph_hasher::host_arch().to_string()),
-            environment,
-        },
-        client: PnprClient::new(server),
-
+        signer: ArtifactSigner::from_settings(&settings).ok()?,
+        store,
         organization,
-        packages: settings.packages
-            .iter()
-            .cloned()
-            .collect(),
+        packages: packages.iter().cloned().collect(),
         platform,
-
         runtime: tokio::runtime::Handle::current(),
     })
 }
@@ -178,7 +233,7 @@ impl SharedSideEffectsPublisher {
             input_key: input_key.clone(),
             owner: OwnerScope::organization(self.organization.clone()),
             builder_id: self.signer.builder_id.clone(),
-            builder_profile: self.builder_profile.clone(),
+            builder_profile: self.signer.builder_profile.clone(),
             compatibility: CompatibilityConstraints::Tagged {
                 tags: vec![self.platform.tag().map_err(|error| error.to_string())?],
             },
@@ -194,24 +249,14 @@ impl SharedSideEffectsPublisher {
         &self,
         input_key: String,
         payload: &ArtifactPayload,
-        blobs: Vec<ArtifactBlobUpload>,
+        blobs: Vec<ArtifactBlobSource>,
     ) -> Result<(), String> {
         self.runtime
-            .block_on(
-                self.client.publish_artifact(
-                    &PublishArtifactRequest {
-                        key: input_key,
-                        envelope: SignedArtifactEnvelope::sign(
-                            payload,
-                            self.signer.key_id.clone(),
-                            &self.signer.private_key,
-                        )
-                        .map_err(|error| error.to_string())?,
-                        blobs,
-                    },
-                    self.authorization.as_deref(),
-                ),
-            )
+            .block_on(self.store.publish_artifact(&ArtifactPublication {
+                key: input_key,
+                envelope: self.signer.sign(payload).map_err(|error| error.to_string())?,
+                blobs,
+            }))
             .map_err(|error| error.to_string())
     }
 
@@ -238,11 +283,11 @@ impl SharedSideEffectsPublisher {
     }
 }
 
-/// The built files as the artifact lists them, each one's bytes read
-/// from the CAFS for upload.
+/// The built files as the artifact lists them, and the CAFS file each
+/// one's blob is uploaded from.
 struct ArtifactUpload {
     files: Vec<ArtifactFile>,
-    blobs: BTreeMap<String, ArtifactBlobUpload>,
+    blobs: BTreeMap<String, ArtifactBlobSource>,
 }
 
 fn artifact_upload(
@@ -256,8 +301,6 @@ fn artifact_upload(
         let stored_path = store
             .cas_file_path_by_mode(&info.digest, info.mode)
             .ok_or_else(|| format!("invalid CAFS digest for built file {path:?}"))?;
-        let bytes = std::fs::read(&stored_path)
-            .map_err(|error| format!("failed to read {}: {error}", stored_path.display()))?;
         files.push(ArtifactFile {
             path,
             integrity: integrity.clone(),
@@ -266,7 +309,11 @@ fn artifact_upload(
         });
         blobs
             .entry(integrity.clone())
-            .or_insert_with(|| ArtifactBlobUpload { integrity, data: BASE64.encode(bytes) });
+            .or_insert_with(|| ArtifactBlobSource {
+                integrity,
+                size: info.size,
+                path: stored_path,
+            });
     }
     files.sort_unstable_by(|left, right| left.path.cmp(&right.path));
     Ok(ArtifactUpload { files, blobs })
@@ -282,14 +329,9 @@ fn dependency_package(candidate: &ArtifactCandidate) -> &PackageIdentity {
 #[cfg(test)]
 mod tests;
 
-struct BuilderSigningKey {
-    builder_id: String,
-    key_id: String,
-    private_key: Vec<u8>,
-}
-
 pub(crate) struct SharedSideEffectsCacheRows<'a> {
     pub base_cas_paths: &'a BaseCasPaths,
+    pub cold_snapshots: Option<&'a HashSet<&'a PackageKey>>,
     pub by_snapshot: &'a SideEffectsBySnapshot,
     pub quarantine_by_snapshot: &'a RemoteSideEffectsQuarantineBySnapshot,
     pub store_index_keys_by_snapshot: &'a StoreIndexKeysBySnapshot,

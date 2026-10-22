@@ -1,8 +1,8 @@
 use super::{
     Arc, BTreeMap, DepPath, DirectDep, HashMap, HashSet, ImporterPeerInput, NodeId, PeerId,
-    PkgResolutionId, ResolvePeersOptions, ResolvedTree, graph_node, linked_package, package,
-    peer_id_pair, resolve_peers, resolve_peers_workspace, resolve_result, tree_node,
-    walker_for_tests,
+    PkgResolutionId, ResolvePeersOptions, ResolvedTree, WorkspacePeerSettings, graph_node,
+    linked_package, package, peer_id_pair, resolve_peers, resolve_peers_workspace, resolve_result,
+    tree_node, walker_for_tests,
 };
 
 #[test]
@@ -70,9 +70,7 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
         &mut tree,
         &importers,
         std::path::Path::new("/repo"),
-        false,
-        false,
-        false,
+        WorkspacePeerSettings::default(),
         ResolvePeersOptions::default(),
     );
 
@@ -187,9 +185,7 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         &mut tree,
         &importers,
         std::path::Path::new("/repo"),
-        false,
-        false,
-        true,
+        WorkspacePeerSettings { resolve_peers_from_workspace_root: true, ..Default::default() },
         ResolvePeersOptions::default(),
     );
 
@@ -274,9 +270,7 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
         &mut tree,
         &[importer],
         std::path::Path::new("/repo"),
-        false,
-        false,
-        false,
+        WorkspacePeerSettings::default(),
         ResolvePeersOptions {
             links: crate::PeerLinkOptions {
                 lockfile_dir: Some(std::path::PathBuf::from("/repo")),
@@ -349,9 +343,7 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
         &mut tree,
         &[importer],
         std::path::Path::new("/repo"),
-        false,
-        false,
-        false,
+        WorkspacePeerSettings::default(),
         ResolvePeersOptions {
             links: crate::PeerLinkOptions {
                 exclude_links_from_lockfile: true,

@@ -2,7 +2,7 @@ use super::{
     ArtifactUsage, BACKFILLED_SCOPE, HashSet, MAX_RESOLVE_RESPONSE_SIZE, MAX_SCOPE_MARKER_BYTES,
     ObjectPath, ObjectStoreExt, RegistryError, Result, SharedArtifactStore, SignedArtifactEnvelope,
     StoredArtifacts, artifact_operation_id, blob_id, digest_segment, entry_owner, is_blob_path,
-    is_variant_file, object_name, scope_name,
+    is_variant_file, object_name, scope_name, staged_blob_path, staged_recently,
 };
 use futures_util::StreamExt as _;
 
@@ -58,7 +58,7 @@ impl SharedArtifactStore {
         while let Some(entry) = listing.next().await {
             let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
-            if is_blob_path(relative) && !artifacts.referenced_blobs.contains(relative) {
+            if is_unneeded_blob_object(relative, &entry, &artifacts) {
                 self.store.delete(&entry.location).await?;
                 continue;
             }
@@ -113,6 +113,12 @@ impl SharedArtifactStore {
         while let Some(entry) = listing.next().await {
             let entry = entry?;
             let Some(relative) = self.relative_path(&entry.location) else { continue };
+            if let Some(blob) = staged_blob_path(relative) {
+                if staged_recently(&entry) {
+                    artifacts.staged_blobs.insert(blob);
+                }
+                continue;
+            }
             let Some(owner) = entry_owner(relative).map(str::to_string) else { continue };
             self.read_stored_artifact(&entry, &owner, &mut artifacts).await?;
         }
@@ -207,4 +213,18 @@ impl SharedArtifactStore {
         .await?;
         Ok(())
     }
+}
+
+/// A blob no artifact references and no recent upload vouches for, or the
+/// record of an upload too old to vouch for its blob any longer.
+fn is_unneeded_blob_object(
+    relative: &str,
+    entry: &object_store::ObjectMeta,
+    artifacts: &StoredArtifacts,
+) -> bool {
+    if is_blob_path(relative) {
+        return !artifacts.referenced_blobs.contains(relative)
+            && !artifacts.staged_blobs.contains(relative);
+    }
+    staged_blob_path(relative).is_some() && !staged_recently(entry)
 }

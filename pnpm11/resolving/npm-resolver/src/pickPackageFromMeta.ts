@@ -53,6 +53,7 @@ export function pickPackageFromMeta (
   meta: PackageMeta,
   spec: RegistryPackageSpec
 ): PackageInRegistry | null {
+  assertMetaNamesRequestedPackage(meta, spec)
   if (publishedBy) {
     meta = narrowMetaToPublishedBy(meta, publishedBy, publishedByExclude)
   }
@@ -72,7 +73,7 @@ export function pickPackageFromMeta (
       publishedBy,
     })
     if (!version) return null
-    return readManifestUnderRegistryName(meta, version)
+    return readManifestUnderRequestedName(meta, version, spec)
   } catch (err: unknown) {
     throw toMalformedMetadataError(err, spec)
   }
@@ -120,17 +121,24 @@ function pickVersionForSpec (
   return undefined
 }
 
-function readManifestUnderRegistryName (meta: PackageMeta, version: string): PackageInRegistry {
+/**
+ * The registry may confirm the identity of the requested package but never
+ * change it: build policy, trust policy, and the lockfile all key on the
+ * resolved name.
+ */
+function assertMetaNamesRequestedPackage (meta: PackageMeta, spec: RegistryPackageSpec): void {
+  if (!meta.name || meta.name === spec.name) return
+  throw new PnpmError('REGISTRY_NAME_MISMATCH',
+    `The registry returned metadata for "${meta.name}" when "${spec.name}" was requested`
+  )
+}
+
+// Packages published to the GitHub registry are always scoped, but the name
+// in their package.json may omit the scope.
+function readManifestUnderRequestedName (meta: PackageMeta, version: string, spec: RegistryPackageSpec): PackageInRegistry {
   const manifest = meta.versions[version]
-  if (manifest && meta['name']) {
-    // Packages that are published to the GitHub registry are always published with a scope.
-    // However, the name in the package.json for some reason may omit the scope.
-    // So the package published to the GitHub registry will be published under @foo/bar
-    // but the name in package.json will be just bar.
-    // In order to avoid issues, we consider that the real name of the package is the one with the scope.
-    manifest.name = meta['name']
-  }
-  return manifest
+  if (!manifest || manifest.name === spec.name) return manifest
+  return { ...manifest, name: spec.name }
 }
 
 function toMalformedMetadataError (err: unknown, spec: RegistryPackageSpec): Error {
@@ -345,21 +353,38 @@ function nonDeprecatedPick (
   versionRange: string
 ): string | null {
   if (!meta.versions[picked]?.deprecated || candidates.length <= 1) return null
-  const nonDeprecatedVersions = candidates.filter((version) => !meta.versions[version]?.deprecated)
-  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
-    const pickedParsed = parseSemverLoose(picked)
-    if (pickedParsed != null) {
-      const sameReleasePrereleases = nonDeprecatedVersions.filter((version) => {
-        const parsed = parseSemverLoose(version)
-        return parsed != null &&
-          parsed.major === pickedParsed.major &&
-          parsed.minor === pickedParsed.minor &&
-          parsed.patch === pickedParsed.patch
-      })
-      const sameRelease = maxVersionLoose(sameReleasePrereleases)
-      if (sameRelease != null) return sameRelease
-    }
+  const isNonDeprecated = (version: string): boolean => {
+    if (version === picked) return false
+    const manifest = meta.versions[version]
+    return manifest != null && !manifest.deprecated
   }
-
+  if (versionRange === '*' && !semverSatisfiesLoose(picked, versionRange)) {
+    const sameRelease = pickSameReleaseVersion(candidates, picked, isNonDeprecated)
+    if (sameRelease != null) return sameRelease
+  }
+  // Filter by the range before touching manifests, so a lazily-loaded
+  // packument hydrates only the actual candidates instead of every version.
+  const nonDeprecatedVersions = candidates.filter((version) =>
+    semverSatisfiesLoose(version, versionRange) && isNonDeprecated(version)
+  )
   return maxSatisfyingLoose(nonDeprecatedVersions, versionRange)
+}
+
+function pickSameReleaseVersion (
+  candidates: string[],
+  picked: string,
+  isNonDeprecated: (version: string) => boolean
+): string | null {
+  const pickedParsed = parseSemverLoose(picked)
+  if (pickedParsed == null) return null
+  return maxVersionLoose(candidates.filter((version) =>
+    isSameRelease(parseSemverLoose(version), pickedParsed) && isNonDeprecated(version)
+  ))
+}
+
+function isSameRelease (parsed: semver.SemVer | null, other: semver.SemVer): boolean {
+  return parsed != null &&
+    parsed.major === other.major &&
+    parsed.minor === other.minor &&
+    parsed.patch === other.patch
 }

@@ -1,5 +1,6 @@
 pub(crate) use lockfile_guard::LockfileGuard;
 
+mod deprecations;
 mod lockfile_guard;
 
 use crate::{
@@ -101,7 +102,10 @@ impl DedupeArgs {
         .wrap_err("deduplicating dependencies")?;
 
         if self.check {
-            check_lockfile::<Reporter>(existing.as_deref(), guard.unwrap(), lockfile_path)
+            let guard = guard.ok_or_else(|| {
+                miette::miette!("Lockfile guard is required when running dedupe in check mode")
+            })?;
+            check_lockfile::<Reporter>(existing.as_deref(), guard, lockfile_path)
         } else {
             Ok(())
         }
@@ -118,11 +122,16 @@ pub(crate) fn check_lockfile<Reporter: self::Reporter>(
         guard.disarm();
         return Ok(());
     }
-    let diff = diff_lockfiles(
-        parse_snapshot(existing, lockfile_path).as_ref(),
-        parse_snapshot(current.as_deref(), lockfile_path).as_ref(),
-        ImporterDiffKey::Version,
-    );
+    let previous = parse_snapshot(existing, lockfile_path);
+    let next = parse_snapshot(current.as_deref(), lockfile_path);
+    if deprecations::differs_only_in_deprecations(
+        (existing, previous.as_ref()),
+        (current.as_deref(), next.as_ref()),
+    ) {
+        // Dropping the armed guard restores the snapshot the run rewrote.
+        return Ok(());
+    }
+    let diff = diff_lockfiles(previous.as_ref(), next.as_ref(), ImporterDiffKey::Version);
     emit_dedupe_check_error::<Reporter>(&diff);
     Err(DedupeError::CheckIssues.into())
 }

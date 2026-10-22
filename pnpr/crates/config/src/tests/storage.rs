@@ -43,7 +43,6 @@ s3:
   prefix: packages
   accessKeyId: AKIA-test
   secretAccessKey: secret-test
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.storage.hosted_backend {
@@ -66,7 +65,6 @@ backend:
   libsql:
     url: libsql://db.turso.io
     authToken: tok-secret
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -85,7 +83,6 @@ storage: /var/lib/pnpr
 backend:
   libsql:
     url: http://127.0.0.1:8080
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -105,8 +102,7 @@ backend:
   libsql:
     url: libsql://db.turso.io
     replicaPath: auth-replica.db
-    syncIntervalSecs: 15
-upstreams: {}
+    syncInterval: 15s
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -130,7 +126,6 @@ backend:
   libsql:
     url: libsql://db.turso.io
     replicaPath: /var/lib/pnpr/auth-replica.db
-upstreams: {}
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     match config.identity.backend {
@@ -151,11 +146,24 @@ backend:
     url: libsql://db.turso.io
   postgres:
     url: postgres://pnpr:secret@db.example/pnpr
-upstreams: {}
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
         .expect_err("a backend block must not select two databases");
     assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn libsql_backend_rejects_subsecond_sync_interval() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: libsql://db.turso.io
+    syncInterval: 500ms
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None)
+        .expect_err("subsecond syncInterval must be rejected");
+    assert!(err.to_string().contains("backend.libsql.syncInterval"), "{err}");
 }
 
 // ----- serde defaults ---------------------------------------------------
@@ -165,7 +173,7 @@ fn yaml_with_no_storage_uses_default_storage_string() {
     // `storage:` is absent entirely — `default_storage_string`
     // supplies `"./storage"`, which `resolve_relative` then joins
     // to the config-file's parent dir.
-    let yaml = "upstreams: {}\n";
+    let yaml = "cors: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
     assert_eq!(config.storage.hosted_dir, PathBuf::from("/etc/pnpr/./storage"));
 }
@@ -238,4 +246,48 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
         }
     }
     assert_eq!(config.routing.registries.addressed("cargo/internal", Ecosystem::Npm), None);
+}
+
+#[test]
+fn cache_settings_parsed_from_table() {
+    let yaml = "\
+storage: /var/lib/pnpr
+cache:
+  path: /custom/cache
+  maxSize: 10GB
+  maxAge: 30d
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/custom/cache"));
+    assert_eq!(config.storage.cache.max_size, Some(10 * 1024 * 1024 * 1024));
+    assert_eq!(config.storage.cache.max_age, Some(std::time::Duration::from_hours(720)));
+}
+
+#[test]
+fn cache_settings_defaults_path_when_omitted_in_table() {
+    let yaml = "\
+storage: /var/lib/pnpr
+cache:
+  max_size: 500MB
+  max_age: 12h
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    assert_eq!(config.storage.cache_dir, PathBuf::from("/var/lib/pnpr/.pnpr-cache"));
+    assert_eq!(config.storage.cache.max_size, Some(500 * 1024 * 1024));
+    assert_eq!(config.storage.cache.max_age, Some(std::time::Duration::from_hours(12)));
+}
+
+#[test]
+fn cache_rejects_invalid_max_size_or_age() {
+    let bad_size = "storage: /x\ncache:\n  maxSize: not-a-size\n";
+    assert!(Config::from_yaml_str(bad_size, Path::new("/x"), listen(), None).is_err());
+
+    let bad_age = "storage: /x\ncache:\n  maxAge: whenever\n";
+    assert!(Config::from_yaml_str(bad_age, Path::new("/x"), listen(), None).is_err());
+}
+
+#[test]
+fn cache_rejects_unknown_fields() {
+    let yaml = "storage: /x\ncache:\n  unknownField: 123\n";
+    assert!(Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).is_err());
 }

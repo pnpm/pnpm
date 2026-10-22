@@ -82,6 +82,7 @@ async fn shared_store_context_materializes_a_warm_package() {
                 files,
                 side_effects: None,
                 remote_side_effects_quarantine: None,
+                tar_integrity: None,
             },
         )
         .expect("seed context store index");
@@ -125,10 +126,13 @@ async fn shared_store_context_materializes_a_warm_package() {
             skipped: &skipped,
             include_optional: true,
             supported_architectures: None,
+            known_requires_build: None,
+            known_bins: None,
         },
         ctx: &crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: None,
@@ -224,4 +228,43 @@ fn snapshot_deps_equal_distinguishes_different_optional_dependency_values() {
         ..Default::default()
     };
     assert!(!snapshot_deps_equal(&entry_a, &entry_b));
+}
+
+#[test]
+fn lookup_known_requires_build_matches_peer_variants_and_skips_patched_snapshots() {
+    let base_key = key("foo", "1.0.0");
+    let peer_key = key("foo", "1.0.0(react@18.0.0)");
+    let patched_key = key("foo", "1.0.0(patch_hash=abc123)(react@18.0.0)");
+    let known = HashMap::from([(base_key.clone(), false)]);
+
+    assert_eq!(crate::lookup_known_requires_build(Some(&known), &base_key), Some(false));
+    assert_eq!(crate::lookup_known_requires_build(Some(&known), &peer_key), Some(false));
+    assert_eq!(crate::lookup_known_requires_build(Some(&known), &patched_key), None);
+}
+
+#[test]
+fn needs_deferred_engine_probe_skips_when_every_snapshot_is_verified_plain() {
+    use crate::{AllowBuildPolicy, materialization_plan::needs_deferred_engine_probe};
+    use pnpm_config::{Config, NodeLinker};
+
+    let config = Config::new();
+    let policy = AllowBuildPolicy::default();
+    let probe = |snapshots, known| {
+        needs_deferred_engine_probe(&config, NodeLinker::Isolated, &policy, snapshots, known)
+    };
+    let pkg_a = key("foo", "1.0.0");
+    let pkg_b = key("bar", "1.0.0(react@18.0.0)");
+    let snapshots = HashMap::from([
+        (pkg_a.clone(), SnapshotEntry::default()),
+        (pkg_b.clone(), SnapshotEntry::default()),
+    ]);
+    let all_plain = HashMap::from([(pkg_a.clone(), false), (pkg_b.without_peer(), false)]);
+    assert!(!probe(Some(&snapshots), Some(&all_plain)));
+
+    let one_built = HashMap::from([(pkg_a.clone(), false), (pkg_b.without_peer(), true)]);
+    assert!(probe(Some(&snapshots), Some(&one_built)));
+
+    let missing_one = HashMap::from([(pkg_a, false)]);
+    assert!(probe(Some(&snapshots), Some(&missing_one)));
+    assert!(probe(Some(&snapshots), None));
 }

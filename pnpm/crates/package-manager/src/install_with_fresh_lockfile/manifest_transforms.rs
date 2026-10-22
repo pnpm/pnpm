@@ -1,5 +1,5 @@
 //! pnpm's built-in read-package hook chain: `packageExtensions` (the
-//! compatibility DB plus the user's), legacy deploy's workspace
+//! compatibility DB plus the user's), `addMissingPeerTypes`, legacy deploy's workspace
 //! injection, `pnpm.overrides`, and `ignoredOptionalDependencies`.
 //!
 //! Owns the *transform* half of the resolve inputs. The seeds, options,
@@ -25,8 +25,9 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 /// pnpm's built-in read-package hook chain for the manifests fresh
 /// resolution consumes, plus the pieces later phases read off it.
 ///
-/// The order matches `createReadPackageHook`: packageExtensions first,
-/// then the pnpmfile and deploy hook, then overrides, then the
+/// The order matches `createReadPackageHook`: packageExtensions first
+/// (followed by `addMissingPeerTypes`, so it also covers peers an extension
+/// adds), then the pnpmfile and deploy hook, then overrides, then the
 /// `ignoredOptionalDependencies` removal. The hooks stay separate because
 /// the resolver interleaves the pnpmfile's `readPackage` between them:
 /// packageExtensions → readPackage → deploy → overrides → ignored optionals.
@@ -106,6 +107,7 @@ fn configured_package_extender(
 struct ImporterTransforms {
     compat_package_extender: Option<&'static crate::PackageExtender>,
     package_extender: Option<Arc<crate::PackageExtender>>,
+    add_missing_peer_types: bool,
     versions_overrider: Option<Arc<VersionsOverrider>>,
     deploy_manifest_hook: bool,
     ignored_optional_matcher: Matcher,
@@ -130,6 +132,7 @@ impl ImporterTransforms {
                 crate::compat_package_extensions::compat_package_extender,
             ),
             package_extender: configured_package_extender(config)?,
+            add_missing_peer_types: config.add_missing_peer_types,
             versions_overrider: versions_overrider.filter(|overrider| !overrider.is_empty()),
             deploy_manifest_hook,
             ignored_optional_matcher: create_matcher(
@@ -177,7 +180,12 @@ impl ImporterTransforms {
                 let extender = Arc::clone(extender);
                 Arc::new(move |manifest| extender.apply_to_arc(manifest)) as ManifestHook
             });
-        compose_manifest_hooks(compat_package_extensions_hook, package_extensions_hook)
+        let add_missing_peer_types_hook: Option<ManifestHook> = self
+            .add_missing_peer_types
+            .then(|| Arc::new(crate::missing_peer_types::add_missing_peer_types) as ManifestHook);
+        [compat_package_extensions_hook, package_extensions_hook, add_missing_peer_types_hook]
+            .into_iter()
+            .fold(None, compose_manifest_hooks)
     }
 
     fn override_bare_specifier(&self) -> Option<Arc<DependencyOverrider>> {

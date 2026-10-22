@@ -16,7 +16,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, get_bins_from_package_manifest, remove_bin};
 use pnpm_config::Config;
-use pnpm_fs::{read_symlink_dir, remove_symlink_dir};
+use pnpm_fs::{read_symlink_dir, remove_dirent, remove_symlink_dir};
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, parse_manifest_bytes};
@@ -52,6 +52,14 @@ pub enum PruneDirectDepsError {
     )]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_REMOVE_BIN))]
     RemoveBin {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to read {path:?} while pruning direct dependencies: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_PRUNE_DIRECT_DEPS_READ_MODULES_DIR))]
+    ReadModulesDir {
         path: PathBuf,
         #[error(source)]
         error: io::Error,
@@ -238,6 +246,35 @@ pub fn remove_direct_dep_link(modules_dir: &Path, name: &str) -> Result<(), Prun
     }
 }
 
+/// Remove an extraneous entry (symlink, directory, or file) at
+/// `<modules_dir>/<name>` during `pnpm prune`, returning its manifest
+/// version (if readable) when an entry was removed.
+pub(crate) fn remove_extraneous_direct_dep(
+    modules_dir: &Path,
+    name: &str,
+) -> Result<Option<Option<String>>, PruneDirectDepsError> {
+    let Ok(pkg_dir) = safe_join_modules_dir(modules_dir, name) else {
+        return Ok(None);
+    };
+    if let Some(parent) = pkg_dir.parent()
+        && parent != modules_dir
+        && !is_real_dir(parent)
+    {
+        return Ok(None);
+    }
+    match fs::symlink_metadata(&pkg_dir) {
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(PruneDirectDepsError::RemoveLink { path: pkg_dir, error }),
+    }
+    let version = remove_dep_bins_with_version(modules_dir, &pkg_dir)?;
+    match remove_dirent(&pkg_dir) {
+        Ok(()) => Ok(Some(version)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(PruneDirectDepsError::RemoveLink { path: pkg_dir, error }),
+    }
+}
+
 /// Remove the shims the package at `pkg_dir` declares from
 /// `<modules_dir>/.bin`. A missing or unparsable `package.json` (a
 /// dangling link, a broken package) yields no bins to remove — the same
@@ -246,31 +283,46 @@ pub(crate) fn remove_dep_bins(
     modules_dir: &Path,
     pkg_dir: &Path,
 ) -> Result<(), PruneDirectDepsError> {
+    remove_dep_bins_with_version(modules_dir, pkg_dir).map(|_| ())
+}
+
+fn remove_dep_bins_with_version(
+    modules_dir: &Path,
+    pkg_dir: &Path,
+) -> Result<Option<String>, PruneDirectDepsError> {
     let manifest_path = pkg_dir.join("package.json");
     let bytes = match fs::read(&manifest_path) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error)
+            if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) =>
+        {
+            return Ok(None);
+        }
         Err(error) => {
             return Err(PruneDirectDepsError::ReadManifest { path: manifest_path, error });
         }
     };
     let Ok(manifest) = parse_manifest_bytes(&bytes) else {
-        return Ok(());
+        return Ok(None);
     };
+    let version = manifest
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(str::to_owned);
     // Shims are deleted with plain `remove_file`, so a `.bin` that is
     // itself a symlink or junction would redirect the deletions
     // outside the confined modules dir — skip shim removal unless
     // `.bin` is a real directory. (Absent `.bin` means no shims.)
     let bins_dir = modules_dir.join(".bin");
     if !is_real_dir(&bins_dir) {
-        return Ok(());
+        return Ok(version);
     }
     for command in get_bins_from_package_manifest::<Host>(&manifest, pkg_dir) {
         let shim_path = bins_dir.join(&command.name);
         remove_bin(&shim_path)
             .map_err(|error| PruneDirectDepsError::RemoveBin { path: shim_path, error })?;
     }
-    Ok(())
+    Ok(version)
 }
 
 #[cfg(test)]

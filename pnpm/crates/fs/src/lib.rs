@@ -2,6 +2,7 @@ pub mod file_mode;
 #[cfg(all(windows, feature = "test"))]
 pub mod test_support;
 pub use background_drop::background_drop;
+pub use canonical_paths::CanonicalPaths;
 pub use capabilities::*;
 pub use copy_dirent::{copy_dir_contents, copy_dirent, create_symlink};
 pub use copy_file_exclusive::{
@@ -11,11 +12,14 @@ pub use copy_file_exclusive::{
 pub use cross_device::is_cross_device;
 pub use dir_lock::DirLock;
 pub use ensure_file::*;
+pub use exchange_dirents::exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 pub use file_lock::{lock_file, try_lock_file};
+pub use internal_symlink::{relative_link_target, symlink_file_or_copy};
 pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
+pub use lock_mode::LockMode;
 #[cfg(unix)]
 pub use pending_temp::die_from_signal;
 pub use pending_temp::{
@@ -37,6 +41,7 @@ pub use secure_temp_lock::{
     open_secure_lock_file, secure_temp_lock_dir, secure_user_lock_dir, secure_user_lock_file_path,
 };
 pub use symlink_dir::*;
+pub use sync_file::sync_file;
 #[cfg(target_os = "wasi")]
 pub use wasi_fs::{
     check_file_owner, create_inheriting_mode as create_file_inheriting_mode,
@@ -46,17 +51,21 @@ pub use wasi_fs::{
 pub use write_atomic::{write_atomic, write_atomic_private};
 
 mod background_drop;
+mod canonical_paths;
 mod capabilities;
 mod copy_dirent;
 mod copy_file_exclusive;
 mod cross_device;
 mod dir_lock;
 mod ensure_file;
+mod exchange_dirents;
 #[cfg(not(target_os = "wasi"))]
 mod file_lock;
+mod internal_symlink;
 mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
+mod lock_mode;
 mod pending_temp;
 mod private_named_tempfile;
 mod read_modules_dir;
@@ -68,6 +77,7 @@ mod rename_to_free_name;
 mod retry;
 mod secure_temp_lock;
 mod symlink_dir;
+mod sync_file;
 #[cfg(target_os = "wasi")]
 mod wasi_fs;
 mod write_atomic;

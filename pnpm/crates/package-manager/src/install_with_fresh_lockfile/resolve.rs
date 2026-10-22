@@ -40,17 +40,17 @@ pub(super) async fn run_pre_resolution_hook<Reporter: pnpm_reporter::Reporter>(
     if matches!(hook.has_pre_resolution().await, Ok(false)) {
         return;
     }
-    let wanted_lockfile_json = wanted_lockfile.map_or_else(
-        || serde_json::json!({}),
-        |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
-    );
+    let wanted_lockfile_json = match wanted_lockfile {
+        Some(lockfile) => serde_json::to_value(lockfile).unwrap_or_else(|_| serde_json::json!({})),
+        None => serde_json::json!({}),
+    };
     let current_lockfile =
         Lockfile::load_current_from_install_state_dir(&config.install_state_dir).ok().flatten();
     let exists_current_lockfile = current_lockfile.is_some();
-    let current_lockfile_json = current_lockfile.map_or_else(
-        || serde_json::json!({}),
-        |lf| serde_json::to_value(lf).unwrap_or_else(|_| serde_json::json!({})),
-    );
+    let current_lockfile_json = match current_lockfile {
+        Some(lockfile) => serde_json::to_value(lockfile).unwrap_or_else(|_| serde_json::json!({})),
+        None => serde_json::json!({}),
+    };
     let ctx = pnpm_hooks::PreResolutionHookContext {
         wanted_lockfile: wanted_lockfile_json,
         current_lockfile: current_lockfile_json,
@@ -83,6 +83,7 @@ pub(super) struct SharedResolveOptions<'a> {
     /// See [`super::FreshInputs::update_checksums`].
     pub update_checksums: bool,
     pub update_behavior: pnpm_resolving_resolver_base::UpdateBehavior,
+    pub refresh_metadata: bool,
 }
 
 impl SharedResolveOptions<'_> {
@@ -108,6 +109,7 @@ impl SharedResolveOptions<'_> {
             refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {
                 update_checksums: self.update_checksums,
                 update: self.update_behavior,
+                refresh_metadata: self.refresh_metadata,
                 ..Default::default()
             },
             policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions {

@@ -46,12 +46,13 @@ export function createTarballFetcher (
     timeout?: number
     retry?: RetryTimeoutOptions
     offline?: boolean
-  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps'>
+  } & Pick<CreateDownloaderOptions, 'fetchMinSpeedKiBps' | 'maxTarballUnpackedSize'>
 ): TarballFetchers {
   const download = createDownloader(fetchFromRegistry, {
     retry: opts.retry,
     timeout: opts.timeout,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
+    maxTarballUnpackedSize: opts.maxTarballUnpackedSize,
   })
 
   const remoteTarballFetcher = fetchFromTarball.bind(null, {
@@ -66,7 +67,7 @@ export function createTarballFetcher (
   }
 
   return {
-    localTarball: createLocalTarballFetcher(opts.storeIndex),
+    localTarball: createLocalTarballFetcher(opts.storeIndex, { maxTarballUnpackedSize: opts.maxTarballUnpackedSize }),
     remoteTarball: remoteTarballFetcher,
     gitHostedTarball: createGitHostedTarballFetcher(remoteTarballFetcher, opts),
   }
@@ -83,7 +84,6 @@ async function fetchFromTarball (
   resolution: {
     integrity?: string
     registry?: string
-    revision?: number
     tarball: string
   },
   opts: FetchOptions
@@ -104,8 +104,6 @@ async function fetchFromTarball (
     filesIndexFile: opts.filesIndexFile,
     pkg: opts.pkg,
     pkgId: opts.pkgResolutionId,
-    redirect: resolution.revision == null ? undefined : 'manual',
-    retry: resolution.revision == null ? undefined : { retries: 0 },
     appendManifest: opts.appendManifest,
     ignoreFilePattern: opts.ignoreFilePattern,
   })

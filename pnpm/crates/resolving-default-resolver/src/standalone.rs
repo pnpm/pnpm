@@ -63,7 +63,7 @@ pub fn build_standalone_chain(
     opts: &StandaloneChainOptions<'_>,
 ) -> Result<DefaultResolver, MergeNamedRegistriesError> {
     let &StandaloneChainOptions { config, http_client, .. } = opts;
-    let retry_opts = chain_retry_opts(config);
+    let retry_opts = config.retry_opts();
     // Shared behind an `Arc` so the deno / bun runtime resolvers (which
     // reuse the npm resolver for their own version picking) and the chain
     // slot below all point at the same instance and its metadata cache.
@@ -71,7 +71,7 @@ pub fn build_standalone_chain(
     // `preserveAbsolutePaths` isn't exposed by pacquet's `Config` yet, so
     // the local-resolver context defaults to `false` here — same as the
     // install path.
-    let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
+    let local_ctx = LocalResolverContext { preserve_absolute_paths: false, ..Default::default() };
 
     Ok(DefaultResolver::new(vec![
         Box::new(Arc::clone(&npm_resolver)),
@@ -91,15 +91,6 @@ pub fn build_standalone_chain(
         Box::new(build_named_registry_resolver(opts, retry_opts)?),
         Box::new(LocalPathResolver::new(local_ctx)),
     ]))
-}
-
-fn chain_retry_opts(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: std::time::Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: std::time::Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
 }
 
 fn build_npm_resolver(
@@ -137,10 +128,10 @@ fn build_npm_resolver(
             full_metadata,
             needs_full_metadata_for: None,
             filter_metadata,
+            registry_options_by_url: std::sync::Arc::new(config.registry_options_by_url.clone()),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: config.offline,
-            prefer_offline: config.prefer_offline,
+            network: config.network_policy(),
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
         store_view: offline_store_view(config),
@@ -201,10 +192,10 @@ fn build_named_registry_resolver(
             full_metadata,
             needs_full_metadata_for: None,
             filter_metadata,
+            registry_options_by_url: std::sync::Arc::new(config.registry_options_by_url.clone()),
         },
         cache_policy: pnpm_resolving_npm_resolver::MetadataCachePolicy {
-            offline: config.offline,
-            prefer_offline: config.prefer_offline,
+            network: config.network_policy(),
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         },
         store_view: offline_store_view(config),

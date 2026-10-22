@@ -1012,3 +1012,5 @@ mod lockfile;
 mod configuration;
 
 mod time_based_release_age;
+
+mod diagnostics;

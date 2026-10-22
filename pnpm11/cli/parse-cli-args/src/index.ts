@@ -59,7 +59,7 @@ export async function parseCliArgs (
   const escapeArgs = getEscapeArgs(opts, resolution, exploratory)
   const { argv, ...rawOptions } = parseCommandNopt(opts, resolution.commandName, types, filteredArgv, escapeArgs)
 
-  mergeExtractedConfigArgs(rawOptions, configDotArgs)
+  mergeExtractedConfigArgs(rawOptions, configDotArgs, types)
   applyRenamedOptions(rawOptions, opts.renamedOptions)
   const workspaceDir = await getWorkspaceDir(rawOptions)
   if (SPECIALLY_ESCAPED_CMDS.has(resolution.cmd!) && rawOptions['help']) {
@@ -214,12 +214,12 @@ function separateConfigDotArgs (
 function parseCommandNopt (
   opts: ParseCliArgsOptions,
   commandName: string,
-  types: Record<string, unknown>,
+  types: Parameters<typeof nopt>[0],
   filteredArgv: string[],
   escapeArgs?: string[]
 ): ReturnType<typeof nopt> {
   return nopt(
-    { recursive: Boolean, ...types },
+    { recursive: Boolean, ...types, ...configDotTypes(types) },
     {
       ...opts.universalShorthands,
       ...opts.shorthandsByCommandName[commandName],
@@ -230,10 +230,23 @@ function parseCommandNopt (
   )
 }
 
-function mergeExtractedConfigArgs (options: Record<string, unknown>, configDotArgs: string[]): void {
+function mergeExtractedConfigArgs (options: Record<string, unknown>, configDotArgs: string[], types: Parameters<typeof nopt>[0]): void {
   if (configDotArgs.length === 0) return
-  const { argv: _, ...configOptions } = nopt({}, {}, configDotArgs, 0)
+  const { argv: _, ...configOptions } = nopt(configDotTypes(types), {}, configDotArgs, 0)
   Object.assign(options, configOptions)
+}
+
+/**
+ * The types of `types` under their `--config.<key>` spellings, so a
+ * `--config.<key>` value takes the type the command declares for `<key>`: a
+ * list setting given once is a one-item list and a number is a number, as
+ * the bare `--<key>` flag would give. A key the command does not declare
+ * keeps its raw value.
+ */
+function configDotTypes (types: Parameters<typeof nopt>[0]): Parameters<typeof nopt>[0] {
+  return Object.fromEntries(
+    Object.entries(types).map(([name, type]) => [`${CUSTOM_OPTION_PREFIX}${name}`, type])
+  )
 }
 
 function applyRenamedOptions (options: Record<string, unknown>, renamedOptions?: Record<string, string>): void {
@@ -294,7 +307,7 @@ function handleRecursiveInvocation (
 
 function validateWorkspaceOptions (options: Record<string, unknown>, workspaceDir: string | undefined): void {
   if (!options['workspace-root']) return
-  if (options['global']) {
+  if (isGlobalScope(options)) {
     throw new PnpmError('OPTIONS_CONFLICT', '--workspace-root may not be used with --global')
   }
   if (!workspaceDir) {
@@ -352,7 +365,7 @@ async function getWorkspaceDir (
   parsedOpts: Record<string, unknown>,
   renamedOptions?: Record<string, string>
 ): Promise<string | undefined> {
-  if (parsedOpts['global'] || parsedOpts['ignore-workspace']) return undefined
+  if (isGlobalScope(parsedOpts) || parsedOpts['ignore-workspace']) return undefined
   let dir = parsedOpts['dir']
   if (dir == null && renamedOptions != null) {
     for (const [from, to] of Object.entries(renamedOptions)) {
@@ -363,4 +376,10 @@ async function getWorkspaceDir (
     }
   }
   return findWorkspaceDir((dir ?? process.cwd()) as string)
+}
+
+/** `--location`, which only config commands accept, takes precedence over `--global`. */
+function isGlobalScope (parsedOpts: Record<string, unknown>): boolean {
+  if (parsedOpts['location'] != null) return parsedOpts['location'] === 'global'
+  return Boolean(parsedOpts['global'])
 }

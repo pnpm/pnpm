@@ -82,11 +82,11 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { exitCode } = await execa('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'], { reject: false })
+    const { exitCode } = await execa('pnpm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'], { reject: false })
     expect(exitCode).toBe(1)
   }
   {
-    const { exitCode } = await execa('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'], { reject: false })
+    const { exitCode } = await execa('pnpm', ['view', pkg2.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'], { reject: false })
     expect(exitCode).toBe(1)
   }
 
@@ -113,7 +113,7 @@ test('recursive publish', async () => {
   }, [])
 
   {
-    const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
+    const { stdout } = await execa('pnpm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`])
     expect(stdout?.toString()).toContain('next: 2.0.0')
   }
 })
@@ -476,7 +476,7 @@ test('recursive publish resolves workspace protocol when node_modules is not ins
     recursive: true,
   }, [])
 
-  const { stdout } = await execa('pnpm', ['view', pkgB.name, 'dependencies', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+  const { stdout } = await execa('pnpm', ['view', pkgB.name, 'dependencies', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}/npm/`, '--json'])
   const dependencies = JSON.parse(stdout?.toString() ?? '{}')
   expect(dependencies[pkgA.name]).toBe('^1.2.3')
 })

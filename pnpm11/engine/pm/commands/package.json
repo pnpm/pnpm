@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.pm.commands",
-  "version": "1102.1.7",
+  "version": "1102.1.10",
   "description": "pnpm commands for self-updating and setting up pnpm",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/building.during-install": "workspace:*",
     "@pnpm/building.policy": "workspace:*",
     "@pnpm/cli.meta": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",

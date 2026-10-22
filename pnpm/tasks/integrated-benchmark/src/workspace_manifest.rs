@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 pub struct MinimalWorkspaceManifest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_dir: Option<String>,
-    /// Packument-metadata cache location (`<cacheDir>/v11/metadata-full`).
+    /// Packument-metadata cache location (`<cacheDir>/v12/metadata-full`).
     /// The benchmark forces this bench-local (`./cache-dir`) for the same
     /// reason it forces `storeDir` local: so the cold-cache scenarios can
     /// wipe it per-iteration. Left at the global default it would survive
@@ -53,6 +53,8 @@ pub struct MinimalWorkspaceManifest {
     /// source tree into the install's project enumeration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packages: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dedupe_injected_deps: Option<bool>,
     /// The `enableGlobalVirtualStore` setting. Effective default is
     /// `false` for non-`--global` installs in both pnpm v11 and pacquet
     /// (the `true` value is forced only by the `pnpm install --global`
@@ -64,10 +66,33 @@ pub struct MinimalWorkspaceManifest {
     /// a different shape from the project-local baseline.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enable_global_virtual_store: Option<bool>,
+    /// The `enableModulesDir` setting. `false` makes an install resolve,
+    /// write the lockfile and fetch into the store without creating
+    /// `node_modules`; the store-only scenario measures that path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_modules_dir: Option<bool>,
+    /// The `storeIndexFormat` setting: `sqlite` (the default) or `files`,
+    /// the per-file index a store shared between machines uses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store_index_format: Option<String>,
+    /// The `trustLockfile` setting. `true` skips the supply-chain
+    /// verification of the loaded lockfile, which reads every entry's
+    /// packument and would otherwise hide what the resolution itself
+    /// fetches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_lockfile: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cargo: Option<CargoSettings>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supported_architectures: Option<SupportedArchitectures>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub allow_builds: BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CargoSettings {
+    pub enabled: bool,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]

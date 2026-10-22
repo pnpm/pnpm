@@ -85,7 +85,7 @@ fn resolve_workspace(root: &Path, checkout: Option<&Path>, offline: bool) -> Res
 }
 
 fn resolution_command(root: &Path, checkout: Option<&Path>, offline: bool) -> Result<Command> {
-    let sysroot = build_std::sysroot(root)?;
+    let sysroot = build_std::sysroot(root, checkout)?;
     let mut command = Command::new(
         sysroot
             .join("bin")

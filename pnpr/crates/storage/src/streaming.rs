@@ -65,6 +65,34 @@ pub fn stream_verified_to_cache(
     integrity: &Integrity,
     max_bytes: u64,
 ) -> Result<Body, BlobStreamError> {
+    stream_verified_to_cache_with_hook(response, write, integrity, max_bytes, None)
+}
+
+/// Like [`stream_verified_to_cache`], invoking `on_cached` with the promoted
+/// cache path once the body has verified and landed in the cache.
+pub fn stream_verified_to_cache_and_then(
+    response: ThrottledResponse,
+    write: BlobWrite,
+    integrity: &Integrity,
+    max_bytes: u64,
+    on_cached: impl FnOnce(PathBuf) + Send + 'static,
+) -> Result<Body, BlobStreamError> {
+    stream_verified_to_cache_with_hook(
+        response,
+        write,
+        integrity,
+        max_bytes,
+        Some(Box::new(on_cached)),
+    )
+}
+
+fn stream_verified_to_cache_with_hook(
+    response: ThrottledResponse,
+    write: BlobWrite,
+    integrity: &Integrity,
+    max_bytes: u64,
+    on_cached: Option<Box<dyn FnOnce(PathBuf) + Send>>,
+) -> Result<Body, BlobStreamError> {
     // Reject an upstream that already declares an oversize body up front, so it
     // surfaces as an error response instead of a failure mid-stream.
     if let Some(received) = response.content_length()
@@ -77,6 +105,7 @@ pub fn stream_verified_to_cache(
         url: redact_url(response.url()),
         upstream: Box::pin(response.bytes_stream()),
         write: Some(write),
+        on_cached,
         checker,
         written: 0,
         max_bytes,
@@ -141,7 +170,7 @@ async fn cache_chunk(write: Option<BlobWrite>, chunk: &[u8]) -> Option<BlobWrite
 async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<TeeState>)> {
     match state.checker.result() {
         Ok(_) => {
-            finalize(state.write.take()).await;
+            finalize(state.write.take(), state.on_cached.take()).await;
             None
         }
         Err(err) => {
@@ -154,11 +183,18 @@ async fn finish_tee(mut state: TeeState) -> Option<(io::Result<Bytes>, Option<Te
 
 /// Promote a fully-streamed, SRI-matched blob to the cache, logging (not
 /// failing — the client already has the bytes) if the rename can't complete.
-async fn finalize(write: Option<BlobWrite>) {
-    if let Some(write) = write
-        && let Err(err) = write.finalize().await
-    {
-        tracing::warn!(?err, "promoting verified blob to cache failed");
+async fn finalize(write: Option<BlobWrite>, on_cached: Option<Box<dyn FnOnce(PathBuf) + Send>>) {
+    let Some(write) = write else { return };
+    let final_path = write.final_path().to_path_buf();
+    match write.finalize().await {
+        Ok(()) => {
+            if let Some(on_cached) = on_cached {
+                on_cached(final_path);
+            }
+        }
+        Err(err) => {
+            tracing::warn!(?err, "promoting verified blob to cache failed");
+        }
     }
 }
 
@@ -187,6 +223,7 @@ struct TeeState {
     url: String,
     upstream: Pin<Box<dyn Stream<Item = io::Result<Bytes>> + Send>>,
     write: Option<BlobWrite>,
+    on_cached: Option<Box<dyn FnOnce(PathBuf) + Send>>,
     checker: IntegrityChecker,
     written: u64,
     max_bytes: u64,
@@ -224,6 +261,17 @@ pub async fn download_computing_sha512(
     };
     let sealed = write.seal().await.map_err(BlobStreamError::Io)?;
     Ok((sealed, computed))
+}
+
+/// Download an upstream response into `write` without hashing it, and return
+/// the byte count. The caller checks the bytes with [`BlobWrite::check`]
+/// before it promotes or serves them.
+pub async fn download_unverified(
+    response: ThrottledResponse,
+    write: &mut BlobWrite,
+    max_bytes: u64,
+) -> Result<u64, BlobStreamError> {
+    download(response, write, max_bytes, |_| {}).await
 }
 
 async fn download_verified(
@@ -315,7 +363,9 @@ pub fn stream_file(file: impl tokio::io::AsyncRead + Unpin + Send + 'static) -> 
             Err(err) => Some((Err(err), None)),
         }
     });
-    Body::from_stream(stream)
+    // Fused: `unfold` panics when polled after it ends, and a compression
+    // layer polls its inner body once more.
+    Body::from_stream(stream.fuse())
 }
 
 pub fn stream_file_and_remove(file: File, path: PathBuf) -> Body {
@@ -332,7 +382,8 @@ pub fn stream_file_and_remove(file: File, path: PathBuf) -> Body {
             Err(err) => Some((Err(err), None)),
         }
     });
-    Body::from_stream(stream)
+    // Fused for the reason in `stream_file`.
+    Body::from_stream(stream.fuse())
 }
 
 struct RemoveOnDropFile {

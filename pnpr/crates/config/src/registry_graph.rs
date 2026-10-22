@@ -4,13 +4,17 @@ pub(super) use namespace::{
 };
 
 mod namespace;
+mod rules;
+
+use std::collections::BTreeSet;
+
+use rules::{build_rules, registry_access_list};
 
 use super::{
-    AccessList, AccessSpec, DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile,
-    IndexMap, PackageAccess, PackagePattern, PackageRule, PackageRules, Registries, Registry,
-    RegistryConfigError, RegistryError, RegistryFile, RegistryGroupFile, SystemEnv, Teams,
-    UpstreamConfig, UpstreamConfigFile, UpstreamFile, build_teams, registry_mock_rules,
-    resolve_upstream_config,
+    DefaultRegistryFile, Ecosystem, EnvVar, HostedConfig, HostedFile, IndexMap, Management,
+    PackageAccess, PackagePattern, Registries, Registry, RegistryConfigError, RegistryError,
+    RegistryFile, RegistryGroupFile, SystemEnv, TarballFormat, TeamDirectory, UpstreamConfig,
+    UpstreamConfigFile, UpstreamFile, build_teams, resolve_upstream_config,
 };
 
 /// Turn a static [`RegistryConfigError`] into the server-wide config error so a
@@ -103,7 +107,7 @@ pub(super) fn build_registries(
     registry_files: IndexMap<String, RegistryGroupFile>,
     default_registry: Option<DefaultRegistryFile>,
     resolve_upstreams: bool,
-) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
+) -> Result<ResolvedRegistryGraph, RegistryError> {
     let registry_files = flatten_registry_groups(registry_files)?;
     let (default_registry, defaults) = resolve_default_registry(default_registry)?;
     let mut builder = RegistryGraphBuilder::default();
@@ -125,7 +129,11 @@ pub(super) fn build_registries(
     let defaults = addressed_defaults(defaults, &registries);
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
-    Ok((builder.hosted, registries))
+    Ok(ResolvedRegistryGraph {
+        hosted: builder.hosted,
+        registries,
+        tar_registries: builder.tar_registries,
+    })
 }
 
 /// The shared default registry, or the per-ecosystem defaults qualified
@@ -156,6 +164,7 @@ pub(super) struct RegistryGraphBuilder {
     pub(super) hosted: IndexMap<String, HostedConfig>,
     pub(super) graph: IndexMap<String, Registry>,
     pub(super) ecosystems: IndexMap<String, Ecosystem>,
+    pub(super) tar_registries: BTreeSet<String>,
 }
 
 impl RegistryGraphBuilder {
@@ -173,6 +182,9 @@ impl RegistryGraphBuilder {
                     "registry {name:?} collides with another registry or upstream of the same name",
                 ),
             });
+        }
+        if declares_tar_tarballs(&name, &file)? {
+            self.tar_registries.insert(name.clone());
         }
         match file {
             RegistryFile::Hosted(registry) => {
@@ -197,6 +209,29 @@ impl RegistryGraphBuilder {
         }
         Ok(())
     }
+}
+
+/// Whether `file` declares `tarballs: tar`, which only an npm registry may.
+fn declares_tar_tarballs(name: &str, file: &RegistryFile) -> Result<bool, RegistryError> {
+    let (tarballs, ecosystem) = match file {
+        RegistryFile::Hosted(hosted) => (hosted.tarballs, hosted.ecosystem),
+        RegistryFile::Upstream(upstream) => (upstream.tarballs, upstream.ecosystem),
+        RegistryFile::Router(router) => (
+            router.tarballs,
+            Ecosystem::all().find(|ecosystem| name.starts_with(&format!("{ecosystem}/"))),
+        ),
+    };
+    if tarballs != Some(TarballFormat::Tar) {
+        return Ok(false);
+    }
+    if ecosystem.is_some_and(|ecosystem| ecosystem != Ecosystem::Npm) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {name:?} declares `tarballs`, which only an npm registry serves",
+            ),
+        });
+    }
+    Ok(true)
 }
 
 /// Each ecosystem's default, addressed the way the registries name it.
@@ -232,12 +267,26 @@ pub(super) fn build_hosted_entry(
         return Err(org_collision_error(name, &org, other));
     }
     let ecosystem = registry.ecosystem.unwrap_or_default();
-    let teams = build_teams(name, &registry.teams)?;
+    if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "hosted registry `{name}` specifies `teamsManagedBy: api`, but team management API \
+                 is only available for npm registries",
+            ),
+        });
+    }
+    let teams = TeamDirectory::new(build_teams(name, &registry.teams)?);
     let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
     let patterns = rules.patterns();
-    Ok((HostedConfig { org, rules, teams }, ecosystem, patterns))
+    let (teams_managed_by, rules_managed_by) =
+        (registry.teams_managed_by, registry.rules_managed_by);
+    Ok((
+        HostedConfig { org, rules, teams, teams_managed_by, rules_managed_by },
+        ecosystem,
+        patterns,
+    ))
 }
 
 /// The resolved serving config, ecosystem and claimed patterns of one
@@ -254,7 +303,7 @@ pub(super) fn build_upstream_entry(
     let ecosystem = upstream.ecosystem.unwrap_or_default();
     // The registry-level default the rules fall back to: the upstream's
     // `access:` gate, or `$all` for a public origin.
-    let teams = build_teams(name, &upstream.teams)?;
+    let teams = TeamDirectory::new(build_teams(name, &upstream.teams)?);
     let access = registry_access_list(name, upstream.access.as_ref(), &teams)?;
     let packages = ecosystem_package_keys(name, ecosystem, upstream.packages.clone())?;
     let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
@@ -275,62 +324,6 @@ pub(super) fn build_upstream_entry(
     Ok((Some(resolved), ecosystem, patterns))
 }
 
-/// Compile a `registries:` entry's registry-level `access:` value, naming the
-/// registry in the error.
-pub(super) fn registry_access_list(
-    name: &str,
-    spec: Option<&AccessSpec>,
-    teams: &Teams,
-) -> Result<Option<AccessList>, RegistryError> {
-    spec.map(|spec| spec.to_access_list(teams))
-        .transpose()
-        .map_err(|reason| RegistryError::InvalidConfig {
-            reason: format!("registry {name:?} has an invalid `access` list: {reason}"),
-        })
-}
-
-/// Compile a concrete registry's `packages:` map into its [`PackageRules`]:
-/// keys parsed into the decidable [`PackagePattern`] language, values into
-/// per-package permission rules (`{}`/null ⇒ all fields default). Selection
-/// is by specificity, so key order carries no meaning; a duplicate key is the
-/// only within-registry error, and the YAML parser already rejects literal
-/// duplicates in one mapping — the check here guards the graph invariant for
-/// any other construction path. Routing-graph checks are handled later by
-/// [`Registries::validate`] once the whole graph exists.
-pub(super) fn build_rules(
-    registry: &str,
-    ecosystem: Ecosystem,
-    packages: &IndexMap<String, Option<PackageAccess>>,
-    default_access: Option<AccessList>,
-    teams: &Teams,
-) -> Result<PackageRules, RegistryError> {
-    let rules = packages
-        .iter()
-        .map(|(key, rule)| {
-            let pattern = PackagePattern::parse(key, ecosystem).map_err(|err| {
-                RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
-            })?;
-            let fields = rule.as_ref();
-            let list = |field: &str, spec: Option<&AccessSpec>| {
-                spec.map(|spec| spec.to_access_list(teams)).transpose().map_err(|reason| {
-                    RegistryError::InvalidConfig {
-                        reason: format!(
-                            "registry {registry:?}: {key:?} has an invalid `{field}` list: {reason}",
-                        ),
-                    }
-                })
-            };
-            Ok(PackageRule {
-                pattern,
-                access: list("access", fields.and_then(|fields| fields.access.as_ref()))?,
-                publish: list("publish", fields.and_then(|fields| fields.publish.as_ref()))?,
-                unpublish: list("unpublish", fields.and_then(|fields| fields.unpublish.as_ref()))?,
-            })
-        })
-        .collect::<Result<Vec<_>, RegistryError>>()?;
-    Ok(PackageRules::new(rules, default_access))
-}
-
 /// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.
 /// A `public` upstream is anonymous and world-readable (no credential, no
 /// access gate); a non-`public` one must declare `access:` naming who may
@@ -339,7 +332,7 @@ pub(super) fn build_rules(
 pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
-    teams: &Teams,
+    teams: &TeamDirectory,
 ) -> Result<UpstreamConfig, RegistryError> {
     validate_upstream_access(name, &file)?;
     let access = if file.public { None } else { file.access };
@@ -356,26 +349,6 @@ pub(super) fn resolve_upstream_registry<Sys: EnvVar>(
         access,
     };
     resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
-}
-
-pub(super) fn registry_mock_graph() -> (IndexMap<String, HostedConfig>, Registries) {
-    let rules = registry_mock_rules();
-    let local_patterns = rules.patterns();
-    let mut hosted = IndexMap::new();
-    hosted.insert(
-        "local".to_string(),
-        HostedConfig { org: String::new(), rules, teams: Teams::default() },
-    );
-    let graph = [
-        ("local".to_string(), Registry::Hosted { patterns: local_patterns }),
-        ("npmjs".to_string(), Registry::Upstream { patterns: Vec::new() }),
-        (
-            "main".to_string(),
-            Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
-        ),
-    ];
-    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
-    (hosted, registries)
 }
 
 /// Public origins must reject credentials and access gates rather than silently
@@ -423,10 +396,18 @@ pub(super) fn validate_upstream_access(
     Ok(())
 }
 
+/// What [`build_registries`] builds from the `registries:` block.
+pub(super) struct ResolvedRegistryGraph {
+    pub(super) hosted: IndexMap<String, HostedConfig>,
+    pub(super) registries: Registries,
+    pub(super) tar_registries: BTreeSet<String>,
+}
+
 pub(super) struct ResolvedFileRegistries {
     pub(super) upstreams: IndexMap<String, UpstreamConfig>,
     pub(super) hosted: IndexMap<String, HostedConfig>,
     pub(super) registries: Registries,
+    pub(super) tar_registries: BTreeSet<String>,
 }
 
 pub(super) fn resolve_file_registries(
@@ -435,7 +416,7 @@ pub(super) fn resolve_file_registries(
     registry_enabled: bool,
 ) -> Result<ResolvedFileRegistries, RegistryError> {
     let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
-    let (hosted, registries) =
+    let ResolvedRegistryGraph { hosted, registries, tar_registries } =
         build_registries(&mut upstreams, registries, default_registry, registry_enabled)?;
-    Ok(ResolvedFileRegistries { upstreams, hosted, registries })
+    Ok(ResolvedFileRegistries { upstreams, hosted, registries, tar_registries })
 }

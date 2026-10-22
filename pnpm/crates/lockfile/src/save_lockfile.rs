@@ -232,7 +232,7 @@ impl Lockfile {
 /// default.
 fn fill_temp_file(file: &mut fs::File, content: &[u8], target: &Path) -> io::Result<()> {
     file.write_all(content)?;
-    file.sync_all()?;
+    pnpm_fs::sync_file(file)?;
     carry_mode_across(file, target)
 }
 

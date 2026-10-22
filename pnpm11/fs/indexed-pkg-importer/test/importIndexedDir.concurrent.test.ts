@@ -7,10 +7,9 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
 
-const importerFixture = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  'fixtures/concurrentSharedSlotImport.mjs'
-)
+const fixturesDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const importerFixture = path.join(fixturesDir, 'concurrentSharedSlotImport.mjs')
+const forcedImporterFixture = path.join(fixturesDir, 'concurrentForcedImport.mjs')
 
 test('a concurrent importer repairs a partial shared virtual-store slot before marking it complete', async () => {
   const tmp = tempDir()
@@ -50,6 +49,38 @@ test('a concurrent importer repairs a partial shared virtual-store slot before m
   function importerArgs (role: 'partial-writer' | 'contender'): string[] {
     return [importerFixture, role, newDir, srcDir, readyFile, releaseFile]
   }
+}, 30_000)
+
+test('concurrent forced imports into one target all complete and leave the package in place', async () => {
+  const tmp = tempDir()
+  const srcDir = path.join(tmp, 'src')
+  const newDir = path.join(tmp, 'pkg')
+  const releaseFile = path.join(tmp, 'release-importers')
+  fs.mkdirSync(srcDir)
+  fs.writeFileSync(path.join(srcDir, 'index.js'), 'module.exports = 1')
+  fs.writeFileSync(path.join(srcDir, 'package.json'), '{"name":"pkg"}')
+  fs.mkdirSync(newDir)
+  fs.writeFileSync(path.join(newDir, 'stale.txt'), 'stale')
+
+  const importers = Array.from({ length: 4 }, () => spawn(
+    process.execPath,
+    [forcedImporterFixture, newDir, srcDir, releaseFile],
+    { stdio: ['ignore', 'ignore', 'pipe'] }
+  ))
+  const stderr = importers.map((importer) => {
+    const chunks: Buffer[] = []
+    importer.stderr!.on('data', (chunk: Buffer) => chunks.push(chunk))
+    return chunks
+  })
+  const exits = importers.map((importer) => once(importer, 'exit'))
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  fs.writeFileSync(releaseFile, '')
+  const exitCodes = (await Promise.all(exits)).map(([code]) => code as number)
+
+  expect(exitCodes.map((code, index) => code === 0 ? 0 : `${code}: ${Buffer.concat(stderr[index]).toString()}`)).toStrictEqual([0, 0, 0, 0])
+  expect(fs.readFileSync(path.join(newDir, 'index.js'), 'utf8')).toBe('module.exports = 1')
+  expect(fs.readFileSync(path.join(newDir, 'package.json'), 'utf8')).toBe('{"name":"pkg"}')
+  expect(fs.existsSync(path.join(newDir, 'stale.txt'))).toBe(false)
 }, 30_000)
 
 function waitForFile (file: string): Promise<void> {

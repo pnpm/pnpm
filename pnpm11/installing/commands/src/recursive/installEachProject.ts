@@ -17,7 +17,9 @@ import {
   install,
   type InstallOptions,
   mutateModules,
+  verifyPatchesOfLockfiles,
 } from '@pnpm/installing.deps-installer'
+import type { LockfileObject } from '@pnpm/lockfile.types'
 import { logger } from '@pnpm/logger'
 import type {
   DepPath,
@@ -57,6 +59,8 @@ interface ActionResult {
   updatedCatalogs?: Catalogs
   updatedManifest: ProjectManifest
   ignoredBuilds: IgnoredBuilds | undefined
+  newLockfile?: LockfileObject
+  wantedLockfile?: LockfileObject
   resolutionPolicyViolations?: PolicyViolation[]
 }
 
@@ -75,6 +79,7 @@ interface ProjectInstallsState {
    */
   allResolutionPolicyViolations: PolicyViolation[]
   installedModulesDirs: Map<ProjectRootDir, string>
+  projectLockfiles: Map<ProjectRootDir, LockfileObject>
   firstError?: Error
 }
 
@@ -93,6 +98,7 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
     allIgnoredBuilds: new Set<DepPath>(),
     allResolutionPolicyViolations: [],
     installedModulesDirs: new Map<ProjectRootDir, string>(),
+    projectLockfiles: new Map<ProjectRootDir, LockfileObject>(),
     buildsAfterInstall: !opts.lockfileOnly && !opts.ignoreScripts &&
       (cmdFullName === 'add' || cmdFullName === 'install' || cmdFullName === 'update'),
   }
@@ -104,6 +110,7 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
     onNodeSkipped: () => {},
   })
   if (state.firstError != null) throw state.firstError
+  await verifyProjectPatches(ctx, state)
   await handleIgnoredBuilds(opts, state.allIgnoredBuilds.size ? state.allIgnoredBuilds : undefined)
   if (opts.save !== false) {
     await updateWorkspaceManifestAfterInstalls(ctx, state)
@@ -115,11 +122,26 @@ export async function installEachProject (ctx: RecursiveContext): Promise<Recurs
   if (!hasPassedProject(state.result) && cmdFullName === 'update' && opts.depth === 0) {
     throw createNoPackageInDependenciesError()
   }
-  return { passed: true, updatedCatalogs: state.updatedCatalogs }
+  return {
+    passed: true,
+    installedProjectDirs: (Object.keys(state.result) as ProjectRootDir[]).filter((rootDir) => state.result[rootDir].status === 'passed'),
+    updatedCatalogs: state.updatedCatalogs,
+  }
 }
 
 function hasPassedProject (result: RecursiveSummary): boolean {
   return Object.values(result).filter(({ status }) => status === 'passed').length > 0
+}
+
+async function verifyProjectPatches (ctx: RecursiveContext, state: ProjectInstallsState): Promise<void> {
+  const { allProjects, installOpts, opts } = ctx
+  if (installOpts.useLockfile === false || opts.lockfile === false) return
+  if (!allProjects.every(({ rootDir }) => state.result[rootDir]?.status === 'passed')) return
+  await verifyPatchesOfLockfiles(Array.from(state.projectLockfiles.values()), {
+    patchedDependencies: installOpts.patchedDependencies,
+    lockfileDir: opts.workspaceDir,
+    allowUnusedPatches: installOpts.allowUnusedPatches,
+  })
 }
 
 async function runProjectInstall (
@@ -191,11 +213,18 @@ async function installProject (
 
 async function loadProjectHooks (opts: RecursiveOptions, rootDir: ProjectRootDir): Promise<InstallOptions['hooks']> {
   if (opts.ignorePnpmfile) return {}
-  const { hooks: pnpmfileHooks } = await requireHooks(rootDir, opts)
+  // The workspace root's pnpmfile is the one `opts.hooks` was loaded from.
+  if (opts.workspaceDir != null && path.resolve(rootDir) === path.resolve(opts.workspaceDir)) return opts.hooks ?? {}
+  // The global pnpmfile is among the workspace hooks in `opts.hooks` already.
+  const { hooks: pnpmfileHooks } = await requireHooks(rootDir, { ...opts, globalPnpmfile: undefined })
+  // Each hook list the install runs holds the project's hooks, then the workspace's.
   return {
     ...opts.hooks,
     ...pnpmfileHooks,
     afterAllResolved: [...(pnpmfileHooks.afterAllResolved ?? []), ...(opts.hooks?.afterAllResolved ?? [])],
+    customFetchers: [...(pnpmfileHooks.customFetchers ?? []), ...(opts.hooks?.customFetchers ?? [])],
+    customResolvers: [...(pnpmfileHooks.customResolvers ?? []), ...(opts.hooks?.customResolvers ?? [])],
+    preResolution: [...(pnpmfileHooks.preResolution ?? []), ...(opts.hooks?.preResolution ?? [])],
     readPackage: [...(pnpmfileHooks.readPackage ?? []), ...(opts.hooks?.readPackage ?? [])],
   }
 }
@@ -222,6 +251,8 @@ function createProjectAction (
         updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
         updatedManifest: mutationResult.updatedProjects[0].manifest,
         ignoredBuilds: mutationResult.ignoredBuilds,
+        newLockfile: mutationResult.newLockfile,
+        wantedLockfile: mutationResult.wantedLockfile,
         resolutionPolicyViolations: mutationResult.resolutionPolicyViolations,
       }
     }
@@ -257,6 +288,10 @@ async function recordProjectInstall (
   }
   for (const violation of actionResult.resolutionPolicyViolations ?? []) {
     state.allResolutionPolicyViolations.push(violation)
+  }
+  const projectLockfile = actionResult.newLockfile ?? actionResult.wantedLockfile
+  if (projectLockfile != null) {
+    state.projectLockfiles.set(rootDir, projectLockfile)
   }
   state.installedModulesDirs.set(rootDir, path.resolve(rootDir, localConfig.modulesDir ?? opts.modulesDir ?? 'node_modules'))
 }
@@ -303,17 +338,18 @@ async function buildInstalledProjects (
   // own lifecycle scripts run. Here each project was installed and built on
   // its own, so the copies are synced once every project has been built.
   if (!opts.dryRun) {
-    await syncInjectedDepsOfInstalledProjects(manifestsByPath, installedModulesDirs)
+    await syncInjectedDepsOfInstalledProjects(manifestsByPath, installedModulesDirs, !opts.deployAllFiles)
   }
 }
 
 async function syncInjectedDepsOfInstalledProjects (
   manifestsByPath: ManifestsByPath,
-  installedModulesDirs: Map<ProjectRootDir, string>
+  installedModulesDirs: Map<ProjectRootDir, string>,
+  includeOnlyPackageFiles: boolean
 ): Promise<void> {
   const injectedSourceDirs = collectInjectedSourceDirs(manifestsByPath, installedModulesDirs.keys())
   const syncResults = await Promise.allSettled(Array.from(installedModulesDirs, async ([lockfileDir, modulesDir]) =>
-    syncInjectedDepsOfModulesDir({ lockfileDir, modulesDir, sourceDirs: injectedSourceDirs })
+    syncInjectedDepsOfModulesDir({ includeOnlyPackageFiles, lockfileDir, modulesDir, sourceDirs: injectedSourceDirs })
   ))
   const syncFailure = syncResults.find((syncResult): syncResult is PromiseRejectedResult => syncResult.status === 'rejected')
   if (syncFailure != null) throw syncFailure.reason

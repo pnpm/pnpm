@@ -514,3 +514,405 @@ async fn warm_up_of_a_speculative_only_edge_leaves_patch_bookkeeping_alone() {
         "a patch the real walk never applied must not count as applied",
     );
 }
+
+/// The walk takes a child's subtree from the prior lockfile without
+/// consulting metadata, so the warm-up leaves such a child alone; a
+/// sibling the lockfile cannot reproduce is still warmed, down to the
+/// children the lockfile never saw.
+#[tokio::test]
+async fn warm_up_skips_the_children_the_walk_reuses_from_the_lockfile() {
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("a", deps(&[("reused", "^2.0.0"), ("fresh", "^1.0.0")])),
+        (
+            ("reused".to_string(), "^2.0.0".to_string()),
+            fake_result("reused", "2.0.0", None, serde_json::json!({})),
+        ),
+        caret_entry("fresh", deps(&[("leaf", "^1.0.0")])),
+        // The walk pins the edge it cannot reuse to its locked version.
+        (
+            ("fresh".to_string(), "1.0.0".to_string()),
+            fake_result("fresh", "1.0.0", None, deps(&[("leaf", "^1.0.0")])),
+        ),
+        caret_entry("leaf", serde_json::json!({})),
+    ]));
+    let mut lockfile = reuse_graph_lockfile(
+        ".",
+        &[("a", "^1.0.0", "1.0.0")],
+        &[
+            ("a@1.0.0", &[("reused", "2.0.0"), ("fresh", "1.0.0")]),
+            ("reused@2.0.0", &[]),
+            ("fresh@1.0.0", &[]),
+        ],
+        &[],
+    );
+    // Without its snapshot, `fresh`'s subtree cannot be reproduced, which
+    // also sends `a` to a fresh resolve that lands on its recorded entry.
+    let fresh_key: pnpm_lockfile::PkgNameVerPeer = "fresh@1.0.0".parse().expect("key");
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .remove(&fresh_key);
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
+            .await
+            .expect("resolve");
+
+    assert_eq!(resolver.calls_for("a", "^1.0.0"), 1, "a resolves fresh");
+    assert_eq!(
+        resolver.calls_for("reused", "^2.0.0"),
+        0,
+        "the child the walk reuses is neither warmed nor resolved",
+    );
+    assert_eq!(resolver.calls_for("fresh", "^1.0.0"), 1, "the sibling is warmed as declared");
+    assert_eq!(resolver.calls_for("fresh", "1.0.0"), 1, "and resolved by the walk at its pin");
+    assert_eq!(resolver.calls_for("leaf", "^1.0.0"), 1, "the warm-up reaches below `fresh`");
+    assert_eq!(graph_versions_of(&result, "reused"), ["2.0.0"]);
+    assert_eq!(graph_versions_of(&result, "leaf"), ["1.0.0"]);
+}
+
+/// Whether a child is reused is decided per importer. An importer with
+/// no update skips a reusable child of a package it warms; a second
+/// importer updating that child cannot reuse it, so when it reaches the
+/// same package it warms the child itself.
+#[tokio::test]
+async fn warm_up_leaves_a_package_with_a_skipped_child_to_the_next_importer() {
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("p", deps(&[("c", "^1.0.0"), ("d", "^1.0.0")])),
+        caret_entry("c", serde_json::json!({})),
+        caret_entry("d", serde_json::json!({})),
+        (
+            ("d".to_string(), "1.0.0".to_string()),
+            fake_result("d", "1.0.0", None, serde_json::json!({})),
+        ),
+    ]));
+    let mut lockfile = reuse_graph_lockfile(
+        ".",
+        &[("p", "^1.0.0", "1.0.0")],
+        &[("p@1.0.0", &[("c", "1.0.0"), ("d", "1.0.0")]), ("c@1.0.0", &[]), ("d@1.0.0", &[])],
+        &[],
+    );
+    // `d` has no snapshot, so `p` resolves fresh for both importers and
+    // lands on its recorded entry; `c` stays reusable for the first one.
+    let root_importer = lockfile.importers["."].clone();
+    lockfile.importers.insert("b".to_string(), root_importer);
+    let d_key: pnpm_lockfile::PkgNameVerPeer = "d@1.0.0".parse().expect("key");
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .remove(&d_key);
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({ "p": "^1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "p": "^1.0.0" }));
+    let importers = [
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut targets = crate::UpdateTargets::default();
+    targets.insert("c".to_string(), None);
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+    opts.reuse.scopes_by_importer = std::collections::BTreeMap::from([(
+        "b".to_string(),
+        crate::UpdateReuseScope::Except(targets),
+    )]);
+
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+        importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+    })
+    .await
+    .expect("resolve");
+
+    assert_eq!(
+        resolver.callers_of("c", "^1.0.0"),
+        vec![std::path::PathBuf::from("/repo/b"); 2],
+        "importer b warms `c`, which the root importer skipped, then its walk resolves it",
+    );
+}
+
+/// Two packages that depend on each other, each with a child the walk
+/// reuses from the lockfile. Neither is fully warmed, so neither takes
+/// the shared claim; the warm-up must still stop going round the cycle.
+#[tokio::test]
+async fn warm_up_of_a_cycle_with_reused_children_terminates() {
+    // The walk asks for the lockfile's exact versions as well as the
+    // manifests' ranges.
+    let table = [
+        ("a", deps(&[("b", "^1.0.0"), ("side-a", "^1.0.0"), ("fresh", "^1.0.0")])),
+        ("b", deps(&[("a", "^1.0.0"), ("side-b", "^1.0.0"), ("fresh", "^1.0.0")])),
+        ("side-a", serde_json::json!({})),
+        ("side-b", serde_json::json!({})),
+        ("fresh", serde_json::json!({})),
+    ];
+    let resolver = WarmupProbeResolver::new(
+        table
+            .iter()
+            .flat_map(|(name, manifest)| {
+                ["^1.0.0", "1.0.0"].map(|range| {
+                    (
+                        (name.to_string(), range.to_string()),
+                        fake_result(name, "1.0.0", None, manifest.clone()),
+                    )
+                })
+            })
+            .collect(),
+    );
+    let mut lockfile = reuse_graph_lockfile(
+        ".",
+        &[("a", "^1.0.0", "1.0.0")],
+        &[
+            ("a@1.0.0", &[("b", "1.0.0"), ("side-a", "1.0.0"), ("fresh", "1.0.0")]),
+            ("b@1.0.0", &[("a", "1.0.0"), ("side-b", "1.0.0"), ("fresh", "1.0.0")]),
+            ("side-a@1.0.0", &[]),
+            ("side-b@1.0.0", &[]),
+        ],
+        &[],
+    );
+    // `fresh` has no snapshot, so `a` and `b` are resolved rather than
+    // reused, and their side children stay reusable.
+    let fresh_key: pnpm_lockfile::PkgNameVerPeer = "fresh@1.0.0".parse().expect("key");
+    lockfile.snapshots
+        .as_mut()
+        .expect("snapshots")
+        .remove(&fresh_key);
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
+        .await
+        .expect("the warm-up does not go round the cycle forever");
+
+    // `(^1.0.0 calls, 1.0.0 calls)`: the ranges come from manifests, the
+    // exact versions from the lockfile the walk follows. Each cycle member
+    // is warmed once (`a` from the root, `b` from `a`) and resolved by the
+    // walk; the side children are never asked for.
+    let calls =
+        |alias: &str| (resolver.calls_for(alias, "^1.0.0"), resolver.calls_for(alias, "1.0.0"));
+    assert_eq!(
+        [calls("a"), calls("b"), calls("side-a"), calls("side-b"), calls("fresh")],
+        [(2, 1), (1, 1), (0, 0), (0, 0), (1, 2)],
+    );
+}
+
+/// When a later importer (`b`) upgrades a direct dependency (`shared` from
+/// `^1.0.0` to `^1.2.0`), an earlier importer (`a`) whose reused subtree
+/// depends on `shared@^1.0.0` must decline wholesale reuse of that parent and
+/// refresh `shared` onto `1.2.0` so both importers converge in one pass.
+#[tokio::test]
+async fn cross_importer_direct_dep_change_refreshes_earlier_importer_transitive_pin() {
+    let resolver = RecordingResolver {
+        table: HashMap::from_iter([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "^1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let mut lockfile = reuse_graph_lockfile(
+        "a",
+        &[("outer", "1.0.0", "1.0.0")],
+        &[
+            ("outer@1.0.0", &[("wrapper", "1.0.0")]),
+            ("wrapper@1.0.0", &[("shared", "1.0.0")]),
+            ("shared@1.0.0", &[]),
+        ],
+        &[],
+    );
+    let b_lockfile =
+        reuse_graph_lockfile("b", &[("shared", "^1.0.0", "1.0.0")], &[("shared@1.0.0", &[])], &[]);
+    lockfile.importers.insert("b".to_string(), b_lockfile.importers["b"].clone());
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "outer": "1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.2.0" }));
+    let importers = [
+        WorkspaceImporter { id: "a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace after cross-importer direct dep upgrade");
+
+    assert!(
+        !resolver.seen
+            .lock()
+            .unwrap()
+            .contains_key("outer"),
+        "grandparent must stay reused",
+    );
+    assert_eq!(
+        graph_versions_of(&result, "shared"),
+        ["1.2.0"],
+        "earlier importer's transitive pin must refresh to the later importer's upgraded direct dep",
+    );
+}
+
+#[tokio::test]
+async fn cross_importer_direct_dep_change_respects_local_direct_dep_version() {
+    let resolver = RecordingResolver {
+        table: HashMap::from_iter([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "shared": "^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.0.0" }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "^1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let mut lockfile = reuse_graph_lockfile(
+        "a",
+        &[("wrapper", "1.0.0", "1.0.0"), ("shared", "1.0.0", "1.0.0")],
+        &[("wrapper@1.0.0", &[("shared", "1.0.0")]), ("shared@1.0.0", &[])],
+        &[],
+    );
+    let b_lockfile =
+        reuse_graph_lockfile("b", &[("shared", "^1.0.0", "1.0.0")], &[("shared@1.0.0", &[])], &[]);
+    lockfile.importers.insert("b".to_string(), b_lockfile.importers["b"].clone());
+    let (_a_tmp, a_manifest) =
+        fake_manifest(serde_json::json!({ "wrapper": "1.0.0", "shared": "1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.2.0" }));
+    let importers = [
+        WorkspaceImporter { id: "a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace when earlier importer pins shared directly");
+
+    assert_eq!(
+        graph_versions_of(&result, "shared"),
+        ["1.0.0", "1.2.0"],
+        "importer `a`'s own direct dependency on shared@1.0.0 must shadow `b`'s bumped 1.2.0",
+    );
+}
+
+#[tokio::test]
+async fn cross_importer_direct_dep_change_declines_reuse_for_aliased_snapshot_child() {
+    let resolver = RecordingResolver {
+        table: HashMap::from_iter([
+            (
+                ("wrapper".to_string(), "1.0.0".to_string()),
+                fake_result(
+                    "wrapper",
+                    "1.0.0",
+                    None,
+                    serde_json::json!({
+                        "name": "wrapper",
+                        "version": "1.0.0",
+                        "dependencies": { "alias-shared": "npm:shared@^1.0.0" },
+                    }),
+                ),
+            ),
+            (
+                ("alias-shared".to_string(), "npm:shared@^1.0.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+            (
+                ("shared".to_string(), "^1.2.0".to_string()),
+                fake_result(
+                    "shared",
+                    "1.2.0",
+                    None,
+                    serde_json::json!({ "name": "shared", "version": "1.2.0" }),
+                ),
+            ),
+        ]),
+        seen: Mutex::new(HashMap::default()),
+    };
+    let mut lockfile = reuse_graph_lockfile(
+        "a",
+        &[("wrapper", "1.0.0", "1.0.0")],
+        &[("wrapper@1.0.0", &[("alias-shared", "shared@1.0.0")]), ("shared@1.0.0", &[])],
+        &[],
+    );
+    let b_lockfile =
+        reuse_graph_lockfile("b", &[("shared", "^1.0.0", "1.0.0")], &[("shared@1.0.0", &[])], &[]);
+    lockfile.importers.insert("b".to_string(), b_lockfile.importers["b"].clone());
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "wrapper": "1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.2.0" }));
+    let importers = [
+        WorkspaceImporter { id: "a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "b".to_string(), manifest: &b_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(Arc::new(lockfile));
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            importer_opts(std::path::PathBuf::from("/repo").join(&importer.id), None)
+        })
+        .await
+        .expect("resolve workspace with aliased snapshot child");
+
+    assert_eq!(graph_versions_of(&result, "shared"), ["1.2.0"]);
+}

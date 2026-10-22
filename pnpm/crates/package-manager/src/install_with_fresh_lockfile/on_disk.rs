@@ -6,7 +6,7 @@ use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, Stage, StageLog};
 use pnpm_tarball::MemCache;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::Path,
     sync::{Arc, atomic::AtomicU8},
 };
@@ -28,8 +28,8 @@ pub(super) fn build_extra_env(
     workspace_root: &Path,
 ) -> HashMap<String, String> {
     let mut env = config.extra_env.clone();
-    if let Some(node_options) = &config.node_options {
-        env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    if let Some(node_options) = config.exported_node_options() {
+        env.insert("NODE_OPTIONS".to_string(), node_options.to_string());
     }
     config.add_cas_loader_env(workspace_root, &mut env);
     if matches!(node_linker, NodeLinker::Pnp) {
@@ -42,7 +42,7 @@ pub(super) fn build_extra_env(
             ),
         );
     }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+    if config.node_package_map_mode.loads() && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = env.get("NODE_OPTIONS").map(String::as_str);
         env.insert(
@@ -90,6 +90,8 @@ pub(super) struct OnDiskRuntime<'a> {
     pub(super) engine_name: Option<String>,
     pub(super) deferred_engine_name:
         Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
+    pub(super) known_requires_build: Option<&'a pnpm_deps_restorer::RequiresBuildBySnapshot>,
+    pub(super) known_bins: Option<&'a pnpm_deps_restorer::PackageBins>,
 }
 
 pub(super) struct OnDiskProjects<'a> {
@@ -138,6 +140,8 @@ impl<'a> OnDiskInputs<'a> {
                 skipped,
                 include_optional: self.include_transitive_optional_dependencies,
                 supported_architectures: self.install.projects.supported_architectures,
+                known_requires_build: self.runtime.known_requires_build,
+                known_bins: self.runtime.known_bins,
             },
             ctx: self.ctx,
 
@@ -210,6 +214,7 @@ impl<'a> OnDiskInputs<'a> {
                 graph: self.link_lockfiles(&materialized.materialized_snapshots),
                 packages: pnpm_deps_restorer::LinkPackageData {
                     package_manifests: &materialized.package_manifests,
+                    package_bins: Some(&materialized.package_bins),
                     requires_build_by_snapshot: Some(&materialized.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: materialized.cas_paths_by_pkg_id.take(),
                 },
@@ -255,6 +260,7 @@ impl<'a> OnDiskInputs<'a> {
             importers: &self.projects.materialization_lockfile.importers,
             dependency_groups: self.install.projects.dependency_groups,
             materialized_snapshots: linked.build_snapshots(&materialized.materialized_snapshots),
+            build_scope: linked.build_scope.as_ref(),
         }
     }
 
@@ -279,6 +285,8 @@ impl<'a> OnDiskInputs<'a> {
         let engine_name = settle_engine_name(
             self.runtime.deferred_engine_name.take(),
             self.runtime.engine_name.take(),
+            self.ctx.config.ignore_scripts,
+            &materialized.requires_build_by_snapshot,
         )
         .await;
         let extra_env =
@@ -331,9 +339,15 @@ pub(super) async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     let mut materialized = inputs.materialize::<Reporter>(skipped).await?;
 
     await_lockfile_gate(lockfile_verification_gate).await?;
-    fold_fetch_failures(skipped, std::mem::take(&mut materialized.fetch_failed));
+    for key in std::mem::take(&mut materialized.fetch_failed) {
+        skipped.add_fetch_failed(key);
+    }
 
     let linked = inputs.link::<Reporter>(&mut materialized, skipped)?;
+    // Lifecycle scripts may start installs of their own in this project.
+    if let Some(swap_lock) = ctx.caches.swap_lock {
+        swap_lock.release();
+    }
     let crate::BuildModulesOutput {
         ignored_builds,
         deferred_builds,
@@ -381,14 +395,6 @@ pub(super) async fn finish_early_materialization<Reporter: self::Reporter + 'sta
         "phase complete",
     );
 }
-pub(super) fn fold_fetch_failures(
-    skipped: &mut SkippedSnapshots,
-    fetch_failed: HashSet<pnpm_lockfile::PackageKey>,
-) {
-    for key in fetch_failed {
-        skipped.add_fetch_failed(key);
-    }
-}
 /// `CreateVirtualStore` keeps skipped snapshots out of this map, so it holds
 /// only what the install put on disk. See [`crate::DepsRequiringBuildSink`].
 pub(super) fn publish_deps_requiring_build(
@@ -409,9 +415,13 @@ pub(super) fn publish_deps_requiring_build(
 pub(super) async fn settle_engine_name(
     deferred: Option<pnpm_deps_restorer::materialization_plan::DeferredEngineName>,
     engine_name: Option<String>,
+    ignore_scripts: bool,
+    requires_build_by_snapshot: &HashMap<pnpm_lockfile::PackageKey, bool>,
 ) -> Option<String> {
     match deferred {
-        Some(deferred) => deferred.handle.await.ok().flatten(),
+        Some(deferred) => {
+            deferred.resolve_for_build(ignore_scripts, requires_build_by_snapshot).await
+        }
         None => engine_name,
     }
 }
@@ -447,7 +457,7 @@ impl OnDiskProjects<'_> {
 impl<'a> super::FreshPriorInstall<'a> {
     fn link_state(&self) -> pnpm_deps_restorer::PriorLinkState<'a> {
         pnpm_deps_restorer::PriorLinkState {
-            prune_orphans: self.prune_orphans,
+            prune: self.prune,
             hoisted_dependencies: self.hoisted_dependencies,
             hoisted_locations: self.hoisted_locations,
             // Rebuilds take the frozen path; a policy change rebuilds present packages here.

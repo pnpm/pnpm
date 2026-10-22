@@ -65,7 +65,7 @@ export default async () => {
     ],
     { stdio: 'inherit' }
   )
-  process.env.PNPM_CURRENT_VERSION_REGISTRY = `http://localhost:${currentVersionPort}/`
+  process.env.PNPM_CURRENT_VERSION_REGISTRY = `http://localhost:${currentVersionPort}/npm/`
 
   let killed = false
   const closed = new Set()
@@ -116,7 +116,7 @@ export default async () => {
 }
 
 function writeTestConfig (storage) {
-  const source = path.join(REPO_ROOT, 'pnpr', 'crates', 'config', 'config.yaml')
+  const source = path.join(REPO_ROOT, 'pnpr', '.fixtures', 'config.yaml')
   const bundled = readFileSync(source, 'utf8')
   const configured = bundled.replace('max_users: -1', 'max_users: 100')
   if (configured === bundled) {
@@ -144,6 +144,7 @@ function buildStorage (out, pnpmVersion) {
     '--packages', FIXTURE_PACKAGES,
     '--out', out,
     '--substitute', `0.0.0-test-current-pnpm=${pnpmVersion}`,
+    '--substitute', `http://localhost:7769=http://localhost:${process.env.PNPM_REGISTRY_MOCK_PORT}`,
   ], { stdio: 'inherit' })
   if (result.status !== 0) {
     throw new Error(

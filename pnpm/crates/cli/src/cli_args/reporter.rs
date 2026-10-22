@@ -53,7 +53,7 @@ impl From<pnpm_config::ReporterType> for ReporterType {
 
 /// The `--reporter` and `--loglevel` flags as given on the command line,
 /// before the configuration they take precedence over is loaded.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ReporterFlags {
     pub(crate) reporter: Option<ReporterType>,
     pub(crate) loglevel: Option<LogLevelSetting>,
@@ -158,6 +158,18 @@ pub(crate) fn select_reporter(reporter: ReporterType) {
 
 pub(crate) fn selected_reporter() -> ReporterType {
     SELECTED_REPORTER.load(Ordering::Relaxed).into()
+}
+
+/// Whether the selected reporter renders the terminal itself. The other
+/// reporters write one record per event or nothing at all.
+pub(crate) fn default_reporter_selected() -> bool {
+    matches!(selected_reporter(), ReporterType::Default | ReporterType::AppendOnly)
+}
+
+/// Whether a script whose output the reporter republishes should keep its
+/// colors: only a reporter that paints its own output in color shows them.
+pub(crate) fn script_output_colors() -> bool {
+    default_reporter_selected() && pnpm_default_reporter::output_colors_enabled()
 }
 
 /// The [`Reporter`] the CLI runs commands with: forwards each event to the

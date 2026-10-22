@@ -51,17 +51,18 @@ export async function resolveProjects (
   const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
   const untrackedReadPackageHookMayHaveChanged = readPackageHookMayHaveChanged(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   const preferredVersions = seedPreferredVersions(ctx, opts)
-  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
+  const lockedPeersAreCurrent = ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
+    !opts.force &&
+    !opts.needsFullResolution &&
+    !ctx.lockfileHadConflicts &&
+    !untrackedReadPackageHookMayHaveChanged
+  const forceFullResolution = !lockedPeersAreCurrent ||
     !opts.currentLockfileIsUpToDate ||
-    opts.force ||
-    opts.needsFullResolution ||
-    ctx.lockfileHadConflicts ||
-    opts.dedupePeerDependents ||
-    untrackedReadPackageHookMayHaveChanged
+    opts.dedupePeerDependents
   setUntrackedPnpmfileReadPackageHook(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   forgetRegeneratedLockfileFields(ctx, opts)
 
-  const resolveGraph = createGraphResolver({ ctx, forceFullResolution, opts, preferredVersions, projects })
+  const resolveGraph = createGraphResolver({ ctx, forceFullResolution, lockedPeersAreCurrent, opts, preferredVersions, projects })
   const resolution = await resolveGraphWithUpdatedCatalogOverrides(resolveGraph, opts)
   // Only a full resolution walks every manifest through the versions
   // overrider, making the collected declared ranges complete enough for the
@@ -116,7 +117,7 @@ function seedPreferredVersions (ctx: PnpmContext, opts: InstallInContextOptions)
     getPreferredVersionsFromLockfileAndManifests(
       omitPackagesNamed(ctx.wantedLockfile.packages, opts.staleOverrideTargets ?? new Set()),
       Object.values(ctx.projects).map(({ manifest }) => manifest),
-      { catalogs: opts.catalogs, dedupe: opts.dedupe }
+      { catalogs: opts.catalogs }
     )
   )
   for (const [pkgName, selectors] of Object.entries(opts.preferredVersions ?? {})) {
@@ -133,12 +134,14 @@ function forgetRegeneratedLockfileFields (ctx: PnpmContext, opts: InstallInConte
     (ctx.wantedLockfile.packages != null) &&
     !isEmpty(ctx.wantedLockfile.packages)
   ) {
-    ctx.wantedLockfile.packages = mapValues(({ dependencies, optionalDependencies, resolution }) => ({
+    ctx.wantedLockfile.packages = mapValues(({ dependencies, optionalDependencies, resolution, deprecated, hasBin }) => ({
       // These fields are needed to avoid losing information of the locked dependencies if these fields are not broken
       // If these fields are broken, they will also be regenerated
       dependencies,
       optionalDependencies,
       resolution,
+      deprecated,
+      hasBin,
     }), ctx.wantedLockfile.packages)
   }
 
@@ -153,9 +156,10 @@ function forgetRegeneratedLockfileFields (ctx: PnpmContext, opts: InstallInConte
 }
 
 function createGraphResolver (
-  { ctx, forceFullResolution, opts, preferredVersions, projects }: {
+  { ctx, forceFullResolution, lockedPeersAreCurrent, opts, preferredVersions, projects }: {
     ctx: PnpmContext
     forceFullResolution: boolean
+    lockedPeersAreCurrent: boolean
     opts: InstallInContextOptions
     preferredVersions: PreferredVersions
     projects: ImporterToUpdate[]
@@ -173,6 +177,7 @@ function createGraphResolver (
       ...describeResolutionPolicies(opts),
       catalogs,
       forceFullResolution,
+      lockedPeersAreCurrent,
       hooks: {
         readPackage: readPackageHook,
       },
@@ -225,6 +230,7 @@ function describeResolutionPolicies (opts: InstallInContextOptions) {
   return {
     allowedDeprecatedVersions: opts.allowedDeprecatedVersions,
     allowUnusedPatches: opts.allowUnusedPatches,
+    verifyPatches: !(opts.sharedWorkspaceLockfile === false && opts.workspaceDir != null),
     autoInstallPeers: opts.autoInstallPeers,
     autoInstallPeersFromHighestMatch: opts.autoInstallPeersFromHighestMatch,
     defaultUpdateDepth: opts.depth,

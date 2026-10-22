@@ -2,8 +2,8 @@ pub(crate) mod allow_build_policy;
 pub(crate) mod build_one_snapshot;
 pub(crate) mod slots;
 pub use allow_build_policy::{
-    AllowBuildPolicy, allow_build_key_from_ignored_build, normalize_build_dep_path,
-    parse_allow_build_selector,
+    AllowBuildPolicy, allow_build_key_from_ignored_build, is_git_hosted_dep_path,
+    normalize_build_dep_path, parse_allow_build_selector,
 };
 pub(crate) use build_one_snapshot::build_one_snapshot;
 pub(crate) use build_requirements::deferred_builds;
@@ -26,12 +26,15 @@ use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
     build_graph::build_graph,
     find_root_runtime_node_key, import_indexed_dir, store_index_key_for_resolution,
-    version_policy::{VersionPolicyError, expand_package_version_specs},
+    version_policy::{
+        PackageVersionPolicy, PolicyMatch, VersionPolicyError, create_package_version_policy,
+        expand_package_version_specs,
+    },
 };
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_config::{Config, PackageImportMethod};
+use pnpm_config::Config;
 use pnpm_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
 use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
@@ -158,9 +161,10 @@ pub enum BuildModulesError {
 /// Effect on [`BuildModules`]: a selected package is built even when the
 /// side-effects cache reports it already built (an explicit rebuild always
 /// re-runs the scripts). The allow-policy gate is unchanged — a rebuild
-/// never builds a disallowed package — and non-selected packages keep
-/// their normal install gating so a partial rebuild does not drop the
-/// ignored-builds record for the packages it did not touch.
+/// never builds a disallowed package. A package outside the selection is
+/// neither inspected nor built, as under pnpm's `rebuild <pkg>`; the
+/// ignored-builds record keeps the entries of the packages a partial
+/// rebuild did not touch.
 #[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
     /// Allow-build keys (the package name for registry deps, the full
@@ -179,6 +183,24 @@ pub struct RebuildOptions {
     /// by the rebuild itself; a project's is only settled by running its
     /// scripts, which nothing else in the rebuild path does.
     pub pending_projects: Vec<String>,
+
+    /// Of the settings the lockfile records, check only the patches
+    /// against the configuration. The rest (`pnpmfileChecksum`,
+    /// `overrides`, ...) decide what a resolution produces, and a rebuild
+    /// resolves nothing, so they cannot change what it builds; pnpm v11's
+    /// `rebuild` compares the patches alone. The manifest specifiers are
+    /// still checked: a rebuild materializes the lockfile, so it must not
+    /// fetch a dependency the manifests no longer declare. The
+    /// `@pnpm/napi` rebuild sets it: an embedder rebuilds the lockfile it
+    /// just installed or restored, which may have been resolved with other
+    /// `readPackage` hooks or settings.
+    pub check_lockfile_patches_only: bool,
+
+    /// Keep the side-effects `is_built` gate for the selected packages, so
+    /// one the side-effects cache already holds a build of is restored
+    /// from it instead of running its scripts again. pnpm v11's
+    /// `skipIfHasSideEffectsCache`; the `@pnpm/napi` rebuild exposes it.
+    pub skip_if_has_side_effects_cache: bool,
 }
 
 impl RebuildOptions {
@@ -213,6 +235,13 @@ impl RebuildOptions {
         let (name, _) = parse_name_version_from_key(remove_suffix(dep_path));
         self.is_selected(&name) || self.is_selected(&allow_build_key_from_ignored_build(dep_path))
     }
+
+    /// Whether the snapshot installed under `key` is in the rebuild
+    /// selection, by its package name or its allow-build key.
+    #[must_use]
+    pub fn selects_snapshot(&self, key: &PackageKey) -> bool {
+        self.selected_names.is_none() || self.settles_dependency(&key.to_string())
+    }
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -238,9 +267,9 @@ pub struct BuildModules<'a> {
     /// Forced-rebuild selection. `None` for a normal install — every
     /// package follows the standard `requires_build` + allow-policy +
     /// side-effects-cache gates. `Some` (a `pacquet rebuild` /
-    /// `approve-builds`) restricts the build to the selected names and
-    /// forces them past the side-effects `is_built` gate. See
-    /// [`RebuildOptions`].
+    /// `approve-builds`) restricts the inspection and the build to the
+    /// selected names and forces them past the side-effects `is_built`
+    /// gate. See [`RebuildOptions`].
     pub rebuild: Option<&'a RebuildOptions>,
 }
 
@@ -274,6 +303,23 @@ pub struct BuildModulesOutput {
     pub mutated_snapshot_keys: HashSet<PackageKey>,
 }
 
+fn take_mutated_snapshot_keys(
+    bin_state: &crate::build_options::BuildBinState,
+) -> HashSet<PackageKey> {
+    std::mem::take(
+        &mut *bin_state.slot_mutations.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+    )
+}
+
+fn empty_build_output(bin_state: &crate::build_options::BuildBinState) -> BuildModulesOutput {
+    let mutated_snapshot_keys = take_mutated_snapshot_keys(bin_state);
+    BuildModulesOutput {
+        mutated_slots: !mutated_snapshot_keys.is_empty(),
+        mutated_snapshot_keys,
+        ..BuildModulesOutput::default()
+    }
+}
+
 impl BuildModules<'_> {
     /// Run the build, reporting the packages that needed one but did
     /// not get it — see [`BuildModulesOutput`].
@@ -290,6 +336,9 @@ impl BuildModules<'_> {
         };
 
         let requires_build_map = self.requires_build_map(snapshots);
+        if !self.has_work(&requires_build_map) {
+            return Ok(empty_build_output(bin_state));
+        }
         let dep_states = self.dep_states(snapshots, &requires_build_map);
         let build_graph = build_graph(
             &requires_build_map,
@@ -327,17 +376,30 @@ impl BuildModules<'_> {
         // so the canonical poison-recovery pattern is safe.
         let ignored_builds =
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mutated_snapshot_keys = std::mem::take(
-            &mut *bin_state.slot_mutations
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
+        let mutated_snapshot_keys = take_mutated_snapshot_keys(bin_state);
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(requires_build_map.iter(), self.scripts.ignore),
+            deferred_builds: self.deferred_builds(&requires_build_map),
             mutated_slots: !mutated_snapshot_keys.is_empty(),
             mutated_snapshot_keys,
         })
+    }
+
+    /// See [`BuildModulesOutput::deferred_builds`].
+    fn deferred_builds(&self, requires_build_map: &HashMap<PackageKey, bool>) -> Vec<String> {
+        deferred_builds(
+            requires_build_map
+                .iter()
+                .filter(|(snapshot_key, _)| {
+                    crate::build_scope::in_build_scope(self.graph.build_scope, snapshot_key)
+                }),
+            self.scripts.ignore,
+        )
+    }
+
+    fn has_work(&self, requires_build_map: &HashMap<PackageKey, bool>) -> bool {
+        !self.graph.patches.is_none_or(HashMap::is_empty)
+            || requires_build_map.values().any(|&requires_build| requires_build)
     }
 
     fn requires_build_map(
@@ -353,6 +415,7 @@ impl BuildModules<'_> {
             },
             prefetched: self.graph.requires_build_by_snapshot,
             patches: self.graph.patches,
+            rebuild: self.rebuild,
         })
     }
 
@@ -417,6 +480,7 @@ impl BuildModules<'_> {
                 patches: self.graph.patches,
                 requires_build_map,
                 importers: self.graph.importers,
+                build_scope: self.graph.build_scope,
             },
             progress: crate::BuildProgress {
                 dep_graph: dep_states.graph.as_ref(),
@@ -463,7 +527,11 @@ impl BuildModules<'_> {
             can_write_store: self.cache.store_index_writer.is_some()
                 && self.cache.store_dir.is_some(),
             has_packages: self.graph.packages.is_some(),
-            has_cache_rows: self.cache.maps_by_snapshot.is_some_and(|map| !map.is_empty()),
+            // A rebuild that skips cached builds also reads the empty rows
+            // the overlays leave out.
+            has_cache_rows: self.cache.side_effects.has_overlays()
+                || (self.rebuild.is_some_and(|rebuild| rebuild.skip_if_has_side_effects_cache)
+                    && self.cache.side_effects.has_rows()),
         });
         let graph = cache_gate_active.then(|| {
             // Every requires-build snapshot is a root, including the ones

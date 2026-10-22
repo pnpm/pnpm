@@ -80,6 +80,7 @@ export interface StrictInstallOptions extends RegistryContext {
   depth: number
   lockfileDir: string
   workspaceDir?: string
+  sharedWorkspaceLockfile: boolean
   modulesDir: string
   configByUri: Record<string, RegistryConfig>
   verifyStoreIntegrity: boolean
@@ -155,6 +156,7 @@ export interface StrictInstallOptions extends RegistryContext {
 
   allProjects: ProjectOptions[]
   projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
+  deployAllFiles?: boolean
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean
@@ -299,6 +301,7 @@ export interface BeforeLifecycleScriptsResult {
   }>
   updatedCatalogs?: Catalogs
   newLockfile?: LockfileObject
+  wantedLockfile?: LockfileObject
   resolutionPolicyViolations?: ResolutionPolicyViolation[]
 }
 
@@ -369,6 +372,7 @@ const SCALAR_DEFAULTS = {
   saveWorkspaceProtocol: 'rolling',
   scriptsPrependNodePath: false,
   shamefullyHoist: false,
+  sharedWorkspaceLockfile: true,
   shellEmulator: false,
   sideEffectsCacheRead: false,
   sideEffectsCacheWrite: false,
@@ -445,12 +449,8 @@ export interface ProcessedInstallOptions extends StrictInstallOptions {
   convergeDeclaredRanges?: Map<string, Set<string>>
 }
 
-export function extendOptions (
-  opts: InstallOptions
-): ProcessedInstallOptions {
-  if (opts) {
-    removeUndefinedOptions(opts)
-  }
+export function extendOptions (opts: InstallOptions): ProcessedInstallOptions {
+  if (opts) removeUndefinedOptions(opts)
 
   const defaultOpts = defaults(opts)
   const extendedOpts: ProcessedInstallOptions = {

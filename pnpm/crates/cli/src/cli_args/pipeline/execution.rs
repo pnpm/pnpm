@@ -1,10 +1,12 @@
 use super::{
-    CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant, IntoDiagnostic,
-    LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph, RunContext,
-    RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskCache, TaskNode, Value, capture,
-    cargo_cache, env, make_node_package_map_option, make_node_require_option,
-    package_map_path_for_execution, pnp_path_for_execution, run_stages, sync_injected_deps,
+    BinLinkSettings, CacheDisposition, Config, ExecutionStatus, GraphPkg, HashMap, Instant,
+    IntoDiagnostic, LogEvent, LogLevel, Path, PathBuf, PipelineInvocation, PnpmLog, ProjectGraph,
+    RunContext, RunReport, ScriptOutput, Status, SyncInjectedDeps, TaskNode, Value,
+    cache_tiers::CacheTiers, capture, cargo_cache, env, make_node_package_map_option,
+    make_node_require_option, package_map_path_for_execution, pnp_path_for_execution, run_stages,
+    sync_injected_deps,
 };
+use crate::cli_args::{reporter::script_output_colors, run::project_modules_dirs};
 
 #[derive(Clone, Copy)]
 pub(super) struct RunTaskOptions<'a, 'graph> {
@@ -12,7 +14,7 @@ pub(super) struct RunTaskOptions<'a, 'graph> {
     pub(super) graph: &'a ProjectGraph<GraphPkg<'graph>>,
     pub(super) config: &'a Config,
     pub(super) invocation: &'a PipelineInvocation,
-    pub(super) cache: &'a TaskCache,
+    pub(super) cache: CacheTiers<'a>,
     pub(super) task_key: Option<&'a str>,
     pub(super) environment: TaskEnvironment<'a>,
     pub(super) reporting: TaskReporting<'a>,
@@ -55,14 +57,7 @@ pub(super) fn run_pipeline_task(
         && let Some(cache_key) = cache_key
         && let Some(captured) = execution.captured
     {
-        let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
-        if let Err(error) = options.cache.store(cache_key, root, summary_key, outputs, captured) {
-            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!("{summary_key}: failed to store the task in the cache: {error}"),
-                prefix: root.to_string_lossy().into_owned(),
-            }));
-        }
+        store_in_cache(options, cache_key, captured);
     }
     let disposition =
         if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
@@ -75,6 +70,31 @@ pub(super) fn run_pipeline_task(
     })
 }
 
+/// Store a task that passed in the local tier and start uploading it.
+fn store_in_cache(
+    options: &RunTaskOptions<'_, '_>,
+    cache_key: &str,
+    captured: Vec<capture::CapturedScript>,
+) {
+    let outputs = options.config.tasks
+        .get(&options.node.task_name)
+        .and_then(|settings| settings.outputs.as_deref())
+        .unwrap_or_default();
+    let root = options.node.project.as_path();
+    match options.cache.local.store(
+        cache_key,
+        root,
+        options.reporting.summary_key,
+        outputs,
+        captured,
+    ) {
+        Ok(()) => options.cache.upload(cache_key, options.node),
+        Err(error) => {
+            task_warning(options, &format!("failed to store the task in the cache: {error}"));
+        }
+    }
+}
+
 /// The status of a task served from the cache, or `None` when nothing is
 /// stored under `cache_key` or the restore refused.
 fn try_restore(
@@ -84,10 +104,12 @@ fn try_restore(
 ) -> miette::Result<Option<ExecutionStatus>> {
     let root = options.node.project.as_path();
     let summary_key = options.reporting.summary_key;
-    let Some(stored) = options.cache.lookup(cache_key) else {
+    let Some(stored) =
+        options.cache.lookup(cache_key, options.node, |reason| task_warning(options, reason))
+    else {
         return Ok(None);
     };
-    match options.cache.restore(&stored, root, summary_key) {
+    match options.cache.local.restore(&stored, root, summary_key) {
         Ok(()) => {
             capture::replay(&stored.scripts, root, options.reporting.emit);
             sync_injected_deps_if_configured(options.config, options.node, options.graph)?;
@@ -114,14 +136,18 @@ fn try_restore(
             // A file the restore cannot account for is the user's;
             // overwriting it silently is how caches lose trust. The
             // task runs normally instead.
-            (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Warn,
-                message: format!("{summary_key}: not restoring from cache: {reason}"),
-                prefix: root.to_string_lossy().into_owned(),
-            }));
+            task_warning(options, &format!("not restoring from cache: {reason}"));
             Ok(None)
         }
     }
+}
+
+fn task_warning(options: &RunTaskOptions<'_, '_>, message: &str) {
+    (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!("{}: {message}", options.reporting.summary_key),
+        prefix: options.node.project.to_string_lossy().into_owned(),
+    }));
 }
 
 fn execute_task_with_cargo_cache(
@@ -133,10 +159,14 @@ fn execute_task_with_cargo_cache(
         return execute_task_scripts(options);
     };
     let cargo = cargo_cache::CargoCache::open(root, directory).into_diagnostic()?;
-    let environment = cargo_cache::cache_environment(
+    let mut environment = cargo_cache::cache_environment(
         options.environment.extra_env,
         settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default(),
     );
+    // The scripts run the toolchain pnpm linked, so the key describes that one.
+    if let Some(rust) = crate::ecosystem_install::rust_bin_dir(options.config, root) {
+        cargo_cache::prepend_path(&mut environment, rust);
+    }
     let cargo_cacheable = !options.invocation.no_cache
         && settings.is_some_and(|settings| settings.cache != Some(false));
     let snapshot = cargo_cacheable
@@ -222,11 +252,7 @@ fn publish_cargo_snapshot(
 }
 
 fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
-    (options.reporting.emit)(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: format!("{}: Cargo build cache: {reason}", options.reporting.summary_key),
-        prefix: options.node.project.to_string_lossy().into_owned(),
-    }));
+    task_warning(options, &format!("Cargo build cache: {reason}"));
 }
 
 struct TaskExecution {
@@ -266,7 +292,7 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
                 options.config.enable_pre_post_scripts,
             );
         }
-        let exit = exit?;
+        let exit = exit?.status;
         if !exit.success() {
             execution.status = Status::Failure;
             execution.message =
@@ -341,15 +367,20 @@ fn sync_injected_deps_if_configured(
         return Ok(());
     }
     let manifest = graph[node.project.as_path()].package.project.manifest.value();
+    let project_modules_dirs = project_modules_dirs(config)?;
     sync_injected_deps(&SyncInjectedDeps {
         pkg_name: manifest.get("name").and_then(Value::as_str),
         pkg_root_dir: &node.project,
         workspace_dir: config.workspace_dir.as_deref(),
-        modules_dir_name: config.modules_dir_name(),
         workspace_modules_dir: &config.modules_dir,
-        extend_node_path: config.extend_node_path,
+        include_only_package_files: !config.deploy_all_files,
         manifest_before_scripts: Some(manifest),
-        ignored_directories: config.managed_directories(),
+        project_modules_dirs: &project_modules_dirs,
+        bin_links: BinLinkSettings {
+            modules_dir_name: config.modules_dir_name(),
+            extend_node_path: config.extend_node_path,
+            ignored_directories: config.managed_directories(),
+        },
     })?;
     Ok(())
 }
@@ -408,6 +439,7 @@ fn pipeline_script_context<'a>(
         output: ScriptOutput::Streamed {
             dep_path: root_str,
             emit: if capture_output { capture::capturing_emit } else { options.reporting.emit },
+            color: script_output_colors(),
         },
         // The pipeline never bails, so there is no cancellation to
         // propagate into running children.

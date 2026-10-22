@@ -23,6 +23,7 @@
 
 pub(crate) mod native_shim;
 pub(crate) mod runtime_env;
+pub(crate) mod rust_toolchain;
 
 pub(crate) use native_shim::{
     ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
@@ -54,8 +55,13 @@ use pnpm_config::{
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_bytes};
 use pnpm_engine_runtime_node_resolver::parse_node_specifier;
 use pnpm_package_manifest::is_runtime_alias;
+use pnpm_rust_toolchain::{ToolchainRequest, rustup_settings_file};
 use run_program::{exec_program, exec_program_with_bin_dirs, run_held_program};
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
+use rust_toolchain::{
+    RUST_SHIM_PACKAGE, RustSelection, find_rust_candidate, overrides_toolchain, run_global_rust,
+    run_next_on_path, run_rust_toolchain,
+};
 use serde_json::Value;
 use settings::{
     is_automatic_runtime, manifest_package_manager_pin, package_manager_runs_promptless,
@@ -114,6 +120,9 @@ fn dispatch_target(
     if policy == ShimPolicy::Off {
         return run_global_target(shim, args);
     }
+    if package == RUST_SHIM_PACKAGE {
+        return dispatch_rust(shim, args, policy, state_dir);
+    }
     let candidate = std::env::current_dir()
         .ok()
         .and_then(|cwd| find_candidate(&cwd, name, &package))
@@ -135,6 +144,37 @@ fn dispatch_target(
             run_trusted_candidate(shim, candidate, args, state_dir)
         }
         _ => run_global_target(shim, args),
+    }
+}
+
+/// Run a Rust tool from the toolchain the project's toolchain file names,
+/// or step aside for the next one on `PATH` where no file applies.
+///
+/// A toolchain file selects only a release the Rust project signed, so
+/// `auto` runs it without the trust gate, as it does a signed Node.js
+/// release.
+fn dispatch_rust(
+    shim: &ShimInvocation<'_>,
+    args: &[OsString],
+    policy: ShimPolicy,
+    state_dir: &Path,
+) -> i32 {
+    if overrides_toolchain(args) {
+        return run_next_on_path(shim, args);
+    }
+    let rustup_settings = rustup_settings_file();
+    let Ok(cwd) = std::env::current_dir() else { return run_next_on_path(shim, args) };
+    match find_rust_candidate(&cwd, rustup_settings.as_deref()) {
+        RustSelection::Managed(candidate)
+            if matches!(policy, ShimPolicy::Auto | ShimPolicy::Always)
+                || is_trusted(&candidate, shim.name, state_dir) =>
+        {
+            run_trusted_candidate(shim, candidate, args, state_dir)
+        }
+        RustSelection::Unpinned => run_global_rust(shim, args, state_dir),
+        // An untrusted project file is not run, and rustup's own choices are
+        // rustup's to act on.
+        RustSelection::Managed(_) | RustSelection::Rustup => run_next_on_path(shim, args),
     }
 }
 
@@ -176,6 +216,9 @@ fn run_trusted_candidate(
         Candidate::PackageManagerPin { pm, version_spec, .. } => {
             run_package_manager_from_pin(state_dir, pm, &version_spec, name, args)
         }
+        Candidate::RustToolchain { request, .. } => {
+            run_rust_toolchain(state_dir, &request, name, args)
+        }
     }
 }
 
@@ -202,8 +245,13 @@ fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -
 fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
     let target = match shim.target {
         ShimTarget::Installed(target) => target,
+        // The Rust shims stand in front of the toolchains on `PATH`, so
+        // switched off they give way to those.
+        ShimTarget::Virtual(package) if package == RUST_SHIM_PACKAGE => {
+            return run_next_on_path(shim, args);
+        }
         ShimTarget::Virtual(package) => {
-            eprintln!(
+            pnpm_diagnostics::eprintln!(
                 r#"ERR_PNPM_SHIM_NO_TARGET  Nothing provides {} in this project. Add {package} to it, or pin it with "packageManager" in package.json."#,
                 shim.name,
             );
@@ -224,7 +272,7 @@ fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
         }
         Ok(_) => exec_program(target, args),
         Err(error) => {
-            eprintln!("pnpm: failed to read {}: {error}", target.display());
+            pnpm_diagnostics::eprintln!("pnpm: failed to read {}: {error}", target.display());
             126
         }
     }
@@ -289,6 +337,9 @@ enum Candidate {
         manifest_hash: String,
         identity: String,
     },
+    /// A rustup toolchain file at `project_dir` names a Rust release, which
+    /// is installed into the store on demand.
+    RustToolchain { project_dir: PathBuf, request: ToolchainRequest, identity: String },
 }
 
 impl Candidate {
@@ -296,7 +347,8 @@ impl Candidate {
         match self {
             Candidate::LocalBin { project_dir, .. }
             | Candidate::RuntimePin { project_dir, .. }
-            | Candidate::PackageManagerPin { project_dir, .. } => project_dir,
+            | Candidate::PackageManagerPin { project_dir, .. }
+            | Candidate::RustToolchain { project_dir, .. } => project_dir,
         }
     }
 
@@ -304,7 +356,8 @@ impl Candidate {
         match self {
             Candidate::LocalBin { identity, .. }
             | Candidate::RuntimePin { identity, .. }
-            | Candidate::PackageManagerPin { identity, .. } => identity,
+            | Candidate::PackageManagerPin { identity, .. }
+            | Candidate::RustToolchain { identity, .. } => identity,
         }
     }
 }
@@ -403,7 +456,9 @@ fn run_runtime_from_store(
         }) => run_held_program(&bin, &[], args, vec![private_install]),
         Ok(MaterializedRuntime { bin, private_install: None }) => exec_program(&bin, args),
         Err(error) => {
-            eprintln!("pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}");
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {name}@runtime:{version_spec}: {error:?}",
+            );
             1
         }
     }
@@ -426,7 +481,7 @@ fn run_package_manager_from_pin(
     let result = crate::block_on_runtime("pacquet-global-shim-pm", async move {
         let config = Config::leak(trusted_package_manager_config(&state_dir)?);
         let _quiet = EventFilter::All.apply();
-        provision::<CliReporter>(config, pm, &spec).await
+        Box::pin(provision::<CliReporter>(config, pm, &spec)).await
     });
     match result {
         Ok(engine) => {
@@ -443,7 +498,10 @@ fn run_package_manager_from_pin(
             }
         }
         Err(error) => {
-            eprintln!("pnpm: failed to prepare {}@{version_spec}: {error:?}", pm.name());
+            pnpm_diagnostics::eprintln!(
+                "pnpm: failed to prepare {}@{version_spec}: {error:?}",
+                pm.name(),
+            );
             1
         }
     }

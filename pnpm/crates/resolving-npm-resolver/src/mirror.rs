@@ -17,7 +17,7 @@
 //! Pacquet's indexed format:
 //!
 //! ```text
-//! pacquet-meta-v1 <headers_len> <index_len>\n
+//! pnpm-meta-v1 <headers_len> <index_len>\n
 //! <headers JSON>           # MetaHeaders: etag, fullEtag, modified
 //! <index JSON>             # MirrorIndex: name, dist-tags, time,
 //!                          #   homepage, versions: [version, off, len]
@@ -50,6 +50,9 @@
 pub(crate) mod save_fail;
 
 pub use headers::MetaHeaders;
+pub use legacy::{
+    LEGACY_META_DIRS, LEGACY_PRIVATE_META_ROOT, find_legacy_pkg_mirror, get_legacy_pkg_mirror_paths,
+};
 pub use registry_key::{
     EncodeRegistryError, decode_registry_name, encode_pkg_name, get_legacy_registry_name,
     get_registry_name, is_unreadable_registry_key,
@@ -62,11 +65,13 @@ mod registry_key;
 
 mod headers;
 
+mod legacy;
+
 use std::{
     collections::HashMap,
     fmt::Write as _,
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, BufWriter, Read, Write},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -84,13 +89,13 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache.
-pub const ABBREVIATED_META_DIR: &str = "v11/metadata";
+pub const ABBREVIATED_META_DIR: &str = "v12/metadata";
 
 /// Mirror directory for the **full** metadata cache.
-pub const FULL_META_DIR: &str = "v11/metadata-full";
+pub const FULL_META_DIR: &str = "v12/metadata-full";
 
 /// Mirror directory for the filtered full metadata cache.
-pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
+pub const FULL_FILTERED_META_DIR: &str = "v12/metadata-full-filtered";
 
 /// Error from [`save_meta`]. Surfaced to callers that care about
 /// individual write failures (tests, in particular); production
@@ -142,25 +147,25 @@ const MAX_FRAGMENT_LEN: u32 = 16 * 1024 * 1024;
 
 /// Mirror root for descriptor-scoped private metadata. A
 /// [`MetadataCacheScope::Private`] route stores its packuments under
-/// `<cache_dir>/v11/metadata-private/<descriptor-id>/<meta-suffix>/...`
+/// `<cache_dir>/v12/metadata-private/<descriptor-id>/<meta-suffix>/...`
 /// so one caller's private metadata never lands in the global mirror
 /// every other caller reads.
-const PRIVATE_META_ROOT: &str = "v11/metadata-private";
+const PRIVATE_META_ROOT: &str = "v12/metadata-private";
 
 /// The mirror directory `base_meta_dir` resolves to under `scope`.
 ///
 /// * [`MetadataCacheScope::Public`] keeps the global directory unchanged
 ///   (the CLI and public routes).
 /// * [`MetadataCacheScope::Private`] relocates it under
-///   `v11/metadata-private/<descriptor-id>/` keyed by the descriptor id,
+///   `v12/metadata-private/<descriptor-id>/` keyed by the descriptor id,
 ///   preserving the abbreviated/full/filtered split via the suffix after
-///   `v11/`.
+///   `v12/`.
 #[must_use]
 pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> String {
     match scope {
         MetadataCacheScope::Public => base_meta_dir.to_string(),
         MetadataCacheScope::Private { descriptor_id } => {
-            let suffix = base_meta_dir.strip_prefix("v11/").unwrap_or(base_meta_dir);
+            let suffix = base_meta_dir.strip_prefix("v12/").unwrap_or(base_meta_dir);
             format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}")
         }
     }
@@ -182,28 +187,9 @@ pub fn get_pkg_mirror_path(
         .join(format!("{encoded_name}.jsonl")))
 }
 
-/// Path to a legacy metadata mirror file for the given registry and package.
-/// Returns `None` when the registry URL does not parse or has no host.
-#[must_use]
-pub fn get_legacy_pkg_mirror_path(
-    cache_dir: &Path,
-    meta_dir: &str,
-    registry: &str,
-    pkg_name: &str,
-) -> Option<PathBuf> {
-    let registry_name = get_legacy_registry_name(registry)?;
-    let encoded_name = encode_pkg_name(pkg_name);
-    Some(
-        cache_dir
-            .join(meta_dir)
-            .join(registry_name)
-            .join(format!("{encoded_name}.jsonl")),
-    )
-}
-
 /// Magic + format version. The trailing space separates it from the
 /// two record lengths on the same line.
-const MIRROR_MAGIC: &str = "pacquet-meta-v1";
+const MIRROR_FORMAT_ID: &str = "pnpm-meta-v1";
 
 /// Top-level packument fields persisted in the mirror's index record.
 /// Everything else a registry serves at the top level is neither read
@@ -258,20 +244,22 @@ pub fn save_meta_indexed_with_headers(
     let headers = serde_json::to_string(headers)
         .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
-    let mut fragment_bytes = Vec::new();
-    let mut spans = Vec::with_capacity(meta.versions.len());
-    for (version, json) in meta.versions.fragments() {
-        let offset = fragment_bytes.len() as u64;
-        let len = u32::try_from(json.len()).unwrap_or(u32::MAX);
-        if len as usize != json.len() || len > MAX_FRAGMENT_LEN {
-            // A version manifest past the loader's fragment bound
-            // would be persisted only to be skipped on every read;
-            // omit it so the saved and served views agree.
-            continue;
-        }
-        fragment_bytes.extend_from_slice(json.as_bytes());
-        spans.push((version.clone(), offset, len));
-    }
+    // A version manifest past the loader's fragment bound would be
+    // persisted only to be skipped on every read; omit it so the saved and
+    // served views agree.
+    let fragments: Vec<_> = meta.versions
+        .fragments()
+        .filter(|(_, json)| u32::try_from(json.len()).is_ok_and(|len| len <= MAX_FRAGMENT_LEN))
+        .collect();
+    let mut offset = 0;
+    let spans = fragments
+        .iter()
+        .map(|(version, json)| {
+            let span = ((*version).clone(), offset, json.len() as u32);
+            offset += json.len() as u64;
+            span
+        })
+        .collect();
 
     let index = serde_json::to_string(&MirrorIndex {
         name: meta.name.clone(),
@@ -282,13 +270,16 @@ pub fn save_meta_indexed_with_headers(
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
-    let mut contents = String::with_capacity(headers.len() + index.len() + 64);
-    let _ = writeln!(contents, "{MIRROR_MAGIC} {} {}", headers.len(), index.len());
-    contents.push_str(&headers);
-    contents.push_str(&index);
-    let mut bytes = contents.into_bytes();
-    bytes.extend_from_slice(&fragment_bytes);
-    save_meta(pkg_mirror, &bytes)
+    save_meta_with(pkg_mirror, |file| {
+        let mut writer = BufWriter::new(file);
+        writeln!(writer, "{MIRROR_FORMAT_ID} {} {}", headers.len(), index.len())?;
+        writer.write_all(headers.as_bytes())?;
+        writer.write_all(index.as_bytes())?;
+        for (_, json) in &fragments {
+            writer.write_all(json.as_bytes())?;
+        }
+        writer.flush()
+    })
 }
 
 /// Atomically persist `meta` at `pkg_mirror` in pnpm's two-line
@@ -409,10 +400,10 @@ fn raise_open_file_limit_once() {
 #[cfg(not(unix))]
 fn raise_open_file_limit_once() {}
 
-/// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
+/// Parse the `pnpm-meta-v1 <headers_len> <index_len>` line.
 /// `None` for anything else, including pnpm's NDJSON format.
-fn parse_mirror_magic(line: &str) -> Option<(usize, usize)> {
-    let rest = line.strip_prefix(MIRROR_MAGIC)?.strip_prefix(' ')?;
+pub(super) fn parse_format_line(line: &str) -> Option<(usize, usize)> {
+    let rest = line.strip_prefix(MIRROR_FORMAT_ID)?.strip_prefix(' ')?;
     let (headers_len, index_len) = rest.split_once(' ')?;
     Some((headers_len.parse().ok()?, index_len.parse().ok()?))
 }
@@ -429,7 +420,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
         .iter()
         .position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
-    let Some((headers_len, _)) = parse_mirror_magic(line) else {
+    let Some((headers_len, _)) = parse_format_line(line) else {
         return serde_json::from_str(line).ok();
     };
     if headers_len > MAX_HEADERS_LEN {
@@ -541,6 +532,14 @@ pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHe
 /// The rename is the only atomic step; an observer sees either the
 /// old contents or the new ones, never a torn body line.
 pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError> {
+    save_meta_with(pkg_mirror, |file| file.write_all(contents))
+}
+
+/// [`save_meta`] with the contents produced by `write` into the temp file.
+fn save_meta_with(
+    pkg_mirror: &Path,
+    write: impl FnOnce(&mut File) -> io::Result<()>,
+) -> Result<(), SaveMetaError> {
     #[cfg(test)]
     if let Some(error) = save_fail::forced_mirror_save_error(pkg_mirror) {
         return Err(error);
@@ -555,8 +554,7 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
             .create_new(true)
             .open(&temp)
             .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
-        file.write_all(contents)
-            .map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
+        write(&mut file).map_err(|error| SaveMetaError::WriteTemp { temp: temp.clone(), error })?;
     }
     fs::rename(&temp, pkg_mirror)
         .map_err(|error| {

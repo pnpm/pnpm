@@ -2,13 +2,15 @@ import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pn
 import { PnpmError } from '@pnpm/error'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 
+import { mirrorMayAnswer } from './metadataCachePolicy.js'
 import {
   getFileMtime,
   getPkgMetaCacheKey,
   getPkgMirrorPath,
+  hasVersionManifest,
+  isMalformedMirrorFragmentError,
   legacyMirrorHint,
   loadMetaHeaders,
-  type MetaHeaders,
   metaHeadersOf,
   runLimited,
 } from './metaMirror.js'
@@ -36,6 +38,14 @@ import {
   type PickResult,
 } from './pickRequest.js'
 import { maybeUpgradeAbbreviatedMetaForReleaseAge, upgradeMetaForCache } from './releaseAgeUpgrade.js'
+import {
+  decideCacheHitCheck,
+  decideMirrorShortcuts,
+  isFreshUnvalidatedMirror,
+  isMirrorWithoutEtag,
+  mirrorWrittenAfter,
+  readsMirrorFirst,
+} from './route.js'
 import { toRaw } from './toRaw.js'
 
 export {
@@ -51,46 +61,7 @@ export {
 } from './metaMirror.js'
 export { warnMissingTimeFieldOnce } from './pickMatchingVersion.js'
 export type { PackageMetaCache, PickPackageOptions } from './pickRequest.js'
-
-function canReuseStableCachedRange (
-  spec: RegistryPackageSpec,
-  opts: PickPackageOptions
-): boolean {
-  return (
-    spec.type === 'range' &&
-    !opts.includeLatestTag &&
-    !opts.updateChecksums &&
-    opts.publishedBy == null &&
-    opts.trustPolicy !== 'no-downgrade'
-  )
-}
-
-/**
- * Registries that omit `ETag` cannot answer `If-None-Match` with 304, so a
- * warm revalidation downloads the whole packument. A mirror younger than this
- * and stored without an `ETag` is reused for a range the cache can already
- * satisfy. The public npm registry sends `ETag`s, so it keeps conditional
- * revalidation. After this age the mirror is fetched again, which is how a
- * version published in the meantime shows up.
- */
-export const UNVALIDATED_MIRROR_MAX_AGE_MS = 5 * 60 * 1000
-
-/**
- * The age is compared in both directions. A mirror dated far in the future,
- * for example after the clock was set back, has an unknown age and is not
- * reused. A few milliseconds of skew between the file system and the clock
- * are tolerated.
- */
-function isYoungerThanUnvalidatedMirrorMaxAge (mtime: Date): boolean {
-  return Math.abs(Date.now() - mtime.getTime()) < UNVALIDATED_MIRROR_MAX_AGE_MS
-}
-
-function canReuseFreshUnvalidatedMirror (
-  spec: RegistryPackageSpec,
-  opts: PickPackageOptions
-): boolean {
-  return canReuseStableCachedRange(spec, opts) && opts.refreshMetadata !== true
-}
+export { UNVALIDATED_MIRROR_MAX_AGE_MS } from './route.js'
 
 /**
  * Packuments promoted into the in-memory cache straight from the on-disk
@@ -208,45 +179,47 @@ async function pickFromMemoryCache (request: PickRequest): Promise<PickResult | 
   // publishedBy and the package was modified recently, upgrade to full
   // metadata so the maturity check runs properly.
   const { meta } = await upgradeCachedMetaForReleaseAge(request, cachedMeta)
-  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, meta)
-  const unverified = unverifiedDiskPackuments.has(meta)
-  const unverifiedPickIsSafe = isUnverifiedPickSafe(request, { pickedPackage, unverified })
-  const offlinePickedPackage = ctx.offline === true
-    ? await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta, pickedPackage })
-    : undefined
-  const cacheResultCanReturn =
-    ctx.offline === true ||
-    !unverified ||
-    (pickedPackage != null && unverifiedPickIsSafe)
-  if (!cacheResultCanReturn || !canServeCachedMeta(ctx, meta)) return undefined
+  let pickedPackage: PackageInRegistry | null
+  let offlinePickedPackage: PackageInRegistry | null | undefined
+  try {
+    pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, meta)
+    offlinePickedPackage = ctx.offline === true
+      ? await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta, pickedPackage })
+      : undefined
+  } catch (err: unknown) {
+    // A disk-promoted entry with a corrupt fragment. Offline, the mirror pick
+    // fails with NO_OFFLINE_META. Online, the 304 handler refetches past it.
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
+  }
+  if (!cacheHitMayServe(request, { meta, pickedPackage }) || !canServeCachedMeta(ctx, meta)) return undefined
   return {
     meta,
     pickedPackage: offlinePickedPackage ?? pickedPackage,
   }
 }
 
-function isUnverifiedPickSafe (
-  { ctx, spec, opts }: PickRequest,
-  { pickedPackage, unverified }: { pickedPackage: PackageInRegistry | null, unverified: boolean }
+function cacheHitMayServe (
+  request: PickRequest,
+  { meta, pickedPackage }: { meta: PackageMeta, pickedPackage: PackageInRegistry | null }
 ): boolean {
-  const stableCachedRangeVersion =
-    unverified &&
-    canReuseStableCachedRange(spec, opts)
-      ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
-      : null
-  return (
-    ctx.preferOffline === true ||
-    opts.pickLowestVersion === true ||
-    spec.type === 'version' ||
-    (pickedPackage != null && pickedPackage.version === stableCachedRangeVersion)
-  )
+  const verified = !unverifiedDiskPackuments.has(meta)
+  switch (decideCacheHitCheck(request, verified, pickedPackage != null)) {
+    case 'serve': return true
+    case 'revalidate': return false
+    case 'stableRangePick': {
+      const { spec, opts } = request
+      return pickedPackage?.version === getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
+    }
+  }
 }
 
 async function upgradeCachedMetaForReleaseAge (
-  { ctx, spec, opts, pkgMirror, cacheKey }: PickRequest,
+  request: PickRequest,
   cachedMeta: PackageMeta
 ): Promise<{ meta: PackageMeta, upgraded: boolean }> {
-  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, spec, opts, cachedMeta)
+  const { ctx, opts, pkgMirror, cacheKey } = request
+  const upgrade = await maybeUpgradeAbbreviatedMetaForReleaseAge(ctx, request, cachedMeta)
   const meta = upgradeMetaForCache(ctx, upgrade, { pkgMirror, dryRun: opts.dryRun })
   const upgraded = upgrade.upgradedFrom != null
   if (upgraded) {
@@ -256,19 +229,23 @@ async function upgradeCachedMetaForReleaseAge (
 }
 
 async function pickFromMirrorOrRegistry (session: MirrorSession): Promise<PickResult> {
+  const { request } = session
+  if (readsMirrorFirst(request)) {
+    const picked = await pickFromMirrorPreferringOffline(session)
+    if (picked != null) return picked
+  }
+  const shortcuts = decideMirrorShortcuts(request)
   return (
-    await pickFromMirrorPreferringOffline(session) ??
-    await pickExactVersionFromMirror(session) ??
-    await pickStableRangeFromMirror(session) ??
-    await pickFromFreshUnvalidatedMirror(session) ??
-    await pickFromMirrorWrittenAfterCutoff(session) ??
+    (shortcuts.exactVersion ? await pickExactVersionFromMirror(session) : undefined) ??
+    (shortcuts.dominantLockfileVersion ? await pickStableRangeFromMirror(session) : undefined) ??
+    (shortcuts.unvalidatedMirror ? await pickFromFreshUnvalidatedMirror(session) : undefined) ??
+    await pickFromMirrorWrittenAfterCutoff(session, shortcuts.releaseAgeApplies) ??
     pickFromRegistry(session)
   )
 }
 
 async function pickFromMirrorPreferringOffline (session: MirrorSession): Promise<PickResult | undefined> {
-  const { ctx, opts } = session.request
-  if (ctx.offline !== true && ctx.preferOffline !== true && !opts.pickLowestVersion) return undefined
+  const { ctx } = session.request
   session.diskMeta = await session.limit(async () => loadMirrorForOfflinePick(session.request))
   if (ctx.offline) return pickOffline(session.request, session.diskMeta)
   if (session.diskMeta == null) return undefined
@@ -303,11 +280,18 @@ async function pickOffline (request: PickRequest, diskMeta: PackageMeta | null):
       hint: await legacyMirrorHint(ctx.cacheDir, request.metaDir, opts.registry, spec.name),
     })
   }
-  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, diskMeta)
-  const storePicked = await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta: diskMeta, pickedPackage })
-  return {
-    meta: diskMeta,
-    pickedPackage: storePicked ?? pickedPackage,
+  try {
+    const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, spec, diskMeta)
+    const storePicked = await pickVersionFromStore(ctx, { pickerOpts: request.pickerOpts, spec, meta: diskMeta, pickedPackage })
+    return {
+      meta: diskMeta,
+      pickedPackage: storePicked ?? pickedPackage,
+    }
+  } catch (err: unknown) {
+    // A corrupt fragment makes the mirror as unusable offline as a missing
+    // one, and there is no network to repair it from.
+    if (!isMalformedMirrorFragmentError(err)) throw err
+    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${request.pkgMirror}`)
   }
 }
 
@@ -317,7 +301,14 @@ async function pickFromUpgradedMirror (session: MirrorSession, diskMeta: Package
   // before letting pickMatchingVersionFinal warn-and-skip on missing time.
   const { meta, upgraded } = await upgradeCachedMetaForReleaseAge(request, diskMeta)
   session.diskMeta = meta
-  const pickedPackage = pickMatchingVersionFinal(request.pickerOpts, request.spec, meta)
+  let pickedPackage: PackageInRegistry | null
+  try {
+    pickedPackage = pickMatchingVersionFinal(request.pickerOpts, request.spec, meta)
+  } catch (err: unknown) {
+    // The registry request that follows replaces a corrupt mirror.
+    if (isMalformedMirrorFragmentError(err)) return undefined
+    throw err
+  }
   if (!pickedPackage || !canServeCachedMeta(request.ctx, meta)) return undefined
   // A cache hit re-runs maybeUpgradeAbbreviatedMetaForReleaseAge, so
   // serving this meta from memory can't bypass the release-age
@@ -331,15 +322,14 @@ async function pickFromUpgradedMirror (session: MirrorSession, diskMeta: Package
 }
 
 async function pickExactVersionFromMirror (session: MirrorSession): Promise<PickResult | undefined> {
-  const { ctx, spec, opts } = session.request
-  if (opts.includeLatestTag || opts.updateChecksums || spec.type !== 'version') return undefined
+  const { ctx, spec } = session.request
   const diskMeta = await loadSessionDiskMeta(session)
   // use the cached meta only if it has the required package version
   // otherwise it is probably out of date
   if (
     diskMeta == null ||
     !canServeCachedMeta(ctx, diskMeta) ||
-    (diskMeta.versions?.[spec.fetchSpec]) == null
+    !hasVersionManifest(diskMeta.versions ?? {}, spec.fetchSpec)
   ) {
     return undefined
   }
@@ -367,9 +357,7 @@ function pickFromMirrorAndPromote (request: PickRequest, diskMeta: PackageMeta):
 
 async function pickStableRangeFromMirror (session: MirrorSession): Promise<PickResult | undefined> {
   const { spec, opts } = session.request
-  const dominantLockfileVersion = canReuseStableCachedRange(spec, opts)
-    ? getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
-    : null
+  const dominantLockfileVersion = getDominantLockfileVersion(spec.fetchSpec, opts.preferredVersionSelectors)
   if (dominantLockfileVersion == null) return undefined
   const diskMeta = await loadSessionDiskMeta(session)
   if (diskMeta == null) return undefined
@@ -401,13 +389,12 @@ function pickStableVersionAndPromote (request: PickRequest, diskMeta: PackageMet
 
 async function pickFromFreshUnvalidatedMirror (session: MirrorSession): Promise<PickResult | undefined> {
   const { spec, opts, pkgMirror } = session.request
-  if (!canReuseFreshUnvalidatedMirror(spec, opts)) return undefined
   session.mirrorHeaders = session.diskMeta != null
     ? metaHeadersOf(session.diskMeta)
     : await session.limit(async () => loadMetaHeaders(pkgMirror))
-  if (!isReusableMirrorWithoutEtag(session.mirrorHeaders)) return undefined
+  if (!isMirrorWithoutEtag(session.mirrorHeaders)) return undefined
   const mtime = await session.limit(async () => getFileMtime(pkgMirror))
-  if (mtime == null || !isYoungerThanUnvalidatedMirrorMaxAge(mtime)) return undefined
+  if (mtime == null || !isFreshUnvalidatedMirror(mtime, Date.now())) return undefined
   const diskMeta = await loadSessionDiskMeta(session)
   if (
     diskMeta == null ||
@@ -418,19 +405,15 @@ async function pickFromFreshUnvalidatedMirror (session: MirrorSession): Promise<
   return pickFromMirrorAndPromote(session.request, diskMeta)
 }
 
-function isReusableMirrorWithoutEtag (headers: MetaHeaders | null): boolean {
-  return (
-    headers != null &&
-    (headers.etag == null || headers.etag === '') &&
-    headers.uncacheable !== true
-  )
-}
-
-async function pickFromMirrorWrittenAfterCutoff (session: MirrorSession): Promise<PickResult | undefined> {
-  const { ctx, spec, opts, pkgMirror } = session.request
-  if (!opts.publishedBy || opts.publishedByExclude?.(spec.name) === true) return undefined
+async function pickFromMirrorWrittenAfterCutoff (
+  session: MirrorSession,
+  releaseAgeApplies: boolean | undefined
+): Promise<PickResult | undefined> {
+  const { ctx, spec, pkgMirror } = session.request
+  const cutoff = mirrorWrittenAfter(session.request, releaseAgeApplies)
+  if (cutoff == null) return undefined
   const mtime = await session.limit(async () => getFileMtime(pkgMirror))
-  if (!isWrittenAtOrAfter(mtime, opts.publishedBy)) return undefined
+  if (!isWrittenAtOrAfter(mtime, cutoff)) return undefined
   const diskMeta = await loadSessionDiskMeta(session)
   if (diskMeta == null) return undefined
   try {
@@ -448,17 +431,11 @@ function isWrittenAtOrAfter (mtime: Date | null, cutoff: Date): boolean {
   return mtime != null && mtime >= cutoff
 }
 
-/**
- * Offline and prefer-offline may serve a mirror the registry marked
- * uncacheable. Every other online path has to refetch it. The flag is only
- * set on packuments read from the mirror: a document fetched during this
- * install stays reusable for the rest of it.
- */
 function canServeCachedMeta (
   ctx: { offline?: boolean, preferOffline?: boolean },
   meta: PackageMeta
 ): boolean {
-  return ctx.offline === true || ctx.preferOffline === true || meta.uncacheable !== true
+  return mirrorMayAnswer(ctx, meta.uncacheable)
 }
 
 function validatePackageName (pkgName: string) {

@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import type { Config } from '@pnpm/config.reader'
 import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { esmNodePathLoaderImportFlag } from '@pnpm/exec.esm-node-path-loader'
@@ -36,6 +36,13 @@ for (const suffix of [
   delete process.env[`pnpm_config_${suffix}`]
   delete process.env[`PNPM_CONFIG_${suffix.toUpperCase()}`]
 }
+// The developer's global config.yaml would replace the defaults these tests
+// assert, so the global config is read from an empty directory instead.
+const isolatedConfigHome = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-config-reader-'))
+process.env.XDG_CONFIG_HOME = isolatedConfigHome
+afterAll(() => {
+  fs.rmSync(isolatedConfigHome, { recursive: true, force: true })
+})
 
 const env = {
   PNPM_HOME: import.meta.dirname,
@@ -57,9 +64,56 @@ test('getConfig()', async () => {
   expect(config.fetchRetryFactor).toBe(10)
   expect(config.fetchRetryMintimeout).toBe(10000)
   expect(config.fetchRetryMaxtimeout).toBe(60000)
+  expect(config.maxTarballUnpackedSize).toBe(4294967296)
   // nodeVersion should not have a default value.
   // When not specified, the package-is-installable package detects nodeVersion automatically.
   expect(config.nodeVersion).toBeUndefined()
+})
+
+test('onlyInheritDlxSettingsFromLocal inherits nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
+    shamefullyHoist: true,
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  expect(config.nodeDownloadMirrors).toStrictEqual({ release: 'https://mirror.example/nodejs/' })
+  expect(config.shamefullyHoist).not.toBe(true)
+})
+
+test('onlyInheritDlxSettingsFromLocal does not inherit non-release nodeDownloadMirrors from pnpm-workspace.yaml', async () => {
+  prepare({})
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeDownloadMirrors: {
+      release: 'https://mirror.example/nodejs/',
+      nightly: 'https://mirror.example/nightly/',
+    },
+  })
+  const cwd = process.cwd()
+  const { config } = await getConfig({
+    cliOptions: { dir: cwd },
+    workspaceDir: cwd,
+    packageManager: {
+      name: 'pnpm',
+      version: '9.0.0',
+    },
+    onlyInheritDlxSettingsFromLocal: true,
+  })
+  // Only the `release` channel publishes a signed SHASUMS256.txt, so a
+  // workspace may not redirect the unsigned channels for a runtime dlx runs.
+  expect(config.nodeDownloadMirrors?.release).toBe('https://mirror.example/nodejs/')
+  expect(config.nodeDownloadMirrors?.nightly).not.toBe('https://mirror.example/nightly/')
 })
 
 const runningNodeMajor = Number(process.versions.node.split('.')[0])
@@ -133,6 +187,21 @@ test('nodeVersion is read from the PNPM_CONFIG_NODE_VERSION environment variable
   })
 
   expect(config.nodeVersion).toBe('20.0.0')
+})
+
+test('an invalid URL in PNPM_CONFIG_REGISTRY is ignored', async () => {
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      PNPM_CONFIG_REGISTRY: 'not a url',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(config.registriesByScope.default).toBe('https://registry.npmjs.org/')
 })
 
 test('nodeVersion from PNPM_CONFIG_NODE_VERSION takes priority over devEngines.runtime', async () => {
@@ -1180,23 +1249,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     fs.mkdirSync(configDir, { recursive: true })
     writeYamlFileSync(path.join(configDir, 'config.yaml'), { pnprServer: null })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let context: { explicitlySetKeys: Set<string> }
-    let warnings: string[]
-    try {
-      ;({ context, warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { context, warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     expect(context.explicitlySetKeys.has('pnprServer')).toBe(true)
     expect(warnings).not.toContainEqual(expect.stringContaining('pnprServer'))
@@ -1308,24 +1365,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       bail: false,
     })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let warnings: string[]
-    try {
-      ;({ warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      // Assigning `undefined` would store the string "undefined", leaving every
-      // later test in this file resolving configDir under `undefined/pnpm`.
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))
     expect(aboutConfigDir).not.toEqual([])
@@ -1347,22 +1391,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
       bail: false,
     })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let warnings: string[]
-    try {
-      ;({ warnings } = await getConfig({
-        cliOptions: {},
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { warnings } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     const unrecognized = warnings.find((warning) => warning.includes('in the global config file') && warning.includes('are not recognized by this version of pnpm'))
     expect(unrecognized).toContain('"globalShims" (a pnpm v12 setting)')
@@ -1386,22 +1419,11 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     }
     writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
 
-    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
-    process.env.XDG_CONFIG_HOME = xdgConfigHome
-    let config: Config
-    try {
-      ;({ config } = await getConfig({
-        cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
-        packageManager: { name: 'pnpm', version: '1.0.0' },
-        workspaceDir: process.cwd(),
-      }))
-    } finally {
-      if (previousXdgConfigHome == null) {
-        delete process.env.XDG_CONFIG_HOME
-      } else {
-        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
-      }
-    }
+    const { config } = await withEnv({ XDG_CONFIG_HOME: xdgConfigHome }, async () => getConfig({
+      cliOptions: { 'config-dir': '/tmp/from-cli', dir: process.cwd() },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    }))
 
     expect(config.configDir).not.toBe('/tmp/from-cli')
     // The dedicated flags and the keys the global file does take are unaffected.
@@ -1780,6 +1802,31 @@ test('project .npmrc does not expand env variables in scoped registry URLs or UR
   ]))
   const urlScopedWarning = warnings.find((w) => w.includes('//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken')) ?? ''
   expect(urlScopedWarning).toContain('https://pnpm.io/npmrc')
+})
+
+test('ignored project .npmrc warnings do not print the userinfo of URL-scoped keys', async () => {
+  prepare()
+
+  fs.writeFileSync('.npmrc', [
+    '//user:password@registry.example.com/${PNPM_TEST_TOKEN}/:_authToken=token',
+    '//user:password@attacker.example/:_authToken=${PNPM_TEST_TOKEN}',
+    '',
+  ].join('\n'), 'utf8')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: { ...env, PNPM_TEST_TOKEN: 'secret' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  expect(warnings).toEqual(expect.arrayContaining([
+    expect.stringContaining('Ignored project-level request destination "//registry.example.com/${PNPM_TEST_TOKEN}/:_authToken"'),
+    expect.stringContaining('Ignored project-level auth setting "//attacker.example/:_authToken"'),
+  ]))
+  expect(warnings.join('\n')).not.toContain('user:password')
 })
 
 test('project .npmrc does not expand env variables in auth values', async () => {
@@ -2478,6 +2525,29 @@ test('host-keyed pnpm_config__auth rejects deprecated basic-auth fields', async 
   })).rejects.toThrow('only "authToken" is supported')
 })
 
+test('pnpm_config__auth skips a field under a registry URL that is not a scope', async () => {
+  prepareEmpty()
+
+  // The global config is shared by every pnpm on the machine, so a field a
+  // later version defines must not stop this one. Scope keys stay strict.
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          authToken: 'credential-only',
+          '@': { authToken: 'registry-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('registry-token')
+  expect(warnings).toContain('Ignoring the unknown field "authToken" under https://json-test.example/ in _auth')
+})
+
 test('pnpm_config__auth token overrides a project .npmrc token for the same host', async () => {
   prepareEmpty()
 
@@ -2558,11 +2628,11 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
   })
 
-  const { config } = await getConfig({
+  // `getConfigDir` reads `process.env`, not the env passed to `getConfig`.
+  const { config } = await withEnv({ XDG_CONFIG_HOME: path.resolve('.config') }, async () => getConfig({
     cliOptions: {},
     env: {
       ...env,
-      XDG_CONFIG_HOME: path.resolve('.config'),
       pnpm_config__auth: JSON.stringify({
         'https://registry.npmjs.org': {
           '@victim-scope': { authToken: 'secret-token' },
@@ -2571,7 +2641,7 @@ test('global config.yaml registries cannot redirect pnpm_config__auth routes', a
     },
     packageManager: { name: 'pnpm', version: '1.0.0' },
     workspaceDir: process.cwd(),
-  })
+  }))
 
   // `_auth` routes sit above global config.yaml in the registries merge, so a
   // user's global registry alias cannot rebind an `_auth` token's host.
@@ -2622,8 +2692,15 @@ test('pnpm_config__auth registry URL with credentials or query aborts the load w
 
 test('pnpm_config__auth invalid scope name aborts the load', async () => {
   prepareEmpty()
-  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  const error = await expectAuthError({ 'https://json-test.example': { '@org/pkg': { authToken: 'token' } } })
   expect(error.message).toContain('scope must be')
+})
+
+test('pnpm_config__auth scope missing its @ aborts the load', async () => {
+  prepareEmpty()
+  // A typo, not a field a later pnpm defines: dropping it would drop the scope's route.
+  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  expect(error.message).toContain('did you mean "@org"?')
 })
 
 test('pnpm_config__auth scope value that is not an auth object aborts the load', async () => {
@@ -3385,6 +3462,34 @@ test('a registry declared in the project .npmrc beats the global _auth file', as
   expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
 })
 
+test('skipping unreadable settings leaves out only the _auth source that fails', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  }, { env: { pnpm_config__auth: '{ not json' }, skipUnreadableSettings: true })
+
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('skipping a workspace file that fails partway does not make minimumReleaseAge strict', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    minimumReleaseAge: 60,
+    catalog: { foo: '1.0.0' },
+    catalogs: { default: { foo: '2.0.0' } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml({}, { workspaceDir: process.cwd(), skipUnreadableSettings: true })
+
+  expect(config.minimumReleaseAge).not.toBe(60)
+  expect(config.minimumReleaseAgeStrict).not.toBe(true)
+})
+
 test('a scope declared in the project .npmrc beats the global _auth file', async () => {
   prepareEmpty()
 
@@ -3554,7 +3659,7 @@ test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry
 
 async function getConfigWithGlobalYaml (
   globalConfigYaml: Record<string, unknown>,
-  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string } = {}
+  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string, skipUnreadableSettings?: boolean } = {}
 ) {
   const configHome = path.resolve('xdg-config')
   fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
@@ -3567,6 +3672,7 @@ async function getConfigWithGlobalYaml (
       env: { ...env, ...opts.env, XDG_CONFIG_HOME: configHome },
       packageManager: { name: 'pnpm', version: '1.0.0' },
       workspaceDir: opts.workspaceDir,
+      skipUnreadableSettings: opts.skipUnreadableSettings,
     })
     return { config, warnings }
   } finally {
@@ -4862,6 +4968,45 @@ test('return a warning when the .npmrc has an env variable that does not exist',
   expect(warnings).toEqual(expect.arrayContaining(expected))
 })
 
+test('collect warnings into the caller-provided array when config loading fails', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_auth=${ENV_VAR_123}:not-base64', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUTH_INVALID_BASE64' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
+test('collect .npmrc warnings into the caller-provided array when pnpm_config__auth is malformed', async () => {
+  prepare()
+
+  const userconfig = path.resolve('user.npmrc')
+  fs.writeFileSync(userconfig, '//registry.npmjs.org/:_authToken=${ENV_VAR_123}', 'utf8')
+  const warnings: string[] = []
+
+  await expect(getConfig({
+    cliOptions: { userconfig },
+    env: { pnpm_config__auth: '{' },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+    warnings,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_AUTH_SETTING' })
+
+  expect(warnings).toEqual([expect.stringContaining('Failed to replace env in config: ${ENV_VAR_123}')])
+})
+
 test.each([
   [undefined, '${EMPTY_TOKEN}', '', true],
   ['', '${EMPTY_TOKEN}', '', true],
@@ -5197,6 +5342,28 @@ test('loads nodeDownloadMirrors from environment variable pnpm_config_node_downl
   })).toStrictEqual({
     release: 'https://cli.example.com/release/',
   })
+})
+
+test('maxTarballUnpackedSize is read from pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { maxTarballUnpackedSize: 1048576 })
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.maxTarballUnpackedSize).toBe(1048576)
+})
+
+test('maxTarballUnpackedSize is read from the environment', async () => {
+  prepareEmpty()
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: { pnpm_config_max_tarball_unpacked_size: '2048' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+  expect(config.maxTarballUnpackedSize).toBe(2048)
 })
 
 test('environment variable pnpm_config_* should override pnpm-workspace.yaml', async () => {
@@ -6802,7 +6969,7 @@ test('getConfig() prefers the canonical org across the two remote spellings', as
  * inherited, and the tests after it would silently run against a different
  * environment than the ones before.
  */
-async function withEnv (values: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
+async function withEnv<Result> (values: Record<string, string | undefined>, run: () => Promise<Result>): Promise<Result> {
   const previous = Object.keys(values).map((name): [string, string | undefined] => [name, process.env[name]])
   for (const [name, value] of Object.entries(values)) {
     if (value === undefined) {
@@ -6812,7 +6979,7 @@ async function withEnv (values: Record<string, string | undefined>, run: () => P
     }
   }
   try {
-    await run()
+    return await run()
   } finally {
     for (const [name, value] of previous) {
       if (value === undefined) {
@@ -6900,4 +7067,23 @@ test('getConfig() does not fall back to a valid older variable when the canonica
       workspaceDir: process.cwd(),
     })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
   })
+})
+
+test('getConfig() reads externalDependencies and autoInstallPeersFromHighestMatch from pnpm-workspace.yaml without warnings', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    autoInstallPeersFromHighestMatch: true,
+    externalDependencies: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+  })
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(warnings).toStrictEqual([])
+  expect(config.autoInstallPeersFromHighestMatch).toBe(true)
+  expect(config.externalDependencies).toStrictEqual(new Set(['@pnpm.e2e/dep-of-pkg-with-1-dep']))
 })

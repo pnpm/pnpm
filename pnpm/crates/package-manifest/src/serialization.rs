@@ -211,7 +211,7 @@ impl PackageManifest {
         if let Some(permissions) = permissions {
             pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;
         }
-        tmp.as_file().sync_all()?;
+        pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(path).map_err(|err| err.error)?;
         Ok(())
     }
@@ -257,6 +257,17 @@ impl PackageManifest {
                 }
                 other => other,
             })
+    }
+
+    /// The manifest at `path`, or the scaffold [`Self::create_if_needed`]
+    /// would write there. The scaffold stays in memory until the caller
+    /// saves it.
+    pub fn load_or_init(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
+        if !path.exists() {
+            let scaffold = PackageManifest::init_value_for(&path, InitOptions::default());
+            return Ok(PackageManifest::from_value(path, scaffold));
+        }
+        PackageManifest::from_path(path)
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
@@ -327,4 +338,22 @@ impl PackageManifest {
         pnpm_yaml_document_sync::sync(strip_utf8_bom(&text), value)
             .map_err(|source| PackageManifestError::EditYaml { path: self.path.clone(), source })
     }
+}
+
+pub(super) fn normalize_crlf(input: &str) -> String {
+    let mut output = String::with_capacity(input.len() + input.len() / 30);
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\r' {
+            if chars.peek() == Some(&'\n') {
+                chars.next();
+            }
+            output.push_str("\r\n");
+        } else if ch == '\n' {
+            output.push_str("\r\n");
+        } else {
+            output.push(ch);
+        }
+    }
+    output
 }

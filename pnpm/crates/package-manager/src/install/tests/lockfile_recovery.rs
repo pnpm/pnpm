@@ -69,7 +69,6 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -193,6 +192,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
             pnpmfiles: Vec::new(),
             filtered_install: false,
             config_dependencies: None,
+            validation: None,
             settings: crate::optimistic_repeat_install::settings::current_settings(
                 config,
                 pnpm_config::NodeLinker::Isolated,
@@ -216,7 +216,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
 
     assert_eq!(
         install_already_up_to_date(&check).map(|up_to_date| up_to_date.root).as_deref(),
-        Some(&*workspace_root),
+        Ok(&*workspace_root),
     );
     assert_eq!(std::fs::read_to_string(&wanted_path).expect("reread wanted lockfile"), current);
 
@@ -239,7 +239,7 @@ fn sync_fast_path_reads_the_workspace_root_wanted_lockfile_from_a_member() {
 
     assert_eq!(
         install_already_up_to_date(&per_project_check).map(|up_to_date| up_to_date.root).as_deref(),
-        Some(&*workspace_root),
+        Ok(&*workspace_root),
     );
 }
 /// Regression: a single-project install with NO lockfile anywhere —
@@ -341,6 +341,7 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             pnpmfiles: Vec::new(),
             filtered_install: false,
             config_dependencies: None,
+            validation: None,
             settings,
         },
     )
@@ -360,7 +361,6 @@ pub(super) async fn optimistic_repeat_install_does_not_short_circuit_when_lockfi
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -456,7 +456,6 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -542,7 +541,6 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -654,7 +652,6 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

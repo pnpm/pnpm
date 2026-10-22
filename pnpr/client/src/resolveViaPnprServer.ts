@@ -123,8 +123,6 @@ export interface ResolveViaPnprServerOptions {
    */
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
-  /** Refresh registry artifacts while retaining every locked package version. */
-  updatePatches?: boolean
   /**
    * Existing lockfile for incremental resolution, in the on-disk format
    * the wire protocol carries. The caller reads it with
@@ -147,8 +145,8 @@ interface Violation { name: string, version: string, code: string, reason: strin
  */
 type ResolveFrame =
   | { type: 'package', id: string, name: string, version: string, integrity: string, tarball: string }
-  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'] }
-  | { type: 'error', message: string }
+  | { type: 'done', lockfile: LockfileFile, stats: ResponseMetadata['stats'], appliedPolicies?: unknown }
+  | { type: 'error', message: string, code?: string }
   | { type: 'violations', violations: Violation[] }
 
 /**
@@ -223,7 +221,6 @@ function serializeResolveRequest (opts: ResolveViaPnprServerOptions, projects: P
     trustLockfile: opts.trustLockfile,
     frozenLockfile: opts.frozenLockfile,
     preferFrozenLockfile: opts.preferFrozenLockfile,
-    updatePatches: opts.updatePatches,
     // Sent as-is: `opts.lockfile` is already the on-disk format the wire
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).
@@ -233,6 +230,9 @@ function serializeResolveRequest (opts: ResolveViaPnprServerOptions, projects: P
 
 function assertResolutionSucceeded (terminal: TerminalFrame): asserts terminal is DoneFrame {
   if (terminal.type === 'error') {
+    if (terminal.code != null) {
+      throw new PnpmError(terminal.code, terminal.message)
+    }
     throw new Error(terminal.message)
   }
   if (terminal.type === 'violations') {
@@ -303,12 +303,12 @@ type DoneFrame = Extract<ResolveFrame, { type: 'done' }>
 function parseTerminalFrame (body: string): TerminalFrame {
   for (const line of body.split('\n')) {
     if (line.trim() === '') continue
-    const frame = JSON.parse(line) as ResolveFrame
+    const frame = JSON.parse(line) as { type?: unknown, [key: string]: unknown }
     if (frame.type === 'package') continue
     if (frame.type === 'done' || frame.type === 'error' || frame.type === 'violations') {
-      return frame
+      return frame as TerminalFrame
     }
-    throw new Error(`pnpr server /-/pnpr/v0/resolve stream emitted an unknown frame type: ${String((frame as { type: unknown }).type)}`)
+    // Ignore unknown frames instead of throwing
   }
   throw new Error('pnpr server /-/pnpr/v0/resolve stream ended without a terminal frame')
 }

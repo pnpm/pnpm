@@ -5,7 +5,6 @@ import { PnpmError } from '@pnpm/error'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import { getPatchInfo } from '@pnpm/patching.config'
-import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
 import { detectMinReleaseAgeViolation, MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
 import type {
   DirectoryResolution,
@@ -19,7 +18,8 @@ import { pathExists } from 'path-exists'
 import { omit } from 'ramda'
 
 import { addResolvedPackageToGraph, type ResolvedManifest } from './addResolvedPackageToGraph.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import { prepareDependencyManifest } from './dependencyManifest.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import { startPackageResolution, waitForPackageResolutionTurn } from './packageResolutionBarrier.js'
 import { parentIdsContainSequence } from './parentIdsContainSequence.js'
 import {
@@ -30,7 +30,6 @@ import {
 } from './requestDependencyPackage.js'
 import type {
   LinkedDependency,
-  ParentPkgAliases,
   ResolutionContext,
   ResolveDependencyOptions,
   ResolveDependencyResult,
@@ -40,6 +39,12 @@ import { copyResolvedManifest, getManifestFromResponse } from './resolvedPackage
 const dependencyResolvedLogger = logger('_dependency_resolved')
 
 const omitDepsFields = omit(['dependencies', 'optionalDependencies', 'peerDependencies', 'peerDependenciesMeta'])
+
+/**
+ * Resolvers whose package id pins the package contents. A local directory can
+ * change under the same id, so its manifest stays the source of truth.
+ */
+const IMMUTABLE_CONTENT_RESOLVERS = new Set(['git-repository', 'jsr-registry', 'named-registry', 'npm-registry'])
 
 export async function resolveDependency (
   wantedDependency: WantedDependency,
@@ -247,33 +252,46 @@ async function readResolvedManifest (
   if (ctx.readPackageHook != null && !pkgResponse.body.hooked) {
     pkg = await ctx.readPackageHook(pkg)
   }
+  keepLockedPeerDependencies({ ctx, currentPkg, options }, pkgResponse, pkg)
   if (!pkg.version) {
     pkg.version = '0.0.0'
   }
-  pkg = omitPeersFromDependencies(pkg, { autoInstallPeers: ctx.autoInstallPeers, parentPkgAliases: options.parentPkgAliases })
-  if (pkg.engines?.runtime != null) {
-    convertEnginesRuntimeToDependencies(pkg, 'engines', 'dependencies')
-  }
+  pkg = prepareDependencyManifest(pkg, { autoInstallPeers: ctx.autoInstallPeers, parentPkgAliases: options.parentPkgAliases })
   if (!pkg.name) { // TODO: don't fail on optional dependencies
     throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.bareSpecifier}: Missing package name`)
   }
   return pkg
 }
 
-function omitPeersFromDependencies (
-  pkg: PackageManifest,
-  { autoInstallPeers, parentPkgAliases }: { autoInstallPeers: boolean, parentPkgAliases: ParentPkgAliases }
-): PackageManifest {
-  const { dependencies, peerDependencies, peerDependenciesMeta } = pkg
-  if (!peerDependencies || !dependencies) return pkg
-  const isAutoInstalledPeer = (peerDep: string): boolean =>
-    autoInstallPeers && peerDependenciesMeta?.[peerDep]?.optional !== true
-  return {
-    ...pkg,
-    dependencies: omit(
-      Object.keys(peerDependencies).filter((peerDep) => isAutoInstalledPeer(peerDep) || parentPkgAliases[peerDep]),
-      dependencies
-    ),
+/**
+ * Gives a package reused from the lockfile the peer dependencies its lockfile
+ * entry records. The registry metadata and the package.json in the store may
+ * disagree about them, and reading the other source would rewrite the entry
+ * of a package nobody updated.
+ */
+function keepLockedPeerDependencies (
+  { ctx, currentPkg, options }: Pick<DependencyRequest, 'ctx' | 'currentPkg' | 'options'>,
+  pkgResponse: PackageResponse,
+  pkg: PackageManifest
+): void {
+  const snapshot = currentPkg.dependencyLockfile
+  if (
+    !ctx.lockedPeersAreCurrent ||
+    options.update ||
+    snapshot == null ||
+    pkgResponse.body.updated ||
+    pkgResponse.body.resolvedVia == null ||
+    !IMMUTABLE_CONTENT_RESOLVERS.has(pkgResponse.body.resolvedVia)
+  ) return
+  delete pkg.peerDependencies
+  delete pkg.peerDependenciesMeta
+  if (snapshot.peerDependencies != null) {
+    pkg.peerDependencies = { ...snapshot.peerDependencies }
+  }
+  if (snapshot.peerDependenciesMeta != null) {
+    pkg.peerDependenciesMeta = Object.fromEntries(
+      Object.entries(snapshot.peerDependenciesMeta).map(([peerName, peerMeta]) => [peerName, { ...peerMeta }])
+    )
   }
 }
 

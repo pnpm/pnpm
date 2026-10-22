@@ -1,5 +1,12 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+mod agent_skills;
+mod equivalence;
+use agent_skills::agent_skills_settings;
+use equivalence::{
+    allow_builds_match, enable_global_virtual_store_match, package_extensions_match,
+};
+
 use super::{
     Catalogs, Config, IncludedDependencies, LinkWorkspacePackages, NodeLinker,
     SupportedArchitectures, TrustPolicy, WorkspaceState, WorkspaceStateNodeLinker,
@@ -24,25 +31,6 @@ pub(crate) fn recorded_supported_architectures_match(
         == live
             .and_then(|value| serde_json::to_value(value).ok())
             .as_ref()
-}
-
-pub(crate) fn settings_match(
-    state: &WorkspaceState,
-    config: &Config,
-    node_linker: NodeLinker,
-    included: IncludedDependencies,
-    supported_architectures: Option<&SupportedArchitectures>,
-    ignored_workspace_state_settings: &[&str],
-) -> bool {
-    first_setting_drift(
-        state,
-        config,
-        node_linker,
-        included,
-        supported_architectures,
-        ignored_workspace_state_settings,
-    )
-    .is_none()
 }
 
 /// Compare today's settings against what the previous install
@@ -108,9 +96,11 @@ struct SettingsComparison<'a> {
 impl SettingsComparison<'_> {
     fn first_drift(&self) -> Option<&'static str> {
         self.installation_drift()
+            .or_else(|| self.lockfile_drift())
             .or_else(|| self.linking_drift())
             .or_else(|| self.resolution_drift())
             .or_else(|| self.workspace_policy_drift())
+            .or_else(|| self.agent_skills_drift())
     }
     fn installation_drift(&self) -> Option<&'static str> {
         let recorded = self.recorded;
@@ -140,14 +130,29 @@ impl SettingsComparison<'_> {
             recorded.dedupe_peer_dependents != live.dedupe_peer_dependents,
         );
         return_drift_if!(self, "dedupePeers", recorded.dedupe_peers != live.dedupe_peers);
+        return_drift_if!(
+            self,
+            "addMissingPeerTypes",
+            recorded.add_missing_peer_types != live.add_missing_peer_types,
+        );
         return_drift_if!(self, "autoDedupe", recorded.auto_dedupe != live.auto_dedupe);
+        return_drift_if!(self, "dev", recorded.dev != live.dev);
+        None
+    }
+    fn lockfile_drift(&self) -> Option<&'static str> {
+        let recorded = self.recorded;
+        let live = self.live;
         return_drift_if!(
             self,
             "lockfile.includeResolutionSettings",
             recorded.lockfile_include_resolution_settings
                 != live.lockfile_include_resolution_settings,
         );
-        return_drift_if!(self, "dev", recorded.dev != live.dev);
+        return_drift_if!(
+            self,
+            "lockfile.integrityTarget",
+            recorded.lockfile_integrity_target != live.lockfile_integrity_target,
+        );
         None
     }
     fn linking_drift(&self) -> Option<&'static str> {
@@ -164,6 +169,11 @@ impl SettingsComparison<'_> {
             recorded.exclude_links_from_lockfile != live.exclude_links_from_lockfile,
         );
         return_drift_if!(self, "hoistPattern", recorded.hoist_pattern != live.hoist_pattern);
+        return_drift_if!(
+            self,
+            "sideEffectsCache.exclude",
+            recorded.side_effects_cache_exclude != live.side_effects_cache_exclude,
+        );
         return_drift_if!(
             self,
             "hoistWorkspacePackages",
@@ -269,58 +279,6 @@ impl SettingsComparison<'_> {
     }
 }
 
-/// `enableGlobalVirtualStore` has no `?? default` coercion on pnpm's
-/// read side, but its `undefined` default and an explicit `false` both
-/// mean "global virtual store off". pnpm omits the key for the former
-/// and records `false` only when CI forces it; pacquet omits both.
-/// Normalize the absent and `false` forms before comparing so a
-/// pnpm-written file (omitted or `false`) matches a pacquet install
-/// with the store off, while a real `true`/`false` flip still trips.
-pub(crate) fn enable_global_virtual_store_match(
-    state_value: Option<bool>,
-    current_value: Option<bool>,
-) -> bool {
-    state_value.unwrap_or(false) == current_value.unwrap_or(false)
-}
-
-/// Pnpm writes `Some({})` for an empty `allowBuilds`; pacquet writes
-/// `None` for the same effective value. Treat them as equivalent so
-/// cross-package-manager state files don't trip the comparison.
-pub(crate) fn allow_builds_match(
-    state_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
-    current_value: Option<&std::collections::BTreeMap<String, serde_json::Value>>,
-) -> bool {
-    match (state_value, current_value) {
-        (None, None) => true,
-        (Some(map), None) | (None, Some(map)) => map.is_empty(),
-        (Some(state_map), Some(current_map)) => state_map == current_map,
-    }
-}
-
-/// `packageExtensions` are compared as opaque `serde_json::Value`
-/// trees so the workspace-state file written by either implementation
-/// round-trips through the other. Empty maps are equivalent to absent
-/// — pacquet's [`pnpm_config::WorkspaceSettings::apply_to`] already collapses
-/// `packageExtensions: {}` to `None`, but pnpm may write `Some({})`
-/// directly, and the workspace-state file is shared across the two.
-pub(crate) fn package_extensions_match(
-    state_value: Option<&serde_json::Value>,
-    current_value: Option<&serde_json::Value>,
-) -> bool {
-    fn is_empty(value: &serde_json::Value) -> bool {
-        match value {
-            serde_json::Value::Object(map) => map.is_empty(),
-            serde_json::Value::Null => true,
-            _ => false,
-        }
-    }
-    match (state_value, current_value) {
-        (None, None) => true,
-        (Some(value), None) | (None, Some(value)) => is_empty(value),
-        (Some(state_value), Some(current_value)) => state_value == current_value,
-    }
-}
-
 /// Build the [`WorkspaceStateSettings`] that today's install would
 /// write. Shared with `install::build_workspace_state` so the
 /// freshness check sees the same byte shape the writer produced —
@@ -349,6 +307,7 @@ pub(crate) fn current_settings(
         hoist_pattern: config.hoist_pattern.clone(),
         hoist_workspace_packages: Some(config.hoist_workspace_packages),
         ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+        add_missing_peer_types: config.add_missing_peer_types.then_some(true),
         inject_workspace_packages: Some(config.inject_workspace_packages),
         link_workspace_packages: Some(link_workspace_packages_to_json(
             config.link_workspace_packages,
@@ -395,6 +354,9 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         lockfile_include_resolution_settings: config
             .lockfile_include_resolution_settings
             .then_some(true),
+        lockfile_integrity_target: (config.lockfile_integrity_target
+            != pnpm_lockfile::IntegrityTarget::Resource)
+            .then(|| "tar".to_string()),
         minimum_release_age: config.minimum_release_age,
         minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
         minimum_release_age_ignore_missing_time: Some(
@@ -405,6 +367,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
+        side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is
         // how pacquet tells its resolved default apart from a real
@@ -414,7 +377,8 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
             .then(|| map_trust_policy(config.trust_policy)),
         trust_policy_exclude: config.trust_policy_exclude.clone(),
         trust_policy_ignore_after: config.trust_policy_ignore_after,
-        ..Default::default()
+        workspace_package_patterns: config.workspace_package_patterns.clone(),
+        ..agent_skills_settings(config)
     }
 }
 

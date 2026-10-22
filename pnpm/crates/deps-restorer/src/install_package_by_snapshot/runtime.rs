@@ -1,5 +1,4 @@
 use super::InstallPackageBySnapshotError;
-use crate::retry_config::retry_opts_from_config;
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
@@ -290,10 +289,12 @@ impl BinaryArchiveFetch<'_> {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
                 auth_headers: &self.config.auth_headers,
-                retry_opts: retry_opts_from_config(self.config),
+                retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
+                tar_limits: self.config.tar_limits(),
             },
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: pnpm_tarball::IntegrityKind::Resource,
                 integrity: Some(&self.binary.integrity),
                 unpacked_size: None,
                 file_count: None,
@@ -332,8 +333,9 @@ impl BinaryArchiveFetch<'_> {
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: self.http_client,
                 auth_headers: &self.config.auth_headers,
-                retry_opts: retry_opts_from_config(self.config),
+                retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
+                tar_limits: self.config.tar_limits(),
             },
             package: pnpm_tarball::ZipArchivePackage {
                 max_bytes: None,

@@ -53,17 +53,20 @@ pub mod owner;
 pub mod pack;
 pub mod pack_app;
 pub(crate) mod package_manager;
+pub mod package_spec;
 pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod peers;
+pub mod permissions;
 pub mod ping;
 pub mod pipeline;
 pub(crate) mod pipelines;
 pub mod pkg;
 pub(crate) mod pre_command;
 pub mod prefix;
+pub mod profile;
 pub mod prune;
 pub mod publish;
 pub mod rebuild;
@@ -93,6 +96,7 @@ pub mod sudo_guard;
 pub mod supported_architectures;
 pub mod tasks;
 pub mod team;
+pub mod token;
 pub mod undeprecate;
 pub mod unlink;
 pub mod unpublish;
@@ -127,6 +131,16 @@ mod workspace_option;
 pub(crate) fn grammar() -> &'static clap::Command {
     static GRAMMAR: std::sync::OnceLock<clap::Command> = std::sync::OnceLock::new();
     GRAMMAR.get_or_init(<CliArgs as clap::CommandFactory>::command)
+}
+
+/// Parses a `--depth` value: a non-negative integer, or `Infinity` for no
+/// limit.
+pub(crate) fn parse_depth_limit(text: &str) -> Result<usize, String> {
+    if text.eq_ignore_ascii_case("Infinity") {
+        return Ok(usize::MAX);
+    }
+    text.parse()
+        .map_err(|_| format!("expected a non-negative integer or Infinity, got `{text}`"))
 }
 
 #[cfg(test)]

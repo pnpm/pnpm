@@ -7,7 +7,7 @@ import type { MutatedProject, MutateModulesOptions, ProjectOptions } from '@pnpm
 import type { CatalogSnapshots } from '@pnpm/lockfile.types'
 import { prepareEmpty } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectId, ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
@@ -247,8 +247,8 @@ test('lockfile contains catalog snapshots', async () => {
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
-        '@pnpm.e2e/foo': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
+        '@pnpm.e2e/foo': '^100.1.0',
       },
     },
   })
@@ -256,8 +256,8 @@ test('lockfile contains catalog snapshots', async () => {
   const lockfile = readLockfile()
   expect(lockfile.catalogs).toStrictEqual({
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
-      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' },
     },
   })
 })
@@ -375,7 +375,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '^1.0.0',
       },
     },
@@ -383,7 +383,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
 
   expect(readLockfile().catalogs).toStrictEqual({
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
       '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.3.0' },
     },
   })
@@ -394,7 +394,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     lockfileOnly: true,
     catalogs: {
       default: {
-        '@pnpm.e2e/bar': '^100.0.0',
+        '@pnpm.e2e/bar': '^100.1.0',
         '@pnpm.e2e/foo': '=100.0.0',
       },
     },
@@ -404,7 +404,7 @@ test('lockfile catalog snapshots retain existing entries on --filter', async () 
     default: {
       // The @pnpm.e2e/bar snapshot should be carried from the previous install,
       // despite the current filtered install not using it.
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
 
       '@pnpm.e2e/foo': { specifier: '=100.0.0', version: '100.0.0' },
     },
@@ -579,15 +579,15 @@ test('--fix-lockfile with --filter does not erase catalog snapshots', async () =
 
   const catalogs = {
     default: {
-      '@pnpm.e2e/bar': '^100.0.0',
-      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/bar': '^100.1.0',
+      '@pnpm.e2e/foo': '^100.1.0',
     },
   }
 
   const expectedCatalogsSnapshot: CatalogSnapshots = {
     default: {
-      '@pnpm.e2e/bar': { specifier: '^100.0.0', version: '100.1.0' },
-      '@pnpm.e2e/foo': { specifier: '^100.0.0', version: '100.1.0' },
+      '@pnpm.e2e/bar': { specifier: '^100.1.0', version: '100.1.0' },
+      '@pnpm.e2e/foo': { specifier: '^100.1.0', version: '100.1.0' },
     },
   }
 
@@ -1408,6 +1408,32 @@ describe('add', () => {
     })
     expect(readLockfile().packages).toStrictEqual({
       'is-positive@2.0.0': expect.any(Object),
+    })
+  })
+
+  test.each(['strict', 'prefer'] as const)('adding an aliasless tarball records its resolved name in catalogMode: %s', async (catalogMode) => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {},
+    }])
+    const specifier = `http://localhost:${REGISTRY_MOCK_PORT}/npm/is-positive/-/is-positive-1.0.0.tgz`
+
+    const { updatedManifest, updatedCatalogs } = await addDependenciesToPackage(
+      projects['project1' as ProjectId],
+      [specifier],
+      {
+        ...options,
+        dir: path.join(options.lockfileDir, 'project1'),
+        lockfileOnly: true,
+        allowNew: true,
+        catalogs: { default: {} },
+        catalogMode,
+      })
+
+    expect(updatedManifest.dependencies).toStrictEqual({ 'is-positive': 'catalog:' })
+    expect(updatedCatalogs).toStrictEqual({ default: { 'is-positive': specifier } })
+    expect(readLockfile().catalogs).toMatchObject({
+      default: { 'is-positive': { specifier } },
     })
   })
 

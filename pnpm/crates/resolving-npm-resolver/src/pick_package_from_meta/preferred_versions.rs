@@ -2,6 +2,7 @@ use super::{
     BTreeMap, Package, VersionSelectorEntry, VersionSelectorType, VersionSelectors,
     semver_satisfies_loose,
 };
+use pnpm_resolving_resolver_base::RESOLVED_VERSION_SELECTOR_WEIGHT;
 
 /// An exact preferred version that satisfies the range but is absent from
 /// `meta` can only be learned from the registry.
@@ -76,7 +77,9 @@ pub(crate) fn dominant_lockfile_version(
 
 pub(super) fn selector_info(entry: &VersionSelectorEntry) -> (VersionSelectorType, u32) {
     match entry {
-        VersionSelectorEntry::Plain(selector_type) => (*selector_type, 1),
+        VersionSelectorEntry::Plain(selector_type) => {
+            (*selector_type, RESOLVED_VERSION_SELECTOR_WEIGHT)
+        }
         VersionSelectorEntry::Weighted(weighted) => (weighted.selector_type, weighted.weight),
     }
 }
@@ -113,10 +116,11 @@ pub(super) fn prioritize_preferred_versions(
 
 /// Group-by-weight accumulator, including the quirk that weight `0`
 /// acts as a sentinel a later non-zero `add` overwrites rather than
-/// sums with.
+/// sums with. The sums are `u64`: thousands of manifest ranges matching
+/// one version add up past `u32::MAX`.
 #[derive(Default)]
 pub(super) struct PreferredVersionsPrioritizer {
-    pub(super) preferred_versions: BTreeMap<String, u32>,
+    pub(super) preferred_versions: BTreeMap<String, u64>,
 }
 
 impl PreferredVersionsPrioritizer {
@@ -155,14 +159,14 @@ impl PreferredVersionsPrioritizer {
             // JS truthiness: `0` is falsy, so a later positive
             // weight replaces the seed. Once non-zero, further
             // adds sum normally.
-            *entry = weight;
+            *entry = u64::from(weight);
         } else {
-            *entry += weight;
+            *entry += u64::from(weight);
         }
     }
 
     pub(super) fn versions_by_priority(&self) -> Vec<Vec<String>> {
-        let mut by_weight: BTreeMap<u32, Vec<String>> = BTreeMap::new();
+        let mut by_weight: BTreeMap<u64, Vec<String>> = BTreeMap::new();
         for (version, weight) in &self.preferred_versions {
             by_weight
                 .entry(*weight)

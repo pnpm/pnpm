@@ -9,7 +9,7 @@ import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { symlinkDirSync } from 'symlink-dir'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const testFixtures = fixtures(import.meta.dirname)
 
 const DEFAULT_OPTIONS = {
@@ -186,4 +186,6 @@ test('cliOptionsTypes', () => {
   expect(prune.cliOptionsTypes()).toHaveProperty('dev')
   expect(prune.cliOptionsTypes()).toHaveProperty('ignore-scripts')
   expect(prune.cliOptionsTypes()).toHaveProperty('optional')
+  expect(prune.cliOptionsTypes()).toHaveProperty('recursive')
+  expect(prune.rcOptionsTypes()).not.toHaveProperty('recursive')
 })

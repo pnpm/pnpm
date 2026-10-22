@@ -43,21 +43,36 @@ struct IndexFile {
 }
 
 impl IndexFile {
+    /// The digests of the metadata file, from whichever field publishes a
+    /// SHA-256 for it, or else whichever says the file exists.
     fn metadata_digests(&self) -> Option<BTreeMap<String, String>> {
-        [&self.core_metadata, &self.dist_info_metadata]
+        let fields = [&self.core_metadata, &self.dist_info_metadata];
+        let field = fields
             .into_iter()
-            .find_map(|value| match value {
-                serde_json::Value::Bool(true) => Some(BTreeMap::new()),
-                serde_json::Value::Object(digests) => Some(
+            .find(|field| field.get("sha256").is_some_and(serde_json::Value::is_string))
+            .or_else(|| {
+                fields
+                    .into_iter()
+                    .find(|field| {
+                        matches!(
+                            field,
+                            serde_json::Value::Bool(true) | serde_json::Value::Object(_),
+                        )
+                    })
+            })?;
+        Some(
+            field
+                .as_object()
+                .map(|digests| {
                     digests
                         .iter()
                         .filter_map(|(name, digest)| {
                             Some((name.clone(), digest.as_str()?.to_string()))
                         })
-                        .collect(),
-                ),
-                _ => None,
-            })
+                        .collect()
+                })
+                .unwrap_or_default(),
+        )
     }
 }
 

@@ -66,7 +66,7 @@ pub fn shell_from_args(
 impl CompletionArgs {
     pub fn run(&self) -> miette::Result<()> {
         let shell = shell_from_args(self.shell.as_deref(), &self.extra)?;
-        generate_completion(shell, &mut std::io::stdout())?;
+        pnpm_diagnostics::stdout::check(generate_completion(shell, &mut std::io::stdout()));
         Ok(())
     }
 }
@@ -83,16 +83,14 @@ impl CompletionServerArgs {
             } else {
                 completion
             };
-            println!("{completion}");
+            pnpm_diagnostics::println!("{completion}");
         }
         Ok(())
     }
 }
 
-pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> miette::Result<()> {
-    output
-        .write_all(shell.script().as_bytes())
-        .into_diagnostic()
+pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> std::io::Result<()> {
+    output.write_all(shell.script().as_bytes())
 }
 
 pub fn complete_words(words: &[String]) -> miette::Result<Vec<String>> {

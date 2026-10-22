@@ -5,12 +5,7 @@ import * as dp from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { PackageSnapshot, TarballResolution } from '@pnpm/lockfile.types'
 import type { Resolution } from '@pnpm/resolving.resolver-base'
-import {
-  getIntegrityAddressedTarballUrl,
-  getNpmTarballUrl,
-  isIntegrityAddressedRegistryTarballUrl,
-  isValidTarballRevision,
-} from '@pnpm/resolving.tarball-url'
+import { createRegistryRevisionsUnsupportedError, getNpmTarballUrl } from '@pnpm/resolving.tarball-url'
 import type { RegistryContext } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
@@ -57,13 +52,9 @@ function validateTarballResolution (depPath: string, resolution: TarballResoluti
     throw new PnpmError('INVALID_TARBALL_RESOLUTION',
       `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
   }
-  if (resolution.revision != null && !isValidTarballRevision(resolution.revision)) {
-    throw new PnpmError('INVALID_TARBALL_REVISION',
-      `Cannot install package "${depPath}": its lockfile entry has an invalid "revision" field.`)
-  }
-  if (resolution.revision != null && isNonRegistryTarballResolution(resolution)) {
-    throw new PnpmError('INVALID_TARBALL_REVISION',
-      `Cannot install package "${depPath}": its lockfile entry with a revision does not identify a registry tarball.`)
+  if ((resolution as { revision?: unknown }).revision != null) {
+    throw createRegistryRevisionsUnsupportedError(
+      `Cannot install package "${depPath}": its lockfile entry pins a registry revision.`)
   }
 }
 
@@ -107,32 +98,6 @@ interface ResolveTarballUrlParams {
 function resolveTarballUrl (params: ResolveTarballUrlParams): string {
   const { depPath, name, opts, registry, resolution, version } = params
   if (!resolution.tarball) {
-    return resolveMissingTarball(depPath, name, version, registry, resolution, opts)
-  }
-  if (
-    resolution.revision != null &&
-    (
-      resolution.integrity == null ||
-      !isIntegrityAddressedRegistryTarballUrl(resolution.tarball, resolution.integrity, registry)
-    )
-  ) {
-    throw new PnpmError('INVALID_TARBALL_REVISION',
-      `Cannot install package "${depPath}": its lockfile entry with a revision has a mismatched tarball URL.`)
-  }
-  return new url.URL(resolution.tarball,
-    registry.endsWith('/') ? registry : `${registry}/`
-  ).toString()
-}
-
-function resolveMissingTarball (
-  depPath: string,
-  name: string | undefined,
-  version: string | undefined,
-  registry: string,
-  resolution: TarballResolution,
-  opts: PkgSnapshotToResolutionOptions
-): string {
-  if (resolution.revision == null) {
     if (!name || !version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${depPath}`)
     }
@@ -141,12 +106,7 @@ function resolveMissingTarball (
       serverType: getRegistryServerType(opts, registry),
     })
   }
-  const integrityTarball = resolution.integrity == null
-    ? undefined
-    : getIntegrityAddressedTarballUrl(resolution.integrity, registry)
-  if (integrityTarball == null) {
-    throw new PnpmError('INVALID_TARBALL_REVISION',
-      `Cannot install package "${depPath}": its lockfile entry with a revision has invalid or missing integrity.`)
-  }
-  return integrityTarball
+  return new url.URL(resolution.tarball,
+    registry.endsWith('/') ? registry : `${registry}/`
+  ).toString()
 }

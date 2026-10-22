@@ -1,9 +1,8 @@
 //! What the non-npm registry surfaces share.
 //!
-//! A multi-ecosystem server uses `/npm/`, `/cargo/`, and `/pypi/`, while a
-//! single-ecosystem server serves that protocol at the root. The registry graph
-//! is consulted for the selected ecosystem only, so one router can front every
-//! ecosystem. This module holds the pieces the Cargo and Python
+//! Each ecosystem answers under its own prefix ([`Ecosystem::base_path`]).
+//! The registry graph is consulted for the selected ecosystem only, so one
+//! router can front every ecosystem. This module holds the pieces the Cargo and Python
 //! surfaces both need: addressing (which registry, which endpoint URL, which
 //! cache headers), the anonymous-readability check, hosted blob downloads,
 //! and the proxy cache for an upstream's metadata documents and artifacts.
@@ -42,28 +41,25 @@ pub(super) fn addressed_registry(
 }
 
 /// The two addresses a surface answers on: the default target, and one named
-/// registry. `prefixed` is whether the ecosystem shares the server, in which
-/// case both sit under `/<ecosystem>`.
+/// registry.
 ///
 /// Route templates rather than URLs — `{registry}` is a path parameter the
 /// [`TargetRegistry`](super::TargetRegistry) extractor reads back.
-pub(super) fn mount_bases(ecosystem: Ecosystem, prefixed: bool) -> [String; 2] {
-    let prefix = if prefixed { format!("/{ecosystem}") } else { String::new() };
+pub(super) fn mount_bases(ecosystem: Ecosystem) -> [String; 2] {
+    let prefix = ecosystem.base_path();
     [prefix.clone(), format!("{prefix}/~{{registry}}")]
 }
 
 /// The URL clients reach the addressed registry at for `ecosystem`, for the
 /// URLs a surface writes into the metadata it serves (a Cargo `config.json`,
-/// a Simple API page). Multi-ecosystem servers include the ecosystem segment;
-/// single-ecosystem servers use `public_url` directly.
+/// a Simple API page).
 pub(super) fn registry_endpoint(
     state: &AppState,
     ecosystem: Ecosystem,
     registry: Option<&str>,
 ) -> String {
     let public_url = state.inner.config.http.public_url.trim_end_matches('/');
-    let base =
-        format!("{public_url}{}", state.inner.config.routing.registries.base_path(ecosystem));
+    let base = format!("{public_url}{}", ecosystem.base_path());
     match registry {
         Some(registry) => format!("{base}/~{registry}"),
         None => base,
@@ -132,6 +128,21 @@ pub(super) fn hosted_sources(
         .sources(registry, ecosystem)
         .into_iter()
         .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
+        .map(str::to_string)
+        .collect()
+}
+
+/// The upstream registries of `ecosystem` a request through `registry` can land on.
+pub(super) fn upstream_sources(
+    state: &AppState,
+    registry: &str,
+    ecosystem: Ecosystem,
+) -> Vec<String> {
+    let registries = &state.inner.config.routing.registries;
+    registries
+        .sources(registry, ecosystem)
+        .into_iter()
+        .filter(|source| matches!(registries.get(source), Some(Registry::Upstream { .. })))
         .map(str::to_string)
         .collect()
 }

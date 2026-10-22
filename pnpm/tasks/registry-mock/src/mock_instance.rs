@@ -76,7 +76,10 @@ impl MockInstanceOptions<'_> {
         }
     }
 
-    pub(crate) async fn spawn(self) -> MockInstance {
+    pub(crate) async fn spawn_recording_pid(
+        self,
+        pid_tx: Option<tokio::sync::oneshot::Sender<u32>>,
+    ) -> MockInstance {
         let MockInstanceOptions {
             port, public_url, stdout, stderr, ..
         } = self;
@@ -93,6 +96,9 @@ impl MockInstanceOptions<'_> {
             .stderr(stderr)
             .spawn()
             .expect("spawn pnpr");
+        if let Some(tx) = pid_tx {
+            let _ = tx.send(process.id());
+        }
         // Owning the child before the readiness wait is what lets a panicking
         // or cancelled startup still run the kill-and-wait destructor.
         let instance = MockInstance { process };
@@ -100,6 +106,10 @@ impl MockInstanceOptions<'_> {
         self.wait_for_registry().await;
 
         instance
+    }
+
+    pub(crate) async fn spawn(self) -> MockInstance {
+        self.spawn_recording_pid(None).await
     }
 
     pub async fn spawn_if_necessary(self) -> Option<MockInstance> {
@@ -151,6 +161,7 @@ impl AutoMockInstance {
         }
     }
 
+    /// The npm registry URL, with a trailing `/`.
     #[must_use]
     pub fn url(&self) -> String {
         self.info().url()

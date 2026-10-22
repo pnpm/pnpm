@@ -27,6 +27,7 @@ security-framework = { workspace = true }
 security-framework-sys = { workspace = true }
 
 [dev-dependencies]
+flate2 = { workspace = true }
 mockito = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 pretty_assertions = { workspace = true }

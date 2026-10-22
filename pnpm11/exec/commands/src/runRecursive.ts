@@ -37,7 +37,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'nodeOptions'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extendNodePath' | 'extraBinPaths' | 'extraEnv' | 'preferSymlinkedExecutables' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'loglevel' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'deployAllFiles' | 'modulesDirsByProjectName' | 'sharedWorkspaceLockfile' | 'workspacePackagePatterns' | 'extendNodePath' | 'extraBinPaths' | 'extraEnv' | 'preferSymlinkedExecutables' | 'bail' | 'dryRun' | 'ignoreWorkspaceCycles' | 'loglevel' | 'reporter' | 'reverse' | 'sort' | 'tasks' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   json?: boolean

@@ -167,7 +167,7 @@ impl PlannedWorkspaceRelease {
             return Ok(());
         }
         if args.dry_run {
-            println!("{}", render_release_plan(&self.plan));
+            pnpm_diagnostics::println!("{}", render_release_plan(&self.plan));
             return Ok(());
         }
 
@@ -213,15 +213,15 @@ impl VersionArgs {
 
     fn report_no_pending_changes(&self) {
         if self.json {
-            println!("[]");
+            pnpm_diagnostics::println!("[]");
         } else {
-            println!(r#"No pending changes. Record one with "pnpm change"."#);
+            pnpm_diagnostics::println!(r#"No pending changes. Record one with "pnpm change"."#);
         }
     }
 
     fn report_applied_releases(&self, applied: &[pnpm_versioning::AppliedRelease]) {
         if self.json {
-            println!(
+            pnpm_diagnostics::println!(
                 "{}",
                 serde_json::to_string_pretty(applied).expect("serialize applied releases"),
             );
@@ -238,6 +238,6 @@ impl VersionArgs {
             )
             .expect("write to string");
         }
-        println!("{output}");
+        pnpm_diagnostics::println!("{output}");
     }
 }

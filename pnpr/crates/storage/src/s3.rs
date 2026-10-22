@@ -17,10 +17,13 @@ mod revision_refs;
 
 mod hosted_backend;
 
+mod records;
+
 use crate::{
-    BlobFinalize, DocumentWrite, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR,
-    HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, wait_after_document_write_conflict,
+    BLOBS_DIR, BlobFinalize, DOCUMENT_FILE, DocumentWrite, HOSTED_REVISION_REF_INDEX_FILE,
+    HOSTED_REVISION_REFS_DIR, HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion,
+    HostedRevisionRefIndex, HostedRevisionRefWrite, PACKAGES_DIR, decode_segment, encode_segment,
+    wait_after_document_write_conflict,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -51,7 +54,6 @@ const MAX_SINGLE_PUT_BYTES: u64 = 128 * 1024 * 1024;
 /// every part but the last.
 const MULTIPART_PART_BYTES: usize = 8 * 1024 * 1024;
 
-const DOCUMENT_FILE: &str = "package.json";
 const REVISION_REF_WRITE_RETRIES: usize = 32;
 
 /// Object-store-backed hosted store. Mirrors the verdaccio-shaped
@@ -305,7 +307,7 @@ impl S3Store {
     }
 
     pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        let prefix = ObjectPath::from(format!("{}{}/", self.prefix, name.as_str()));
+        let prefix = ObjectPath::from(self.package_prefix(name));
         let mut listing = self.store.list(Some(&prefix));
         let mut removed = false;
         while let Some(meta) = listing.next().await {
@@ -316,141 +318,107 @@ impl S3Store {
         Ok(removed)
     }
 
-    /// List the hosted package names (verdaccio-shaped: a name is a
-    /// directory holding a `package.json`). Backs the local search
-    /// endpoint when the hosted store lives in a bucket.
+    /// Every hosted package with a document, decoded and sorted. Backs the
+    /// local search endpoint when the hosted store lives in a bucket.
     pub async fn list_package_names(&self) -> Result<Vec<String>> {
-        let scope = (!self.prefix.is_empty()).then(|| {
-            ObjectPath::from(self.prefix.trim_end_matches('/').to_string())
-        });
-        let mut listing = self.store.list(scope.as_ref());
+        let mut listing = self.list_package_files();
         let mut names = Vec::new();
-        while let Some(meta) = listing.next().await {
-            let meta = meta?;
-            let key = meta.location.as_ref();
-            // Skip anything that isn't actually under our prefix rather
-            // than falling back to the full key, which would synthesize
-            // a wrong name. (Empty prefix strips to the whole key.)
-            let Some(rest) = key.strip_prefix(self.prefix.as_str()) else {
-                continue;
-            };
-            if let Some(name) = rest.strip_suffix(&format!("/{DOCUMENT_FILE}")) {
-                names.push(name.to_string());
+        while let Some(file) = listing.next().await {
+            let (name, file, _) = file?;
+            if file == PackageFile::Document {
+                names.push(name);
             }
         }
+        names.sort();
         Ok(names)
     }
 
+    /// Every document and blob below `packages/`, as the package it belongs
+    /// to and which of its files it is. Keys the layout does not produce are
+    /// left out.
+    pub(super) fn list_package_files(
+        &self,
+    ) -> futures_util::stream::BoxStream<'_, Result<(String, PackageFile, object_store::ObjectMeta)>>
+    {
+        let scope = ObjectPath::from(format!("{}{PACKAGES_DIR}", self.prefix));
+        let normalized_prefix = format!("{}/", scope.as_ref());
+        self.store
+            .list(Some(&scope))
+            .filter_map(move |result| {
+                let normalized_prefix = normalized_prefix.clone();
+                async move {
+                    let meta = match result {
+                        Ok(meta) => meta,
+                        Err(error) => return Some(Err(error.into())),
+                    };
+                    let rest = meta.location.as_ref().strip_prefix(normalized_prefix.as_str())?;
+                    let (package, file) = rest.split_once('/')?;
+                    let name = decode_segment(package)?;
+                    let file = if file == DOCUMENT_FILE {
+                        PackageFile::Document
+                    } else {
+                        let blob = file.strip_prefix(BLOBS_DIR)?.strip_prefix('/')?;
+                        PackageFile::Blob(decode_segment(blob)?)
+                    };
+                    Some(Ok((name, file, meta)))
+                }
+            })
+            .boxed()
+    }
+
+    pub(super) async fn list_package_blobs(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Vec<String>> {
+        let scope = ObjectPath::from(format!("{}{BLOBS_DIR}", self.package_prefix(name)));
+        let prefix = format!("{}/", scope.as_ref());
+        let mut listing = self.store.list(Some(&scope));
+        let mut blobs = Vec::new();
+        while let Some(result) = listing.next().await {
+            let meta = result?;
+            if let Some(rest) = meta.location.as_ref().strip_prefix(prefix.as_str())
+                && let Some(decoded) = decode_segment(rest)
+            {
+                blobs.push(decoded);
+            }
+        }
+        blobs.sort();
+        Ok(blobs)
+    }
+
+    pub(super) async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
+        let scope =
+            (!self.prefix.is_empty()).then(|| ObjectPath::from(self.prefix.trim_end_matches('/')));
+        let listing = self.store.list_with_delimiter(scope.as_ref()).await?;
+        Ok(listing.common_prefixes
+            .iter()
+            .filter_map(|prefix| prefix.filename())
+            .map(|dir| percent_encoding::percent_decode_str(dir).decode_utf8_lossy().into_owned())
+            .collect())
+    }
+
+    fn package_prefix(&self, name: &CanonicalPackageName) -> String {
+        format!("{}{PACKAGES_DIR}/{}/", self.prefix, encode_segment(name.as_str()))
+    }
+
     fn document_key(&self, name: &CanonicalPackageName) -> ObjectPath {
-        ObjectPath::from(format!("{}{}/{DOCUMENT_FILE}", self.prefix, name.as_str()))
+        ObjectPath::from(format!("{}{DOCUMENT_FILE}", self.package_prefix(name)))
     }
 
     fn blob_key(&self, name: &CanonicalPackageName, filename: &str) -> ObjectPath {
-        ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
+        ObjectPath::from(format!(
+            "{}{BLOBS_DIR}/{}",
+            self.package_prefix(name),
+            encode_segment(filename),
+        ))
     }
+}
 
-    // Records (see `storage::Storage` for the namespaces and the layout
-    // contract shared with the fs backend).
-
-    pub async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
-        match self.store.get(&self.record_key(namespace, key)).await {
-            Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
-            Err(object_store::Error::NotFound { .. }) => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
-        match self.store.put_opts(
-            &self.record_key(namespace, key),
-            PutPayload::from(bytes.to_vec()),
-            PutOptions { mode: PutMode::Create, ..PutOptions::default() },
-        )
-        .await
-        {
-            Ok(_) => Ok(true),
-            Err(
-                object_store::Error::AlreadyExists { .. }
-                | object_store::Error::Precondition { .. },
-            ) => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// Rewrite a record under `If-Match` on the version the caller read, so
-    /// only one replica can claim a record whose copy is current. The bytes
-    /// are compared as well: a rewrite the caller computed from something
-    /// other than what the bucket holds is a conflict even where the version
-    /// still matches.
-    pub async fn replace_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-        bytes: &[u8],
-    ) -> Result<DocumentWrite> {
-        let key = self.record_key(namespace, key);
-        let result = match self.store.get(&key).await {
-            Ok(result) => result,
-            // Gone: an approval that finished, or a rejection. A store that
-            // failed for any other reason is an error, not a conflict.
-            Err(object_store::Error::NotFound { .. }) => return Ok(DocumentWrite::Conflict),
-            Err(err) => return Err(err.into()),
-        };
-        let version = UpdateVersion {
-            e_tag: result.meta.e_tag.clone(),
-            version: result.meta.version.clone(),
-        };
-        if result.bytes().await?.as_ref() != expected {
-            return Ok(DocumentWrite::Conflict);
-        }
-        match self.store.put_opts(
-            &key,
-            PutPayload::from(bytes.to_vec()),
-            PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
-        )
-        .await
-        {
-            Ok(_) => Ok(DocumentWrite::Written),
-            Err(
-                object_store::Error::AlreadyExists { .. }
-                | object_store::Error::NotFound { .. }
-                | object_store::Error::Precondition { .. },
-            ) => Ok(DocumentWrite::Conflict),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
-        match self.store.delete(&self.record_key(namespace, key)).await {
-            Ok(()) => Ok(true),
-            Err(object_store::Error::NotFound { .. }) => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
-        let scope = format!("{}{namespace}/", self.prefix);
-        let mut listing = self.store.list(Some(&ObjectPath::from(scope.as_str())));
-        let mut keys = Vec::new();
-        while let Some(meta) = listing.next().await {
-            let meta = meta?;
-            // `ObjectPath` normalizes what it is built from, so compare
-            // against the same normalization rather than the raw prefix.
-            let Some(key) = meta.location
-                .as_ref()
-                .strip_prefix(ObjectPath::from(scope.as_str()).as_ref())
-            else {
-                continue;
-            };
-            keys.push(key.trim_start_matches('/').to_string());
-        }
-        Ok(keys)
-    }
-
-    fn record_key(&self, namespace: &str, key: &str) -> ObjectPath {
-        ObjectPath::from(format!("{}{namespace}/{key}", self.prefix))
-    }
+/// Which file of a package an object is.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) enum PackageFile {
+    Document,
+    Blob(String),
 }
 
 #[cfg(test)]

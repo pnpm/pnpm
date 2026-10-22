@@ -6,7 +6,11 @@
 //! never populated with package contents — the client fetches every
 //! tarball itself.
 
-use std::{collections::HashSet, path::Path, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use dashmap::DashMap;
 use pnpm_catalogs_types::Catalogs;
@@ -31,8 +35,14 @@ mod install;
 pub enum ResolveError {
     Io(std::io::Error),
     Manifest(String),
-    Install(String),
+    Install { message: String, code: Option<String> },
     NoLockfile,
+}
+
+impl ResolveError {
+    pub fn install(message: impl Into<String>) -> Self {
+        Self::Install { message: message.into(), code: None }
+    }
 }
 
 impl std::fmt::Display for ResolveError {
@@ -40,7 +50,7 @@ impl std::fmt::Display for ResolveError {
         match self {
             ResolveError::Io(err) => write!(f, "{err}"),
             ResolveError::Manifest(msg) => write!(f, "failed to read manifest: {msg}"),
-            ResolveError::Install(msg) => write!(f, "resolution failed: {msg}"),
+            ResolveError::Install { message, .. } => write!(f, "resolution failed: {message}"),
             ResolveError::NoLockfile => write!(f, "resolution produced no lockfile"),
         }
     }
@@ -77,36 +87,48 @@ pub async fn resolve(
     auth_headers: &Arc<AuthHeaders>,
     observer: Option<Arc<dyn ResolutionObserver>>,
 ) -> Result<Lockfile, ResolveError> {
-    let projects = request.projects_normalized();
-
     let temp = tempfile::Builder::new().prefix("pnpr-resolve-").tempdir()?;
     let dir = temp.path();
 
-    let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects).await?;
-    write_workspace_manifest(dir, &member_dirs).await?;
-
-    let manifest = root_manifest(dir, wrote_root)?;
-
-    let input_lockfile = request.lockfile.as_ref();
-    let lockfile_path = dir.join(Lockfile::FILE_NAME);
-    if let Some(lockfile) = input_lockfile {
-        lockfile
-            .save_to_path(&lockfile_path)
-            .map_err(|err| ResolveError::Install(err.to_string()))?;
-    }
+    let manifest = prepare_resolve_workspace(dir, request).await?;
+    let lockfile_path = write_input_lockfile(dir, request.lockfile.as_ref())?;
 
     let resolved_packages: ResolvedPackages = DashMap::new();
     ResolutionInstall { config, client, request, auth_headers, observer }
         .build(&resolved_packages, &manifest, &lockfile_path)
         .run::<SilentReporter>()
         .await
-        .map_err(|err| ResolveError::Install(err.to_string()))?;
+        .map_err(|err| {
+            let code = miette::Diagnostic::code(&err).map(|code| code.to_string());
+            ResolveError::Install { message: err.to_string(), code }
+        })?;
 
-    let lockfile = Lockfile::load_wanted_from_dir(dir)
-        .map_err(|err| ResolveError::Install(err.to_string()))?
-        .ok_or(ResolveError::NoLockfile)?;
+    Lockfile::load_wanted_from_dir(dir)
+        .map_err(|err| ResolveError::install(err.to_string()))?
+        .ok_or(ResolveError::NoLockfile)
+}
 
-    Ok(lockfile)
+async fn prepare_resolve_workspace(
+    dir: &Path,
+    request: &ResolveRequest,
+) -> Result<PackageManifest, ResolveError> {
+    let projects = request.projects_normalized();
+    let Workspace { member_dirs, wrote_root } = write_importer_manifests(dir, &projects).await?;
+    write_workspace_manifest(dir, &member_dirs).await?;
+    root_manifest(dir, wrote_root)
+}
+
+fn write_input_lockfile(
+    dir: &Path,
+    input_lockfile: Option<&Lockfile>,
+) -> Result<PathBuf, ResolveError> {
+    let lockfile_path = dir.join(Lockfile::FILE_NAME);
+    if let Some(lockfile) = input_lockfile {
+        lockfile
+            .save_to_path(&lockfile_path)
+            .map_err(|err| ResolveError::install(err.to_string()))?;
+    }
+    Ok(lockfile_path)
 }
 
 /// Install needs an active manifest, but keeping this stand-in in
@@ -137,7 +159,7 @@ async fn write_workspace_manifest(dir: &Path, member_dirs: &[&str]) -> Result<()
         // `-`, ...) stays a plain string instead of being reparsed as a
         // mapping or breaking the document.
         let quoted =
-            serde_json::to_string(member).map_err(|err| ResolveError::Install(err.to_string()))?;
+            serde_json::to_string(member).map_err(|err| ResolveError::install(err.to_string()))?;
         yaml.push_str("  - ");
         yaml.push_str(&quoted);
         yaml.push('\n');
@@ -160,7 +182,7 @@ async fn write_importer_manifests<'a>(
         // to `.`): writing the same `package.json` twice would silently
         // drop the earlier project's dependency map.
         if !seen_dirs.insert(rel) {
-            return Err(ResolveError::Install(format!("duplicate importer dir: {rel:?}")));
+            return Err(ResolveError::install(format!("duplicate importer dir: {rel:?}")));
         }
         let project_dir = if rel == "." {
             wrote_root = true;
@@ -189,7 +211,7 @@ async fn write_importer_manifest(
 ) -> Result<(), ResolveError> {
     let manifest_json = importer_manifest_json(project, rel);
     let manifest_bytes =
-        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::Install(err.to_string()))?;
+        serde_json::to_vec(&manifest_json).map_err(|err| ResolveError::install(err.to_string()))?;
     let opened = tokio::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -198,7 +220,7 @@ async fn write_importer_manifest(
     let mut file = match opened {
         Ok(file) => file,
         Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(ResolveError::Install(format!(
+            return Err(ResolveError::install(format!(
                 "duplicate importer dir: {rel:?} resolves to a directory already written by another importer",
             )));
         }
@@ -317,7 +339,7 @@ fn sanitized_importer_dir(dir: &str) -> Result<&str, ResolveError> {
             .split('/')
             .any(|component| component.is_empty() || component == "." || component == "..")
     {
-        return Err(ResolveError::Install(format!("unsafe importer dir: {dir:?}")));
+        return Err(ResolveError::install(format!("unsafe importer dir: {dir:?}")));
     }
     Ok(dir)
 }
@@ -351,6 +373,9 @@ fn check_frozen_settings(
     check_lockfile_settings(
         lockfile,
         LockfileSettingsCheck {
+            // The client validated `lockfile.integrityTarget` against the
+            // lockfile before sending a frozen request.
+            integrity_target: lockfile.integrity_target(),
             catalogs: request.catalogs.as_ref().unwrap_or(&no_catalogs),
             overrides: None,
             package_extensions_checksum: None,
@@ -360,6 +385,7 @@ fn check_frozen_settings(
                 auto_install_peers: config.auto_install_peers,
                 dedupe_peers: config.dedupe_peers,
                 exclude_links_from_lockfile: config.exclude_links_from_lockfile,
+                add_missing_peer_types: config.add_missing_peer_types,
                 inject_workspace_packages: config.inject_workspace_packages,
                 peers_suffix_max_length: config.peers_suffix_max_length,
                 pnpmfile_checksum: PnpmfileChecksumCheck::Skip,

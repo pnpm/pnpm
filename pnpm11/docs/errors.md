@@ -26,7 +26,7 @@ A project has a workspace dependency that does not exist in the workspace.
 
 For instance, package `foo` has `bar@1.0.0` in the `dependencies`:
 
-```json
+```json title="package.json"
 {
   "name": "foo",
   "version": "1.0.0",
@@ -67,6 +67,12 @@ This might happen if a lockfile had badly resolved merge conflicts.
 If you use a registry that allows to override existing versions of a package, then it might mean that in your local metadata cache you have the integrity checksum of an older version of the package. In this case, you should run `pnpm store prune`. This command will remove your local metadata cache. Then you can retry the command that failed.
 
 But also be careful and verify that the package is downloaded from the right URL. The URL should be printed in the error message.
+
+## ERR_PNPM_REGISTRY_NAME_MISMATCH
+
+The registry answered a request for one package with the metadata of a different package. pnpm stops instead of installing the package under a name the registry was not asked about.
+
+Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
 
 ## ERR_PNPM_MISMATCHED_RELEASE_CHANNEL
 

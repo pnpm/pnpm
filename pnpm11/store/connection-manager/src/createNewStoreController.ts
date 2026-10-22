@@ -32,6 +32,7 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 | 'fetchTimeout'
 | 'fetchWarnTimeoutMs'
 | 'fetchMinSpeedKiBps'
+| 'maxTarballUnpackedSize'
 | 'gitShallowHosts'
 | 'ignoreScripts'
 | 'httpProxy'
@@ -146,6 +147,7 @@ function buildClientNetworkOptions (
     maxSockets,
     fetchWarnTimeoutMs: opts.fetchWarnTimeoutMs,
     fetchMinSpeedKiBps: opts.fetchMinSpeedKiBps,
+    maxTarballUnpackedSize: opts.maxTarballUnpackedSize,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,

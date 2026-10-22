@@ -31,6 +31,7 @@ pub use create_npm_resolution_verifier::{
 };
 pub use errors::{
     FetchMetadataError, InvalidTarballIntegrityError, InvalidTarballRevisionMetadataError,
+    MissingTarballUrlError,
 };
 pub use fetch_attestation_published_at::{FetchAttestationOptions, fetch_attestation_published_at};
 pub use fetch_full_metadata::{
@@ -75,7 +76,8 @@ pub use resolve_from_workspace::{
     resolve_workspace_package_dir, try_resolve_from_workspace,
 };
 pub use trust_checks::{
-    TrustCheckOptions, TrustEvidence, TrustViolation, fail_if_trust_downgraded, get_trust_evidence,
+    TrustCheckOptions, TrustEvidence, TrustHistory, TrustViolation, fail_if_trust_downgraded,
+    get_trust_evidence,
 };
 pub use violation_codes::{MINIMUM_RELEASE_AGE_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE};
 pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm};
@@ -83,12 +85,14 @@ pub use workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm
 mod calc_specifier;
 mod calc_specifier_for_workspace_dep;
 mod create_npm_resolution_verifier;
+mod decode_pool;
 mod errors;
 mod fetch_attestation_published_at;
 mod fetch_full_metadata;
 mod fetch_full_metadata_cached;
 mod infer_range_spec_style;
 mod lookup_context;
+mod metadata_cache_policy;
 mod named_registry;
 mod named_registry_resolver;
 mod npm_resolver;

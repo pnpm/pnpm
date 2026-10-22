@@ -263,7 +263,7 @@ build:
 
 You can use pnpm for installing and caching your dependencies:
 
-```title="Jenkinsfile"
+```groovy title="Jenkinsfile"
 pipeline {
     agent {
         docker {

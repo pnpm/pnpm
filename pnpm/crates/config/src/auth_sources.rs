@@ -11,6 +11,13 @@ pub(super) struct AuthSources {
     pub(super) trusted_auth: NpmrcAuth,
 }
 
+impl AuthSources {
+    /// No source read, for a load that needs no registry.
+    pub(super) fn none() -> Self {
+        Self { npmrc_auth: NpmrcAuth::default(), trusted_auth: NpmrcAuth::default() }
+    }
+}
+
 /// The project `.npmrc`, parsed as untrusted unless the user-level auth
 /// file explicitly points at it.
 fn project_auth_source<Sys>(
@@ -105,6 +112,12 @@ fn env_scoped_auth_source<Sys: EnvVar>() -> Option<NpmrcAuth> {
     (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
 }
 
+/// The command line's settings ([`CliLayer::npmrc_tokens`](crate::CliLayer::npmrc_tokens)):
+/// trusted, and above every other source.
+fn cli_auth_source(cli: &crate::CliLayer) -> Option<NpmrcAuth> {
+    (!cli.npmrc_tokens.is_empty()).then(|| NpmrcAuth::from_cli_config(cli))
+}
+
 /// Structured `_auth` registry auth from its two trusted sources:
 /// the `pnpm_config__auth` env var and the global `config.yaml`'s
 /// `_auth` key (env wins on conflict). See `from_json_sources`.
@@ -151,6 +164,29 @@ pub(super) fn note_declared_registries(
 }
 
 impl Config {
+    /// [`Self::collect_auth_sources`], or none for a load that reads only
+    /// the [`crate::PIN_DECISION_SETTINGS`].
+    pub(super) fn read_auth_sources<Sys>(
+        &mut self,
+        start_dir: &std::path::Path,
+        workspace_yaml: Option<&(PathBuf, Option<WorkspaceSettings>)>,
+        global_settings: Option<&WorkspaceSettings>,
+        global_config_dir: Option<&Path>,
+    ) -> Result<AuthSources, LoadWorkspaceYamlError>
+    where
+        Sys: EnvVar + EnvVarOs + GetCurrentDir + GetHomeDir + LinkProbe,
+    {
+        if self.settings_read == crate::SettingsRead::PinDecision {
+            return Ok(AuthSources::none());
+        }
+        self.collect_auth_sources::<Sys>(
+            start_dir,
+            workspace_yaml,
+            global_settings,
+            global_config_dir,
+        )
+    }
+
     /// The `.npmrc` layers that contribute credentials, folded into the merged
     /// view plus the trusted-only view the bootstrap and the `tokenHelper`
     /// check need.
@@ -173,16 +209,28 @@ impl Config {
         // labels itself with the path it was actually loaded from.
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
-        let project_source =
+        let mut project_source =
             project_auth_source::<Sys>(project_npmrc_dir, user_npmrc_path.as_deref());
-        let auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
-        let user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
-        let env_scoped_source = env_scoped_auth_source::<Sys>();
-        let env_json_source = env_json_auth_source::<Sys>(global_settings)?;
+        let mut auth_ini_source = auth_ini_source::<Sys>(global_config_dir);
+        let mut user_source = user_auth_source::<Sys>(user_npmrc_path.as_deref());
+        let mut env_scoped_source = env_scoped_auth_source::<Sys>();
+        let mut cli_source = cli_auth_source(&self.cli);
+        let env_json_source = self.keep_warnings_on_error(
+            env_json_auth_source::<Sys>(global_settings),
+            [
+                &mut user_source,
+                &mut auth_ini_source,
+                &mut project_source,
+                &mut env_scoped_source,
+                &mut cli_source,
+            ],
+        );
+        let env_json_source = self.skip_if_unreadable(env_json_source, || None)?;
 
         // Capture the trusted sources (everything but `project_source`) for
         // [`PackageManagerBootstrap`] before the fold below consumes them.
         let trusted_sources = [
+            cli_source.clone(),
             env_json_source.clone(),
             env_scoped_source.clone(),
             auth_ini_source.clone(),
@@ -193,6 +241,7 @@ impl Config {
         // env var wins on the rare occasion both define the same
         // `//host/:_authToken` key.
         let mut npmrc_auth = merge_auth_sources([
+            cli_source,
             env_json_source,
             env_scoped_source,
             project_source,
@@ -205,13 +254,45 @@ impl Config {
         // are consumed below.
         self.raw_auth_config = std::mem::take(&mut npmrc_auth.raw_ini_config);
 
+        npmrc_auth.move_warnings_to(self);
         let trusted_auth = merge_auth_sources(trusted_sources);
 
-        // A `tokenHelper` names an executable, so it is honored only from a
-        // trusted, non-repo source.
-        crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth)?;
+        self.trust_token_helper(npmrc_auth, trusted_auth)
+    }
+
+    /// A `tokenHelper` names an executable, so it is honored only from a
+    /// trusted, non-repo source. Leaving out the unreadable leaves out the
+    /// project `.npmrc` that names one, keeping the trusted sources.
+    fn trust_token_helper(
+        &self,
+        mut npmrc_auth: NpmrcAuth,
+        trusted_auth: NpmrcAuth,
+    ) -> Result<AuthSources, LoadWorkspaceYamlError> {
+        let trusted = crate::npmrc_auth::enforce_token_helper_trust(&npmrc_auth, &trusted_auth);
+        if trusted.is_err() && self.settings_read.skips_unreadable() {
+            npmrc_auth = trusted_auth.clone();
+        } else {
+            trusted?;
+        }
 
         Ok(AuthSources { npmrc_auth, trusted_auth })
+    }
+
+    /// Move the warnings `sources` raised onto [`Config::npmrc_warnings`]
+    /// when `result` failed, since the error ends the load before the
+    /// sources are merged. `sources` go lowest priority first, the order
+    /// [`NpmrcAuth::merge_under`] keeps their warnings in.
+    fn keep_warnings_on_error(
+        &mut self,
+        result: Result<Option<NpmrcAuth>, LoadWorkspaceYamlError>,
+        sources: [&mut Option<NpmrcAuth>; 5],
+    ) -> Result<Option<NpmrcAuth>, LoadWorkspaceYamlError> {
+        if result.is_err() {
+            for source in sources.into_iter().flatten() {
+                source.move_warnings_to(self);
+            }
+        }
+        result
     }
 
     /// Resolve the user-level `.npmrc` path. Precedence: the

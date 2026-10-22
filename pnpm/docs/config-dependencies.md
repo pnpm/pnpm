@@ -9,16 +9,35 @@ Config dependencies help you keep all the hooks, settings, patches, overrides, c
 
 If your config dependency is named following the `pnpm-plugin-*`, `@*/pnpm-plugin-*`, or `@pnpm/plugin-*` pattern, pnpm will automatically load its `pnpmfile.mjs` (falling back to `pnpmfile.cjs`) from the package root.
 
+Config dependencies must come from an npm registry. pnpm verifies them against their registry before installing them, so installing a new or changed config dependency offline requires cached registry metadata. A config dependency pinned with `version+integrity` keeps that integrity as its pin. [`minimumReleaseAge`](./settings/dependency-resolution.md#minimumreleaseage) applies to config dependencies that are not pinned with `version+integrity`. pnpm installs them before any `updateConfig` hook runs, so a [`minimumReleaseAgeExclude`](./settings/dependency-resolution.md#minimumreleaseageexclude) entry added by a hook does not cover them. Since v12.15.0, [`bootConfig`](./config-includes.md#bootconfig) sets a separate policy for installing config dependencies.
+
+A config dependency can also supply settings declaratively, without a pnpmfile. See [Settings from config dependencies](./config-includes.md#settings-from-config-dependencies).
+
+Removing a package from `configDependencies` removes its installed link and unused lockfile entries on the next `pnpm install`. This also applies when you remove the entire setting. Run without `--frozen-lockfile` to update the lockfile after changing the declarations.
+
 ## How to Add a Config Dependency
 
-Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [env lockfile document](./lockfile.md)).
+Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [boot document](./lockfile.md)).
 
 For example, running `pnpm add --config my-configs` will add this entry to your `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 configDependencies:
-  my-configs: "1.0.0"
+  my-configs: "^1.0.0"
 ```
+
+Since v12.12.0, the saved range follows the same rules as `pnpm add`. It uses [`savePrefix`](./settings/other.md#saveprefix), and `--save-exact` saves the exact version. A dist-tag such as `my-configs@latest` is saved as a range on the version it resolved to.
+
+## How to Update Config Dependencies
+
+Since v12.12.0, [`pnpm update`](./cli/update.md) updates config dependencies the way it updates the dependencies in `package.json`:
+
+* `pnpm update` moves each config dependency to the newest version its range allows and saves the new range in `pnpm-workspace.yaml`.
+* `pnpm update --latest` moves them to their latest version, keeping the range operator.
+* `pnpm update my-configs` updates only the config dependencies it names. Patterns such as `"@myorg/*"` are accepted.
+* A config dependency declared with a dist-tag keeps tracking the tag. Only `pnpm-lock.yaml` moves.
+
+Config dependencies are left alone by `--interactive`, `--patches`, `--no-save`, `--filter`, and the flags that select dependency groups, such as `--prod`. A config dependency pinned with `version+integrity` is not updated.
 
 **Important:**
 
@@ -29,7 +48,7 @@ configDependencies:
 
 A config dependency may ship platform-specific binaries via `optionalDependencies`, the same pattern used by tools like esbuild and swc. Each platform-binary package declares its supported platform with `os`, `cpu`, and/or `libc` fields, and pnpm installs only the variant that matches the current host. The matching binary is symlinked next to the parent config dependency in the global virtual store, so `require('my-config-platform-arch')` from inside the config dependency resolves at runtime.
 
-The env lockfile records all platform variants regardless of host platform, so the lockfile stays portable across machines.
+The boot document records all platform variants regardless of host platform, so the lockfile stays portable across machines.
 
 Each entry in `optionalDependencies` must be declared with an **exact** version (e.g. `"1.2.3"`) — ranges (`"^1.0.0"`, `"~1.0.0"`) and tags (`"latest"`) are rejected. This keeps config-dep installs reproducible: the resolved subdep can't drift between machines for a parent that's pinned by integrity.
 
@@ -69,19 +88,19 @@ export const hooks = {
 
 If you install it as config dependency:
 
-```
+```sh
 pnpm add --config @myorg/pnpm-plugin-my-catalogs
 ```
 
 Then you can run:
 
-```
+```sh
 pnpm add is-odd@catalog:
 ```
 
 This will install `is-odd@1.0.0` and add the following to your `package.json`:
 
-```json
+```json title="package.json"
 {
   "dependencies": {
     "is-odd": "catalog:"

@@ -36,7 +36,7 @@ pub(in crate::server) struct Claims {
 fn signing_key(state: &AppState) -> Result<SigningKey, RegistryError> {
     let mut hash = Sha256::new();
     hash.update(b"pnpr OCI token signing v1\0");
-    hash.update(&state.inner.config.resolution_cache_secret);
+    hash.update(&state.inner.config.oci_secret);
     SigningKey::from_slice(&hash.finalize())
         .map_err(|_| RegistryError::Internal { reason: "invalid OCI signing key".to_string() })
 }

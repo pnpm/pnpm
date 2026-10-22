@@ -37,10 +37,13 @@ fn acquire_creates_the_lock_and_drop_releases_it() {
     let lock = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
         .expect("acquire")
         .expect("uncontended lock is taken");
+    let held_path = super::held_path(&path).expect("resolve the held file");
     assert!(path.is_dir(), "the lock directory exists while held");
+    assert!(held_path.is_file(), "the held file exists while held");
 
     drop(lock);
     assert!(!path.exists(), "the lock directory is removed on drop");
+    assert!(!held_path.exists(), "the held file is removed on drop");
 }
 
 #[test]
@@ -146,7 +149,7 @@ fn a_directory_whose_held_file_is_locked_is_not_taken_over() {
     let path = root.path().join("engine.lock");
     fs::create_dir(&path).expect("plant an aged lock");
     let held = open_held_file(&path);
-    crate::try_lock_file(&held, true).expect("hold the file lock");
+    crate::try_lock_file(&held, crate::LockMode::Exclusive).expect("hold the file lock");
     sleep(AGE);
 
     let contended = DirLock::acquire(path.clone(), Duration::ZERO, THRESHOLD).expect("acquire");
@@ -208,27 +211,49 @@ fn a_live_holder_keeps_the_held_file_locked() {
         .expect("uncontended lock is taken");
     let probe = open_held_file(&path);
     assert!(
-        matches!(crate::try_lock_file(&probe, true), Err(TryLockError::WouldBlock)),
+        matches!(
+            crate::try_lock_file(&probe, crate::LockMode::Exclusive),
+            Err(TryLockError::WouldBlock)
+        ),
         "the holder keeps the file lock",
     );
 
     drop(held);
     assert!(!path.exists());
-    crate::try_lock_file(&probe, true).expect("the file lock is released with the directory");
+    crate::try_lock_file(&probe, crate::LockMode::Exclusive)
+        .expect("the file lock is released with the directory");
+    // `probe` still holds an OS lock on the unlinked inode from the first
+    // acquisition; a subsequent acquire must notice via `path_still_names`
+    // that the unlinked inode no longer names `held_path` and lock a fresh
+    // held file instead.
+    let reacquired = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
+        .expect("reacquire")
+        .expect("unlinked held inode does not block a new acquisition");
+    drop(reacquired);
+    assert!(!super::held_path(&path).expect("resolve held file").exists());
 }
 
-/// The held file keeps one identity for every process that locks it, so
-/// a holder's record of it is recognized by every later waiter.
+/// A holder that died without running `Drop` leaves its held file on disk
+/// with the identity recorded in the lock directory, so every waiter that
+/// locks it reads the same identity until the successor releases the lock.
 #[test]
-fn the_held_file_keeps_its_identity_across_locks() {
+fn a_dead_holders_held_file_keeps_its_identity_until_taken_over() {
     let root = tempdir().expect("create tempdir");
     let path = root.path().join("engine.lock");
+    plant_dead_holders_lock(&path);
+    let planted_id =
+        fs::read_to_string(path.join(super::HELD_MARKER)).expect("read planted held marker");
 
-    let first = held_file_id(&path);
-    let second = held_file_id(&path);
+    let mut waiter = HeldFile::open(&path);
+    assert_eq!(waiter.lock(), Liveness::Proven);
+    assert_eq!(waiter.id(), Some(planted_id.as_str()));
+    drop(waiter);
 
-    assert!(!first.is_empty());
-    assert_eq!(first, second);
+    let taken = DirLock::acquire(path.clone(), Duration::ZERO, NEVER_ABANDONED)
+        .expect("acquire")
+        .expect("a dead holder's lock is taken over");
+    drop(taken);
+    assert!(!super::held_path(&path).expect("resolve held file").exists());
 }
 
 fn open_held_file(lock_path: &Path) -> File {
@@ -240,18 +265,10 @@ fn pnpm_fs_open(path: &Path) -> File {
     crate::open_secure_lock_file(path).expect("open the held file")
 }
 
-/// The identity this host's held file for `lock_path` records, as a
-/// holder would write it into its lock directory.
-fn held_file_id(lock_path: &Path) -> String {
-    let mut held = HeldFile::open(lock_path);
-    assert_eq!(held.lock(), Liveness::Proven, "the held file is free to lock");
-    held.id()
-        .expect("a locked held file has an identity")
-        .to_owned()
-}
-
 fn plant_dead_holders_lock(path: &Path) {
-    let held_id = held_file_id(path);
+    let mut held = HeldFile::open(path);
+    assert_eq!(held.lock(), Liveness::Proven, "the held file is free to lock");
+    let held_id = held.id().expect("a locked held file has an identity");
     fs::create_dir(path).expect("plant the lock directory");
     fs::write(path.join(super::HELD_MARKER), held_id).expect("plant the held marker");
     fs::write(path.join(super::OWNER_FILE), "1-2-3").expect("plant the owner record");
@@ -302,4 +319,50 @@ fn transient_release_error_classifier_is_windows_specific() {
     for kind in [io::ErrorKind::NotFound, io::ErrorKind::InvalidInput, io::ErrorKind::Other] {
         assert!(!super::is_transient_release_error(&io::Error::from(kind)), "{kind:?}");
     }
+}
+
+#[test]
+fn persistent_held_file_open_error_falls_back_to_unavailable_after_retry_budget() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    let mut held = HeldFile::open(&path);
+    let error = io::Error::from(io::ErrorKind::PermissionDenied);
+
+    let initial = held.classify_open_error(&error);
+    assert_eq!(initial, if cfg!(windows) { Liveness::Busy } else { Liveness::Unavailable });
+
+    held.open_retry_started = Some(
+        std::time::Instant::now()
+            .checked_sub(super::RELEASE_RETRY_BUDGET + Duration::from_millis(1))
+            .expect("instant before retry budget"),
+    );
+    assert_eq!(held.classify_open_error(&error), Liveness::Unavailable);
+    assert!(held.held_path.is_none(), "held path is cleared once retry budget expires");
+}
+
+#[test]
+fn missing_parent_held_file_open_retries_within_budget_then_falls_back() {
+    let root = tempdir().expect("create tempdir");
+    let path = root.path().join("engine.lock");
+    let missing = root
+        .path()
+        .join("missing-dir")
+        .join("lock.held");
+    let mut held = HeldFile::open(&path);
+    held.held_path = Some(missing.clone());
+
+    assert!(
+        held.open_file(&missing)
+            .expect("within retry budget")
+            .is_none(),
+    );
+    assert!(held.held_path.is_some(), "transient NotFound keeps held_path for retry");
+
+    held.open_retry_started = Some(
+        std::time::Instant::now()
+            .checked_sub(super::RELEASE_RETRY_BUDGET + Duration::from_millis(1))
+            .expect("instant before retry budget"),
+    );
+    assert_eq!(held.open_file(&missing).unwrap_err(), Liveness::Unavailable);
+    assert!(held.held_path.is_none(), "expired retry budget clears held_path");
 }

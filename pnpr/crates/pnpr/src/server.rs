@@ -1,14 +1,24 @@
+pub(crate) use client_ip::{ClientIp, resolve_client_ip};
+pub use lifecycle::{recover_publish_journal, serve, serve_listener};
+pub(crate) use metrics::{ServerMetrics, serve_metrics};
+pub(crate) use request_access::compute_upstream_cache_namespace;
+pub(crate) use request_id::{RequestId, generate_request_id, is_valid_request_id};
+pub(crate) use tar_variants::NAMESPACE as TAR_VARIANT_CACHE_NAMESPACE;
 pub(crate) use tcp_listener::PeerAddr;
 
 pub(crate) use self::striped_locks::StripedLocks;
+
+mod lifecycle;
+use lifecycle::load_active_osv_index;
 
 mod tcp_listener;
 use tcp_listener::NodelayTcpListener;
 
 mod pnpr_protocol;
 use pnpr_protocol::{
-    pnpr_protocols_disabled, serve_artifact_blob, serve_pnpr_handshake, serve_publish_artifact,
-    serve_resolve, serve_resolve_artifacts, serve_verify_lockfile,
+    pnpr_protocols_disabled, serve_artifact_blob, serve_artifact_blob_size, serve_pnpr_handshake,
+    serve_publish_artifact, serve_resolve, serve_resolve_artifacts, serve_upload_artifact_blob,
+    serve_verify_lockfile,
 };
 
 mod pipeline_runs;
@@ -17,26 +27,49 @@ use pipeline_runs::{
 };
 
 mod organizations;
-use organizations::{get_org_teams, get_team_members, reject_team_mutation, serve_org_packages};
+use organizations::{get_org_teams, get_team_members, serve_org_packages};
 
 mod package_search;
 use package_search::{
     DiscoverySource, SearchPage, discovery_sources, hosted_search_names, serve_search,
 };
 
+mod osv_filtering;
+use osv_filtering::{
+    ensure_osv_allowed, filter_osv_vulnerable_dist_tags, filter_osv_vulnerable_versions,
+    is_osv_vulnerable_packument_version, resolve_version_or_tag,
+};
+
+mod tar_registry;
+use tar_registry::{
+    DistView, describe_tar, describe_tars, dist_view, is_tar_registry, split_package_identifier,
+    tar_integrities_of, tgz_integrity_key,
+};
+
+mod tar_responses;
+use tar_responses::{
+    CachedTgz, MAX_CONCURRENT_TAR_DECODES, TarSource, TgzTrust, tar_decode_limit, tar_integrity_of,
+    tar_integrity_within, tar_resource_integrity, tar_response,
+};
+
+mod version_tarballs;
+use version_tarballs::{VersionTgzCache, serve_package_tarball};
+
+mod tar_variants;
+use tar_variants::{TarCopy, TarVariantQueue, open_variant};
+
 mod package_responses;
 use package_responses::{
-    DistBlock, TarballDist, ensure_osv_allowed, expected_tarball_dist,
-    filter_osv_vulnerable_dist_tags, is_osv_vulnerable_packument_version, packument_bytes_response,
-    packument_response, resolve_version_or_tag, revision_tarball_response, tarball_integrity_error,
-    tarball_response, tarball_stream_error, tarball_stream_error_for_package, wants_abbreviated,
+    DistBlock, PackumentDists, TarballDist, expected_tarball_dist, packument_bytes_response,
+    packument_response, tarball_integrity_error, tarball_response, tarball_stream_error,
+    tarball_stream_error_for_package,
 };
 
 mod package_reads;
 use package_reads::{
     HostedGate, RegistrySource, default_registry_target, hosted_gate, hosted_read_namespace,
     resolve_ecosystem_source, resolve_registry_source, resolves_to_private_source, serve_packument,
-    serve_tarball, serve_version_manifest,
+    serve_registry_tarball, serve_tarball, serve_version_manifest,
 };
 
 mod revision_refs;
@@ -47,54 +80,79 @@ use revision_refs::{
 
 mod revision_tarballs;
 use revision_tarballs::{
-    declared_tarball_integrity, hosted_original_is_current, open_hosted_revision_tarball,
+    HostedOriginal, declared_tarball_integrity, hosted_original, open_hosted_revision_tarball,
     serve_revision_tarball,
 };
 
 mod upstream_tarballs;
-use upstream_tarballs::{cached_upstream_tarball, serve_tarball_via_upstream};
+use upstream_tarballs::{
+    BackgroundTarScans, TarballOrigin, UpstreamTarball, cached_upstream_tarball,
+    serve_bound_upstream_tarball, serve_tarball_via_upstream, tarball_cache_name,
+};
 
 mod upstream_integrity;
 mod upstream_packuments;
 use upstream_packuments::{
     load_packument_for_read, load_upstream_packument, read_source_packument,
-    serve_packument_via_upstream,
+    recover_stale_upstream_packument, serve_packument_via_upstream,
 };
 
 mod request_access;
 use request_access::{
-    authorized_revision_upstream, authorized_upstream, compute_upstream_cache_namespace,
-    require_artifact_caller, require_caller, require_pipeline_caller, require_resolver_caller,
-    revision_registry_is_private, revision_source_registry, single_authorization_header,
-    upstream_cache_namespace,
+    authorized_revision_upstream, authorized_upstream, require_admin, require_artifact_caller,
+    require_caller, require_pipeline_caller, require_resolver_caller, revision_registry_is_private,
+    revision_source_registry, single_authorization_header, upstream_cache_namespace,
 };
 
+mod restrictions;
+mod tokens;
 mod user_accounts;
-use user_accounts::{
-    delete_session_token, delete_token_by_key, get_profile, get_token_list, get_whoami, put_login,
-};
 
+mod attestations;
 mod authentication;
 mod batch;
 mod cargo;
+mod client_ip;
 mod compiler_cache;
+mod org_access;
+use org_access::CallerOrgs;
 mod documents;
 mod ecosystem;
+mod health;
+use health::shutdown_signal;
+mod managed_state;
+mod metrics;
 mod oci;
 mod oidc;
+mod oidc_groups;
 mod package_mutation;
 mod publishing;
 mod pypi;
+mod rate_limit;
+use rate_limit::LoginRateLimiter;
 mod registry_directory;
+mod request_id;
 mod routing;
+mod rule_admin;
+mod rule_overrides;
+mod scim;
+mod security_audit;
+mod singleflight;
+use singleflight::Singleflight;
 mod staged;
 mod striped_locks;
+mod team_access;
+mod team_mutations;
+mod team_rosters;
+mod user_admin;
+mod web_login;
+mod web_ui;
 
 #[cfg(test)]
 mod tests;
 
 use self::{
-    authentication::{Action, AuthedCaller, authenticate, authorize},
+    authentication::{Action, AuthedCaller, authenticate, authorize, authorize_package},
     documents::RegistryDocuments,
     ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
@@ -102,8 +160,8 @@ use self::{
         update_packument,
     },
     publishing::{
-        PublishTarget, commit_publishes, publish_package, resolve_publish_target_for,
-        serve_batch_publish, stage_publish, validate_publish_doc,
+        PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
+        resolve_publish_target_for, serve_batch_publish, stage_publish, validate_publish_doc,
     },
     routing::router_with_auth_and_osv,
 };
@@ -123,7 +181,6 @@ use axum::{
 use chrono::Utc;
 use indexmap::IndexMap;
 use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
-use pnpm_lockfile::TarballRevision;
 use pnpr_auth::{AuthState, UpsertOutcome, identify};
 use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;
@@ -173,6 +230,9 @@ const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 /// buffer-and-parse amplifier.
 const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
 
+/// Cap on a team mutation body, which names one team or one user.
+const MAX_TEAM_BODY_BYTES: usize = 64 * 1024;
+
 /// The `PoC` accepts blobs inline on artifact publication. Keep the buffered
 /// request at the same ceiling as an npm package publish.
 const MAX_ARTIFACT_PUBLISH_BODY_BYTES: usize = MAX_PUBLISH_BODY_BYTES;
@@ -186,8 +246,8 @@ mod state;
 use state::AppInner;
 
 #[derive(Clone)]
-struct AppState {
-    inner: Arc<AppInner>,
+pub(super) struct AppState {
+    pub(super) inner: Arc<AppInner>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -242,173 +302,29 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
     router_with_auth_and_osv(config, auth, osv_index)
 }
 
-/// Load the OSV index only for surfaces that consult it. An artifacts-only
-/// tier skips the database because artifact requests do not use OSV data.
-fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_osv::OsvIndex>>> {
-    if config.features.resolver.enabled || config.features.registry.enabled {
-        pnpr_osv::load_osv_index(config)
-    } else {
-        Ok(None)
-    }
-}
-
-/// Bring the publish journal to a consistent state: apply every sealed
-/// transaction, discard every unsealed one. [`serve`] and [`serve_listener`]
-/// call this before binding; an embedder that builds a router directly should
-/// call it itself on startup, before serving requests.
-pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
-    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await?;
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
-    for hosted in config.routing.hosted.values() {
-        storage.for_hosted(&hosted.org).rebuild_package_index().await?;
-    }
-    Ok(())
-}
-
-/// Reclaim blob uploads abandoned before an unclean shutdown, and any left
-/// by a client that never came back. Only image pushes create these, so this
-/// is a no-op for a registry serving no image ecosystem.
-async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
-    if !config.routing.registries.has_ecosystem(Ecosystem::Oci) {
-        return Ok(());
-    }
-    let storage = Storage::new(
-        &config.storage.hosted_backend,
-        config.storage.hosted_dir.clone(),
-        config.storage.cache_dir.clone(),
-    )?;
-    // Shared sessions live in their hosted namespace. Local scratch can be
-    // shared by those namespaces and is safe to sweep more than once.
-    let mut namespaces: Vec<&str> = config.routing.hosted
-        .values()
-        .map(|hosted| hosted.org.as_str())
-        .collect();
-    namespaces.push("");
-    namespaces.sort_unstable();
-    namespaces.dedup();
-    for namespace in namespaces {
-        let swept = storage
-            .for_hosted(namespace)
-            .sweep_blob_uploads(pnpr_storage::upload::UPLOAD_MAX_AGE)
-            .await?;
-        if swept > 0 {
-            tracing::info!(swept, namespace, "reclaimed abandoned blob uploads");
-        }
-    }
-    Ok(())
-}
-
-/// Run startup side effects and load the auth backends. The registry
-/// needs publish-journal recovery; auth loads on every tier because the
-/// account endpoints (which mint and manage tokens) are always served,
-/// and every mounted surface consults caller identity.
-async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
-    if config.features.registry.enabled {
-        recover_publish_journal(config).await?;
-        sweep_abandoned_uploads(config).await?;
-    }
-    AuthState::load(&config.identity.auth, &config.identity.backend).await
-}
-
 /// The request URI as recorded in the access log. npm's logout protocol
 /// (`DELETE .../-/user/token/{token}`, path-less or under a `/~<prefix>/`)
 /// puts the raw bearer token in the URL path, and a reusable credential
 /// must never reach a log line, so everything after that marker is
-/// redacted. OIDC callback queries are also omitted. Other URIs are logged verbatim; a false positive (a
-/// registry path that merely embeds the marker) is redacted too, which
-/// only costs log detail on a request no route serves.
+/// redacted. Web login polling (`/-/v1/login/poll/{token}`) is also
+/// redacted, and OIDC callback and web login start queries are omitted.
+/// Other URIs are logged verbatim; a false positive (a registry path that
+/// merely embeds the marker) is redacted too, which only costs log detail
+/// on a request no route serves.
 fn loggable_uri(uri: &axum::http::Uri) -> String {
-    if uri.path().starts_with("/-/oidc/") {
-        return uri.path().to_string();
+    let path = uri.path();
+    if path.starts_with("/-/oidc/") || path.ends_with("/-/v1/login/start") {
+        return path.to_string();
     }
     const TOKEN_MARKER: &str = "/-/user/token/";
-    match uri.path().find(TOKEN_MARKER) {
-        Some(index) => {
-            format!("{}<redacted>", &uri.path()[..index + TOKEN_MARKER.len()])
-        }
-        None => uri.to_string(),
+    const POLL_MARKER: &str = "/-/v1/login/poll/";
+    if let Some(index) = path.find(TOKEN_MARKER) {
+        return format!("{}<redacted>", &path[..index + TOKEN_MARKER.len()]);
     }
-}
-
-/// Bind to `config.http.listen` and serve forever. Loads auth state before
-/// binding so a startup-time auth error surfaces before we accept any
-/// client connections. Registry startup additionally recovers the publish
-/// journal.
-pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
-    // Enforce the "at least one surface" invariant here too, not only at
-    // YAML load / CLI: embedders build `Config` programmatically and call
-    // straight into `serve`, so a both-disabled config must fail loudly
-    // rather than start a server that only answers `/-/ping`.
-    config.features.ensure_a_feature_is_enabled()?;
-    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
-    log_enabled_surfaces(&config);
-    let osv_index = load_active_osv_index(&config)?;
-    let auth = load_startup_auth(&config).await?;
-    let listen = config.http.listen;
-    // Build the router before taking the port: it can fail, and a failure
-    // should not leave a bound socket behind or put a `pnpr listening` line
-    // immediately above the error saying it is not.
-    let app = router_with_auth_and_osv(config, auth, osv_index)?;
-    let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
-    tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
-    Ok(())
-}
-
-/// Log which surfaces are mounted at startup. A misconfiguration — a
-/// `registries:` block that didn't parse the way the operator meant, or a
-/// typo'd `resolver:` block name, which the intentionally
-/// verdaccio-lenient config parser silently ignores and so leaves the
-/// surface at its default-enabled state — is then immediately visible to
-/// the operator rather than only discoverable by probing.
-fn log_enabled_surfaces(config: &Config) {
-    tracing::info!(
-        registry = config.features.registry.enabled,
-        resolver = config.features.resolver.enabled,
-        artifacts = config.features.artifacts.enabled,
-        pipeline = config.features.pipeline.enabled,
-        "pnpr surfaces",
-    );
-}
-
-/// Serve on an already-bound listener.
-///
-/// Test harnesses can bind to `127.0.0.1:0`, read the OS-assigned
-/// address, and then hand that listener here without a bind/drop/rebind
-/// race.
-pub async fn serve_listener(
-    mut config: Config,
-    listener: tokio::net::TcpListener,
-) -> pnpr_error::Result<()> {
-    let listen = listener.local_addr()?;
-    config.features.ensure_a_feature_is_enabled()?;
-    config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
-    log_enabled_surfaces(&config);
-    let osv_index = load_active_osv_index(&config)?;
-    // Load the configured auth backends here too — going through `router`
-    // would silently fall back to in-memory auth and ignore a persisted
-    // htpasswd / SQLite store or a configured `backend:`.
-    let auth = load_startup_auth(&config).await?;
-    let app = router_with_auth_and_osv(config, auth, osv_index)?;
-    tracing::info!(%listen, "pnpr listening");
-    axum::serve(
-        NodelayTcpListener(listener),
-        app.into_make_service_with_connect_info::<PeerAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
-    Ok(())
-}
-
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
-    tracing::info!("shutdown signal received");
+    if let Some(index) = path.find(POLL_MARKER) {
+        return format!("{}<redacted>", &path[..index + POLL_MARKER.len()]);
+    }
+    uri.to_string()
 }
 
 // --------------------------------------------------------------------
@@ -421,6 +337,7 @@ async fn shutdown_signal() {
 /// that is not one. A bare `~` names no registry, so it reads as "not a
 /// registry prefix" rather than as an empty name — every caller then treats
 /// it the way it treats `foo`.
+#[allow(dead_code, reason = "helper used across server tiers and in tests")]
 pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
     segment
         .strip_prefix('~')
@@ -519,7 +436,18 @@ fn private_no_cache(mut response: Response) -> Response {
     use axum::http::HeaderValue;
     let headers = response.headers_mut();
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
-    headers.insert(header::VARY, HeaderValue::from_static("Authorization"));
+    if let Some(existing) = headers.get(header::VARY) {
+        if let Ok(existing_str) = existing.to_str()
+            && !existing_str.contains("Authorization")
+        {
+            let combined = format!("{existing_str}, Authorization");
+            if let Ok(val) = HeaderValue::from_str(&combined) {
+                headers.insert(header::VARY, val);
+            }
+        }
+    } else {
+        headers.insert(header::VARY, HeaderValue::from_static("Authorization"));
+    }
     response
 }
 
@@ -576,8 +504,4 @@ struct WriteTarget {
 
 fn not_found() -> Response {
     RegistryError::NotFound.into_response()
-}
-
-async fn serve_ping(State(_state): State<AppState>) -> Response {
-    (StatusCode::OK, axum::Json(serde_json::json!({}))).into_response()
 }

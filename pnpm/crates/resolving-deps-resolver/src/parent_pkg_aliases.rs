@@ -14,9 +14,10 @@
 //! so extending a scope costs one level's aliases rather than a copy of
 //! everything above it; only membership is ever asked of it.
 
+use crate::resolved_tree::PeerDep;
 use rustc_hash::FxHashSet as HashSet;
 use serde_json::Value;
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 /// One level's aliases, chained onto the levels above it.
 #[derive(Debug, Default)]
@@ -54,39 +55,62 @@ impl ParentPkgAliases {
     }
 }
 
-/// The `dependencies` entries of `manifest` that its own
-/// `peerDependencies` shadow, and that the peer edge therefore supplies
-/// instead. Under `auto_install_peers` every non-optional shadowed name
-/// is dropped (the peer is auto-installed at the importer, so it always
-/// resolves). Otherwise, and for optional peers, which are never
-/// auto-installed, only the names already resolvable from
-/// `parent_pkg_aliases` are dropped, since dropping a peer nothing in
-/// scope provides would leave it unsatisfied.
-pub(crate) fn peer_shadowed_dependencies(
-    manifest: Option<&Value>,
-    parent_pkg_aliases: &ParentPkgAliases,
-    auto_install_peers: bool,
-) -> HashSet<String> {
-    let Some(manifest) = manifest else { return HashSet::default() };
+/// The names `manifest` resolves as its own dependencies, which it
+/// therefore records as no peer: the `dependencies` entries that are not
+/// `peer_shadowed`, every `optionalDependencies` entry, and the package's
+/// own name. Only `dependencies` are shadowed, so an entry that is also an
+/// optional dependency still supplies the name itself.
+pub fn own_dependency_names(
+    manifest: &Value,
+    peer_shadowed: impl Fn(&str) -> bool,
+) -> impl Iterator<Item = &str> {
+    let names = |key| {
+        manifest
+            .get(key)
+            .and_then(Value::as_object)
+            .into_iter()
+            .flat_map(|map| map.keys().map(String::as_str))
+    };
+    names("dependencies")
+        .filter(move |name| !peer_shadowed(name))
+        .chain(names("optionalDependencies"))
+        .chain(manifest.get("name").and_then(Value::as_str))
+}
+
+/// Every peer `manifest` declares: its `peerDependencies`, plus each
+/// `optional` `peerDependenciesMeta` entry without one as an optional
+/// `"*"` peer. The names it resolves itself in every scope, its
+/// `optionalDependencies` and its own name, are left out. A
+/// `dependencies` entry of the same name stays, since whether it is
+/// supplied as a peer depends on the scope
+/// ([`peer_shadowed_dependency_names`]).
+///
+/// [`peer_shadowed_dependency_names`]: crate::peer_provider::peer_shadowed_dependency_names
+#[must_use]
+pub fn declared_peer_dependencies(manifest: &Value) -> BTreeMap<String, PeerDep> {
+    let own: HashSet<&str> = own_dependency_names(manifest, |_| true).collect();
     let object = |key| manifest.get(key).and_then(Value::as_object);
-    let (Some(peers), Some(deps)) = (object("peerDependencies"), object("dependencies")) else {
-        return HashSet::default();
-    };
-    let peers_meta = object("peerDependenciesMeta");
-    let is_optional_peer = |name: &str| {
-        peers_meta
-            .and_then(|meta| meta.get(name))
-            .and_then(|entry| entry.get("optional"))
-            .and_then(Value::as_bool)
-            == Some(true)
-    };
-    deps.keys()
-        .filter(|name| peers.contains_key(*name))
-        .filter(|name| {
-            (auto_install_peers && !is_optional_peer(name)) || parent_pkg_aliases.contains(name)
+    let mut peers: BTreeMap<String, PeerDep> = object("peerDependencies")
+        .into_iter()
+        .flatten()
+        .filter(|(name, _)| !own.contains(name.as_str()))
+        .filter_map(|(name, range)| {
+            let version = range.as_str()?.to_string();
+            Some((name.clone(), PeerDep { version, optional: false }))
         })
-        .cloned()
-        .collect()
+        .collect();
+    for (name, info) in object("peerDependenciesMeta").into_iter().flatten() {
+        if own.contains(name.as_str())
+            || info.get("optional").and_then(Value::as_bool) != Some(true)
+        {
+            continue;
+        }
+        peers
+            .entry(name.clone())
+            .and_modify(|entry| entry.optional = true)
+            .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
+    }
+    peers
 }
 
 #[cfg(test)]

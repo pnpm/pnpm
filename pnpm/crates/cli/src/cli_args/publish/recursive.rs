@@ -37,7 +37,6 @@ use std::{
     collections::HashSet,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 
 type RecursivePublishError = PublishFailure<miette::Report>;
@@ -217,8 +216,7 @@ impl PublishArgs {
         let http_client = build_registry_client(config)?;
         let network = &PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
         let to_publish =
-            self.projects_to_publish(graph, config, network.client, retry_opts_from_config(config))
-                .await;
+            self.projects_to_publish(graph, config, network.client, config.retry_opts()).await;
         if let Err(error) =
             self.wait_for_existing_projects::<Reporter>(graph, &to_publish, config, &opts, network)
                 .await
@@ -394,15 +392,6 @@ fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Re
     pnpm_fs::write_atomic(&path, json.as_bytes())
         .into_diagnostic()
         .wrap_err_with(|| format!("write {}", path.display()))
-}
-
-fn retry_opts_from_config(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
 }
 
 /// Emit on the generic `pnpm` channel with a project prefix (rather than the

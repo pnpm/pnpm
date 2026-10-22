@@ -6,6 +6,7 @@ import {
   DIRECT_DEP_SELECTOR_WEIGHT,
   EXISTING_VERSION_SELECTOR_WEIGHT,
   type PreferredVersions,
+  RESOLVED_VERSION_SELECTOR_WEIGHT,
   type VersionSelectors,
   type VersionSelectorType,
   type VersionSelectorWithWeight,
@@ -16,7 +17,7 @@ import getVersionSelectorType from 'version-selector-type'
 export function getPreferredVersionsFromLockfileAndManifests (
   snapshots: PackageSnapshots | undefined,
   manifests: Array<DependencyManifest | ProjectManifest>,
-  opts: { catalogs?: Catalogs, dedupe?: boolean } = {}
+  opts: { catalogs?: Catalogs } = {}
 ): PreferredVersions {
   const preferredVersions: PreferredVersions = Object.create(null)
   const catalogs = opts.catalogs ?? {}
@@ -27,8 +28,7 @@ export function getPreferredVersionsFromLockfileAndManifests (
     }
   }
   if (!snapshots) return preferredVersions
-  // Dedupe must let newly resolved dependencies compete with lockfile versions.
-  addPreferredVersionsFromLockfile(snapshots, preferredVersions, opts.dedupe ? 1 : EXISTING_VERSION_SELECTOR_WEIGHT)
+  addPreferredVersionsFromLockfile(snapshots, preferredVersions, EXISTING_VERSION_SELECTOR_WEIGHT)
   return preferredVersions
 }
 
@@ -96,7 +96,7 @@ function addWeightToVersionSelector (
   weight: number
 ): VersionSelectorWithWeight {
   return typeof selector === 'string'
-    ? { selectorType: selector, weight: weight + 1 }
+    ? { selectorType: selector, weight: weight + RESOLVED_VERSION_SELECTOR_WEIGHT }
     : { selectorType: selector.selectorType, weight: selector.weight + weight }
 }
 

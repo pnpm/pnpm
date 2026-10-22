@@ -10,8 +10,14 @@ extend-exclude = [
   "pnpm/docs/static/img/logos/pnpm-light-no-text.svg",
   "pnpm/docs/static/img/demos/pnpm-install.svg",
   "pnpm/crates/crypto-shasums-file/src/node_release_keys/*.asc",
+  "pnpm/crates/rust-toolchain/src/*.asc",
+  "pnpm/crates/rust-toolchain/src/fixtures/*",
   "pnpm/tasks/micro-benchmark/fixtures/lodash.json",
 ]
+
+[default]
+# Virtual store directory names end in a hex hash.
+extend-ignore-re = ["_[0-9a-f]{32}\\b"]
 
 [default.extend-words]
 cafs   = "cafs"

@@ -39,7 +39,7 @@ test('inheritAuthConfig copies only auth keys from source to target', () => {
   })
 })
 
-test('inheritDlxConfig copies auth and security policy keys from source to target', () => {
+test('inheritDlxConfig copies auth, security policy, and nodeDownloadMirrors from source to target', () => {
   const target: InheritableConfigPair = {
     config: {
       bin: 'foo',
@@ -59,6 +59,7 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       storeDir: '/path/to/custom/store/dir',
       registry: 'https://example.com/local-registry/',
       shamefullyHoist: false,
+      nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
       minimumReleaseAge: 1440,
       minimumReleaseAgeExclude: ['trusted-pkg'],
       minimumReleaseAgeStrict: true,
@@ -72,13 +73,12 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
     },
   })
 
-  // Auth keys and security/trust policy keys are inherited;
-  // project-structural keys (bin, cacheDir, shamefullyHoist) keep their target values.
   expect(target.config).toMatchObject({
     bin: 'foo',
     cacheDir: '/path/to/cache/dir',
     shamefullyHoist: true,
     registry: 'https://example.com/local-registry/',
+    nodeDownloadMirrors: { release: 'https://mirror.example/nodejs/' },
     minimumReleaseAge: 1440,
     minimumReleaseAgeExclude: ['trusted-pkg'],
     minimumReleaseAgeStrict: true,
@@ -90,6 +90,56 @@ test('inheritDlxConfig copies auth and security policy keys from source to targe
       '//example.com/local-registry/:_authToken': 'SECRET_TOKEN',
     },
   })
-  // storeDir exists only on the source, must not be inherited.
   expect(target.config.storeDir).toBeUndefined()
+})
+
+test('inheritDlxConfig inherits only the release nodeDownloadMirrors entry', () => {
+  const target: InheritableConfigPair = {
+    config: {
+      nodeDownloadMirrors: {
+        release: 'https://global.example/release/',
+        nightly: 'https://global.example/nightly/',
+      },
+      authConfig: {},
+    },
+  }
+
+  inheritDlxConfig(target, {
+    config: {
+      nodeDownloadMirrors: {
+        release: 'https://workspace.example/release/',
+        nightly: 'https://workspace.example/nightly/',
+        rc: 'https://workspace.example/rc/',
+      },
+      authConfig: {},
+    },
+  })
+
+  // Only `release` ships a signed SHASUMS256.txt, so it is the only channel a
+  // workspace may redirect. A workspace `nightly`/`rc` mirror would supply both
+  // the archive and its checksum for a runtime that dlx executes.
+  expect(target.config.nodeDownloadMirrors).toStrictEqual({
+    release: 'https://workspace.example/release/',
+    nightly: 'https://global.example/nightly/',
+  })
+})
+
+test('inheritDlxConfig leaves nodeDownloadMirrors alone when the workspace sets no release mirror', () => {
+  const target: InheritableConfigPair = {
+    config: {
+      nodeDownloadMirrors: { nightly: 'https://global.example/nightly/' },
+      authConfig: {},
+    },
+  }
+
+  inheritDlxConfig(target, {
+    config: {
+      nodeDownloadMirrors: { nightly: 'https://workspace.example/nightly/' },
+      authConfig: {},
+    },
+  })
+
+  expect(target.config.nodeDownloadMirrors).toStrictEqual({
+    nightly: 'https://global.example/nightly/',
+  })
 })

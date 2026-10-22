@@ -10,7 +10,7 @@ import type { Project, ProjectManifest, ProjectRootDir, ProjectRootDirRealPath }
 import { loadJsonFile } from 'load-json-file'
 import { temporaryDirectory } from 'tempy'
 
-const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/npm/`
 const tmp = temporaryDirectory()
 
 const DEFAULT_OPTIONS = {

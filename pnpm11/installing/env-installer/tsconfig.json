@@ -19,6 +19,9 @@
       "path": "../../config/pick-registry-for-package"
     },
     {
+      "path": "../../config/version-policy"
+    },
+    {
       "path": "../../config/writer"
     },
     {
@@ -71,6 +74,9 @@
     },
     {
       "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
+      "path": "../../resolving/resolver-base"
     },
     {
       "path": "../../resolving/tarball-url"

@@ -11,13 +11,13 @@ Execute a shell command in scope of a project.
 
 If you have Jest as a dependency of your project, there is no need to install Jest globally, just run it with `pnpm exec`:
 
-```
+```sh
 pnpm exec jest
 ```
 
 The `exec` part is actually optional when the command is not in conflict with a builtin pnpm command, so you may also just run:
 
-```
+```sh
 pnpm jest
 ```
 
@@ -28,13 +28,13 @@ Options listed after the `exec` keyword are passed to the executed command.
 
 Good. pnpm will run recursively:
 
-```
+```sh
 pnpm -r exec jest
 ```
 
 Bad, pnpm will not run recursively but `jest` will be executed with the `-r` option:
 
-```
+```sh
 pnpm exec jest -r
 ```
 
@@ -49,13 +49,13 @@ The name of the current package is available through the environment variable
 
 Prune `node_modules` installations for all packages:
 
-```
+```sh
 pnpm -r exec rm -rf node_modules
 ```
 
 View package information for all packages. This should be used with the `--shell-mode` (or `-c`) option for the environment variable to work.
 
-```
+```sh
 pnpm -rc exec pnpm view \$PNPM_PACKAGE_NAME
 ```
 

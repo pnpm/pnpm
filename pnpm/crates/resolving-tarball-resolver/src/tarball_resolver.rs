@@ -3,7 +3,7 @@
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use pnpm_lockfile::{LockfileResolution, TarballResolution};
+use pnpm_lockfile::{IntegrityTarget, LockfileResolution, TarballResolution};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::SilentReporter;
 use pnpm_resolving_resolver_base::{
@@ -24,6 +24,7 @@ pub struct TarballFetchContext {
     pub mem_cache: Option<Arc<MemCache>>,
     pub auth_headers: Arc<AuthHeaders>,
     pub retry_opts: RetryOpts,
+    pub tar_limits: pnpm_tarball::TarLimits,
     /// What the prior lockfile recorded for each remote-tarball entry,
     /// keyed by `pkg_id`. Lets a re-resolve reuse the already-extracted
     /// store content instead of re-downloading. Empty on a first install.
@@ -36,6 +37,8 @@ pub struct TarballFetchContext {
     /// `<cacheDir>` for the URL → integrity record. `None` in unit tests
     /// that only exercise the HEAD preflight.
     pub cache_dir: Option<PathBuf>,
+    /// Which hash the resolution's integrity names.
+    pub integrity_target: IntegrityTarget,
 }
 
 /// One remote-tarball entry carried over from the prior lockfile.
@@ -94,16 +97,10 @@ impl TarballResolver {
         let Some(bare) = wanted_dependency.bare_specifier.as_deref() else {
             return Ok(None);
         };
-        if !is_http_url(bare) {
+        let Some(normalized_bare_specifier) = remote_tarball_id(bare) else {
             return Ok(None);
-        }
-
-        // Round-trip through `Url::parse` to drop a redundant default
-        // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
-        // it reaches the lockfile.
-        let normalized_bare_specifier = reqwest::Url::parse(bare)
-            .map_err(|err| Box::new(err) as ResolveError)?
-            .to_string();
+        };
+        let normalized_bare_specifier = normalized_bare_specifier?;
 
         // The bundled manifest carries the same dependency fields a fresh
         // extraction would, so transitive resolution is unchanged. Done
@@ -171,9 +168,9 @@ impl TarballResolver {
     ) -> FetchTarballForResolution<'a> {
         FetchTarballForResolution {
             http_client: &self.http_client,
-            store_dir: ctx.store.dir,
-            store_index_writer: ctx.store.index_writer.clone(),
+            store: ctx.store.resolution_store(),
             package: pnpm_tarball::TarballPackage {
+                integrity_kind: ctx.integrity_target.into(),
                 integrity: None,
                 unpacked_size: None,
                 file_count: None,
@@ -182,6 +179,7 @@ impl TarballResolver {
             },
             auth_headers: &ctx.auth_headers,
             retry_opts: ctx.retry_opts,
+            tar_limits: ctx.tar_limits,
             manifest_subdir: None,
             // A direct URL tarball carries no registry revision.
             revision_addressed: false,
@@ -303,6 +301,20 @@ fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
         return None;
     }
     Some(LatestInfo { latest_manifest: None })
+}
+
+/// The id an `http(s)` tarball spec resolves to, which the lockfile keys the
+/// package by: the URL without a redundant default port
+/// (`registry.npmjs.org:443` → `registry.npmjs.org`). `None` for any other
+/// spec.
+#[must_use]
+pub fn remote_tarball_id(bare: &str) -> Option<Result<String, ResolveError>> {
+    is_http_url(bare)
+        .then(|| {
+            reqwest::Url::parse(bare)
+                .map(|url| url.to_string())
+                .map_err(|err| Box::new(err) as ResolveError)
+        })
 }
 
 fn is_http_url(bare: &str) -> bool {

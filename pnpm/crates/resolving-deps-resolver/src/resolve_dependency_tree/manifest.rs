@@ -3,17 +3,21 @@
 //! leaf classification, and whether it is deprecated.
 
 use pnpm_catalogs_types::Catalogs;
-use pnpm_package_manifest::{engines_runtime_dependencies, is_truthy};
+use pnpm_package_manifest::{DependencyGroup, engines_runtime_dependencies, is_truthy};
 use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-use crate::resolved_tree::PeerDep;
+use crate::{
+    parent_pkg_aliases::{declared_peer_dependencies, own_dependency_names},
+    resolved_tree::PeerSet,
+};
 
 use super::{
-    CatalogAnchor, Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
-    dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
+    CatalogAnchor, DependencySpec, Deprecation, ResolveDependencyTreeError,
+    catalogs::resolve_catalog_specifier, dependency_is_injected, lock_recoverable,
+    tree_ctx::TreeCtx,
 };
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
@@ -119,15 +123,25 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
         .replace('\\', "/")
 }
 
-/// Extract `dependencies` + `optionalDependencies` from a resolved
-/// package's manifest. Peer dependencies are **not** walked as regular
-/// edges here — they're hoisted to the importer level by the
+/// [`manifest_child_specs`] of `result`'s own manifest.
+pub(super) fn extract_children(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
+    manifest_child_specs(manifest, &render_parent(result))
+}
+
+/// The child dependency specs the resolver walks for a package whose
+/// manifest is `manifest`: its `dependencies` + `optionalDependencies`.
+///
+/// Peer dependencies are **not** walked as regular edges here — they're
+/// hoisted to the importer level by the
 /// [`fn@crate::resolve_importer`] orchestrator (which calls [`extend_tree`]
 /// with the hoist-picker's output) so a peer ends up shared across
 /// every consumer, not nested under each one.
 ///
-/// Peers are still recorded on [`ResolvedPackage::peer_dependencies`]
-/// (via [`extract_peer_dependencies`]) so the peer-resolution stage
+/// Peers are still recorded on [`ResolvedPackage::peer_set`]
+/// so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
 ///
 /// Each entry carries `optional` and `injected` flags from the manifest.
@@ -143,34 +157,40 @@ fn lockfile_relative_target(ctx: &TreeCtx, target: &str) -> String {
 /// tarball, so resolving them again would install a second copy the
 /// package never loads.
 ///
-/// [`extend_tree`]: super::extend_tree
-/// [`ResolvedPackage::peer_dependencies`]: crate::ResolvedPackage::peer_dependencies
+/// `parent` names the package in an invalid-alias error.
+///
+/// [`extend_tree`]: crate::extend_tree
+/// [`ResolvedPackage::peer_set`]: crate::ResolvedPackage::peer_set
 /// [`ResolvedPackage::optional`]: crate::ResolvedPackage::optional
-pub(super) fn extract_children(
-    result: &pnpm_resolving_resolver_base::ResolveResult,
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(Vec::new()) };
-    let parent = render_parent(result);
+pub fn manifest_child_specs(
+    manifest: &Value,
+    parent: &str,
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
     let bundled = bundled_dependency_names(manifest);
     let mut out = Vec::new();
-    collect_deps(manifest, "dependencies", false, &parent, &bundled, &mut out)?;
+    collect_deps(manifest, DependencyGroup::Prod, parent, &bundled, &mut out)?;
     let mut optional = Vec::new();
-    collect_deps(manifest, "optionalDependencies", true, &parent, &bundled, &mut optional)?;
+    collect_deps(manifest, DependencyGroup::Optional, parent, &bundled, &mut optional)?;
     if !optional.is_empty() {
         let dependency_positions: HashMap<String, usize> = out
             .iter()
             .enumerate()
-            .map(|(index, (name, ..))| (name.clone(), index))
+            .map(|(index, spec)| (spec.alias.clone(), index))
             .collect();
         for spec in optional {
-            match dependency_positions.get(&spec.0) {
-                Some(&index) => out[index].2 = true,
+            match dependency_positions.get(&spec.alias) {
+                Some(&index) => out[index].optional = true,
                 None => out.push(spec),
             }
         }
     }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
-        out.push((name.to_string(), specifier, false, false));
+        out.push(DependencySpec {
+            alias: name.to_string(),
+            bare_specifier: specifier,
+            optional: false,
+            injected: false,
+        });
     }
     out.sort_unstable();
     Ok(out)
@@ -206,31 +226,37 @@ fn bundled_dependency_names(manifest: &Value) -> HashSet<&str> {
 /// package bundles that alias.
 fn collect_deps(
     manifest: &Value,
-    key: &str,
-    optional: bool,
+    group: DependencyGroup,
     parent: &str,
     bundled: &HashSet<&str>,
-    out: &mut Vec<ChildSpec>,
+    out: &mut Vec<DependencySpec>,
 ) -> Result<(), ResolveDependencyTreeError> {
-    let Some(map) = manifest.get(key).and_then(Value::as_object) else { return Ok(()) };
+    let Some(map) = manifest.get::<&str>(group.into()).and_then(Value::as_object) else {
+        return Ok(());
+    };
+    let optional = match group {
+        DependencyGroup::Optional => true,
+        DependencyGroup::Prod | DependencyGroup::Dev | DependencyGroup::Peer => false,
+    };
     for (name, range) in map {
-        if let Some(range_str) = range.as_str() {
-            if !crate::is_valid_dependency_alias(name) {
-                return Err(ResolveDependencyTreeError::InvalidDependencyName {
-                    parent: parent.to_string(),
-                    alias: name.clone(),
-                });
-            }
-            if bundled.contains(name.as_str()) {
-                continue;
-            }
-            out.push((
-                name.clone(),
-                range_str.to_string(),
-                optional,
-                dependency_is_injected(manifest, name),
-            ));
+        let Some(range_str) = range.as_str() else {
+            continue;
+        };
+        if !crate::is_valid_dependency_alias(name) {
+            return Err(ResolveDependencyTreeError::InvalidDependencyName {
+                parent: parent.to_string(),
+                alias: name.clone(),
+            });
         }
+        if bundled.contains(name.as_str()) {
+            continue;
+        }
+        out.push(DependencySpec {
+            alias: name.clone(),
+            bare_specifier: range_str.to_string(),
+            optional,
+            injected: dependency_is_injected(manifest, name),
+        });
     }
     Ok(())
 }
@@ -243,102 +269,32 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
     }
 }
 
-/// Extract `peerDependencies` from a resolved package's manifest, with
-/// `peerDependenciesMeta[name].optional` folded onto each entry. The
-/// package's own name plus names also present in `dependencies` or
-/// `optionalDependencies` are skipped because those edges already
-/// supply the same package directly — except for the `peer_shadowed`
-/// names, whose own-dependency edge the walk drops in favor of the peer
-/// (see [`peer_shadowed_dependencies`]). A `peerDependenciesMeta` entry
-/// without a matching `peerDependencies` entry only counts when
-/// `optional: true` — it is treated as an optional `"*"` peer exactly
-/// like an explicitly declared one, and non-optional meta-only entries
-/// are ignored. When [`Catalogs`] are supplied, `catalog:` ranges are
-/// dereferenced before they enter peer resolution.
+/// The [`PeerSet`] of a resolved package: its
+/// [`declared_peer_dependencies`], taking the ones a `dependencies` entry
+/// does not supply. A same-named entry supplies the package directly
+/// unless it is `peer_shadowed` (see [`peer_shadowed_dependencies`]). When
+/// [`Catalogs`] are supplied, the `catalog:` ranges of the taken peers are
+/// dereferenced. The declared ones stay as written, which is what the
+/// lockfile records.
 ///
-/// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
+/// [`peer_shadowed_dependencies`]: crate::peer_provider::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
     catalogs: Option<&Catalogs>,
-) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
-    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(BTreeMap::new()) };
-    let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
-
-    let dep_names = |key| {
-        manifest
-            .get(key)
-            .and_then(Value::as_object)
-            .into_iter()
-            .flat_map(|map| map.keys().cloned())
-    };
-    // Only `dependencies` are shadowed, so an entry that is *also* an
-    // optional dependency still supplies the name itself.
-    let mut own_deps: HashSet<String> = dep_names("dependencies")
-        .filter(|name| !peer_shadowed.contains(name))
-        .chain(dep_names("optionalDependencies"))
-        .collect();
-    if let Some(name) = manifest.get("name").and_then(Value::as_str) {
-        own_deps.insert(name.to_string());
-    }
-
-    if let Some(map) = manifest.get("peerDependencies").and_then(Value::as_object) {
-        insert_declared_peers(&mut peers, map, &own_deps, catalogs)?;
-    }
-
-    if let Some(meta) = manifest.get("peerDependenciesMeta").and_then(Value::as_object) {
-        insert_optional_meta_peers(&mut peers, meta, &own_deps);
-    }
-
-    Ok(peers)
-}
-
-fn insert_declared_peers(
-    peers: &mut BTreeMap<String, PeerDep>,
-    map: &serde_json::Map<String, Value>,
-    own_deps: &HashSet<String>,
-    catalogs: Option<&Catalogs>,
-) -> Result<(), ResolveDependencyTreeError> {
-    for (name, range) in map {
-        if own_deps.contains(name) {
-            continue;
-        }
-        let Some(range_str) = range.as_str() else { continue };
-        let version = match catalogs {
-            Some(catalogs) => {
-                // A peer range names a version range, never a path, so a
-                // `file:` / `link:` entry has nothing to re-anchor.
-                resolve_catalog_specifier(
-                    name.clone(),
-                    range_str.to_string(),
-                    catalogs,
-                    CatalogAnchor::AsWritten,
-                )?
-                .1
-            }
-            None => range_str.to_string(),
-        };
-        peers.insert(name.clone(), PeerDep { version, optional: false });
-    }
-    Ok(())
-}
-
-/// A meta-only entry counts as an optional `"*"` peer; a non-optional one is
-/// ignored.
-fn insert_optional_meta_peers(
-    peers: &mut BTreeMap<String, PeerDep>,
-    meta: &serde_json::Map<String, Value>,
-    own_deps: &HashSet<String>,
-) {
-    for (name, info) in meta {
-        if own_deps.contains(name) || info.get("optional").and_then(Value::as_bool) != Some(true) {
-            continue;
-        }
-        peers
-            .entry(name.clone())
-            .and_modify(|entry| entry.optional = true)
-            .or_insert_with(|| PeerDep { version: "*".to_string(), optional: true });
-    }
+) -> Result<PeerSet, ResolveDependencyTreeError> {
+    let Some(manifest) = result.package.manifest.as_ref() else { return Ok(PeerSet::default()) };
+    let own_deps: HashSet<&str> =
+        own_dependency_names(manifest, |name| peer_shadowed.contains(name)).collect();
+    let peer_set =
+        PeerSet::new(declared_peer_dependencies(manifest), |name| own_deps.contains(name));
+    let Some(catalogs) = catalogs else { return Ok(peer_set) };
+    // A peer range names a version range, never a path, so a `file:` /
+    // `link:` entry has nothing to re-anchor.
+    peer_set.try_map_taken_ranges(|name, range| {
+        resolve_catalog_specifier(name.to_string(), range, catalogs, CatalogAnchor::AsWritten)
+            .map(|(_, range)| range)
+    })
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

@@ -1,18 +1,22 @@
+use crate::cli_args::{
+    registry_client::{
+        PACKAGE_DOCUMENT_BODY_LIMIT, apply_auth_and_otp, auth_header_for_package,
+        build_registry_client_with_otp_guard, join_registry_endpoint,
+        resolve_registries_with_override, resolve_target_registry_for_package,
+    },
+    sanitize::{DEFAULT_ERROR_BODY_LIMIT, read_sanitized_error_body},
+};
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Diagnostic, IntoDiagnostic, WrapErr};
+use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{
-    RedirectGuard, RetryOpts, ThrottledClient, encode_package_name, encode_uri_component,
+    RetryOpts, ThrottledClient, encode_uri_component, escaped_package_name, normalize_registry_url,
     read_limited_body, redact_url_credentials, send_with_retry,
 };
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use reqwest::Response;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Arc, time::Duration};
-
-const OWNER_BODY_LIMIT: usize = 1024 * 1024;
-const OWNER_ERROR_BODY_LIMIT: usize = 64 * 1024;
+use std::collections::HashMap;
 
 #[derive(Debug, Args)]
 pub struct OwnerArgs {
@@ -97,18 +101,24 @@ pub enum OwnerError {
     },
 }
 
-struct OwnerContext<'a> {
-    config: &'a Config,
-    http_client: ThrottledClient,
-    retry_opts: RetryOpts,
-    registries: HashMap<String, String>,
-    otp: Option<String>,
+pub(super) struct OwnerContext<'a> {
+    pub(super) config: &'a Config,
+    pub(super) http_client: ThrottledClient,
+    pub(super) retry_opts: RetryOpts,
+    pub(super) registries: HashMap<String, String>,
+    pub(super) registry_override: Option<&'a str>,
+    pub(super) otp: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageOwners {
+    maintainers: Option<Vec<OwnerEntry>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OwnerEntry {
-    username: String,
-    email: String,
+    name: String,
+    email: Option<String>,
 }
 
 impl OwnerArgs {
@@ -125,48 +135,18 @@ impl OwnerArgs {
     }
 
     fn context<'a>(&'a self, config: &'a Config) -> miette::Result<OwnerContext<'a>> {
-        let mut registries: HashMap<String, String> = config
-            .resolved_registries()
-            .into_iter()
-            .collect();
-        if let Some(registry) = &self.registry {
-            registries.insert("default".to_string(), normalize_registry_url(registry));
-        }
-        // When an OTP is in play, restrict redirects to the configured registry
-        // origins so a cross-host redirect cannot forward the `npm-otp` header to
-        // another host — reqwest only strips standard auth headers, not custom
-        // ones, on cross-host redirects. Mirrors the `team`/`access` guard.
-        let redirect_guard = self.otp
-            .as_ref()
-            .map(|_| {
-                let origins: Vec<(String, String, Option<u16>)> = registries
-                    .values()
-                    .filter_map(|registry| {
-                        let url = reqwest::Url::parse(registry).ok()?;
-                        Some((url.scheme().to_string(), url.host_str()?.to_string(), url.port()))
-                    })
-                    .collect();
-                let guard: RedirectGuard = Arc::new(move |target: &reqwest::Url| -> bool {
-                    origins
-                        .iter()
-                        .any(|(scheme, host, port)| {
-                            target.scheme() == scheme
-                                && target.host_str() == Some(host.as_str())
-                                && target.port() == *port
-                        })
-                });
-                guard
-            });
+        let registries = resolve_registries_with_override(config, self.registry.as_deref());
+        let http_client = build_registry_client_with_otp_guard(
+            config,
+            self.otp.as_deref(),
+            registries.values().map(String::as_str),
+        )?;
         Ok(OwnerContext {
             config,
-            http_client: build_http_client(config, redirect_guard.as_ref())?,
-            retry_opts: RetryOpts {
-                retries: config.fetch_retries,
-                factor: config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-            },
+            http_client,
+            retry_opts: config.retry_opts(),
             registries,
+            registry_override: self.registry.as_deref(),
             otp: self.otp.clone(),
         })
     }
@@ -174,15 +154,12 @@ impl OwnerArgs {
 
 async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Result<String> {
     let package_name = params.first().ok_or(OwnerError::LsPackageRequired)?;
-    let endpoint = owners_endpoint(context, package_name);
+    let endpoint = registry_endpoint(context, package_name, &escaped_package_name(package_name));
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
-            let mut builder = client.get(&endpoint.url);
-            if let Some(auth) = endpoint.auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            builder
+            let builder = client.get(&endpoint.url).header("accept", "application/json");
+            apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), None)
         })
         .await
         .map_err(|source| registry_operation_error("fetching owners", source))?;
@@ -194,15 +171,25 @@ async fn owner_ls(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
         return Err(write_error_from_response(response, "fetch owners of".to_string()).await);
     }
 
-    let body = read_limited_body(response, OWNER_BODY_LIMIT).await
+    let body = read_limited_body(response, PACKAGE_DOCUMENT_BODY_LIMIT).await
         .map_err(|source| registry_operation_error("reading owners response", source))?;
-    let owners: Vec<OwnerEntry> = serde_json::from_slice(&body.bytes)
+    if body.truncated {
+        return Err(registry_operation_error(
+            "reading owners response",
+            format!("registry response exceeded {PACKAGE_DOCUMENT_BODY_LIMIT} bytes"),
+        ));
+    }
+    let metadata: PackageOwners = serde_json::from_slice(&body.bytes)
         .into_diagnostic()
         .map_err(|source| registry_operation_error("parsing owners response", source))?;
 
-    Ok(owners
-        .iter()
-        .map(|o| format!("{} <{}>", o.username, o.email))
+    Ok(metadata.maintainers
+        .unwrap_or_default()
+        .into_iter()
+        .map(|owner| match owner.email.filter(|email| !email.is_empty()) {
+            Some(email) => format!("{} <{email}>", owner.name),
+            None => owner.name,
+        })
         .collect::<Vec<_>>()
         .join("\n"))
 }
@@ -218,17 +205,11 @@ async fn owner_add(context: &OwnerContext<'_>, params: &[String]) -> miette::Res
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &endpoint.url, context.retry_opts, |client| {
-            let mut builder = client
+            let builder = client
                 .put(&endpoint.url)
                 .header("content-type", "application/json")
                 .body(body.clone());
-            if let Some(auth) = endpoint.auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp.as_str());
-            }
-            builder
+            apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("adding owner", source))?;
@@ -247,18 +228,12 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     let owner = &params[1];
 
     let endpoint = owners_endpoint(context, package_name);
-    let url = format!("{}/{}", endpoint.url, encode_uri_component(owner));
+    let url = format!("{}/{}", endpoint.url.trim_end_matches('/'), encode_uri_component(owner));
 
     let (_guard, response) =
         send_with_retry(&context.http_client, &url, context.retry_opts, |client| {
-            let mut builder = client.delete(&url);
-            if let Some(auth) = endpoint.auth_header.as_deref() {
-                builder = builder.header("authorization", auth);
-            }
-            if let Some(otp) = &context.otp {
-                builder = builder.header("npm-otp", otp.as_str());
-            }
-            builder
+            let builder = client.delete(&url);
+            apply_auth_and_otp(builder, endpoint.auth_header.as_deref(), context.otp.as_deref())
         })
         .await
         .map_err(|source| registry_operation_error("removing owner", source))?;
@@ -269,34 +244,30 @@ async fn owner_rm(context: &OwnerContext<'_>, params: &[String]) -> miette::Resu
     Err(write_error_from_response(response, format!(r#"remove owner "{owner}" from"#)).await)
 }
 
-/// The package's `owners` route on its registry, with the credential
-/// configured for that registry.
-struct OwnersEndpoint {
-    url: String,
-    auth_header: Option<String>,
+/// An endpoint on a package's registry, with the credential configured for
+/// that registry.
+pub(super) struct OwnersEndpoint {
+    pub(super) url: String,
+    pub(super) auth_header: Option<String>,
 }
 
-fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
-    let registry_url = pick_registry_for_package(&context.registries, package_name, None);
-    let auth_header =
-        context.config.auth_headers.for_url_with_package(&registry_url, Some(package_name));
-    let escaped = encode_package_name(package_name);
-    OwnersEndpoint { url: format!("{registry_url}-/package/{escaped}/owners"), auth_header }
+pub(super) fn owners_endpoint(context: &OwnerContext<'_>, package_name: &str) -> OwnersEndpoint {
+    let path = format!("-/package/{}/owners", escaped_package_name(package_name));
+    registry_endpoint(context, package_name, &path)
 }
 
-fn build_http_client(
-    config: &Config,
-    redirect_guard: Option<&RedirectGuard>,
-) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs_with_guard(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &config.network_settings(),
-        redirect_guard,
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for owner command")
+fn registry_endpoint(context: &OwnerContext<'_>, package_name: &str, path: &str) -> OwnersEndpoint {
+    let registry_url = resolve_target_registry_for_package(
+        &context.registries,
+        context.registry_override,
+        package_name,
+        None,
+    );
+    let auth_header = auth_header_for_package(context.config, &registry_url, package_name);
+    let normalized = normalize_registry_url(&registry_url);
+    let url = join_registry_endpoint(&registry_url, path)
+        .unwrap_or_else(|_| format!("{normalized}{path}"));
+    OwnersEndpoint { url, auth_header }
 }
 
 fn registry_operation_error<ErrorType>(operation: &'static str, error: ErrorType) -> miette::Report
@@ -311,15 +282,8 @@ where
 }
 
 async fn write_error_from_response(response: Response, action: String) -> miette::Report {
-    let status = response.status();
-    let status_text = status
-        .canonical_reason()
-        .unwrap_or_default()
-        .to_string();
-    let body = match read_limited_body(response, OWNER_ERROR_BODY_LIMIT).await {
-        Ok(body) => super::sanitize::body_display_string(&body),
-        Err(_) => String::new(),
-    };
+    let (status, status_text, body) =
+        read_sanitized_error_body(response, DEFAULT_ERROR_BODY_LIMIT).await;
 
     match status {
         reqwest::StatusCode::UNAUTHORIZED => OwnerError::Unauthorized { action, body }.into(),
@@ -328,10 +292,6 @@ async fn write_error_from_response(response: Response, action: String) -> miette
         _ => OwnerError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
             .into(),
     }
-}
-
-fn normalize_registry_url(registry_url: &str) -> String {
-    if registry_url.ends_with('/') { registry_url.to_string() } else { format!("{registry_url}/") }
 }
 
 #[cfg(test)]

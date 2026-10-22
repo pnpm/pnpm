@@ -1,11 +1,12 @@
 use super::{
-    Action, AppState, CacheValidators, CanonicalPackageName, Duration, Ecosystem, HeaderMap,
-    HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response, Upstream,
-    authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_read_namespace,
-    not_found, packument_response, resolve_registry_source, timed, upstream_cache_namespace,
-    wants_abbreviated,
+    Action, AppState, CacheValidators, CanonicalPackageName, DistView, Duration, Ecosystem,
+    HeaderMap, HostedGate, Identity, PackumentFetch, RegistryError, RegistrySource, Response,
+    Upstream, authorize, authorized_upstream, default_registry_target, hosted_gate,
+    hosted_read_namespace, not_found, packument_response, resolve_registry_source, timed,
+    upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
+use std::sync::Arc;
 
 /// The stored packument of whichever source a registry routes this package to.
 ///
@@ -32,9 +33,9 @@ pub(super) async fn read_source_packument(
 }
 
 /// Load an upstream route's packument: a fresh per-registry cache entry when one
-/// exists, otherwise a fetch through the registry (with its server-side credential)
-/// written back to the same namespace. A registry with `cache: false` neither reads
-/// nor writes the cache — it streams everything through, refetching each time.
+/// exists, otherwise a coalesced fetch through the registry (with its server-side credential)
+/// written back to the same namespace. Concurrent requests for the same package/namespace
+/// are coalesced so concurrent cache misses do not hammer the upstream registry.
 pub(super) async fn load_upstream_packument(
     state: &AppState,
     namespace: &str,
@@ -50,8 +51,37 @@ pub(super) async fn load_upstream_packument(
         )
         .await?
     {
+        state.inner.metrics.record_cache_hit();
         return Ok(Some(bytes));
     }
+    if upstream.caches() {
+        state.inner.metrics.record_cache_miss();
+    }
+
+    let singleflight_key = (namespace.to_string(), name.clone());
+    Box::pin(state.inner.proxy.packument_singleflight.work(singleflight_key, || {
+        Box::pin(async {
+            fetch_and_cache_upstream_packument(state, namespace, upstream, name, ttl).await
+        })
+    }))
+    .await
+    .map_err(RegistryError::Shared)
+}
+
+async fn fetch_and_cache_upstream_packument(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &CanonicalPackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, Arc<RegistryError>> {
+    if upstream.caches()
+        && let Ok(Some(bytes)) =
+            state.inner.storage.read_upstream_document(namespace, name, ttl).await
+    {
+        return Ok(Some(bytes));
+    }
+
     let fetched = match timed(
         "packument:upstream_fetch",
         name.as_str(),
@@ -61,10 +91,12 @@ pub(super) async fn load_upstream_packument(
     {
         Ok(fetched) => fetched,
         Err(err) => {
-            return recover_stale_upstream_packument(state, namespace, upstream, name, err).await;
+            return recover_stale_upstream_packument(state, namespace, upstream, name, err)
+                .await
+                .map_err(Arc::new);
         }
     };
-    cache_upstream_packument(state, namespace, upstream, name, fetched).await
+    cache_upstream_packument(state, namespace, upstream, name, fetched).await.map_err(Arc::new)
 }
 
 pub(super) async fn cache_upstream_packument(
@@ -244,8 +276,12 @@ pub(super) async fn serve_packument_via_upstream(
     upstream: &str,
     name: &CanonicalPackageName,
     tarball_base: &str,
-    revision_registry: Option<&str>,
+    view: DistView<'_>,
 ) -> Response {
+    let ttl = match authorized_upstream(state, identity, upstream) {
+        Ok(upstream) => upstream.maxage().unwrap_or(state.inner.config.http.packument_ttl),
+        Err(err) => return err.into_response(),
+    };
     let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
@@ -255,9 +291,10 @@ pub(super) async fn serve_packument_via_upstream(
         name,
         &bytes,
         tarball_base,
-        revision_registry,
+        view,
         state.inner.osv_index.as_ref(),
-        wants_abbreviated(headers),
+        headers,
+        ttl.as_secs(),
     ) {
         Ok(response) => response,
         Err(err) => err.into_response(),

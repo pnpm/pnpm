@@ -1,7 +1,7 @@
 import { type CatalogResolution, type CatalogResolver, matchCatalogResolveResult } from '@pnpm/catalogs.resolver'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 
 /**
  * The catalog entry a `catalog:` specifier refers to, or `undefined` when the
@@ -26,6 +26,7 @@ export function getCatalogExistingVersionFromSnapshot (
   wantedLockfile: LockfileObject,
   wantedDependency: WantedDependency
 ): string | undefined {
+  if (wantedDependency.alias == null) return undefined
   const existingCatalogResolution = wantedLockfile.catalogs
     ?.[catalogLookup.catalogName]
     ?.[wantedDependency.alias]

@@ -45,33 +45,36 @@ your linker.
 
 With `nodeLinker.type: loaded`, materialize these package names and their complete dependency trees in the global virtual store. Names match all installed versions and peer contexts. Packages outside these trees load directly from CAS. Build approval settings still apply.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeLinker:
   type: loaded
   excluded:
     - vitest
 ```
 
-### nodeExperimentalPackageMap
+### nodePackageMap.mode
 
-Added in: v11.8.0
+Added in: v12.13.0
 
-* Default: **false**
-* Type: **Boolean**
+* Default: **off**
+* Type: **off**, **write-only**, **load**
 
-When `true`, pnpm writes `node_modules/.package-map.json` during isolated and hoisted installs and injects it into pnpm-managed Node.js script environments by adding Node's `--experimental-package-map` option to `NODE_OPTIONS`.
+Controls `node_modules/.package-map.json`, which pnpm writes during isolated and hoisted installs.
 
-Nothing reads the map without this setting, so pnpm does not write one. An install that stops writing the map also removes one an earlier install left.
+* **off** - pnpm writes no package map. An install also removes a map that an earlier install left.
+* **write-only** - pnpm writes the package map for other tools to read. Node.js does not load it.
+* **load** - pnpm writes the package map and adds Node's `--experimental-package-map` option to `NODE_OPTIONS` in pnpm-managed Node.js script environments.
 
-CLI and environment configuration use the kebab-case name `node-experimental-package-map`.
+The environment variable is `PNPM_CONFIG_NODE_PACKAGE_MAP_MODE`.
 
-```yaml
-nodeExperimentalPackageMap: true
+```yaml title="pnpm-workspace.yaml"
+nodePackageMap:
+  mode: write-only
 ```
 
-### nodePackageMapType
+### nodePackageMap.type
 
-Added in: v11.8.0
+Added in: v12.13.0
 
 * Default: **standard**
 * Type: **standard**, **loose**
@@ -81,11 +84,27 @@ Controls how `node_modules/.package-map.json` is generated.
 * **standard** - only declared dependencies are available through the package map.
 * **loose** - also maps packages that are reachable through the installed `node_modules` layout, which can allow undeclared hoisted dependencies to resolve.
 
-CLI and environment configuration use the kebab-case name `node-package-map-type`.
+The environment variable is `PNPM_CONFIG_NODE_PACKAGE_MAP_TYPE`.
 
-```yaml
-nodePackageMapType: loose
+```yaml title="pnpm-workspace.yaml"
+nodePackageMap:
+  mode: load
+  type: loose
 ```
+
+### nodeExperimentalPackageMap
+
+Added in: v11.8.0
+
+Deprecated since v12.13.0: use [`nodePackageMap.mode`](#nodepackagemapmode) instead. `nodeExperimentalPackageMap: true` is the same as `mode: load`, and `false` is the same as `mode: off`. When both are set in the same place, `nodePackageMap` takes precedence.
+
+CLI and environment configuration use the kebab-case name `node-experimental-package-map`.
+
+### nodePackageMapType
+
+Added in: v11.8.0
+
+Deprecated since v12.13.0: use [`nodePackageMap.type`](#nodepackagemaptype-1) instead. When both are set in the same place, `nodePackageMap` takes precedence.
 
 ### symlink
 
@@ -114,6 +133,8 @@ mount a modules directory with FUSE: [@pnpm/mount-modules].
 
 The directory with links to the store. All direct and indirect dependencies of
 the project are linked into this directory.
+
+Dependencies installed from a URL or local path get a hash suffix on their directory name when the part after the scheme contains `+`, `#`, `:`, `?`, or another character that is not allowed in file names. This keeps distinct URLs in separate directories.
 
 This is a useful setting that can solve issues with long paths on Windows. If
 you have some dependencies with very long paths, you can select a virtual store
@@ -164,6 +185,8 @@ cloning; on macOS and Windows it tries cloning before hardlinking.
 * **clone-or-copy** - try to clone packages from the store. If cloning is not supported then fall back to copying
 * **copy** - copy packages from the store
 * **clone** - clone (AKA copy-on-write or reference link) packages from the store
+
+A package that a lifecycle script or a patch will still write must not share files with the store, so pnpm imports it with `clone-or-copy` when this setting is `auto`, `hardlink`, or `clone`. With `copy`, such a package is copied like every other package.
 
 Cloning is the best way to write packages to node_modules. It is the fastest way and safest way. When cloning is used, you may edit files in your node_modules and they will not be modified in the central content-addressable store.
 
@@ -253,6 +276,23 @@ different filesystem from `node_modules` cannot be hardlinked from at all —
 the attempt fails with `EXDEV` — so `auto` already falls back to copying on
 its own.
 
+#### How many files macOS writes at once
+
+On macOS, pnpm writes package files into `node_modules` with 4 threads,
+whatever the number of CPU cores. On the Macs measured, more threads made
+installs slower.
+
+Security software that monitors file operations through Endpoint Security, as
+on many company-managed Macs, can reverse this. On one such Mac, installs took
+about 40% less time when pnpm wrote files with the threads it uses for the rest
+of the install. Set the `PNPM_MACOS_LINK_THREADS` environment variable to `0` for
+that, or to a positive number to use that many threads. If your Mac runs such
+software, compare install times with `0` and the default:
+
+```sh
+PNPM_MACOS_LINK_THREADS=0 pnpm install
+```
+
 [nodeLinker]: #nodelinker
 
 ### modulesCacheMaxAge
@@ -281,7 +321,7 @@ Added in: v11.23.0
 
 Names where the virtual store lives — one store per project, or one store per machine.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 virtualStoreType: global
 ```
 
@@ -353,7 +393,7 @@ the phantom dependencies (recommended).
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 hoistPattern:
 - "*eslint*"
 - "*babel*"
@@ -363,7 +403,7 @@ You may also exclude patterns from hoisting using `!`.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 hoistPattern:
 - "*types*"
 - "!@types/react"
@@ -387,7 +427,7 @@ resolve dependencies properly.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
 - "*plugin*"
 ```
@@ -399,7 +439,7 @@ You may also exclude patterns from hoisting using `!`.
 
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
 - "*types*"
 - "!@types/react"
@@ -424,7 +464,7 @@ Because `hoistPattern` defaults to `['*']` and `publicHoistPattern` to `[]`, the
 
 This is how a tool that resolves packages by name from the workspace root finds a project of the workspace. The usual case is ESLint loading a plugin that is developed in the same monorepo:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
   - "*eslint*"
 ```

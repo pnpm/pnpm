@@ -27,6 +27,8 @@ export type SbomCommandOptions = {
   | 'dev'
   | 'dir'
   | 'lockfileDir'
+  | 'sharedWorkspaceLockfile'
+  | 'workspaceDir'
   | 'registriesByScope'
   | 'registriesByPrefix'
   | 'optional'

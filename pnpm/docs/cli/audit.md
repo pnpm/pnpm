@@ -36,6 +36,10 @@ pnpm audit signatures
 
 Verifies the ECDSA registry signatures of installed packages against the public keys published by each registry at `/-/npm/v1/keys`. Scoped registries configured via [`registries`](../settings/dependency-resolution.md#registries) are respected; registries that don't publish signing keys are skipped.
 
+Signatures are verified against the package integrity recorded in the lockfile. A package without recorded integrity cannot pass verification.
+
+A registry signs the integrity of a package's `.tgz`. When the lockfile pins tars with [`lockfile.integrityTarget: tar`](../settings/store.md#lockfileintegritytarget), the signature is verified against the `.tgz` integrity the registry publishes, once pnpm has tied it to the tar hash in the lockfile. The store answers for a package it holds. Any other package is downloaded and checked. A package that cannot be tied is reported as invalid, with the reason.
+
 The command exits with code `1` if any package has an invalid signature, or if a registry advertises signing keys but a package was published without a signature. Combine with `--json` to get machine-readable output.
 
 ## Options
@@ -53,7 +57,7 @@ This can also be set via [`audit.level`](#auditlevel) in `pnpm-workspace.yaml`.
 
 Add overrides to the `pnpm-workspace.yaml` file in order to force non-vulnerable versions of the dependencies.
 
-Use `--fix=update` (added in v11.0.0) to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
+Use `--fix=update` (added in v11.0.0) to fix vulnerabilities by updating the vulnerable packages in the lockfile instead of adding overrides.
 
 When [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) is set, `--fix` also adds the minimum patched version of each advisory to [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) in `pnpm-workspace.yaml`, so the security fix can be installed without waiting for the release age window.
 
@@ -108,7 +112,7 @@ The ID is saved in `pnpm-workspace.yaml`, which is created if missing, and no au
 
 `pnpm audit` is configured in the `audit` section of `pnpm-workspace.yaml` (added in v11.16.0):
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 audit:
   level: high
   ignore:
@@ -126,7 +130,7 @@ Only print advisories with severity greater than or equal to this level. Same as
 
 A list of GHSA codes that will be ignored by the `pnpm audit` command.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 audit:
   ignore:
     - GHSA-42xw-2xvc-qx8m
@@ -150,7 +154,7 @@ When `true`, `pnpm audit --fix` removes the [`audit.ignore`](#auditignore)
 entries whose GHSA no longer appears in the audit report, so a list of tolerated
 advisories doesn't accumulate entries for dependencies that are long gone.
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 audit:
   ignorePrune: true
 ```

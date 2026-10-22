@@ -135,6 +135,68 @@ describe('the registered loader', () => {
     expect(result.stderr.toString()).toContain('ERR_PACKAGE_PATH_NOT_EXPORTED')
   })
 
+  test('the fallback leaves the importer as parentURL for hooks registered after it', () => {
+    // An alias resolver like the tsconfig paths hook in pnpm/pnpm#16979. NODE_OPTIONS
+    // imports register before command-line ones, so the alias hook runs first and
+    // reads context.parentURL after the pnpm hook's fallback fails.
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-esm-node-path-loader-'))
+    fs.mkdirSync(path.join(tmp, 'store', 'node_modules'), { recursive: true })
+    fs.mkdirSync(path.join(tmp, 'src', 'generated'), { recursive: true })
+    fs.writeFileSync(path.join(tmp, 'src', 'generated', 'index.mjs'), 'export const x = 1')
+    fs.writeFileSync(path.join(tmp, 'main.mjs'), `\
+import { x } from '@/generated/index.mjs'
+console.log(import.meta.url)
+console.log('resolved', x)
+`)
+    // Like the pnpm hook, the alias hook falls back to module.register() where
+    // module.registerHooks() is missing, so both hooks are in the same chain.
+    fs.writeFileSync(path.join(tmp, 'alias-hook.mjs'), `\
+import module from 'node:module'
+import { resolveSync } from './alias-resolve.mjs'
+if (module.registerHooks) {
+  module.registerHooks({ resolve: resolveSync })
+} else {
+  module.register('./alias-resolve.mjs', import.meta.url)
+}
+`)
+    fs.writeFileSync(path.join(tmp, 'alias-resolve.mjs'), `\
+import { writeFileSync } from 'node:fs'
+function resolveAlias (specifier, context, error) {
+  if (error?.code !== 'ERR_MODULE_NOT_FOUND' || !specifier.startsWith('@/')) throw error
+  writeFileSync('parent-url.txt', context.parentURL)
+  return new URL('src/' + specifier.slice(2), context.parentURL).href
+}
+export function resolveSync (specifier, context, nextResolve) {
+  try {
+    return nextResolve(specifier, context)
+  } catch (error) {
+    return nextResolve(resolveAlias(specifier, context, error), context)
+  }
+}
+export async function resolve (specifier, context, nextResolve) {
+  try {
+    return await nextResolve(specifier, context)
+  } catch (error) {
+    return nextResolve(resolveAlias(specifier, context, error), context)
+  }
+}
+`)
+
+    const result = spawnSync(process.execPath, ['--import', './alias-hook.mjs', 'main.mjs'], {
+      cwd: tmp,
+      env: {
+        ...process.env,
+        NODE_PATH: path.join(tmp, 'store', 'node_modules'),
+        NODE_OPTIONS: esmNodePathLoaderImportFlag,
+      },
+    })
+    expect(result.stderr.toString()).toBe('')
+    expect(result.status).toBe(0)
+    const [mainUrl, printed] = result.stdout.toString().trim().split(/\r?\n/)
+    expect(fs.readFileSync(path.join(tmp, 'parent-url.txt'), 'utf8')).toBe(mainUrl)
+    expect(printed).toBe('resolved 1')
+  })
+
   test.each([
     ['with NODE_PATH', { NODE_PATH: os.tmpdir() }],
     ['without NODE_PATH', { NODE_PATH: '' }],

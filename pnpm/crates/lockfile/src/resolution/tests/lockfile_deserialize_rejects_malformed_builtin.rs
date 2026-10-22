@@ -41,6 +41,52 @@ fn to_lockfile_form_drops_the_artifactory_url_of_a_scoped_package() {
     );
 }
 
+#[test]
+fn to_lockfile_form_drops_the_pnpr_url_of_a_scoped_package() {
+    const PNPR_REGISTRY: &str = "https://pnpr.example/~zstd/";
+    let pnpr_form = LockfileFormOptions {
+        registry: PNPR_REGISTRY,
+        server_type: Some(RegistryServerType::Pnpr),
+        include_tarball_url: false,
+    };
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{PNPR_REGISTRY}@acme/widget@1.2.3"),
+        integrity: Some(integrity(SHA512)),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let actual = resolution.to_lockfile_form("@acme/widget", "1.2.3", pnpr_form).unwrap();
+    assert_eq!(
+        actual,
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(SHA512),
+            revision: None
+        }),
+    );
+}
+
+/// A writer that does not know the layout, such as the config-dependency
+/// lockfile, keeps a pnpr URL, so its reader needs no layout either.
+#[test]
+fn to_lockfile_form_keeps_a_pnpr_url_when_the_layout_is_undeclared() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://pnpr.example/~zstd/@acme/widget@1.2.3".to_string(),
+        integrity: Some(integrity(SHA512)),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+    let actual = resolution
+        .to_lockfile_form(
+            "@acme/widget",
+            "1.2.3",
+            undeclared_form("https://pnpr.example/~zstd/", false),
+        )
+        .unwrap();
+    assert_eq!(actual, resolution);
+}
+
 /// Under the Artifactory layout the npm-layout URL is the one pnpm cannot
 /// rebuild, so it has to survive verbatim — the inverse of the default.
 #[test]

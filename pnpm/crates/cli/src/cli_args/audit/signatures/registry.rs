@@ -1,8 +1,8 @@
 use super::{
     BTreeMap, Config, Deserialize, HashMap, SignaturesError, ThrottledClient, encode_package_name,
-    redact_url_credentials, retry_opts_from_config, sanitize_response_body, send_with_retry,
-    walk_reqwest_chain,
+    redact_url_credentials, sanitize_response_body, send_with_retry, walk_reqwest_chain,
 };
+use pnpm_network::normalize_registry_url;
 
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct RegistryKey {
@@ -65,7 +65,7 @@ pub(super) async fn fetch_registry_keys(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<Vec<RegistryKey>, SignaturesError> {
-    let registry_url = with_trailing_slash(registry);
+    let registry_url = normalize_registry_url(registry);
     let keys_url = format!("{registry_url}-/npm/v1/keys");
     let display_url = redact_url_credentials(&keys_url);
     // Registries such as GitLab redirect this endpoint to registry.npmjs.org,
@@ -75,7 +75,7 @@ pub(super) async fn fetch_registry_keys(
             &keys_url,
             &config.auth_headers,
             Some("application/json"),
-            retry_opts_from_config(config),
+            config.retry_opts(),
             MAX_KEYS_RESPONSE_BYTES,
         )
         .await
@@ -136,7 +136,7 @@ pub(super) async fn fetch_packument(
     config: &Config,
     http_client: &ThrottledClient,
 ) -> Result<Option<Packument>, SignaturesError> {
-    let registry_url = with_trailing_slash(registry);
+    let registry_url = normalize_registry_url(registry);
     let packument_url = format!("{registry_url}{}", encode_package_name(name));
     let display_url = redact_url_credentials(&packument_url);
     let authorization = config.auth_headers.for_url(&registry_url);
@@ -144,7 +144,7 @@ pub(super) async fn fetch_packument(
     // before `response.text()` would release the concurrency permit while the
     // socket is still draining (see [`send_with_retry`]).
     let (_guard, response) =
-        send_with_retry(http_client, &packument_url, retry_opts_from_config(config), |client| {
+        send_with_retry(http_client, &packument_url, config.retry_opts(), |client| {
             let mut request = client.get(&packument_url).header("accept", "application/json");
             if let Some(value) = &authorization {
                 request = request.header("authorization", value);
@@ -191,8 +191,4 @@ fn parse_packument(body: &str, display_url: &str) -> Result<Packument, Signature
             url: display_url.to_string(),
             body: sanitize_response_body(&value.to_string()),
         })
-}
-
-fn with_trailing_slash(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }

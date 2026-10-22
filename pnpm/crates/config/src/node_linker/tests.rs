@@ -106,7 +106,7 @@ fn environment_accepts_loaded_object_and_reset_clears_exclusions() {
 }
 
 #[test]
-fn switching_loaded_linker_restores_layout_defaults_and_preserves_explicit_settings() {
+fn switching_loaded_linker_restores_global_virtual_store_and_keeps_modules_dir() {
     for explicit in [false, true] {
         let original =
             Path::new("/project").join(if explicit { "custom-modules" } else { "node_modules" });
@@ -122,10 +122,8 @@ fn switching_loaded_linker_restores_layout_defaults_and_preserves_explicit_setti
         config.node_linker = NodeLinker::Loaded;
         config.apply_global_virtual_store_derivation(false, false);
         assert!(config.enable_global_virtual_store);
-        assert_eq!(
-            config.modules_dir,
-            if explicit { original.clone() } else { Path::new("/project").join(".pnpm") },
-        );
+        assert_eq!(config.modules_dir, original);
+        assert_eq!(config.store_loader_dir(Path::new("/project")), original.join(".pnpm"));
         config.node_linker = NodeLinker::Isolated;
         config.apply_global_virtual_store_derivation(false, false);
         assert_eq!(config.modules_dir, original);

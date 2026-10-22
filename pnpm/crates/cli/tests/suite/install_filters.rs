@@ -110,6 +110,40 @@ fn filtered_install_materializes_the_workspace_root() {
     );
 }
 
+#[test]
+fn update_config_hook_filter_selects_the_installed_projects() {
+    let (fixture, selected, unselected, _) = workspace_with_installable_root(ManifestDeps {
+        prod: &[(PARENT, "100.0.0")],
+        ..Default::default()
+    });
+    fs::write(
+        fixture.workspace.join(".pnpmfile.mjs"),
+        "export const hooks = { updateConfig (config) { return Object.assign(config, { filter: config.filter ?? ['selected'] }) } }\n",
+    )
+    .expect("write updateConfig hook");
+
+    fixture.run(["install"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+}
+
+#[test]
+fn command_line_filter_outranks_update_config_hook_filter() {
+    let (fixture, selected, unselected, _) = workspace_with_installable_root(ManifestDeps {
+        prod: &[(PARENT, "100.0.0")],
+        ..Default::default()
+    });
+    fs::write(
+        fixture.workspace.join(".pnpmfile.mjs"),
+        "export const hooks = { updateConfig (config) { return Object.assign(config, { filter: ['unselected'] }) } }\n",
+    )
+    .expect("write updateConfig hook");
+
+    fixture.run(["--filter", "selected", "install"]);
+
+    assert_root_and_selected_are_materialized(&fixture, &selected, &unselected, PARENT);
+}
+
 fn compatible_update_scenario(selected_dir: &str, unselected_dir: &str) {
     let fixture = WorkspaceFixture::new();
     let selected = fixture.project(
@@ -308,10 +342,16 @@ fn filtered_frozen_install_checks_only_selected_manifest_specifiers() {
     );
     assert!(!output.status.success(), "selected manifest mismatch must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    let error: Value = stderr
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).expect("stderr records are JSON"))
+        .find(|record| record["level"] == "error")
+        .expect("fatal error record");
+    let message = error["message"].as_str().expect("error message");
     assert!(
-        stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE")
-            && stderr.contains(r#"Cannot install with "frozen-lockfile""#)
-            && stderr.contains("pnpm-lock.yaml is not up"),
+        error["code"] == "ERR_PNPM_OUTDATED_LOCKFILE"
+            && message.contains(r#"Cannot install with "frozen-lockfile""#)
+            && message.contains("pnpm-lock.yaml is not up"),
         "expected the existing frozen-lockfile mismatch diagnostic:\n{stderr}",
     );
 }

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import console from 'node:console'
 import process from 'node:process'
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
 
@@ -43,6 +43,7 @@ pnpm-process = { path = ${JSON.stringify(join(root, 'pnpm/crates/process'))} }
 serde_json = "=${lockedVersion('serde_json')}"
 `
 mkdirSync(join(generated, 'src'), { recursive: true })
+cpSync(join(root, 'vendor'), join(generated, 'vendor'), { recursive: true })
 writeFileSync(join(generated, 'Cargo.toml'), manifest)
 copyFileSync(join(root, 'Cargo.lock'), join(generated, 'Cargo.lock'))
 copyFileSync(join(directory, 'main.rs'), join(generated, 'src', 'main.rs'))
@@ -61,8 +62,8 @@ const flags = [
   '-C', 'link-arg=--export=__wasm_init_tls',
 ]
 const inherited = process.env.CARGO_ENCODED_RUSTFLAGS?.split('\x1f') ?? process.env.RUSTFLAGS?.split(/\s+/).filter(Boolean) ?? []
-const result = spawnSync('cargo', [
-  '+nightly-2026-08-27', 'build', '--offline', '--manifest-path', join(generated, 'Cargo.toml'),
+const result = spawnSync('pnx', [
+  '--package=rust@nightly-2026-08-27', 'cargo', 'build', '--offline', '--manifest-path', join(generated, 'Cargo.toml'),
   '--target', 'wasm32-wasip1-threads', '--target-dir', generated,
 ], {
   cwd: root,

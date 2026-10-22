@@ -3,59 +3,75 @@
 
 pub mod oidc;
 
-pub use logging::{LogConfig, LogFormat, LogLevel};
-
-pub use backend_config::{
-    AuthConfig, BackendConfig, HtpasswdConfig, LibsqlSettings, MaxUsers, SqlBackendSettings,
-    TokensConfig,
+pub use access::{
+    AccessSpec, PackageAccess, compile_access_list, validate_member_name, validate_team_name,
 };
-
-pub use access::{AccessSpec, PackageAccess, Teams};
-
+pub use artifacts::{ArtifactQuota, ArtifactsFeature, StorageAccess};
+pub use backend_config::{
+    AuthConfig, BackendConfig, HtpasswdConfig, IdentityConfig, LibsqlSettings, MaxUsers,
+    SqlBackendSettings, TokensConfig,
+};
+pub use byte_size::{ByteSize, parse_byte_size};
+pub use hosted::{HostedConfig, Management};
+pub use ip_network::{IpNetwork, parse_trusted_proxies};
+pub use logging::{LogConfig, LogFormat, LogLevel};
+pub use pnpr_policy::{TeamDirectory, Teams};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
+pub use scim::ScimConfig;
+pub use secrets::{MIN_RESOLUTION_SECRET_LEN, derive_subkey, random_secret, resolution_secret};
+pub use storage_config::{CacheConfig, StorageConfig, default_cache_dir};
+pub use trusted_proxy_header::TrustedProxyHeader;
+pub use upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy, parse_interval};
+pub use web_ui::UiConfig;
 
-pub use self::upstream::{RedactedHeaders, UpstreamConfig, UpstreamRequestPolicy};
+pub(crate) use secrets::resolve_secrets;
+pub(crate) use storage_config::{default_storage_string, resolve_relative, resolve_storage_paths};
 
-pub use ip_network::IpNetwork;
+mod access;
+use access::{build_admins, build_teams};
 
-mod ip_network;
-
-mod logging;
-use logging::build_log_config;
+mod artifacts;
+use artifacts::{parse_artifact_quota, parse_storage_access};
 
 mod backend_config;
-use backend_config::{build_auth_config, build_backend_config};
+use backend_config::{build_backend_config, build_identity_config};
 
-mod loading;
-
-mod validation;
-
-mod presets;
+mod byte_size;
 
 mod config_file;
 use config_file::{
-    ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile, DefaultRegistryFile,
-    FeatureFile, HostedFile, LogEntryFile, OsvFile, PipelineFeatureFile, RegistryFile,
-    RegistryGroupFile, RoutesFile, SqlBackendFile, StorageAccessFile, UpstreamFile,
-    parse_config_file, reject_removed_blocks,
+    ArtifactQuotaFile, ArtifactsFeatureFile, AuthFile, BackendFile, ConfigFile, CorsFile,
+    DefaultRegistryFile, FeatureFile, HostedFile, LibsqlFile, LogEntryFile, OsvFile,
+    PipelineFeatureFile, RegistryFile, RegistryGroupFile, RemovedGroupsBlock, RemovedPackagesBlock,
+    RemovedUplinksBlock, RemovedUpstreamsBlock, RoutesFile, SqlBackendFile, StorageAccessFile,
+    UpstreamFile,
 };
+
+mod hosted;
+mod ip_network;
+mod loading;
+mod logging;
+use logging::build_log_config;
 
 mod registry_graph;
 use registry_graph::{
-    ResolvedFileRegistries, org_collision_error, registry_err, registry_mock_graph,
-    resolve_file_registries, validate_org_namespace, validate_registry_key, validate_registry_name,
+    ResolvedFileRegistries, org_collision_error, registry_err, resolve_file_registries,
+    validate_org_namespace, validate_registry_key, validate_registry_name,
 };
-
-mod access;
-use access::build_teams;
 
 mod s3;
+mod scim;
+mod secrets;
+mod storage_config;
+mod trusted_proxy_header;
 
 mod upstream;
+use upstream::{Interval, UpstreamAuthFile, UpstreamConfigFile, resolve_upstream_config};
 
-use self::upstream::{
-    Interval, UpstreamAuthFile, UpstreamConfigFile, parse_interval, resolve_upstream_config,
-};
+mod validation;
+
+mod web_ui;
+use web_ui::build_ui_config;
 
 use indexmap::IndexMap;
 use object_store::{
@@ -64,9 +80,8 @@ use object_store::{
 };
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
+use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
-use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
     collections::BTreeSet,
@@ -77,8 +92,7 @@ use std::{
     time::Duration,
 };
 
-/// The bundled verdaccio-shaped YAML config, mirrored from
-/// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
+/// The bundled default YAML config. Other crates can
 /// pull this in directly when they need pnpr's defaults
 /// (upstreams, package routing) without reading a file from disk —
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
@@ -102,19 +116,21 @@ pub enum ConfigSource {
 
 /// Runtime configuration for the pnpm registry server.
 ///
-/// The persisted (YAML) shape follows verdaccio's `config.yaml` —
-/// `storage`, `upstreams`, `packages` — restricted to the subset
-/// pnpr implements (no web UI, auth, plugins, or logs
-/// routing).
-///
+/// Top-level sections configure storage, auth, routing, and server behavior.
 /// Runtime-only fields (`listen`, `public_url`, `packument_ttl`)
-/// are set by the binary's CLI flags after the YAML is loaded,
-/// matching verdaccio's CLI overrides.
-#[derive(Debug, Clone)]
+/// can be overridden by the binary's CLI flags after the YAML is loaded.
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "server configuration aggregates all functional subsystems"
+    )
+)]
+#[derive(Clone)]
 pub struct Config {
     /// Format and level for the `tracing-subscriber` the binary
-    /// installs at startup. Sourced from the YAML `log:` object
-    /// (Verdaccio 6+ shape). Defaults to pretty/info.
+    /// installs at startup. Sourced from the YAML `log:` object.
+    /// Defaults to pretty/info.
     pub logs: LogConfig,
     /// Optional local OSV database used by mounted surfaces to reject
     /// known vulnerable npm package versions without live API calls.
@@ -125,6 +141,12 @@ pub struct Config {
     /// 32-byte value from the OS CSPRNG at startup (private entries then
     /// live only for this process's lifetime).
     pub resolution_cache_secret: Arc<[u8]>,
+    /// Secret keying private cache HMACs (resolution cache and upstream cache digest).
+    pub cache_secret: Arc<[u8]>,
+    /// Secret keying OCI token signing.
+    pub oci_secret: Arc<[u8]>,
+    /// Whether `secret:` or `secrets:` was explicitly provided in configuration rather than generated randomly.
+    pub has_configured_secret: bool,
     pub http: HttpConfig,
     pub storage: StorageConfig,
     pub identity: IdentityConfig,
@@ -132,6 +154,31 @@ pub struct Config {
     pub routing: RoutingConfig,
 }
 
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("logs", &self.logs)
+            .field("osv", &self.osv)
+            .field("resolution_cache_secret", &"[redacted]")
+            .field("cache_secret", &"[redacted]")
+            .field("oci_secret", &"[redacted]")
+            .field("has_configured_secret", &self.has_configured_secret)
+            .field("http", &self.http)
+            .field("storage", &self.storage)
+            .field("identity", &self.identity)
+            .field("features", &self.features)
+            .field("routing", &self.routing)
+            .finish()
+    }
+}
+
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "registry HTTP configuration reflects top-level server options"
+    )
+)]
 #[derive(Debug, Clone)]
 pub struct HttpConfig {
     /// Address the HTTP server binds to.
@@ -143,46 +190,25 @@ pub struct HttpConfig {
     /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
     /// response headers unless an operator explicitly names trusted origins.
     pub cors: CorsConfig,
+    pub ui: UiConfig,
     /// OCI authentication and size limits.
     pub oci: OciConfig,
     /// How long a cached packument is considered fresh before it is
     /// re-fetched from the resolved upstream. Ignored when no upstream
     /// matches.
     pub packument_ttl: Duration,
+    /// Reverse-proxy networks trusted to supply client IP headers.
+    pub trusted_proxies: Vec<IpNetwork>,
+    /// Which forwarding header to inspect when behind a trusted proxy.
+    pub trusted_proxy_header: TrustedProxyHeader,
+    /// Request processing timeout. If a request handler takes longer than
+    /// this duration to process, it is aborted and returns 504 Gateway Timeout.
+    /// `None` or 0 disables request timeouts.
+    pub request_timeout: Option<Duration>,
 }
 
-#[derive(Debug, Clone)]
-pub struct StorageConfig {
-    /// Directory under which authoritative packuments and tarballs
-    /// live: packages published to this server and the content served
-    /// in static mode. This is the source of truth — it is never
-    /// overwritten by an upstream refresh, so operators back it up and
-    /// keep it on a durable volume.
-    pub hosted_dir: PathBuf,
-    /// Directory under which the disposable proxy cache lives —
-    /// the mirror of upstream registries plus the resolver's cache.
-    /// Safe to wipe at any time; it self-heals on the next
-    /// request.
-    pub cache_dir: PathBuf,
-    /// Where the authoritative (hosted) store lives. Defaults to
-    /// [`HostedStoreConfig::Fs`] — the local [`Self::hosted_dir`]
-    /// directory. The YAML `s3:` block switches it to an S3-compatible
-    /// object store (S3, Cloudflare R2, `MinIO`, ...).
-    pub hosted_backend: HostedStoreConfig,
-}
-
-#[derive(Debug, Clone)]
-pub struct IdentityConfig {
-    /// Where to read/write the htpasswd-format user file and the
-    /// token database. Both stores are in-memory when their paths
-    /// are `None`.
-    pub auth: AuthConfig,
-    /// Which record store backs the auth state (users + tokens).
-    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
-    /// plus `SQLite` token database. The YAML `backend:` block can
-    /// switch both stores to one shared SQL database so several
-    /// stateless pnpr replicas see a consistent set of accounts.
-    pub backend: BackendConfig,
+impl HttpConfig {
+    pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
 }
 
 #[derive(Debug, Clone)]
@@ -208,14 +234,31 @@ pub struct RoutingConfig {
     /// namespace and an access policy gating its packages. The only registry kind
     /// that accepts writes.
     pub hosted: IndexMap<String, HostedConfig>,
+    /// The registries, by key, that declare `tarballs: tar`: their metadata
+    /// and tarball routes describe uncompressed tars instead of `.tgz` files.
+    pub tar_registries: BTreeSet<String>,
+}
+
+/// The format a registry serves tarballs in at its own URL.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TarballFormat {
+    /// The published `.tgz`, as npm serves it.
+    #[default]
+    Tgz,
+    /// The gzip-decoded `.tgz`, encoded per request with HTTP content coding.
+    Tar,
 }
 
 /// Authentication and byte limits for the OCI distribution surface.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct OciConfig {
+    #[serde(default, rename = "bearerAuth", alias = "bearer_auth")]
     pub bearer_auth: bool,
+    #[serde(default, rename = "maxBlobBytes", alias = "max_blob_bytes")]
     pub max_blob_bytes: u64,
+    #[serde(default, rename = "maxManifestBytes", alias = "max_manifest_bytes")]
     pub max_manifest_bytes: usize,
 }
 
@@ -227,27 +270,6 @@ impl Default for OciConfig {
             max_manifest_bytes: 4 * 1024 * 1024,
         }
     }
-}
-
-/// A resolved hosted registry: the `org` namespace it serves and its
-/// `packages:` rules — the namespace it claims plus the per-package
-/// `access` / `publish` / `unpublish` policies, with the registry-level
-/// `access:` as the default an entry's omitted fields fall back to.
-#[derive(Debug, Clone)]
-pub struct HostedConfig {
-    /// The storage/serving namespace, so two hosted registries holding the same
-    /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
-    pub org: String,
-    /// The registry's `packages:` map: namespace and per-package rules in one
-    /// declaration, selected by specificity. The effective `access` gates
-    /// reads *and* the write routing (publish, dist-tag, unpublish), with a
-    /// denied caller masked as not-found either way.
-    pub rules: PackageRules,
-    /// The registry's declared `teams:` map, retained so the npm team API
-    /// (`GET /-/org/{scope}/team`, `GET /-/team/{scope}/{team}/user`) can
-    /// list them. Membership is config-declared: the API serves reads only,
-    /// and team mutations are rejected.
-    pub teams: Teams,
 }
 
 /// Exact browser origins allowed to call pnpr across origins.
@@ -338,29 +360,13 @@ impl Default for ResolverFeature {
     }
 }
 
-/// Toggle for the shared-artifact surface. Off by default while the
-/// protocol is a proof of concept.
-#[derive(Debug, Default, Clone)]
-pub struct ArtifactsFeature {
-    /// Master switch for artifact and compiler-cache endpoints.
-    pub enabled: bool,
-    /// Named compiler caches with independent read and publication policies.
-    pub compiler_caches: IndexMap<String, StorageAccess>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StorageAccess {
-    pub access: AccessList,
-    pub publish: AccessList,
-}
-
 /// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
-/// Off by default while the surface is a proof of concept.
+/// Off by default while the surface is a proof of concept. Who may read and
+/// publish runs is [`ArtifactsFeature::orgs`].
 #[derive(Debug, Default, Clone)]
 pub struct PipelineFeature {
     /// Master switch for the run submission, listing, and viewer endpoints.
     pub enabled: bool,
-    pub workspaces: IndexMap<String, StorageAccess>,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -376,77 +382,13 @@ pub struct FeatureOverrides {
     pub disable_registry: bool,
     pub disable_resolver: bool,
     pub disable_artifacts: bool,
+    pub disable_pipeline: bool,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct OsvConfig {
     pub enabled: bool,
     pub path: Option<PathBuf>,
-}
-
-/// The namespace [`Config::proxy`] declares on its flat-root hosted org, so
-/// those names resolve locally rather than to the npm upstream: the
-/// registry-mock fixture scopes plus the unscoped fixtures. Kept in sync
-/// with the fixtures under `pnpr/.fixtures/packages` and with the
-/// fixture-scope subset of the bundled `config.yaml` `local` registry — the
-/// YAML additionally claims the exact names the TS test suite publishes,
-/// which pacquet's in-process registry never sees. The fixture packages
-/// living in real, active npm scopes (`@pnpm`, `@zkochan`) are claimed by
-/// exact name so the rest of those scopes keeps proxying npm (dependency
-/// trees of proxied packages pull real `@pnpm/*` packages).
-const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
-    "@foo/*",
-    "@having/*",
-    "@jsr/*",
-    "@pnpm.e2e/*",
-    "@private/*",
-    "@scoped/*",
-    "@pnpm/plugin-pnpmfile",
-    "@pnpm/postinstall-modifies-source",
-    "@pnpm/x",
-    "@pnpm/xyz",
-    "@pnpm/xyz-parent",
-    "@pnpm/xyz-parent-parent",
-    "@pnpm/xyz-parent-parent-parent",
-    "@pnpm/xyz-parent-parent-parent-parent",
-    "@pnpm/xyz-parent-parent-with-xyz",
-    "@pnpm/y",
-    "@pnpm/z",
-    "@zkochan/test-pnpm-issue219",
-    "ajv",
-    "ajv-keywords",
-    "create-touch-file-one-bin",
-];
-
-/// The `local` hosted registry's `packages:` rules in the registry-mock
-/// shape: the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with
-/// default rules, `@private/*` and `@pnpm.e2e/needs-auth` restricted to
-/// authenticated callers (the rules `@pnpm/registry-mock` applied under
-/// verdaccio), and unpublish open to any authenticated user so the
-/// fixture-rewriting test flows keep working. The exact
-/// `@pnpm.e2e/needs-auth` key wins over the `@pnpm.e2e/*` scope key by
-/// specificity.
-fn registry_mock_rules() -> PackageRules {
-    let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
-    let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
-        .iter()
-        .map(|pattern| PackageRule {
-            pattern: PackagePattern::parse(pattern, Ecosystem::Npm)
-                .expect("valid built-in fixture registry pattern"),
-            access: (*pattern == "@private/*").then(authenticated).flatten(),
-            publish: (*pattern == "@private/*").then(authenticated).flatten(),
-            unpublish: (*pattern == "@private/*").then(authenticated).flatten(),
-        })
-        .collect();
-    rules.push(PackageRule {
-        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth", Ecosystem::Npm)
-            .expect("valid built-in fixture registry pattern"),
-        access: authenticated(),
-        publish: authenticated(),
-        unpublish: authenticated(),
-    });
-    PackageRules::new(rules, None)
-        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
 }
 
 impl Config {
@@ -482,12 +424,10 @@ fn build_features(
         resolver: ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver },
         artifacts: ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
+            orgs: parse_storage_access(artifacts_file.orgs)?,
+            quota: parse_artifact_quota(&artifacts_file.quota)?,
         },
-        pipeline: PipelineFeature {
-            enabled: pipeline_file.enabled,
-            workspaces: parse_storage_access(pipeline_file.workspaces)?,
-        },
+        pipeline: PipelineFeature { enabled: pipeline_file.enabled && !overrides.disable_pipeline },
     })
 }
 
@@ -530,40 +470,6 @@ fn build_route_policy(file: Option<RoutesFile>) -> Result<RoutePolicy, RegistryE
     })
 }
 
-/// Minimum length for an operator-configured `secret:`. A shorter value makes
-/// the private-cache descriptor HMAC guessable, defeating its "not
-/// correlatable offline" property; a generated secret is 32 bytes.
-const MIN_RESOLUTION_SECRET_LEN: usize = 16;
-
-/// The HMAC secret keying private resolution-cache entries: the YAML
-/// `secret:` when set (rejected if too short to be a safe HMAC key), else a
-/// fresh per-process value.
-fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
-    match secret {
-        Some(secret) if !secret.is_empty() => {
-            if secret.len() < MIN_RESOLUTION_SECRET_LEN {
-                return Err(RegistryError::InvalidConfig {
-                    reason: format!(
-                        "`secret:` must be at least {MIN_RESOLUTION_SECRET_LEN} bytes to key the \
-                         private resolution-cache HMAC (it is {})",
-                        secret.len(),
-                    ),
-                });
-            }
-            Ok(Arc::from(secret.as_bytes().to_vec()))
-        }
-        _ => Ok(random_secret()),
-    }
-}
-
-/// 32 bytes from the OS CSPRNG, for a deployment that configures no
-/// `secret:`. Private cache entries then live only for this process.
-fn random_secret() -> Arc<[u8]> {
-    let mut bytes = [0u8; 32];
-    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
-    Arc::from(bytes.to_vec())
-}
-
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {
     OsvConfig {
         enabled: file.enabled,
@@ -590,59 +496,5 @@ fn default_tokens_path_sibling_of(htpasswd: &Path) -> PathBuf {
         .join("tokens.db")
 }
 
-/// Resolve a (possibly relative) storage path against `base_dir`.
-/// Verdaccio's `./storage` convention.
-fn resolve_relative(raw: &str, base_dir: &Path) -> PathBuf {
-    let path = PathBuf::from(raw);
-    if path.is_absolute() {
-        return path;
-    }
-    base_dir.join(path)
-}
-
-fn default_storage_string() -> String {
-    "./storage".to_string()
-}
-
-/// The disposable proxy cache lives under a hidden `.pnpr-cache`
-/// subdirectory of `storage` by default. Nesting it under `storage`
-/// keeps a `--storage`-only deployment self-contained, while the dot
-/// prefix keeps the local search scan (which walks `<storage>/<pkg>`)
-/// from treating it as a package. Operators who want the cache on a
-/// separate, wipe-able volume point the `cache:` key at an absolute
-/// path instead.
-#[must_use]
-pub fn default_cache_dir(storage: &Path) -> PathBuf {
-    storage.join(".pnpr-cache")
-}
-
 #[cfg(test)]
 mod tests;
-
-fn parse_storage_access(
-    policies: IndexMap<String, StorageAccessFile>,
-) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
-    policies
-        .into_iter()
-        .map(|(name, policy)| {
-            validate_registry_name(&name)?;
-            let parse = |spec: &AccessSpec| {
-                spec.to_access_list(&Teams::default())
-                    .map_err(|reason| RegistryError::InvalidConfig {
-                        reason: format!("storage namespace {name:?}: {reason}"),
-                    })
-            };
-            let access =
-                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
-            Ok((name, access))
-        })
-        .collect()
-}
-
-fn resolve_storage_paths(file: &ConfigFile, base_dir: &Path) -> (PathBuf, PathBuf) {
-    let storage = resolve_relative(&file.storage, base_dir);
-    let cache = file.cache
-        .as_deref()
-        .map_or_else(|| default_cache_dir(&storage), |raw| resolve_relative(raw, base_dir));
-    (storage, cache)
-}

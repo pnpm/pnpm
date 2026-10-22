@@ -72,8 +72,8 @@ pub enum UpdateSeedPolicy {
         max_depth: UpdateDepth,
     },
 }
-/// Record `version` as the preferred one for `name`, outranking the pin the
-/// lockfile seeds.
+/// Record `version` as the preferred one for `name`, outranking every other
+/// preference for it.
 ///
 /// A version named on the command line has to reach the lockfile even when
 /// the specifier written to the manifest doesn't carry it — a `catalog:`
@@ -85,7 +85,7 @@ pub(crate) fn prefer_requested_version(
     version: &str,
 ) {
     use pnpm_resolving_resolver_base::{
-        EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
+        REQUESTED_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry, VersionSelectorType,
         VersionSelectorWithWeight,
     };
 
@@ -99,7 +99,7 @@ pub(crate) fn prefer_requested_version(
             version.to_string(),
             VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
                 selector_type: VersionSelectorType::Version,
-                weight: EXISTING_VERSION_SELECTOR_WEIGHT + 1,
+                weight: REQUESTED_VERSION_SELECTOR_WEIGHT,
             }),
         );
 }

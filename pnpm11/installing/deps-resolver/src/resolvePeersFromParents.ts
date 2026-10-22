@@ -7,6 +7,7 @@ import type {
 import * as semverUtils from '@yarnpkg/core/semverUtils'
 import { pick } from 'ramda'
 
+import { providerFor } from './hoistPeers.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
   MissingPeerInfo,
@@ -36,23 +37,24 @@ export function resolvePeersFromParents<Pkg extends PartialResolvedPackage> (
 ): PeersResolution {
   const resolvedPeers = new Map<string, NodeId>()
   const missingPeers = new Map<string, MissingPeerInfo>()
-  for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peerDependencies)) {
+  for (const [peerName, { version, optional }] of Object.entries(ctx.resolvedPackage.peers.taken)) {
     const peerVersionRange = getPeerVersionRange(version)
 
-    const resolved = ctx.parentPkgs[peerName]
+    const pick = providerFor(version, { inherited: ctx.parentPkgs[peerName], inheritedMustWin: () => false })
     const optionalPeer = optional === true
 
-    if (!resolved) {
+    if (pick.kind === 'missing') {
       missingPeers.set(peerName, { range: version, optional: optionalPeer })
       reportMissingPeer(ctx, peerName, { optional: optionalPeer, wantedRange: peerVersionRange })
       continue
     }
+    const resolved = pick.provider
 
     if (!semverUtils.satisfiesWithPrereleases(resolved.version, peerVersionRange, true)) {
       reportBadPeer(ctx, { peerName, resolved, optional: optionalPeer, wantedRange: peerVersionRange })
     }
 
-    if (resolved?.nodeId) resolvedPeers.set(peerName, resolved.nodeId)
+    if (resolved.nodeId) resolvedPeers.set(peerName, resolved.nodeId)
   }
   return { resolvedPeers, missingPeers }
 }

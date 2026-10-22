@@ -197,7 +197,12 @@ function isUnchangedWithoutOptionalDeps (opts: LockfileToDepGraphOptions, check:
   return check.isUnchanged &&
     isEmpty(check.currentPkgSnapshot!.optionalDependencies ?? {}) &&
     isEmpty(check.pkgSnapshot.optionalDependencies ?? {}) &&
-    !opts.includeUnchangedDeps
+    !opts.includeUnchangedDeps &&
+    // The current lockfile vouches only for slots this project alone writes.
+    // A global virtual store slot is shared, so another project's interrupted
+    // install may have re-created it without its dependency links. Keeping it
+    // in the graph relinks its children (https://github.com/pnpm/pnpm/issues/16642).
+    !opts.enableGlobalVirtualStore
 }
 
 async function pathExistsOrLogMissing (dir: string): Promise<boolean> {

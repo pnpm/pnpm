@@ -187,6 +187,8 @@ pub struct ResolveRequest {
     pub dedupe_peers: Option<bool>,
     #[serde(default)]
     pub exclude_links_from_lockfile: Option<bool>,
+    #[serde(default)]
+    pub add_missing_peer_types: Option<bool>,
     /// The client's existing on-disk lockfile, when present. Sent both
     /// as the verification target (the server verifies it under the
     /// client's policy before resolving) and as the resolution-reuse
@@ -251,6 +253,54 @@ pub struct ResolveRequest {
     /// check.
     #[serde(default)]
     pub trust_policy_ignore_after: Option<u64>,
+    /// Lockfile formats the client accepts (e.g. `["9.0"]`). The server
+    /// renders the highest compatible format it supports.
+    #[serde(default)]
+    pub accepted_lockfile_formats: Option<Vec<String>>,
+}
+
+/// The policies the server applied to a resolution, echoed in the `done`
+/// frame so the client can verify that requested verification and resolution
+/// policies were actually enforced by the server.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppliedPolicies {
+    pub auto_install_peers: bool,
+    pub dedupe_peers: bool,
+    pub exclude_links_from_lockfile: bool,
+    pub add_missing_peer_types: bool,
+    pub frozen_lockfile: bool,
+    pub resolution_mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum_release_age: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_policy: Option<String>,
+}
+
+impl AppliedPolicies {
+    pub fn from_request(request: &ResolveRequest) -> Self {
+        let settings = super::config_cache::EffectiveResolverSettings::for_request(request);
+        let resolution_mode = match request.resolution_mode {
+            pnpm_config::ResolutionMode::Highest => "highest",
+            pnpm_config::ResolutionMode::TimeBased => "time-based",
+            pnpm_config::ResolutionMode::LowestDirect => "lowest-direct",
+        }
+        .to_string();
+        let trust_policy = match request.trust_policy {
+            pnpm_config::TrustPolicy::Off => None,
+            pnpm_config::TrustPolicy::NoDowngrade => Some("no-downgrade".to_string()),
+        };
+        Self {
+            auto_install_peers: settings.auto_install_peers,
+            dedupe_peers: settings.dedupe_peers,
+            exclude_links_from_lockfile: settings.exclude_links_from_lockfile,
+            add_missing_peer_types: settings.add_missing_peer_types,
+            frozen_lockfile: request.frozen_lockfile,
+            resolution_mode,
+            minimum_release_age: request.minimum_release_age,
+            trust_policy,
+        }
+    }
 }
 
 /// One project's importer dir and its dependency maps, normalized

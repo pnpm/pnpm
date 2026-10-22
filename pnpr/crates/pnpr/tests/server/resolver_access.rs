@@ -4,6 +4,7 @@ use super::{
     drain_resolve_response, git_resolve_request, header, json, router, router_with_auth,
     spawn_counting_server, spawn_git_probe, stream, verify_lockfile_request,
 };
+use crate::tokens::issue_token;
 
 #[tokio::test]
 async fn anonymous_resolve_cannot_trigger_git_egress() {
@@ -45,7 +46,7 @@ async fn default_registration_cannot_mint_a_resolver_credential() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert!(!String::from_utf8_lossy(&body_bytes(response.into_body()).await).contains("token"));
 
     let response = app
@@ -79,7 +80,7 @@ async fn resolve_rejects_duplicate_authorization_headers() {
     let (repo_url, request_count) = spawn_git_probe().await;
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
     let mut request = git_resolve_request(&repo_url, Some(&format!("Bearer {token}")));
     request
@@ -157,7 +158,7 @@ async fn authenticated_resolve_preserves_git_dependencies() {
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     // A git dependency's host must be on the fetch allowlist for the resolver
     // to reach it; an off-allowlist URL dependency is rejected at the request
@@ -243,6 +244,44 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
                 "fixLockfile": [0],
                 "ecosystems": ["npm", "cargo", "pypi"],
                 "publish": [],
+                "protocols": {
+                    "resolver": {
+                        "version": 0,
+                        "versions": [0],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": ["npm", "cargo", "pypi"]
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [],
+                        "pnpmPublish": []
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );
@@ -264,7 +303,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let packument = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -275,7 +314,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let publish = app
         .clone()
         .oneshot(
-            Request::put("/foo")
+            Request::put("/npm/foo")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -286,7 +325,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let batch_publish = app
         .clone()
         .oneshot(
-            Request::put("/-/pnpm/v1/publish")
+            Request::put("/npm/-/pnpm/v1/publish")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -400,7 +439,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     let packument = app
         .clone()
         .oneshot(
-            Request::get("/foo")
+            Request::get("/npm/foo")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -430,6 +469,44 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
                 "fixLockfile": [],
                 "ecosystems": [],
                 "publish": [0],
+                "protocols": {
+                    "resolver": {
+                        "version": 0,
+                        "versions": [],
+                        "features": [
+                            "fixLockfile",
+                            "verifyLockfile",
+                            "projectTransforms",
+                            "policyEcho",
+                            "errorCodes",
+                            "acceptedLockfileFormats"
+                        ],
+                        "ecosystems": []
+                    },
+                    "artifacts": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "compilerCache": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "pipeline": {
+                        "version": 0,
+                        "versions": []
+                    },
+                    "publish": {
+                        "version": 0,
+                        "versions": [0],
+                        "pnpmPublish": [1]
+                    }
+                },
+                "features": {
+                    "registries": true,
+                    "admin": false,
+                    "scim": false,
+                    "signIn": false
+                }
             }
         }),
     );
@@ -488,7 +565,7 @@ async fn transitive_dependency_egress(transitive: impl FnOnce(&str) -> String) -
 
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let app = router_with_auth(config_for(&upstream.url(), tmp.path().to_path_buf()), auth);
     let body = json!({
         "dependencies": { "carrier": "1.0.0" },
@@ -547,7 +624,7 @@ async fn allowlisted_registry_egress(
     let registry = format!("http://{host}:{port}/");
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(registry.clone()),
@@ -619,7 +696,7 @@ async fn git_does_not_connect_to_an_allowlisted_name_that_resolves_to_loopback()
     let repo_url = format!("http://localhost:{port}/repo.git");
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
+    let token = issue_token(&auth, "alice").await;
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.routing.route_policy.public.push(PublicRoute {
         registry: Some(format!("http://localhost:{port}/")),

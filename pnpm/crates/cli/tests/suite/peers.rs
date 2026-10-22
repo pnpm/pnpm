@@ -971,6 +971,7 @@ fn invalid_peer_dependency_specification_fails_install() {
 }
 
 mod catalogs;
+mod hooked_manifests;
 
 mod named_registry;
 mod workspace_root;

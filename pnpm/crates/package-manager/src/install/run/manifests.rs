@@ -64,17 +64,14 @@ pub(super) fn read_package_log<Reporter: self::Reporter>(
     hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
     workspace_root: &Path,
 ) -> pnpm_hooks::LogFn {
-    hook.source_path()
-        .map_or_else(
-            || Arc::new(|_| {}) as pnpm_hooks::LogFn,
-            |from| {
-                crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
-                    workspace_root,
-                    from,
-                    "readPackage",
-                )
-            },
-        )
+    match hook.source_path() {
+        Some(from) => crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+            workspace_root,
+            from,
+            "readPackage",
+        ),
+        None => Arc::new(|_| {}) as pnpm_hooks::LogFn,
+    }
 }
 /// The pnpmfile whose checksum the freshness gates compare against a
 /// lockfile's `pnpmfileChecksum`, resolved the way the install that records
@@ -91,8 +88,7 @@ pub(super) fn resolve_pnpmfile_hook(
     if config.ignore_pnpmfile {
         return Ok(None);
     }
-    pnpm_hooks::finder::load_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
-        .map_err(InstallError::MissingPnpmfile)
+    crate::load_install_pnpmfiles(config, workspace_root).map_err(InstallError::MissingPnpmfile)
 }
 /// Borrow the rewritten manifests when a pass produced any, keeping the
 /// caller's own list otherwise.

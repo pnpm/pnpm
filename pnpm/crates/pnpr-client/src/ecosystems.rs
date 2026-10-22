@@ -34,8 +34,16 @@ const MAX_TERMINAL_RESPONSE_SIZE: usize = 32 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum CargoFrame {
-    Done { lockfile: String },
-    Error { message: String },
+    Done {
+        lockfile: String,
+    },
+    Error {
+        message: String,
+        #[serde(default)]
+        code: Option<String>,
+    },
+    #[serde(other)]
+    Ignored,
 }
 
 /// One NDJSON frame from a Python `/-/pnpr/v0/resolve`: the `pylock.toml`
@@ -44,20 +52,30 @@ enum CargoFrame {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum PypiFrame {
     /// Boxed: the lockfile dwarfs the other variant.
-    Done {
-        lockfile: Box<pnpm_python_resolver::Lockfile>,
-    },
+    Done { lockfile: Box<pnpm_python_resolver::Lockfile> },
     Error {
         message: String,
+        #[serde(default)]
+        code: Option<String>,
     },
+    #[serde(other)]
+    Ignored,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum VerifyFrame {
     Done,
-    Error { message: String },
-    Violations { violations: Vec<WireViolation> },
+    Error {
+        message: String,
+        #[serde(default)]
+        code: Option<String>,
+    },
+    Violations {
+        violations: Vec<WireViolation>,
+    },
+    #[serde(other)]
+    Ignored,
 }
 
 #[derive(Deserialize)]
@@ -127,7 +145,10 @@ impl PnprClient {
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_pypi_frame(&frame)? {
             PypiFrame::Done { lockfile } => Ok(*lockfile),
-            PypiFrame::Error { message } => Err(PnprClientError::Server(message)),
+            PypiFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
+            PypiFrame::Ignored => Err(PnprClientError::Protocol(
+                "unexpected non-terminal frame in pypi resolve response".to_string(),
+            )),
         }
     }
 
@@ -147,7 +168,10 @@ impl PnprClient {
         let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
         match parse_cargo_frame(&frame)? {
             CargoFrame::Done { lockfile } => Ok(lockfile),
-            CargoFrame::Error { message } => Err(PnprClientError::Server(message)),
+            CargoFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
+            CargoFrame::Ignored => Err(PnprClientError::Protocol(
+                "unexpected non-terminal frame in cargo resolve response".to_string(),
+            )),
         }
     }
 
@@ -175,26 +199,17 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
-            return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/resolve returned {status}: {}",
-                String::from_utf8_lossy(&body),
-            )));
+            let code = extract_error_code(&body);
+            return Err(PnprClientError::Server {
+                message: format!(
+                    "/-/pnpr/v0/resolve returned {status}: {}",
+                    String::from_utf8_lossy(&body),
+                ),
+                code,
+            });
         }
         let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
-        let mut frames = body
-            .split(|&byte| byte == b'\n')
-            .filter(|line| !line.is_empty());
-        let Some(frame) = frames.next() else {
-            return Err(PnprClientError::Protocol(
-                "/-/pnpr/v0/resolve returned no terminal frame".to_string(),
-            ));
-        };
-        if frames.next().is_some() {
-            return Err(PnprClientError::Protocol(
-                "/-/pnpr/v0/resolve returned more than one terminal frame".to_string(),
-            ));
-        }
-        Ok(frame.to_vec())
+        find_terminal_frame(&body)
     }
 
     /// Ask the server to verify a lockfile under the client's registry
@@ -216,17 +231,18 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!(
+            return Err(PnprClientError::server(format!(
                 "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
             )));
         }
 
         let done = read_ndjson_frames(response, |line| match parse_verify_frame(line)? {
             VerifyFrame::Done => Ok(Some(())),
-            VerifyFrame::Error { message } => Err(PnprClientError::Server(message)),
+            VerifyFrame::Error { message, code } => Err(PnprClientError::Server { message, code }),
             VerifyFrame::Violations { violations } => {
                 Err(PnprClientError::Verification(build_verify_error(violations)))
             }
+            VerifyFrame::Ignored => Ok(None),
         })
         .await?;
         done.ok_or_else(|| {
@@ -235,4 +251,37 @@ impl PnprClient {
             )
         })
     }
+}
+
+fn extract_error_code(body: &[u8]) -> Option<String> {
+    let payload = serde_json::from_slice::<serde_json::Value>(body).ok()?;
+    let code_val = payload.get("code")?.as_str()?;
+    Some(code_val.to_string())
+}
+
+fn is_terminal_frame(line: &[u8]) -> bool {
+    let Ok(val) = serde_json::from_slice::<serde_json::Value>(line) else {
+        return false;
+    };
+    matches!(val.get("type").and_then(|typ| typ.as_str()), Some("done" | "error"))
+}
+
+fn find_terminal_frame(body: &[u8]) -> Result<Vec<u8>, PnprClientError> {
+    let mut terminal = None;
+    for line in body
+        .split(|&byte| byte == b'\n')
+        .filter(|line| !line.is_empty())
+    {
+        if is_terminal_frame(line) {
+            if terminal.is_some() {
+                return Err(PnprClientError::Protocol(
+                    "/-/pnpr/v0/resolve returned more than one terminal frame".to_string(),
+                ));
+            }
+            terminal = Some(line.to_vec());
+        }
+    }
+    terminal.ok_or_else(|| {
+        PnprClientError::Protocol("/-/pnpr/v0/resolve returned no terminal frame".to_string())
+    })
 }

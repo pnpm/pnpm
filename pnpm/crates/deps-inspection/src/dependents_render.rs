@@ -271,39 +271,70 @@ pub fn render_dependents_parseable(
     let mut lines: Vec<String> = Vec::new();
     for tree in trees {
         let displayed_name = tree.display_name.as_deref().unwrap_or(&tree.name);
-        let root_segment = match (&tree.path, opts.long) {
-            (Some(path), true) => {
-                format!("{path}:{}", plain_name_at_version(displayed_name, &tree.version))
-            }
-            _ => plain_name_at_version(displayed_name, &tree.version),
+        let mut walk = ParseableWalk {
+            root_name_ver: plain_name_at_version(displayed_name, &tree.version),
+            default_root_path: tree.path.as_deref(),
+            long: opts.long,
+            max_depth: opts.depth,
+            lines: &mut lines,
         };
-        collect_paths(&tree.dependents, &[root_segment], &mut lines, 0, opts.depth);
+        walk.collect_paths(&tree.dependents, &[], 0);
     }
     lines.join("\n")
 }
 
-fn collect_paths(
-    dependents: &[DependentNode],
-    current_path: &[String],
-    lines: &mut Vec<String>,
-    current_depth: usize,
+struct ParseableWalk<'a> {
+    root_name_ver: String,
+    default_root_path: Option<&'a str>,
+    long: bool,
     max_depth: Option<usize>,
-) {
-    for dep in dependents {
-        let displayed_name = dep.display_name.as_deref().unwrap_or(&dep.name);
-        let mut new_path = current_path.to_vec();
-        new_path.push(plain_name_at_version(displayed_name, &dep.version));
-        let at_depth_limit = max_depth.is_some_and(|max_depth| current_depth + 1 >= max_depth);
-        match &dep.dependents {
-            Some(children) if !children.is_empty() && !at_depth_limit => {
-                collect_paths(children, &new_path, lines, current_depth + 1, max_depth);
+    lines: &'a mut Vec<String>,
+}
+
+impl ParseableWalk<'_> {
+    fn collect_paths(
+        &mut self,
+        dependents: &[DependentNode],
+        current_path: &[String],
+        current_depth: usize,
+    ) {
+        for dep in dependents {
+            let displayed_name = dep.display_name.as_deref().unwrap_or(&dep.name);
+            let mut new_path = current_path.to_vec();
+            new_path.push(plain_name_at_version(displayed_name, &dep.version));
+            let at_depth_limit =
+                self.max_depth.is_some_and(|max_depth| current_depth + 1 >= max_depth);
+            match &dep.dependents {
+                Some(children) if !children.is_empty() && !at_depth_limit => {
+                    self.collect_paths(children, &new_path, current_depth + 1);
+                }
+                _ => {
+                    for root_segment in self.root_segments(dep) {
+                        let mut full_path = vec![root_segment];
+                        full_path.extend(new_path.iter().cloned());
+                        // Leaf (importer or depth-limited) — reversed so the
+                        // importer comes first.
+                        full_path.reverse();
+                        self.lines.push(full_path.join(" > "));
+                    }
+                }
             }
-            _ => {
-                // Leaf (importer or depth-limited) — reversed so the
-                // importer comes first.
-                new_path.reverse();
-                lines.push(new_path.join(" > "));
-            }
+        }
+    }
+
+    fn root_segments(&self, dep: &DependentNode) -> Vec<String> {
+        if !self.long {
+            return vec![self.root_name_ver.clone()];
+        }
+        if !dep.root_paths.is_empty() {
+            return dep.root_paths
+                .iter()
+                .map(|path| format!("{path}:{}", self.root_name_ver))
+                .collect();
+        }
+        match self.default_root_path {
+            Some(path) => vec![format!("{path}:{}", self.root_name_ver)],
+            None => vec![self.root_name_ver.clone()],
         }
     }
 }

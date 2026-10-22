@@ -75,6 +75,23 @@ test('the hoisted linker does not report an optional dependency it skipped', asy
   expect(summary(output, 'optionalDependencies')).toBeUndefined()
 })
 
+test('repeat install with node-linker=hoisted does not download skipped optional dependencies', async () => {
+  prepare({
+    optionalDependencies: {
+      '@pnpm.e2e/not-compatible-with-any-os': '*',
+    },
+  })
+
+  expect(summary(runHoisted(['install']))).toBeUndefined()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/not-compatible-with-any-os')).toBe(false)
+
+  const repeatOutput = runHoisted(['install'])
+  expect(repeatOutput).not.toMatch(/Progress: .*downloaded [1-9]\d*/)
+  expect(summary(repeatOutput)).toBeUndefined()
+  expect(summary(repeatOutput, 'optionalDependencies')).toBeUndefined()
+  expect(fs.existsSync('node_modules/@pnpm.e2e/not-compatible-with-any-os')).toBe(false)
+})
+
 test('the hoisted linker reports an optional dependency it stops supporting', async () => {
   const pkg = '@pnpm.e2e/not-compatible-with-any-os'
   prepare({
@@ -237,4 +254,26 @@ test('filtered installs of different projects with node-linker=hoisted add up', 
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
   expect(fs.existsSync('node_modules/is-negative')).toBe(true)
   expect(fs.existsSync('node_modules/@pnpm.e2e/foo')).toBe(false)
+})
+
+test('externalDependencies in pnpm-workspace.yaml prevents a dependency from being hoisted to the root without warning', async () => {
+  prepare({
+    name: 'repro',
+    version: '1.0.0',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['.'],
+    nodeLinker: 'hoisted',
+    externalDependencies: ['@pnpm.e2e/dep-of-pkg-with-1-dep'],
+  })
+
+  const { stdout, stderr } = execPnpmSync(['install'], { expectSuccess: true })
+  expect(stdout).not.toContain('not recognized by this version of pnpm')
+  expect(stderr).not.toContain('not recognized by this version of pnpm')
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pkg-with-1-dep')).toBe(true)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')).toBe(false)
+  expect(fs.existsSync('node_modules/@pnpm.e2e/pkg-with-1-dep/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep')).toBe(true)
 })

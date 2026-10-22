@@ -1,6 +1,7 @@
+pub use abbreviate::abbreviate_packument;
 pub use packument::{
-    abbreviate_packument, extract_upstream_version_manifest, extract_version_manifest,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, tarball_basename,
+    extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
 };
 
 pub use oci::oci_download_allowed;
@@ -13,9 +14,16 @@ use circuit_breaker::CircuitBreaker;
 
 mod packument;
 
+mod abbreviate;
+
 mod oci;
 
-use chrono::{DateTime, Utc};
+mod audit;
+
+mod attestations;
+
+mod time;
+
 use pnpm_lockfile::{
     MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
@@ -347,20 +355,22 @@ impl Upstream {
         )))
     }
 
-    /// Fetch an immutable sha512 registry artifact without following redirects.
+    /// Fetch an immutable sha512 registry revision without following redirects.
+    /// The revision is a tar resource. The response keeps its content coding,
+    /// gzip or none, for the caller to decode and verify.
     pub async fn fetch_revision_tarball_response(
         &self,
         digest: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
-        let client =
-            self.http.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let client = self.http.client.acquire_archive_for_url_with_priority(&url, 0, false).await;
         let started = Instant::now();
         let request = client
             .get(&url)
             .timeout(self.http.timeout)
-            .headers(self.request_headers(&url));
+            .headers(self.request_headers(&url))
+            .header(reqwest::header::ACCEPT_ENCODING, "gzip");
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -432,7 +442,7 @@ impl Upstream {
         Ok(FetchOutcome::Ok(parsed))
     }
 
-    fn request_headers(&self, url: &str) -> HeaderMap {
+    pub(crate) fn request_headers(&self, url: &str) -> HeaderMap {
         if same_origin(&self.base, url) && is_url_secure_for_credentials(url) {
             return self.http.headers.clone();
         }
@@ -442,7 +452,7 @@ impl Upstream {
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
     /// upstream.
-    fn ensure_available(&self) -> Result<()> {
+    pub(crate) fn ensure_available(&self) -> Result<()> {
         if self.breaker.try_acquire() {
             return Ok(());
         }
@@ -451,7 +461,11 @@ impl Upstream {
 
     /// Send a built request, mapping a transport error to
     /// [`RegistryError::Upstream`] and counting it against the breaker.
-    async fn run(&self, request: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response> {
+    pub(crate) async fn run(
+        &self,
+        request: reqwest::RequestBuilder,
+        url: &str,
+    ) -> Result<reqwest::Response> {
         self.ensure_allowed_url(url)?;
         request
             .send()
@@ -502,7 +516,11 @@ impl Upstream {
     /// the breaker untouched rather than opening the circuit and masking
     /// the real status behind a `503`. The `404`/`304` paths are handled
     /// by the callers before reaching here.
-    async fn checked(&self, response: reqwest::Response, url: &str) -> Result<reqwest::Response> {
+    pub(crate) async fn checked(
+        &self,
+        response: reqwest::Response,
+        url: &str,
+    ) -> Result<reqwest::Response> {
         let status = response.status();
         if status.is_success() {
             return Ok(response);

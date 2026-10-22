@@ -156,6 +156,7 @@ pub(super) fn snapshot_cache_key(
         LockfileResolution::Custom(_) => Ok(SnapshotCacheKey { value: None, is_git_hosted: false }),
     }
 }
+#[derive(Clone)]
 pub(super) struct SnapshotCacheKey {
     pub(super) value: Option<String>,
     pub(super) is_git_hosted: bool,

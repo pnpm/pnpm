@@ -7,9 +7,7 @@ use pnpm_lockfile::{
     PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec, VersionPart,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-use pnpm_resolving_deps_resolver::{
-    DepPath, DependenciesGraph, DependenciesGraphNode, UpdateReuseScope,
-};
+use pnpm_resolving_deps_resolver::{DepPath, DependenciesGraph, DependenciesGraphNode};
 use pnpm_resolving_resolver_base::ResolveResult;
 use rayon::prelude::*;
 use serde_json::Value;
@@ -38,8 +36,6 @@ pub(super) fn build_importers(
                     auto_install_peers: opts.settings.auto_install_peers,
                     include_peer_dependencies: opts.manifest_settings.include_peer_dependencies,
                 },
-                opts.reuse.previous_importers.and_then(|importers| importers.get(id)),
-                effective_update_reuse_scope(opts, id),
             );
             (id, importer)
         })
@@ -50,22 +46,6 @@ pub(super) fn build_importers(
         importers.insert(id.clone(), importer?);
     }
     Ok(importers)
-}
-/// Effective update scope for this importer, mirroring the resolver's
-/// `update_reuse_scope_for`: a global `None` (bare `update`) applies to
-/// every importer; otherwise the per-importer entry wins, falling back
-/// to the global. This is what lets a `pacquet update <name> --recursive`
-/// target the named dependency in the importer that declares it while
-/// leaving untouched importers on their global scope.
-pub(super) fn effective_update_reuse_scope<'o>(
-    opts: &'o GraphToLockfileOptions<'_>,
-    importer_id: &str,
-) -> &'o UpdateReuseScope {
-    if matches!(opts.reuse.scope, UpdateReuseScope::None) {
-        &opts.reuse.scope
-    } else {
-        opts.reuse.scopes_by_importer.get(importer_id).unwrap_or(&opts.reuse.scope)
-    }
 }
 /// The `version` a catalog snapshot records for `alias` in `importer`:
 /// the peer-stripped version it resolved to, read from whichever
@@ -112,19 +92,11 @@ pub(super) fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
     flags: &ImporterLockfileFlags,
-    previous_importer: Option<&ProjectSnapshot>,
-    update_reuse_scope: &UpdateReuseScope,
 ) -> Result<ProjectSnapshot, DependenciesGraphToLockfileError> {
     let mut groups = ImporterDependencyGroups::default();
     let mut specifiers: HashMap<String, String> = HashMap::new();
-    let alias_to_group = manifest_alias_to_group(input.manifest);
-    let sources = DirectEntrySources {
-        manifest: input.manifest,
-        graph,
-        flags,
-        previous_importer,
-        update_reuse_scope,
-    };
+    let alias_to_group = manifest_alias_to_group(input.manifest, flags.auto_install_peers);
+    let sources = DirectEntrySources { manifest: input.manifest, graph, flags };
     for (alias, dep_path) in &input.direct_dependencies_by_alias {
         let Some((name_for_key, spec)) = importer_direct_entry(alias, dep_path, &sources)? else {
             continue;
@@ -155,8 +127,6 @@ pub(super) struct DirectEntrySources<'a> {
     manifest: &'a PackageManifest,
     graph: &'a DependenciesGraph,
     flags: &'a ImporterLockfileFlags,
-    previous_importer: Option<&'a ProjectSnapshot>,
-    update_reuse_scope: &'a UpdateReuseScope,
 }
 /// One direct dependency's importer entry: the key it is recorded under and
 /// its specifier and resolved version. `None` leaves the alias out of the
@@ -193,18 +163,6 @@ pub(super) fn importer_direct_entry(
     else {
         return Ok(None);
     };
-    let version = preserved_link_version(
-        &version,
-        &PreservedLinkLookup {
-            previous_importer: sources.previous_importer,
-            name_for_key: &name_for_key,
-            specifier: &specifier,
-            dep_path,
-            graph: sources.graph,
-            update_reuse_scope: sources.update_reuse_scope,
-        },
-    )
-    .unwrap_or(version);
     Ok(Some((name_for_key, ResolvedDependencySpec { specifier, version })))
 }
 /// One importer's direct dependencies, split by the manifest group they were
@@ -253,55 +211,6 @@ pub(super) fn direct_dep_version(
             source: Box::new(source),
         })
 }
-/// What [`preserved_link_version`] consults to decide whether this install
-/// targets the dependency.
-pub(super) struct PreservedLinkLookup<'a> {
-    previous_importer: Option<&'a ProjectSnapshot>,
-    name_for_key: &'a PkgName,
-    specifier: &'a str,
-    dep_path: &'a DepPath,
-    graph: &'a DependenciesGraph,
-    update_reuse_scope: &'a UpdateReuseScope,
-}
-/// pnpm/pnpm#10433: a fresh-lockfile install re-resolves every importer, and
-/// an injected workspace dependency whose peer context genuinely diverges
-/// reaches [`importer_dep_version`]'s `file:` arm instead of deduping back to
-/// `link:`. When this install does not *target* that dependency, its previous
-/// `link:` importer entry is kept rather than rewritten to a peer-suffixed
-/// `file:`. `dedupe_injected_deps` runs earlier in the resolver and does not
-/// reach this finalization path.
-///
-/// A workspace dependency the run doesn't target keeps its `link:`. It is
-/// targeted when this importer's update scope names it (`pacquet update
-/// <name>`, including the per-importer scope of a `--recursive` run), when the
-/// scope is `None` (a scope-wide bare `update` / forced re-resolve), or when
-/// its specifier changed (a new or edited manifest entry). `KeepAll` (plain
-/// install / add) never targets on its own, so an untouched workspace dep is
-/// preserved. Matches the TS resolver's
-/// `updateTargetedAliases` / `updateMatching` guard, where a plain install's
-/// blanket spec re-check must not count as targeting.
-pub(super) fn preserved_link_version(
-    version: &ImporterDepVersion,
-    lookup: &PreservedLinkLookup<'_>,
-) -> Option<ImporterDepVersion> {
-    let ImporterDepVersion::File(_) = version else { return None };
-    let previous =
-        lookup.previous_importer.and_then(|prev| previous_importer_dep(prev, lookup.name_for_key))?;
-    let ImporterDepVersion::Link(_) = &previous.version else { return None };
-    let targeted_by_update = match lookup.update_reuse_scope {
-        UpdateReuseScope::All => false,
-        UpdateReuseScope::None => true,
-        // By name alone: this runs after resolution, where the
-        // version in hand is the one the update just produced, not
-        // the line the selector asked to move.
-        UpdateReuseScope::Except(targets) => lookup.graph
-            .get(lookup.dep_path)
-            .and_then(node_pkg_name)
-            .is_some_and(|name| targets.covers(&name, None)),
-    };
-    let targeted_by_spec_change = previous.specifier != lookup.specifier;
-    (!targeted_by_update && !targeted_by_spec_change).then(|| previous.version.clone())
-}
 pub(crate) fn manifest_publish_config(
     manifest: &PackageManifest,
 ) -> (Option<String>, Option<bool>) {
@@ -323,12 +232,20 @@ pub(crate) fn manifest_publish_config(
 /// Map each direct-dep alias to the manifest group it appears in.
 /// `optionalDependencies` wins over `dependencies` wins over
 /// `devDependencies` when an alias is duplicated across groups
-/// (first-write-wins over the dependency fields).
+/// (first-write-wins over the dependency fields). With
+/// `auto_install_peers`, an alias that only `peerDependencies` declares maps
+/// to [`DependencyGroup::Peer`], since the install makes it one of the
+/// project's dependencies.
 pub(super) fn manifest_alias_to_group(
     manifest: &PackageManifest,
+    auto_install_peers: bool,
 ) -> HashMap<String, DependencyGroup> {
     let mut out: HashMap<String, DependencyGroup> = HashMap::new();
-    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev] {
+    let materialized_peers = auto_install_peers.then_some(DependencyGroup::Peer);
+    for group in [DependencyGroup::Optional, DependencyGroup::Prod, DependencyGroup::Dev]
+        .into_iter()
+        .chain(materialized_peers)
+    {
         for (alias, _) in manifest.dependencies([group]) {
             out.entry(alias.to_string()).or_insert(group);
         }
@@ -433,42 +350,6 @@ pub(super) fn self_aliased_file_ver<'a>(
     (aliased_to_own_name && matches!(key.suffix.version(), VersionPart::File(_))).then_some(
         &key.suffix,
     )
-}
-/// The previous importer's recorded entry for `name`, searched across
-/// its `dependencies` / `optionalDependencies` / `devDependencies` maps
-/// (mirrors the lookup order in
-/// [`pnpm_resolving_deps_resolver`]'s `lockfile_reuse`).
-pub(super) fn previous_importer_dep<'a>(
-    importer: &'a ProjectSnapshot,
-    name: &PkgName,
-) -> Option<&'a ResolvedDependencySpec> {
-    importer.dependencies
-        .as_ref()
-        .and_then(|map| map.get(name))
-        .or_else(|| {
-            importer.optional_dependencies
-                .as_ref()
-                .and_then(|map| map.get(name))
-        })
-        .or_else(|| {
-            importer.dev_dependencies
-                .as_ref()
-                .and_then(|map| map.get(name))
-        })
-}
-/// The resolved package name for a graph node — the structured
-/// `name_ver` when the resolver produced one, otherwise the `name` from
-/// the fetched manifest (the case for a directory/workspace resolution,
-/// whose `name_ver` is unset).
-pub(super) fn node_pkg_name(node: &DependenciesGraphNode) -> Option<String> {
-    if let Some(name_ver) = node.resolve_result.package.name_ver.as_ref() {
-        return Some(name_ver.name.to_string());
-    }
-    node.resolve_result.package.manifest
-        .as_ref()?
-        .get("name")?
-        .as_str()
-        .map(str::to_string)
 }
 /// `Some(real_name)` when the resolver produced a structured name; `None`
 /// for resolvers that learn the name from the fetched manifest (git,

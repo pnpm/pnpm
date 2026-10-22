@@ -1,9 +1,18 @@
-use super::{AuthState, Config, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace};
+use super::{
+    AuthState, CanonicalPackageName, Config, LoginRateLimiter, RegistryError, ServerMetrics,
+    Singleflight, Storage, StripedLocks, Upstream, compute_upstream_cache_namespace,
+};
 use indexmap::IndexMap;
-use pnpr_registry::Ecosystem;
 use std::sync::Arc;
 
-pub(super) struct AppInner {
+#[cfg_attr(
+    dylint_lib = "perfectionist",
+    expect(
+        perfectionist::too_many_struct_fields,
+        reason = "server inner state groups core subsystems"
+    )
+)]
+pub(crate) struct AppInner {
     pub(super) storage: Storage,
     pub(super) config: Config,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
@@ -16,7 +25,11 @@ pub(super) struct AppInner {
     pub(super) proxy: ProxyState,
     pub(super) locks: MutationLocks,
     pub(super) identity: IdentityServices,
+    pub(crate) metrics: Arc<ServerMetrics>,
 }
+
+type PackumentSingleflight =
+    Singleflight<(String, CanonicalPackageName), Result<Option<Vec<u8>>, Arc<RegistryError>>>;
 pub(super) struct BuildServices {
     pub(super) artifacts: Option<pnpr_shared_artifacts::SharedArtifactStore>,
     pub(super) compiler_cache_uploads: tokio::sync::Semaphore,
@@ -34,6 +47,13 @@ pub(super) struct ProxyState {
     /// per-request path doesn't re-sort and re-hash the upstream's headers on
     /// every packument and tarball served through an upstream registry.
     pub(super) cache_namespaces: IndexMap<String, String>,
+    pub(super) packument_singleflight: PackumentSingleflight,
+    pub(super) tar_variants: super::TarVariantQueue,
+    /// Permits for tar responses and publishes that decode a `.tgz`. See
+    /// [`super::MAX_CONCURRENT_TAR_DECODES`].
+    pub(super) tar_decodes: Arc<tokio::sync::Semaphore>,
+    pub(super) background_tar_scans: Arc<super::BackgroundTarScans>,
+    pub(super) version_tgzs: super::VersionTgzCache,
 }
 
 pub(super) struct MutationLocks {
@@ -42,11 +62,15 @@ pub(super) struct MutationLocks {
     /// lose each other's changes.
     pub(super) packages: StripedLocks,
     pub(super) referrer_migrations: StripedLocks,
+    pub(super) publish_concurrency: tokio::sync::Semaphore,
 }
 
 pub(super) struct IdentityServices {
     pub(super) auth: AuthState,
     pub(super) oidc: pnpr_auth::oidc::OidcState,
+    pub(super) managed: super::managed_state::ManagedState,
+    pub(super) login_rate_limiter: LoginRateLimiter,
+    pub(super) login_concurrency: tokio::sync::Semaphore,
 }
 
 impl AppInner {
@@ -73,8 +97,10 @@ impl AppInner {
             locks: MutationLocks {
                 packages: StripedLocks::new(),
                 referrer_migrations: StripedLocks::new(),
+                publish_concurrency: tokio::sync::Semaphore::new(16),
             },
             identity,
+            metrics: Arc::new(ServerMetrics::new()),
         })
     }
 }
@@ -98,16 +124,31 @@ impl ProxyState {
             .keys()
             .map(|name| (name.clone(), compute_upstream_cache_namespace(config, name)))
             .collect();
-        Self { upstreams, cache_namespaces: upstream_cache_namespaces }
+        Self {
+            upstreams,
+            cache_namespaces: upstream_cache_namespaces,
+            packument_singleflight: Singleflight::new(),
+            tar_variants: super::TarVariantQueue::new(),
+            tar_decodes: Arc::new(tokio::sync::Semaphore::new(super::MAX_CONCURRENT_TAR_DECODES)),
+            background_tar_scans: super::BackgroundTarScans::new(),
+            version_tgzs: super::VersionTgzCache::default(),
+        }
     }
 }
 
 impl IdentityServices {
     fn new(config: &Config, auth: AuthState) -> pnpr_error::Result<Self> {
         super::oidc::validate_workloads(config)?;
+        super::oidc_groups::validate_group_grants(config)?;
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
-        Ok(Self { auth, oidc })
+        Ok(Self {
+            auth,
+            oidc,
+            managed: super::managed_state::ManagedState::new(config),
+            login_rate_limiter: LoginRateLimiter::default(),
+            login_concurrency: tokio::sync::Semaphore::new(8),
+        })
     }
 }
 
@@ -121,12 +162,8 @@ fn upstream_clients(config: &Config, registry_enabled: bool) -> IndexMap<String,
     config.routing.upstreams
         .iter()
         .map(|(name, upstream)| {
-            let client = Upstream::new(name, upstream);
-            let client = if config.routing.registries.ecosystem(name) == Some(Ecosystem::Npm) {
-                client
-            } else {
-                client.with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream))
-            };
+            let client = Upstream::new(name, upstream)
+                .with_fetch_guard(super::ecosystem::upstream_fetch_guard(config, upstream));
             (name.clone(), client)
         })
         .collect()
@@ -143,6 +180,7 @@ fn artifact_store(
                 &config.storage.hosted_backend,
                 &config.storage.cache_dir,
             )
+            .map(|store| store.with_quota(config.features.artifacts.quota))
         })
         .transpose()
 }

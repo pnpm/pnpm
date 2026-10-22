@@ -401,6 +401,14 @@ fn workspace_concurrency_parses_as_global_option() {
     let negative = CliArgs::try_parse_from(["pacquet", "install", "--workspace-concurrency=-1"])
         .expect("parses --workspace-concurrency=-1 after subcommand");
     assert_eq!(negative.workspace.ordering.concurrency, Some(-1));
+
+    let infinite =
+        CliArgs::try_parse_from(["pacquet", "--workspace-concurrency=Infinity", "install"])
+            .expect("parses --workspace-concurrency=Infinity");
+    assert_eq!(infinite.workspace.ordering.concurrency, Some(i32::MAX));
+
+    CliArgs::try_parse_from(["pacquet", "--workspace-concurrency=many", "install"])
+        .expect_err("rejects a non-numeric --workspace-concurrency");
 }
 
 #[test]
@@ -444,7 +452,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    for command in ["install", "dedupe", "import", "list", "why", "peers"] {
+    for command in ["install", "dedupe", "prune", "import", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
@@ -512,7 +520,8 @@ fn color_accepts_modes_and_boolean_spellings() {
 #[test]
 fn recursive_by_default_command_stays_non_recursive_outside_workspace() {
     let project = tempfile::tempdir().expect("creates project");
-    for command in ["dedupe", "list", "why", "peers"] {
+    std::fs::write(project.path().join("package.json"), "{}\n").expect("writes package.json");
+    for command in ["dedupe", "prune", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",

@@ -13,16 +13,18 @@ repository.workspace = true
 [dependencies]
 pnpm-network = { workspace = true }
 pnpr-config = { workspace = true }
-pnpr-error = { workspace = true }
+pnpr-error = { workspace = true, features = ["server"] }
 pnpr-package-name = { workspace = true }
 pnpr-registry = { workspace = true }
 pnpm-crypto-hash = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 async-trait = { workspace = true }
 axum = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
 object_store = { workspace = true }
+percent-encoding = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -78,13 +78,19 @@ fn merge_packages<Package: PartialEq>(
 /// Canonical, as [`discover_workspace_roots`] returns them: a root is
 /// compared against the checkout it belongs to, and Cargo may answer with a
 /// path that still carries a symlink from the manifest it was asked about.
-pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
-    let (_, metadata) = workspace_metadata(manifest_path).await?;
+pub(crate) async fn workspace_root(
+    manifest_path: &Path,
+    checkout: Option<&Path>,
+) -> Result<PathBuf> {
+    let (_, metadata) = workspace_metadata(manifest_path, checkout).await?;
     canonical_cargo_path(&metadata.workspace_root)
 }
 
-async fn workspace_metadata(manifest_path: &Path) -> Result<(String, CargoWorkspaceMetadata)> {
-    let document = read_cargo_metadata_for_manifest(manifest_path).await?;
+async fn workspace_metadata(
+    manifest_path: &Path,
+    checkout: Option<&Path>,
+) -> Result<(String, CargoWorkspaceMetadata)> {
+    let document = read_cargo_metadata_for_manifest(manifest_path, checkout).await?;
     let metadata = serde_json::from_str::<CargoWorkspaceMetadata>(&document)
         .into_diagnostic()
         .wrap_err("read Cargo workspace root from metadata")?;
@@ -101,6 +107,7 @@ pub(super) struct DiscoveredWorkspace {
 
 pub(super) async fn discover_workspace_roots(
     manifests: &[PathBuf],
+    checkout: Option<&Path>,
 ) -> Result<Vec<DiscoveredWorkspace>> {
     let mut pending = manifests
         .iter()
@@ -112,7 +119,7 @@ pub(super) async fn discover_workspace_roots(
         let batch =
             std::iter::from_fn(|| pending.pop_first()).take(concurrency).collect::<Vec<_>>();
         let metadata = stream::iter(batch)
-            .map(|manifest| async move { workspace_metadata(&manifest).await })
+            .map(|manifest| async move { workspace_metadata(&manifest, checkout).await })
             .buffer_unordered(concurrency)
             .try_collect::<Vec<_>>()
             .await?;
@@ -182,7 +189,7 @@ pub(super) async fn read_or_resolve_lockfile(
             "Cargo.lock is absent, but --frozen-lockfile forbids generating it"
         ));
     }
-    let metadata = read_cargo_metadata(root_dir).await?;
+    let metadata = read_cargo_metadata(root_dir, checkout).await?;
     let source_overrides = super::resolution::has_source_overrides(root_dir)?;
     let git_dependencies = super::resolution::has_git_dependencies(&metadata)?;
     if source_overrides || git_dependencies {
@@ -232,14 +239,22 @@ pub(super) async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<
         .map(Some)
 }
 
-async fn read_cargo_metadata(root_dir: &Path) -> Result<String> {
-    read_cargo_metadata_for_manifest(&root_dir.join("Cargo.toml")).await
+async fn read_cargo_metadata(root_dir: &Path, checkout: Option<&Path>) -> Result<String> {
+    read_cargo_metadata_for_manifest(&root_dir.join("Cargo.toml"), checkout).await
 }
 
-async fn read_cargo_metadata_for_manifest(manifest_path: &Path) -> Result<String> {
+async fn read_cargo_metadata_for_manifest(
+    manifest_path: &Path,
+    checkout: Option<&Path>,
+) -> Result<String> {
+    let cargo = super::toolchain::program(
+        "cargo",
+        manifest_path.parent().unwrap_or(manifest_path),
+        checkout,
+    );
     let manifest_path = manifest_path.to_path_buf();
     let output = tokio::task::spawn_blocking(move || {
-        Command::new("cargo")
+        Command::new(cargo)
             .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
             .arg(&manifest_path)
             .output()

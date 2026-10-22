@@ -1,8 +1,8 @@
 use super::{
     AuditLevel, BTreeMap, CASE, ColorMode, Config, ConfigDependency, ConfigDependencyDetail,
-    EnvVar, LoadWorkspaceYamlError, LogLevel, NAMED_UNRECOGNIZED_TASK_SETTINGS, NodeLinker,
-    NodePackageMapType, Path, ReporterType, StoreDir, TrustPolicy, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings, assert_eq, fs,
+    EnvVar, LoadWorkspaceYamlError, LogLevel, NAMED_UNRECOGNIZED_SETTINGS, NodeLinker,
+    NodePackageMapMode, NodePackageMapSettings, NodePackageMapType, Path, ReporterType, StoreDir,
+    TrustPolicy, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
 use std::fmt::Write as _;
 
@@ -19,6 +19,9 @@ preferWorkspacePackages: true
 nodeLinker: hoisted
 nodeExperimentalPackageMap: true
 nodePackageMapType: loose
+nodePackageMap:
+  mode: write-only
+  type: loose
 packages:
   - packages/*
 ";
@@ -32,6 +35,13 @@ packages:
     assert_eq!(settings.prefer_workspace_packages, Some(true));
     assert_eq!(settings.node_linker, Some(NodeLinker::Hoisted.into()));
     assert_eq!(settings.node_experimental_package_map, Some(true));
+    assert_eq!(
+        settings.node_package_map,
+        Some(NodePackageMapSettings {
+            mode: Some(NodePackageMapMode::WriteOnly),
+            map_type: Some(NodePackageMapType::Loose),
+        }),
+    );
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
 }
 
@@ -161,6 +171,23 @@ fn the_lockfile_section_turns_the_lockfile_on() {
     assert!(!config.lockfile_include_resolution_settings);
 }
 
+#[test]
+fn the_lockfile_section_sets_the_integrity_target() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("lockfile:\n  integrityTarget: tar\n").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.lockfile_integrity_target, pnpm_lockfile::IntegrityTarget::Tar);
+
+    assert!(
+        serde_saphyr::from_str::<WorkspaceSettings>("lockfile:\n  integrityTarget: tgz\n").is_err(),
+    );
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str("lockfile: {}\n").unwrap();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.lockfile_integrity_target, pnpm_lockfile::IntegrityTarget::Resource);
+}
+
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /
 /// `fetchRetryMintimeout` / `fetchRetryMaxtimeout` from
 /// `pnpm-workspace.yaml` as camelCase keys (mirrors of the kebab-case
@@ -213,6 +240,16 @@ userAgent: my-agent/2.0
     assert_eq!(config.fetch_warn_timeout_ms, 20_000);
     assert_eq!(config.fetch_min_speed_ki_bps, 100);
     assert_eq!(config.user_agent, "my-agent/2.0");
+}
+
+#[test]
+fn parses_max_tarball_unpacked_size_into_the_tar_limits() {
+    let mut config = Config::new();
+    assert_eq!(config.tar_limits(), pnpm_tarball::TarLimits::default());
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("maxTarballUnpackedSize: 1024\n").unwrap();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.tar_limits(), pnpm_tarball::TarLimits::new(1024));
 }
 
 #[test]
@@ -781,7 +818,7 @@ fn a_task_entry_keeps_the_settings_this_version_reads() {
 fn a_report_names_only_the_first_unrecognized_task_settings() {
     let dir = tempfile::tempdir().unwrap();
     let mut fields = String::new();
-    for index in 0..NAMED_UNRECOGNIZED_TASK_SETTINGS + 3 {
+    for index in 0..NAMED_UNRECOGNIZED_SETTINGS + 3 {
         writeln!(fields, "    later{index}: 1").unwrap();
     }
     fs::write(
@@ -795,8 +832,8 @@ fn a_report_names_only_the_first_unrecognized_task_settings() {
         .expect("pnpm-workspace.yaml is present");
 
     let reported = &settings.key_issues.unrecognized_task_settings;
-    assert_eq!(reported.named.len(), NAMED_UNRECOGNIZED_TASK_SETTINGS);
-    assert_eq!(reported.total, NAMED_UNRECOGNIZED_TASK_SETTINGS + 3);
+    assert_eq!(reported.named.len(), NAMED_UNRECOGNIZED_SETTINGS);
+    assert_eq!(reported.total, NAMED_UNRECOGNIZED_SETTINGS + 3);
 }
 
 #[test]

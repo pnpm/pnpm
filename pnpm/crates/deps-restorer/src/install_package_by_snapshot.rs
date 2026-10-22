@@ -15,8 +15,13 @@ use miette::Diagnostic;
 use pnpm_directory_fetcher::DirectoryFetcherError;
 use pnpm_git_fetcher::GitFetcherError;
 use pnpm_lockfile::PlatformSelector;
+use pnpm_package_manifest::PackageBin;
 use pnpm_tarball::TarballError;
-use std::{collections::HashMap, path::PathBuf, sync::LazyLock};
+use std::{
+    collections::{BTreeMap, HashMap},
+    path::PathBuf,
+    sync::{Arc, LazyLock},
+};
 
 /// The running pnpm, which a git-hosted dependency's build is given so it
 /// can install with the package manager it asks for.
@@ -206,6 +211,16 @@ pub enum InstallPackageBySnapshotError {
 #[derive(Debug)]
 pub struct InstalledPackage {
     pub cas_paths: HashMap<String, PathBuf>,
+    /// Bundled `package.json` captured during tarball extraction or store-index
+    /// load.
+    pub manifest: Option<Arc<serde_json::Value>>,
+    /// Whether the fetched archive carries build triggers, when determined
+    /// during tarball extraction or store-index load. `None` when the caller
+    /// must inspect [`Self::cas_paths`].
+    pub requires_build: Option<bool>,
+    /// Precalculated bin commands and shebang runtimes captured during tarball
+    /// extraction.
+    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
     /// Whether [`Self::cas_paths`] points at mutable local source
     /// rather than immutable content-addressed entries. See
     /// [`crate::SlotImportSource::is_mutable`].

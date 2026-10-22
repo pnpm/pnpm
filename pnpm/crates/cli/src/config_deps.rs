@@ -7,15 +7,22 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
+pub use declarations::{add_config_dependencies, update_config_dependencies};
 pub use engine_policy::mature_pnpm_version_for_range;
 pub use hooks::{
-    load_before_packing_hooks, may_update_config, prepare_config, run_update_config_hooks,
+    apply_config_dependency_settings, load_before_packing_hooks, may_update_config, prepare_config,
+    run_update_config_hooks,
 };
 
-mod network;
-mod store_index;
+pub(crate) use declarations::declared_specifier;
 
-use crate::config_overrides::apply_store_dir_override;
+mod declarations;
+mod network;
+mod store;
+
+use crate::{
+    cli_args::config_warnings::emit_config_warning, config_overrides::apply_store_dir_override,
+};
 use engine_policy::engine_resolve_options;
 use network::EnvironmentNetwork;
 
@@ -26,16 +33,20 @@ use pnpm_config::{
     known_settings::is_known_setting_key, resolve_configured_state_dir,
 };
 use pnpm_env_installer::{
-    ConfigDepsInstallOptions, pnpm_engine_packages, resolve_and_install_config_deps,
-    resolve_package_manager_integrities,
+    ConfigDepUpdates, ConfigDependencyVerification, ConfigDepsInstallMode,
+    ConfigDepsInstallOptions, pnpm_engine_packages, read_config_dependency_lockfile,
+    resolve_and_install_config_deps_updating, resolve_package_manager_integrities,
+    running_version_unpublished,
 };
 use pnpm_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks, finder};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_network::ThrottledClient;
-use pnpm_reporter::{GlobalLog, HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_reporter::{HookLog, LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{InMemoryPackageMetaCache, NpmResolver};
-use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pnpm_resolving_resolver_base::{
+    ResolutionPolicyOptions, ResolveOptions, Resolver, WantedDependency,
+};
 use pnpm_workspace_state::ConfigDependency;
 use serde_json::Value;
 use std::{
@@ -44,22 +55,29 @@ use std::{
     sync::Arc,
 };
 
-/// Resolve + install the project's `configDependencies` (a no-op when
-/// none are declared). `root_dir` is the lockfile directory;
+/// Prepare the project's `configDependencies` according to `mode`.
+/// `root_dir` is the lockfile directory;
 /// `frozen_lockfile` forwards `--frozen-lockfile` so config deps refuse
 /// to mutate an out-of-date env lockfile.
 pub async fn install_config_deps<Reporter: self::Reporter>(
     config: &Config,
     root_dir: &Path,
     frozen_lockfile: bool,
+    mode: ConfigDepsInstallMode,
 ) -> Result<()> {
-    let Some(config_dependencies) = config.config_dependencies.as_ref() else {
-        return Ok(());
-    };
-    if config_dependencies.is_empty() {
-        return Ok(());
-    }
-    resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
+    let empty = BTreeMap::new();
+    let config_dependencies = config.config_dependencies.as_ref().unwrap_or(&empty);
+    let updates = ConfigDepUpdates::default();
+    resolve_and_install::<Reporter>(
+        config,
+        config_dependencies,
+        root_dir,
+        frozen_lockfile,
+        &updates,
+        mode,
+    )
+    .await?;
+    Ok(())
 }
 
 /// Install the project's `configDependencies` and run their `updateConfig`
@@ -76,9 +94,58 @@ pub async fn prepare<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
 ) -> Result<()> {
-    install_config_deps::<Reporter>(config, root_dir, frozen_lockfile).await?;
+    install_config_deps::<Reporter>(
+        config,
+        root_dir,
+        frozen_lockfile,
+        ConfigDepsInstallMode::Reconcile,
+    )
+    .await?;
+    apply_config_dependency_settings(config)?;
     run_update_config_hooks::<Reporter>(config, root_dir).await?;
     Ok(())
+}
+
+/// Record the pin of the pnpm already running, warning instead of failing
+/// when [`running_version_unpublished`] holds. The pin stays in the
+/// manifest, and a later run records it.
+///
+/// A caller that reads back what it recorded, to install or verify it, wants
+/// [`sync_package_manager_dependencies`] instead.
+pub async fn record_running_package_manager_pin(
+    config: &Config,
+    root_dir: &Path,
+    wanted_specifier: &str,
+    pnpm_version: &str,
+    frozen_lockfile: bool,
+    force_resync: bool,
+) -> Result<()> {
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
+    let context = EnvInstallerContext::for_package_manager(config)?;
+    let options = context.options(root_dir, frozen_lockfile);
+    let resolved = resolve_package_manager_integrities(
+        pnpm_engine_packages(pnpm_version),
+        wanted_specifier,
+        pnpm_version,
+        &context.resolver,
+        &options,
+        force_resync,
+    )
+    .await;
+    match resolved {
+        Ok(_) => Ok(()),
+        Err(error) if running_version_unpublished(&error, pnpm_version) => {
+            emit_config_warning(&format!(
+                "The registry publishes no pnpm {pnpm_version}, so the packageManager pin was \
+                 not recorded in pnpm-lock.yaml. Continuing with the running pnpm.",
+            ));
+            Ok(())
+        }
+        Err(error) => {
+            Err(miette::Report::new(error)).wrap_err("resolve package manager dependencies")
+        }
+    }
 }
 
 /// Resolve pnpm's own engine dependencies into the env lockfile's
@@ -94,7 +161,7 @@ pub async fn sync_package_manager_dependencies(
     force_resync: bool,
 ) -> Result<EnvLockfile> {
     sync_engine_dependencies(
-        config,
+        &config.for_boot(),
         root_dir,
         pnpm_engine_packages(pnpm_version),
         wanted_specifier,
@@ -193,6 +260,8 @@ async fn resolve_engine(
     bare_specifier: &str,
     ignore_maturity: bool,
 ) -> Result<Option<ResolvedEngine>> {
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
     let context = EnvInstallerContext::for_package_manager(config)?;
     let opts = engine_resolve_options(config, ignore_maturity)?;
     resolve_engine_with(&context, package, bare_specifier, &opts).await
@@ -237,69 +306,39 @@ async fn resolve_engine_with(
     }))
 }
 
-/// Add config dependencies: resolve + install them (merged with any
-/// already-declared config deps), then write the clean specifiers into
-/// `pnpm-workspace.yaml`'s `configDependencies` block. Backs
-/// `pacquet add --config`.
-pub async fn add_config_dependencies<Reporter: self::Reporter>(
-    config: &Config,
-    root_dir: &Path,
-    added: &BTreeMap<String, String>,
-) -> Result<()> {
-    let mut config_dependencies = config.config_dependencies.clone().unwrap_or_default();
-    for (name, specifier) in added {
-        config_dependencies.insert(
-            name.clone(),
-            ConfigDependency::VersionWithIntegrity(specifier.clone()),
-        );
-    }
-
-    resolve_and_install::<Reporter>(config, &config_dependencies, root_dir, false).await?;
-
-    pnpm_workspace_manifest_writer::set_config_dependencies(
-        root_dir,
-        added
-            .iter()
-            .map(|(name, specifier)| (name.as_str(), specifier.as_str())),
-    )
-    .into_diagnostic()
-    .wrap_err("recording the config dependencies in pnpm-workspace.yaml")
-}
-
-/// Build the resolver + install options from `config` and resolve +
-/// install `config_dependencies`.
+/// Build the resolver + install options from the boot policy of `config`
+/// (see [`Config::for_boot`]) and resolve + install `config_dependencies`.
 async fn resolve_and_install<Reporter: self::Reporter>(
     config: &Config,
     config_dependencies: &std::collections::BTreeMap<String, ConfigDependency>,
     root_dir: &Path,
     frozen_lockfile: bool,
-) -> Result<()> {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Debug,
-        message: "Waiting for the configuration dependency store operation lock".to_string(),
-    }));
-    let _store_lock = if config.frozen_store {
-        config.store_dir.lock_for_frozen_use()
-    } else {
-        config.store_dir.lock_for_use()
-    }
-    .wrap_err("lock the store while installing configuration dependencies")?;
-    Reporter::emit(&LogEvent::Global(GlobalLog {
-        level: LogLevel::Debug,
-        message: "Acquired the configuration dependency store operation lock".to_string(),
-    }));
+    updates: &ConfigDepUpdates,
+    mode: ConfigDepsInstallMode,
+) -> Result<BTreeMap<String, String>> {
+    let Some(env_lockfile) =
+        read_config_dependency_lockfile(Some(config_dependencies), root_dir, mode)?
+    else {
+        return Ok(BTreeMap::new());
+    };
+    let boot_config = config.for_boot();
+    let config = &*boot_config;
+    let _store_lock = store::lock_config_dependency_store::<Reporter>(config)?;
 
     let context = EnvInstallerContext::new(config)?;
     context.network.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
     let mut options = context.options(root_dir, frozen_lockfile);
-    let store_index = store_index::StoreIndexSession::attach(
-        &mut options,
-        context.store.dir,
-        config.frozen_store,
-    )
-    .await;
-    let result = resolve_and_install_config_deps::<Reporter>(
+    options.mode = mode;
+    // Sampled before the verifiers so the resolution cutoff is never later
+    // than the verification cutoff.
+    options.verification.resolution_policy = release_age_policy(config)?;
+    options.verification.resolution_verifiers = context.resolution_verifiers(config)?;
+    let store_index =
+        store::StoreIndexSession::attach(&mut options.store_index, context.store.dir, config).await;
+    let result = resolve_and_install_config_deps_updating::<Reporter>(
+        env_lockfile,
         config_dependencies,
+        updates,
         &context.resolver,
         &options,
     )
@@ -311,6 +350,17 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     result
 }
 
+/// The `minimumReleaseAge` cutoff that the install's resolution verifiers
+/// enforce on config dependencies, for resolving them.
+fn release_age_policy(config: &Config) -> Result<ResolutionPolicyOptions> {
+    let policy = pnpm_package_manager::PickPolicy::from_config(config).into_diagnostic()?;
+    Ok(ResolutionPolicyOptions {
+        published_by: policy.published_by,
+        published_by_exclude: policy.published_by_exclude,
+        ..ResolutionPolicyOptions::default()
+    })
+}
+
 struct EnvInstallerContext {
     node_version: String,
     resolver: NpmResolver<InMemoryPackageMetaCache>,
@@ -319,6 +369,22 @@ struct EnvInstallerContext {
 }
 
 impl EnvInstallerContext {
+    fn resolution_verifiers(
+        &self,
+        config: &Config,
+    ) -> Result<Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>> {
+        pnpm_package_manager::build_resolution_verifiers(
+            config,
+            Arc::clone(&self.network.http_client),
+            None,
+            Some(Arc::clone(&self.network.auth_headers)),
+            None,
+            None,
+            None,
+        )
+        .into_diagnostic()
+    }
+
     /// Context for resolving the project's `configDependencies`, using the
     /// project's configured registries and network settings.
     fn new(config: &Config) -> Result<Self> {
@@ -371,6 +437,7 @@ impl EnvInstallerContext {
             registries,
             retry_opts,
             offline: config.offline,
+            tar_limits: config.tar_limits(),
         };
         let resolver = network.resolver(config);
 
@@ -393,11 +460,18 @@ impl EnvInstallerContext {
         frozen_lockfile: bool,
     ) -> ConfigDepsInstallOptions<'a> {
         ConfigDepsInstallOptions {
+            mode: ConfigDepsInstallMode::Reconcile,
+            verification: ConfigDependencyVerification {
+                registries: &self.network.registries,
+                resolution_verifiers: Vec::new(),
+                resolution_policy: ResolutionPolicyOptions::default(),
+            },
             fetching: pnpm_tarball::ArchiveFetchOptions {
                 http_client: &self.network.http_client,
                 auth_headers: &self.network.auth_headers,
                 retry_opts: self.network.retry_opts,
                 offline: self.network.offline,
+                tar_limits: self.network.tar_limits,
             },
             platform: pnpm_package_is_installable::InstallabilityOptions {
                 supported_architectures: None,
@@ -408,11 +482,8 @@ impl EnvInstallerContext {
                 ..Default::default()
             },
             store: self.store,
-            store_index: None,
-            store_index_writer: None,
+            store_index: pnpm_env_installer::ConfigDependencyStoreIndex::default(),
             root_dir,
-
-            registries: &self.network.registries,
 
             frozen_lockfile,
         }

@@ -32,11 +32,28 @@ pub(super) struct MaterializationWorkspace<'a> {
     pub(super) dependency_groups: Vec<DependencyGroup>,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub(super) lockfile_specifier_project_manifests: Option<Vec<(PathBuf, PackageManifest)>>,
-    pub(super) workspace_projects: Option<&'a [pnpm_workspace::Project]>,
+    pub(super) workspace_packages: WorkspacePackageSource<'a>,
     pub(super) requested_importer_ids: Option<&'a HashSet<String>>,
     pub(super) real_importer_ids: &'a HashSet<String>,
     pub(super) workspace_root: &'a Path,
     pub(super) catalogs: &'a Catalogs,
+}
+
+/// Where a fresh resolve takes its workspace-package index from.
+pub(super) enum WorkspacePackageSource<'a> {
+    /// Built once by the command for all its per-project installs.
+    Shared(Arc<pnpm_resolving_resolver_base::WorkspacePackages>),
+    /// Built from these projects, only when the fresh resolve runs.
+    Projects(Option<&'a [pnpm_workspace::Project]>),
+}
+
+impl WorkspacePackageSource<'_> {
+    fn into_packages(self) -> Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>> {
+        match self {
+            Self::Shared(packages) => Some(packages),
+            Self::Projects(projects) => build_workspace_packages_map(projects).map(Arc::new),
+        }
+    }
 }
 
 pub(super) struct MaterializationModules<'a> {
@@ -45,7 +62,7 @@ pub(super) struct MaterializationModules<'a> {
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
     pub(super) prior_hoisted_locations: Option<&'a pnpm_deps_restorer::HoistedLocations>,
-    pub(super) prune_orphans: bool,
+    pub(super) prune: pnpm_deps_restorer::PruneTreeOptions<'a>,
     /// See [`pnpm_deps_restorer::PriorMaterialization::relink_every_slot_bin`].
     pub(super) relink_every_slot_bin: bool,
     pub(super) logged_methods: &'a AtomicU8,
@@ -61,7 +78,7 @@ pub(super) struct MaterializationExecution<'a> {
     /// Handed to whichever install path runs.
     pub(super) early_host_detection:
         Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
-    pub(super) resolve_only: bool,
+    pub(super) resolve_only: Option<crate::install::state_options::ResolveOnly>,
     pub(super) can_prompt: bool,
     pub(super) save_lockfile: bool,
     pub(super) prefix: &'a str,
@@ -69,6 +86,10 @@ pub(super) struct MaterializationExecution<'a> {
 
 pub(super) struct MaterializationDownloads {
     pub(super) tarball_mem_cache: Arc<MemCache>,
+    /// See `FreshFetchingInputs::prefetch_downloads`.
+    pub(super) prefetch_downloads: Option<Arc<crate::PrefetchDownloads>>,
+    /// See `FreshFetchingInputs::store_verification`.
+    pub(super) store_verification: Option<Arc<crate::StoreVerification>>,
     pub(super) http_client_arc: Arc<ThrottledClient>,
     pub(super) fetch_caches: Option<pnpm_deps_restorer::SharedFetchCaches>,
 }
@@ -90,6 +111,7 @@ pub(super) struct MaterializationResolution<'a> {
     pub(super) pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub(super) deploy_manifest_hook: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
+    pub(super) known_requires_build: Option<pnpm_deps_restorer::RequiresBuildBySnapshot>,
     pub(super) inputs: crate::install::run::ResolutionInputs,
 }
 
@@ -142,6 +164,11 @@ struct FrozenScope<'a> {
     /// The peer classification of the wanted lockfile, shared by every walk
     /// of this install.
     groups: crate::GroupSelection,
+    /// The group selection handed to `InstallFrozenLockfile`: when a
+    /// `--filter` hoisted install retains prior importers, `closure` has
+    /// already applied `--no-optional` to the selected importers while
+    /// keeping prior optional snapshots on unselected ones.
+    installer_groups: crate::GroupSelection,
 }
 
 impl FrozenScope<'_> {
@@ -177,9 +204,19 @@ impl<'a> MaterializationInputs<'a, '_> {
                 self.modules.modules_manifest,
                 self.install.context.config,
             ),
-            prune_orphans: self.modules.prune_orphans,
+            prune: self.modules.prune,
             relink_every_slot_bin: self.modules.relink_every_slot_bin,
         }
+    }
+
+    /// `--update-checksums`, implied when the lockfile pins another hash than
+    /// `lockfile.integrityTarget` names, since none of its hashes may carry
+    /// forward.
+    fn update_checksums(&self) -> bool {
+        self.install.lockfile_policy.update_checksums
+            || self.lockfiles.wanted.is_some_and(|lockfile| {
+                lockfile.integrity_target() != self.install.context.config.lockfile_integrity_target
+            })
     }
 
     fn fresh_inputs<'b>(
@@ -193,7 +230,7 @@ impl<'a> MaterializationInputs<'a, '_> {
         'a: 'b,
     {
         FreshInputs {
-            update_checksums: self.install.lockfile_policy.update_checksums,
+            update_checksums: self.update_checksums(),
             resolution_verifiers,
             drivers: crate::install_with_fresh_lockfile::FreshInstallDrivers {
                 http_client: self.install.context.http_client,
@@ -214,7 +251,7 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             execution: crate::install_with_fresh_lockfile::FreshInstallExecution {
                 node_linker: self.install.execution.node_linker,
-                lockfile_only: self.execution.resolve_only,
+                resolve_only: self.execution.resolve_only,
                 skip_runtimes: self.install.execution.skip_runtimes,
                 dry_run: self.install.execution.dry_run,
                 can_prompt: self.execution.can_prompt,
@@ -253,6 +290,8 @@ impl<'a> MaterializationInputs<'a, '_> {
             },
             fetching: crate::install_with_fresh_lockfile::FreshFetchingInputs {
                 tarball_mem_cache: self.downloads.tarball_mem_cache,
+                prefetch_downloads: self.downloads.prefetch_downloads,
+                store_verification: self.downloads.store_verification,
                 http_client_arc: self.downloads.http_client_arc,
                 meta_cache: self.lockfiles.verification.meta_cache,
                 fetch_caches: self.downloads.fetch_caches,
@@ -264,7 +303,7 @@ impl<'a> MaterializationInputs<'a, '_> {
                         lockfile_specifier_manifests_by_id(manifests, self.workspace.workspace_root)
                     }),
                 catalogs: self.workspace.catalogs.clone(),
-                workspace_packages: build_workspace_packages_map(self.workspace.workspace_projects),
+                workspace_packages: self.workspace.workspace_packages.into_packages(),
             },
         }
     }
@@ -287,15 +326,23 @@ impl<'a> MaterializationInputs<'a, '_> {
                 lockfile_verification_override.await.map_err(map_frozen_lockfile_error)?;
                 None
             } else {
-                self.lockfiles.wanted.and_then(|loaded_lockfile| {
+                let shared_lockfile = self.lockfiles.wanted_shared
+                    .as_ref()
+                    .map(Arc::clone)
+                    .or_else(|| self.lockfiles.wanted.map(|loaded| Arc::new(loaded.clone())));
+                shared_lockfile.and_then(|loaded_lockfile| {
                     super::LockfileVerificationGate::spawn::<Reporter>(
-                        loaded_lockfile,
+                        Arc::clone(&loaded_lockfile),
                         &self.lockfiles.verification.resolution_verifiers,
                         self.lockfiles.verification.derived_lockfile_path.as_deref(),
                         &self.install.context.config.cache_dir,
                         self.resolution.inputs.update_seed_policy.replaced_update_targets(
-                            loaded_lockfile,
+                            &loaded_lockfile,
                             self.workspace.requested_importer_ids,
+                        ),
+                        matches!(
+                            self.resolution.inputs.update_seed_policy,
+                            crate::UpdateSeedPolicy::FixLockfile,
                         ),
                     )
                 })
@@ -360,62 +407,5 @@ fn fresh_materialization_output(
             groups: None,
         },
         store_index_teardown: fresh_result.store_index_teardown,
-    }
-}
-
-impl<'a> MaterializationWorkspace<'a> {
-    fn frozen_scope(
-        &self,
-        lockfile: &Lockfile,
-        hoisted_prior: Option<&Lockfile>,
-        groups: crate::GroupSelection,
-        ignore_manifest_check: bool,
-    ) -> FrozenScope<'a> {
-        let empty_skipped = crate::SkippedSnapshots::new();
-        let importer_ids = self.requested_importer_ids.or_else(|| {
-            (!ignore_manifest_check).then_some(self.real_importer_ids)
-        });
-        let closure = crate::materialization_closure(
-            lockfile,
-            self.workspace_root,
-            &initial_materialization_ids(lockfile, importer_ids, hoisted_prior),
-            &groups,
-            &empty_skipped,
-        );
-        let project_anchor_ids = frozen_project_anchor_ids(
-            self.requested_importer_ids,
-            self.real_importer_ids,
-            &closure,
-        );
-        FrozenScope {
-            project_manifests: anchored_project_manifests(
-                self.project_manifests,
-                self.workspace_root,
-                &project_anchor_ids,
-            ),
-            closure,
-            groups,
-        }
-    }
-}
-
-impl MaterializationOutput {
-    fn from_frozen(
-        frozen_result: pnpm_deps_restorer::InstallFrozenLockfileOutput,
-        groups: crate::GroupSelection,
-    ) -> Self {
-        MaterializationOutput {
-            materialized: Materialized {
-                hoisted: frozen_result.hoisted,
-                ignored_builds: frozen_result.ignored_builds,
-                deferred_builds: frozen_result.deferred_builds,
-
-                install_skipped: frozen_result.skipped,
-                peer_issue_importer_ids: HashSet::new(),
-                fresh_lockfile: None,
-                groups: Some(groups),
-            },
-            store_index_teardown: frozen_result.store_index_teardown,
-        }
     }
 }

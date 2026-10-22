@@ -52,6 +52,27 @@ impl IpNetwork {
     }
 }
 
+/// Parse a list of trusted-proxy entries, which may include CIDR networks, bare
+/// IP addresses, or the `"loopback"` keyword (which expands to `127.0.0.0/8` and `::1/128`).
+pub fn parse_trusted_proxies(
+    entries: impl IntoIterator<Item = impl AsRef<str>>,
+) -> Result<Vec<IpNetwork>, RegistryError> {
+    let mut networks = Vec::new();
+    for entry in entries {
+        let raw = entry.as_ref().trim();
+        if raw.is_empty() {
+            continue;
+        }
+        if raw.eq_ignore_ascii_case("loopback") {
+            networks.push(IpNetwork::parse("127.0.0.0/8")?);
+            networks.push(IpNetwork::parse("::1/128")?);
+        } else {
+            networks.push(IpNetwork::parse(raw)?);
+        }
+    }
+    Ok(networks)
+}
+
 fn address_width(address: IpAddr) -> u8 {
     match address {
         IpAddr::V4(_) => 32,

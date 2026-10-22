@@ -11,6 +11,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+pnpm-network = { workspace = true }
 pnpm-package-name = { workspace = true }
 tracing = { workspace = true }
 rustc-hash = { workspace = true }
@@ -35,6 +36,7 @@ futures-util = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
 pnpm-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-tool-protocol = { workspace = true }
 pathdiff = { workspace = true }
 pipe-trait = { workspace = true }
 serde_json = { workspace = true }
@@ -45,6 +47,7 @@ tokio = { workspace = true, features = ["sync"] }
 async-trait = { workspace = true }
 node-semver = { workspace = true }
 pretty_assertions = { workspace = true }
+proptest = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 

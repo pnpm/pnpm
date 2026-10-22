@@ -128,8 +128,10 @@ fn lockfile_with_top_level(marker: &str, minor: u16) -> Lockfile {
             auto_install_peers: marker == "fresh",
             dedupe_peers: Some(marker == "fresh"),
             exclude_links_from_lockfile: marker != "fresh",
+            add_missing_peer_types: None,
             inject_workspace_packages: marker == "fresh",
             peers_suffix_max_length: Some(if marker == "fresh" { 2000 } else { 1000 }),
+            integrity_target: None,
             resolution: pnpm_lockfile::ResolutionSettings {
                 auto_dedupe: Some(marker == "fresh"),
                 ..Default::default()

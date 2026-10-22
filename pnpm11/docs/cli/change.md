@@ -31,7 +31,7 @@ You are asked three questions:
 
 The result is a file such as `.changeset/calm-cats-resolve.md`:
 
-```markdown
+```markdown title=".changeset/calm-cats-resolve.md"
 ---
 "@example/core": minor
 "@example/cli": patch
@@ -58,7 +58,7 @@ Show the pending change intents and the release plan they produce.
 pnpm change status
 ```
 
-```
+```text
 Pending change intents:
   .changeset/calm-cats-resolve.md
 

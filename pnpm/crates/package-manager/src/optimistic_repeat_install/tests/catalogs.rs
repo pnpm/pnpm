@@ -46,7 +46,7 @@ fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
@@ -107,7 +107,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert_eq!(decision, Decision::UpToDate);
 }
@@ -143,7 +143,7 @@ fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
             included: isolated_included(),
             supported_architectures: None,
         },
-        manifest_freshness: crate::ManifestFreshness::Mtime,
+        manifests: crate::RepeatInstallManifests::ON_DISK,
     });
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
@@ -250,4 +250,74 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
         &current_catalogs,
     );
     assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
+}
+
+#[test]
+fn expanded_selected_modules_dir_check_reanchors_catalog_links_from_workspace_dir_not_lockfile_dir()
+{
+    let linker = pnpm_config::NodeLinker::Isolated;
+    let external_lockfile_dir = tempdir().unwrap();
+    let (dir, config, root_manifest) = setup_fresh_install_with_config(
+        linker,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"linked":"catalog:"}"#,
+        |config| {
+            config.lockfile_dir = Some(external_lockfile_dir.path().to_path_buf());
+        },
+    );
+    let linked_dir = dir.path().join("packages/linked");
+    fs::create_dir_all(&linked_dir).unwrap();
+    let linked_manifest_path = linked_dir.join("package.json");
+    fs::write(
+        &linked_manifest_path,
+        r#"{"name":"linked","version":"1.0.0","dependencies":{"foo":"1.0.0"}}"#,
+    )
+    .unwrap();
+    let linked_manifest = PackageManifest::from_path(linked_manifest_path).unwrap();
+
+    let project_manifests =
+        [(dir.path().to_path_buf(), &root_manifest), (linked_dir.clone(), &linked_manifest)];
+    let catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("linked".to_string(), "link:./packages/linked".to_string())]),
+    )]);
+    let check = OptimisticRepeatInstallCheck {
+        workspace_root: external_lockfile_dir.path(),
+        config,
+        project_manifests: &project_manifests,
+        is_workspace_install: true,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+        layout: crate::RepeatInstallLayout {
+            node_linker: linker,
+            included: isolated_included(),
+            supported_architectures: None,
+        },
+        manifests: crate::RepeatInstallManifests::ON_DISK,
+    };
+    let state = pnpm_workspace_state::WorkspaceState::default();
+    let selected = [dir.path()];
+
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        )
+        .as_deref(),
+        Some("linked"),
+    );
+
+    fs::create_dir_all(linked_dir.join("node_modules")).unwrap();
+    assert_eq!(
+        super::super::modules_dirs::first_selected_project_missing_modules_dir(
+            &check,
+            &state,
+            &selected,
+            super::super::modules_dirs::SelectedReach::WithWorkspaceDeps,
+        ),
+        None,
+    );
 }

@@ -8,14 +8,14 @@ import {
   type FetchMetadataFromFromRegistryOptions,
   type FetchMetadataResult,
 } from './fetch.js'
-import { fullEtagOfAbbreviatedMirror, holdsFullMetaInAbbreviatedMirror, mirrorEtags } from './metaMirror.js'
+import { conditionalRequest, mirrorWrite, unconditionalRefetch } from './metadataCachePolicy.js'
+import { encodeMirror } from './metaMirror.js'
 import {
   discardMirrorAfterFailedUncacheableWrite,
   getPkgMirrorPath,
   legacyMirrorHint,
   loadMeta,
   loadMetaHeaders,
-  prepareJsonForDisk,
   saveMeta,
 } from './pickPackage.js'
 
@@ -81,14 +81,10 @@ async function fetchMetadataCached (
   if (opts.offline === true) return loadOfflineMeta(pkgMirror, pkgName, opts)
 
   const cacheHeaders = pkgMirror != null ? await loadMetaHeaders(pkgMirror) : null
-  const fullEtag = fullEtagOfAbbreviatedMirror(cacheHeaders, opts.fullMetadata)
   const conditional = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: cacheHeaders?.uncacheable === true,
-    fullMetadata: opts.fullMetadata || fullEtag != null,
-    etag: fullEtag ?? cacheHeaders?.etag,
-    modified: cacheHeaders?.modified,
+    ...conditionalRequest(opts.fullMetadata, cacheHeaders),
   })
   if (!conditional.notModified) return persistFetchedMeta(pkgMirror, conditional, opts.fullMetadata)
 
@@ -96,11 +92,12 @@ async function fetchMetadataCached (
   // requires cache headers loaded from a mirror — so a null mirror here is an
   // unreachable invariant breach.
   if (pkgMirror == null) throw new Error(`Unexpected 304 for ${pkgName} without a metadata cache`)
-  const cached = await loadMeta(pkgMirror)
+  const cached = await loadMeta(pkgMirror, { hydrateEagerly: true })
   if (cached != null) return cached
 
-  // The mirror vanished between the headers read and this read (concurrent
-  // store cleanup, antivirus, ...), so the 304 now validates nothing. Ask again
+  // Either the mirror vanished between the headers read and this read
+  // (concurrent store cleanup, antivirus, ...) or a version fragment in it is
+  // corrupt, so the 304 now validates nothing. Ask again
   // as a cold cache would, which the registry can only answer with a body or an
   // error — never another 304.
   return persistFetchedMeta(pkgMirror, await refetchBypassingCache(fetchOpts, pkgName, opts), opts.fullMetadata)
@@ -112,7 +109,7 @@ async function loadOfflineMeta (
   opts: MetadataCacheRequest
 ): Promise<PackageMeta> {
   if (pkgMirror != null) {
-    const cached = await loadMeta(pkgMirror)
+    const cached = await loadMeta(pkgMirror, { hydrateEagerly: true })
     if (cached != null) return cached
   }
   throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${pkgName} in package mirror ${pkgMirror ?? ''}`, {
@@ -128,8 +125,7 @@ async function refetchBypassingCache (
   const refetched = await fetchMetadataFromFromRegistry(fetchOpts, pkgName, {
     registry: opts.registry,
     authHeaderValue: opts.authHeaderValue,
-    cacheBypass: true,
-    fullMetadata: opts.fullMetadata,
+    ...unconditionalRefetch(opts.fullMetadata),
   })
   // Unreachable narrowing guard: the cache-bypassing request sends no validator,
   // so fetchMetadataFromFromRegistry rejects a repeated 304 before returning.
@@ -143,12 +139,14 @@ async function refetchBypassingCache (
 // the speedup.
 function persistFetchedMeta (pkgMirror: string | null, fetched: FetchMetadataResult, mirrorFullMetadata: boolean): PackageMeta {
   if (pkgMirror != null) {
-    const { etag, fullEtag } = mirrorEtags(fetched, mirrorFullMetadata)
-    const jsonForDisk = holdsFullMetaInAbbreviatedMirror(fetched, mirrorFullMetadata)
-      ? prepareJsonForDisk(clearMeta(fetched.meta), etag, { uncacheable: fetched.uncacheable, fullEtag })
-      : prepareJsonForDisk(fetched.meta, etag, fetched)
-    saveMeta(pkgMirror, jsonForDisk).catch(() => {
-      return discardMirrorAfterFailedUncacheableWrite(pkgMirror, fetched.uncacheable === true)
+    const write = mirrorWrite(fetched, mirrorFullMetadata)
+    const content = encodeMirror({}, fetched, {
+      meta: write.kind === 'fullInAbbreviatedMirror' ? clearMeta(fetched.meta) : fetched.meta,
+      etag: write.etag,
+      body: write.body,
+    })
+    saveMeta(pkgMirror, content).catch(() => {
+      return discardMirrorAfterFailedUncacheableWrite(pkgMirror, write.body.uncacheable === true)
     })
   }
   return fetched.meta

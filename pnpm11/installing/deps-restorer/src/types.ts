@@ -132,6 +132,7 @@ export interface HeadlessOptions extends RegistryContext {
   ownLifecycleHooksStdio?: 'inherit' | 'pipe'
   pendingBuilds: string[]
   relinkChangedDependenciesOnly?: boolean
+  deployAllFiles?: boolean
   resolveSymlinksInInjectedDirs?: boolean
   skipped: Set<DepPath>
   skipRuntimes?: boolean

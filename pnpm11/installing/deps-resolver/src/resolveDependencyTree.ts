@@ -11,7 +11,7 @@ import { partition } from 'ramda'
 import { buildTree } from './childrenResolution.js'
 import { createResolutionContext } from './createResolutionContext.js'
 import { collectDirectDependencySpecs, findStalePeerPins, releaseStalePeerPins } from './findStalePeerPins.js'
-import type { WantedDependency } from './getNonDevWantedDependencies.js'
+import type { WantedDependency } from './getWantedDependencies.js'
 import type { NodeId } from './nextNodeId.js'
 import type {
   DependenciesTree,
@@ -87,7 +87,6 @@ export interface Importer<WantedDepExtraProps> {
 export interface ImporterToResolveGeneric<WantedDepExtraProps> extends Importer<WantedDepExtraProps> {
   updatePackageManifest: boolean
   updateMatching?: (pkgName: string, version?: string) => boolean
-  updatePatches?: boolean
   updateToLatest?: boolean
   hasRemovedDependencies?: boolean
   preferredVersions?: PreferredVersions
@@ -115,6 +114,11 @@ export interface ResolveDependenciesOptions extends RegistryContext {
   engineStrict: boolean
   force: boolean
   forceFullResolution: boolean
+  /**
+   * The wanted lockfile was written under the current hooks and settings, so
+   * a package reused from it keeps the peer dependencies it records.
+   */
+  lockedPeersAreCurrent?: boolean
   /**
    * Aliases whose lockfile pins are not reused, because an override that may
    * have produced them no longer applies.
@@ -244,7 +248,6 @@ function toImporterToResolve<WantedDepExtraProps> (
     resolvedDependencies,
     updateDepth: -1,
     updateMatching: importer.updateMatching,
-    updatePatches: importer.updatePatches,
     updateToLatest: importer.updateToLatest,
     prefix: importer.rootDir,
     supportedArchitectures: opts.supportedArchitectures,
@@ -272,18 +275,19 @@ function getLockedDependenciesOfImporter<WantedDepExtraProps> (
     ...projectSnapshot.devDependencies,
     ...projectSnapshot.optionalDependencies,
   }
-  const stalePeerPins = directSpecsByName == null
-    ? undefined
-    : findStalePeerPins(lockedDependencies, {
-      directSpecsByName,
-      lockfile: opts.wantedLockfile,
-      manifest: importer.manifest,
-    })
   const preferredVersions = importer.preferredVersions ?? {}
-  if (!stalePeerPins?.size) {
+  if (directSpecsByName == null) {
     return { preferredVersions, resolvedDependencies: lockedDependencies }
   }
-  return releaseStalePeerPins(stalePeerPins, { preferredVersions, resolvedDependencies: lockedDependencies })
+  const stalePeerPins = findStalePeerPins(lockedDependencies, {
+    directSpecsByName,
+    lockfile: opts.wantedLockfile,
+    manifest: importer.manifest,
+  })
+  if (!stalePeerPins.size) {
+    return { preferredVersions, resolvedDependencies: lockedDependencies }
+  }
+  return releaseStalePeerPins(stalePeerPins, { directSpecsByName, preferredVersions, resolvedDependencies: lockedDependencies })
 }
 
 function attachNewCatalogEntry (directDep: PkgAddress, catalogs: Catalogs | undefined): void {

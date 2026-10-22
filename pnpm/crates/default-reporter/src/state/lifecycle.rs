@@ -1,7 +1,8 @@
 use super::{
-    BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState, LifecycleStdio,
-    RenderingContext, ReporterState, contains_path, cut_line, format_prefix, format_prefix_no_trim,
-    highlight_last_folder, lifecycle_ids, pretty_ms, visible_width,
+    BlockPlacement, BlockSlot, COLOR_WHEEL, LifecycleEntry, LifecycleMessage, LifecycleState,
+    LifecycleStdio, RenderingContext, ReporterState, contains_path, cut_line, format_prefix,
+    format_prefix_no_trim, highlight_last_folder, lifecycle_ids, pretty_ms, printable_script_line,
+    visible_width,
 };
 use std::fmt::Write as _;
 
@@ -16,7 +17,7 @@ impl ReporterState {
         {
             let Some(msg) = self.streamed_lifecycle_block(message) else { return };
             let mut slot = BlockSlot::default();
-            self.display.frame.emit(&mut slot, msg, false);
+            self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
             return;
         }
         let (stage, dep_path, wd) = lifecycle_ids(message);
@@ -46,7 +47,7 @@ impl ReporterState {
             self.scripts.entries.remove(&key);
         }
         let mut slot = self.scripts.slots.remove(&key).unwrap_or_default();
-        self.display.frame.emit(&mut slot, msg, false);
+        self.display.frame.emit(&mut slot, msg, BlockPlacement::Scrolling);
         self.scripts.slots.insert(key, slot);
     }
 
@@ -54,19 +55,21 @@ impl ReporterState {
         match message {
             LifecycleMessage::Script { stage, wd, script, .. } => {
                 let line = self.rendering.script_line(stage, wd, script);
-                self.scripts.entries.get_mut(key).unwrap().script = line;
+                if let Some(entry) = self.scripts.entries.get_mut(key) {
+                    entry.script = line;
+                }
             }
             LifecycleMessage::Exit { exit_code, wd, .. } => {
                 let status = self.exit_status(key, *exit_code, wd);
-                self.scripts.entries.get_mut(key).unwrap().status = status;
+                if let Some(entry) = self.scripts.entries.get_mut(key) {
+                    entry.status = status;
+                }
             }
             LifecycleMessage::Stdio { line, stdio, .. } => {
                 let formatted = self.rendering.format_indented_output(line, *stdio);
-                self.scripts.entries
-                    .get_mut(key)
-                    .unwrap()
-                    .output
-                    .push(formatted);
+                if let Some(entry) = self.scripts.entries.get_mut(key) {
+                    entry.output.push(formatted);
+                }
             }
         }
     }
@@ -90,7 +93,9 @@ impl ReporterState {
 
     pub(super) fn render_script(&mut self, key: &str, message: &LifecycleMessage) -> String {
         self.update_lifecycle_cache(key, message);
-        let entry = &self.scripts.entries[key];
+        let Some(entry) = self.scripts.entries.get(key) else {
+            return String::new();
+        };
         let exit_nonzero =
             matches!(message, LifecycleMessage::Exit { exit_code, .. } if *exit_code != 0);
         let mut lines = vec![entry.script.clone()];
@@ -111,7 +116,9 @@ impl ReporterState {
         dep_path: &str,
         wd: &str,
     ) -> String {
-        if self.scripts.entries[key].label.is_none() {
+        if let Some(entry) = self.scripts.entries.get(key)
+            && entry.label.is_none()
+        {
             let mut label = highlight_last_folder(
                 &format_prefix_no_trim(&self.rendering.cwd, wd),
                 &self.rendering.colors,
@@ -121,9 +128,14 @@ impl ReporterState {
                 let _ = write!(label, " [{dep_path}]");
             }
             let _ = write!(label, ": Running {stage} script");
-            self.scripts.entries.get_mut(key).unwrap().label = Some(label);
+            if let Some(entry) = self.scripts.entries.get_mut(key) {
+                entry.label = Some(label);
+            }
         }
-        let label = self.scripts.entries[key].label.clone().unwrap();
+        let label = self.scripts.entries
+            .get(key)
+            .and_then(|entry| entry.label.clone())
+            .unwrap_or_default();
         let LifecycleMessage::Exit { exit_code, optional, .. } = message else {
             self.update_lifecycle_cache(key, message);
             return format!("{label}...");
@@ -209,9 +221,10 @@ impl ReporterState {
             }
             LifecycleMessage::Script { script, .. } => format!("{prefix}$ {script}"),
             LifecycleMessage::Stdio { line, stdio, .. } => {
+                let line = printable_script_line(line, self.rendering.colors.enabled);
                 let line = match stdio {
-                    LifecycleStdio::Stderr => self.rendering.colors.grey(line),
-                    LifecycleStdio::Stdout => line.clone(),
+                    LifecycleStdio::Stderr => self.rendering.colors.grey(&line),
+                    LifecycleStdio::Stdout => line.into_owned(),
                 };
                 if self.options.lifecycle.hide_prefix { line } else { format!("{prefix}: {line}") }
             }
@@ -235,7 +248,8 @@ impl RenderingContext {
 
 impl RenderingContext {
     pub(super) fn format_indented_output(&self, line: &str, stdio: LifecycleStdio) -> String {
-        let cut = cut_line(line, self.width as isize - 2);
+        let line = printable_script_line(line, self.colors.enabled);
+        let cut = cut_line(&line, self.width as isize - 2);
         let line = match stdio {
             LifecycleStdio::Stderr => self.colors.grey(&cut),
             LifecycleStdio::Stdout => cut,

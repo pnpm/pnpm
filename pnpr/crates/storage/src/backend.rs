@@ -22,7 +22,8 @@ use std::{
 /// rename or by upload, and how a namespace maps onto paths or key prefixes.
 #[async_trait]
 pub(crate) trait HostedBackend: Debug + Send + Sync {
-    async fn rebuild_package_index(&self) -> Result<()> {
+    /// Check that the hosted store is reachable and ready for operations.
+    async fn check_readiness(&self) -> Result<()> {
         Ok(())
     }
 
@@ -90,6 +91,11 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     async fn list_package_names(&self) -> Result<Vec<String>>;
 
+    async fn list_package_blobs(&self, name: &CanonicalPackageName) -> Result<Vec<String>>;
+
+    /// The names of the top-level directories (key prefixes) of this view.
+    async fn list_top_level_dirs(&self) -> Result<Vec<String>>;
+
     async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>>;
 
     async fn write_revision_ref(
@@ -128,9 +134,9 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     // The store also holds what the registry itself keeps beside the packages:
     // staged publishes waiting for approval, pipeline run records. Each such
     // kind owns a reserved namespace of the hosted store — a dot-prefixed
-    // segment, which no package name can occupy — and addresses its records by
-    // a key within it. `Storage` names the namespaces; a backend only maps a
-    // namespace and key onto a path or an object key.
+    // segment beside `packages/` — and addresses its records by a key within
+    // it. `Storage` names the namespaces; a backend only maps a namespace and
+    // key onto a path or an object key.
 
     async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>>;
 
@@ -156,6 +162,13 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     ) -> Result<DocumentWrite>;
 
     async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool>;
+
+    async fn remove_record_if_current(
+        &self,
+        namespace: &str,
+        key: &str,
+        expected: &[u8],
+    ) -> Result<bool>;
 
     /// Every key stored in `namespace`, in unspecified order, relative to the
     /// namespace and `/`-separated whatever the backend stores them on.

@@ -1,12 +1,17 @@
 use super::{
-    Arc, AuthHeaders, BodyHasher, BodyProgress, BufferBody, Buffered, FetchingProgressLog,
-    FetchingProgressMessage, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Integrity, LogEvent, LogLevel,
+    Arc, AuthHeaders, BodyProgress, BodyVerification, BufferBody, Buffered, BufferedArchive,
+    FetchingProgressLog, FetchingProgressMessage, HashMap, IgnoreEntryFilter, LogEvent, LogLevel,
     NetworkError, PackageFilesIndex, Path, PathBuf, Reporter, SemaphorePermit, StoreDir, Stream,
-    StreamExt, TarballError, ThrottledClient, advertises_large_body, buffer_body,
-    extract_body_while_downloading, extract_tarball_buffer, local_file_tarball_path,
-    open_local_tarball, read_local_tarball_buffer, starts_with_gzip_magic,
-    streaming_extract_semaphore,
+    TarballError, ThrottledClient, buffer_body, extract_body_while_downloading,
+    extract_tarball_buffer, local_file_tarball_path, open_local_tarball, read_local_tarball_buffer,
+    streaming_extract_semaphore, streams_while_downloading,
 };
+use crate::{
+    TarLimits, archive_integrity::ArchiveVerification, content_coding::ContentCoding,
+    download::buffered::ExtractedFiles,
+};
+use pnpm_package_manifest::PackageBin;
+use std::collections::BTreeMap;
 
 /// Run one full tarball-fetch attempt: network, body, integrity hash,
 /// decompress, extract into the CAFS. Returns the cas-paths map and the
@@ -28,8 +33,9 @@ use super::{
 pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
     download_priority: u64,
     package_id: &str,
     attempt: u32,
@@ -42,8 +48,9 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     let download = TarballDownload {
         http_client,
         package_url,
-        expected_integrity,
+        verification,
         package_unpacked_size,
+        tar_limits,
         package_id,
         store_dir,
         ignore_file_pattern,
@@ -68,11 +75,12 @@ async fn fetch_local_archive<Reporter: self::Reporter>(
     attempt: u32,
 ) -> Result<AttemptedFetch, TarballError> {
     let package_url = download.package_url;
-    let (integrity, files, index) = download.fetch_local::<Reporter>(path, attempt).await?;
+    let (integrity, files, index, bins) = download.fetch_local::<Reporter>(path, attempt).await?;
     Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive {
         integrity,
         files,
         index,
+        bins,
         meta: empty_meta(package_url),
     })))
 }
@@ -94,21 +102,29 @@ async fn fetch_remote<Reporter: self::Reporter>(
         attempt,
         revision_addressed,
         if_none_match,
+        crate::archive_request::ArchiveContentCoding::Negotiated,
     )
     .await?;
     if meta.not_modified {
         drop(response_head);
         return Ok(AttemptedFetch::NotModified(meta));
     }
-    let (integrity, files, index) =
+    let (integrity, files, index, bins) =
         download.extract_response::<Reporter, _>(client, response_head, attempt).await?;
-    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive { integrity, files, index, meta })))
+    Ok(AttemptedFetch::Extracted(Box::new(ExtractedArchive {
+        integrity,
+        files,
+        index,
+        bins,
+        meta,
+    })))
 }
 
 pub(crate) struct ExtractedArchive {
-    pub integrity: Integrity,
+    pub integrity: crate::ArchiveIntegrity,
     pub files: HashMap<String, PathBuf>,
     pub index: PackageFilesIndex,
+    pub bins: Option<BTreeMap<String, PackageBin>>,
     pub meta: crate::archive_request::ArchiveResponseMeta,
 }
 
@@ -128,8 +144,9 @@ fn empty_meta(package_url: &str) -> crate::archive_request::ArchiveResponseMeta 
 pub(super) struct TarballDownload<'a> {
     pub(super) http_client: &'a ThrottledClient,
     pub(super) package_url: &'a str,
-    pub(super) expected_integrity: Option<&'a Integrity>,
+    pub(super) verification: &'a ArchiveVerification,
     pub(super) package_unpacked_size: Option<usize>,
+    pub(super) tar_limits: TarLimits,
     pub(super) package_id: &'a str,
     pub(super) store_dir: &'static StoreDir,
     pub(super) ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
@@ -143,14 +160,15 @@ pub(super) struct TarballDownload<'a> {
 )]
 pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     path: &Path,
-    expected_integrity: Option<&Integrity>,
+    verification: &ArchiveVerification,
     package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
     package_url: &str,
     package_id: &str,
     attempt: u32,
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+) -> Result<ExtractedFiles, TarballError> {
     let (file, size) = open_local_tarball(path).await?;
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
@@ -162,34 +180,18 @@ pub(super) async fn fetch_local_tarball<Reporter: self::Reporter>(
     }));
     let buffer = read_local_tarball_buffer(file, path, package_url, size).await?;
     extract_tarball_buffer(
-        buffer,
-        expected_integrity,
-        package_unpacked_size,
+        BufferedArchive {
+            buffer,
+            content_coding: ContentCoding::Identity,
+            verification: verification.clone(),
+            unpacked_size: package_unpacked_size,
+            tar_limits,
+        },
         package_url,
         store_dir,
         ignore_file_pattern,
     )
     .await
-}
-
-/// Pull chunks until the gzip magic is decidable. The selected body path
-/// receives the prefix so no bytes are consumed twice.
-pub(super) async fn read_gzip_prefix<Body>(
-    stream: &mut Body,
-    package_url: &str,
-) -> Result<super::body::GzipPrefix, TarballError>
-where
-    Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
-{
-    let mut prefix: Vec<bytes::Bytes> = Vec::new();
-    let mut prefix_len = 0usize;
-    while prefix_len < GZIP_MAGIC.len() {
-        let Some(chunk) = stream.next().await else { break };
-        let chunk = chunk.map_err(|error| fetch_error(package_url, error))?;
-        prefix_len += chunk.len();
-        prefix.push(chunk);
-    }
-    Ok(super::body::GzipPrefix { chunks: prefix, len: prefix_len })
 }
 
 pub(super) fn fetch_error(package_url: &str, error: reqwest::Error) -> TarballError {
@@ -201,11 +203,12 @@ impl TarballDownload<'_> {
         self,
         path: &Path,
         attempt: u32,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<ExtractedFiles, TarballError> {
         fetch_local_tarball::<Reporter>(
             path,
-            self.expected_integrity,
+            self.verification,
             self.package_unpacked_size,
+            self.tar_limits,
             self.package_url,
             self.package_id,
             attempt,
@@ -220,29 +223,19 @@ impl TarballDownload<'_> {
         client: Guard,
         response: reqwest::Response,
         attempt: u32,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    ) -> Result<ExtractedFiles, TarballError> {
+        let content_coding = ContentCoding::of_response(&response, self.package_url)?;
         let expected_size = response.content_length();
         let mut stream = response.bytes_stream();
         let mut progress = BodyProgress::new(expected_size, self.package_id);
-        let prefix = match read_gzip_prefix(&mut stream, self.package_url).await {
-            Ok(prefix) => prefix,
-            Err(error) => {
-                if error.is_fetch_timeout() {
-                    self.http_client.downscale_while_peers_active(self.package_url);
-                }
-                return Err(error);
-            }
-        };
-        let is_gzip = starts_with_gzip_magic(&prefix.chunks);
         // Retries remain buffered to preserve whole-archive decode diagnostics.
-        if is_gzip
-            && attempt == 0
-            && advertises_large_body(expected_size)
+        if attempt == 0
+            && streams_while_downloading(expected_size, self.package_unpacked_size)
             && let Ok(permit) = streaming_extract_semaphore().try_acquire()
         {
-            progress.on_chunks::<Reporter>(&prefix.chunks);
             return self.stream_body::<Reporter, _, _>(
-                prefix.chunks,
+                content_coding,
+                Vec::new(),
                 stream,
                 progress,
                 client,
@@ -253,24 +246,27 @@ impl TarballDownload<'_> {
         let buffered = buffer_body::<Reporter, _>(BufferBody {
             stream: &mut stream,
             progress: &mut progress,
-            prefix,
             expected_size,
-            expected_integrity: self.expected_integrity,
-            is_gzip,
             package_url: self.package_url,
             http_client: self.http_client,
         })
-        .await?;
-        self.finish_body::<Reporter, _, _>(buffered, stream, progress, client).await
+        .await
+        .inspect_err(|error| {
+            if error.is_fetch_timeout() {
+                self.http_client.downscale_while_peers_active(self.package_url);
+            }
+        })?;
+        self.finish_body::<Reporter, _, _>(content_coding, buffered, stream, progress, client).await
     }
 
     pub(super) async fn finish_body<Reporter, Body, Guard>(
         self,
+        content_coding: ContentCoding,
         buffered: Buffered,
         stream: Body,
         progress: BodyProgress<'_>,
         client: Guard,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    ) -> Result<ExtractedFiles, TarballError>
     where
         Reporter: self::Reporter,
         Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -278,8 +274,14 @@ impl TarballDownload<'_> {
         let buffer = match buffered {
             Buffered::Complete(buffer) => buffer,
             Buffered::Overflowed(buffer) => {
-                return self.stream_overflowed::<Reporter, _, _>(buffer, stream, progress, client)
-                    .await;
+                return self.stream_overflowed::<Reporter, _, _>(
+                    content_coding,
+                    buffer,
+                    stream,
+                    progress,
+                    client,
+                )
+                .await;
             }
         };
         drop(stream);
@@ -287,9 +289,13 @@ impl TarballDownload<'_> {
         // Gating buffering with that smaller semaphore would serialize downloads.
         drop(client);
         extract_tarball_buffer(
-            buffer,
-            self.expected_integrity,
-            self.package_unpacked_size,
+            BufferedArchive {
+                buffer,
+                content_coding,
+                verification: self.verification.clone(),
+                unpacked_size: self.package_unpacked_size,
+                tar_limits: self.tar_limits,
+            },
             self.package_url,
             self.store_dir,
             self.ignore_file_pattern,
@@ -299,11 +305,12 @@ impl TarballDownload<'_> {
 
     async fn stream_overflowed<Reporter, Body, Guard>(
         self,
+        content_coding: ContentCoding,
         buffer: Vec<u8>,
         stream: Body,
         progress: BodyProgress<'_>,
         client: Guard,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    ) -> Result<ExtractedFiles, TarballError>
     where
         Reporter: self::Reporter,
         Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -313,6 +320,7 @@ impl TarballDownload<'_> {
             .await
             .expect("streaming-extract semaphore shouldn't be closed this soon");
         self.stream_body::<Reporter, _, _>(
+            content_coding,
             vec![bytes::Bytes::from(buffer)],
             stream,
             progress,
@@ -324,12 +332,13 @@ impl TarballDownload<'_> {
 
     pub(super) async fn stream_body<Reporter, Body, Guard>(
         self,
+        content_coding: ContentCoding,
         prefix: Vec<bytes::Bytes>,
         stream: Body,
         mut progress: BodyProgress<'_>,
         client: Guard,
         permit: SemaphorePermit<'static>,
-    ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError>
+    ) -> Result<ExtractedFiles, TarballError>
     where
         Reporter: self::Reporter,
         Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
@@ -337,14 +346,18 @@ impl TarballDownload<'_> {
         extract_body_while_downloading::<Reporter, _, _>(
             prefix,
             stream,
-            BodyHasher::new(self.expected_integrity),
+            BodyVerification {
+                content_coding,
+                verification: self.verification.clone(),
+                limits: self.tar_limits.with_unpacked_size(self.package_unpacked_size),
+                store_dir: self.store_dir,
+                ignore_file_pattern: self.ignore_file_pattern,
+            },
             &mut progress,
             client,
             permit,
             self.http_client,
             self.package_url,
-            self.store_dir,
-            self.ignore_file_pattern,
         )
         .await
     }

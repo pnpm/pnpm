@@ -3,7 +3,7 @@ use super::{
     FULL_FILTERED_META_DIR, FULL_META_DIR, InMemoryPackageMetaCache, MetadataCacheScope,
     PACKAGE_BODY, PickPackageContext, PickPackageError, RetryOpts, STALE_PACKAGE_BODY, TempDir,
     ThrottledClient, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
-    VersionSelectors, assert_eq, default_opts, get_legacy_pkg_mirror_path, get_pkg_mirror_path,
+    VersionSelectors, assert_eq, default_opts, get_legacy_pkg_mirror_paths, get_pkg_mirror_path,
     metadata_cache_key, persist_meta_to_mirror, pick_package, range_spec,
     shared_packument_fetch_locker, version_spec,
 };
@@ -29,8 +29,7 @@ async fn filtered_full_metadata_reads_pnpm_jsonl_mirror_for_lowest_pick() {
         needs_full_metadata_for: None,
         filter_metadata: true,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -79,8 +78,7 @@ async fn warm_in_memory_cache_skips_network() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -128,8 +126,7 @@ async fn normal_range_fetches_when_cached_meta_is_missing_lockfile_version() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -187,8 +184,7 @@ async fn offline_with_mirror_picks_from_disk() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -224,8 +220,7 @@ async fn offline_without_mirror_errors() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -252,8 +247,9 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
     let cache_dir = TempDir::new().expect("tempdir");
     let registry = "https://registry.example.com/".to_string();
     let legacy_mirror =
-        get_legacy_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
-            .expect("legacy mirror path");
+        get_legacy_pkg_mirror_paths(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+            .pop()
+            .expect("host-only legacy mirror path");
     std::fs::create_dir_all(legacy_mirror.parent().expect("legacy mirror parent")).expect("mkdir");
     std::fs::write(&legacy_mirror, "{}\n{}").expect("write legacy mirror");
 
@@ -266,8 +262,7 @@ async fn offline_without_mirror_names_the_legacy_mirror_when_it_predates_the_ren
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -327,8 +322,7 @@ async fn offline_promotes_disk_loaded_packument_into_memory_cache() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: true,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Offline,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -388,8 +382,7 @@ async fn prefer_offline_promotes_disk_loaded_packument_into_memory_cache() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: true,
+            network: pnpm_config::NetworkPolicy::PreferCache,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -454,8 +447,7 @@ async fn stale_disk_promoted_entry_falls_back_to_registry_under_prefer_offline()
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: true,
+            network: pnpm_config::NetworkPolicy::PreferCache,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -514,8 +506,7 @@ async fn version_spec_with_mirror_takes_fast_path() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -583,8 +574,7 @@ async fn version_spec_missing_in_mirror_fetches() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -629,8 +619,7 @@ async fn dry_run_skips_in_memory_cache() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -723,8 +712,7 @@ async fn in_memory_cache_does_not_leak_across_registries() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -787,8 +775,7 @@ async fn default_pick_targets_abbreviated_endpoint_and_mirror() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,
@@ -847,8 +834,7 @@ async fn optional_opt_forces_full_metadata_endpoint() {
         needs_full_metadata_for: None,
         filter_metadata: false,
         cache_policy: crate::MetadataCachePolicy {
-            offline: false,
-            prefer_offline: false,
+            network: pnpm_config::NetworkPolicy::Online,
             ignore_missing_time_field: false,
         },
         store_view: None,

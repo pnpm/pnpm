@@ -333,9 +333,12 @@ async function throwRegistryError (response: Response, verb: string): Promise<ne
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${verb} package: ${response.status} ${response.statusText}. ${errorBody}`)
 }
 
-function getTarballPathname (tarballUrl: string, registryUrl: string): string {
-  const registryPath = new URL(registryUrl).pathname.slice(1)
-  let tarballPath = new URL(tarballUrl).pathname.slice(1)
+export function getTarballPathname (tarballUrl: string, registryUrl: string): string {
+  let registryPath = new URL(registryUrl).pathname.replace(/^\/+/g, '')
+  if (registryPath && !registryPath.endsWith('/')) {
+    registryPath += '/'
+  }
+  let tarballPath = new URL(tarballUrl).pathname.replace(/^\/+/g, '')
   if (registryPath && tarballPath.startsWith(registryPath)) {
     tarballPath = tarballPath.slice(registryPath.length)
   }

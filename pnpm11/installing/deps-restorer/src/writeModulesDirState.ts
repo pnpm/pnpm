@@ -2,8 +2,10 @@ import path from 'node:path'
 
 import { LAYOUT_VERSION } from '@pnpm/constants'
 import { writeModulesManifest } from '@pnpm/installing.modules-yaml'
-import { type LockfileObject, writeCurrentLockfile, writeLockfiles } from '@pnpm/lockfile.fs'
-import type { HoistedDependencies, IgnoredBuilds } from '@pnpm/types'
+import { filterLockfileByImporters } from '@pnpm/lockfile.filtering'
+import { isEmptyLockfile, type LockfileObject, writeCurrentLockfile, writeLockfiles } from '@pnpm/lockfile.fs'
+import type { HoistedDependencies, IgnoredBuilds, ProjectId } from '@pnpm/types'
+import { pick } from 'ramda'
 
 import type { HeadlessContext, HeadlessDepGraph } from './context.js'
 import { getInjectedDeps } from './extendProjectsWithTargetDirs.js'
@@ -26,7 +28,85 @@ export async function writeModulesDirState (ctx: HeadlessContext, depGraph: Head
     await linkBinsOfImporters(ctx, depGraph)
   }
   await writeModulesManifestOfInstall(ctx, depGraph, outcome)
-  await writeLockfilesOfInstall(ctx, depGraph.filteredLockfile)
+  await writeLockfilesOfInstall(ctx, mergeIntoCurrentLockfile(ctx, depGraph))
+}
+
+const mergedCurrentLockfiles = new WeakMap<HeadlessDepGraph, LockfileObject>()
+
+export function mergeIntoCurrentLockfile (
+  ctx: HeadlessContext,
+  depGraph: HeadlessDepGraph
+): LockfileObject {
+  const cached = mergedCurrentLockfiles.get(depGraph)
+  if (cached != null) return cached
+  const merged = computeMergedCurrentLockfile(ctx, depGraph)
+  mergedCurrentLockfiles.set(depGraph, merged)
+  return merged
+}
+
+function computeMergedCurrentLockfile (
+  { currentLockfile, wantedLockfile }: HeadlessContext,
+  { filteredLockfile, importerIds }: HeadlessDepGraph
+): LockfileObject {
+  if (Object.keys(wantedLockfile.importers).every((id) => importerIds.includes(id as ProjectId))) {
+    return filteredLockfile
+  }
+  const emptyImporters = Object.fromEntries(
+    Object.keys(filteredLockfile.importers).map((id) => [id, { specifiers: {} }])
+  ) as LockfileObject['importers']
+  if (currentLockfile == null || isEmptyLockfile(currentLockfile)) {
+    return {
+      ...filteredLockfile,
+      importers: {
+        ...emptyImporters,
+        ...pick(importerIds, filteredLockfile.importers),
+      },
+    }
+  }
+  const retainedPackages = retainedUnselectedPackages(currentLockfile, filteredLockfile, importerIds)
+  return {
+    ...filteredLockfile,
+    importers: {
+      ...emptyImporters,
+      ...currentLockfile.importers,
+      ...pick(importerIds, filteredLockfile.importers),
+    },
+    packages: {
+      ...retainedPackages,
+      ...filteredLockfile.packages,
+    },
+  }
+}
+
+const ALL_INCLUDED_DEPENDENCIES = {
+  dependencies: true,
+  devDependencies: true,
+  optionalDependencies: true,
+} as const
+
+function retainedUnselectedPackages (
+  currentLockfile: LockfileObject,
+  filteredLockfile: LockfileObject,
+  importerIds: ProjectId[]
+): LockfileObject['packages'] {
+  const previouslyRecordedIds = importerIds.filter((id) => Object.hasOwn(currentLockfile.importers, id))
+  const prevSelected = filterLockfileByImporters(currentLockfile, previouslyRecordedIds, {
+    include: ALL_INCLUDED_DEPENDENCIES,
+    failOnMissingDependencies: false,
+    skipped: new Set(),
+  })
+  const nextPackages = filteredLockfile.packages ?? {}
+  const droppedAnyPackage = Object.keys(prevSelected.packages ?? {}).some((depPath) => !(depPath in nextPackages))
+  if (!droppedAnyPackage) {
+    return currentLockfile.packages
+  }
+  const selectedSet = new Set(importerIds)
+  const unselectedIds = (Object.keys(currentLockfile.importers) as ProjectId[]).filter((id) => !selectedSet.has(id))
+  return filterLockfileByImporters(currentLockfile, unselectedIds, {
+    include: ALL_INCLUDED_DEPENDENCIES,
+    failOnMissingDependencies: false,
+    skipped: new Set(),
+  }).packages
 }
 
 async function writeModulesManifestOfInstall (ctx: HeadlessContext, depGraph: HeadlessDepGraph, outcome: InstallOutcome): Promise<void> {

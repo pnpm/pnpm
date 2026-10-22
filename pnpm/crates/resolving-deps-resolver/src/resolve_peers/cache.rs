@@ -12,7 +12,9 @@ use crate::{
     node_id::NodeId,
     resolve_peers::{
         context::{ParentPkgInfo, ParentRef, ParentRefs, SharedChain},
-        walker::{MissingPeerInfo, NodeOutput, NodeWalkContext, SubtreeMissingByPkg, Walker},
+        walker::{
+            MissingPeerInfo, NodeOutput, NodeWalkContext, PeerWalkMode, SubtreeMissingByPkg, Walker,
+        },
     },
     resolved_tree::{ChildEdge, DependenciesTreeNode, TreeChildren},
 };
@@ -320,6 +322,7 @@ impl Walker<'_> {
         self.record_cache_hit_missing_issues(
             node_id,
             &output,
+            &missing_peers_of_children,
             parent_chain_names,
             parent_pkg_ids_chain,
         );
@@ -338,6 +341,7 @@ impl Walker<'_> {
         &mut self,
         node_id: &NodeId,
         output: &NodeOutput,
+        missing_peers_of_children: &HashMap<String, MissingPeerInfo>,
         parent_chain_names: &SharedChain<Arc<str>>,
         parent_pkg_ids_chain: &SharedChain<Arc<str>>,
     ) {
@@ -345,22 +349,90 @@ impl Walker<'_> {
             return;
         }
         let pkg_id = Arc::<str>::clone(&self.tree.dependencies_tree[node_id].resolved_package_id);
-        let chain_with_self = parent_pkg_ids_chain.pushed(pkg_id);
-        for (peer_name, info) in output.missing_peers.iter() {
-            if self.missing_issue_suppressed(&chain_with_self, peer_name) {
-                continue;
+        let own_peers = self.tree.packages[&pkg_id].peer_set.taken().clone();
+        let chain_with_self = parent_pkg_ids_chain.pushed(Arc::clone(&pkg_id));
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => {
+                self.record_discovery_cache_hit_issues(
+                    &own_peers,
+                    output,
+                    missing_peers_of_children,
+                    parent_chain_names,
+                    parent_pkg_ids_chain,
+                    &chain_with_self,
+                );
+                return;
             }
-            self.record_missing_issue(
+            PeerWalkMode::Final => {}
+        }
+        for (peer_name, info) in output.missing_peers.iter() {
+            let declaring_chain = if own_peers.contains_key(peer_name) {
+                parent_pkg_ids_chain
+            } else {
+                &chain_with_self
+            };
+            self.record_cache_hit_issue_if_needed(
                 peer_name,
-                MissingPeer {
-                    wanted_range: get_peer_version_range(&info.range),
-                    raw_range: info.range.clone(),
-                    optional: info.optional,
-                    parents: self.issue_parents(parent_chain_names),
-                },
-                &chain_with_self,
+                &info.range,
+                info.optional,
+                parent_chain_names,
+                declaring_chain,
             );
         }
+    }
+
+    fn record_discovery_cache_hit_issues(
+        &mut self,
+        own_peers: &std::collections::BTreeMap<String, crate::PeerDep>,
+        output: &NodeOutput,
+        missing_peers_of_children: &HashMap<String, MissingPeerInfo>,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        parent_pkg_ids_chain: &SharedChain<Arc<str>>,
+        chain_with_self: &SharedChain<Arc<str>>,
+    ) {
+        for (peer_name, peer_dep) in own_peers {
+            if output.missing_peers.contains_key(peer_name) {
+                self.record_cache_hit_issue_if_needed(
+                    peer_name,
+                    &peer_dep.version,
+                    peer_dep.optional,
+                    parent_chain_names,
+                    parent_pkg_ids_chain,
+                );
+            }
+        }
+        for (peer_name, info) in missing_peers_of_children {
+            self.record_cache_hit_issue_if_needed(
+                peer_name,
+                &info.range,
+                info.optional,
+                parent_chain_names,
+                chain_with_self,
+            );
+        }
+    }
+
+    fn record_cache_hit_issue_if_needed(
+        &mut self,
+        peer_name: &str,
+        raw_range: &str,
+        optional: bool,
+        parent_chain_names: &SharedChain<Arc<str>>,
+        declaring_chain: &SharedChain<Arc<str>>,
+    ) {
+        if self.missing_issue_suppressed(declaring_chain, peer_name) {
+            return;
+        }
+        self.record_missing_issue(
+            peer_name,
+            MissingPeer {
+                wanted_range: get_peer_version_range(raw_range),
+                raw_range: raw_range.to_string(),
+                optional,
+                parents: self.issue_parents(parent_chain_names),
+            },
+            declaring_chain,
+        );
     }
 
     /// Discovery runs throw their per-node bookkeeping away, so it is only
@@ -372,8 +444,9 @@ impl Walker<'_> {
         output: &NodeOutput,
         missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
     ) {
-        if self.traversal.discovery {
-            return;
+        match self.traversal.mode {
+            PeerWalkMode::Discovery => return,
+            PeerWalkMode::Final => {}
         }
         if &owner_node_id != node_id {
             let owner_is_fully_walked = !self.nodes.cache_owners.contains_key(&owner_node_id);

@@ -6,12 +6,36 @@ use pnpm_testing_utils::{
     command_env::CommandTestExt,
 };
 use std::{fs, path::Path, process::Command};
+use walkdir::WalkDir;
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(workspace)
         .without_ambient_pnpm_config()
+}
+
+fn add_registry_deprecation(storage: &Path, package: &str, version: &str) {
+    WalkDir::new(storage)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .find_map(|entry| {
+            let contents = fs::read(entry.path()).ok()?;
+            let mut packument: serde_json::Value = serde_json::from_slice(&contents).ok()?;
+            if packument.get("name")?.as_str()? != package {
+                return None;
+            }
+            let versions = packument.get_mut("versions")?.as_object_mut()?;
+            let package_version = versions.get_mut(version)?.as_object_mut()?;
+            package_version.insert(
+                "deprecated".to_string(),
+                serde_json::json!("This package is deprecated."),
+            );
+            fs::write(entry.path(), serde_json::to_vec(&packument).ok()?).ok()?;
+            Some(())
+        })
+        .expect("find registry package metadata");
 }
 
 #[test]
@@ -195,6 +219,64 @@ fn dedupe_writes_lockfile() {
 }
 
 #[test]
+fn dedupe_refreshes_cached_registry_metadata_for_locked_versions() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_recording_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    mock_instance.remove_version_field("@pnpm.e2e/deprecated", "1.0.0", "deprecated");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/deprecated": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let _ = mock_instance.take_requests();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("{lockfile}");
+    assert!(!lockfile.contains("deprecated: This package is deprecated."));
+    add_registry_deprecation(
+        &root.path().join("registry-storage"),
+        "@pnpm.e2e/deprecated",
+        "1.0.0",
+    );
+
+    pacquet_at(&workspace)
+        .with_args(["dedupe", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let dedupe_requests = mock_instance.take_requests();
+    dbg!(&dedupe_requests);
+    assert!(
+        dedupe_requests
+            .iter()
+            .any(|request| {
+                request.if_none_match.is_some() || request.if_modified_since.is_some()
+            }),
+    );
+    let deduped_lockfile = fs::read_to_string(&lockfile_path).expect("read deduped lockfile");
+    eprintln!("{deduped_lockfile}");
+    assert!(deduped_lockfile.contains("deprecated: This package is deprecated."));
+    drop((root, mock_instance));
+}
+
+#[test]
 fn dedupe_materializes_node_modules_unless_lockfile_only() {
     let CommandTempCwd {
         pacquet,
@@ -291,6 +373,49 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     );
     let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
     assert_eq!(lockfile_before, lockfile_after, "dedupe --check must not modify pnpm-lock.yaml");
+
+    drop((root, mock_instance));
+}
+
+/// The lockfile was written before the registry deprecated a locked version.
+#[test]
+fn dedupe_check_ignores_a_deprecation_the_lockfile_does_not_record() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/deprecated": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let recorded = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let stale = recorded
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("deprecated: "))
+        .flat_map(|line| [line, "\n"])
+        .collect::<String>();
+    assert_ne!(stale, recorded, "the lockfile must record the deprecation:\n{recorded}");
+    fs::write(&lockfile_path, &stale).expect("write the pre-deprecation lockfile");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["dedupe", "--check"])
+        .output()
+        .expect("run pnpm dedupe --check");
+    assert!(output.status.success(), "a deprecation alone must not fail the check: {output:?}");
+    let lockfile_after = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    assert_eq!(lockfile_after, stale, "dedupe --check must not modify pnpm-lock.yaml");
 
     drop((root, mock_instance));
 }

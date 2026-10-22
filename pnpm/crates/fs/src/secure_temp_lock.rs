@@ -232,10 +232,16 @@ fn validate_unix_file(file: &fs::File) -> io::Result<()> {
     let metadata = file.metadata()?;
     // SAFETY: `geteuid` has no preconditions and does not mutate memory.
     let effective_user = unsafe { libc::geteuid() };
-    if !metadata.is_file() || metadata.uid() != effective_user || metadata.nlink() != 1 {
+    if !metadata.is_file() || metadata.uid() != effective_user {
         return Err(io::Error::other("lock must be a regular file owned by the current user"));
     }
-    Ok(())
+    match metadata.nlink() {
+        0 => {
+            Err(io::Error::new(io::ErrorKind::NotFound, "lock file was unlinked before validation"))
+        }
+        1 => Ok(()),
+        _ => Err(io::Error::other("lock must be a regular file owned by the current user")),
+    }
 }
 
 #[cfg(all(test, unix))]

@@ -109,9 +109,8 @@ test('workspace packages should maintain link: protocol after single-project pnp
   expect(lockfileAfterRm.importers.a.dependencies!.b.version).toBe('link:../b')
 })
 
-// The guard that preserves a prior `link:` only compensates for
-// dedupeInjectedDeps not running on every re-resolution path, so with that pass
-// off a recorded `link:` is stale.
+// With dedupeInjectedDeps off, nothing turns an injected workspace dependency
+// back into a `link:`, so a recorded `link:` gives way to the injected copy.
 // Regression test for https://github.com/pnpm/pnpm/issues/13754
 test('workspace packages switch to file: protocol when injected with dedupeInjectedDeps disabled', async () => {
   const projectAManifest = {
@@ -484,10 +483,8 @@ test('injected workspace dependency keeps link: when an unrelated dependency is 
   expect(lockfileAfterUpdate.importers.consumer.dependencies!.d.version).toBe('link:../d')
 })
 
-// Same protection on the plain `pnpm install` path (pnpm/pnpm#10433), for the
-// genuine peer-context divergence that dedupeInjectedDeps rightly refuses to
-// collapse. `q` peer-depends `@pnpm.e2e/foo`; `n` depends on `q` but does not
-// pin `foo` itself, so `q`'s peer is provided by an ancestor. Initially only
+// `q` peer-depends `@pnpm.e2e/foo`; `n` depends on `q` but does not pin `foo`
+// itself, so `q`'s peer is provided by an ancestor. Initially only
 // `foo@100.0.0` exists (via the root), so `q`'s peer resolves to it in both
 // `n`'s own context and `n`'s injected-under-consumer context — the occurrences
 // match and `consumer` -> `n` dedupes to `link:`.
@@ -495,15 +492,10 @@ test('injected workspace dependency keeps link: when an unrelated dependency is 
 // Then `foo@100.1.0` is added to the consumer and a plain install is run. Now
 // the injected `q` under the consumer resolves its `foo` peer to the consumer's
 // `100.1.0`, while `n`'s own context still resolves it to the root's `100.0.0`
-// — a real divergence, so dedupeInjectedDeps correctly keeps the injected copy
-// `file:`. The `consumer` -> `n` importer entry itself was not targeted by the
-// change and must be preserved as `link:` rather than rewritten to a
-// peer-suffixed `file:`.
-//
-// This is exactly the case the criterion depends on: a plain install marks
-// every consumer manifest dependency (including `n`) with `updateSpec: true`,
-// which must NOT count as targeting `n`.
-test('injected workspace dependency keeps link: on a plain install when a consumer change makes an ancestor-provided peer diverge', async () => {
+// — a real divergence, so dedupeInjectedDeps keeps the injected copy, and the
+// install records it as a fresh install does.
+// Covers https://github.com/pnpm/pnpm/issues/17057
+test('injected workspace dependency becomes a copy on a plain install when a consumer change makes an ancestor-provided peer diverge', async () => {
   const pkgQ = {
     name: 'q',
     version: '1.0.0',
@@ -569,13 +561,10 @@ test('injected workspace dependency keeps link: on a plain install when a consum
   // The peer context genuinely diverged: both foo versions resolved — the
   // consumer's direct 100.1.0 (what q's peer resolves to in n's injected
   // context) and the root-provided 100.0.0 (what q's peer resolves to in n's
-  // own context). Without both present there would be no divergence for
-  // dedupeInjectedDeps to keep as file:, and the link: assertion below would
-  // pass vacuously.
+  // own context).
   const fooVersions = Object.keys(lockfileAfterInstall.packages ?? {})
     .filter((key) => key.startsWith('@pnpm.e2e/foo@'))
     .sort()
   expect(fooVersions).toStrictEqual(['@pnpm.e2e/foo@100.0.0', '@pnpm.e2e/foo@100.1.0'])
-  // The untouched workspace dependency must keep its link:.
-  expect(lockfileAfterInstall.importers.consumer.dependencies!.n.version).toBe('link:../n')
+  expect(lockfileAfterInstall.importers.consumer.dependencies!.n.version).toBe('file:n(@pnpm.e2e/foo@100.1.0)')
 })

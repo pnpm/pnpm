@@ -42,7 +42,6 @@ use pnpm_lockfile::{
 };
 use pnpm_lockfile_verification::VerifyError;
 use pnpm_matcher::create_matcher;
-use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_patching::{
     ExtendedPatchInfo, PatchKeyConflictError, ResolvePatchedDependenciesError, get_patch_info,
@@ -239,7 +238,7 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
             HoistedLinkerError::WritePackageMap(error) => {
                 InstallFrozenLockfileError::WritePackageMap(error)
             }
-            HoistedLinkerError::PruneWorkspaceHoists(error) => {
+            HoistedLinkerError::PruneStaleLinks(error) => {
                 InstallFrozenLockfileError::PruneStaleModules(error)
             }
             HoistedLinkerError::HoistSymlink(error) => {
@@ -272,7 +271,7 @@ fn build_extra_env(
             ),
         );
     }
-    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+    if config.node_package_map_mode.loads() && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
         extra_env.insert(
@@ -311,6 +310,7 @@ impl<'a> InstallFrozenLockfile<'a> {
             &allow_build_policy,
             owned.early_host_detection,
             owned.node_version,
+            owned.known_requires_build.as_ref(),
         )
         .await?;
 
@@ -319,8 +319,17 @@ impl<'a> InstallFrozenLockfile<'a> {
             plan,
             owned.skipped,
             owned.lockfile_verification_override,
+            owned.known_requires_build.as_ref(),
         )
         .await
+    }
+
+    fn linker_context<'p>(
+        &self,
+        layout: &'p crate::VirtualStoreLayout,
+        bin_options: &'p pnpm_cmd_shim::LinkBinsOptions,
+    ) -> crate::ModuleLinkerContext<'p> {
+        crate::ModuleLinkerContext { layout, kind: self.platform.node_linker, bin_options }
     }
 
     async fn run_plan<Reporter: self::Reporter>(
@@ -329,20 +338,19 @@ impl<'a> InstallFrozenLockfile<'a> {
         plan: MaterializationPlan<'_>,
         seed_skipped: Option<Vec<String>>,
         verification_override: Option<LockfileVerificationOverride<'_>>,
+        known_requires_build: Option<&crate::RequiresBuildBySnapshot>,
     ) -> Result<InstallFrozenLockfileOutput, InstallFrozenLockfileError> {
+        let swap_lock = crate::ModulesSwapLock::new(&self.drivers.config.modules_dir);
         let ctx = crate::InstallContext {
             caches: crate::InstallCaches {
                 logged_methods: self.logged_methods,
+                swap_lock: Some(&swap_lock),
                 git_source_cache: &plan.git_source_cache,
                 materialized_graph: std::sync::Arc::default(),
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
             },
 
-            linker: crate::ModuleLinkerContext {
-                layout: &plan.layout,
-                kind: self.platform.node_linker,
-                bin_options: &plan.link_options,
-            },
+            linker: self.linker_context(&plan.layout, &plan.link_options),
             config: self.drivers.config,
             workspace_root: self.projects.workspace_root,
             requester: self.projects.requester,
@@ -363,8 +371,7 @@ impl<'a> InstallFrozenLockfile<'a> {
         // Under `frozenStore` the store is opened read-only, so the
         // writer is replaced with a drain-and-drop stub that never opens
         // `index.db` (no WAL / SHM sidecar under the read-only root).
-        let (store_index_writer, writer_task) =
-            StoreIndexWriter::spawn_for(&ctx.config.store_dir, ctx.config.frozen_store);
+        let (store_index_writer, writer_task) = spawn_store_index_writer(ctx.config);
 
         let settled = self.settle_skip_set::<Reporter>(plan.host, seed_skipped).await?;
 
@@ -375,6 +382,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                 dir_clone_cache: plan.dir_clone_cache.as_ref(),
                 store_index_writer: &store_index_writer,
                 skipped: &settled.skipped,
+                known_requires_build,
                 verification_override,
             },
         )
@@ -405,6 +413,10 @@ impl<'a> InstallFrozenLockfile<'a> {
 
         let (linked, injected_deps) =
             self.link_fetched::<Reporter>(ctx, &mut fetched, &mut settled)?;
+        // Lifecycle scripts may start installs of their own in this project.
+        if let Some(swap_lock) = ctx.caches.swap_lock {
+            swap_lock.release();
+        }
 
         let phase_start = std::time::Instant::now();
         let built = self.build::<Reporter>(
@@ -545,4 +557,12 @@ fn injected_deps(
         skipped,
         ctx.is_hoisted().then_some(hoisted_locations),
     )
+}
+
+/// The store-index writer for `config`'s store, honouring `frozenStore` and
+/// `storeIndexFormat`.
+fn spawn_store_index_writer(
+    config: &Config,
+) -> (Arc<StoreIndexWriter>, tokio::task::JoinHandle<Result<(), StoreIndexError>>) {
+    StoreIndexWriter::spawn_for(&config.store_dir, config.frozen_store, config.store_index_format)
 }

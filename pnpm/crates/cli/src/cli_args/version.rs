@@ -245,7 +245,10 @@ impl VersionArgs {
                     })
                 })
                 .collect();
-            println!("{}", serde_json::to_string_pretty(&entries).expect("serialize changes"));
+            pnpm_diagnostics::println!(
+                "{}",
+                serde_json::to_string_pretty(&entries).expect("serialize changes"),
+            );
             return;
         }
 
@@ -263,7 +266,7 @@ impl VersionArgs {
             )
             .expect("write to string");
         }
-        print!("{output}");
+        pnpm_diagnostics::print!("{output}");
     }
 
     /// Bump one package's manifest, running its `preversion` and `version`

@@ -32,6 +32,14 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     RegisterLoadedProject(#[error(source)] pnpm_store_dir::RegisterProjectError),
 
+    #[display("Failed to create the store loader directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_CREATE_STORE_LOADER_DIR))]
+    CreateStoreLoaderDir {
+        dir: std::path::PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
     #[diagnostic(transparent)]
     StoreLock(#[error(source)] pnpm_store_dir::StoreLockError),
 
@@ -104,6 +112,20 @@ pub enum InstallError {
         package_names: Vec<String>,
     },
 
+    /// `enableModulesDir: false` fetches the lockfile's packages into the
+    /// store, and an entry could not be staged or a download failed.
+    #[diagnostic(transparent)]
+    StoreFetch(#[error(source)] crate::StoreFetchError),
+
+    /// `enableModulesDir: false` waited for the tarballs the resolver
+    /// prefetched, and some of those downloads failed.
+    #[display("Fetching {} package(s) into the store failed: {}", tarballs.len(), tarballs.join(", "))]
+    #[diagnostic(code(ERR_PNPM_STORE_FETCH_FAILED))]
+    StoreFetchFailed {
+        #[error(not(source))]
+        tarballs: Vec<String>,
+    },
+
     /// pnpm's `ERR_PNPM_PEER_DEP_ISSUES`: with `strictPeerDependencies`
     /// on, an install whose resolution left unmet peers behind fails
     /// once the artifacts are written, the same way `IgnoredBuilds`
@@ -167,6 +189,12 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     WriteModules(#[error(source)] WriteModulesError),
+
+    #[diagnostic(transparent)]
+    AgentSkills(#[error(source)] crate::AgentSkillsError),
+
+    #[diagnostic(transparent)]
+    ResyncAgentSkills(#[error(source)] crate::ResyncAgentSkillsError),
 
     /// A filtered install rewrites `.modules.yaml` from the selected
     /// projects' state merged over the previous file's. Without the
@@ -353,6 +381,12 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),
+
+    #[diagnostic(transparent)]
+    InvalidProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
+
+    #[diagnostic(transparent)]
+    SaveProjectManifest(#[error(source)] pnpm_package_manifest::PackageManifestError),
 
     /// `disallowWorkspaceCycles` and the projects this install covers
     /// depend on each other in a cycle.

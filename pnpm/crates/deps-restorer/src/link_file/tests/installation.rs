@@ -144,6 +144,26 @@ fn hardlink_mode_match_shares_the_store_inode() {
     );
 }
 
+/// pnpm/pnpm#16677: a group-writable store entry differs from the
+/// umask's mode only in group-write, which the store directory grants, so
+/// it is still hardlinked.
+#[test]
+#[cfg(unix)]
+fn hardlink_shares_a_store_inode_that_differs_only_in_group_write() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o020)).unwrap();
+    let dst = tmp.path().join("dst.txt");
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Hardlink, &src, &dst)
+        .expect("a group-write-only mismatch is hardlinked");
+
+    assert_eq!(super::inode(&src), super::inode(&dst), "the store inode is shared");
+}
+
 /// A local-directory dependency's file is not a store entry, so it keeps
 /// the mode its project gives it: an executable stays executable, and a
 /// mode no umask would produce still shares the inode.

@@ -2,12 +2,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { isError } from '@pnpm/error'
-import { prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
+import { getTrustedHoistRoot, prepareWorkspaceModulesDir, validateWorkspaceModulesDir } from '@pnpm/fs.symlink-dependency'
 import type { HoistedDependencies, ProjectId } from '@pnpm/types'
 import { resolveLinkTarget } from 'resolve-link-target'
 
 import { createGetAliasHoistType } from './createGetAliasHoistType.js'
-import { getTrustedRoot, hoistLogger, selectHoistedModulesDir } from './hoistedModulesDirs.js'
+import { hoistLogger, selectHoistedModulesDir } from './hoistedModulesDirs.js'
 import { symlinkHoistedDependency } from './symlinkHoistedDependency.js'
 import type { DependenciesGraph, DirectDependenciesByImporterId, HoistedModulesDirs, HoistedWorkspaceProject, HoistType } from './types.js'
 import { findConflictingWorkspaceProjectIds, type OccupiedAliases, type WorkspacePlacementCandidate } from './workspaceAliasConflicts.js'
@@ -17,8 +17,8 @@ type WorkspaceRollback = (() => Promise<void>) | void
 export interface HoistWorkspacePackagesOpts<NodeId extends string> {
   beforeWorkspaceLinks?: (hoistedDependencies: HoistedDependencies) => Promise<WorkspaceRollback>
   directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
-  /** Non-link direct dependency aliases of every project, including packages omitted from an incremental or filtered graph. */
-  directDependencyAliases?: Iterable<string>
+  /** Non-link importer aliases and aliases already occupying a shared hoist directory. */
+  directDependencyAliases: Iterable<string>
   graph: DependenciesGraph<NodeId>
   hoistedWorkspacePackages?: Record<ProjectId, HoistedWorkspaceProject>
   occupiedAliases?: OccupiedAliases
@@ -64,8 +64,7 @@ function selectWorkspacePlacementCandidates<NodeId extends string> (
   hoistedWorkspacePackages: Record<ProjectId, HoistedWorkspaceProject>
 ): WorkspacePlacementCandidate[] {
   const getAliasHoistType = createGetAliasHoistType(opts.publicHoistPattern, opts.privateHoistPattern)
-  const aliasesTakenByDependencies = collectAliasesTakenByDependencies(opts.graph, opts.directDepsByImporterId)
-  for (const alias of opts.directDependencyAliases ?? []) aliasesTakenByDependencies.add(alias.toLowerCase())
+  const aliasesTakenByDependencies = new Set(Array.from(opts.directDependencyAliases, alias => alias.toLowerCase()))
   const placementCandidates: WorkspacePlacementCandidate[] = []
   for (const [projectId, project] of Object.entries(hoistedWorkspacePackages) as Array<[ProjectId, HoistedWorkspaceProject]>) {
     const { name } = project
@@ -78,20 +77,6 @@ function selectWorkspacePlacementCandidates<NodeId extends string> (
   return placementCandidates.filter(([projectId]) => !conflictingProjectIds.has(projectId))
 }
 
-function collectAliasesTakenByDependencies<NodeId extends string> (
-  graph: DependenciesGraph<NodeId>,
-  directDepsByImporterId: DirectDependenciesByImporterId<NodeId>
-): Set<string> {
-  const aliasesTakenByDependencies = new Set<string>()
-  for (const directDeps of Object.values(directDepsByImporterId)) {
-    for (const [alias, nodeId] of directDeps.entries()) {
-      if (graph[nodeId] == null) continue
-      aliasesTakenByDependencies.add(alias.toLowerCase())
-    }
-  }
-  return aliasesTakenByDependencies
-}
-
 async function prepareWorkspacePlacements (
   placementCandidates: WorkspacePlacementCandidate[],
   dirs: HoistedModulesDirs,
@@ -100,7 +85,7 @@ async function prepareWorkspacePlacements (
   try {
     return await Promise.all(placementCandidates.map(async ([projectId, project, hoistType]) => {
       const targetDir = selectHoistedModulesDir(hoistType, dirs)
-      const trustedRoot = getTrustedRoot(dirs.publicHoistedModulesDir, targetDir)
+      const trustedRoot = getTrustedHoistRoot(dirs.publicHoistedModulesDir, targetDir)
       const destination = await prepareWorkspaceModulesDir(targetDir, project.name, trustedRoot)
       return [projectId, project, hoistType, destination] as const
     }))
@@ -158,7 +143,7 @@ export async function pruneStaleWorkspaceHoists (
     await restoreWorkspaceLinks(staleLinks.filter((_, index) => removalResults[index].status === 'fulfilled'))
     throw failure.reason
   }
-  const parentCleanupResults = await Promise.allSettled(staleLinks.map(removeEmptyParentsOfWorkspaceLink))
+  const parentCleanupResults = await Promise.allSettled(selectOneLinkPerParent(staleLinks).map(removeEmptyParentsOfWorkspaceLink))
   const parentCleanupFailure = findRejection(parentCleanupResults)
   if (parentCleanupFailure != null) {
     await restoreWorkspaceLinks(staleLinks)
@@ -184,7 +169,7 @@ async function readStaleWorkspaceLinks (opts: {
 }
 
 async function readWorkspaceLink (alias: string, modulesDir: string, publicHoistedModulesDir: string): Promise<StaleWorkspaceLink | undefined> {
-  const trustedRoot = getTrustedRoot(publicHoistedModulesDir, modulesDir)
+  const trustedRoot = getTrustedHoistRoot(publicHoistedModulesDir, modulesDir)
   const destination = await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
   let target: string
   try {
@@ -202,6 +187,20 @@ async function readWorkspaceLink (alias: string, modulesDir: string, publicHoist
 async function unlinkStaleWorkspaceLink ({ alias, destination, modulesDir, trustedRoot }: StaleWorkspaceLink): Promise<void> {
   await validateWorkspaceModulesDir(modulesDir, alias, trustedRoot)
   await fs.promises.unlink(destination)
+}
+
+/**
+ * Concurrent removals of one directory fail on Windows with `EPERM` while the
+ * delete is pending. A workspace alias has at most a scope directory above it,
+ * so links with distinct parents never remove the same directory.
+ */
+function selectOneLinkPerParent (links: StaleWorkspaceLink[]): StaleWorkspaceLink[] {
+  const linksByParent = new Map<string, StaleWorkspaceLink>()
+  for (const link of links) {
+    const parent = path.dirname(link.destination)
+    if (!linksByParent.has(parent)) linksByParent.set(parent, link)
+  }
+  return Array.from(linksByParent.values())
 }
 
 async function removeEmptyParentsOfWorkspaceLink ({ alias, destination, modulesDir, trustedRoot }: StaleWorkspaceLink): Promise<void> {

@@ -169,6 +169,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -217,10 +218,10 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
 }
 
 /// A slot whose files a lifecycle script or a patch will still write must
-/// not share inodes with its source, so it ignores `packageImportMethod`.
-/// Every other slot keeps the configured method.
+/// not share inodes with its source, so it ignores `packageImportMethod`
+/// unless that is `copy`. Every other slot keeps the configured method.
 #[test]
-fn needs_build_slots_ignore_the_configured_import_method() {
+fn needs_build_slots_never_share_inodes_with_their_source() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
 
     struct RecordingReporter;
@@ -261,6 +262,7 @@ fn needs_build_slots_ignore_the_configured_import_method() {
             import: crate::PackageImportOptions {
                 method,
                 logged_methods: &logged_methods,
+                swap_lock: None,
                 requester: "/proj",
                 isolate_mutable_sources: false,
             },
@@ -303,8 +305,8 @@ fn needs_build_slots_ignore_the_configured_import_method() {
         reported_import_method(PackageImportMethod::Copy, true, false),
         WireImportMethod::Copy,
     );
-    // A package that will be built imports with `clone-or-copy` instead,
-    // whatever the configured method is.
+    // A package that will be built imports with `clone-or-copy` instead of a
+    // method that could share inodes with its source.
     assert_eq!(
         reported_import_method(PackageImportMethod::Hardlink, false, true),
         WireImportMethod::Clone,
@@ -312,6 +314,15 @@ fn needs_build_slots_ignore_the_configured_import_method() {
     assert_eq!(
         reported_import_method(PackageImportMethod::Hardlink, true, true),
         WireImportMethod::Clone,
+    );
+    // An explicit `copy` already gives the build private files, so it is kept.
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Copy, false, true),
+        WireImportMethod::Copy,
+    );
+    assert_eq!(
+        reported_import_method(PackageImportMethod::Copy, true, true),
+        WireImportMethod::Copy,
     );
     // Under the default method, a `file:` package that nothing will build is
     // hard-linked, so an in-place edit of its source reaches the slot.
@@ -369,6 +380,7 @@ fn a_build_write_does_not_reach_the_import_source() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -434,6 +446,7 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Copy,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -491,6 +504,7 @@ fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Copy,
             logged_methods: &AtomicU8::new(0),
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -549,6 +563,7 @@ fn run_rejects_traversal_package_name() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -572,6 +587,120 @@ fn run_rejects_traversal_package_name() {
     assert!(
         matches!(result, Err(crate::CreateVirtualDirError::InvalidAlias(_))),
         "a traversal package name must be rejected before extraction; got {result:?}",
+    );
+}
+
+#[test]
+fn run_rejects_uncontained_slot_before_creating_dirs() {
+    let dir = tempdir().expect("tempdir");
+    let store_dir = dir.path().join("store");
+    let package_key: PackageKey = "evil@1.0.0".parse().expect("parse key");
+    let snapshot = SnapshotEntry::default();
+
+    let mut snapshots = HashMap::new();
+    snapshots.insert(package_key.clone(), snapshot.clone());
+
+    let mut config = pnpm_config::Config::new();
+    config.enable_global_virtual_store = true;
+    config.global_virtual_store_dir = store_dir;
+
+    let mut packages = HashMap::new();
+    packages.insert(
+        package_key.without_peer(),
+        pnpm_lockfile::PackageMetadata {
+            resolution: pnpm_lockfile::LockfileResolution::Tarball(
+                pnpm_lockfile::TarballResolution {
+                    tarball: "file:vendor/dep.tgz".to_string(),
+                    integrity: None,
+                    revision: None,
+                    git_hosted: None,
+                    path: None,
+                },
+            ),
+            version: Some("../../escaped".to_string()),
+            engines: None,
+            cpu: None,
+            os: None,
+            libc: None,
+            deprecated: None,
+            has_bin: None,
+            prepare: None,
+            bundled_dependencies: None,
+            peer_dependencies: None,
+            peer_dependencies_meta: None,
+        },
+    );
+
+    let layout = crate::VirtualStoreLayout::new(
+        &config,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        None,
+        None,
+    );
+    let cas_paths: HashMap<String, std::path::PathBuf> = HashMap::new();
+    let logged_methods = AtomicU8::new(0);
+    let skipped = crate::SkippedSnapshots::default();
+
+    let result = CreateVirtualDirBySnapshot {
+        dependencies: crate::SnapshotDependencyLinks {
+            package_key: &package_key,
+            snapshot: &snapshot,
+            skipped: &skipped,
+            include_optional: true,
+            removed_aliases: &[],
+            symlink: true,
+        },
+        import: crate::PackageImportOptions {
+            method: PackageImportMethod::Hardlink,
+            logged_methods: &logged_methods,
+            swap_lock: None,
+            requester: "/proj",
+            isolate_mutable_sources: false,
+        },
+        source: crate::SlotImportSource {
+            is_mutable: false,
+            source_exists: true,
+            force: false,
+            build_marker: None,
+            needs_build: false,
+        },
+        layout: &layout,
+        cas_paths: &cas_paths,
+        package_id: "evil@1.0.0",
+        dir_clone_cache: None,
+        link_concurrency_probe: None,
+    }
+    .run::<pnpm_reporter::SilentReporter>();
+
+    assert!(
+        matches!(result, Err(crate::CreateVirtualDirError::InvalidAlias(_))),
+        "an uncontained slot must be rejected before creating dirs; got {result:?}",
+    );
+    assert!(!dir.path().join("escaped").exists(), "no directory outside the store must be created");
+    assert!(
+        !dir.path()
+            .join("store")
+            .join("escaped")
+            .exists(),
+        "no directory outside the package directory must be created",
+    );
+    assert!(
+        !dir.path()
+            .join("store")
+            .join("v3")
+            .join("escaped")
+            .exists(),
+        "no directory at the v3 store level must be created",
+    );
+    assert!(
+        !dir.path()
+            .join("store")
+            .join("links")
+            .join("escaped")
+            .exists(),
+        "no directory under links must be created",
     );
 }
 
@@ -615,6 +744,7 @@ async fn run_removes_obsolete_child_links() {
         import: crate::PackageImportOptions {
             method: PackageImportMethod::Hardlink,
             logged_methods: &logged_methods,
+            swap_lock: None,
             requester: "/proj",
             isolate_mutable_sources: false,
         },
@@ -710,6 +840,7 @@ fn slot_import_opts_forces_only_when_a_mutable_source_exists() {
             source_exists: false,
             force_import: false,
         },
+        None,
     );
     assert!(!missing_source.force, "a missing mutable source must not force a reimport");
 
@@ -721,6 +852,7 @@ fn slot_import_opts_forces_only_when_a_mutable_source_exists() {
             source_exists: true,
             force_import: false,
         },
+        None,
     );
     assert!(existing_source.force, "an existing mutable source must still force a reimport");
 }
@@ -745,6 +877,7 @@ fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import(
             source_exists: false,
             force_import: false,
         },
+        None,
     );
     assert!(
         !interrupted_build.force,
@@ -759,6 +892,7 @@ fn slot_import_opts_missing_source_overrides_interrupted_build_and_force_import(
             source_exists: false,
             force_import: true,
         },
+        None,
     );
     assert!(!force_import.force, "force_import must not force a reimport of a missing source");
 }

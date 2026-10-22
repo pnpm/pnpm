@@ -1,4 +1,5 @@
 export { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 export { loadWorkspaceState } from './loadWorkspaceState.js'
-export { type ProjectsList, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from './types.js'
-export { updateWorkspaceState, type UpdateWorkspaceStateOptions } from './updateWorkspaceState.js'
+export { type FileSignature, type ProjectsList, type Validation, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from './types.js'
+export { type StateValidationOptions, updateWorkspaceState, type UpdateWorkspaceStateOptions } from './updateWorkspaceState.js'
+export { type FileDigest, fileDigestOf, fileSignatureTrusted, importerIdOf, lockfileDigest, manifestDigest, normalizeUnsetSetting, projectValidation, sharedInputPaths } from './validation.js'

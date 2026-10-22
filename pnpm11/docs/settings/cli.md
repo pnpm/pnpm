@@ -85,6 +85,8 @@ Overrides the `onFail` behavior of both the `packageManager` field and `devEngin
 * `warn` — print a warning but continue (equivalent to the previous `packageManagerStrict: false` or `COREPACK_ENABLE_STRICT=0`).
 * `ignore` — skip the check entirely (equivalent to the previous `managePackageManagerVersions: false`). Useful when version management is handled by an external tool such as asdf, mise, or Volta.
 
+A part of the configuration pnpm cannot read does not stop it from switching to the declared pnpm version, which reads the configuration itself. pnpm leaves out the file or setting it cannot read, and every other source still applies, so it switches only when the `pmOnFail` from the environment or a readable file is `download`.
+
 Can be set via CLI flag, environment variable, or `pnpm-workspace.yaml`:
 
 ```sh
@@ -130,7 +132,7 @@ The Node.js version to use when checking a package's `engines` setting.
 
 If you want to prevent contributors of your project from adding new incompatible dependencies, use `nodeVersion` and `engineStrict` in a `pnpm-workspace.yaml` file at the root of the project:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeVersion: 12.22.0
 engineStrict: true
 ```
@@ -161,7 +163,7 @@ Configure custom Node.js download mirrors in `pnpm-workspace.yaml`. The keys are
 
 Here is how pnpm may be configured to download Node.js from a mirror in China:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 nodeDownloadMirrors:
   release: https://npmmirror.com/mirrors/node/
   rc: https://npmmirror.com/mirrors/node-rc/

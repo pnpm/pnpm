@@ -3,7 +3,6 @@ pub(crate) use specs::{
     has_local_file_override, has_local_file_package_extension, is_dep_replaced_by_override,
     is_local_file_spec, is_unambiguous_local_file_spec,
 };
-mod workspace;
 
 use super::{
     CatalogAnchor, CatalogResolutionResult, Catalogs, DependencyGroup, Lockfile,
@@ -83,8 +82,10 @@ pub(crate) fn frozen_local_tarballs_to_verify(
 
 /// Whether any project declares a mutable local directory dependency or a
 /// local tarball whose current bytes do not match the integrity recorded by
-/// the previous install. Groups excluded from the current install are skipped.
-/// `catalog:` specs are dereferenced through the workspace catalogs.
+/// the previous install, or has an injected dependency the fast path cannot
+/// vouch for (see [`injected_deps_block_fast_path`]). Groups excluded from
+/// the current install are skipped. `catalog:` specs are dereferenced through
+/// the workspace catalogs.
 pub(crate) fn has_local_file_dep_requiring_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     overrides: &[VersionOverride],
@@ -93,32 +94,39 @@ pub(crate) fn has_local_file_dep_requiring_install(
         LocalTarballScan::RequiresInstall => return Ok(true),
         LocalTarballScan::Candidates(tarballs) => tarballs,
     };
-    if tarballs.is_empty() {
+    let check_injected_deps = injected_deps_block_fast_path(check.config);
+    if tarballs.is_empty() && !check_injected_deps {
         return Ok(false);
     }
 
-    let current_lockfile;
-    let lockfile = if let Some(lockfile) = check.lockfile
-        .get()
-        .map_err(|_| "the wanted lockfile cannot be loaded to verify local tarballs")?
-    {
-        lockfile
-    } else {
-        current_lockfile =
-            Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-                .map_err(|_| "the current lockfile cannot be loaded to verify local tarballs")?;
-        let Some(lockfile) = current_lockfile.as_ref() else { return Ok(true) };
-        lockfile
-    };
-
+    let Some(lockfile) = recorded_lockfile(check)? else { return Ok(!tarballs.is_empty()) };
+    if check_injected_deps && has_injected_dep(check, &lockfile) {
+        return Ok(true);
+    }
     Ok(tarballs
         .iter()
         .any(|dependency| {
-            local_tarball_requires_install(check.workspace_root, lockfile, dependency)
+            local_tarball_requires_install(check.workspace_root, &lockfile, dependency)
         }))
 }
 
-/// Whether an injected workspace dependency rules the fast path out.
+/// The wanted lockfile, or the current lockfile when no wanted lockfile
+/// exists.
+fn recorded_lockfile<'a>(
+    check: &'a OptimisticRepeatInstallCheck<'_>,
+) -> Result<Option<Cow<'a, Lockfile>>, &'static str> {
+    if let Some(lockfile) = check.lockfile
+        .get()
+        .map_err(|_| "the wanted lockfile cannot be loaded to verify local file dependencies")?
+    {
+        return Ok(Some(Cow::Borrowed(lockfile)));
+    }
+    Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
+        .map(|lockfile| lockfile.map(Cow::Owned))
+        .map_err(|_| "the current lockfile cannot be loaded to verify local file dependencies")
+}
+
+/// Whether an injected dependency rules the fast path out.
 ///
 /// With a shared lockfile every project is an importer of the one lockfile,
 /// and the fast path already compares each project's manifest with it, so a
@@ -127,6 +135,38 @@ pub(crate) fn has_local_file_dep_requiring_install(
 /// project's dependencies in its `file:` snapshot, which nothing else checks.
 fn injected_deps_block_fast_path(config: &pnpm_config::Config) -> bool {
     !config.shared_workspace_lockfile
+}
+
+fn has_injected_dep(check: &OptimisticRepeatInstallCheck<'_>, lockfile: &Lockfile) -> bool {
+    let included_groups = dependency_fields(check)
+        .into_iter()
+        .filter_map(|(_, group, included)| included.then_some(group))
+        .collect::<Vec<_>>();
+    check.project_manifests
+        .iter()
+        .any(|(project_dir, _)| {
+            let importer_id = importer_id_from_root_dir(check.workspace_root, project_dir);
+            lockfile
+                .injected_dependencies(&importer_id, included_groups.iter().copied())
+                .next()
+                .is_some()
+        })
+}
+
+/// Each manifest dependency field, its group, and whether this install
+/// includes it.
+fn dependency_fields(
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> [(&'static str, DependencyGroup, bool); 3] {
+    [
+        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
+        (
+            "optionalDependencies",
+            DependencyGroup::Optional,
+            check.layout.included.includes_project_optional_dependencies(),
+        ),
+    ]
 }
 
 /// What the manifests' `file:` dependencies amount to.
@@ -141,22 +181,11 @@ fn scan_local_tarball_deps(
     check: &OptimisticRepeatInstallCheck<'_>,
     overrides: &[VersionOverride],
 ) -> LocalTarballScan {
-    let fields: [(&str, DependencyGroup, bool); 3] = [
-        ("dependencies", DependencyGroup::Prod, check.layout.included.dependencies),
-        ("devDependencies", DependencyGroup::Dev, check.layout.included.dev_dependencies),
-        (
-            "optionalDependencies",
-            DependencyGroup::Optional,
-            check.layout.included.includes_project_optional_dependencies(),
-        ),
-    ];
-    let workspace_packages = injected_deps_block_fast_path(check.config)
-        .then(|| workspace::collect_workspace_packages(check.project_manifests));
+    let fields = dependency_fields(check);
     let mut tarballs = Vec::new();
     for (project_dir, manifest) in check.project_manifests {
         if !scan_project_manifest_tarballs(
             check,
-            workspace_packages.as_ref(),
             project_dir,
             manifest,
             &fields,
@@ -171,7 +200,6 @@ fn scan_local_tarball_deps(
 
 fn scan_project_manifest_tarballs(
     check: &OptimisticRepeatInstallCheck<'_>,
-    workspace_packages: Option<&workspace::WorkspacePackageMap<'_>>,
     project_dir: &Path,
     manifest: &pnpm_package_manifest::PackageManifest,
     fields: &[(&str, DependencyGroup, bool); 3],
@@ -188,8 +216,6 @@ fn scan_project_manifest_tarballs(
             project_dir,
             field,
             group: *group,
-            inject_workspace_packages: check.config.inject_workspace_packages,
-            workspace_packages,
             overrides,
         };
         if !scan_field_tarballs(&scan, manifest, tarballs) {
@@ -209,10 +235,6 @@ struct FieldTarballScan<'a> {
     project_dir: &'a Path,
     field: &'a str,
     group: DependencyGroup,
-    inject_workspace_packages: bool,
-    /// The workspace projects, when an injected one rules the fast path out
-    /// (see [`injected_deps_block_fast_path`]).
-    workspace_packages: Option<&'a workspace::WorkspacePackageMap<'a>>,
     overrides: &'a [VersionOverride],
 }
 
@@ -231,18 +253,6 @@ fn scan_field_tarballs(
         return true;
     };
     for (alias, spec) in deps {
-        if let Some(workspace_packages) = scan.workspace_packages
-            && workspace::dependency_is_workspace_or_injected(
-                workspace_packages,
-                scan.inject_workspace_packages,
-                scan.catalogs,
-                manifest.value(),
-                alias,
-                spec,
-            )
-        {
-            return false;
-        }
         match local_tarball_candidate(scan, alias, spec) {
             LocalTarballCandidate::Skip => {}
             LocalTarballCandidate::Unresolvable => return false,
@@ -345,7 +355,7 @@ fn local_tarball_requires_install(
     else {
         return true;
     };
-    !file_matches_integrity(&recorded_path, integrity)
+    !file_matches_integrity(&recorded_path, integrity, lockfile.integrity_target().into())
 }
 
 /// What the lockfile records for a local tarball dependency.
@@ -388,6 +398,10 @@ fn recorded_tarball<'l>(
     }
 }
 
-fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
-    pnpm_tarball::verify_local_file_integrity(path, integrity).is_ok()
+fn file_matches_integrity(
+    path: &Path,
+    integrity: &Integrity,
+    kind: pnpm_tarball::IntegrityKind,
+) -> bool {
+    pnpm_tarball::verify_local_file_integrity(path, integrity, kind).is_ok()
 }

@@ -1,7 +1,7 @@
 import { packageManager } from '@pnpm/cli.meta'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, shouldPersistLockfile } from '@pnpm/config.reader'
 import { maturePnpmVersionForRange } from '@pnpm/engine.pm.commands'
-import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
+import { isPackageManagerResolved, type PackageTrustPolicy, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
@@ -35,7 +35,7 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
   // checkPackageManager has already surfaced the mismatch to the user.
   if (!semver.satisfies(packageManager.version, pm.version, { includePrerelease: true })) return
 
-  const envLockfile = await readEnvLockfile(context.rootProjectManifestDir) ?? undefined
+  const envLockfile = await readEnvLockfile(envLockfileDir(config, context)) ?? undefined
   const lockedVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
   if (
     lockedVersion != null &&
@@ -51,14 +51,36 @@ export async function syncEnvLockfile (config: Config, context: ConfigContext): 
     await resolvePackageManagerIntegrities(version, {
       envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
-      rootDir: context.rootProjectManifestDir,
+      rootDir: envLockfileDir(config, context),
       storeController: store.ctrl,
       storeDir: store.dir,
       save: true,
       frozenLockfile: config.frozenLockfile,
+      ...packageManagerTrustPolicy(config),
     })
   } finally {
     await store.ctrl.close()
+  }
+}
+
+/**
+ * The env lockfile is the first document of `pnpm-lock.yaml`, so it follows
+ * `lockfileDir`, which `pnpm-workspace.yaml` may set.
+ */
+export function envLockfileDir (config: Pick<Config, 'lockfileDir'>, context: Pick<ConfigContext, 'rootProjectManifestDir'>): string {
+  return config.lockfileDir ?? context.rootProjectManifestDir
+}
+
+/**
+ * The `trustPolicy` settings the pinned pnpm is resolved under. The pin is a
+ * dependency the project chose, so it gets the same trust checks as the
+ * project's other dependencies.
+ */
+export function packageManagerTrustPolicy (config: Config): PackageTrustPolicy {
+  return {
+    trustPolicy: config.trustPolicy,
+    trustPolicyExclude: config.trustPolicyExclude,
+    trustPolicyIgnoreAfter: config.trustPolicyIgnoreAfter,
   }
 }
 

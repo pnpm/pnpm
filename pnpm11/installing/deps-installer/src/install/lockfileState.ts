@@ -1,5 +1,6 @@
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import type { PnpmContext } from '@pnpm/installing.context'
+import { getAppliedPatchKeys } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import {
   calcPatchHashes,
@@ -9,7 +10,7 @@ import {
   resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import type { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
-import { groupPatchedDependenciesWithPaths, type PatchGroupRecord } from '@pnpm/patching.config'
+import { groupPatchedDependenciesWithPaths, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import type { ProjectRootDir } from '@pnpm/types'
 
 import type { ProcessedInstallOptions as StrictInstallOptions } from './extendInstallOptions.js'
@@ -41,7 +42,7 @@ export async function readInstallChecksums ({ ctx, opts }: Pick<MutationRun, 'ct
     ctx.wantedLockfile.pnpmfileChecksum != null
   const untrackedPnpmfileReadPackageHook = getUntrackedPnpmfileReadPackageHook(opts.hooks)
   const untrackedReadPackageHookMayHaveChanged = readPackageHookMayHaveChanged(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
-  const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
+  const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.workspaceDir ?? opts.lockfileDir)
   const patchedDependencies = opts.ignorePackageManifest
     ? ctx.wantedLockfile.patchedDependencies
     : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
@@ -58,6 +59,32 @@ export async function readInstallChecksums ({ ctx, opts }: Pick<MutationRun, 'ct
     untrackedPnpmfileReadPackageHook,
     untrackedReadPackageHookMayHaveChanged,
   }
+}
+
+export async function verifyPatchesOfLockfiles (
+  lockfiles: LockfileObject[],
+  opts: {
+    patchedDependencies: Record<string, string> | undefined
+    lockfileDir: string
+    allowUnusedPatches?: boolean
+  }
+): Promise<void> {
+  if (!opts.patchedDependencies || Object.keys(opts.patchedDependencies).length === 0) return
+  const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
+  const patchedDependencies = resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {}
+  const patchGroups = groupPatchedDependenciesWithPaths(patchedDependencies, resolvedPatchedDeps)
+  if (!patchGroups) return
+  const appliedPatches = new Set<string>()
+  for (const lockfile of lockfiles) {
+    for (const key of getAppliedPatchKeys(lockfile, patchGroups)) {
+      appliedPatches.add(key)
+    }
+  }
+  verifyPatches({
+    patchedDependencies: patchGroups,
+    appliedPatches,
+    allowUnusedPatches: Boolean(opts.allowUnusedPatches),
+  })
 }
 
 export interface StagedAdditions {
@@ -168,5 +195,6 @@ export function upToDateCheckOptions (
     workspacePackages: ctx.workspacePackages,
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
+    readPackageHook: opts.readPackageHook,
   }
 }

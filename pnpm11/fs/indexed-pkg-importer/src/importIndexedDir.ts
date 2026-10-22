@@ -5,10 +5,10 @@ import { isError } from '@pnpm/error'
 import { withFileLockRetry } from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import { rimrafSync } from '@zkochan/rimraf'
 import { makeEmptyDirSync } from 'make-empty-dir'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { renameOverwriteSync } from 'rename-overwrite'
 
 import { copyInternalSymlink, type SymlinkDirs } from './copyInternalSymlink.js'
 import { makeFileMapDirs } from './dirUtils.js'
@@ -17,13 +17,19 @@ import {
   moveOrMergeModulesDirs,
   sanitizeFilenames,
 } from './fileMapUtils.js'
+import { overwriteDirSync } from './overwriteDir.js'
 import {
   allFilesMatch,
+  allImportedEntriesMatchExactly,
   allSymlinksMatch,
   repairIndexedDir,
 } from './repairIndexedDir.js'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
+
+const concurrentImportSettleSleep = new Int32Array(new SharedArrayBuffer(4))
+const CONCURRENT_IMPORT_SETTLE_ATTEMPTS = 5
+const CONCURRENT_IMPORT_SETTLE_DELAY_MS = 20
 
 export type ImportFile = (src: string, dest: string) => void
 
@@ -99,17 +105,49 @@ function importWithStaging (dirImport: IndexedDirImport): void {
     if (retryWithFixedFileMap(err, dirImport)) return
     throw err
   }
-  commitStagedDir(stage, newDir)
+  commitStagedDir(stage, dirImport)
 }
 
-function commitStagedDir (stage: string, newDir: string): void {
+// A rename that fails because a concurrent import of the same package already
+// completed the target is a success: the target holds exactly this import, and
+// a preserved `node_modules/` moved into the stage goes back where it was.
+function commitStagedDir (stage: string, { newDir, filenames, opts }: IndexedDirImport): void {
+  const keepModulesDir = opts.keepModulesDir === true
+  const entries = { dir: newDir, filenames, symlinks: opts.symlinks, keepModulesDir }
   try {
+    let attempt = 0
     withFileLockRetry(() => {
-      renameOverwriteSync(stage, newDir)
+      if (attempt++ > 0 && allImportedEntriesMatchExactly(entries)) {
+        acceptExistingImport(stage, newDir, keepModulesDir)
+        return
+      }
+      overwriteDirSync(stage, newDir)
     })
   } catch (renameErr: unknown) {
+    if (destinationHoldsThisImport(entries)) {
+      acceptExistingImport(stage, newDir, keepModulesDir)
+      return
+    }
     cleanStageDir(stage)
     throw renameErr
+  }
+}
+
+function acceptExistingImport (stage: string, newDir: string, keepModulesDir: boolean): void {
+  if (keepModulesDir) {
+    moveOrMergeModulesDirs(path.join(stage, 'node_modules'), path.join(newDir, 'node_modules'))
+  }
+  cleanStageDir(stage)
+}
+
+// A concurrent import that is mid-swap leaves the destination absent or
+// incomplete for a moment. Give it that moment before concluding that the
+// destination is not this package.
+function destinationHoldsThisImport (entries: Parameters<typeof allImportedEntriesMatchExactly>[0]): boolean {
+  for (let attempt = 1; ; attempt++) {
+    if (allImportedEntriesMatchExactly(entries)) return true
+    if (attempt === CONCURRENT_IMPORT_SETTLE_ATTEMPTS) return false
+    Atomics.wait(concurrentImportSettleSleep, 0, 0, CONCURRENT_IMPORT_SETTLE_DELAY_MS)
   }
 }
 
@@ -185,23 +223,44 @@ function tryExclusiveImport (
   entries: ImportedEntries
 ): boolean {
   if (!tryExclusiveMkdir(newDir)) return false
+  const createdStat = safeLstat(newDir)
   try {
     tryImportIndexedDir(importer, newDir, filenames, entries)
     return true
   } catch {
-    try {
-      rimrafSync(newDir)
-    } catch {}
+    if (sameCreatedDirectory(newDir, createdStat)) {
+      try {
+        rimrafSync(newDir)
+      } catch {}
+    }
     return false
   }
+}
+
+function safeLstat (dir: string): fs.BigIntStats | undefined {
+  try {
+    return fs.lstatSync(dir, { bigint: true })
+  } catch {
+    return undefined
+  }
+}
+
+function sameCreatedDirectory (dir: string, createdStat: fs.BigIntStats | undefined): boolean {
+  if (createdStat == null) return false
+  const currentStat = safeLstat(dir)
+  if (currentStat == null || !currentStat.isDirectory()) return false
+  return currentStat.dev === createdStat.dev &&
+    currentStat.ino === createdStat.ino &&
+    currentStat.birthtimeNs === createdStat.birthtimeNs &&
+    !fs.existsSync(path.join(dir, 'package.json'))
 }
 
 function retryWithSanitizedFilenames ({ importer, newDir, filenames, opts }: IndexedDirImport): boolean {
   const { sanitizedFilenames, invalidFilenames } = sanitizeFilenames(filenames)
   if (invalidFilenames.length === 0) return false
   globalWarn(`\
-The package linked to "${path.relative(process.cwd(), newDir)}" had \
-files with invalid names: ${invalidFilenames.join(', ')}. \
+The package linked to "${sanitizeInline(path.relative(process.cwd(), newDir))}" had \
+files with invalid names: ${invalidFilenames.map((filename) => sanitizeInline(filename)).join(', ')}. \
 They were renamed.`)
   importIndexedDir(importer, newDir, sanitizedFilenames, opts)
   return true

@@ -8,11 +8,13 @@ pub(super) mod postgres;
 pub(super) mod mysql;
 
 use super::{
-    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, sha256_hex,
+    DEFAULT_BCRYPT_COST, NewToken, PasswordChange, TokenBackend, TokenRecord, UpsertOutcome,
+    UserBackend, UserCreation, UserRemoval, dummy_verify, fresh_secret, hash_bcrypt, is_sha_hash,
+    sha256_hex,
     token_store::{mint_token, unix_seconds},
-    validate_username, verify_returning_user, with_auth_timeout,
+    verify_returning_user, with_auth_timeout,
 };
+use crate::validation::validate_username;
 use async_trait::async_trait;
 use pnpr_config::MaxUsers;
 use pnpr_error::{RegistryError, Result};
@@ -83,6 +85,43 @@ impl<Db> SqlAuth<Db> {
         }
         self.db.reconcile_user_counter_overcount().await
     }
+
+    async fn check_db_readiness(&self) -> Result<()>
+    where
+        Db: AuthSqlBackend,
+    {
+        with_auth_timeout(self.timeout, self.db.check_readiness()).await
+    }
+
+    async fn verify_and_maybe_upgrade(
+        &self,
+        stored: StoredUser,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)>
+    where
+        Db: AuthSqlBackend,
+    {
+        let (outcome, user) = verify_returning_user(
+            &stored.username,
+            password,
+            stored.bcrypt_hash.clone(),
+            DEFAULT_BCRYPT_COST,
+        )
+        .await?;
+        if is_sha_hash(&stored.bcrypt_hash) {
+            let new_hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+            with_auth_timeout(
+                self.timeout,
+                self.db.update_user_hash_if_current(
+                    &stored.username,
+                    &stored.bcrypt_hash,
+                    &new_hash,
+                ),
+            )
+            .await?;
+        }
+        Ok((outcome, user))
+    }
 }
 
 #[async_trait]
@@ -97,10 +136,39 @@ trait AuthSqlBackend: Send + Sync {
         max_users: MaxUsers,
     ) -> Result<InsertUser>;
     async fn insert_token(&self, token_hash: &str, record: &TokenRecord) -> Result<()>;
-    async fn lookup_token(&self, token_hash: &str) -> Result<Option<String>>;
+    async fn touch_token(&self, _token_hash: &str, _now: u64) -> Result<()> {
+        Ok(())
+    }
     async fn find_token(&self, token_hash: &str) -> Result<Option<TokenRecord>>;
+    /// [`Self::find_token`] for a token whose owner is a stored user. The
+    /// databases answer it in one joined query; this default takes two.
+    async fn find_owned_token(&self, token_hash: &str) -> Result<Option<TokenRecord>> {
+        let Some(record) = self.find_token(token_hash).await? else {
+            return Ok(None);
+        };
+        Ok(self.stored_user(&record.username).await?.map(|_| record))
+    }
     async fn list_tokens(&self, username: &str) -> Result<Vec<(String, TokenRecord)>>;
     async fn delete_token(&self, token_hash: &str) -> Result<()>;
+    async fn list_usernames(&self) -> Result<Vec<String>>;
+    async fn update_password_hash(
+        &self,
+        username: &str,
+        bcrypt_hash: &str,
+    ) -> Result<PasswordChange>;
+    async fn update_user_hash_if_current(
+        &self,
+        _username: &str,
+        _old_hash: &str,
+        _new_hash: &str,
+    ) -> Result<bool> {
+        Ok(false)
+    }
+    /// Remove the user and take one off the `users` counter in one transaction.
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval>;
+    async fn check_readiness(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
@@ -129,7 +197,12 @@ where
 
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
-            return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
+            return self.verify_and_maybe_upgrade(stored, password).await;
+        }
+
+        if matches!(self.max_users, MaxUsers::Disabled) {
+            dummy_verify(password, DEFAULT_BCRYPT_COST).await;
+            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
         }
 
         self.check_registration_capacity().await?;
@@ -137,9 +210,7 @@ where
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
         match self.db.insert_user(username, &hash, self.max_users).await? {
             InsertUser::Created => Ok((UpsertOutcome::Created, username.to_string())),
-            InsertUser::Existing(stored) => {
-                verify_returning_user(&stored.username, password, stored.bcrypt_hash).await
-            }
+            InsertUser::Existing(stored) => self.verify_and_maybe_upgrade(stored, password).await,
             InsertUser::CapReached => match self.max_users {
                 MaxUsers::Limited(max) => Err(RegistryError::TooManyUsers { max }),
                 MaxUsers::Disabled | MaxUsers::Unlimited => {
@@ -148,6 +219,40 @@ where
             },
         }
     }
+
+    async fn list_users(&self) -> Result<Vec<String>> {
+        with_auth_timeout(self.timeout, self.db.list_usernames()).await
+    }
+
+    async fn password_hash(&self, username: &str) -> Result<Option<String>> {
+        let stored = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?;
+        Ok(stored.map(|stored| stored.bcrypt_hash))
+    }
+
+    /// Inserts as an uncapped store would, so the `users` counter still
+    /// counts the new user.
+    async fn create_user(&self, username: &str, password: &str) -> Result<UserCreation> {
+        validate_username(username)?;
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        match self.db.insert_user(username, &hash, MaxUsers::Unlimited).await? {
+            InsertUser::Created => Ok(UserCreation::Created),
+            // An uncapped insert cannot reach the cap.
+            InsertUser::Existing(_) | InsertUser::CapReached => Ok(UserCreation::NameTaken),
+        }
+    }
+
+    async fn set_password(&self, username: &str, password: &str) -> Result<PasswordChange> {
+        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        self.db.update_password_hash(username, &hash).await
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<UserRemoval> {
+        self.db.delete_user(username).await
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
+    }
 }
 
 #[async_trait]
@@ -155,7 +260,11 @@ impl<Db> TokenBackend for SqlAuth<Db>
 where
     Db: AuthSqlBackend,
 {
-    async fn issue(&self, username: &str) -> Result<String> {
+    async fn issue_token(
+        &self,
+        username: &str,
+        new_token: NewToken,
+    ) -> Result<(String, TokenRecord)> {
         let nonce = self.counter.fetch_add(1, Ordering::Relaxed);
         let raw = mint_token(&self.secret, nonce, username);
         let token_hash = sha256_hex(raw.as_bytes());
@@ -164,16 +273,44 @@ where
             username: username.to_string(),
             created_at: now,
             last_used_at: now,
-            readonly: false,
-            cidr_whitelist: Vec::new(),
+            readonly: new_token.readonly,
+            cidr_whitelist: new_token.cidr_whitelist,
+            name: new_token.name,
+            expires_at: new_token.expires_at,
+            scopes: new_token.scopes,
+            kind: new_token.kind,
         };
         self.db.insert_token(&token_hash, &record).await?;
+        Ok((raw, record))
+    }
+
+    async fn issue(&self, username: &str) -> Result<String> {
+        let (raw, _) = self.issue_token(username, NewToken::default()).await?;
         Ok(raw)
+    }
+
+    async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
+        with_auth_timeout(self.timeout, self.db.touch_token(key, now)).await
     }
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        with_auth_timeout(self.timeout, self.db.lookup_token(&token_hash)).await
+        let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
+        let now = unix_seconds();
+        match record {
+            Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r.username)),
+            _ => Ok(None),
+        }
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        let token_hash = sha256_hex(raw.as_bytes());
+        let record = with_auth_timeout(self.timeout, self.db.find_owned_token(&token_hash)).await?;
+        let now = unix_seconds();
+        match record {
+            Some(r) if r.expires_at.is_none_or(|exp| exp > now) => Ok(Some(r)),
+            _ => Ok(None),
+        }
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
@@ -190,6 +327,10 @@ where
         };
         self.db.delete_token(key).await?;
         Ok(Some(record))
+    }
+
+    async fn check_readiness(&self) -> Result<()> {
+        self.check_db_readiness().await
     }
 }
 

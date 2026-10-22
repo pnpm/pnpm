@@ -18,7 +18,7 @@ used instead.
 If your proxy URL contains a username and password, make sure to URL-encode them.
 For instance:
 
-```yaml
+```yaml title="pnpm-workspace.yaml"
 httpsProxy: "https://use%21r:pas%2As@my.proxy:1234/foo"
 ```
 
@@ -149,3 +149,14 @@ Added in: v10.18.0
 * Type: **Number**
 
 A warning message is displayed if the download speed of a tarball from the registry falls below the specified threshold (in KiB/s).
+
+### maxTarballUnpackedSize
+
+Added in: v11.28.7
+
+* Default: **4294967296 (4 GiB)**
+* Type: **Number**
+
+The most bytes the files of one package may unpack to. A package whose files total more fails to install with the error `ERR_PNPM_TARBALL_TOO_LARGE`.
+
+Raise the setting if you need to install a legitimately large package.

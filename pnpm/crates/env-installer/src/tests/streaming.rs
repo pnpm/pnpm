@@ -25,7 +25,7 @@ async fn takes_old_format_tarball_url_from_the_packument() {
 
     let registries = HashMap::from([("default".to_string(), aliased_registry)]);
     let mut opts = options(&harness, root.path(), false);
-    opts.registries = &registries;
+    opts.verification.registries = &registries;
 
     resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)
         .await

@@ -5,7 +5,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, diagnostics::assert_diagnostic_contains};
 use serde_json::json;
-use std::{fs, time::Duration};
+use std::{fs, io, process::Stdio, time::Duration};
 
 /// `pacquet run <script>` looks up the named entry under
 /// `scripts` in the workspace's `package.json` and spawns it via
@@ -425,6 +425,33 @@ fn run_propagates_failing_script_exit_code() {
     let output = pacquet
         .with_arg("run")
         .with_arg("fail")
+        .output()
+        .expect("spawn pacquet run");
+    assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");
+
+    drop(root);
+}
+
+/// Writing the lifecycle error to a stderr whose reader has exited must not
+/// abort pnpm (pnpm/pnpm#16904).
+#[cfg_attr(target_os = "windows", ignore = "uses a POSIX shell `exit` builtin")]
+#[test]
+fn run_failing_script_exit_code_survives_a_closed_stderr() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "fail": "exit 5" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let (stderr_reader, stderr_writer) = io::pipe().expect("create stderr pipe");
+    drop(stderr_reader);
+
+    let output = pacquet
+        .with_arg("run")
+        .with_arg("fail")
+        .with_stderr(Stdio::from(stderr_writer))
         .output()
         .expect("spawn pacquet run");
     assert_eq!(output.status.code(), Some(5), "the script's exit code must propagate");

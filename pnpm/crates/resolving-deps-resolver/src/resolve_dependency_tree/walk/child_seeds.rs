@@ -1,10 +1,11 @@
 use super::{
-    Arc, CatalogAnchor, Catalogs, ChildEdge, ChildSpec, Cow, FrontierNode, HashSet, NodeSeed, Path,
+    Arc, Catalogs, ChildEdge, Cow, DependencySpec, FrontierNode, HashSet, NodeSeed, Path,
     PendingNode, Pipe, PkgNameVerPeer, PreferredVersionsOverlay, ResolveDependencyTreeError,
     Resolver, ReuseSource, SeededNode, SnapshotEntry, TreeCtx, WantedDependency, async_recursion,
-    catalog_anchor, declaring_manifest_dir, extract_children, future, higher_direct_dep_version,
-    keeps_locked_version, level_aliases, level_versions, lock_recoverable, prior_child_key,
-    real_package_name_of, resolve_catalog_specifier, resolve_node_seed, warm_children_resolutions,
+    catalog_anchor, declaring_manifest_dir, extract_children, finish_reused_seeds, future,
+    higher_direct_dep_version, keeps_locked_version, level_aliases, level_versions,
+    lock_recoverable, prior_child_key, read_recoverable, real_package_name_of, resolve_node_seed,
+    warm_children_resolutions, write_recoverable,
 };
 
 /// Seed every child edge of one occurrence — its manifest's
@@ -26,7 +27,7 @@ where
 {
     let child_specs = child_specs_of(ctx, &node.pending, &node.claim.peer_shadowed)?;
     let scope = ChildSeedScope::of(ctx, &node.pending);
-    let seeds = child_specs
+    let mut seeds = child_specs
         .iter()
         .map(|spec| seed_child(ctx, resolver, &node, &scope, spec))
         .pipe(future::try_join_all)
@@ -34,6 +35,7 @@ where
     let grandchild_overlay =
         PreferredVersionsOverlay::layer(node.children_overlay.clone(), level_versions(ctx, &seeds));
     let grandchild_pkg_aliases = node.children_pkg_aliases.extend(level_aliases(&seeds));
+    finish_reused_seeds(ctx, resolver, &mut seeds, &grandchild_pkg_aliases).await?;
     Ok(SeededNode { node, child_specs, seeds, grandchild_overlay, grandchild_pkg_aliases })
 }
 
@@ -43,48 +45,55 @@ where
 ///
 /// The manifest's specs are cached per package id. The cache value is
 /// held by `Arc` so revisits clone the refcount instead of the inner
-/// `Vec<ChildSpec>`, and it is cached unfiltered because which of the
+/// `Vec<DependencySpec>`, and it is cached unfiltered because which of the
 /// specs the package's own `peerDependencies` shadow is a property of
 /// the owner occurrence, not of the manifest.
 pub(super) fn child_specs_of(
     ctx: &TreeCtx,
     pending: &PendingNode,
     peer_shadowed: &HashSet<String>,
-) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
+) -> Result<Arc<Vec<DependencySpec>>, ResolveDependencyTreeError> {
     let cached =
-        lock_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
+        read_recoverable(&ctx.workspace.children.specs_by_id).get(&pending.identity.id).cloned();
     let child_specs = if let Some(specs) = cached {
         specs
     } else {
         let specs = Arc::new(extract_children(&pending.result)?);
-        lock_recoverable(&ctx.workspace.children.specs_by_id)
+        write_recoverable(&ctx.workspace.children.specs_by_id)
             .entry(Arc::clone(&pending.identity.id))
             .or_insert_with(|| Arc::clone(&specs));
         specs
     };
-    let child_specs = if peer_shadowed.is_empty() {
-        child_specs
-    } else {
-        child_specs
-            .iter()
-            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
-            .cloned()
-            .collect::<Vec<ChildSpec>>()
-            .pipe(Arc::new)
-    };
-    Ok(match catalogs_for_children(ctx, pending.resolves_children_through_catalogs) {
-        Some(catalogs) => {
-            let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
-            let anchor = catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref());
-            child_specs
-                .iter()
-                .cloned()
-                .collect::<Vec<ChildSpec>>()
-                .pipe(|specs| resolve_catalog_child_specs(specs, catalogs, anchor))?
-                .pipe(Arc::new)
-        }
-        None => child_specs,
-    })
+    if peer_shadowed.is_empty()
+        && catalogs_for_children(ctx, pending.resolves_children_through_catalogs).is_none()
+    {
+        return Ok(child_specs);
+    }
+    walk_child_specs(
+        ctx,
+        &pending.result,
+        &child_specs,
+        peer_shadowed,
+        pending.resolves_children_through_catalogs,
+    )
+    .map(Arc::new)
+}
+
+/// [`walked_child_specs`](super::super::catalogs::walked_child_specs) of
+/// `specs`, the children of `result`.
+pub(super) fn walk_child_specs(
+    ctx: &TreeCtx,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    specs: &[DependencySpec],
+    peer_shadowed: &HashSet<String>,
+    through_catalogs: bool,
+) -> Result<Vec<DependencySpec>, ResolveDependencyTreeError> {
+    let catalogs = catalogs_for_children(ctx, through_catalogs);
+    let declaring_dir = catalogs.and_then(|_| declaring_manifest_dir(ctx, result));
+    let catalogs = catalogs.map(|catalogs| {
+        (catalogs, catalog_anchor(ctx.catalogs_dir.as_deref(), declaring_dir.as_deref()))
+    });
+    super::super::catalogs::walked_child_specs(specs, |name| peer_shadowed.contains(name), catalogs)
 }
 
 /// What every child edge of one occurrence resolves against.
@@ -110,22 +119,32 @@ pub(super) struct ChildSeedScope<'s> {
 
 impl<'s> ChildSeedScope<'s> {
     pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
+        let landed_prior = pending.prior_key
+            .as_ref()
+            .filter(|key| landed_on_prior_entry(key, &pending.identity.id));
+        Self::for_result(ctx, &pending.result, landed_prior)
+    }
+
+    /// The scope of the children of `result`, a node that landed on the
+    /// lockfile entry `landed_prior` when it has one.
+    pub(super) fn for_result(
+        ctx: &'s TreeCtx,
+        result: &pnpm_resolving_resolver_base::ResolveResult,
+        landed_prior: Option<&PkgNameVerPeer>,
+    ) -> Self {
         Self {
-            prior_children_snapshot: pending.prior_key
-                .as_ref()
-                .filter(|key| landed_on_prior_entry(key, &pending.identity.id))
-                .and_then(|key| {
-                    ctx.workspace.reuse.lockfile
-                        .as_ref()?
-                        .snapshots
-                        .as_ref()?
-                        .get(key)
-                }),
+            prior_children_snapshot: landed_prior.and_then(|key| {
+                ctx.workspace.reuse.lockfile
+                    .as_ref()?
+                    .snapshots
+                    .as_ref()?
+                    .get(key)
+            }),
             direct_versions: lock_recoverable(&ctx.workspace.versions.direct_dep_versions)
                 .get(&ctx.importer.id)
                 .map(Arc::clone),
-            declaring_dir: declaring_manifest_dir(ctx, &pending.result),
-            parent_is_workspace: pending.result.resolved_via == "workspace",
+            declaring_dir: declaring_manifest_dir(ctx, result),
+            parent_is_workspace: result.resolved_via == "workspace",
         }
     }
 }
@@ -135,7 +154,7 @@ pub(super) async fn seed_child<Chain>(
     resolver: &Chain,
     node: &FrontierNode,
     scope: &ChildSeedScope<'_>,
-    spec: &ChildSpec,
+    spec: &DependencySpec,
 ) -> Result<NodeSeed, ResolveDependencyTreeError>
 where
     Chain: Resolver + ?Sized,
@@ -170,24 +189,31 @@ where
 pub(super) fn child_wanted(
     ctx: &TreeCtx,
     scope: &ChildSeedScope<'_>,
-    (name, range, optional, injected): &ChildSpec,
+    spec: &DependencySpec,
     depth: i32,
 ) -> (WantedDependency, Option<PkgNameVerPeer>) {
+    let DependencySpec {
+        alias,
+        bare_specifier,
+        optional,
+        injected,
+    } = spec;
     let mut wanted = WantedDependency {
-        alias: Some(name.clone()),
-        bare_specifier: Some(range.clone()),
+        alias: Some(alias.clone()),
+        bare_specifier: Some(bare_specifier.clone()),
         optional: Some(*optional),
         injected: injected.then_some(true),
         ..WantedDependency::default()
     };
-    let mut prior =
-        scope.prior_children_snapshot.and_then(|snapshot| prior_child_key(snapshot, name, range));
+    let mut prior = scope.prior_children_snapshot.and_then(|snapshot| {
+        prior_child_key(snapshot, alias, bare_specifier)
+    });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix
             .version_semver()
-            .zip(range.parse::<node_semver::Range>().ok())
+            .zip(bare_specifier.parse::<node_semver::Range>().ok())
             .and_then(|(pinned, parsed)| {
-                higher_direct_dep_version(scope.direct_versions.as_deref(), name, pinned, &parsed)
+                higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
             })
         && keeps_locked_version(ctx, &wanted, key, depth)
     {
@@ -269,21 +295,4 @@ pub(super) fn catalogs_for_children(
     resolves_children_through_catalogs: bool,
 ) -> Option<&Catalogs> {
     (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
-}
-
-/// `anchor` names the injected workspace package's own directory as the
-/// consumer — that manifest declares these children — so a `file:` /
-/// `link:` catalog entry lands on the path it would have written.
-pub(super) fn resolve_catalog_child_specs(
-    child_specs: Vec<ChildSpec>,
-    catalogs: &Catalogs,
-    anchor: CatalogAnchor<'_>,
-) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
-    child_specs
-        .into_iter()
-        .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name, range, catalogs, anchor)
-                .map(|(name, range)| (name, range, optional, injected))
-        })
-        .collect()
 }

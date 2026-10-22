@@ -5,8 +5,8 @@ use node_semver::Version;
 use pnpm_config::version_policy::create_package_version_policy;
 use pnpm_registry::{DerivedPackuments, Package, PackageDistribution, PackageVersion};
 use pnpm_resolving_resolver_base::{
-    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
+    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
 };
 use pretty_assertions::assert_eq;
 
@@ -528,29 +528,42 @@ fn stable_cached_range_rejects_competing_tie() {
     assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
 }
 
+/// A movable tag that outweighs the pin could point at a version the cached
+/// packument lacks, so the pin is not proven.
 #[test]
-fn stable_cached_range_accounts_for_movable_tag_weight() {
+fn stable_cached_range_refuses_a_pin_a_movable_tag_outweighs() {
     let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
-    let mut selectors = VersionSelectors::new();
-    selectors.insert(
-        "1.0.0".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
-            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-        }),
-    );
-    selectors.insert(
-        "next".to_string(),
-        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Tag,
-            weight: 1_000,
-        }),
-    );
+    let selectors = pin_and_tag(EXISTING_VERSION_SELECTOR_WEIGHT, DIRECT_DEP_SELECTOR_WEIGHT);
+    assert_eq!(pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)), None);
+}
 
+#[test]
+fn stable_cached_range_keeps_a_pin_that_outweighs_every_movable_tag() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("next", "1.1.0")]);
+    let selectors = pin_and_tag(
+        DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT,
+        RESOLVED_VERSION_SELECTOR_WEIGHT,
+    );
     assert_eq!(
         pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
         Some("1.0.0"),
     );
+}
+
+/// `1.0.0` preferred at `pin_weight` and the `next` tag at `tag_weight`.
+fn pin_and_tag(pin_weight: u32, tag_weight: u32) -> VersionSelectors {
+    [
+        ("1.0.0", VersionSelectorType::Version, pin_weight),
+        ("next", VersionSelectorType::Tag, tag_weight),
+    ]
+    .into_iter()
+    .map(|(selector, selector_type, weight)| {
+        (
+            selector.to_string(),
+            VersionSelectorEntry::Weighted(VersionSelectorWithWeight { selector_type, weight }),
+        )
+    })
+    .collect()
 }
 
 #[test]
@@ -581,6 +594,38 @@ fn preferred_selector_pick_uses_canonical_packument_name() {
     .expect("manifest");
 
     assert_eq!(picked.name, "@acme/private");
+}
+
+#[test]
+fn pick_from_meta_rejects_packument_naming_another_package() {
+    let pkg = make_package("approved-pkg", &[("1.0.0", None)], &[]);
+    let err = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("@untrusted/denied-pkg", "1.0.0", RegistryPackageSpecType::Version),
+    )
+    .expect_err("name mismatch");
+    assert_eq!(
+        err.to_string(),
+        r#"The registry returned metadata for "approved-pkg" when "@untrusted/denied-pkg" was requested"#,
+    );
+    assert!(matches!(err, PickPackageFromMetaError::NameMismatch { .. }), "got {err:?}");
+}
+
+#[test]
+fn pick_from_meta_resolves_unnamed_packument_under_requested_name() {
+    let mut pkg = make_package("approved-pkg", &[("1.0.0", None)], &[]);
+    pkg.name = String::new();
+    let picked = pick_package_from_meta(
+        pick_version_by_version_range,
+        &PickPackageFromMetaOptions::default(),
+        &pkg,
+        &spec("acme", "1.0.0", RegistryPackageSpecType::Version),
+    )
+    .expect("pick")
+    .expect("manifest");
+    assert_eq!(picked.name, "acme");
 }
 
 #[test]
@@ -1125,5 +1170,50 @@ fn filter_tag_rewrite_reads_deprecation_from_raw_fragments() {
         filtered.dist_tag("old"),
         Some("2.1.0"),
         "deprecation must be read from the raw fragment, not via hydration",
+    );
+}
+
+#[test]
+fn thousands_of_matching_manifest_ranges_do_not_overflow_the_weight() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[("latest", "1.1.0")]);
+    let selectors: VersionSelectors = (0..5_000)
+        .map(|patch| {
+            (
+                format!(">=1.0.0 <1.1.0-{patch}"),
+                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                    selector_type: VersionSelectorType::Range,
+                    weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                }),
+            )
+        })
+        .collect();
+    let opts = PickVersionByVersionRangeOptions {
+        meta: &pkg,
+        version_range: "^1.0.0",
+        preferred_version_selectors: Some(&selectors),
+        published_by: None,
+    };
+    assert_eq!(pick_version_by_version_range(&opts).as_deref(), Some("1.0.0"));
+}
+
+#[test]
+fn stable_cached_range_proves_a_version_resolved_higher_in_the_chain() {
+    let pkg = make_package("acme", &[("1.0.0", None), ("1.1.0", None)], &[]);
+    let selectors: VersionSelectors =
+        [("1.0.0", EXISTING_VERSION_SELECTOR_WEIGHT), ("1.1.0", RESOLVED_VERSION_SELECTOR_WEIGHT)]
+            .into_iter()
+            .map(|(version, weight)| {
+                (
+                    version.to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Version,
+                        weight,
+                    }),
+                )
+            })
+            .collect();
+    assert_eq!(
+        pick_stable_cached_range_version(&pkg, "^1.0.0", Some(&selectors)).as_deref(),
+        Some("1.1.0"),
     );
 }

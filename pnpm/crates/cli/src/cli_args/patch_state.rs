@@ -194,7 +194,7 @@ fn write_state_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> 
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let mut tmp = pnpm_fs::private_named_tempfile_in(parent)?;
     tmp.write_all(content)?;
-    tmp.as_file().sync_all()?;
+    pnpm_fs::sync_file(tmp.as_file())?;
     tmp.persist(target).map_err(|error| error.error)?;
     Ok(())
 }

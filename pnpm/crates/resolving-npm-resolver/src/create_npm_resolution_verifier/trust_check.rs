@@ -11,10 +11,14 @@ impl NpmResolutionVerifier {
         &self,
         cached_policy: &serde_json::Map<String, JsonValue>,
     ) -> bool {
-        let recorded_every_unconditional_rule =
-            ["tarballUrlBinding", "revisionHistoryBinding", "integrityRequired"]
-                .into_iter()
-                .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
+        let recorded_every_unconditional_rule = [
+            "tarballUrlBinding",
+            "revisionHistoryBinding",
+            "integrityRequired",
+            "variationResolutionsVerified",
+        ]
+        .into_iter()
+        .all(|flag| cached_policy.get(flag).and_then(JsonValue::as_bool) == Some(true));
         if !recorded_every_unconditional_rule {
             return false;
         }
@@ -49,7 +53,7 @@ impl NpmResolutionVerifier {
             now: self.now,
             ignore_missing_time_field: self.metadata.ignore_missing_time_field,
         };
-        match fail_if_trust_downgraded(&meta, version, &trust_opts) {
+        match fail_if_trust_downgraded(meta.as_ref(), version, &trust_opts) {
             Ok(()) => None,
             Err(err) => Some(ResolutionVerification::Err {
                 code: TRUST_DOWNGRADE_VIOLATION_CODE,

@@ -24,6 +24,7 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             revisions: None,
             file_count: None,
             unpacked_size: None,
+            pnpr: None,
             attestations: None,
         },
         dependencies: None,
@@ -101,7 +102,7 @@ fn returns_error_when_integrity_is_missing() {
 #[test]
 fn returns_error_when_revision_is_invalid() {
     let mut pkg = make_package("broken", "1.0.0");
-    pkg.dist.revision = Some(serde_json::json!(0));
+    pkg.dist.revision = Some(serde_json::json!(9_007_199_254_740_992_u64));
 
     let err = build_package_snapshot(&pkg, &HashMap::new())
         .expect_err("should fail with an invalid revision");

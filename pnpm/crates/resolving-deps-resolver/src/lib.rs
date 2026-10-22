@@ -25,7 +25,7 @@
 //!      `parentPkgs` filter.
 //!
 //!    Peer dependencies are **not** walked as regular edges during the
-//!    tree pass. They are recorded on [`ResolvedPackage::peer_dependencies`]
+//!    tree pass. They are recorded on [`ResolvedPackage::peer_set`]
 //!    and consumed by the peer pass.
 //!
 //! 2. **Peer pass** ([`fn@resolve_peers`]). Walks the tree, matches each
@@ -67,19 +67,21 @@ pub use dependencies_graph::{
     DependenciesGraph, DependenciesGraphNode, MissingPeer, ParentChain, ParentPackageRef,
     PeerDependencyIssue, PeerDependencyIssues, ResolvedDependencyEdges,
 };
-pub use hoist_peers::{
-    DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
-    get_hoistable_optional_peers, hoist_peers,
-};
+pub use lockfile_reuse::locked_child_admits;
 pub use node_id::NodeId;
-pub use parent_pkg_aliases::ParentPkgAliases;
+pub use parent_pkg_aliases::{ParentPkgAliases, declared_peer_dependencies, own_dependency_names};
+pub use peer_provider::{
+    DependencyOverrider, HoistPeersOptions, MissingPeerInfo, WorkspaceRootDep,
+    get_hoistable_optional_peers, hoist_peers, peer_shadowed_dependency_names,
+};
 pub use pnpm_deps_path::DepPath;
 pub use pnpm_package_name::is_valid_dependency_alias;
 pub use resolve_dependency_tree::{
-    Deprecation, DeprecationLogFn, FinalizedChild, FinalizedPackage, FinalizedPackageFn,
-    ManifestHook, ResolveDependencyTreeError, ResolveDependencyTreeOptions,
-    SkippedOptionalDependency, SkippedOptionalDependencyParent, SkippedOptionalLogFn, TreeCtx,
-    UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine, WorkspaceTreeCtx, extend_tree,
+    ChildCatalogs, DependencyResolutionError, DependencySpec, Deprecation, DeprecationLogFn,
+    FinalizedChild, FinalizedPackage, FinalizedPackageFn, ManifestHook, ResolveDependencyTreeError,
+    ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
+    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+    WorkspaceTreeCtx, extend_tree, local_directory_child_specs, manifest_child_specs,
     real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
@@ -89,7 +91,8 @@ pub use resolve_importer::{
 };
 pub use resolve_peers::{
     HoistMissingScope, ImporterPeerInput, PeerResolutionScope, ResolvePeersOptions,
-    ResolvePeersResult, WorkspaceResolvePeersResult, resolve_peers, resolve_peers_workspace,
+    ResolvePeersResult, WorkspacePeerSettings, WorkspaceResolvePeersResult, resolve_peers,
+    resolve_peers_workspace,
 };
 pub use resolve_workspace::{
     ResolveWorkspaceResult, ResolvedWorkspaceDependencies, WorkspaceImporter,
@@ -98,19 +101,20 @@ pub use resolve_workspace::{
     resolve_workspace_dependencies,
 };
 pub use resolved_tree::{
-    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, PeerDep, ResolvedPackage,
-    ResolvedPackageInput, ResolvedTree, TreeChildren,
+    ChildEdge, DependenciesTree, DependenciesTreeNode, DirectDep, LockfilePeerBlocks, PeerDep,
+    PeerSet, ResolvedPackage, ResolvedPackageInput, ResolvedTree, TreeChildren,
+    lockfile_peer_blocks,
 };
 
 mod dedupe_injected_deps;
 mod dedupe_peer_dependents;
 mod dep_path_compatibility;
 mod dependencies_graph;
-mod hoist_peers;
 mod link_target;
 mod lockfile_reuse;
 mod node_id;
 mod parent_pkg_aliases;
+mod peer_provider;
 mod resolve_dependency_tree;
 mod resolve_importer;
 mod resolve_peers;

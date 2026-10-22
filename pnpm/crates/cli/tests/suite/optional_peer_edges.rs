@@ -131,6 +131,35 @@ fn a_frozen_prod_install_leaves_out_an_optional_peer_only_a_dev_dependency_provi
     assert_eq!(current_abc_aliases(workspace), [PEER_A, PEER_C]);
 }
 
+/// `has-optional-peer-also-in-deps` keeps `bravo-dep` as its own dependency
+/// when nothing in its scope provides the peer. A dev dependency on the same
+/// package under another alias does not make that dependency a peer.
+#[test]
+fn a_prod_install_keeps_an_optional_peer_a_package_resolved_as_its_own_dependency() {
+    const HOST: &str = "@pnpm.e2e/has-optional-peer-also-in-deps";
+    const BRAVO: &str = "@pnpm.e2e/bravo-dep";
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps {
+            prod: &[(HOST, "1.0.0")],
+            dev: &[("bravo-alias", "npm:@pnpm.e2e/bravo-dep@1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    fixture.run(["install", "--lockfile-only"]);
+
+    pnpm(&fixture, &["install", "--prod", "--frozen-lockfile"]);
+
+    let slot = slot_of(&fixture.workspace.join("node_modules"), HOST);
+    assert!(
+        slot.join("node_modules")
+            .join(BRAVO)
+            .exists(),
+        "the package's own dependency must be installed",
+    );
+}
+
 #[test]
 fn a_prod_install_after_a_full_install_unlinks_the_optional_peer() {
     let fixture = dev_provided_peers();
@@ -286,6 +315,35 @@ fn deploy_workspace(
     );
     fixture.run(["install"]);
     fixture
+}
+
+/// See [`a_prod_install_keeps_an_optional_peer_a_package_resolved_as_its_own_dependency`].
+#[test]
+fn deploy_prod_keeps_an_optional_peer_a_package_resolved_as_its_own_dependency() {
+    const HOST: &str = "@pnpm.e2e/has-optional-peer-also-in-deps";
+    const BRAVO: &str = "@pnpm.e2e/bravo-dep";
+    let fixture = WorkspaceFixture::new();
+    fixture.write_root_manifest("root", ManifestDeps::default());
+    fixture.project(
+        "app",
+        "app",
+        ManifestDeps {
+            prod: &[(HOST, "1.0.0")],
+            dev: &[("bravo-alias", "npm:@pnpm.e2e/bravo-dep@1.0.0")],
+            ..ManifestDeps::default()
+        },
+    );
+    fixture.run(["install"]);
+
+    pnpm(&fixture, &["--filter", "app", "deploy", "--prod", "deploy"]);
+
+    let slot = slot_of(&fixture.workspace.join("deploy/node_modules"), HOST);
+    assert!(
+        slot.join("node_modules")
+            .join(BRAVO)
+            .exists(),
+        "the package's own dependency must be deployed",
+    );
 }
 
 fn assert_deploy_leaves_out_the_optional_peer(fixture: &WorkspaceFixture) {

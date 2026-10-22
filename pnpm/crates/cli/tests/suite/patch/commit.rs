@@ -1,5 +1,5 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, fs, pacquet, setup_installed,
+    AddMockedRegistry, CommandTempCwd, fs, pacquet, remove_dir_if_exists, setup_installed,
     setup_installed_workspace_project, setup_installed_workspace_project_with_yaml,
     write_patch_edit,
 };
@@ -200,6 +200,56 @@ fn patch_commands_in_a_workspace_project_with_its_own_lockfile() {
         !workspace.join("node_modules/.pnpm").exists(),
         "the reinstalls should stay in the project's own modules directory",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commands_from_workspace_root_with_per_project_lockfiles() {
+    let (root, workspace, app_dir, npmrc_info) =
+        setup_installed_workspace_project_with_yaml("sharedWorkspaceLockfile: false\n");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let other_dir = workspace.join("packages/other");
+    fs::create_dir_all(&other_dir).expect("create sibling package");
+    fs::write(
+        other_dir.join("package.json"),
+        serde_json::json!({
+            "name": "other",
+            "version": "0.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write sibling package.json");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "patched from root");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let installed_path = app_dir.join("node_modules/is-positive/index.js");
+    let installed = fs::read_to_string(&installed_path).unwrap();
+    assert!(installed.contains("patched from root"), "installed: {installed}");
+
+    // Repeat install across the workspace (including projects that do not depend on is-positive)
+    // must not fail with ERR_PNPM_UNUSED_PATCH.
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    pacquet(&workspace, ["patch-remove", "is-positive@1.0.0", "--reporter=silent"])
+        .assert()
+        .success();
+
+    let installed = fs::read_to_string(&installed_path).unwrap();
+    assert!(!installed.contains("patched from root"), "installed: {installed}");
 
     drop((root, mock_instance));
 }
@@ -730,6 +780,46 @@ fn patch_commit_preserves_resolved_peer_dependencies_in_snapshot() {
             .is_some_and(|deps| deps.contains_key(&peer_c)),
         "resolved peer dependency @pnpm.e2e/peer-c should remain in snapshot dependencies: {wants_peer:#?}",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_writes_the_entry_beside_its_patch_in_an_included_file() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = fs::read_to_string(&workspace_yaml_path).expect("workspace yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("include:\n  ./patches/patches.yaml: [patchedDependencies]\n");
+    fs::write(&workspace_yaml_path, &workspace_yaml).expect("write workspace yaml");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/patches.yaml"), "").expect("write patches file");
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "patched from an included file");
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("patches/patches.yaml")).expect("patches file"),
+        "patchedDependencies:\n  is-positive@1.0.0: is-positive@1.0.0.patch\n",
+    );
+    assert_eq!(fs::read_to_string(&workspace_yaml_path).expect("workspace yaml"), workspace_yaml);
+    assert!(workspace.join("patches/is-positive@1.0.0.patch").is_file());
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    let installed =
+        fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
+    assert!(installed.contains("patched from an included file"), "installed: {installed}");
 
     drop((root, mock_instance));
 }

@@ -105,7 +105,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
         bare_specifier: format!("link:{}", linked_dir.display()),
         injected: false,
     };
-    let ctx = LocalResolverContext { preserve_absolute_paths: true };
+    let ctx = LocalResolverContext { preserve_absolute_paths: true, ..Default::default() };
     let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");
@@ -128,7 +128,7 @@ async fn resolve_directory_specified_using_absolute_path_with_preserve_absolute_
         bare_specifier: format!("file:{}", linked_dir.display()),
         injected: false,
     };
-    let ctx = LocalResolverContext { preserve_absolute_paths: true };
+    let ctx = LocalResolverContext { preserve_absolute_paths: true, ..Default::default() };
     let result = resolve_from_local_scheme(&ctx, &wd, &opts(&project_dir)).await
         .expect("resolve")
         .expect("claims");

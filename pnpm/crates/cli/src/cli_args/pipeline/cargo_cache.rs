@@ -333,6 +333,21 @@ fn add_tracked_file_input(repo: &Path, path: &str, inputs: &mut Vec<String>) -> 
     }
 }
 
+/// Put `dir` first on the `PATH` of `environment`.
+pub(super) fn prepend_path(environment: &mut BTreeMap<String, String>, dir: PathBuf) {
+    let path = environment
+        .get("PATH")
+        .map(String::as_str)
+        .unwrap_or_default();
+    let dirs = std::iter::once(dir).chain(env::split_paths(path));
+    if let Some(joined) = env::join_paths(dirs)
+        .ok()
+        .and_then(|joined| joined.into_string().ok())
+    {
+        environment.insert("PATH".to_string(), joined);
+    }
+}
+
 pub(super) fn cache_environment(
     extra: &std::collections::HashMap<String, String>,
     declared: &[String],

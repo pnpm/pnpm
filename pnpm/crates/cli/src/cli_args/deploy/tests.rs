@@ -17,10 +17,10 @@ use serde_json::json;
 use super::{
     ConvertCtx, ProjectInfo, ProjectPathKey, SelectedProject, apply_deploy_hook,
     convert_package_key, convert_package_metadata, create_deploy_files, create_file_url_key,
-    index_projects, validate_lockfile_local_path,
+    index_projects,
 };
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
+use super::{DeployFiles, DeployWorkspaceSettings, write_deploy_files};
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 use crate::cli_args::deploy::{
@@ -56,19 +56,6 @@ fn hoisted_deploy_install_config_preserves_lockfile_setting() {
     base_config.lockfile = false;
     let deploy_config = create_deploy_install_config(&base_config, deploy_dir, NodeLinker::Hoisted);
     assert!(!deploy_config.lockfile);
-}
-
-#[test]
-fn lockfile_local_path_rejects_workspace_escape() {
-    let workspace = Path::new("workspace");
-    assert!(
-        validate_lockfile_local_path(&workspace.join("packages/app"), workspace).is_ok(),
-        "workspace children should be valid lockfile local paths",
-    );
-
-    let err = validate_lockfile_local_path(&workspace.join("../outside"), workspace)
-        .expect_err("parent traversal should be rejected");
-    assert!(err.to_string().contains("outside workspace"), "unexpected error: {err}");
 }
 
 #[test]
@@ -156,6 +143,7 @@ fn create_file_url_key_prefers_workspace_project_name() {
             name: Some("workspace-name".to_string()),
             has_bin: false,
             peer_dependencies: Vec::new(),
+            peer_blocks: (None, None),
             declared_dependencies: HashSet::default(),
         },
     );
@@ -223,10 +211,7 @@ fn write_deploy_files_replaces_lockfile_symlink() {
         manifest: json!({ "name": "app" }),
         lockfile,
         workspace_manifest: None,
-        workspace_config: DeployWorkspaceConfig {
-            patched_dependencies: None,
-            allow_builds: std::collections::HashMap::new(),
-        },
+        workspace_config: DeployWorkspaceSettings::from_config(&Config::default()),
     };
 
     write_deploy_files(&deploy_dir, &deploy_files).expect("write deploy files");

@@ -149,6 +149,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [blockExoticSubdeps](./settings/dependency-resolution.md#blockexoticsubdeps)
 * [registries](./settings/dependency-resolution.md#registries)
 * [namedRegistries](./settings/dependency-resolution.md#namedregistries)
+* [pnprServer](./settings/dependency-resolution.md#pnprserver)
 
 ### Node-Modules Settings
 
@@ -227,6 +228,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [fetchTimeout](./settings/network.md#fetchtimeout)
 * [fetchWarnTimeoutMs](./settings/network.md#fetchwarntimeoutms)
 * [fetchMinSpeedKiBps](./settings/network.md#fetchminspeedkibps)
+* [maxTarballUnpackedSize](./settings/network.md#maxtarballunpackedsize)
 
 ### Peer Dependency Settings
 

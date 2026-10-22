@@ -11,12 +11,12 @@ use sha2::{Digest as _, Sha512};
 use crate::{
     ARTIFACT_KIND, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile, ArtifactManifest,
     ArtifactPayload, ArtifactSubject, BuilderProfile, CompatibilityConstraints,
-    CompatibilityScopes, LinuxGlibcPlatform, MacOsPlatform, OwnerScope, PackageIdentity,
-    PublishArtifactRequest, SIGNATURE_ALGORITHM, SYMLINK_MODE, SignedArtifactEnvelope,
-    WORKSPACE_TASK_ARTIFACT_KIND, WindowsPlatform, blob_id, compatibility_rank,
-    compatibility_scopes, linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags,
-    macos_tag, platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags,
-    windows_tag,
+    CompatibilityScopes, DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS, LinuxGlibcPlatform, MacOsPlatform,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, SIGNATURE_ALGORITHM, SYMLINK_MODE,
+    SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND, WORKSPACE_TASK_INPUT_KEY_PREFIX,
+    WORKSPACE_TASK_SIZE_LIMITS, WindowsPlatform, blob_id, compatibility_rank, compatibility_scopes,
+    linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,
+    platform_fingerprint, validate_manifest_path, verify_blob, windows_supported_tags, windows_tag,
 };
 
 fn integrity(bytes: &[u8]) -> String {
@@ -279,6 +279,42 @@ fn accepts_symlink_entries_and_no_other_mode() {
 
     artifact.manifest.added[0].mode = 0o744;
     assert!(artifact.validate().is_err());
+}
+
+/// A release binary in a task's outputs passes a dependency build's limits
+/// many times over, so each kind is held to its own.
+#[test]
+fn size_limits_depend_on_the_artifact_kind() {
+    let sized = |mut artifact: ArtifactPayload, size: u64| {
+        artifact.manifest.added[0].size = size;
+        artifact
+    };
+    let dependency_file = DEPENDENCY_SIDE_EFFECTS_SIZE_LIMITS.file;
+    sized(payload(integrity(b"addon")), dependency_file).validate().unwrap();
+    assert!(sized(payload(integrity(b"addon")), dependency_file + 1).validate().is_err());
+
+    let mut task = payload(integrity(b"addon"));
+    task.kind = WORKSPACE_TASK_ARTIFACT_KIND.to_string();
+    task.subject = ArtifactSubject::workspace_task("packages/app", "build");
+    task.input_key = format!("{WORKSPACE_TASK_INPUT_KEY_PREFIX}abc");
+    sized(task.clone(), dependency_file + 1).validate().unwrap();
+    sized(task.clone(), WORKSPACE_TASK_SIZE_LIMITS.file).validate().unwrap();
+    assert!(sized(task.clone(), WORKSPACE_TASK_SIZE_LIMITS.file + 1).validate().is_err());
+
+    let files_to_fill_the_artifact =
+        WORKSPACE_TASK_SIZE_LIMITS.artifact / WORKSPACE_TASK_SIZE_LIMITS.file;
+    let mut over = sized(task, WORKSPACE_TASK_SIZE_LIMITS.file);
+    for index in 0..files_to_fill_the_artifact {
+        over.manifest.added.push(ArtifactFile {
+            path: format!("dist/part-{index}"),
+            integrity: integrity(format!("part-{index}").as_bytes()),
+            mode: 0o644,
+            size: WORKSPACE_TASK_SIZE_LIMITS.file,
+        });
+    }
+    let error = over.validate().expect_err("over the artifact limit");
+    eprintln!("{error}");
+    assert!(error.to_string().contains("artifact exceeds"));
 }
 
 #[test]

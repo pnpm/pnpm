@@ -74,6 +74,7 @@ function getResolutionSettings (opts: ResolveDependenciesOptions): ResolutionSet
     dryRun: opts.dryRun,
     force: opts.force,
     forceFullResolution: opts.forceFullResolution,
+    lockedPeersAreCurrent: opts.lockedPeersAreCurrent === true,
     staleOverrideTargets: opts.staleOverrideTargets,
     updateChecksums: opts.updateChecksums,
     ignoreScripts: opts.ignoreScripts,

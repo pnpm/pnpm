@@ -9,7 +9,11 @@ title: pnpm licenses
 
 Aliases: `ls`
 
-List licenses for installed packages.
+List licenses for installed packages. Terminal table output removes control characters from package metadata. JSON output preserves the metadata.
+
+The command requires a `pnpm-lock.yaml` file. A workspace project not yet
+recorded in the lockfile has no licenses to list. When no licenses match, text
+output says `No licenses in packages found` and `--json` outputs `{}`.
 
 Since v11.28.0, running `pnpm licenses list` inside a workspace package lists only the licenses of that package's dependencies. Use [`--recursive`](#--recursive--r) or [`--filter`](#--filter-package_selector) to include other workspace projects.
 

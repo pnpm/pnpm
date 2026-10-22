@@ -107,7 +107,7 @@ pub(super) fn upstream_cache_namespace(state: &AppState, upstream: &str) -> Stri
 /// is integrity-verified, so it uses a *stable* namespace
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
-pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
+pub(crate) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
     let url = config.routing.upstreams
         .get(upstream)
         .map_or("", |upstream_config| upstream_config.url.as_str());
@@ -141,9 +141,29 @@ pub(super) fn compute_upstream_cache_namespace(config: &Config, upstream: &str) 
 pub(super) fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
     match identity {
         Identity::User { username, .. } => Ok(username.clone()),
-        Identity::Anonymous => {
+        Identity::Anonymous | _ => {
             Err(RegistryError::Unauthenticated { resource: resource.to_string() })
         }
+    }
+}
+
+/// Require that an endpoint's caller is one of the `auth.admins`: 401 for an
+/// anonymous caller, 403 for anyone else. `action` and `resource` complete
+/// the 403 message.
+pub(super) fn require_admin(
+    state: &AppState,
+    identity: &Identity,
+    action: &'static str,
+    resource: String,
+) -> Result<(), RegistryError> {
+    if state.inner.config.identity.is_admin(identity) {
+        return Ok(());
+    }
+    match identity {
+        Identity::User { username, .. } => {
+            Err(RegistryError::Forbidden { user: username.clone(), action, resource })
+        }
+        Identity::Anonymous | _ => Err(RegistryError::Unauthenticated { resource }),
     }
 }
 
@@ -152,12 +172,20 @@ pub(super) async fn caller_username(
     headers: &HeaderMap,
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
-    if let Some(raw) = authorization.and_then(authentication::bearer_credentials)
-        && let Some(username) = state.inner.identity.oidc.session(raw)?
+    let username = match authorization.and_then(authentication::bearer_credentials) {
+        Some(raw) if let Some(user) = state.inner.identity.oidc.session(raw)? => {
+            Some(user.username)
+        }
+        _ => identify(authorization, state.inner.identity.auth.tokens.as_ref()).await?,
+    };
+    if let Some(username) = &username
+        && super::scim::is_deprovisioned(state, username)?
     {
-        return Ok(Some(username));
+        return Err(RegistryError::Unauthenticated {
+            resource: "a deprovisioned account".to_string(),
+        });
     }
-    identify(authorization, state.inner.identity.auth.tokens.as_ref()).await
+    Ok(username)
 }
 
 pub(super) async fn require_resolver_caller(

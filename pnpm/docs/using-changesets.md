@@ -57,8 +57,7 @@ To automate the process, you can use `changeset version` with GitHub actions. Th
 
 Add a new script called `ci:publish` which executes `pnpm publish -r`. This will publish to the registry once the PR created by `changeset version` has been merged. If the package is public and scoped, adding `--access=public` may be necessary to prevent npm rejecting the publish.
 
-**package.json**
-```json
+```json title="package.json"
 {
    "scripts": {
       "ci:publish": "pnpm publish -r"
@@ -71,8 +70,7 @@ Add a new script called `ci:publish` which executes `pnpm publish -r`. This will
 
 Add a new workflow at `.github/workflows/changesets.yml`. This workflow will create a new branch and PR, so Actions should be given **read and write** permissions in the repo settings (`github.com/<repo-owner>/<repo-name>/settings/actions`). If including the `publish` input on the `changesets/action` step, the repo should also include an auth token for npm as a repository secret named `NPM_TOKEN`.
 
-**.github/workflows/changesets.yml**
-```yaml
+```yaml title=".github/workflows/changesets.yml"
 name: Changesets
 
 on:

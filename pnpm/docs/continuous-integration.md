@@ -7,12 +7,27 @@ pnpm can easily be used in various continuous integration systems.
 
 ## Installing pnpm
 
-Outside of GitHub Actions, which has [its own action](#github-actions), install pnpm
-with the standalone script:
+On CI systems that run each job in a container image, use the [official pnpm
+image](./docker.md#official-pnpm-base-image) `ghcr.io/pnpm/pnpm` as the job image.
+pnpm is already on `PATH`, so the job needs no install step, and
+`pnpm runtime set node lts -g` installs Node.js. The
+[Bitbucket Pipelines](#bitbucket-pipelines) and [GitLab CI](#gitlab-ci) examples
+below use it. If your Dockerfile builds on another image, such as `node:24`,
+[copy pnpm from the official image](./docker.md#adding-pnpm-to-your-own-image).
+
+Elsewhere, outside of GitHub Actions, which has [its own action](#github-actions),
+install pnpm with the standalone script. If `get.pnpm.io` fails, the second
+command downloads the same script from the latest
+[installer release](https://github.com/pnpm/get.pnpm.io/releases/latest):
 
 ```sh
-curl -fsSL https://get.pnpm.io/install.sh | sh -
+{ curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+  || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh; } \
+  && sh /tmp/pnpm-install.sh
 ```
+
+The script is saved to a file before it runs, and it runs only if one of the
+downloads succeeded, so a failed download never runs a partial script.
 
 Two things make this convenient in CI:
 
@@ -100,7 +115,9 @@ steps:
     displayName: Cache pnpm
 
   - bash: |
-      curl -fsSL https://get.pnpm.io/install.sh | sh -
+      { curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+        || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh; } \
+        && sh /tmp/pnpm-install.sh
       echo "##vso[task.prependpath]$PNPM_HOME/bin"
       "$PNPM_HOME/bin/pnpm" config set store-dir "$pnpm_config_cache"
     displayName: "Setup pnpm"
@@ -135,12 +152,8 @@ pipelines:
     "**":
       - step:
           name: Build and test
-          image: debian:stable-slim
+          image: ghcr.io/pnpm/pnpm:12
           script:
-            - apt-get update && apt-get install -y --no-install-recommends ca-certificates curl
-            - export PNPM_HOME="$HOME/.local/share/pnpm"
-            - export PATH="$PNPM_HOME/bin:$PATH"
-            - curl -fsSL https://get.pnpm.io/install.sh | sh -
             - pnpm config set store-dir "$BITBUCKET_CLONE_DIR/.pnpm-store"
             - pnpm runtime set node lts -g
             - pnpm install
@@ -149,12 +162,8 @@ pipelines:
             - pnpm
 ```
 
-All the lines of a step run in one shell, so `export` carries to the ones that
-follow, and `store-dir` is pointed at the directory the cache saves.
-
-This example starts from a plain image and lets pnpm install Node.js. Keep your
-existing `node` image and drop the `pnpm runtime set` line if you would rather
-not change it.
+The example starts from the official pnpm image, lets pnpm install Node.js, and
+points `store-dir` at the directory the cache saves.
 
 ## CircleCI
 
@@ -181,7 +190,9 @@ jobs:
       - run:
           name: Install pnpm package manager
           command: |
-            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            { curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \
+              || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh; } \
+              && sh /tmp/pnpm-install.sh
             echo 'export PATH="$PNPM_HOME/bin:$PATH"' >> "$BASH_ENV"
             "$PNPM_HOME/bin/pnpm" config set store-dir .pnpm-store
       - run:
@@ -245,13 +256,10 @@ stages:
 
 build:
   stage: build
-  image: node:24.14.1
-  variables:
-    PNPM_HOME: "$CI_PROJECT_DIR/.pnpm"
+  image: ghcr.io/pnpm/pnpm:12
   before_script:
-    - export PATH="$PNPM_HOME/bin:$PATH"
-    - curl -fsSL https://get.pnpm.io/install.sh | sh -
     - pnpm config set store-dir .pnpm-store
+    - pnpm runtime set node 24 -g
   script:
     - pnpm install # install dependencies
   cache:
@@ -266,7 +274,7 @@ build:
 
 You can use pnpm for installing and caching your dependencies:
 
-```title="Jenkinsfile"
+```groovy title="Jenkinsfile"
 pipeline {
     agent {
         docker {
@@ -281,7 +289,11 @@ pipeline {
     stages {
         stage('Build') {
             steps {
-                sh 'curl -fsSL https://get.pnpm.io/install.sh | sh -'
+                sh '''
+                    { curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh \\
+                      || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh; } \\
+                      && sh /tmp/pnpm-install.sh
+                '''
                 sh 'pnpm install'
             }
         }
@@ -314,7 +326,8 @@ blocks:
         - name: pnpm install
           commands:
             - export PATH="$PNPM_HOME/bin:$PATH"
-            - curl -fsSL https://get.pnpm.io/install.sh | sh -
+            - curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh
+            - sh /tmp/pnpm-install.sh
             - checkout
             - cache restore node-$(checksum pnpm-lock.yaml)
             - pnpm install
@@ -338,7 +351,8 @@ env:
     - PNPM_HOME="$HOME/.local/share/pnpm"
     - PATH="$PNPM_HOME/bin:$PATH"
 before_install:
-  - curl -fsSL https://get.pnpm.io/install.sh | sh -
+  - curl -fsSL https://get.pnpm.io/ -o /tmp/pnpm-install.sh || curl -fsSL https://github.com/pnpm/get.pnpm.io/releases/latest/download/install.sh -o /tmp/pnpm-install.sh
+  - sh /tmp/pnpm-install.sh
   - pnpm config set store-dir ~/.pnpm-store
 install:
   - pnpm install

@@ -234,11 +234,10 @@ where
     let home_dir = Sys::home_dir().expect("Home directory is not available");
     match env::consts::OS {
         "macos" => home_dir.join("Library/Caches/pnpm"),
-        "windows" => read_dir_env::<Sys>("LOCALAPPDATA")
-            .map_or_else(
-                || home_dir.join(".pnpm-cache"),
-                |local_app_data| PathBuf::from(local_app_data).join("pnpm-cache"),
-            ),
+        "windows" => match read_dir_env::<Sys>("LOCALAPPDATA") {
+            Some(local_app_data) => PathBuf::from(local_app_data).join("pnpm-cache"),
+            None => home_dir.join(".pnpm-cache"),
+        },
         _ => home_dir.join(".cache/pnpm"),
     }
 }
@@ -334,7 +333,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.9.1";
+pub const PNPM_VERSION: &str = "12.15.0";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
@@ -372,6 +371,13 @@ pub fn default_fetch_warn_timeout_ms() -> u64 {
 /// See [`pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS`].
 pub fn default_fetch_min_speed_ki_bps() -> u64 {
     pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
+}
+
+/// Returns the shared `maxTarballUnpackedSize` default in bytes.
+///
+/// See [`pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE`].
+pub fn default_max_tarball_unpacked_size() -> u64 {
+    pnpm_tarball::DEFAULT_MAX_TARBALL_UNPACKED_SIZE
 }
 
 /// Default `User-Agent`, in the format

@@ -66,7 +66,7 @@ enum LicensesError {
 
 #[derive(Debug, Args)]
 pub struct LicensesDependencyOptions {
-    /// Only dependencies in "dependencies"
+    /// Check only "dependencies" and "optionalDependencies"
     #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Only dependencies in "devDependencies"
@@ -88,7 +88,7 @@ impl LicensesDependencyOptions {
         let mut dependencies = !self.dev;
         let mut dev_dependencies = !self.prod;
         let mut optional_dependencies =
-            !self.prod && resolve_bool_override(self.optional, self.no_optional, include_optional);
+            resolve_bool_override(self.optional, self.no_optional, include_optional);
 
         if self.optional {
             dependencies = false;
@@ -142,23 +142,18 @@ impl LicensesArgs {
         check_licenses_subcommand(self.params.first().map(String::as_str))?;
 
         let include = self.dependency_options.include(config.optional);
-        let Some(LicensedPackages { package_dirs, dependencies }) =
-            LicensedPackages::collect(config, dir, recursive, include)?
-        else {
-            if self.json {
-                println!("{{}}");
-            }
-            return Ok(());
-        };
+        let LicensedPackages { package_dirs, dependencies } =
+            LicensedPackages::collect(config, dir, recursive, include)?;
 
         let results_by_license = group_by_license(&package_dirs, dependencies).await;
 
         if self.json {
-            println!("{}", render_licenses_json(&results_by_license)?);
+            pnpm_diagnostics::println!("{}", render_licenses_json(&results_by_license)?);
             return Ok(());
         }
 
         if results_by_license.is_empty() {
+            pnpm_diagnostics::println!("No licenses in packages found");
             return Ok(());
         }
 
@@ -188,7 +183,7 @@ fn print_license_table(
 
     let mut table = builder.build();
     table.with(Style::modern());
-    println!("{table}");
+    pnpm_diagnostics::println!("{table}");
 }
 
 /// `pnpm licenses` takes exactly one subcommand, `list` (or `ls`).

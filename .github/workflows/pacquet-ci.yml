@@ -32,6 +32,7 @@ jobs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
       changesets: ${{ steps.filter.outputs.changesets }}
       docs: ${{ steps.filter.outputs.docs }}
+      convergence: ${{ steps.manual.outputs.rust || steps.filter.outputs.convergence }}
     steps:
       # Force the full Rust suite on manual runs and in the merge queue.
       # The merge queue tests the merged commit, so path filtering it away
@@ -88,6 +89,7 @@ jobs:
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - '.config/pnpm/**'
               - 'rust-toolchain.toml'
               - 'rustfmt.toml'
               - 'deny.toml'
@@ -103,10 +105,58 @@ jobs:
               - '.github/actions/rustup/**'
               - '.github/actions/binstall/**'
               - '.github/actions/install-crates/**'
+              - '.github/actions/remote-cache/**'
               - '.github/scripts/measure-command.mjs'
               - '.github/workflows/pacquet-ci.yml'
             changesets:
               - '.changeset/**'
+            # What decides the lockfile or workspace state either CLI writes,
+            # for the job that runs the convergence harnesses through both.
+            convergence:
+              - 'pnpm/crates/resolving-*/**'
+              - 'pnpm/crates/lockfile*/**'
+              - 'pnpm/crates/package-manager/**'
+              - 'pnpm/crates/cli/src/cli_args/deploy*'
+              - 'pnpm/crates/cli/src/cli_args/deploy/**'
+              - 'pnpm/crates/cli/src/cli_args/dispatch_install*'
+              - 'pnpm/crates/cli/src/cli_args/dispatch_install/**'
+              - 'pnpm/crates/cli/src/cli_args/exec*'
+              - 'pnpm/crates/cli/src/cli_args/exec/**'
+              - 'pnpm/crates/cli/src/cli_args/install*'
+              - 'pnpm/crates/cli/src/cli_args/install/**'
+              - 'pnpm/crates/cli/src/cli_args/dedupe*'
+              - 'pnpm/crates/cli/src/cli_args/dedupe/**'
+              - 'pnpm/crates/cli/src/cli_args/recursive*'
+              - 'pnpm/crates/cli/src/cli_args/recursive/**'
+              - 'pnpm/crates/cli/src/cli_args/run*'
+              - 'pnpm/crates/cli/src/cli_args/run/**'
+              - 'pnpm/crates/cli/src/cli_args/verify_deps*'
+              - 'pnpm/crates/cli/src/cli_args/dispatch/configuration*'
+              - 'pnpm/crates/cli/src/config_overrides*'
+              - 'pnpm/crates/cli/src/config_overrides/**'
+              - 'pnpm/crates/cli/src/cli_args/workspace_state*'
+              - 'pnpm/crates/workspace-state/**'
+              - 'pnpm/crates/cli/tests/suite/_utils/**'
+              - 'pnpm/crates/cli/tests/suite/peer_convergence.rs'
+              - 'pnpm/crates/cli/tests/suite/peer_convergence/**'
+              - 'pnpm/crates/cli/tests/suite/repeat_install_oracle.rs'
+              - 'pnpm/crates/cli/tests/suite/pnpm_compatibility.rs'
+              - 'pnpm/crates/cli/tests/suite/injected_freshness_matrix.rs'
+              - 'pnpm/crates/cli/tests/suite/version.rs'
+              - 'pnpm/crates/testing-utils/**'
+              - 'pnpm/crates/config/**'
+              - 'pnpm11/deps/status/**'
+              - 'pnpm11/exec/commands/**'
+              - 'pnpm11/installing/**'
+              - 'pnpm11/config/reader/**'
+              - 'pnpm11/pnpm/src/**'
+              - 'pnpm11/lockfile/**'
+              - 'pnpm11/resolving/**'
+              - 'pnpm11/releasing/commands/src/deploy/**'
+              - 'pnpm11/workspace/state/**'
+              - 'pnpr/.fixtures/**'
+              - '.config/nextest.toml'
+              - '.github/workflows/pacquet-ci.yml'
 
   change-check:
     name: Rust CI / Change Check
@@ -118,7 +168,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
       - name: Validate changeset files
@@ -186,7 +236,7 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -207,7 +257,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: just
 
@@ -226,7 +276,7 @@ jobs:
           just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest,sccache@0.17.0
 
@@ -344,17 +394,75 @@ jobs:
           EOF
 
       - name: Upload Bencher test duration artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-performance-rust-${{ matrix.os_label }}
           path: .bench/artifact/rust/
           if-no-files-found: error
           retention-days: 14
 
+  # The peer convergence and repeat-install oracle harnesses through pnpm v11
+  # as well as v12, so a resolution, lockfile, or workspace-state change in
+  # either stack cannot make them drift apart. Both harnesses also run through
+  # v12 alone in the test job above.
+  convergence:
+    name: Rust CI / Peer Convergence v11+v12
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.convergence == 'true' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free up runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install Rust Toolchain
+        uses: $/.github/actions/rustup
+
+      - name: Install pnpm
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          install: false
+
+      - name: Install Node.js via pnpm
+        run: pnpm runtime set node 22 --global
+
+      - name: Install just
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: just,cargo-nextest
+
+      - name: Install dependencies
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          just install
+
+      - name: Bundle pnpm v11
+        run: |
+          pnpm --filter pnpm exec tsgo --build
+          pnpm --filter pnpm run bundle
+
+      - name: Run the convergence harnesses through v11 and v12
+        run: |
+          unset PNPM_HOME
+          unset XDG_DATA_HOME
+          PNPM_V11_BUNDLE="$PWD/pnpm11/pnpm/dist/pnpm.mjs" \
+            pnpm test:rust -p pnpm-cli --run-ignored all -E 'test(/^peer_convergence::/) or test(/^repeat_install_oracle::/) or test(/^pnpm_compatibility::/) or test(/^injected_freshness_matrix::/) or test(/^version::switches_up_to_a_newer_pnpm/) or test(/^version::v11_switches_up/)'
+
   clippy:
     name: Rust CI / Clippy / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # `#[cfg(windows)]` code is invisible to a Linux-only lint, and the test
     # job only type-checks it, so Windows gets its own Clippy row. macOS does
     # not: it shares the `#[cfg(unix)]` blocks the Ubuntu row already lints.
@@ -387,17 +495,26 @@ jobs:
           clippy: true
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
+
       - name: Clippy
-        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-clippy --include-workspace-root --full
 
   doc:
     name: Rust CI / Doc / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    environment: ${{ (github.event_name == 'merge_group' || github.event_name == 'push') && 'remote-cache' || '' }}
     # rustdoc resolves intra-doc links only in the code compiled for the
     # target, so a link from shared docs to a `#[cfg(unix)]` item breaks on
     # Windows alone. Windows gets its own row, as it does in Clippy.
@@ -421,14 +538,22 @@ jobs:
           docs: true
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
+
+      - name: Configure the remote task cache
+        uses: $/.github/actions/remote-cache
+        with:
+          token: ${{ secrets.VERCEL_REMOTE_CACHE_TOKEN }}
+          team: ${{ vars.REMOTE_CACHE_TEAM }}
+          public-key: ${{ vars.REMOTE_CACHE_PUBLIC_KEY }}
+          private-key: ${{ secrets.REMOTE_CACHE_PRIVATE_KEY }}
 
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
+        run: pnpm pipeline rust-doc --include-workspace-root --full
 
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
@@ -460,7 +585,7 @@ jobs:
           restore-cache: false
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -507,7 +632,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@00f422f3b19c57bc6338715ebfe3316d38768461 # v1.50.3
+      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
         with:
           files: pnpm pnpr
 
@@ -541,13 +666,13 @@ jobs:
 
       - name: Install pnpm
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@861a07ce7084f55488e375df125cdc99bba60eb7 # v2.87.23
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-deny
 
@@ -575,7 +700,7 @@ jobs:
           packages: taplo-cli@0.8.1
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -678,7 +803,7 @@ jobs:
           packages: cargo-dylint@6.0.4 dylint-link@6.0.4
 
       - name: Install pnpm
-        uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
           install: false
 
@@ -707,6 +832,7 @@ jobs:
       - changes
       - change-check
       - test
+      - convergence
       - npm-wrapper
       - clippy
       - doc

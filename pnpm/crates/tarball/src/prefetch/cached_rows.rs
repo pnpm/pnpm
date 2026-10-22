@@ -1,14 +1,26 @@
 use super::{
-    ArchiveStoreProjection, GlobalLog, HashMap, LogEvent, LogLevel, PackageContentCheck,
+    Arc, ArchiveStoreProjection, GlobalLog, HashMap, LogEvent, LogLevel, PackageContentCheck,
     PackageFilesIndex, PathBuf, PkgContentMismatch, SharedReadonlyStoreIndex,
     SharedVerifiedFilesCache, StoreDir, TarballError,
 };
+use pnpm_package_manifest::PackageBin;
+use std::collections::BTreeMap;
 
 /// Files reconstructed from a store-index row, plus the bundled
-/// manifest the row recorded.
-pub(crate) struct CachedCasPaths {
+/// manifest, build-trigger verdict, and precalculated bins the row or
+/// extraction recorded.
+#[derive(Debug, Clone)]
+pub struct CachedCasPaths {
     pub files: HashMap<String, PathBuf>,
     pub manifest: Option<serde_json::Value>,
+    pub requires_build: Option<bool>,
+    pub bins: Option<Arc<BTreeMap<String, PackageBin>>>,
+}
+
+impl CachedCasPaths {
+    pub(crate) fn files_only(files: HashMap<String, PathBuf>) -> Self {
+        Self { files, manifest: None, requires_build: None, bins: None }
+    }
 }
 
 /// What the store-index lookup found for one row.
@@ -23,6 +35,8 @@ enum CachedRow {
     Hit {
         cas_paths: HashMap<String, PathBuf>,
         manifest: Option<serde_json::Value>,
+        requires_build: bool,
+        bins: Option<Arc<BTreeMap<String, PackageBin>>>,
         mismatch: Option<PkgContentMismatch>,
     },
 }
@@ -93,7 +107,13 @@ fn cached_row_paths<Reporter: crate::Reporter>(
         CachedRow::Rejected(mismatch) => {
             Err(TarballError::UnexpectedPkgContentInStore { hint: mismatch.hint() })
         }
-        CachedRow::Hit { cas_paths, manifest, mismatch } => {
+        CachedRow::Hit {
+            cas_paths,
+            manifest,
+            requires_build,
+            bins,
+            mismatch,
+        } => {
             if let Some(mismatch) = mismatch {
                 Reporter::emit(&LogEvent::Global(GlobalLog {
                     level: LogLevel::Warn,
@@ -103,7 +123,12 @@ fn cached_row_paths<Reporter: crate::Reporter>(
                     ),
                 }));
             }
-            Ok(Some(CachedCasPaths { files: cas_paths, manifest }))
+            Ok(Some(CachedCasPaths {
+                files: cas_paths,
+                manifest,
+                requires_build: Some(requires_build),
+                bins,
+            }))
         }
     }
 }
@@ -133,6 +158,7 @@ fn cached_row(
         return CachedRow::Rejected(mismatch);
     }
 
+    let stored_requires_build = entry.requires_build;
     let manifest = entry.manifest.take();
     let verify_result = if verify_store_integrity {
         pnpm_store_dir::check_pkg_files_integrity(store_dir, entry, verified_files_cache)
@@ -154,7 +180,24 @@ fn cached_row(
         );
         return CachedRow::Miss;
     }
-    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, mismatch }
+    let requires_build = super::resolve_row_requires_build(
+        stored_requires_build,
+        manifest.as_ref(),
+        &verify_result.files_map,
+    );
+    let bins = resolve_cached_row_bins(requires_build, manifest.as_ref(), &verify_result.files_map);
+    CachedRow::Hit { cas_paths: verify_result.files_map, manifest, requires_build, bins, mismatch }
+}
+
+fn resolve_cached_row_bins(
+    requires_build: bool,
+    manifest: Option<&serde_json::Value>,
+    cas_paths: &HashMap<String, PathBuf>,
+) -> Option<Arc<BTreeMap<String, PackageBin>>> {
+    if requires_build {
+        return None;
+    }
+    pnpm_package_manifest::resolve_package_bins_from_cas_paths(manifest?, cas_paths).map(Arc::new)
 }
 
 /// The row for `cache_key`, or `None` for a miss.
@@ -165,15 +208,7 @@ fn cached_row(
 /// hint anyway — failing over to a fresh download is the more resilient
 /// default than turning every subsequent snapshot into a crash.
 fn read_row(index: &SharedReadonlyStoreIndex, cache_key: &str) -> Option<PackageFilesIndex> {
-    let Ok(guard) = index.lock() else {
-        tracing::debug!(
-            target: "pacquet::download",
-            ?cache_key,
-            "store-index mutex poisoned; treating cache lookup as a miss",
-        );
-        return None;
-    };
-    guard.get(cache_key).ok().flatten()
+    pnpm_store_dir::StoreIndex::get_shared(index, cache_key).ok().flatten()
 }
 
 /// Reuse a pre-projection-key runtime row only when its synthesized

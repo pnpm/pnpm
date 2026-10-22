@@ -3,8 +3,9 @@ use ssri::Integrity;
 
 use crate::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, LatestInfo, LatestQuery,
-    ResolutionPolicyViolation, ResolutionVerification, ResolutionVerifier, ResolveOptions,
-    ResolveResult, Resolver, UpdateBehavior, VerifyCtx, WantedDependency,
+    REQUESTED_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT, ResolutionPolicyViolation,
+    ResolutionVerification, ResolutionVerifier, ResolveOptions, ResolveResult, Resolver,
+    UpdateBehavior, VerifyCtx, WantedDependency, pinned_by_lockfile,
 };
 
 fn fake_resolution() -> LockfileResolution {
@@ -114,10 +115,19 @@ async fn resolution_verifier_dispatches_through_dyn() {
     assert!(!verifier.can_trust_past_check(&cached));
 }
 
-/// Selector weight ordering is part of the public contract: existing
-/// pins must always outrank direct-dep matches so that adding a fresh
-/// range doesn't churn the lockfile.
-const _: () = assert!(EXISTING_VERSION_SELECTOR_WEIGHT > DIRECT_DEP_SELECTOR_WEIGHT);
+/// Selector weight ordering is part of the public contract; see
+/// [`EXISTING_VERSION_SELECTOR_WEIGHT`].
+const _: () = assert!(REQUESTED_VERSION_SELECTOR_WEIGHT > DIRECT_DEP_SELECTOR_WEIGHT);
+const _: () = assert!(DIRECT_DEP_SELECTOR_WEIGHT > RESOLVED_VERSION_SELECTOR_WEIGHT);
+const _: () = assert!(RESOLVED_VERSION_SELECTOR_WEIGHT > EXISTING_VERSION_SELECTOR_WEIGHT);
+
+#[test]
+fn pinned_by_lockfile_reads_the_lockfile_digit() {
+    assert!(pinned_by_lockfile(EXISTING_VERSION_SELECTOR_WEIGHT));
+    assert!(pinned_by_lockfile(DIRECT_DEP_SELECTOR_WEIGHT + EXISTING_VERSION_SELECTOR_WEIGHT));
+    assert!(!pinned_by_lockfile(RESOLVED_VERSION_SELECTOR_WEIGHT));
+    assert!(!pinned_by_lockfile(REQUESTED_VERSION_SELECTOR_WEIGHT + DIRECT_DEP_SELECTOR_WEIGHT));
+}
 
 #[test]
 fn update_behavior_defaults_off() {

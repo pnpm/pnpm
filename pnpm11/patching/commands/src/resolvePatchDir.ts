@@ -14,6 +14,7 @@ export interface ResolvePatchDirOptions {
   dir: string
   lockfileDir: string
   modulesDir: string
+  extraModulesDirs?: string[]
 }
 
 export interface ResolvedPatchDir {
@@ -28,18 +29,41 @@ export async function resolvePatchDir (
   const editDirAtPath = findEditDirAtPath(userParam, opts)
   if (editDirAtPath) return editDirAtPath
 
-  const state = readStateFile(opts.modulesDir)
-  if (!state || Object.keys(state).length === 0) {
-    throw invalidPatchDirError(userParam)
-  }
+  const matchInModules = await findEditDirInModulesDirs(userParam, [opts.modulesDir, ...(opts.extraModulesDirs ?? [])])
+  if (matchInModules) return matchInModules
 
-  const candidates = await readEditDirCandidates(state)
-  const query: PatchDirQuery = {
-    userParam,
-    normalizedUserParam: normalizePath(userParam),
-    parsedDep: parseWantedDependency(userParam),
-    patchesDir: path.join(opts.modulesDir, '.pnpm_patches'),
+  throw invalidPatchDirError(userParam)
+}
+
+async function findEditDirInModulesDirs (
+  userParam: string,
+  modulesDirs: string[]
+): Promise<ResolvedPatchDir | undefined> {
+  const uniqueModulesDirs = Array.from(new Set(modulesDirs.map((dir) => path.resolve(dir))))
+  const parsedDep = parseWantedDependency(userParam)
+  const normalizedUserParam = normalizePath(userParam)
+  const results = await Promise.all(
+    uniqueModulesDirs.map(async (modulesDir) => collectModuleMatches(modulesDir, {
+      userParam,
+      normalizedUserParam,
+      parsedDep,
+      patchesDir: path.join(modulesDir, '.pnpm_patches'),
+    }))
+  )
+  const exactMatches = results.flatMap((r) => r.exactMatches)
+  const nameMatches = results.flatMap((r) => r.nameMatches)
+  return pickSingleMatch(exactMatches, userParam) ?? pickSingleMatch(nameMatches, userParam)
+}
+
+async function collectModuleMatches (
+  modulesDir: string,
+  query: PatchDirQuery
+): Promise<{ exactMatches: ResolvedPatchDir[], nameMatches: ResolvedPatchDir[] }> {
+  const state = readStateFile(modulesDir)
+  if (!state || Object.keys(state).length === 0) {
+    return { exactMatches: [], nameMatches: [] }
   }
+  const candidates = await readEditDirCandidates(state)
   const exactMatches: ResolvedPatchDir[] = []
   const nameMatches: ResolvedPatchDir[] = []
   for (const candidate of candidates) {
@@ -51,27 +75,38 @@ export async function resolvePatchDir (
       nameMatches.push({ editDir: candidate.candidateEditDir, stateValue: candidate.stateValue })
     }
   }
-
-  const match = pickSingleMatch(exactMatches, userParam) ?? pickSingleMatch(nameMatches, userParam)
-  if (match) return match
-  throw invalidPatchDirError(userParam)
+  return { exactMatches, nameMatches }
 }
 
 /** The edit directory `userParam` names as a path, relative to `dir` or else to `lockfileDir`. */
 function findEditDirAtPath (userParam: string, opts: ResolvePatchDirOptions): ResolvedPatchDir | undefined {
   const directPath = path.resolve(opts.dir, userParam)
-  const editDirFromDir = readEditDirAt(directPath, opts.modulesDir)
+  const editDirFromDir = readEditDirAt(directPath, opts)
   if (editDirFromDir) return editDirFromDir
 
   const directPathFromLockfileDir = path.resolve(opts.lockfileDir, userParam)
   if (directPathFromLockfileDir === directPath) return undefined
-  return readEditDirAt(directPathFromLockfileDir, opts.modulesDir)
+  return readEditDirAt(directPathFromLockfileDir, opts)
 }
 
-function readEditDirAt (editDir: string, modulesDir: string): ResolvedPatchDir | undefined {
+function readEditDirAt (editDir: string, opts: ResolvePatchDirOptions): ResolvedPatchDir | undefined {
   if (!isDirectory(editDir)) return undefined
-  const stateValue = readEditDirState({ editDir, modulesDir })
-  return stateValue ? { editDir, stateValue } : undefined
+  for (const modulesDir of candidateModulesDirsForEditDir(editDir, opts)) {
+    const stateValue = readEditDirState({ editDir, modulesDir })
+    if (stateValue) return { editDir, stateValue }
+  }
+  return undefined
+}
+
+function candidateModulesDirsForEditDir (editDir: string, opts: ResolvePatchDirOptions): string[] {
+  const dirs = [opts.modulesDir]
+  if (path.basename(path.dirname(editDir)) === '.pnpm_patches') {
+    dirs.push(path.dirname(path.dirname(editDir)))
+  }
+  if (opts.extraModulesDirs) {
+    dirs.push(...opts.extraModulesDirs)
+  }
+  return dirs
 }
 
 function isDirectory (dirPath: string): boolean {

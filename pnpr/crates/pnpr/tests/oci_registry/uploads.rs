@@ -689,7 +689,7 @@ async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
     let second = router_with_auth(config, auth_state);
     let auth = basic(&token(&first).await);
     let digest = push_blob(&first, &auth, "acme/app", b"config").await;
-    objects.pause_write("package.json".to_string());
+    objects.pause_write("document.json".to_string());
     let publish = tokio::spawn(
         first.oneshot(
             Request::put("/v2/acme/app/manifests/latest")

@@ -525,3 +525,38 @@ fn recursive_exclusion_also_prunes_its_base_directory() {
         0,
     );
 }
+
+#[test]
+fn prunes_nested_pnpm_workspaces() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "").unwrap();
+    fs::write(workspace.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+    let nested = workspace.path().join(".claude/worktrees/agent");
+    fs::create_dir_all(nested.join("crates/cli")).unwrap();
+    fs::write(nested.join("pnpm-workspace.yaml"), "").unwrap();
+    fs::write(nested.join("Cargo.toml"), "[workspace]\n").unwrap();
+    fs::write(nested.join("crates/cli/Cargo.toml"), "[package]\n").unwrap();
+
+    let inventory =
+        find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[], &[], &[]).unwrap();
+
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [workspace.path().join("Cargo.toml")]);
+}
+
+#[test]
+fn prunes_nested_git_clones_but_not_submodules() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::create_dir(workspace.path().join(".git")).unwrap();
+    let clone = workspace.path().join("vendor/clone");
+    fs::create_dir_all(clone.join(".git")).unwrap();
+    fs::write(clone.join("Cargo.toml"), "[workspace]\n").unwrap();
+    let submodule = workspace.path().join("submodule");
+    fs::create_dir_all(&submodule).unwrap();
+    fs::write(submodule.join(".git"), "gitdir: ../.git/modules/submodule\n").unwrap();
+    fs::write(submodule.join("Cargo.toml"), "[workspace]\n").unwrap();
+
+    let inventory =
+        find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[".git"], &[], &[]).unwrap();
+
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [submodule.join("Cargo.toml")]);
+}

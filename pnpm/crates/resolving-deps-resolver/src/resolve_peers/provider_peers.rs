@@ -90,7 +90,8 @@ fn lockfile_peer_ranges(metadata: &pnpm_lockfile::PackageMetadata) -> PeerRanges
 }
 
 fn peer_ranges_of(package: &ResolvedPackage) -> PeerRanges {
-    package.peer_dependencies
+    package.peer_set
+        .declared()
         .iter()
         .map(|(peer_name, peer)| (peer_name.clone(), peer.version.clone()))
         .collect()

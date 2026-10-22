@@ -14,9 +14,9 @@
 //! [`PackageDistribution::integrity`](crate::PackageDistribution), where
 //! an unusable value has to reach the install as an error.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use pnpm_package_manifest::is_truthy;
+use pnpm_package_manifest::{PackageBin, is_safe_bin_name, is_truthy};
 use serde::{Deserialize, Deserializer, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -175,6 +175,37 @@ where
     Deser: Deserializer<'de>,
 {
     Ok(Option::<Value>::deserialize(deserializer)?.and_then(|value| value.as_bool()))
+}
+
+/// Deserialize precalculated `dist.pnpr.bins`, rejecting the map as absent
+/// if any command name or target entry fails validation so bin linking falls
+/// back to the verified tarball's `package.json`.
+pub(crate) fn deserialize_pnpr_bins<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<BTreeMap<String, PackageBin>>, Deser::Error>
+where
+    Deser: Deserializer<'de>,
+{
+    let Some(Value::Object(entries)) = Option::<Value>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+    if entries.is_empty() {
+        return Ok(None);
+    }
+    let mut bins = BTreeMap::new();
+    for (name, value) in entries {
+        if !is_safe_bin_name(&name) {
+            return Ok(None);
+        }
+        let Ok(bin) = serde_json::from_value::<PackageBin>(value) else {
+            return Ok(None);
+        };
+        if !bin.is_valid() {
+            return Ok(None);
+        }
+        bins.insert(name, bin);
+    }
+    Ok(Some(bins))
 }
 
 #[cfg(test)]

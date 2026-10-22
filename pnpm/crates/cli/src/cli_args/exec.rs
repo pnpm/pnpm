@@ -168,7 +168,7 @@ pub(super) fn spawn_in_dir(
     process_tracker: Option<&ProcessTracker>,
 ) -> Result<ExitStatus, ExecError> {
     let mut cmd = command_in_dir(command, dirs, config, shell_mode)?;
-    let ScriptOutput::Streamed { dep_path, emit } = output else {
+    let ScriptOutput::Streamed { dep_path, emit, color } = output else {
         let mut child = spawn_child(&mut cmd, process_tracker)
             .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
         return child
@@ -177,6 +177,14 @@ pub(super) fn spawn_in_dir(
     };
     let wd = dirs.run.to_string_lossy();
     let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
+    if color
+        && std::env::var_os("FORCE_COLOR").is_none()
+        && !cmd
+            .get_envs()
+            .any(|(name, _)| name == "FORCE_COLOR")
+    {
+        cmd.env("FORCE_COLOR", "1");
+    }
     cmd.stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let mut child = spawn_child(&mut cmd, process_tracker)
@@ -284,7 +292,7 @@ pub(super) fn set_package_manager_env(
 pub(super) const EXEC_STAGE: &str = "(exec)";
 
 fn configured_node_options(config: &Config) -> Option<String> {
-    match config.node_options.as_deref() {
+    match config.exported_node_options() {
         Some(node_options) => {
             Some(pnpm_config::esm_node_path_loader::keep_esm_node_path_loader_option(
                 node_options,
@@ -324,7 +332,7 @@ fn command_search_path(
     if project != dir {
         prepend.push(project.join(&modules_dir_name).join(".bin"));
     }
-    prepend.extend(pnpm_python_installer::execution_paths(config, project).iter().cloned());
+    prepend.extend(crate::ecosystem_install::execution_paths(config, project).iter().cloned());
     prepend_dirs_to_path(&prepend).map_err(ExecError::from)
 }
 

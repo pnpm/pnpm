@@ -204,14 +204,16 @@ pub(crate) fn link_hoisted_modules_with_sources<Reporter: self::Reporter>(
     // installs have multiple importers; the
     // single-importer case has one and rayon's overhead is
     // negligible.
-    let LinkedLevel { imported: added, bins } = opts.hierarchy
-        .par_iter()
-        .map(|(parent_dir, deps_hierarchy)| {
-            link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
-        })
-        .collect::<Result<Vec<LinkedLevel>, _>>()?
-        .into_iter()
-        .fold(LinkedLevel::default(), LinkedLevel::merge);
+    let LinkedLevel { imported: added, bins } = crate::link_pool::in_link_pool(|| {
+        opts.hierarchy
+            .par_iter()
+            .map(|(parent_dir, deps_hierarchy)| {
+                link_all_pkgs_in_order::<Reporter>(deps_hierarchy, parent_dir, true, opts)
+            })
+            .collect::<Result<Vec<LinkedLevel>, _>>()
+    })?
+    .into_iter()
+    .fold(LinkedLevel::default(), LinkedLevel::merge);
 
     // The hoisted linker owns both of the install's `pnpm:stats`
     // emissions: pnpm emits `removed` from `linkHoistedModules` and the
@@ -534,7 +536,7 @@ fn import_node<Reporter: self::Reporter>(
             import_method,
             &node.dir,
             cas_paths,
-            hoisted_import_opts(files),
+            hoisted_import_opts(files, opts.import.swap_lock),
         )
         .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
     }
@@ -560,11 +562,15 @@ fn import_node<Reporter: self::Reporter>(
 /// nested `node_modules` other nodes were hoisted into. A directory
 /// dependency keeps its own symlinks. A missing mutable source leaves an
 /// existing directory alone, as it does for a virtual-store slot.
-fn hoisted_import_opts(files: &HoistedPackageFiles) -> ImportIndexedDirOpts {
+fn hoisted_import_opts<'a>(
+    files: &HoistedPackageFiles,
+    swap_lock: Option<&'a crate::ModulesSwapLock>,
+) -> ImportIndexedDirOpts<'a> {
     ImportIndexedDirOpts {
         force: files.source_exists || !files.source_is_mutable,
         keep_modules_dir: true,
         preserve_symlinks: files.source_is_mutable,
+        swap_lock,
         ..ImportIndexedDirOpts::default()
     }
 }

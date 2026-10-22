@@ -4,14 +4,16 @@
 //! already builds a registry client for publish. Mirrors the TypeScript
 //! `releasing/commands/src/publish/previousChangelog.ts`.
 
-use crate::cli_args::registry_client::build_registry_client;
+use crate::cli_args::registry_client::{
+    apply_auth_and_otp, auth_header_for_package, build_registry_client, package_endpoint_url,
+    resolve_registries_with_override, resolve_registry_for_package,
+};
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use miette::IntoDiagnostic;
 use pnpm_config::Config;
-use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials};
-use pnpm_registry::Package;
-use pnpm_resolving_npm_resolver::pick_registry_for_package;
+use pnpm_network::{ThrottledClient, redact_url_credentials};
+use pnpm_registry::{Package, PackageVersion};
 use pnpm_versioning::{
     ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
     read_pending_changelog, render_changelog,
@@ -173,18 +175,17 @@ async fn is_version_published(
     version: &str,
 ) -> miette::Result<bool> {
     let registry = registry_for(config, name);
-    let url = format!("{registry}{}", encode_package_name(name));
+    let url = package_endpoint_url(&registry, name).unwrap_or_else(|_| format!("{registry}{name}"));
     let guard = client.acquire_for_url(&url).await;
-    let mut request = guard
+    let request = guard
         .get(&url)
         .header(
             "accept",
             "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         );
-    if let Some(value) = config.auth_headers.for_url_with_package(&url, Some(name)) {
-        request = request.header("authorization", value);
-    }
-    let response = request.send().await.into_diagnostic()?;
+    let auth_header = auth_header_for_package(config, &url, name);
+    let response =
+        apply_auth_and_otp(request, auth_header.as_deref(), None).send().await.into_diagnostic()?;
     let status = response.status();
     if status.as_u16() == 404 {
         return Ok(false);
@@ -220,16 +221,12 @@ async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> 
         }
         VersionPick::PreviousTo(version) => previous_version(&package, version)?,
     };
-    let tarball_url = package.versions
-        .get(&version)?
-        .as_tarball_url()
-        .to_string();
+    let tarball_url =
+        tarball_url_of(config, &registry, name, &version, &*package.versions.get(&version)?);
     let guard = client.acquire_for_url(&tarball_url).await;
-    let mut request = guard.get(&tarball_url);
-    if let Some(value) = config.auth_headers.for_url_with_package(&tarball_url, Some(name)) {
-        request = request.header("authorization", value);
-    }
-    let response = request.send().await.ok()?;
+    let request = guard.get(&tarball_url);
+    let auth_header = auth_header_for_package(config, &tarball_url, name);
+    let response = apply_auth_and_otp(request, auth_header.as_deref(), None).send().await.ok()?;
     if !response.status().is_success() {
         return None;
     }
@@ -245,6 +242,31 @@ async fn fetch_changelog(config: &Config, name: &str, pick: VersionPick<'_>) -> 
         body.extend_from_slice(&chunk);
     }
     extract_entry(&body, CHANGELOG_ENTRY)
+}
+
+/// The version's tarball URL. A registry with a declared layout, such as a
+/// pnpr tar registry, may name none.
+fn tarball_url_of(
+    config: &Config,
+    registry: &str,
+    name: &str,
+    version: &str,
+    distribution: &PackageVersion,
+) -> String {
+    match distribution.as_tarball_url() {
+        "" => pnpm_lockfile::npm_tarball_url(
+            name,
+            version,
+            pnpm_lockfile::TarballUrlOptions {
+                registry,
+                server_type: pnpm_lockfile::registry_server_type(
+                    &config.registry_options_by_url,
+                    registry,
+                ),
+            },
+        ),
+        tarball_url => tarball_url.to_string(),
+    }
 }
 
 /// Highest published version of the package that is semver-lower than `version`.
@@ -265,19 +287,22 @@ fn previous_version(package: &Package, version: &str) -> Option<String> {
 /// The registry a package's metadata is read from, with the trailing slash
 /// the request paths are joined onto.
 fn registry_for(config: &Config, name: &str) -> String {
-    let registries: HashMap<String, String> = config
-        .resolved_registries()
-        .into_iter()
-        .collect();
-    let registry = pick_registry_for_package(&registries, name, None);
-    if registry.ends_with('/') { registry } else { format!("{registry}/") }
+    let registries = resolve_registries_with_override(config, None);
+    resolve_registry_for_package(&registries, name, None)
 }
 
 /// Reads one entry's contents out of a gzipped tarball buffer. Decompression is
 /// capped (see [`MAX_TARBALL_BYTES`]) by reading at most that many inflated
 /// bytes; a gzip bomb truncates past the cap and simply yields no entry.
-fn extract_entry(gzipped_tarball: &[u8], entry_name: &str) -> Option<String> {
-    let mut archive = Archive::new(GzDecoder::new(gzipped_tarball).take(MAX_TARBALL_BYTES));
+/// `tarball` is a `.tgz`, or the plain tar a tar registry serves.
+fn extract_entry(tarball: &[u8], entry_name: &str) -> Option<String> {
+    let reader: Box<dyn std::io::Read + '_> = if tarball.starts_with(&[0x1f, 0x8b]) {
+        Box::new(GzDecoder::new(tarball))
+    } else {
+        Box::new(tarball)
+    };
+    let mut archive = Archive::new(reader.take(MAX_TARBALL_BYTES));
+    archive.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     for entry in archive.entries().ok()? {
         let mut entry = entry.ok()?;
         if entry.path().ok()?.to_str() == Some(entry_name) {

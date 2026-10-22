@@ -4,7 +4,7 @@ import { parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
-import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
+import { getPatchInfo, groupPatchedDependencies, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import type { ResolutionPolicyViolation } from '@pnpm/resolving.resolver-base'
 import type {
   DependenciesField,
@@ -15,8 +15,8 @@ import type {
 import semver from 'semver'
 
 import { extendGraph } from './extendGraph.js'
-import { getCatalogSnapshots } from './getCatalogSnapshots.js'
-import { getWantedDependencies, type WantedDependency } from './getWantedDependencies.js'
+import { addCatalogEntriesOfImporters, getCatalogSnapshots } from './getCatalogSnapshots.js'
+import { getWantedDependencies, hasAlias, type ManifestWantedDependency, type WantedDependency } from './getWantedDependencies.js'
 import type { ResolvedPkgsById } from './resolutionTypes.js'
 import type { DependenciesTree, UpdateMatchingFunction } from './resolveDependencies.js'
 import {
@@ -46,12 +46,19 @@ export type DependenciesGraphNode = GenericDependenciesGraphNodeWithResolvedChil
 
 export {
   getWantedDependencies,
+  groupPatchedDependencies,
+  hasAlias,
   type LinkedDependency,
+  type ManifestWantedDependency,
   type RangeSpecStyle,
   type ResolvedPackage,
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { type DependencyManifestContext, lockedVersionSatisfies, prepareDependencyManifest } from './dependencyManifest.js'
+export { getNonDevWantedDependencies } from './getNonDevWantedDependencies.js'
+export { getPeerSet } from './resolvedPackage.js'
+export { getLockfilePeerDependencies } from './updateLockfile.js'
 export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
@@ -112,6 +119,7 @@ export type ResolveDependenciesOpts = ResolveDependenciesOptions & {
   saveWorkspaceProtocol: 'rolling' | boolean
   lockfileIncludeTarballUrl?: boolean
   allowUnusedPatches?: boolean
+  verifyPatches?: boolean
   enableGlobalVirtualStore?: boolean
   allProjectIds: string[]
   /**
@@ -252,6 +260,7 @@ async function resolvePeersOfProjects (
     virtualStoreDirMaxLength: opts.virtualStoreDirMaxLength,
     resolvePeersFromWorkspaceRoot: Boolean(opts.resolvePeersFromWorkspaceRoot),
     resolvedImporters: resolution.resolvedImporters,
+    wantedLockfile: opts.wantedLockfile,
     peersSuffixMaxLength: opts.peersSuffixMaxLength,
     workspaceProjectIds: new Set([...opts.allProjectIds, ...Object.keys(opts.wantedLockfile.importers)]),
   }
@@ -349,9 +358,17 @@ function createNewLockfile (
   newLockfile.catalogs = getCatalogSnapshots(
     Object.values(resolution.resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
+  addCatalogEntriesOfImporters(
+    newLockfile.catalogs,
+    Object.entries(newLockfile.importers)
+      .filter(([projectId]) => resolution.resolvedImporters[projectId] == null)
+      .map(([, importer]) => importer),
+    opts.wantedLockfile.catalogs
+  )
 
   if (
     opts.patchedDependencies &&
+    opts.verifyPatches !== false &&
     Object.keys(opts.wantedLockfile.importers).length === importersCount
   ) {
     verifyPatches({
@@ -385,7 +402,7 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
   return false
 }
 
-function getAppliedPatchKeys (
+export function getAppliedPatchKeys (
   lockfile: LockfileObject,
   patchedDependencies: PatchGroupRecord
 ): Set<string> {

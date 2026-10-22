@@ -54,7 +54,7 @@ use pnpm_tarball::{
     ArchiveStoreProjection, IngestTarballToStore, MemCache, SharedReportedProgressKeys,
     package_mem_cache_key,
 };
-use std::{marker::PhantomData, sync::Arc};
+use std::{future::Future, marker::PhantomData, sync::Arc};
 use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
@@ -88,6 +88,9 @@ pub struct PrefetchPolicy<'a> {
     pub downloads: bool,
     /// Consulted before downloading a tarball to learn its missing hash.
     pub custom_session: Option<&'a Arc<CustomFetcherSession>>,
+    /// Where a run that fetches into the store keeps the download tasks,
+    /// to wait for them; `None` spawns them detached.
+    pub tracked: Option<&'a Arc<crate::PrefetchDownloads>>,
 }
 
 /// Owned, `'static`-friendly clones of [`PrefetchContext`] stored on
@@ -116,6 +119,7 @@ struct PrefetchPlatform {
 struct PrefetchRunPolicy {
     downloads: bool,
     custom_session: Option<Arc<CustomFetcherSession>>,
+    tracked: Option<Arc<crate::PrefetchDownloads>>,
     ignore_scripts: bool,
 }
 
@@ -150,6 +154,8 @@ pub struct PrefetchingResolver<Reporter: self::Reporter> {
     spawned_downloads: DashSet<String>,
     /// Shares completed archive reads, including custom resolution rewrites.
     tarball_metadata_cache: DashMap<String, Arc<OnceCell<ResolvedTarballMetadata>>>,
+    /// Shares the tar integrity a read learned for a pinned archive.
+    tar_integrity_cache: DashMap<String, Arc<OnceCell<ssri::Integrity>>>,
     /// Shared with every prefetch task the resolver spawns.
     ctx: Arc<OwnedFetchCtx>,
     _phantom: PhantomData<fn() -> Reporter>,
@@ -167,6 +173,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             inner,
             spawned_downloads: DashSet::new(),
             tarball_metadata_cache: DashMap::new(),
+            tar_integrity_cache: DashMap::new(),
             ctx: Arc::new(ctx),
             _phantom: PhantomData,
         }
@@ -218,12 +225,17 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         }
 
         let package_id = format!("{}@{}", name_ver.name, name_ver.suffix);
+        let integrity_kind: pnpm_tarball::IntegrityKind =
+            result.resolution.integrity_target(self.ctx.config.lockfile_integrity_target).into();
         let package_url = package_url.to_string();
-        let package_unpacked_size = manifest_unpacked_size(result.package.manifest.as_deref());
-        let package_file_count = manifest_file_count(result.package.manifest.as_deref());
+        let dist_stats = (
+            manifest_unpacked_size(result.package.manifest.as_deref()),
+            manifest_file_count(result.package.manifest.as_deref()),
+        );
         let ctx = Arc::clone(&self.ctx);
+        let tracked_url = package_url.clone();
 
-        tokio::spawn(async move {
+        let download = async move {
             // Report prefetch progress through the install reporter as
             // soon as the fetch/cache-hit outcome is known. pnpm can
             // likewise start package fetching before the dependency
@@ -232,16 +244,35 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             let download = ctx.tarball_download(
                 &package_url,
                 &package_id,
-                Some(&integrity),
-                package_unpacked_size,
-                package_file_count,
+                (Some(&integrity), integrity_kind),
+                dist_stats.0,
+                dist_stats.1,
             );
-            let _ = if revision_addressed {
+            let fetched = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             } else {
                 download.run_with_mem_cache::<Reporter>(&ctx.mem_cache).await
             };
-        });
+            fetched.map(|_| ())
+        };
+        self.spawn_download(tracked_url, download);
+    }
+
+    /// A speculative prefetch drops the task's result: the `MemCache` slot
+    /// carries the outcome to the install pass that looks the archive up
+    /// later. A run that fetches into the store has no such pass and keeps
+    /// the task to wait for it.
+    fn spawn_download(
+        &self,
+        package_url: String,
+        download: impl Future<Output = crate::DownloadOutcome> + Send + 'static,
+    ) {
+        match &self.ctx.policy.tracked {
+            Some(tracked) => tracked.track(package_url, tokio::spawn(download)),
+            None => {
+                tokio::spawn(download);
+            }
+        }
     }
 
     /// Take the single download of this archive, returning `false` when
@@ -291,13 +322,17 @@ impl OwnedFetchCtx {
         &'a self,
         package_url: &'a str,
         package_id: &'a str,
-        package_integrity: Option<&'a ssri::Integrity>,
+        (package_integrity, integrity_kind): (
+            Option<&'a ssri::Integrity>,
+            pnpm_tarball::IntegrityKind,
+        ),
         package_unpacked_size: Option<usize>,
         package_file_count: Option<usize>,
     ) -> IngestTarballToStore<'a> {
         IngestTarballToStore {
             fetching: self.fetching.options(),
             package: pnpm_tarball::TarballPackage {
+                integrity_kind,
                 integrity: package_integrity,
                 unpacked_size: package_unpacked_size,
                 file_count: package_file_count,
@@ -329,6 +364,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
             crate::PrefetchPolicy {
                 downloads: prefetch_downloads,
                 custom_session: custom_fetcher_session,
+                tracked,
             },
     } = prefetch_ctx;
     OwnedFetchCtx {
@@ -347,6 +383,7 @@ fn owned_fetch_context(prefetch_ctx: &PrefetchContext<'_>) -> OwnedFetchCtx {
         policy: PrefetchRunPolicy {
             downloads: *prefetch_downloads,
             custom_session: custom_fetcher_session.cloned(),
+            tracked: tracked.cloned(),
             ignore_scripts: config.ignore_scripts,
         },
     }
@@ -361,8 +398,12 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         Box::pin(async move {
             let mut result = self.inner.resolve(wanted_dependency, opts).await?;
             if let Some(result_mut) = result.as_mut() {
-                self.populate_missing_tarball_metadata(result_mut, &opts.project.lockfile_dir)
-                    .await?;
+                let integrity_settled =
+                    self.populate_missing_tarball_metadata(result_mut, &opts.project.lockfile_dir)
+                        .await?;
+                if !integrity_settled {
+                    self.pin_tar_integrity(result_mut).await?;
+                }
                 if self.ctx.policy.downloads
                     && !self.should_skip_prefetch(wanted_dependency, result_mut)
                 {
@@ -388,6 +429,8 @@ fn is_remote_tarball(resolution: &LockfileResolution) -> bool {
 }
 
 mod archive_read;
+
+mod tar_integrity;
 
 #[cfg(test)]
 mod tests;

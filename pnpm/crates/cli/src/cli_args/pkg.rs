@@ -13,8 +13,9 @@ use pnpm_config::{
     property_path::{Segment, get_object_value_by_property_path, parse_property_path},
 };
 use pnpm_package_manifest::PackageManifest;
+use pnpm_resolving_git_resolver::HostedGit;
 use report_keys::{ReportIdentity, report_keys};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 use std::path::Path;
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -110,7 +111,7 @@ impl PkgArgs {
             PkgSubcommand::Get(args) => {
                 let output = pkg_get(manifest_path, &args.keys, self.json)?;
                 if !output.is_empty() {
-                    println!("{output}");
+                    pnpm_diagnostics::println!("{output}");
                 }
             }
             PkgSubcommand::Set(args) => {
@@ -222,7 +223,7 @@ fn print_recursive_get<'a>(
     }
     let output = serde_json::to_string_pretty(&Value::Object(entries))
         .map_err(|error| miette::miette!("{error}"))?;
-    println!("{output}");
+    pnpm_diagnostics::println!("{output}");
     Ok(())
 }
 
@@ -343,6 +344,26 @@ fn fix_manifest(value: &mut Value) {
         remove_ill_typed_field(obj, field, Value::is_object);
     }
     remove_ill_typed_field(obj, "bin", |bin| bin.is_string() || bin.is_object());
+    normalize_repository(obj);
+}
+
+/// Rewrite `repository` the way the `fixRepositoryField` step of
+/// `npm pkg fix` does: a non-empty string becomes a `{ "type": "git", "url" }`
+/// object, and a `url` on a recognised git host becomes
+/// [`HostedGit::normalized_repository_url`].
+fn normalize_repository(obj: &mut Map<String, Value>) {
+    let Some(repository) = obj.get_mut("repository") else { return };
+    if let Value::String(url) = repository
+        && !url.is_empty()
+    {
+        *repository = json!({ "type": "git", "url": std::mem::take(url) });
+    }
+    let Some(Value::String(url)) = repository.get_mut("url") else { return };
+    if let Some(normalized) =
+        HostedGit::from_url(url).and_then(|hosted| hosted.normalized_repository_url())
+    {
+        *url = normalized;
+    }
 }
 
 /// Drop a manifest field whose value is not of a shape pnpm can read.

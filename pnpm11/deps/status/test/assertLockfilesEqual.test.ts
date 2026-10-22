@@ -3,7 +3,7 @@ import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { DepPath, ProjectId } from '@pnpm/types'
 
-import { assertLockfilesEqual } from '../src/assertLockfilesEqual.js'
+import { assertLockfilesEqual, importerClosuresMatch } from '../src/assertLockfilesEqual.js'
 
 test('if wantedLockfile does not have any specifier, currentLockfile is allowed to be null', () => {
   assertLockfilesEqual(null, {
@@ -127,5 +127,43 @@ describe('after a filtered install', () => {
     changedWantedLockfile.importers['packages/a' as ProjectId].dependencies = { foo: '1.0.1' }
     expect(() => assertLockfilesEqual(currentLockfileOfPackageA(), changedWantedLockfile, { wantedLockfileDir: '<LOCKFILE_DIR>', filteredInstall: true }))
       .toThrow('The installed dependencies in the modules directory is not up-to-date')
+  })
+
+  test('importerClosuresMatch detects differences for an importer named constructor', () => {
+    const current = wantedLockfile()
+    current.importers['constructor' as ProjectId] = {
+      specifiers: { foo: '1.0.0' },
+      dependencies: { foo: '1.0.0' },
+    }
+    const wanted = wantedLockfile()
+    wanted.importers['constructor' as ProjectId] = {
+      specifiers: { bar: '1.0.0' },
+      dependencies: { bar: '1.0.0' },
+    }
+    expect(importerClosuresMatch(wanted, current, ['constructor' as ProjectId], {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    })).toBe(false)
+  })
+
+  test('importerClosuresMatch follows link: targets with Windows backslash separators', () => {
+    const current = wantedLockfile()
+    current.importers['packages/a' as ProjectId].dependencies = { b: 'link:..\\b' }
+    current.importers['packages/b' as ProjectId] = {
+      specifiers: { foo: '1.0.0' },
+      dependencies: { foo: '1.0.0' },
+    }
+    const wanted = wantedLockfile()
+    wanted.importers['packages/a' as ProjectId].dependencies = { b: 'link:..\\b' }
+    wanted.importers['packages/b' as ProjectId] = {
+      specifiers: { bar: '1.0.0' },
+      dependencies: { bar: '1.0.0' },
+    }
+    expect(importerClosuresMatch(wanted, current, ['packages/a' as ProjectId], {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    })).toBe(false)
   })
 })

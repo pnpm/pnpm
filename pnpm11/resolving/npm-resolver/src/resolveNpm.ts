@@ -12,11 +12,11 @@ import semver from 'semver'
 
 import { calcSpecifier } from './calcSpecifier.js'
 import { NoMatchingVersionError } from './NoMatchingVersionError.js'
-import { createRegistryTarballResolution, selectPackageRevision } from './packageRevision.js'
 import { parseBareSpecifier, type RegistryPackageSpec } from './parseBareSpecifier.js'
 import { pickPackageFromFetchedMeta, type PickPackageOptions } from './pickPackage.js'
 import { createPickPackageOptions } from './pickPackageOptions.js'
 import { warnOnceOnHeldBackUpdate } from './preferredVersionSelectors.js'
+import { createRegistryTarballResolution } from './registryTarballResolution.js'
 import { detectMinReleaseAgeViolation, latestAllowedByPolicy } from './releaseAgePolicy.js'
 import type {
   NpmResolveResult,
@@ -90,13 +90,12 @@ export async function resolveNpm (
     opts,
     spec,
     registry,
-    workspacePackages: workspacePackagesToTry(opts, spec),
+    workspacePackages: workspacePackagesToTry(opts),
   })
 }
 
-function workspacePackagesToTry (opts: ResolveFromNpmOptions, spec: RegistryPackageSpec): WorkspacePackages | undefined {
-  const canKeepWorkspaceResolution = opts.currentPkg == null || opts.currentPkg.resolution.type === 'directory'
-  return spec.revision == null && (!opts.updatePatches || canKeepWorkspaceResolution) && opts.alwaysTryWorkspacePackages !== false
+function workspacePackagesToTry (opts: ResolveFromNpmOptions): WorkspacePackages | undefined {
+  return opts.alwaysTryWorkspacePackages !== false
     ? opts.workspacePackages
     : undefined
 }
@@ -139,9 +138,7 @@ async function peekLockedPackageUnlessUpdating ({ ctx, opts, spec }: NpmSpecRequ
   if (
     opts.currentPkg == null ||
     opts.update ||
-    opts.updatePatches ||
     opts.updateChecksums ||
-    spec.revision != null ||
     opts.trustPolicy === 'no-downgrade'
   ) return undefined
   return peekLockedPackage(ctx, spec, opts.currentPkg)
@@ -186,7 +183,7 @@ function resolveFromPreferredWorkspacePackage (request: NpmSpecRequest): Workspa
     opts.updateChecksums ||
     isInjected
   ) return undefined
-  const workspacePkgsMatchingName = spec.revision == null ? workspacePackages.get(spec.name) : undefined
+  const workspacePkgsMatchingName = workspacePackages.get(spec.name)
   if (workspacePkgsMatchingName?.size !== 1) return undefined
   const localVersion = pickMatchingLocalVersionOrNull(workspacePkgsMatchingName, spec)
   if (localVersion == null) return undefined
@@ -270,7 +267,7 @@ function resolveFromWorkspacePackageMatchingPick (
   pickedPackage: PackageInRegistry
 ): WorkspaceResolveResult | undefined {
   const { opts, spec } = request
-  const workspacePkgsMatchingName = spec.revision == null ? request.workspacePackages?.get(pickedPackage.name) : undefined
+  const workspacePkgsMatchingName = request.workspacePackages?.get(pickedPackage.name)
   if (!workspacePkgsMatchingName || !opts.projectDir) return undefined
   const localOptions = localPackageResolutionOptions(request, {
     projectDir: opts.projectDir,
@@ -306,7 +303,7 @@ function localPackageResolutionOptions (
 }
 
 function createRegistryResolveResult (
-  { ctx, wantedDependency, opts, spec, registry }: NpmSpecRequest,
+  { ctx, wantedDependency, opts, spec }: NpmSpecRequest,
   picked: RegistryPick & {
     trustDowngradesSkipped: string[]
     latest: string | undefined
@@ -316,9 +313,8 @@ function createRegistryResolveResult (
   const { meta, pickedPackage, locked } = picked
   warnOnceOnTrustDowngradeFallback(ctx, spec.name, pickedPackage.version, picked.trustDowngradesSkipped)
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
-  const selectedPackage = selectPackageRevision(pickedPackage, spec, registry)
   const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
-  const resolution = createRegistryTarballResolution(selectedPackage.dist, registry)
+  const resolution = createRegistryTarballResolution(pickedPackage)
   const normalizedBareSpecifier = opts.calcSpecifier
     ? spec.normalizedBareSpecifier ?? calcSpecifier({
       wantedDependency,
@@ -336,7 +332,7 @@ function createRegistryResolveResult (
   return {
     id,
     latest: picked.latest,
-    manifest: keepsLockedPackage ? locked.manifest : selectedPackage,
+    manifest: keepsLockedPackage ? locked.manifest : pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
     publishedAt,

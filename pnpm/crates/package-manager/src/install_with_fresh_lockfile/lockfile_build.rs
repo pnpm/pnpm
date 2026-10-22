@@ -42,7 +42,7 @@ pub(super) async fn build_lockfile_phase<'a, Reporter: self::Reporter + 'static>
         pnpm_hooks::untracked_read_package_hook(resolved.hooks.after_all_resolved_hook.as_ref())
             .await
             .map_err(InstallWithFreshLockfileError::PnpmfileHook)?;
-    if install.execution.lockfile_only {
+    if install.execution.lockfile_only() {
         await_lockfile_gate(lockfile_verification_gate).await?;
     }
     let phase_start = std::time::Instant::now();
@@ -82,11 +82,6 @@ pub(super) fn build_resolved_lockfile<Reporter>(
     build_lockfile(FreshLockfileBuildOptions {
         inputs: FreshLockfileInputs {
             prior: crate::install_with_fresh_lockfile::resolution_inputs::FreshLockfilePrior {
-                importers: resolved.reuse.guard_previous_importers,
-                scope: resolved.reuse.guard_update_reuse_scope.clone(),
-                scopes_by_importer: resolved.reuse
-                    .guard_update_reuse_scopes_by_importer
-                    .clone(),
                 lockfile: views.wanted_lockfile,
             },
             resolution:
@@ -362,6 +357,10 @@ pub(super) fn build_fresh_lockfile(
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let importers = inputs.importer_entries();
     let registries_by_prefix = registries_by_prefix(inputs.config);
+    let registries: HashMap<String, String> = inputs.config
+        .resolved_registries()
+        .into_iter()
+        .collect();
     let config = inputs.config;
     dependencies_graph_to_lockfile(GraphToLockfileOptions {
         importers,
@@ -371,7 +370,7 @@ pub(super) fn build_fresh_lockfile(
         settings: crate::fast_update_settings::lockfile_settings_from_config(config),
         metadata_sources: crate::PackageMetadataSources {
             registry_options_by_url: &config.registry_options_by_url,
-            registry: &config.registry,
+            registries: &registries,
             registries_by_prefix: &registries_by_prefix,
             lockfile_include_tarball_url: config.lockfile_include_tarball_url,
             previous_packages: inputs.prior.lockfile.and_then(|lockfile| {
@@ -383,11 +382,6 @@ pub(super) fn build_fresh_lockfile(
             inputs.resolution.overrides,
             inputs.resolution.include_peer_dependencies,
         ),
-        reuse: crate::LockfileImporterReuse {
-            previous_importers: inputs.prior.importers,
-            scope: inputs.prior.scope,
-            scopes_by_importer: inputs.prior.scopes_by_importer,
-        },
     })
 }
 /// Same merge the resolver chain performs; the config was already

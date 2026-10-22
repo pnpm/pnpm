@@ -6,6 +6,16 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 /// names one.
 const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
+/// Whether config preparation owns removal of undeclared lockfile roots.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ConfigDepsInstallMode {
+    /// Prepare declared config dependencies for hooks, preserving locked roots
+    /// that diagnostic commands may still need to inspect.
+    Bootstrap,
+    /// Synchronize config dependencies with the declarations during installation.
+    Reconcile,
+}
+
 /// Handles and settings the config-dependency resolve/install pass
 /// needs. Assembled by the caller (the config-finalization seam) from
 /// the resolved [`pnpm_config::Config`] plus a network client, then
@@ -14,21 +24,35 @@ const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 /// Long-lived network/config handles remain borrowed from the caller. Store-index
 /// handles are shared so tarball materialization can read and persist cache rows.
 pub struct ConfigDepsInstallOptions<'a> {
+    pub verification: ConfigDependencyVerification<'a>,
     pub fetching: pnpm_tarball::ArchiveFetchOptions<'a>,
     pub platform: pnpm_package_is_installable::InstallabilityOptions<'a>,
     pub store: crate::ConfigDependencyStore,
-    pub store_index: Option<SharedReadonlyStoreIndex>,
-    pub store_index_writer: Option<Arc<StoreIndexWriter>>,
+    pub store_index: ConfigDependencyStoreIndex,
     /// `lockfileDir` — where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
-    /// `default` plus per-scope (`@scope`) registry entries.
-    pub registries: &'a HashMap<String, String>,
     /// `--frozen-lockfile`: refuse to mutate the env lockfile.
     pub frozen_lockfile: bool,
+    pub mode: ConfigDepsInstallMode,
 }
 
-impl ConfigDepsInstallOptions<'_> {
+#[derive(Default)]
+pub struct ConfigDependencyStoreIndex {
+    pub reader: Option<SharedReadonlyStoreIndex>,
+    pub writer: Option<Arc<StoreIndexWriter>>,
+}
+
+pub struct ConfigDependencyVerification<'a> {
+    /// `default` plus per-scope (`@scope`) registry entries.
+    pub registries: &'a HashMap<String, String>,
+    pub resolution_verifiers: Vec<Arc<dyn pnpm_resolving_resolver_base::ResolutionVerifier>>,
+    /// Applied when resolving a config dependency, so a resolution never
+    /// picks a version the resolution verifiers reject.
+    pub resolution_policy: pnpm_resolving_resolver_base::ResolutionPolicyOptions,
+}
+
+impl ConfigDependencyVerification<'_> {
     /// The install-wide default registry. Used to derive a config
     /// dependency's tarball URL when the lockfile stored an
     /// integrity-only (registry-form) resolution.
@@ -46,7 +70,9 @@ impl ConfigDepsInstallOptions<'_> {
         }
         self.default_registry()
     }
+}
 
+impl ConfigDepsInstallOptions<'_> {
     /// The `prefix`/`requester` string pnpm threads into fetch + log
     /// payloads — the install root.
     pub(crate) fn requester(&self) -> String {

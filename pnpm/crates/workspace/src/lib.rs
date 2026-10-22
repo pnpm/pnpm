@@ -12,6 +12,13 @@
 
 pub use api::{EnvVarOs, Host};
 pub use importer_id::importer_id_from_root_dir;
+pub use include::{
+    Delegation, INCLUDE_KEY, Include, IncludeError, IncludeSource, Ownership, PackageEntry,
+    SETTINGS_FORBIDDEN_TO_PACKAGES, SettingOwner, SettingSlot, WorkspaceIncludes,
+    WorkspaceManifestDocument, canonical_setting_name, config_dependency_dir,
+    load_workspace_manifest_document, merge_local_includes, read_workspace_manifest_document,
+    rebase_path, rebase_setting, rebase_specifier,
+};
 pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
@@ -37,6 +44,7 @@ pub use root_finder::{
 mod api;
 mod directory_patterns;
 mod importer_id;
+mod include;
 mod inventory;
 mod manifest;
 mod project_manifest;

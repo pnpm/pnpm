@@ -1,3 +1,7 @@
+pub(super) use fetcher::{Fetcher, checked_metadata_digests};
+
+mod fetcher;
+
 use super::{Index, host, host::Interpreter, host::Wheel, host::WheelMetadata};
 use futures_util::{StreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
@@ -115,14 +119,37 @@ impl Resolution {
     }
 }
 
-impl Registry<'_> {
-    pub(super) async fn fetch_index(&mut self, name: &PackageName) -> Result<()> {
-        self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
-        self.resolution.packages.excluded.insert(name.clone(), Excluded::default());
-        let index = self.index.select(name.as_ref())?;
-        let page = self.read_index(index, name).await?;
-        if !page.missing {
-            self.resolution.offer(name, &page)?;
+impl<'a> Registry<'a> {
+    pub(super) fn fetcher(&self) -> Fetcher<'a> {
+        Fetcher { config: self.config, client: self.client, index: self.index }
+    }
+
+    /// Whether this run has read the index page of `name` already, so
+    /// reading it again replays the cache that download wrote.
+    pub(super) fn replays_index(&self, name: &PackageName) -> bool {
+        self.config.offline || self.resolution.downloaded.contains(name)
+    }
+
+    /// Refuse an index wheel this target does not install, or one served
+    /// from where pnpm does not download.
+    pub(super) fn check_index_wheel(
+        &self,
+        wheel: &pnpm_python_resolver::LockedWheel,
+        name: &PackageName,
+        version: &Version,
+    ) -> Result<()> {
+        validate_wheel_identity(wheel, &self.resolution.target.tags, name, version)
+    }
+
+    /// Offer the resolution what the index page of `name` holds.
+    /// A page that cannot be read leaves `name` unrecorded, so asking for
+    /// it again reads it again.
+    pub(super) fn record_index(&mut self, name: &PackageName, page: &CachedIndex) -> Result<()> {
+        if page.missing {
+            self.resolution.packages.candidates.insert(name.clone(), BTreeMap::new());
+            self.resolution.packages.excluded.insert(name.clone(), Excluded::default());
+        } else {
+            self.resolution.offer(name, page)?;
         }
         self.resolution.downloaded.insert(name.clone());
         if self.resolution.packages.candidates[name]
@@ -136,53 +163,6 @@ impl Registry<'_> {
             self.resolution.packages.metadata.retain(|(distribution, _), _| distribution != name);
         }
         Ok(())
-    }
-
-    /// The Simple JSON index page for `name`: from the cache when this
-    /// run already downloaded it, or an offline resolution is reading
-    /// what an earlier run left behind, and from the index otherwise.
-    async fn read_index(&self, index: &Url, name: &PackageName) -> Result<CachedIndex> {
-        let index_url = index
-            .join(&format!("{name}/"))
-            .into_diagnostic()?;
-        let cache = self.config.cache_dir
-            .join("python-index-v3")
-            .join(format!("{}.json", self.index.cache_key(&index_url)));
-        let replayed = self.config.offline || self.resolution.downloaded.contains(name);
-        let cached = if replayed {
-            read_cached_index(&cache, name).await?
-        } else {
-            self.download_index(&index_url, name).await?
-        };
-        if cached.body.get().len() > MAX_INDEX_BYTES {
-            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
-        }
-        if !replayed {
-            tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
-                .await
-                .into_diagnostic()?;
-            let contents = serde_json::to_vec(&cached).into_diagnostic()?;
-            if contents.len() > MAX_CACHE_BYTES {
-                bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
-            }
-            pnpm_fs::write_atomic(&cache, &contents).into_diagnostic()?;
-        }
-        Ok(cached)
-    }
-
-    /// Fetch the Simple JSON index for `name` from the configured index.
-    async fn download_index(&self, index_url: &Url, name: &PackageName) -> Result<CachedIndex> {
-        let response = self.client
-            .get_limited_bytes_with_secure_auth_and_retry(
-                index_url.as_str(),
-                &self.index.auth,
-                Some("application/vnd.pypi.simple.v1+json"),
-                self.config.retry_opts(),
-                MAX_INDEX_BYTES,
-            )
-            .await
-            .into_diagnostic()?;
-        CachedIndex::from_response(name, &response)
     }
 
     pub(super) async fn fetch_wheel<Reporter: self::Reporter + 'static>(
@@ -219,6 +199,33 @@ impl Registry<'_> {
                 }
             }
         }
+        self.download_wheels::<Reporter>(wanted).await?;
+        self.record_sources(&[])?;
+        self.fetch_vcs::<Reporter>(requirements).await?;
+        self.build_sdists::<Reporter>().await?;
+        Ok(())
+    }
+
+    /// Download the wheels a solution selects that this run has not, which
+    /// are the ones resolution read the metadata of from the index.
+    pub(super) async fn fetch_selected_wheels<Reporter: self::Reporter + 'static>(
+        &mut self,
+        solution: &BTreeMap<PackageName, Version>,
+    ) -> Result<()> {
+        let wanted = solution
+            .iter()
+            .filter(|(name, version)| {
+                !self.wheels.contains_key(&((*name).clone(), (*version).clone()))
+            })
+            .map(|(name, version)| (name.clone(), version.clone()))
+            .collect();
+        self.download_wheels::<Reporter>(wanted).await
+    }
+
+    async fn download_wheels<Reporter: self::Reporter + 'static>(
+        &mut self,
+        wanted: Vec<(PackageName, Version)>,
+    ) -> Result<()> {
         let registry = &*self;
         let results = stream::iter(wanted.into_iter().enumerate())
             .map(|(position, (name, version))| async move {
@@ -234,9 +241,6 @@ impl Registry<'_> {
         for ((name, version), wheel) in results.into_values().collect::<Result<Vec<_>>>()? {
             self.remember(name, version, wheel);
         }
-        self.record_sources(&[])?;
-        self.fetch_vcs::<Reporter>(requirements).await?;
-        self.build_sdists::<Reporter>().await?;
         Ok(())
     }
 
@@ -294,6 +298,7 @@ impl Registry<'_> {
                 auth_headers: &self.index.auth,
                 retry_opts: self.config.retry_opts(),
                 offline: self.config.offline,
+                tar_limits: self.config.tar_limits(),
             },
             package: pnpm_tarball::ZipArchivePackage {
                 max_bytes: Some(super::sources::MAX_WHEEL_BYTES),

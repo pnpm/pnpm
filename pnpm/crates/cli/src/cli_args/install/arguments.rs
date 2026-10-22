@@ -41,6 +41,20 @@ pub struct InstallLockfileArgs {
     pub ignore_manifest_check: bool,
 }
 
+impl InstallLockfileArgs {
+    /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
+    /// line, or `None` when neither spelling was.
+    pub(crate) fn frozen_flag(&self) -> Option<bool> {
+        if self.frozen {
+            Some(true)
+        } else if self.no_frozen {
+            Some(false)
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, clap::Args)]
 pub struct LockfileUpdateArgs {
     #[clap(flatten)]

@@ -48,9 +48,40 @@ impl BlobWrite {
         }
     }
 
+    /// Read back what was written through `check` on a blocking thread and
+    /// return its verdict. The handle stays open, so the bytes checked are the
+    /// bytes later promoted or streamed.
+    pub async fn check(
+        &mut self,
+        check: impl FnOnce(&mut std::fs::File) -> bool + Send + 'static,
+    ) -> std::io::Result<bool> {
+        let Some(mut file) = self.file.take() else {
+            return Err(std::io::Error::other("blob cache writer is closed"));
+        };
+        file.flush().await?;
+        file.seek(SeekFrom::Start(0)).await?;
+        let mut std_file = file.into_std().await;
+        let (std_file, verdict) = tokio::task::spawn_blocking(move || {
+            let verdict = check(&mut std_file);
+            (std_file, verdict)
+        })
+        .await
+        .map_err(std::io::Error::other)?;
+        let mut file = fs::File::from_std(std_file);
+        file.seek(SeekFrom::End(0)).await?;
+        self.file = Some(file);
+        Ok(verdict)
+    }
+
     /// Sync the file to disk and rename it to its final cache path.
     pub async fn finalize(self) -> std::io::Result<()> {
         self.seal().await?.promote().await
+    }
+
+    /// The cache path [`Self::finalize`] promotes this write to.
+    #[must_use]
+    pub fn final_path(&self) -> &super::Path {
+        &self.final_path
     }
 
     /// Sync the file to disk and close it, leaving it unpromoted.

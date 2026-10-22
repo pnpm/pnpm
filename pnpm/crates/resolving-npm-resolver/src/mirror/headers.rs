@@ -39,20 +39,6 @@ impl MetaHeaders {
             uncacheable,
         }
     }
-
-    /// The headers an abbreviated mirror records for the full document
-    /// `meta`, tagged `full_etag`.
-    #[must_use]
-    pub fn for_full_meta_in_abbreviated_mirror(
-        meta: &Package,
-        full_etag: Option<&str>,
-        uncacheable: bool,
-    ) -> Self {
-        MetaHeaders {
-            full_etag: full_etag.map(str::to_string),
-            ..Self::new(meta, None, uncacheable)
-        }
-    }
 }
 
 fn meta_modified(meta: &Package) -> Option<String> {

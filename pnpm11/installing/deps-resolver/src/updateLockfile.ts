@@ -7,13 +7,15 @@ import {
 } from '@pnpm/lockfile.pruner'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
-import type { DepPath, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
+import type { DepPath, ProjectManifest, RegistriesByScope, RegistryContext, RegistryServerType } from '@pnpm/types'
 import type { KeyValuePair } from 'ramda'
 import { equals, partition } from 'ramda'
 
 import { depPathToRef } from './depPathToRef.js'
 import type { DependenciesGraph } from './index.js'
+import type { PeerDependencies } from './resolutionTypes.js'
 import type { ResolvedPackage } from './resolveDependencies.js'
+import { getPeerSet } from './resolvedPackage.js'
 
 export function updateLockfile (
   { dependenciesGraph, lockfile, prefix, registriesByScope, registriesByPrefix, registryOptionsByUrl, lockfileIncludeTarballUrl }: RegistryContext & {
@@ -27,7 +29,7 @@ export function updateLockfile (
   const mergedRegistriesByPrefix = normalizeRegistriesByPrefix(registriesByPrefix)
   for (const [depPath, depNode] of Object.entries(dependenciesGraph)) {
     const [updatedOptionalDeps, updatedDeps] = partition(
-      (child) => depNode.optionalDependencies.has(child.alias) || depNode.peerDependencies[child.alias]?.optional === true,
+      (child) => depNode.optionalDependencies.has(child.alias) || depNode.peers.taken[child.alias]?.optional === true,
       Object.entries<DepPath>(depNode.children).map(([alias, depPath]) => ({ alias, depPath }))
     )
     // The registry decides whether the tarball URL is canonical (and can be
@@ -101,7 +103,7 @@ function toLockfileDependency (
   if (pkg.transitivePeerDependencies.size) {
     result['transitivePeerDependencies'] = Array.from(pkg.transitivePeerDependencies).sort()
   }
-  addPeerDependencies(result, pkg.peerDependencies ?? {})
+  Object.assign(result, toLockfilePeerDependencies(pkg.peers.declared))
   addPlatformRequirements(result, pkg.additionalInfo)
   const deprecated = getDeprecationToRecord(opts.prevSnapshot, lockfileResolution, pkg.additionalInfo.deprecated)
   if (deprecated != null) {
@@ -183,11 +185,21 @@ function shouldRecordVersion (
     )
 }
 
-function addPeerDependencies (
-  result: PackageSnapshot,
-  peerDependencies: NonNullable<ResolvedPackage['peerDependencies']>
-): void {
-  if (Object.keys(peerDependencies).length === 0) return
+/**
+ * The `peerDependencies` and `peerDependenciesMeta` a `packages:` entry
+ * records for the peers `manifest` declares. Every declared peer is recorded,
+ * whether or not an install takes it, so the entry is the same in every scope
+ * the package resolves in.
+ *
+ * An optional peer is listed in both blocks. Both blocks are absent when
+ * `manifest` declares no peers.
+ */
+export function getLockfilePeerDependencies (manifest: ProjectManifest): Pick<PackageSnapshot, 'peerDependencies' | 'peerDependenciesMeta'> {
+  return toLockfilePeerDependencies(getPeerSet(manifest).declared)
+}
+
+function toLockfilePeerDependencies (peerDependencies: PeerDependencies): Pick<PackageSnapshot, 'peerDependencies' | 'peerDependenciesMeta'> {
+  if (Object.keys(peerDependencies).length === 0) return {}
   const peerPkgs: Record<string, string> = {}
   const normalizedPeerDependenciesMeta: Record<string, { optional: true }> = {}
   for (const [peer, { version, optional }] of Object.entries(peerDependencies)) {
@@ -196,10 +208,9 @@ function addPeerDependencies (
       normalizedPeerDependenciesMeta[peer] = { optional: true }
     }
   }
-  result['peerDependencies'] = peerPkgs
-  if (Object.keys(normalizedPeerDependenciesMeta).length > 0) {
-    result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
-  }
+  return Object.keys(normalizedPeerDependenciesMeta).length > 0
+    ? { peerDependencies: peerPkgs, peerDependenciesMeta: normalizedPeerDependenciesMeta }
+    : { peerDependencies: peerPkgs }
 }
 
 function addPlatformRequirements (result: PackageSnapshot, additionalInfo: AdditionalInfo): void {

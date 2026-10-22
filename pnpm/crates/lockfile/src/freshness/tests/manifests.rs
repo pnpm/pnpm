@@ -55,6 +55,43 @@ fn equivalent_git_specifiers_satisfy_manifest() {
 }
 
 #[test]
+fn tool_and_runtime_specifiers_satisfy_each_other() {
+    for (locked, declared) in [("runtime:22.0.0", "tool:22.0.0"), ("tool:22.0.0", "runtime:22.0.0")]
+    {
+        let lockfile: Lockfile = serde_saphyr::from_str(&format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      node:\n        specifier: {locked}\n        version: runtime:22.0.0\n",
+        ))
+        .expect("parse fixture lockfile");
+        let importer = lockfile.root_project().expect("root importer present");
+        let (_dir, manifest) = manifest_from_json(&format!(
+            r#"{{ "name": "x", "version": "1.0.0", "dependencies": {{ "node": "{declared}" }} }}"#,
+        ));
+        satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+            .unwrap_or_else(|reason| panic!("{locked} must satisfy {declared}: {reason:?}"));
+    }
+}
+
+#[test]
+fn different_tool_selectors_do_not_satisfy_manifest() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "importers:"
+        "  .:"
+        "    dependencies:"
+        "      node:"
+        "        specifier: runtime:22.0.0"
+        "        version: runtime:22.0.0"
+    })
+    .expect("parse fixture lockfile");
+    let importer = lockfile.root_project().expect("root importer present");
+    let (_dir, manifest) = manifest_from_json(
+        r#"{ "name": "x", "version": "1.0.0", "dependencies": { "node": "tool:24.0.0" } }"#,
+    );
+    satisfies_package_manifest(importer, &manifest, true, &|_: &str| false)
+        .expect_err("a different selector must not satisfy the manifest");
+}
+
+#[test]
 fn different_git_specifiers_do_not_satisfy_manifest() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
         "lockfileVersion: '9.0'"

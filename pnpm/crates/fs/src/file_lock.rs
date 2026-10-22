@@ -5,33 +5,38 @@
 //! `File::try_lock` return `Unsupported`, although Android has `flock`.
 //! These functions call `flock` there and the standard library elsewhere.
 
+use crate::LockMode;
 use std::{
     fs::{File, TryLockError},
     io,
 };
 
-/// Block until this handle holds an exclusive or a shared lock on `file`.
+/// Block until this handle holds the lock.
 #[cfg(not(target_os = "android"))]
-pub fn lock_file(file: &File, exclusive: bool) -> io::Result<()> {
-    if exclusive { file.lock() } else { file.lock_shared() }
+pub fn lock_file(file: &File, mode: LockMode) -> io::Result<()> {
+    match mode {
+        LockMode::Exclusive => file.lock(),
+        LockMode::Shared => file.lock_shared(),
+    }
 }
 
-/// Take an exclusive or a shared lock on `file` if no other handle holds
-/// a conflicting one.
+/// Take the lock if no other handle holds a conflicting one.
 #[cfg(not(target_os = "android"))]
-pub fn try_lock_file(file: &File, exclusive: bool) -> Result<(), TryLockError> {
-    if exclusive { file.try_lock() } else { file.try_lock_shared() }
+pub fn try_lock_file(file: &File, mode: LockMode) -> Result<(), TryLockError> {
+    match mode {
+        LockMode::Exclusive => file.try_lock(),
+        LockMode::Shared => file.try_lock_shared(),
+    }
 }
 
 #[cfg(target_os = "android")]
-pub fn lock_file(file: &File, exclusive: bool) -> io::Result<()> {
-    flock(file, if exclusive { libc::LOCK_EX } else { libc::LOCK_SH })
+pub fn lock_file(file: &File, mode: LockMode) -> io::Result<()> {
+    flock(file, flock_operation(mode))
 }
 
 #[cfg(target_os = "android")]
-pub fn try_lock_file(file: &File, exclusive: bool) -> Result<(), TryLockError> {
-    let operation = if exclusive { libc::LOCK_EX } else { libc::LOCK_SH };
-    flock(file, operation | libc::LOCK_NB)
+pub fn try_lock_file(file: &File, mode: LockMode) -> Result<(), TryLockError> {
+    flock(file, flock_operation(mode) | libc::LOCK_NB)
         .map_err(|error| {
             if error.kind() == io::ErrorKind::WouldBlock {
                 TryLockError::WouldBlock
@@ -39,6 +44,14 @@ pub fn try_lock_file(file: &File, exclusive: bool) -> Result<(), TryLockError> {
                 TryLockError::Error(error)
             }
         })
+}
+
+#[cfg(target_os = "android")]
+fn flock_operation(mode: LockMode) -> libc::c_int {
+    match mode {
+        LockMode::Exclusive => libc::LOCK_EX,
+        LockMode::Shared => libc::LOCK_SH,
+    }
 }
 
 #[cfg(target_os = "android")]

@@ -3,6 +3,7 @@ use super::{
     Path, StoreDir, default_state_dir, lexical_normalize, resolve_child_concurrency, setting_value,
     verify_deps_env_is_set,
 };
+use pnpm_config::NodePackageMapMode;
 
 pub(crate) fn apply_store_dir_override<Sys>(
     config: &mut Config,
@@ -92,25 +93,6 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
         .map(Path::new)
 }
 
-/// Layer a registry URL (the universal `--registry` flag or a
-/// `--config.registry=<url>` override) onto `config`, setting the default
-/// registry everywhere it is read: the resolved registry, the `default`
-/// entry of the named-registry map, and the package-manager bootstrap
-/// copies of both. The URL is normalized to a trailing slash first, so an
-/// already-normalized override applies idempotently.
-pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
-    let registry = normalize_registry_url(registry);
-    config.registry.clone_from(&registry);
-    config.registries_by_scope.insert("default".to_string(), registry.clone());
-    config.package_manager_bootstrap.registry.clone_from(&registry);
-    config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
-    config.cli_settings.insert("registry".to_string());
-}
-
-pub(super) fn normalize_registry_url(registry: &str) -> String {
-    if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
 impl ConfigOverrides {
     fn record_cli_settings(&self, config: &mut Config) {
         config.cli_settings.extend(
@@ -134,7 +116,6 @@ impl ConfigOverrides {
     /// relative path-valued setting outside a workspace.
     pub fn apply(&self, config: &mut Config, dir: &Path) {
         self.record_cli_settings(config);
-        config.raw_cli_config.clone_from(&self.raw_cli_config);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -146,7 +127,7 @@ impl ConfigOverrides {
         self.apply_recursive_list_overrides(config);
         self.apply_hoist_overrides(config);
         self.apply_deploy_overrides(config);
-        self.apply_registry_overrides(config);
+        self.apply_scope_override(config);
         record_overrides!(self, config, ignore_scripts => "ignoreScripts");
         record_overrides!(self, config, inject_workspace_packages => "injectWorkspacePackages");
         self.apply_socket_and_release_age_overrides(config);
@@ -243,11 +224,20 @@ impl ConfigOverrides {
             config,
             lockfile_include_tarball_url => "lockfileIncludeTarballUrl",
             merge_git_branch_lockfiles => "mergeGitBranchLockfiles",
-            node_experimental_package_map => "nodeExperimentalPackageMap",
             offline => "offline",
             prefer_frozen_lockfile => "preferFrozenLockfile",
             prefer_offline => "preferOffline",
+            prune_direct_dependencies => "pruneDirectDependencies",
         );
+        // `--config.node-package-map-mode` reaches the config through
+        // `Config::current` before these overrides run, so the deprecated
+        // flag must not overwrite it.
+        if let Some(value) = self.node_experimental_package_map
+            && !self.unported.contains_key("node-package-map-mode")
+        {
+            config.node_package_map_mode = NodePackageMapMode::from_experimental_flag(value);
+            config.explicit_settings.insert("nodeExperimentalPackageMap".to_string(), value.into());
+        }
         record_enum_overrides!(self, config, save_workspace_protocol => "saveWorkspaceProtocol");
         record_overrides!(self, config, verify_store_integrity => "verifyStoreIntegrity");
     }
@@ -307,16 +297,9 @@ impl ConfigOverrides {
         }
     }
 
-    fn apply_registry_overrides(&self, config: &mut Config) {
-        if let Some(registry) = &self.registry {
-            apply_registry_override(config, registry);
-        }
+    fn apply_scope_override(&self, config: &mut Config) {
         if let Some(scope) = &self.scope {
             config.scope = Some(scope.clone());
-        }
-        for (scope, registry) in &self.registries {
-            config.registries_by_scope.insert(scope.clone(), registry.clone());
-            config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
         }
     }
 

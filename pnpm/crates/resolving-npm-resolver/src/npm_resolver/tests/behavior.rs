@@ -281,7 +281,7 @@ async fn explicit_current_revision_accepts_its_matching_history_record() {
 }
 
 #[tokio::test]
-async fn explicit_original_revision_omits_the_lockfile_revision() {
+async fn explicit_original_revision_records_revision_zero() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     server
@@ -304,13 +304,93 @@ async fn explicit_original_revision_omits_the_lockfile_revision() {
     let LockfileResolution::Tarball(resolution) = &result.resolution else {
         panic!("expected tarball resolution");
     };
-    assert_eq!(resolution.revision, None);
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(0));
+    assert!(resolution.tarball.ends_with("/-/tarballs/sha512/H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ"));
     assert_eq!(
         result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
             "original": "1.0.0",
         }),
     );
+}
+
+#[tokio::test]
+async fn selected_revision_zero_is_resolved_from_the_digest_route() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_package_body(&tarball, &json!(0)))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let result = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .unwrap()
+        .unwrap();
+
+    let LockfileResolution::Tarball(resolution) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(resolution.tarball, tarball);
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(0));
+}
+
+#[tokio::test]
+async fn incomplete_revision_metadata_is_rejected() {
+    for (case, edit) in [
+        ("history without a selected revision", "remove-revision"),
+        ("selected revision without revision 0", "remove-original"),
+        ("digest URL without revision metadata", "remove-both"),
+        ("digest URL of another archive without revision metadata", "remove-both-mismatched"),
+    ] {
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+        let mut body: serde_json::Value =
+            serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
+        let dist = body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
+        match edit {
+            "remove-revision" => {
+                dist.remove("revision");
+            }
+            "remove-original" => {
+                dist["revisions"]
+                    .as_array_mut()
+                    .unwrap()
+                    .remove(0);
+            }
+            "remove-both" => {
+                dist.remove("revision");
+                dist.remove("revisions");
+            }
+            "remove-both-mismatched" => {
+                dist.remove("revision");
+                dist.remove("revisions");
+                dist.insert("integrity".to_string(), json!(format!("sha512-{}==", "B".repeat(86))));
+            }
+            _ => unreachable!(),
+        }
+        server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(body.to_string())
+            .create_async()
+            .await;
+        let (resolver, _tempdir) = build_resolver(&registry);
+        let wanted =
+            WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+        let result = resolver.resolve(&wanted, &ResolveOptions::default()).await;
+
+        assert!(result.is_err(), "{case} must fail the resolve; got {result:?}");
+    }
 }
 
 #[tokio::test]
@@ -742,14 +822,17 @@ async fn store_peek_bypassed_when_the_current_version_is_reopened() {
     mock.assert_async().await;
 }
 
+/// An exact spec has one answer, but the store's copy of its `package.json`
+/// is not the metadata a fresh resolution reads. Skipping the request here
+/// makes `pnpm dedupe` write a different lockfile than `pnpm install`.
 #[tokio::test]
-async fn reopened_exact_version_still_peeks_the_store() {
+async fn reopened_exact_version_reads_registry_metadata_over_a_disagreeing_store() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/acme")
         .with_status(200)
         .with_body(PACKAGE_BODY)
-        .expect(0)
+        .expect(1)
         .create_async()
         .await;
     let registry = format!("{}/", server.url());
@@ -767,6 +850,7 @@ async fn reopened_exact_version_still_peeks_the_store() {
                 manifest: Some(json!({
                     "name": "acme",
                     "version": "1.0.0",
+                    "peerDependencies": { "peer": "*" },
                 })),
                 ..Default::default()
             },
@@ -808,9 +892,12 @@ async fn reopened_exact_version_still_peeks_the_store() {
         .resolve(&wanted, &opts)
         .await
         .unwrap()
-        .expect("should resolve the locked version from the store");
+        .expect("should resolve the locked version");
     let name_ver = result.package.name_ver.as_ref().expect("name_ver");
     assert_eq!(name_ver.suffix.to_string(), "1.0.0");
+    let manifest = result.package.manifest.as_deref().expect("manifest");
+    dbg!(manifest);
+    assert!(manifest.get("peerDependencies").is_none());
     mock.assert_async().await;
 }
 
@@ -857,7 +944,7 @@ async fn offline_repick_keeps_a_missing_tag_unresolved() {
         .await
         .unwrap()
         .expect("warms the metadata cache");
-    resolver.cache_policy.offline = true;
+    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
 
     let wanted = WantedDependency {
         alias: Some("acme".to_string()),
@@ -910,7 +997,7 @@ async fn offline_reopened_version_falls_back_to_the_store() {
         .await;
     let registry = format!("{}/", server.url());
     let (mut resolver, _tempdir) = build_resolver(&registry);
-    resolver.cache_policy.offline = true;
+    resolver.cache_policy.network = pnpm_config::NetworkPolicy::Offline;
 
     let store_dir = tempfile::TempDir::new().unwrap();
     let index = pnpm_store_dir::StoreIndex::open(store_dir.path()).unwrap();

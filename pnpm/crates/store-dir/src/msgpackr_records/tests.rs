@@ -169,6 +169,7 @@ fn round_trips_plain_msgpack_through_transcoder() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = rmp_serde::to_vec_named(&original).unwrap();
     let transcoded = transcode_to_plain_msgpack(&bytes).unwrap();
@@ -302,6 +303,7 @@ fn encode_emits_record_header_for_top_level_struct() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     assert_eq!(&bytes[0..3], &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT]);
@@ -319,6 +321,7 @@ fn encode_roundtrips_single_file() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -337,6 +340,7 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers = bytes
@@ -369,6 +373,7 @@ fn encode_handles_fixint_in_slot_range_safely() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original).files.get("f").unwrap().size, 0x7b);
 }
@@ -385,6 +390,7 @@ fn encode_omits_checked_at_when_none() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let needle = b"checkedAt";
@@ -411,6 +417,7 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers = bytes
@@ -434,6 +441,7 @@ fn encode_requires_build_when_set() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let roundtripped = roundtrip(&original);
     assert_eq!(roundtripped.requires_build, Some(true));
@@ -449,6 +457,7 @@ fn encode_requires_prepare_when_set() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let roundtripped = roundtrip(&original);
     assert_eq!(roundtripped.requires_prepare, Some(true));
@@ -474,6 +483,7 @@ fn encode_outer_field_order_matches_msgpackr() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     // Find the outer schema bytes: after `d4 72 40` (fixext1 +
@@ -504,6 +514,7 @@ fn encode_omits_requires_build_when_none() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     let needle = b"requiresBuild";
@@ -538,6 +549,7 @@ fn encode_side_effects_roundtrip() {
         files,
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -582,6 +594,16 @@ fn encode_remote_side_effects_origin_and_quarantine_roundtrip() {
 }
 
 #[test]
+fn tar_integrity_roundtrips() {
+    let original = PackageFilesIndex {
+        algo: "sha512".to_string(),
+        tar_integrity: Some("sha512-tar".to_string()),
+        ..Default::default()
+    };
+    assert_eq!(roundtrip(&original), original);
+}
+
+#[test]
 fn encode_side_effects_with_only_added_omits_deleted_field() {
     let mut added = HashMap::new();
     added.insert("foo.so".to_string(), sample_cafs(42, true));
@@ -598,6 +620,7 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
         files: HashMap::new(),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     assert!(
@@ -634,6 +657,7 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
         files: HashMap::new(),
         side_effects: Some(side_effects),
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers = bytes
@@ -681,6 +705,7 @@ fn encode_roundtrips_simple_manifest() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -708,6 +733,7 @@ fn encode_record_encodes_nested_objects_in_manifest() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
 
@@ -743,6 +769,7 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     let record_defs = bytes
@@ -784,6 +811,7 @@ fn encode_roundtrips_all_json_value_kinds() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&idx), idx);
 }
@@ -803,6 +831,7 @@ fn encode_roundtrips_manifest_with_other_fields() {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     assert_eq!(roundtrip(&original), original);
 }

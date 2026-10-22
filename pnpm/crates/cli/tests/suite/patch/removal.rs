@@ -1,6 +1,6 @@
 use super::{
-    AddMockedRegistry, CommandTempCwd, append_unused_filtered_patch, fs, pacquet,
-    setup_configured_patch, setup_configured_patch_with_allow_unused,
+    AddMockedRegistry, CommandTempCwd, append_unused_filtered_patch, append_workspace_yaml_key, fs,
+    pacquet, setup_configured_patch, setup_configured_patch_with_allow_unused,
     setup_configured_patch_with_yaml, setup_filtered_patch_workspace, setup_patch_remove_project,
 };
 use assert_cmd::assert::OutputAssertExt;
@@ -346,6 +346,29 @@ fn unused_patch_is_checked_for_a_complete_root_augmented_filtered_install() {
     assert!(
         stderr.contains("ERR_PNPM_UNUSED_PATCH"),
         "complete filtered install should run the unused-patch check: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn unused_patch_fails_in_workspace_with_per_project_lockfiles_when_no_project_uses_it() {
+    let (root, workspace, npmrc_info) = setup_filtered_patch_workspace();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    append_unused_filtered_patch(&workspace);
+    append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", "false");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "install with unused patch should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_UNUSED_PATCH"),
+        "stderr should contain ERR_PNPM_UNUSED_PATCH: {stderr}",
+    );
+    assert!(
+        stderr.contains("is-negative@1.0.0"),
+        "stderr should mention the unused patch key: {stderr}",
     );
 
     drop((root, mock_instance));

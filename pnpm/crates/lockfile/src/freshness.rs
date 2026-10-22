@@ -15,6 +15,11 @@
 
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
+pub use recorded_settings::{
+    auto_install_peers_changed, exclude_links_from_lockfile_changed,
+    recorded_add_missing_peer_types, recorded_dedupe_peers, recorded_inject_workspace_packages,
+    recorded_peers_suffix_max_length,
+};
 pub use spec_diff::SpecDiff;
 
 use crate::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
@@ -31,6 +36,7 @@ pub struct LockfileSettingsCheck<'a> {
     pub package_extensions_checksum: Option<&'a str>,
     pub ignored_optional_dependencies: Option<&'a [String]>,
     pub patched_dependencies: Option<&'a BTreeMap<String, String>>,
+    pub integrity_target: crate::IntegrityTarget,
     pub resolution: ResolutionSettingsCheck<'a>,
 }
 
@@ -39,6 +45,7 @@ pub struct ResolutionSettingsCheck<'a> {
     pub auto_install_peers: bool,
     pub dedupe_peers: bool,
     pub exclude_links_from_lockfile: bool,
+    pub add_missing_peer_types: bool,
     pub inject_workspace_packages: bool,
     pub peers_suffix_max_length: u64,
     pub pnpmfile_checksum: PnpmfileChecksumCheck<'a>,
@@ -173,6 +180,13 @@ pub enum StalenessReason {
     )]
     InjectWorkspacePackagesChanged { lockfile: bool, config: bool },
 
+    /// The hash the lockfile's package tarball entries pin, its
+    /// `settings.integrityTarget`, differs from `lockfile.integrityTarget`.
+    #[display(
+        "`integrityTarget` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
+    )]
+    IntegrityTargetChanged { lockfile: crate::IntegrityTarget, config: crate::IntegrityTarget },
+
     /// `settings.peersSuffixMaxLength` in the lockfile differs from
     /// the value the current install would use. An unset field in the
     /// lockfile is treated as the default, so drift is "recorded
@@ -245,6 +259,14 @@ pub enum StalenessReason {
     )]
     DedupePeersChanged { lockfile: bool, config: bool },
 
+    /// The lockfile's `settings.addMissingPeerTypes` differs from the
+    /// current install's `Config::add_missing_peer_types`. Normalized like
+    /// [`Self::DedupePeersChanged`].
+    #[display(
+        "`addMissingPeerTypes` in the lockfile ({lockfile}) doesn't match the current config ({config})"
+    )]
+    AddMissingPeerTypesChanged { lockfile: bool, config: bool },
+
     /// The lockfile's `settings.excludeLinksFromLockfile` differs from
     /// the current install's `Config::exclude_links_from_lockfile`. The
     /// setting decides whether `link:` deps are recorded at all, so a
@@ -304,18 +326,14 @@ impl StalenessReason {
                 Some("ignoredOptionalDependencies")
             }
             StalenessReason::PatchedDependenciesChanged { .. } => Some("patchedDependencies"),
-            StalenessReason::AutoInstallPeersChanged { .. } => Some("settings.autoInstallPeers"),
-            StalenessReason::DedupePeersChanged { .. } => Some("settings.dedupePeers"),
-            StalenessReason::ExcludeLinksFromLockfileChanged { .. } => {
-                Some("settings.excludeLinksFromLockfile")
-            }
-            StalenessReason::PeersSuffixMaxLengthChanged { .. } => {
-                Some("settings.peersSuffixMaxLength")
-            }
+            StalenessReason::AutoInstallPeersChanged { .. }
+            | StalenessReason::DedupePeersChanged { .. }
+            | StalenessReason::AddMissingPeerTypesChanged { .. }
+            | StalenessReason::ExcludeLinksFromLockfileChanged { .. }
+            | StalenessReason::PeersSuffixMaxLengthChanged { .. }
+            | StalenessReason::InjectWorkspacePackagesChanged { .. }
+            | StalenessReason::IntegrityTargetChanged { .. } => self.settings_block_key(),
             StalenessReason::PnpmfileChecksumChanged { .. } => Some("pnpmfileChecksum"),
-            StalenessReason::InjectWorkspacePackagesChanged { .. } => {
-                Some("settings.injectWorkspacePackages")
-            }
             StalenessReason::ResolutionSettingChanged { setting, .. } => {
                 Some(setting.lockfile_key())
             }
@@ -359,11 +377,28 @@ pub fn check_lockfile_settings(
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
     check_recorded_settings(lockfile, &check.resolution)?;
+    check_integrity_target(lockfile, check.integrity_target)?;
     // Last, because every gate above reports a cause this one cannot: each
     // compares the lockfile against a configured value the user can act on,
     // while this compares the lockfile against itself. A lockfile that drifted
     // from the config is re-resolved either way, so running this first would
     // only risk naming the wrong reason.
+    check_patched_dep_paths(lockfile)
+}
+
+/// The part of [`check_lockfile_settings`] that decides what a build of the
+/// locked packages produces: the patches. A run that builds the locked
+/// packages without resolving or linking them, like pnpm's `rebuild`, needs
+/// nothing else to match.
+pub fn check_lockfile_patches(
+    lockfile: &Lockfile,
+    patched_dependencies: Option<&BTreeMap<String, String>>,
+) -> Result<(), StalenessReason> {
+    check_recorded_patches(lockfile, patched_dependencies)?;
+    check_patched_dep_paths(lockfile)
+}
+
+fn check_patched_dep_paths(lockfile: &Lockfile) -> Result<(), StalenessReason> {
     match crate::check_patched_dep_paths(lockfile) {
         crate::PatchedDepPathsStatus::Stale => Err(StalenessReason::InconsistentPatchHashes),
         crate::PatchedDepPathsStatus::Indeterminate => Err(StalenessReason::UncheckablePatchHashes),
@@ -407,9 +442,16 @@ fn check_recorded_config(
         });
     }
 
+    check_recorded_patches(lockfile, check.patched_dependencies)
+}
+
+fn check_recorded_patches(
+    lockfile: &Lockfile,
+    patched_dependencies: Option<&BTreeMap<String, String>>,
+) -> Result<(), StalenessReason> {
     let empty_patches: BTreeMap<String, String> = BTreeMap::new();
     let lockfile_patches = lockfile.patched_dependencies.as_ref().unwrap_or(&empty_patches);
-    let config_patches = check.patched_dependencies.unwrap_or(&empty_patches);
+    let config_patches = patched_dependencies.unwrap_or(&empty_patches);
     if lockfile_patches != config_patches {
         return Err(StalenessReason::PatchedDependenciesChanged {
             lockfile: lockfile_patches.clone(),
@@ -445,145 +487,6 @@ fn check_overrides(
     Ok(())
 }
 
-/// The `settings:` block plus the pnpmfile checksum. A lockfile with no
-/// `settings` block records nothing about the settings it was written under,
-/// so there is nothing to compare — pnpm's
-/// `lockfile.settings?.autoInstallPeers != null` guard.
-fn check_recorded_settings(
-    lockfile: &Lockfile,
-    check: &ResolutionSettingsCheck<'_>,
-) -> Result<(), StalenessReason> {
-    let settings = lockfile.settings.as_ref();
-    if let Some(settings) = settings
-        && auto_install_peers_changed(Some(settings), check.auto_install_peers)
-    {
-        return Err(StalenessReason::AutoInstallPeersChanged {
-            lockfile: settings.auto_install_peers,
-            config: check.auto_install_peers,
-        });
-    }
-
-    let lockfile_dedupe_peers = recorded_dedupe_peers(settings);
-    if lockfile_dedupe_peers != check.dedupe_peers {
-        return Err(StalenessReason::DedupePeersChanged {
-            lockfile: lockfile_dedupe_peers,
-            config: check.dedupe_peers,
-        });
-    }
-
-    if let Some(settings) = settings
-        && exclude_links_from_lockfile_changed(Some(settings), check.exclude_links_from_lockfile)
-    {
-        return Err(StalenessReason::ExcludeLinksFromLockfileChanged {
-            lockfile: settings.exclude_links_from_lockfile,
-            config: check.exclude_links_from_lockfile,
-        });
-    }
-
-    let lockfile_peers_suffix_max_length = recorded_peers_suffix_max_length(settings);
-    if lockfile_peers_suffix_max_length != check.peers_suffix_max_length {
-        return Err(StalenessReason::PeersSuffixMaxLengthChanged {
-            lockfile: lockfile_peers_suffix_max_length,
-            config: check.peers_suffix_max_length,
-        });
-    }
-
-    check_pnpmfile_checksum(lockfile, &check.pnpmfile_checksum)?;
-
-    let lockfile_inject = recorded_inject_workspace_packages(settings);
-    if lockfile_inject != check.inject_workspace_packages {
-        return Err(StalenessReason::InjectWorkspacePackagesChanged {
-            lockfile: lockfile_inject,
-            config: check.inject_workspace_packages,
-        });
-    }
-
-    check_resolution_settings(settings, check.resolution_settings)
-}
-
-fn check_resolution_settings(
-    settings: Option<&crate::LockfileSettings>,
-    expected: Option<&crate::ResolutionSettings>,
-) -> Result<(), StalenessReason> {
-    let Some(expected) = expected else { return Ok(()) };
-    let unrecorded = crate::ResolutionSettings::default();
-    let recorded = settings.map_or(&unrecorded, |settings| &settings.resolution);
-    match recorded.first_difference(expected) {
-        None => Ok(()),
-        Some(difference) => Err(StalenessReason::ResolutionSettingChanged {
-            setting: difference.setting,
-            lockfile: describe_setting_value(difference.recorded.as_ref()),
-            config: describe_setting_value(difference.expected.as_ref()),
-        }),
-    }
-}
-
-fn describe_setting_value(value: Option<&serde_json::Value>) -> String {
-    value.map_or_else(|| "unset".to_string(), ToString::to_string)
-}
-
-fn check_pnpmfile_checksum(
-    lockfile: &Lockfile,
-    checksum: &PnpmfileChecksumCheck<'_>,
-) -> Result<(), StalenessReason> {
-    if let PnpmfileChecksumCheck::Current(pnpmfile_checksum) = checksum
-        && lockfile.pnpmfile_checksum.as_deref() != *pnpmfile_checksum
-    {
-        return Err(StalenessReason::PnpmfileChecksumChanged {
-            lockfile: lockfile.pnpmfile_checksum.clone(),
-            config: pnpmfile_checksum.map(str::to_string),
-        });
-    }
-
-    Ok(())
-}
-
-/// Whether `settings.autoInstallPeers` drifted from what the lockfile
-/// records. A lockfile with no `settings` block records nothing about
-/// the setting it was written under, so there is nothing to compare.
-///
-/// This and its peers below are the single definition of "this
-/// lockfile setting changed", shared with the fast path that records a
-/// provably inert setting change without re-resolving.
-#[must_use]
-pub fn auto_install_peers_changed(
-    recorded: Option<&crate::LockfileSettings>,
-    auto_install_peers: bool,
-) -> bool {
-    recorded.is_some_and(|settings| settings.auto_install_peers != auto_install_peers)
-}
-
-/// See [`auto_install_peers_changed`].
-#[must_use]
-pub fn exclude_links_from_lockfile_changed(
-    recorded: Option<&crate::LockfileSettings>,
-    exclude_links_from_lockfile: bool,
-) -> bool {
-    recorded.is_some_and(|settings| {
-        settings.exclude_links_from_lockfile != exclude_links_from_lockfile
-    })
-}
-
-/// See [`auto_install_peers_changed`].
-#[must_use]
-pub fn recorded_dedupe_peers(recorded: Option<&crate::LockfileSettings>) -> bool {
-    recorded.and_then(|settings| settings.dedupe_peers).unwrap_or(false)
-}
-
-/// See [`auto_install_peers_changed`].
-#[must_use]
-pub fn recorded_peers_suffix_max_length(recorded: Option<&crate::LockfileSettings>) -> u64 {
-    recorded
-        .and_then(|settings| settings.peers_suffix_max_length)
-        .unwrap_or(crate::DEFAULT_PEERS_SUFFIX_MAX_LENGTH)
-}
-
-/// See [`auto_install_peers_changed`].
-#[must_use]
-pub fn recorded_inject_workspace_packages(recorded: Option<&crate::LockfileSettings>) -> bool {
-    recorded.is_some_and(|settings| settings.inject_workspace_packages)
-}
-
 fn all_catalogs_are_up_to_date(
     catalogs_config: &Catalogs,
     snapshot: Option<&crate::CatalogSnapshots>,
@@ -609,6 +512,8 @@ fn all_catalogs_are_up_to_date(
 mod tests;
 
 mod manifest;
+mod recorded_settings;
 mod spec_diff;
 
 use manifest::dependency_specifiers_equal;
+use recorded_settings::{check_integrity_target, check_recorded_settings};

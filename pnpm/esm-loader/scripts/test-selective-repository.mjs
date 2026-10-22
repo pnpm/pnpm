@@ -11,7 +11,7 @@ import { readScenario, runSuite } from './repository-scenario.mjs'
 if (!process.argv[2]) throw new Error('Pass the retained fixture path from test-repository.mjs')
 const root = path.resolve(process.argv[2])
 await bundleLoader(root)
-const manifestURL = pathToFileURL(path.join(root, '.pnpm-store.json'))
+const manifestURL = pathToFileURL(path.join(root, '.store-manifest.json'))
 const manifest = JSON.parse(fs.readFileSync(manifestURL, 'utf8'))
 const store = openStore(manifestURL)
 const manifestPath = path.join(root, '.pnpm-selective.json')

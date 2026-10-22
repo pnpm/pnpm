@@ -1,9 +1,12 @@
-use super::{OptimisticRepeatInstallCheck, manifest_has_runtime_deps, manifest_string_field};
+mod workspace_deps;
+
+use super::{
+    OptimisticRepeatInstallCheck, manifest_has_required_peers, manifest_has_runtime_deps,
+    manifest_string_field,
+};
 use pnpm_config::{Config, NodeLinker};
 use pnpm_fs::lexical_normalize;
-use pnpm_lockfile::{
-    Lockfile, MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec,
-};
+use pnpm_lockfile::{MaybeLazyLockfile, PkgName, ProjectSnapshot, ResolvedDependencySpec};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_workspace::importer_id_from_root_dir;
@@ -14,13 +17,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
+use workspace_deps::reached_workspace_project_dirs;
 
-pub(super) fn modules_dirs_present(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-) -> bool {
-    first_project_missing_modules_dir(check, state).is_none()
-}
 /// The id (`name` field, falling back to the root dir) of the first
 /// project that declares dependencies but has no modules directory, or
 /// `None` when every project with dependencies has one.
@@ -30,56 +28,36 @@ pub(super) fn first_project_missing_modules_dir(
 ) -> Option<String> {
     first_missing_modules_dir(check, state, &|_| true)
 }
+/// How far a selected scope reaches past the projects named in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SelectedReach {
+    /// The selected projects alone.
+    SelectedOnly,
+    /// The selected projects and the workspace projects they reach.
+    WithWorkspaceDeps,
+}
+
 /// [`first_project_missing_modules_dir`] restricted to the projects the gate
-/// selected.
+/// selected, as far as `reach` takes them.
 pub(super) fn first_selected_project_missing_modules_dir(
     check: &OptimisticRepeatInstallCheck<'_>,
     state: &WorkspaceState,
     selected_project_dirs: &[&Path],
+    reach: SelectedReach,
 ) -> Option<String> {
-    let selected: HashSet<PathBuf> = selected_project_dirs
-        .iter()
-        .map(|dir| lexical_normalize(dir))
-        .collect();
+    let selected = match reach {
+        SelectedReach::WithWorkspaceDeps => {
+            reached_workspace_project_dirs(check, state, selected_project_dirs)
+        }
+        SelectedReach::SelectedOnly => selected_project_dirs
+            .iter()
+            .map(|dir| lexical_normalize(dir))
+            .collect(),
+    };
     first_missing_modules_dir(check, state, &|root_dir| {
         selected.contains(&lexical_normalize(root_dir))
     })
 }
-/// The id of the first selected project that declares dependencies but that
-/// the current lockfile does not list among its importers.
-///
-/// After a filtered install, a modules directory does not prove that the
-/// install materialized a project: only the importers the current lockfile
-/// lists were. The current lockfile is read only when a selected project needs
-/// the proof.
-pub(super) fn first_selected_project_missing_from_current_lockfile(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    selected_project_dirs: &[&Path],
-) -> Option<String> {
-    let selected: HashSet<PathBuf> = selected_project_dirs
-        .iter()
-        .map(|dir| lexical_normalize(dir))
-        .collect();
-    let mut needing_install = check.project_manifests
-        .iter()
-        .filter(|(root_dir, manifest)| {
-            selected.contains(&lexical_normalize(root_dir)) && manifest_has_runtime_deps(manifest)
-        })
-        .peekable();
-    needing_install.peek()?;
-    let current = Lockfile::load_current_from_install_state_dir(&check.config.install_state_dir)
-        .ok()
-        .flatten();
-    needing_install
-        .find(|(root_dir, _)| {
-            let importer_id = importer_id_from_root_dir(check.workspace_root, root_dir);
-            !current
-                .as_ref()
-                .is_some_and(|current| current.importers.contains_key(&importer_id))
-        })
-        .map(|(root_dir, manifest)| project_id(root_dir, manifest))
-}
-
 /// The first project that needs a modules directory and lacks one, over the
 /// projects `is_selected` accepts.
 fn first_missing_modules_dir(
@@ -126,7 +104,8 @@ pub(crate) fn hoisted_project_modules_dir(root_dir: &Path) -> PathBuf {
     root_dir.join("node_modules")
 }
 
-fn project_id(root_dir: &Path, manifest: &PackageManifest) -> String {
+/// A project's `name`, falling back to its root directory.
+pub(crate) fn project_id(root_dir: &Path, manifest: &PackageManifest) -> String {
     manifest_string_field(manifest, "name")
         .unwrap_or_else(|| root_dir.to_string_lossy().into_owned())
 }
@@ -160,7 +139,9 @@ fn first_project_without_modules_dir(
                 return None;
             }
             let is_root = lexical_normalize(root_dir) == lexical_normalize(workspace_root);
-            let installed = !manifest_has_runtime_deps(manifest)
+            let has_deps = manifest_has_runtime_deps(manifest)
+                || (config.auto_install_peers && manifest_has_required_peers(manifest));
+            let installed = !has_deps
                 || modules_dir_exists(node_linker, is_root, root_modules_dir_exists, || {
                     sibling_modules_dir(config, root_dir, manifest)
                 })
@@ -299,7 +280,7 @@ fn dedupe_links_nothing(
     let (Some(root), Some(sibling)) = (importer(root_dir), importer(sibling_dir)) else {
         return false;
     };
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     sibling
         .dependencies_by_groups(groups.iter().copied())
         .all(|(alias, _)| {

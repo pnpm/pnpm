@@ -1,12 +1,15 @@
 use super::{
-    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
-    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, load_pre_command_config,
-    locked_package_manager_to_fetch, pre_command_plan_from_input, switch_target,
+    CliArgs, CliCommand, CliNetworkArgs, ConfigLoad, PackageManagerToSync, PinRoots,
+    PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
+    load_pre_command_config, locked_package_manager_to_fetch, pre_command_plan_from_input,
+    switch_target,
 };
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{
-        pre_command::input::{PinFlags, SwitchPaths, UnparsedArgv, frozen_lockfile_flag},
+        cli_command::CliPathArgs,
+        config_warnings::ConfigWarnings,
+        pre_command::input::{PinFlags, UnparsedArgv, VersionArgv, frozen_lockfile_flag},
         reporter::{ReporterFlags, ReporterType},
     },
     config_overrides::ConfigOverrides,
@@ -106,7 +109,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
             .copied()
             .map(OsString::from)
             .collect::<Vec<_>>();
-        let input = SwitchInput::from_version_argv(&argv);
+        let input = version_switch_input(&argv);
 
         if let Some(dir) = case.dir {
             assert_eq!(input.paths.dir, PathBuf::from(dir), "case: {}", case.name);
@@ -120,7 +123,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         assert_eq!(input.command.as_deref(), case.command, "case: {}", case.name);
     }
 
-    let input = SwitchInput::from_version_argv(&[
+    let input = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--state-dir"),
         OsString::from("/tmp/state"),
@@ -129,7 +132,7 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     assert_eq!(input.paths.state_dir.as_deref(), Some(Path::new("/tmp/state")));
 
     for spelling in ["--store-dir", "--store"] {
-        let input = SwitchInput::from_version_argv(&[
+        let input = version_switch_input(&[
             OsString::from("pnpm"),
             OsString::from(spelling),
             OsString::from("/tmp/store"),
@@ -156,6 +159,9 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
         "--frozen-lockfile",
         "--lockfile-dir=/tmp/lockfile",
         "--offline",
+        "--registry",
+        "https://mirror.example.com/",
+        "--no-proxy=internal.example.com",
         "-g",
     ]
     .map(OsString::from);
@@ -172,9 +178,11 @@ fn unparsed_argv_reads_flags_on_both_sides_of_the_command() {
             prefer_offline: None,
         },
     );
+    assert_eq!(input.network.registry.as_deref(), Some("https://mirror.example.com/"));
+    assert_eq!(input.network.no_proxy.as_deref(), Some("internal.example.com"));
     assert!(UnparsedArgv::scan(&argv).expect("the command name is unambiguous").global);
 
-    let version_input = SwitchInput::from_version_argv(&argv);
+    let version_input = version_switch_input(&argv);
     assert_ne!(version_input.paths.dir, PathBuf::from("/tmp/project"));
 
     let argv = ["pnpm", "exec", "--", "tool", "-g"].map(OsString::from);
@@ -193,6 +201,13 @@ fn unparsed_argv_names_no_command_after_an_undeclared_option() {
         OsString::from,
     );
     let input = unparsed_switch_input(&argv).expect("every option before it is declared");
+    assert_eq!(input.command.as_deref(), Some("install"));
+}
+
+#[test]
+fn unparsed_argv_reads_an_undeclared_option_right_before_the_command_as_a_flag() {
+    let argv = ["pnpm", "--undeclared", "install", "--also-undeclared"].map(OsString::from);
+    let input = unparsed_switch_input(&argv).expect("the command follows the option");
     assert_eq!(input.command.as_deref(), Some("install"));
 }
 
@@ -230,6 +245,13 @@ fn unparsed_argv_steps_over_short_option_values() {
         assert_eq!(input.command.as_deref(), Some("install"), "{argv:?}");
         assert_eq!(input.paths.dir, PathBuf::from(dir), "{argv:?}");
     }
+}
+
+#[test]
+fn the_version_scan_names_a_command_by_its_own_name() {
+    let input = version_switch_input(&["pnpm", "ic", "--version"].map(OsString::from));
+    assert_eq!(input.command.as_deref(), Some("ci"));
+    assert_eq!(input.frozen_lockfile, Some(true));
 }
 
 #[test]
@@ -327,20 +349,51 @@ fn the_reported_causes_redact_registry_credentials() {
 fn the_pre_command_config_resolves_the_store_dir_flag() {
     let root = TempDir::new().expect("tmp dir");
     let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
-    let mut switch = SwitchInput::from_version_argv(&[
+    let mut switch = version_switch_input(&[
         OsString::from("pnpm"),
         OsString::from("--store-dir"),
         OsString::from("relative-store"),
         OsString::from("--version"),
     ]);
     switch.paths.dir = dir.clone();
+    let input = PreCommandInput { switch, ..pre_command_input(&dir) };
 
-    let config = load_pre_command_config(&switch, &ConfigOverrides::default(), &dir, false)
-        .expect("load the pre-command config");
+    let config =
+        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::SWITCH)
+            .expect("load the pre-command config");
 
     assert_eq!(
         config.store_dir.root(),
         dir.join("relative-store").join(pnpm_store_dir::STORE_VERSION),
+    );
+}
+
+#[test]
+fn the_pre_command_config_resolves_the_pinned_pnpm_through_the_network_flags() {
+    let root = TempDir::new().expect("tmp dir");
+    let dir = dunce::canonicalize(root.path()).expect("canonicalize the project directory");
+    let mut switch = version_switch_input(&[
+        OsString::from("pnpm"),
+        OsString::from("--registry=https://mirror.example.com/npm"),
+        OsString::from("--https-proxy"),
+        OsString::from("http://proxy.example.com:8080"),
+        OsString::from("--version"),
+    ]);
+    switch.paths.dir = dir.clone();
+    let input = PreCommandInput { switch, ..pre_command_input(&dir) };
+
+    let config =
+        load_pre_command_config(&input, &ConfigOverrides::default(), &dir, ConfigLoad::SWITCH)
+            .expect("load the pre-command config");
+
+    assert_eq!(config.package_manager_bootstrap.registry, "https://mirror.example.com/npm/");
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("default").map(String::as_str),
+        Some("https://mirror.example.com/npm/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.proxy.https_proxy.as_deref(),
+        Some("http://proxy.example.com:8080"),
     );
 }
 
@@ -353,13 +406,14 @@ fn the_pre_command_config_resolves_the_store_dir_flag() {
 #[test]
 fn the_version_scan_reads_ignore_workspace_from_the_command_line() {
     let flag_of = |argv: &[&str]| {
-        SwitchInput::from_version_argv(
+        version_switch_input(
             &argv
                 .iter()
                 .copied()
                 .map(OsString::from)
                 .collect::<Vec<_>>(),
         )
+        .paths
         .ignore_workspace
     };
     assert!(flag_of(&["pnpm", "--ignore-workspace", "--version"]));
@@ -878,6 +932,132 @@ fn pre_command_plan_still_switches_when_lockfile_is_disabled() {
     assert_ne!(env_root.as_path(), root.path());
 }
 
+/// A setting this pnpm cannot read may be one the pinned pnpm reads, so it
+/// does not stop the switch (pnpm/pnpm#16675).
+#[test]
+fn pre_command_plan_switches_past_a_setting_this_pnpm_cannot_read() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(root.path(), UNREADABLE_LOCKFILE_SETTING);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+}
+
+#[test]
+fn pre_command_plan_switches_past_a_setting_this_pnpm_rejects() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(root.path(), "tasks:\n  build:\n    concurrency: 0\n");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+}
+
+/// The decision reads the pin decision settings alone, so a setting outside
+/// them is left to the command's own load to report, unreadable or not.
+#[test]
+fn pre_command_plan_decides_past_a_setting_outside_the_decision() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(
+        root.path(),
+        &format!("pmOnFail: warn\nnodeLinker: [hoisted]\n{UNREADABLE_LOCKFILE_SETTING}"),
+    );
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("the unreadable settings are not the decision's to report");
+
+    assert!(
+        !matches!(plan, Some(PreCommandPlan::Switch(_))),
+        "pmOnFail: warn keeps the running pnpm: {plan:?}",
+    );
+}
+
+/// A manifest that pins nothing these checks act on needs no setting, so a
+/// workspace file that is not even YAML does not reach them.
+#[test]
+fn pre_command_plan_reads_no_setting_for_a_manifest_without_pins() {
+    let root = TempDir::new().expect("tmp dir");
+    write_manifest(root.path(), r#"{"name":"project"}"#);
+    write_workspace_manifest(root.path(), "packages: [\n");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("no setting is read");
+
+    assert!(plan.is_none(), "{plan:?}");
+}
+
+/// A workspace package follows the pin at the workspace root, which the
+/// decision finds through the workspace's `packages`.
+#[test]
+fn pre_command_plan_switches_a_workspace_package_to_the_root_pin() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "99.0.0");
+    write_workspace_manifest(root.path(), "packages:\n  - packages/*\n");
+    let package_dir = root.path().join("packages/app");
+    fs::create_dir_all(&package_dir).expect("create the workspace package");
+    write_manifest(&package_dir, r#"{"name":"app"}"#);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(&package_dir),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    assert_eq!(plan.target.spec, "99.0.0");
+}
+
+/// Recording the pin writes the lockfile, so a configuration the command
+/// cannot run with records nothing and is left to the command to report.
+#[test]
+fn pre_command_plan_records_no_pin_under_an_unreadable_setting() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+    write_workspace_manifest(root.path(), "nodeLinker: [hoisted]\n");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("the unreadable setting is the command's to report");
+
+    assert!(plan.is_none(), "{plan:?}");
+}
+
+const UNREADABLE_LOCKFILE_SETTING: &str = "lockfile:\n  recordsSomethingNew: true\n";
+
 /// `pnpm fetch` has only the lockfile to go on, so it installs the pnpm the
 /// env document records whenever a command in the project would switch to
 /// it (pnpm/pnpm#11808).
@@ -938,23 +1118,26 @@ fn config_overrides(argv: &[&str]) -> ConfigOverrides {
 fn pre_command_input(dir: &Path) -> PreCommandInput {
     PreCommandInput {
         switch: SwitchInput {
-            paths: SwitchPaths {
+            paths: CliPathArgs {
                 dir: dir.to_path_buf(),
-                state_dir: None,
+                dir_from_command_line: true,
                 store_dir: None,
+                state_dir: None,
                 npmrc_auth_file: None,
+                ignore_workspace: false,
+                workspace_packages: Vec::new(),
             },
             command: Some("run".to_string()),
             frozen_lockfile: None,
             pin_flags: PinFlags::default(),
             color: None,
-            ignore_workspace: false,
+            network: CliNetworkArgs::default(),
         },
         global: false,
         skip_pm_handling: false,
         check_runtimes: true,
         reporter: ReporterFlags { reporter: Some(ReporterType::Silent), loglevel: None },
-        key_issues: KeyIssueReporting::Enforce,
+        warnings: ConfigWarnings::for_version_flag(),
     }
 }
 
@@ -1074,6 +1257,10 @@ fn write_dev_engine_manifest(root: &Path, version: &str) {
             r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}","onFail":"download"}}}}}}"#,
         ),
     );
+}
+
+fn write_workspace_manifest(root: &Path, content: &str) {
+    fs::write(root.join("pnpm-workspace.yaml"), content).expect("write pnpm-workspace.yaml");
 }
 
 fn write_manifest(root: &Path, content: &str) {
@@ -1325,8 +1512,13 @@ snapshots:
 ---
 ";
 
+mod argv_readers;
 mod switch_target;
 
 fn unparsed_switch_input(argv: &[OsString]) -> Option<SwitchInput> {
     UnparsedArgv::scan(argv).map(|scan| scan.switch)
+}
+
+fn version_switch_input(argv: &[OsString]) -> SwitchInput {
+    VersionArgv::scan(argv).switch
 }

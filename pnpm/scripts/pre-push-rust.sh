@@ -7,12 +7,44 @@ red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 yellow() { printf '\033[0;33m%s\033[0m\n' "$*" >&2; }
 
 failed=0
+dylint_pid=
+
+wait_for_dylint() {
+    [ -n "$dylint_pid" ] || return 0
+    local status=0
+    wait "$dylint_pid" || status=$?
+    cat "$dylint_log" >&2
+    rm -f "$dylint_log"
+    if [ "$status" -ne 0 ]; then
+        red '✗ cargo dylint reported lints — `just dylint-fix` applies the ones it can, then commit.'
+        failed=1
+    fi
+}
 
 if command -v cargo >/dev/null 2>&1; then
     yellow '▸ node pnpm/scripts/rustfmt.mjs --all -- --check'
     if ! node pnpm/scripts/rustfmt.mjs --all -- --check; then
         red '✗ Rust formatting check failed — run `just fmt` and commit.'
         failed=1
+    fi
+
+    if command -v cargo-dylint >/dev/null 2>&1 && command -v rustup >/dev/null 2>&1; then
+        yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
+        # Git exports its repository-local variables (GIT_DIR, GIT_INDEX_FILE,
+        # ...) to hooks. When dylint builds a driver for a new toolchain it
+        # runs `git checkout` in its own clone of rust-clippy, and an inherited
+        # GIT_DIR makes that checkout read this repository instead and fail
+        # (https://github.com/trailofbits/dylint/issues/2105).
+        #
+        # dylint builds into its own target directory, so it runs alongside
+        # clippy and doc instead of after them. Its output is held back until
+        # they finish so the logs do not interleave.
+        dylint_log=$(mktemp)
+        # shellcheck disable=SC2046
+        (unset $(git rev-parse --local-env-vars) && RUSTFLAGS='-D warnings' node pnpm/scripts/cargo-dylint.mjs --all -- --all-targets --workspace) >"$dylint_log" 2>&1 &
+        dylint_pid=$!
+    else
+        yellow '! cargo-dylint or rustup not found on PATH — skipping dylint check (install rustup, then cargo-dylint from source with `cargo install cargo-dylint dylint-link`).'
     fi
 
     # Mirror the CI clippy gate. `--all-targets` is the load-bearing flag:
@@ -30,27 +62,20 @@ if command -v cargo >/dev/null 2>&1; then
     # rustdoc only resolves the doc links of the items it documents — so
     # without the flag a link to a renamed or deleted private item passes
     # here and fails there.
+    #
+    # Cargo cannot spawn the shell wrapper on Windows, so the doc step falls
+    # back to the stock rustdoc there.
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) rustdoc_bin=rustdoc ;;
+        *) rustdoc_bin="$PWD/pnpm/scripts/rustdoc-no-merge.sh" ;;
+    esac
     yellow '▸ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features --document-private-items'
-    if ! RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --document-private-items --quiet; then
+    if ! RUSTDOC="$rustdoc_bin" RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --workspace --all-features --document-private-items --quiet; then
         red '✗ cargo doc reported warnings — fix the rustdoc diagnostics and commit.'
         failed=1
     fi
 
-    if command -v cargo-dylint >/dev/null 2>&1; then
-        yellow '▸ RUSTFLAGS="-D warnings" cargo dylint --all -- --all-targets --workspace'
-        # Git exports its repository-local variables (GIT_DIR, GIT_INDEX_FILE,
-        # ...) to hooks. When dylint builds a driver for a new toolchain it
-        # runs `git checkout` in its own clone of rust-clippy, and an inherited
-        # GIT_DIR makes that checkout read this repository instead and fail
-        # (https://github.com/trailofbits/dylint/issues/2105).
-        # shellcheck disable=SC2046
-        if ! (unset $(git rev-parse --local-env-vars) && RUSTFLAGS='-D warnings' cargo dylint --all -- --all-targets --workspace); then
-            red '✗ cargo dylint reported lints — `just dylint-fix` applies the ones it can, then commit.'
-            failed=1
-        fi
-    else
-        yellow '! cargo-dylint not found on PATH — skipping dylint check (install from source with `cargo install cargo-dylint dylint-link`).'
-    fi
+    wait_for_dylint
 else
     yellow '! cargo not found on PATH — skipping Rust format, doc, and dylint checks.'
 fi

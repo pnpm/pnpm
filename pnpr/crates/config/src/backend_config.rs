@@ -1,6 +1,7 @@
 use super::{
-    AuthFile, BackendFile, Deserialize, Duration, Interval, Path, PathBuf, RegistryError,
-    SqlBackendFile, default_tokens_path_sibling_of, oidc, parse_interval, resolve_relative,
+    AuthFile, BTreeSet, BackendFile, Deserialize, Duration, Identity, Interval, LibsqlFile, Path,
+    PathBuf, RegistryError, ScimConfig, SqlBackendFile, build_admins,
+    default_tokens_path_sibling_of, oidc, parse_interval, resolve_relative,
 };
 
 /// The resolved record-store backend for auth (users + tokens). Unlike
@@ -23,24 +24,19 @@ pub enum BackendConfig {
     Mysql(SqlBackendSettings),
 }
 
-/// The YAML `backend.libsql:` block. Whole-file `${ENV}` substitution
-/// runs before parsing, so `url`/`authToken` can hold `${...}` refs and
-/// keep secrets out of the committed config.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// The resolved record-store settings for libsql / Turso.
+#[derive(Clone)]
 pub struct LibsqlSettings {
     /// libsql/Turso database URL, e.g. `libsql://db.turso.io` or
     /// `http://127.0.0.1:8080` for a local `sqld`.
     pub url: String,
     /// Bearer token for the database. Omit for an unauthenticated local
     /// `sqld`.
-    #[serde(default)]
     pub auth_token: Option<String>,
     /// Local path for an embedded replica. When set, the primary is
     /// replicated to this file and reads (the auth hot path) hit the
     /// local copy instead of a network round-trip per lookup; writes
     /// still go to the primary. Absent ⇒ every read is a remote query.
-    #[serde(default)]
     pub replica_path: Option<PathBuf>,
     /// How often (seconds) the embedded replica pulls from the primary.
     /// Only meaningful with `replicaPath`; bounds how stale a read can
@@ -48,8 +44,18 @@ pub struct LibsqlSettings {
     /// background sync (the replica then only reflects its own writes
     /// plus the initial sync at startup). Defaults to
     /// [`LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS`].
-    #[serde(default)]
     pub sync_interval_secs: Option<u64>,
+}
+
+impl std::fmt::Debug for LibsqlSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LibsqlSettings")
+            .field("url", &redact_connection_url(&self.url))
+            .field("auth_token", &self.auth_token.as_ref().map(|_| "[redacted]"))
+            .field("replica_path", &self.replica_path)
+            .field("sync_interval_secs", &self.sync_interval_secs)
+            .finish()
+    }
 }
 
 impl LibsqlSettings {
@@ -60,7 +66,7 @@ impl LibsqlSettings {
 /// The YAML `backend.postgres:` and `backend.mysql:` blocks. Whole-file
 /// `${ENV}` substitution runs before parsing, so `url` can hold
 /// `${...}` refs and keep credentials out of the committed config.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SqlBackendSettings {
     /// Driver connection URL, e.g. `postgres://user:pass@host/db` or
@@ -73,6 +79,47 @@ pub struct SqlBackendSettings {
     pub timeout: Duration,
     /// Deadline for initial auth database connect and schema setup.
     pub startup_timeout: Duration,
+}
+
+impl std::fmt::Debug for SqlBackendSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqlBackendSettings")
+            .field("url", &redact_connection_url(&self.url))
+            .field("max_connections", &self.max_connections)
+            .field("timeout", &self.timeout)
+            .field("startup_timeout", &self.startup_timeout)
+            .finish()
+    }
+}
+
+fn redact_connection_url(raw: &str) -> String {
+    let Ok(mut parsed) = url::Url::parse(raw) else {
+        return "[redacted]".to_string();
+    };
+    if parsed.password().is_some() {
+        let _ = parsed.set_password(Some("[redacted]"));
+    }
+    if !parsed.username().is_empty() {
+        let _ = parsed.set_username("[redacted]");
+    }
+    let query_pairs: Vec<(String, String)> = parsed
+        .query_pairs()
+        .map(|(k, v)| {
+            let k_lower = k.to_ascii_lowercase();
+            if matches!(k_lower.as_str(), "password" | "token" | "authtoken" | "auth_token") {
+                (k.into_owned(), "[redacted]".to_string())
+            } else {
+                (k.into_owned(), v.into_owned())
+            }
+        })
+        .collect();
+    if !query_pairs.is_empty() {
+        parsed
+            .query_pairs_mut()
+            .clear()
+            .extend_pairs(query_pairs);
+    }
+    parsed.to_string()
 }
 
 impl SqlBackendSettings {
@@ -89,6 +136,8 @@ pub struct AuthConfig {
     pub oidc: Vec<oidc::OidcProvider>,
     pub htpasswd: HtpasswdConfig,
     pub tokens: TokensConfig,
+    /// The SCIM endpoints, off when `None`.
+    pub scim: Option<ScimConfig>,
 }
 
 /// Where the htpasswd users file lives and how many users may sign
@@ -147,6 +196,75 @@ impl MaxUsers {
 /// `auth.tokens.file` is not, tokens default to a `tokens.db`
 /// sibling of the htpasswd file — keeping credentials co-located in
 /// one directory the operator can lock down (`chmod 600`).
+#[derive(Debug, Clone)]
+pub struct IdentityConfig {
+    /// Where to read/write the htpasswd-format user file and the
+    /// token database. Both stores are in-memory when their paths
+    /// are `None`.
+    pub auth: AuthConfig,
+    /// Which record store backs the auth state (users + tokens).
+    /// Defaults to [`BackendConfig::Local`] — today's htpasswd file
+    /// plus `SQLite` token database. The YAML `backend:` block can
+    /// switch both stores to one shared SQL database so several
+    /// stateless pnpr replicas see a consistent set of accounts.
+    pub backend: BackendConfig,
+    /// Usernames from `auth.admins`, who may administer every registry.
+    pub admins: BTreeSet<String>,
+}
+
+impl IdentityConfig {
+    #[must_use]
+    pub fn is_admin(&self, identity: &Identity) -> bool {
+        match identity {
+            Identity::User { username, .. } => self.admins.contains(username),
+            Identity::Anonymous | _ => false,
+        }
+    }
+
+    /// Whether `username` is a configured admin, an OIDC login user,
+    /// or an OIDC workload binding. Such names cannot be self-registered.
+    #[must_use]
+    pub fn is_reserved_name(&self, username: &str) -> bool {
+        if self.admins.contains(username) {
+            return true;
+        }
+        for provider in &self.auth.oidc {
+            if provider.login
+                .as_ref()
+                .is_some_and(|login| {
+                    login.users
+                        .iter()
+                        .any(|binding| binding.username == username)
+                })
+            {
+                return true;
+            }
+            if provider.workloads
+                .iter()
+                .any(|workload| workload.identity.username == username)
+            {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+pub(super) fn build_identity_config(
+    file: &AuthFile,
+    base_dir: &Path,
+    backend: BackendConfig,
+) -> Result<IdentityConfig, RegistryError> {
+    if let Some(scim) = &file.scim {
+        scim.validate()?;
+    }
+    Ok(IdentityConfig {
+        admins: build_admins(&file.admins)?,
+        auth: build_auth_config(file, base_dir),
+        backend,
+    })
+}
+
 pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
     let htpasswd_file = file.htpasswd.file.as_deref().map(|raw| resolve_relative(raw, base_dir));
     let tokens_file = file.tokens.file
@@ -160,6 +278,7 @@ pub(super) fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig 
             max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
+        scim: file.scim.clone(),
     }
 }
 
@@ -171,20 +290,14 @@ pub(super) fn build_backend_config(
         return Ok(BackendConfig::Local);
     };
     let mut selected = Vec::new();
-    if let Some(mut settings) = file.libsql {
-        resolve_libsql_paths(&mut settings, base_dir);
-        selected.push(("libsql", BackendConfig::Libsql(settings)));
+    if let Some(settings) = file.libsql {
+        let libsql_settings = build_libsql_settings(settings, base_dir)?;
+        selected.push(("libsql", BackendConfig::Libsql(libsql_settings)));
     }
     if let Some(settings) = file.postgres {
         selected.push((
             "postgres",
             BackendConfig::Postgres(build_sql_backend_settings("postgres", settings)?),
-        ));
-    }
-    if let Some(settings) = file.postgresql {
-        selected.push((
-            "postgresql",
-            BackendConfig::Postgres(build_sql_backend_settings("postgresql", settings)?),
         ));
     }
     if let Some(settings) = file.mysql {
@@ -258,12 +371,37 @@ pub(super) fn parse_backend_interval(
     .transpose()
 }
 
-pub(super) fn resolve_libsql_paths(settings: &mut LibsqlSettings, base_dir: &Path) {
-    // Resolve a relative `replicaPath` against the config file's
-    // directory, the same convention `storage` and the auth files
-    // follow, so `./auth-replica.db` lands next to the config rather
-    // than in the process CWD.
-    if let Some(path) = settings.replica_path.take() {
-        settings.replica_path = Some(if path.is_absolute() { path } else { base_dir.join(path) });
-    }
+pub(super) fn build_libsql_settings(
+    file: LibsqlFile,
+    base_dir: &Path,
+) -> Result<LibsqlSettings, RegistryError> {
+    let replica_path =
+        file.replica_path.map(|path| if path.is_absolute() { path } else { base_dir.join(path) });
+    let sync_interval_secs = match &file.sync_interval {
+        Some(interval) => {
+            let dur = parse_interval(&interval.0)
+                .ok_or_else(|| RegistryError::InvalidConfig {
+                    reason: format!(
+                        "backend.libsql.syncInterval {:?} is not a valid interval",
+                        interval.0,
+                    ),
+                })?;
+            if !dur.is_zero() && dur.as_secs() == 0 {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "backend.libsql.syncInterval {:?} must be 0 or at least 1s",
+                        interval.0,
+                    ),
+                });
+            }
+            Some(dur.as_secs())
+        }
+        None => None,
+    };
+    Ok(LibsqlSettings {
+        url: file.url,
+        auth_token: file.auth_token,
+        replica_path,
+        sync_interval_secs,
+    })
 }

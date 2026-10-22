@@ -150,11 +150,11 @@ impl PrefixArgs {
             let pkg_dir =
                 config.global_pkg_dir.clone().ok_or(GlobalError::MissingGlobalPackageDir)?;
             let prefix_dir = pkg_dir.parent().ok_or(GlobalError::MissingGlobalPackageDir)?;
-            println!("{}", prefix_dir.display());
+            pnpm_diagnostics::println!("{}", prefix_dir.display());
             return Ok(());
         }
         let prefix_dir = find_local_prefix(dir)?;
-        println!("{}", prefix_dir.display());
+        pnpm_diagnostics::println!("{}", prefix_dir.display());
         Ok(())
     }
 }

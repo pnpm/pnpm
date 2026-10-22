@@ -87,7 +87,7 @@ async fn requested_version_uses_its_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@1.0.0".to_string() };
+    let args = DocsArgs { registry: None, package: "is-negative@1.0.0".to_string() };
 
     args.run::<RecordingBrowser>(&config_for(&server.url())).await
         .expect("docs URL must open");
@@ -105,7 +105,7 @@ async fn unversioned_spec_uses_the_latest_tag_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative".to_string() };
+    let args = DocsArgs { registry: None, package: "is-negative".to_string() };
 
     let url = args
         .documentation_url(&config_for(&server.url()))
@@ -125,7 +125,7 @@ async fn named_tag_uses_the_tagged_version_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@legacy".to_string() };
+    let args = DocsArgs { registry: None, package: "is-negative@legacy".to_string() };
 
     let url = args
         .documentation_url(&config_for(&server.url()))
@@ -145,7 +145,7 @@ async fn semver_range_uses_the_highest_matching_version_homepage() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@^1.0.0".to_string() };
+    let args = DocsArgs { registry: None, package: "is-negative@^1.0.0".to_string() };
 
     let url = args
         .documentation_url(&config_for(&server.url()))
@@ -181,7 +181,7 @@ async fn missing_requested_version_fails() {
         .with_body(packument())
         .create_async()
         .await;
-    let args = DocsArgs { package: "is-negative@9999.0.0".to_string() };
+    let args = DocsArgs { registry: None, package: "is-negative@9999.0.0".to_string() };
 
     let error = args
         .documentation_url(&config_for(&server.url()))
@@ -193,4 +193,24 @@ async fn missing_requested_version_fails() {
         matches!(error.downcast_ref::<ViewError>(), Some(ViewError::PackageNotFound { .. })),
         "unexpected error: {error:?}",
     );
+}
+
+#[tokio::test]
+async fn docs_supports_registry_override() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/is-negative")
+        .with_status(200)
+        .with_body(packument())
+        .create_async()
+        .await;
+    let args = DocsArgs { registry: Some(server.url()), package: "is-negative@1.0.0".to_string() };
+
+    let url = args
+        .documentation_url(&Config::default())
+        .await
+        .expect("docs URL must resolve with registry override");
+
+    mock.assert_async().await;
+    assert_eq!(url, "https://v1.example/docs");
 }

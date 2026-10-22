@@ -25,7 +25,9 @@ use napi_derive::napi;
 use pnpm_deps_inspection::{
     MAX_WALK_DEPTH,
     build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
-    dependents::{BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree},
+    dependents::{
+        BuildDependentsOptions, DependentNode, DependentsTree, ImporterInfo, build_dependents_tree,
+    },
     dependents_render::{
         RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
         render_dependents_tree,
@@ -102,6 +104,7 @@ pub struct RenderDependentsInput {
 /// which is an answer, not an error.
 #[napi]
 pub async fn get_dependents(options: DependentsOptions) -> napi::Result<serde_json::Value> {
+    pnpm_package_manager::configure_rayon_pool();
     tokio::task::spawn_blocking(move || build_trees(&options)).await
         .map_err(|join_error| {
             napi::Error::from_reason(format!(
@@ -126,7 +129,7 @@ pub fn render_dependents(
     options: Option<RenderDependentsInput>,
 ) -> napi::Result<String> {
     reject_over_deep_trees(&trees)?;
-    let trees: Vec<DependentsTree> = serde_json::from_value(trees)
+    let trees: Vec<DependentsTree> = deserialize_trees(trees)
         .map_err(|err| {
             napi::Error::from_reason(format!("the trees argument is not a dependents tree: {err}"))
         })?;
@@ -176,6 +179,50 @@ fn reject_over_deep_trees(trees: &serde_json::Value) -> napi::Result<()> {
         }
     }
     Ok(())
+}
+
+/// Deserialize each node's flat fields before recursing into its
+/// `dependents` array so the generated `serde::Deserialize` visitor frame
+/// does not remain on the stack across `MAX_WALK_DEPTH` levels.
+fn deserialize_trees(trees: serde_json::Value) -> Result<Vec<DependentsTree>, serde_json::Error> {
+    let serde_json::Value::Array(items) = trees else {
+        return serde_json::from_value(trees);
+    };
+    let mut out = Vec::with_capacity(items.len());
+    for mut item in items {
+        let dependents = item
+            .as_object_mut()
+            .and_then(|obj| match obj.get("dependents") {
+                Some(serde_json::Value::Array(_)) => obj.remove("dependents"),
+                _ => None,
+            });
+        let mut tree: DependentsTree = serde_json::from_value(item)?;
+        if let Some(serde_json::Value::Array(children)) = dependents {
+            tree.dependents = deserialize_nodes(children)?;
+        }
+        out.push(tree);
+    }
+    Ok(out)
+}
+
+fn deserialize_nodes(
+    children: Vec<serde_json::Value>,
+) -> Result<Vec<DependentNode>, serde_json::Error> {
+    let mut out = Vec::with_capacity(children.len());
+    for mut value in children {
+        let dependents = value
+            .as_object_mut()
+            .and_then(|obj| match obj.get("dependents") {
+                Some(serde_json::Value::Array(_)) => obj.remove("dependents"),
+                _ => None,
+            });
+        let mut node: DependentNode = serde_json::from_value(value)?;
+        if let Some(serde_json::Value::Array(nested)) = dependents {
+            node.dependents = Some(deserialize_nodes(nested)?);
+        }
+        out.push(node);
+    }
+    Ok(out)
 }
 
 fn build_trees(options: &DependentsOptions) -> napi::Result<Vec<DependentsTree>> {

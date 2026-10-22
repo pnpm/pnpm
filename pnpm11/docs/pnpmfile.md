@@ -9,6 +9,10 @@ pnpm lets you hook directly into the installation process via special functions
 By default, `.pnpmfile.mjs` should be located in the same directory as the
 lockfile. For instance, in a [workspace](workspaces.md) with a shared lockfile,
 `.pnpmfile.mjs` should be in the root of the monorepo.
+In a workspace where each project has its own lockfile
+(`sharedWorkspaceLockfile: false`), each project runs the hooks of the
+pnpmfile in its own directory, then those of the pnpmfile in the root of the
+monorepo.
 
 ## Hooks
 
@@ -49,7 +53,7 @@ a debug log for the step.
 
 Example `.pnpmfile.mjs` (changes the dependencies of a dependency):
 
-```js
+```js title=".pnpmfile.mjs"
 function readPackage(pkg, context) {
   // Override the manifest of foo@1.x after downloading it from the registry
   if (pkg.name === 'foo' && pkg.version?.startsWith('1.')) {
@@ -104,6 +108,37 @@ export const hooks = {
   }
 }
 ```
+
+#### Registry routing
+
+Since v11.23.0, the registry routing map passed to `updateConfig` is named
+`registriesByScope` instead of `registries`. Its keys are package scopes,
+such as `@acme`, and `default` for the main registry.
+
+Returning `registriesByScope` replaces the routing map. Scopes omitted from
+the returned map use its `default` registry, or the previously configured main
+registry if `default` is omitted. The built-in `@jsr` route remains unless
+explicitly overridden. Command-line routes take precedence. This hook changes
+the fallback registry:
+
+```js title=".pnpmfile.mjs"
+export const hooks = {
+  updateConfig (config) {
+    return {
+      ...config,
+      registriesByScope: {
+        default: 'https://registry.example.com/',
+      },
+    }
+  },
+}
+```
+
+To preserve existing scope routes while changing one route, spread
+`...config.registriesByScope` into the returned map before the overrides.
+
+Returning the old `registries` field no longer changes registry routing.
+Update existing hooks to return `registriesByScope` instead.
 
 #### Settings given on the command line
 
@@ -250,7 +285,7 @@ export const finders = {
 
 Usage:
 
-```
+```sh
 pnpm why --find-by=react17
 ```
 
@@ -264,7 +299,7 @@ Added in: v11.0.0
 
 Custom resolvers and fetchers allow you to implement custom package resolution and fetching logic for new package identifier schemes (like `my-protocol:package-name`). They are registered as top-level exports in `.pnpmfile.cjs`:
 
-```js
+```js title=".pnpmfile.cjs"
 module.exports = {
   resolvers: [customResolver1, customResolver2],
   fetchers: [customFetcher1, customFetcher2],

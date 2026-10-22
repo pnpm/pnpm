@@ -118,7 +118,7 @@ test('uninstall tarball dependency', async () => {
   const project = prepareEmpty()
   const opts = testDefaults({ save: true })
 
-  let { updatedManifest: manifest } = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], opts)
+  let { updatedManifest: manifest } = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/npm/is-array/-/is-array-1.0.1.tgz`], opts)
   manifest = (await mutateModulesInSingleProject({
     dependencyNames: ['is-array'],
     manifest,

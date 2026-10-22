@@ -12,7 +12,8 @@ use crate::process::Command;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use path_extender::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderReport,
+    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
+    PathExtenderReport, sh_quote,
 };
 use pnpm_config::{Host, PNPM_VERSION, default_pnpm_home_dir, ensure_windows_home_dir_env};
 use pnpm_fs::write_atomic;
@@ -35,7 +36,7 @@ pub struct SetupArgs {
 impl SetupArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, dir: &Path) -> miette::Result<()> {
         let output = handler::<Reporter>(self.force, dir)?;
-        println!("{output}");
+        pnpm_diagnostics::println!("{output}");
         Ok(())
     }
 }
@@ -65,7 +66,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // pacquet is always a native executable (never a `.js` entrypoint), so
     // pnpm's single-executable branch always applies: install the CLI
     // globally and write the alias scripts.
-    install_cli_globally::<Reporter>(&exec_path, &pnpm_home_dir, dir)?;
+    install_cli_globally::<Reporter>(&resolve_executable(&exec_path)?, &pnpm_home_dir, dir)?;
     {
         let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&bin_dir)?;
         create_alias_scripts(&bin_dir)
@@ -73,7 +74,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             .wrap_err("create the pnpm alias scripts")?;
     }
 
-    let report = path_extender::add_dir_to_env_path(
+    let env_path_result = path_extender::add_dir_to_env_path(
         &pnpm_home_dir,
         &AddDirToEnvPathOpts {
             config_section_name: "pnpm",
@@ -82,10 +83,52 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             overwrite: force,
             position: AddingPosition::Start,
         },
-    )?;
+    );
+    let output = render_env_path_outcome(env_path_result, &pnpm_home_dir)?;
     gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
     remove_legacy_homedir_shims(&pnpm_home_dir);
-    Ok(render_setup_output(&report))
+    Ok(output)
+}
+
+/// The output of a setup whose CLI install succeeded.
+///
+/// Unavailable shell configuration or registry access leaves pnpm installed,
+/// with instructions for configuring the environment manually.
+fn render_env_path_outcome(
+    result: Result<PathExtenderReport, PathExtenderError>,
+    pnpm_home_dir: &Path,
+) -> miette::Result<String> {
+    match result {
+        Ok(report) => Ok(render_setup_output(&report)),
+        Err(
+            error @ (PathExtenderError::UnknownShell | PathExtenderError::NoShellConfig { .. }),
+        ) => Ok(render_manual_setup_output(&error, pnpm_home_dir)),
+        Err(error @ (PathExtenderError::RegRead | PathExtenderError::FailedSetEnv { .. })) => {
+            Ok(render_windows_manual_setup_output(&error, pnpm_home_dir))
+        }
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn render_windows_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
+    let mut quoted_home = String::new();
+    for character in pnpm_home_dir.to_string_lossy().chars() {
+        quoted_home.push(character);
+        // PowerShell also treats typographic apostrophes as string delimiters.
+        if matches!(character, '\'' | '\u{2018}'..='\u{201b}') {
+            quoted_home.push(character);
+        }
+    }
+    format!(
+        "{reason}\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = '{quoted_home}'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+    )
+}
+
+fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
+    format!(
+        "{reason} No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME={}\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+        sh_quote(&pnpm_home_dir.to_string_lossy()),
+    )
 }
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
@@ -154,6 +197,14 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         .into_diagnostic()
         .wrap_err("remove the temporary package.json next to the pnpm executable")?;
     Ok(())
+}
+
+/// On macOS [`std::env::current_exe`] can be a symlink, such as npm's
+/// `<prefix>/bin/pnpm`, whose directory is not the pnpm package.
+fn resolve_executable(exec_path: &Path) -> miette::Result<std::path::PathBuf> {
+    dunce::canonicalize(exec_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve the pnpm executable at {}", exec_path.display()))
 }
 
 /// The manifest `pnpm setup` writes next to a standalone executable that ships
@@ -348,13 +399,16 @@ fn remove_legacy_homedir_shims(pnpm_home_dir: &Path) {
 
 /// Render the user-facing summary of what changed.
 fn render_setup_output(report: &PathExtenderReport) -> String {
-    if report.old_settings == report.new_settings {
-        return "No changes to the environment were made. Everything is already up to date."
-            .to_string();
-    }
     let mut output = Vec::new();
     if let Some(config_file) = &report.config_file {
         output.push(report_config_change(config_file));
+    }
+    if report.old_settings == report.new_settings {
+        output.push(
+            "No changes to the environment were made. Everything is already up to date.".to_string(
+            ),
+        );
+        return output.join("\n\n");
     }
     output.push(format!("The following configuration changes were made:\n{}", report.new_settings));
     match &report.config_file {

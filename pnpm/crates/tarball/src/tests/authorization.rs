@@ -54,9 +54,9 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
 
     let resolved = FetchTarballForResolution {
         http_client: &client,
-        store_dir: store_path,
-        store_index_writer: None,
+        store: crate::ResolutionStore { dir: store_path, index_writer: None },
         package: crate::TarballPackage {
+            integrity_kind: crate::IntegrityKind::Resource,
             integrity: None,
             unpacked_size: None,
             file_count: None,
@@ -65,6 +65,7 @@ async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
         },
         auth_headers: &auth_headers,
         retry_opts: fast_retry_opts(),
+        tar_limits: crate::TarLimits::default(),
         manifest_subdir: None,
         revision_addressed: false,
     }
@@ -107,8 +108,12 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",
@@ -150,8 +155,12 @@ async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id()
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "@scope/test-pkg@1.0.0",
         "",
@@ -207,8 +216,12 @@ async fn retry_re_attaches_authorization_header_on_each_attempt() {
     let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
         &client,
         &url,
-        Some(&pkg_integrity),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&pkg_integrity),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",

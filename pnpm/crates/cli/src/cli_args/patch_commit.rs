@@ -144,39 +144,44 @@ impl PatchCommitArgs {
         self,
         dir: &Path,
         state: State,
-    ) -> Result<Option<IndexMap<String, String>>, PatchCommitError> {
-        let resolved = resolve_patch_dir(dir, &state.config.modules_dir, &self.patch_dir)?;
-        let patch_dir = resolved.patch_dir;
-        let state_value = resolved.state_value;
-        let (name, version, patched_manifest) = patched_identity(&patch_dir)?;
-
-        let current_lockfile =
-            Lockfile::load_current_from_install_state_dir(&state.config.install_state_dir)
-                .map_err(PatchCommitError::LoadLockfile)?
-                .ok_or(PatchCommitError::PatchNoLockfile)?;
-        let target = patch_target_from_state(&state_value, &name, &version, &current_lockfile)?;
-
+    ) -> miette::Result<Option<IndexMap<String, String>>> {
+        let workspace_projects = super::patch::dedicated_workspace_projects(state.config)?;
+        let extra_modules_dirs = workspace_project_modules_dirs(state.config, &workspace_projects);
+        let resolved = resolve_patch_dir(
+            dir,
+            &state.config.modules_dir,
+            &extra_modules_dirs,
+            &self.patch_dir,
+        )?;
+        let (name, version, patched_manifest) = patched_identity(&resolved.patch_dir)?;
+        let current_lockfile = super::patch::load_current_lockfile_for_patch(
+            state.config,
+            &workspace_projects,
+            &format!("{name}@{version}"),
+        )
+        .map_err(PatchCommitError::LoadLockfile)?
+        .ok_or(PatchCommitError::PatchNoLockfile)?;
+        let target =
+            patch_target_from_state(&resolved.state_value, &name, &version, &current_lockfile)?;
         let patch_content =
-            diff_against_clean::<Reporter>(&state, &patch_dir, &target, &current_lockfile).await?;
-
+            diff_against_clean::<Reporter>(&state, &resolved.patch_dir, &target, &current_lockfile)
+                .await?;
         if patch_content.is_empty() {
-            println!("No changes were found to the following directory: {}", patch_dir.display());
+            pnpm_diagnostics::println!(
+                "No changes were found to the following directory: {}",
+                resolved.patch_dir.display(),
+            );
             return Ok(None);
         }
-
-        let patched_dependencies = self.record_patch(
-            &state,
-            dir,
-            &name,
-            &version,
-            state_value.apply_to_all,
-            &patch_content,
-        )?;
+        let apply_to_all = resolved.state_value.apply_to_all;
+        let patched_dependencies =
+            self.record_patch(&state, dir, &name, &version, apply_to_all, &patch_content)?;
         update_lockfile_snapshots(
             &state,
+            &workspace_projects,
             &name,
             &version,
-            state_value.apply_to_all,
+            apply_to_all,
             &patched_manifest,
         )?;
         Ok(Some(patched_dependencies))
@@ -240,6 +245,19 @@ fn patched_identity(
     let name = manifest_string(patched_manifest.value(), "name", &manifest_path)?;
     let version = manifest_string(patched_manifest.value(), "version", &manifest_path)?;
     Ok((name, version, patched_manifest))
+}
+
+fn workspace_project_modules_dirs(
+    config: &pnpm_config::Config,
+    projects: &[pnpm_workspace::Project],
+) -> Vec<PathBuf> {
+    projects
+        .iter()
+        .map(|project| {
+            let project_name = super::pipelines::project_manifest_name(project);
+            config.project_modules_dir(&project.root_dir, project_name)
+        })
+        .collect()
 }
 
 /// The diff between the package as installed and the edited copy, with

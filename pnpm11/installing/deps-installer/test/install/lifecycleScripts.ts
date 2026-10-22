@@ -609,10 +609,10 @@ async function createGitPreparePackage (): Promise<string> {
 test('allowBuilds does not run lifecycle scripts for direct tarball identities', async () => {
   prepareEmpty()
   const registries = {
-    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }
-  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
   const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({}, [tarball], testDefaults({
@@ -639,10 +639,10 @@ test('allowBuilds does not run lifecycle scripts for direct tarball identities',
 test('surfaces a tarball artifact as an ignored build when its depPath approval is revoked', async () => {
   prepareEmpty()
   const registries = {
-    default: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/`,
+    default: `http://localhost:${REGISTRY_MOCK_PORT}/npm/`,
+    '@direct': `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/`,
   }
-  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
+  const tarball = `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz`
   const depPath = `@pnpm.e2e/pre-and-postinstall-scripts-example@${tarball}`
 
   // First install approves the artifact by its depPath, so the build runs and
@@ -1135,4 +1135,87 @@ test.each([false, true])('persist ignored builds after allowing previously ignor
   expect(Array.from(modulesManifest!.ignoredBuilds ?? [])).toStrictEqual(
     approveAll ? [] : ['@pnpm.e2e/install-script-example@1.0.0']
   )
+})
+
+test('persist ignored builds for unselected workspace projects across a filtered install and build them after approval', async () => {
+  await restartWorkerPool()
+  const projects = preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1', version: '1.0.0' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2', version: '1.0.0' },
+    },
+  ])
+  const allProjects = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0',
+        },
+      },
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+  const allImporters: MutatedProject[] = [
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-1') as ProjectRootDir,
+    },
+    {
+      mutation: 'install',
+      rootDir: path.resolve('project-2') as ProjectRootDir,
+    },
+  ]
+
+  await mutateModules(allImporters, testDefaults({
+    allProjects,
+    fastUnpack: false,
+    allowBuilds: {},
+  }))
+
+  const rootProject = assertProject(process.cwd())
+  expect(Array.from(rootProject.readModulesManifest()!.ignoredBuilds ?? [])).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+  projects['project-2'].hasNot('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+
+  // Filtered install of project-1 only: project-2's ignored package remains in
+  // the merged current lockfile and must stay in ignoredBuilds.
+  await mutateModules([allImporters[0]], testDefaults({
+    allProjects: [allProjects[0]],
+    fastUnpack: false,
+    allowBuilds: {},
+  }))
+
+  expect(Array.from(rootProject.readModulesManifest()!.ignoredBuilds ?? [])).toStrictEqual([
+    '@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0',
+  ])
+
+  // Subsequent full install with approval builds project-2's previously ignored package.
+  await mutateModules(allImporters, testDefaults({
+    allProjects,
+    fastUnpack: false,
+    frozenLockfile: true,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+  }))
+
+  projects['project-2'].has('@pnpm.e2e/pre-and-postinstall-scripts-example/generated-by-postinstall.js')
+  expect(Array.from(rootProject.readModulesManifest()!.ignoredBuilds ?? [])).toStrictEqual([])
 })

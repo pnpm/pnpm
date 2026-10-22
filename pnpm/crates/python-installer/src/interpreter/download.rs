@@ -19,6 +19,7 @@ use pnpm_config::{Config, DEFAULT_PYTHON_DOWNLOAD_URL, RuntimeOnFail, Tool};
 use pnpm_crypto_shasums_file::{ShasumsFileItem, fetch_moving_shasums_file_cached};
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pnpm_tarball::BoundedReader;
 use std::{
     io::Write as _,
     path::{Path, PathBuf},
@@ -377,6 +378,7 @@ fn unpack(archive: &Path, directory: &Path) -> Result<()> {
     std::fs::create_dir_all(parent).into_diagnostic()?;
     let staged = tempfile::TempDir::new_in(parent).into_diagnostic()?;
     let mut unpacked = tar::Archive::new(reader(archive, INTERPRETER_BOUNDS)?);
+    unpacked.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     unpacked.set_preserve_permissions(true);
     unpacked
         .unpack(staged.path())
@@ -414,6 +416,7 @@ const INTERPRETER_BOUNDS: Bounds = Bounds { bytes: 512 * 1024 * 1024, entries: 5
 /// leaving a partial unpacking to be cleaned up.
 fn within(archive: &Path, bounds: Bounds) -> Result<()> {
     let mut read = tar::Archive::new(reader(archive, bounds)?);
+    read.set_max_metadata_size(Some(pnpm_tarball::MAX_TARBALL_METADATA_BYTES));
     let entries = read
         .entries()
         .into_diagnostic()
@@ -432,26 +435,9 @@ const READ: &str = "read the Python interpreter pnpm downloaded";
 fn reader(
     archive: &Path,
     bounds: Bounds,
-) -> Result<Bounded<flate2::read::GzDecoder<std::fs::File>>> {
+) -> Result<BoundedReader<flate2::read::GzDecoder<std::fs::File>>> {
     let file = std::fs::File::open(archive).into_diagnostic().wrap_err(READ)?;
-    Ok(Bounded { inner: flate2::read::GzDecoder::new(file), left: bounds.bytes })
-}
-
-/// A stream that ends in an error once it has given out more than it was
-/// allowed to.
-struct Bounded<Stream> {
-    inner: Stream,
-    left: u64,
-}
-
-impl<Stream: std::io::Read> std::io::Read for Bounded<Stream> {
-    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-        let read = self.inner.read(buffer)?;
-        self.left = self.left
-            .checked_sub(read as u64)
-            .ok_or_else(|| std::io::Error::other("it unpacks to more than it may"))?;
-        Ok(read)
-    }
+    Ok(BoundedReader::new(flate2::read::GzDecoder::new(file), bounds.bytes))
 }
 
 #[cfg(test)]

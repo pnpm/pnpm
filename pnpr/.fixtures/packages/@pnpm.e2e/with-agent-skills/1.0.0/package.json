@@ -1,0 +1,6 @@
+{
+  "name": "@pnpm.e2e/with-agent-skills",
+  "version": "1.0.0",
+  "description": "A package that ships agent skills",
+  "license": "MIT"
+}

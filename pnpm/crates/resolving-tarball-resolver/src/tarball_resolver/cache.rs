@@ -128,10 +128,13 @@ impl TarballResolver {
     }
 
     /// The cache dir for records about `url`, or `None` when nothing may be
-    /// cached for it.
+    /// cached for it. A record holds the resource's integrity, which a
+    /// lockfile that pins tars cannot use.
     fn http_cache_dir(&self, url: &str) -> Option<&Path> {
         let ctx = self.fetch_context.as_ref()?;
-        if !self.may_cache(url, url) {
+        if !self.may_cache(url, url)
+            || ctx.integrity_target != pnpm_lockfile::IntegrityTarget::Resource
+        {
             return None;
         }
         ctx.cache_dir.as_deref()

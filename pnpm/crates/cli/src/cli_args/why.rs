@@ -7,6 +7,7 @@ use crate::{
             build::{LoadedState, importer_root_ids, read_project_manifest, safe_importer_dir},
             dependents::{
                 BuildDependentsOptions, DependentsTree, ImporterInfo, build_dependents_tree,
+                merge_trees,
             },
             dependents_render::{
                 RenderDependentsOptions, render_dependents_json, render_dependents_parseable,
@@ -16,9 +17,10 @@ use crate::{
             pkg_info::PkgInfoEnv,
             search::Searcher,
         },
-        deps_tree_finders::{evaluate_finders, finder_candidates, resolve_finders},
+        deps_tree_finders::{FinderHandle, evaluate_finders, finder_candidates, resolve_finders},
         install::resolve_bool_override,
-        list::print_output,
+        list::{print_output, recursive::dedicated_project_config},
+        parse_depth_limit,
         recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
     },
 };
@@ -26,6 +28,7 @@ use clap::Args;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_modules_yaml::IncludedDependencies;
+use pnpm_workspace_projects_graph::BaseProject;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -34,8 +37,9 @@ use std::{
 #[derive(Debug, Args)]
 pub struct WhyArgs {
     pub packages: Vec<String>,
-    /// Max display depth of the reverse dependency tree.
-    #[clap(long)]
+    /// Max display depth of the reverse dependency tree. `Infinity`
+    /// renders the whole tree.
+    #[clap(long, value_parser = parse_depth_limit)]
     pub depth: Option<usize>,
     /// Exclude peer dependencies. Ignored: `pnpm why` always includes them.
     // The flag is there for parity: pnpm 11's `why` declares it and never
@@ -59,43 +63,101 @@ impl WhyArgs {
                 "`pnpm why` requires the package name or --find-by=<finder-name>"
             ));
         }
-        let lockfile_dir = state.lockfile_dir().to_path_buf();
-        let project_dirs = state_project_dirs(&state, &lockfile_dir)?;
+        let finders = resolve_finders(state.config, state.lockfile_dir(), &self.find_by).await?;
 
-        let loaded =
-            LoadedState::load(&lockfile_dir, Some(state.config.modules_dir.as_path()), false)?;
-        let Some(env) = loaded.env_for_config(&lockfile_dir, state.config) else {
-            return Ok(());
+        let trees = if state.config.recursive && !state.config.shares_one_lockfile() {
+            let Some(trees) = self.trees_for_dedicated_lockfiles(&state, &finders).await? else {
+                return Ok(());
+            };
+            trees
+        } else {
+            let lockfile_dir = state.lockfile_dir().to_path_buf();
+            let project_dirs = state_project_dirs(&state, &lockfile_dir)?;
+            let Some(trees) =
+                self.trees_for_lockfile(state.config, &lockfile_dir, &project_dirs, &finders)
+                    .await?
+            else {
+                return Ok(());
+            };
+            trees
+        };
+
+        print_output(&self.render(&trees));
+        Ok(())
+    }
+
+    async fn trees_for_dedicated_lockfiles(
+        &self,
+        state: &State,
+        finders: &[FinderHandle],
+    ) -> miette::Result<Option<Vec<DependentsTree>>> {
+        let project_dir = state.project_dir();
+        let workspace_root = state.config.workspace_dir.as_deref().unwrap_or(project_dir);
+        let (projects, _) = discover_workspace_projects(workspace_root, state.config)?;
+        let selection = select_recursive_projects(
+            &projects,
+            state.config,
+            project_dir,
+            AutoExcludeRoot::Disabled,
+        )?;
+        let mut any_lockfile = false;
+        let mut trees = Vec::new();
+        for (selected_dir, project) in &selection.selected {
+            let project_config = dedicated_project_config(
+                state.config,
+                selected_dir,
+                project.package.manifest_name(),
+            );
+            if let Some(project_trees) = self.trees_for_lockfile(
+                &project_config,
+                selected_dir,
+                std::slice::from_ref(selected_dir),
+                finders,
+            )
+            .await?
+            {
+                any_lockfile = true;
+                trees.extend(project_trees);
+            }
+        }
+        if !any_lockfile {
+            return Ok(None);
+        }
+        Ok(Some(merge_trees(trees)))
+    }
+
+    async fn trees_for_lockfile(
+        &self,
+        config: &Config,
+        lockfile_dir: &Path,
+        project_dirs: &[PathBuf],
+        finders: &[FinderHandle],
+    ) -> miette::Result<Option<Vec<DependentsTree>>> {
+        let loaded = LoadedState::load(lockfile_dir, Some(config.modules_dir.as_path()), false)?;
+        let Some(env) = loaded.env_for_config(lockfile_dir, config) else {
+            return Ok(None);
         };
         let lockfile = env.current_lockfile;
-
-        let importer_info = collect_importer_info(lockfile, &lockfile_dir);
-
-        let include = self.included_dependencies(state.config);
-
-        let root_ids = importer_root_ids(lockfile, &lockfile_dir, &project_dirs);
+        let importer_info = collect_importer_info(lockfile, lockfile_dir);
+        let include = self.included_dependencies(config);
+        let root_ids = importer_root_ids(lockfile, lockfile_dir, project_dirs);
         let graph = build_dependency_graph(
             &root_ids,
             &BuildGraphOptions {
                 lockfile,
                 include,
                 only_projects: false,
-                peer_edges: state.config.peer_edge_options(),
+                peer_edges: config.peer_edge_options(),
             },
         );
-
-        let searcher = self.searcher(&env, &graph, state.config, &lockfile_dir).await?;
-
-        let trees = build_dependents_tree(&BuildDependentsOptions {
+        let searcher = self.searcher(&env, &graph, finders).await?;
+        Ok(Some(build_dependents_tree(&BuildDependentsOptions {
             env: &env,
             graph: &graph,
             search: &searcher,
             importer_info: &importer_info,
             manifest_fields: &[],
-        });
-
-        print_output(&self.render(&trees));
-        Ok(())
+        })))
     }
 
     fn included_dependencies(&self, config: &Config) -> IncludedDependencies {
@@ -116,14 +178,12 @@ impl WhyArgs {
         &self,
         env: &PkgInfoEnv<'_>,
         graph: &DependencyGraph,
-        config: &Config,
-        lockfile_dir: &Path,
+        finders: &[FinderHandle],
     ) -> miette::Result<Searcher> {
         let mut searcher = Searcher::from_queries(&self.packages)?;
-        if !self.find_by.is_empty() {
-            let finders = resolve_finders(config, lockfile_dir, &self.find_by).await?;
+        if !finders.is_empty() {
             let candidates = finder_candidates(env, graph);
-            let results = evaluate_finders(env, &finders, candidates).await?;
+            let results = evaluate_finders(env, finders, candidates).await?;
             searcher.set_finder_results(results);
         }
         Ok(searcher)
@@ -188,13 +248,5 @@ fn why_project_dirs(
 }
 
 fn state_project_dirs(state: &State, lockfile_dir: &Path) -> miette::Result<Vec<PathBuf>> {
-    why_project_dirs(
-        state.config,
-        lockfile_dir,
-        state.manifest
-            .path()
-            .parent()
-            .expect("manifest path always has a parent dir")
-            .to_path_buf(),
-    )
+    why_project_dirs(state.config, lockfile_dir, state.project_dir().to_path_buf())
 }

@@ -237,7 +237,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 
     let ignored = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -266,6 +266,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -343,7 +344,7 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
 
     let err = BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: None,
             read: true,
             write: false,
@@ -372,6 +373,7 @@ pub(super) fn fail_when_failing_postinstall_is_required() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -462,6 +464,7 @@ async fn write_path_disabled_skips_upload() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -473,7 +476,7 @@ async fn write_path_disabled_skips_upload() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some("darwin;arm64;node20"),
             read: true,
             write: false,
@@ -502,6 +505,7 @@ async fn write_path_disabled_skips_upload() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
@@ -613,6 +617,7 @@ async fn upload_error_does_not_interrupt_install() {
         files: HashMap::new(),
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -625,7 +630,7 @@ async fn upload_error_does_not_interrupt_install() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
-            maps_by_snapshot: None,
+            side_effects: crate::CachedSideEffects { overlays: None, rows: None },
             engine_name: Some("darwin;arm64;node20"),
             read: true,
             write: true,
@@ -654,6 +659,7 @@ async fn upload_error_does_not_interrupt_install() {
             requires_build_by_snapshot: None,
             importers: &importers,
             dependency_groups: None,
+            build_scope: None,
         },
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),

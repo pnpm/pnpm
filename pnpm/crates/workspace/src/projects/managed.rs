@@ -64,29 +64,3 @@ pub(super) fn resolve_ignored_directories(
         .filter(|dir| !starts_with_directory(&workspace_root, dir))
         .collect()
 }
-
-/// Globs, relative to `walk_root`, that prune managed directories from a
-/// wax walk so it never descends into them. A managed directory outside
-/// `walk_root` yields no glob; [`is_under_ignored_directory`] still filters
-/// every walked manifest.
-pub(super) fn managed_directory_ignores(
-    walk_root: &Path,
-    ignored_directories: &[PathBuf],
-) -> Vec<String> {
-    let walk_root = pnpm_fs::lexical_normalize(walk_root);
-    ignored_directories
-        .iter()
-        .filter_map(|dir| dir.strip_prefix(&walk_root).ok())
-        .filter(|relative| !relative.as_os_str().is_empty())
-        .map(|relative| {
-            // A managed directory is an opaque path, never a pattern.
-            let mut glob = relative
-                .components()
-                .map(|component| wax::escape(&component.as_os_str().to_string_lossy()).into_owned())
-                .collect::<Vec<_>>()
-                .join("/");
-            glob.push_str("/**");
-            glob
-        })
-        .collect()
-}

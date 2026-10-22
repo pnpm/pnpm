@@ -837,6 +837,72 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   projects['project-1'].has('project-2')
 })
 
+test.each([
+  [['project-1']],
+  [['project-1', 'project-2']],
+])('filtered recursive install keeps the importer of a project missing from disk (filter: %j)', async (filter) => {
+  const projects = preparePackages([
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': 'catalog:only-3',
+      },
+    },
+  ])
+  const catalogs = { 'only-3': { 'is-negative': '1.0.0' } }
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), []),
+    catalogs,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  const before = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+
+  fs.rmSync('project-3', { recursive: true })
+  writeJsonFileSync(path.join(projects['project-1'].dir(), 'package.json'), {
+    name: 'project-1',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+      '@pnpm.e2e/foo': '100.0.0',
+    },
+  })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    ...await filterProjectsBySelectorObjectsFromDir(process.cwd(), filter.map((namePattern) => ({ namePattern }))),
+    catalogs,
+    dir: process.cwd(),
+    filter,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = readYamlFileSync<LockfileFile>('pnpm-lock.yaml')
+  expect(lockfile.importers!['project-1'].dependencies).toHaveProperty(['@pnpm.e2e/foo'])
+  expect(lockfile.importers!['project-3']).toStrictEqual(before.importers!['project-3'])
+  expect(lockfile.catalogs).toStrictEqual(before.catalogs)
+  expect(lockfile.packages).toHaveProperty(['is-negative@1.0.0'])
+  expect(fs.existsSync('project-3')).toBe(false)
+})
+
 test('recursive install on workspace with custom lockfile-dir', async () => {
   preparePackages([
     {

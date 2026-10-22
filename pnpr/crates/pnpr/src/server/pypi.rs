@@ -60,9 +60,9 @@ const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 /// The largest Simple API page accepted from an upstream.
 const PAGE_LIMIT: usize = 64 * 1024 * 1024;
 
-pub(super) fn routes(prefixed: bool) -> Router<AppState> {
+pub(super) fn routes() -> Router<AppState> {
     let mut router = Router::new();
-    for base in mount_bases(ECOSYSTEM, prefixed) {
+    for base in mount_bases(ECOSYSTEM) {
         router = router
             .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
             .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))

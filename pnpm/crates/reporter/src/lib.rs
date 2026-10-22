@@ -11,6 +11,8 @@
 //! channels are added incrementally as the surrounding code starts using
 //! them.
 
+pub use fatal_error::FatalErrorLog;
+
 pub use dependencies::{
     AddedRoot, DependencyType, PackageManifestLog, PackageManifestMessage, RemovedRoot, RootLog,
     RootMessage, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalParent,
@@ -124,6 +126,11 @@ pub enum LogEvent {
     /// the list to remind the user they can opt in.
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
+
+    /// One per install that found direct dependencies whose agent skills
+    /// await approval (`pnpm:pending-skills`).
+    #[serde(rename = "pnpm:pending-skills")]
+    PendingSkills(PendingSkillsLog),
 
     /// The latest pnpm the registry offers, next to the running one
     /// (`pnpm:update-check`). Emitted at most once a day by the
@@ -343,6 +350,15 @@ pub struct IgnoredScriptsLog {
     /// the package names, matching pnpm's `ignoredScriptsLogger.debug`.
     #[serde(skip)]
     pub strict_dep_builds: bool,
+}
+
+/// `pnpm:pending-skills` payload: the packages whose agent skills await
+/// approval, by the keys `permissions` approves them under, sorted.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingSkillsLog {
+    pub level: LogLevel,
+    pub package_names: Vec<String>,
 }
 
 /// `pnpm:update-check` payload: the running pnpm version and the latest
@@ -656,16 +672,20 @@ pub struct NdjsonReporter;
 
 impl Reporter for NdjsonReporter {
     fn emit(event: &LogEvent) {
-        let mut buf = Vec::with_capacity(256);
-        if write_record(&mut buf, event).is_err() {
-            return;
-        }
-        buf.push(b'\n');
-        let _ = std::io::stderr().lock().write_all(&buf);
+        emit_record(event);
     }
 }
 
-fn write_record(buf: &mut Vec<u8>, event: &LogEvent) -> serde_json::Result<()> {
+fn emit_record(event: &impl Serialize) {
+    let mut buffer = Vec::with_capacity(256);
+    if write_record(&mut buffer, event).is_err() {
+        return;
+    }
+    buffer.push(b'\n');
+    let _ = std::io::stderr().lock().write_all(&buffer);
+}
+
+fn write_record(buf: &mut Vec<u8>, event: &impl Serialize) -> serde_json::Result<()> {
     let envelope =
         Envelope { time: now_millis(), hostname: &HOSTNAME, pid: crate::process_id(), event };
     serde_json::to_writer(buf, &envelope)
@@ -676,12 +696,12 @@ fn write_record(buf: &mut Vec<u8>, event: &LogEvent) -> serde_json::Result<()> {
 // to the top level of the JSON object so the wire format is one flat record
 // per line.
 #[derive(Serialize)]
-struct Envelope<'a> {
+struct Envelope<'a, Event> {
     time: u128,
     hostname: &'a str,
     pid: u32,
     #[serde(flatten)]
-    event: &'a LogEvent,
+    event: &'a Event,
 }
 
 fn now_millis() -> u128 {
@@ -731,6 +751,8 @@ static HOSTNAME: LazyLock<String> = LazyLock::new(Host::get_host_name);
 
 #[cfg(test)]
 mod tests;
+
+mod fatal_error;
 
 mod progress;
 

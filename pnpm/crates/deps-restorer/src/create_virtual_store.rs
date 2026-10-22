@@ -41,21 +41,40 @@ use std::{
 };
 
 /// Bundled package manifests recovered from the `SQLite` store index
-/// during [`CreateVirtualStore::run`], keyed by the same
-/// `PkgNameVerPeer` (without peer suffix) that
+/// or cold-batch tarball extraction during [`CreateVirtualStore::run`],
+/// keyed by the same `PkgNameVerPeer` (without peer suffix) that
 /// [`pnpm_lockfile::Lockfile::packages`] uses. Consumed by the
 /// bin-linker so it doesn't have to re-read `package.json` per child
 /// during [`crate::LinkVirtualStoreBins::run`].
-///
-/// Only covers the warm-batch packages (those whose tarball was
-/// already in the CAFS at install start). Cold-batch packages — ones
-/// pacquet had to download — are absent and the bin linker falls
-/// back to disk reads for them. That matches pnpm's behaviour for
-/// installs that mix warm and cold packages: pnpm's bin linker
-/// reads from `pkgFilesIndex.manifest` for warm fetches and from
-/// `dep.fetching()?.bundledManifest` for cold ones, but the cold
-/// path's `bundledManifest` isn't plumbed through pacquet yet.
 pub type PackageManifests = HashMap<PkgNameVerPeer, std::sync::Arc<serde_json::Value>>;
+
+/// Precalculated bin commands and shebang runtimes recovered from
+/// `dist.pnpr.bins` or cold-batch tarball extraction during
+/// [`CreateVirtualStore::run`], keyed by the peer-stripped `PkgNameVerPeer`
+/// that [`pnpm_lockfile::Lockfile::packages`] uses. Only unpatched packages
+/// with `requiresBuild == false` are recorded.
+pub type PackageBins = HashMap<
+    PkgNameVerPeer,
+    std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>,
+>;
+
+/// Look up the precalculated bin map for `snapshot_key` when the snapshot is
+/// unpatched. Checks the exact snapshot key first, then the peer-stripped
+/// package key.
+#[must_use]
+pub fn lookup_known_bins<'a>(
+    known_bins: Option<&'a PackageBins>,
+    snapshot_key: &PackageKey,
+) -> Option<&'a std::sync::Arc<std::collections::BTreeMap<String, pnpm_package_manifest::PackageBin>>>
+{
+    if crate::snapshot_has_patch(snapshot_key) {
+        return None;
+    }
+    let known = known_bins?;
+    known
+        .get(snapshot_key)
+        .or_else(|| known.get(&snapshot_key.without_peer()))
+}
 
 /// Per-snapshot side-effects-cache overlays, keyed by the snapshot's
 /// `PackageKey` and then by the dep-state cache key (the string
@@ -86,9 +105,28 @@ pub type RemoteSideEffectsQuarantineBySnapshot =
 pub type StoreIndexKeysBySnapshot = HashMap<PackageKey, String>;
 
 /// Per-snapshot `requiresBuild` flags recovered from the store index
-/// during the warm-cache prefetch. `BuildModules` consumes this to
-/// avoid re-inspecting every package directory after materialization.
+/// during the warm-cache prefetch or from `pnpr` resolution metadata.
+/// `BuildModules` consumes this to avoid re-inspecting every package
+/// directory after materialization.
 pub type RequiresBuildBySnapshot = HashMap<PackageKey, bool>;
+
+/// Look up the pre-verified `requiresBuild` flag for `snapshot_key` when the
+/// snapshot is unpatched. Checks the exact snapshot key first, then the
+/// peer-stripped package key.
+#[must_use]
+pub fn lookup_known_requires_build(
+    known_requires_build: Option<&RequiresBuildBySnapshot>,
+    snapshot_key: &PackageKey,
+) -> Option<bool> {
+    if crate::snapshot_has_patch(snapshot_key) {
+        return None;
+    }
+    let known = known_requires_build?;
+    known
+        .get(snapshot_key)
+        .or_else(|| known.get(&snapshot_key.without_peer()))
+        .copied()
+}
 
 /// Store handles that a fresh resolution and dependency materialization share.
 pub struct CreateVirtualStoreStoreContext<'a> {
@@ -116,7 +154,15 @@ pub struct CasPrefetch {
     /// strict/lenient asymmetry documented there: a survivor propagates
     /// its error, a skipped snapshot swallows it.
     cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
-    task: tokio::task::JoinHandle<PrefetchResult>,
+    task: PrefetchTask,
+}
+
+/// The warm-cache prefetch [`CasPrefetch`] carries.
+enum PrefetchTask {
+    Running(tokio::task::JoinHandle<PrefetchResult>),
+    /// Settled and verified by an earlier pass over a superset of the
+    /// snapshots. See [`cas::retain_fetch_pass_rows`].
+    Settled(Box<PrefetchResult>),
 }
 
 impl CasPrefetch {
@@ -169,13 +215,16 @@ impl CasPrefetch {
         // `CreateVirtualStore::settle_prefetch`. Under a global virtual
         // store or an unchanged lockfile that is few or none of the rows
         // read here.
-        let task = tokio::spawn(prefetch_cas_paths(
+        let keys = prefetch_keys(&cache_keys);
+        #[cfg(test)]
+        tests::record_prefetch_start(&keys);
+        let task = PrefetchTask::Running(tokio::spawn(prefetch_cas_paths(
             store_index.clone(),
             store_dir,
-            prefetch_keys(&cache_keys),
+            keys,
             PrefetchIntegrityCheck::deferred_if(config.verify_store_integrity),
             SharedVerifiedFilesCache::clone(&verified_files_cache),
-        ));
+        )));
         CasPrefetch { store_index, verified_files_cache, cache_keys, task }
     }
 }
@@ -198,7 +247,11 @@ pub(crate) type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, O
 /// in the install graph.
 pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
+    pub package_bins: PackageBins,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
+    /// The raw side-effects rows the overlays above were built from,
+    /// including the empty rows those overlays leave out.
+    pub side_effects_by_snapshot: SideEffectsBySnapshot,
     pub requires_build_by_snapshot: RequiresBuildBySnapshot,
     /// Snapshot keys whose package directories this run materialized.
     /// The build phase uses this list to record only newly deferred
@@ -227,6 +280,7 @@ impl CreateVirtualStoreOutput {
     ) -> crate::BuildPhaseCache<'a> {
         crate::BuildPhaseCache {
             maps_by_snapshot: &self.side_effects_maps_by_snapshot,
+            diffs_by_snapshot: &self.side_effects_by_snapshot,
             requires_build_by_snapshot: &self.requires_build_by_snapshot,
             engine_name,
             store_index_writer,
@@ -518,7 +572,9 @@ fn removed_aliases_by_key(
 fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
     CreateVirtualStoreOutput {
         package_manifests: PackageManifests::new(),
+        package_bins: PackageBins::new(),
         side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
+        side_effects_by_snapshot: SideEffectsBySnapshot::new(),
         requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
         materialized_snapshots: Vec::new(),
         fetch_failed: HashSet::new(),
@@ -527,6 +583,7 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
 }
 
 mod partition;
+mod settle;
 mod snapshot_plan;
 
 #[cfg(test)]

@@ -1,19 +1,24 @@
 mod archive_contract;
 
 use super::{
-    ArchiveStoreProjection, FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
-    RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
+    ArchiveIntegrity, ArchiveStoreProjection, FetchTarballForResolution, IgnoreEntryFilter,
+    MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, Reporter, RetryOpts, SharedReportedProgressKeys,
+    TarLimits,
+    archive_integrity::ArchiveVerification,
+    archive_retry::is_transient_error,
+    auth_header_for_package_download,
     download::{
-        IngestTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
+        IngestTarballToStore, download_priority, fetch_and_extract_archive_with_retry,
         slow_download_warning, store_index_cache_key,
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
         STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD, allocate_tarball_buffer,
-        apply_append_manifest, apply_placeholder_manifest, bounded_gzip_size_hint, decompress_gzip,
-        extract_gzipped_tarball, extract_tarball_entries, gzip_isize_hint,
-        is_eager_decode_limit_exceeded, normalize_bundled_manifest, should_stream_extract,
-        stream_extract_gzipped_tarball,
+        apply_append_manifest, apply_placeholder_manifest, decompress_gzip,
+        extract_gzipped_tarball_with_tar, extract_tarball_entries_with_bins,
+        gzip::{bounded_gzip_size_hint, gzip_isize_hint, should_stream_extract},
+        is_eager_decode_limit_exceeded, normalize_bundled_manifest,
+        stream_extract_gzipped_tarball_with_tar,
     },
     local_tarball::{
         allocate_local_tarball_buffer, local_file_tarball_path, open_local_tarball,
@@ -42,6 +47,57 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+fn extract_tarball_entries(
+    tar_data: &[u8],
+    limits: TarLimits,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let (files, index, _) =
+        extract_tarball_entries_with_bins(tar_data, limits, store_dir, ignore_file_pattern)?;
+    Ok((files, index))
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "test wrapper forwarding install-scoped inputs to fetch_and_extract_archive_with_retry"
+)]
+async fn fetch_and_extract_with_retry<TestReporter: Reporter>(
+    http_client: &ThrottledClient,
+    package_url: &str,
+    verification: &ArchiveVerification,
+    package_unpacked_size: Option<usize>,
+    tar_limits: TarLimits,
+    download_priority: u64,
+    package_id: &str,
+    requester: &str,
+    store_dir: &'static StoreDir,
+    retry_opts: RetryOpts,
+    auth_headers: &AuthHeaders,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+    progress_key: Option<(&SharedReportedProgressKeys, &str)>,
+    revision_addressed: bool,
+) -> Result<(ArchiveIntegrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let (integrity, files, index, _) = fetch_and_extract_archive_with_retry::<TestReporter>(
+        http_client,
+        package_url,
+        verification,
+        package_unpacked_size,
+        tar_limits,
+        download_priority,
+        package_id,
+        requester,
+        store_dir,
+        retry_opts,
+        auth_headers,
+        ignore_file_pattern,
+        progress_key,
+        revision_addressed,
+    )
+    .await?;
+    Ok((integrity, files, index))
 }
 
 /// A URL whose connect fails at once on every OS. Linux and macOS refuse
@@ -124,6 +180,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
         files,
         side_effects: None,
         remote_side_effects_quarantine: None,
+        tar_integrity: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(index_key, &entry).unwrap();
@@ -609,3 +666,30 @@ mod manifests;
 mod lockfile;
 
 mod fetch_for_resolution;
+
+mod tar_resources;
+
+mod tar_integrity;
+
+/// [`extract_gzipped_tarball_with_tar`] without the tar's integrity.
+fn extract_gzipped_tarball(
+    gz_data: &[u8],
+    unpacked_size: Option<usize>,
+    limits: crate::TarLimits,
+    store_dir: &pnpm_store_dir::StoreDir,
+    ignore_file_pattern: Option<&crate::IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, pnpm_store_dir::PackageFilesIndex), TarballError> {
+    extract_gzipped_tarball_with_tar(gz_data, unpacked_size, limits, store_dir, ignore_file_pattern)
+        .map(|(files, index, _, _)| (files, index))
+}
+
+/// [`stream_extract_gzipped_tarball_with_tar`] without the tar's integrity.
+fn stream_extract_gzipped_tarball(
+    gz_data: &[u8],
+    limits: crate::TarLimits,
+    store_dir: &pnpm_store_dir::StoreDir,
+    ignore_file_pattern: Option<&crate::IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, pnpm_store_dir::PackageFilesIndex), TarballError> {
+    stream_extract_gzipped_tarball_with_tar(gz_data, limits, store_dir, ignore_file_pattern)
+        .map(|(files, index, _, _)| (files, index))
+}

@@ -136,7 +136,7 @@ fn extract_propagates_malformed_tar_instead_of_panicking() {
     // way the filter+map_err plumbing must surface the failure as
     // `TarballError::ReadTarballEntries`.
     let bogus: Vec<u8> = vec![0xFF; 1024];
-    let err = extract_tarball_entries(&bogus, store_path, None)
+    let err = extract_tarball_entries(&bogus, crate::TarLimits::default(), store_path, None)
         .expect_err("malformed tar must surface a TarballError, not panic");
 
     assert!(
@@ -181,7 +181,7 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
         builder.finish().expect("finalize tar");
     }
 
-    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+    let err = extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), store_path, None)
         .expect_err("parent-dir component must be rejected, not normalized");
 
     match err {
@@ -228,9 +228,13 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
         path.starts_with("lib/node_modules/npm/")
     }
 
-    let (cas_paths, pkg_files_idx) =
-        extract_tarball_entries(&tar_bytes, store_path, Some(&drop_npm))
-            .expect("tarball extraction with ignore filter");
+    let (cas_paths, pkg_files_idx) = extract_tarball_entries(
+        &tar_bytes,
+        crate::TarLimits::default(),
+        store_path,
+        Some(&drop_npm),
+    )
+    .expect("tarball extraction with ignore filter");
 
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/tool"));
@@ -317,8 +321,9 @@ fn extract_gzipped_tarball_streams_an_archive_past_the_eager_ceiling() {
         "the fixture must look small enough to route to the eager path",
     );
 
-    let (cas_paths, pkg_files_idx) = extract_gzipped_tarball(&bomb, None, store_path, None)
-        .expect("an archive past the eager ceiling must still extract");
+    let (cas_paths, pkg_files_idx) =
+        extract_gzipped_tarball(&bomb, None, crate::TarLimits::default(), store_path, None)
+            .expect("an archive past the eager ceiling must still extract");
 
     dbg!(cas_paths.keys().collect::<Vec<_>>());
     assert_eq!(pkg_files_idx.files["bomb.bin"].size, payload_size);
@@ -359,12 +364,17 @@ fn streaming_extract_matches_eager_extract() {
 
     let (eager_tempdir, eager_store) = tempdir_with_leaked_path();
     let (eager_cas_paths, eager_idx) =
-        extract_tarball_entries(&tar_bytes, eager_store, None).expect("eager extraction");
+        extract_tarball_entries(&tar_bytes, crate::TarLimits::default(), eager_store, None)
+            .expect("eager extraction");
 
     let (streaming_tempdir, streaming_store) = tempdir_with_leaked_path();
-    let (streaming_cas_paths, streaming_idx) =
-        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), streaming_store, None)
-            .expect("streaming extraction");
+    let (streaming_cas_paths, streaming_idx) = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar_bytes),
+        crate::TarLimits::default(),
+        streaming_store,
+        None,
+    )
+    .expect("streaming extraction");
 
     let relative =
         |cas_paths: &HashMap<String, PathBuf>, store: &StoreDir| -> HashMap<String, PathBuf> {
@@ -438,8 +448,13 @@ fn streaming_extract_rejects_parent_dir_component_in_entry_path() {
         builder.finish().expect("finalize tar");
     }
 
-    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
-        .expect_err("parent-dir component must be rejected, not normalized");
+    let err = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar_bytes),
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect_err("parent-dir component must be rejected, not normalized");
 
     match err {
         TarballError::ReadTarballEntries(io_err) => {
@@ -479,9 +494,13 @@ fn streaming_extract_applies_ignore_filter_dropping_entries_from_both_maps() {
         path.starts_with("lib/node_modules/npm/")
     }
 
-    let (cas_paths, pkg_files_idx) =
-        stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, Some(&drop_npm))
-            .expect("streaming extraction with ignore filter");
+    let (cas_paths, pkg_files_idx) = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar_bytes),
+        crate::TarLimits::default(),
+        store_path,
+        Some(&drop_npm),
+    )
+    .expect("streaming extraction with ignore filter");
 
     dbg!(&cas_paths);
     assert!(cas_paths.contains_key("bin/tool"));
@@ -512,8 +531,13 @@ fn streaming_extract_truncated_large_entry_commits_nothing() {
     // Only 1 KiB of the claimed payload is present.
     tar_bytes.extend_from_slice(&[0u8; 1024]);
 
-    let err = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
-        .expect_err("truncated large entry must fail extraction");
+    let err = stream_extract_gzipped_tarball(
+        &gzip_bytes(&tar_bytes),
+        crate::TarLimits::default(),
+        store_path,
+        None,
+    )
+    .expect_err("truncated large entry must fail extraction");
     assert!(
         matches!(err, TarballError::ReadTarballEntries(_)),
         "expected ReadTarballEntries, got: {err:?}",
@@ -556,7 +580,7 @@ fn streaming_extract_propagates_corrupt_gzip_as_read_error() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
 
     let bogus: Vec<u8> = vec![0xFF; 1024];
-    let err = stream_extract_gzipped_tarball(&bogus, store_path, None)
+    let err = stream_extract_gzipped_tarball(&bogus, crate::TarLimits::default(), store_path, None)
         .expect_err("corrupt gzip must surface a TarballError, not panic");
 
     assert!(
@@ -598,8 +622,12 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
         fetch_and_extract_with_retry::<SilentReporter>(
             &client,
             &url,
-            Some(&pkg_integrity),
+            &crate::archive_integrity::ArchiveVerification::new(
+                Some(&pkg_integrity),
+                crate::IntegrityKind::Resource,
+            ),
             Some(MAX_UNTRUSTED_PREALLOC_BYTES),
+            crate::TarLimits::default(),
             0,
             "test-pkg",
             "",
@@ -613,7 +641,7 @@ async fn download_pipeline_extracts_via_streaming_path_for_large_unpacked_hint()
         .await
         .expect("download with a large unpacked-size hint");
 
-    assert_eq!(computed_integrity.to_string(), pkg_integrity.to_string());
+    assert_eq!(computed_integrity.resource.to_string(), pkg_integrity.to_string());
     assert!(cas_paths.contains_key("package.json"));
     assert!(cas_paths.contains_key("bin/tool"));
     assert_eq!(
@@ -701,8 +729,9 @@ async fn read_local_tarball_metadata_reports_a_missing_file_as_not_found() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("missing.tgz");
 
-    let err =
-        read_local_tarball_metadata(&tarball_path).await.expect_err("a missing tarball must fail");
+    let err = read_local_tarball_metadata(&tarball_path, crate::IntegrityKind::Resource)
+        .await
+        .expect_err("a missing tarball must fail");
     match err {
         TarballError::ReadLocalTarball { path, source } => {
             assert_eq!(path, tarball_path);
@@ -730,8 +759,12 @@ async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&expected),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&expected),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",
@@ -776,8 +809,12 @@ async fn revision_addressed_tarball_does_not_follow_a_redirect() {
     let err = fetch_and_extract_with_retry::<SilentReporter>(
         &ThrottledClient::default(),
         &url,
-        Some(&expected),
+        &crate::archive_integrity::ArchiveVerification::new(
+            Some(&expected),
+            crate::IntegrityKind::Resource,
+        ),
         None,
+        crate::TarLimits::default(),
         0,
         "test-pkg",
         "",

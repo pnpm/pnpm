@@ -4,7 +4,7 @@ use super::{
 };
 use crate::PolicyExcludes;
 use pipe_trait::Pipe;
-use pnpm_config::{Config, NodePackageMapType};
+use pnpm_config::{Config, NodePackageMapMode, NodePackageMapType};
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::{Host, LayoutVersion, Modules, NodeLinker, read_modules_manifest};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -27,7 +27,12 @@ fn package_map_writer_is_gated_to_supported_pacquet_mode() {
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_hoisted_package_map(&config));
 
-    config.node_experimental_package_map = true;
+    config.node_package_map_mode = NodePackageMapMode::WriteOnly;
+    assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
+    assert!(crate::should_write_hoisted_package_map(&config));
+    assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
+
+    config.node_package_map_mode = NodePackageMapMode::Load;
     assert!(crate::should_write_package_map(&config, pnpm_config::NodeLinker::Isolated));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Hoisted));
     assert!(!crate::should_write_package_map(&config, pnpm_config::NodeLinker::Pnp));
@@ -93,7 +98,6 @@ async fn should_install_dependencies() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -287,7 +291,6 @@ async fn install_prunes_surplus_virtual_store_dir() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -380,7 +383,6 @@ async fn npm_alias_dependency_installs_under_alias_key() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -483,7 +485,6 @@ async fn unversioned_npm_alias_defaults_to_latest() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -597,7 +598,6 @@ pub(super) async fn install_writes_modules_yaml() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -726,7 +726,6 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,
@@ -829,7 +828,6 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
             update_checksums: false,
             excludes: PolicyExcludes::Persist,
             disable_optimistic_repeat: false,
-            manifest_freshness: crate::ManifestFreshness::Mtime,
         },
         execution: crate::InstallExecution {
             skip_runtimes: false,

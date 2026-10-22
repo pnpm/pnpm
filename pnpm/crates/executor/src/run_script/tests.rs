@@ -80,8 +80,8 @@ fn run_script_shows_the_args_quoted_the_posix_way() {
     let dir = project_recording_args();
     let args = ["a b".to_string(), "%PATH%".to_string()];
     let invocation = crate::ScriptInvocation { stage: "echo", script: "node echo.js", args: &args };
-    let output = ScriptOutput::Streamed { dep_path: "project", emit: record };
-    assert!(run_with_output(dir.path(), invocation, output).success());
+    let output = ScriptOutput::Streamed { dep_path: "project", emit: record, color: false };
+    assert!(run_with_output(dir.path(), invocation, output, &HashMap::new()).success());
 
     let shown: Vec<String> = EVENTS
         .lock()
@@ -98,6 +98,67 @@ fn run_script_shows_the_args_quoted_the_posix_way() {
     assert_eq!(shown, ["node echo.js 'a b' %PATH%"]);
 }
 
+/// Run a streamed script that prints its `FORCE_COLOR`, with color
+/// requested and `extra_env` set for the script.
+fn streamed_force_color(extra_env: &HashMap<String, String>, emit: fn(&LogEvent)) {
+    let dir = tempdir().expect("temp dir");
+    let invocation = crate::ScriptInvocation {
+        stage: "color",
+        script: r#"node -e "console.log(process.env.FORCE_COLOR)""#,
+        args: &[],
+    };
+    let output = ScriptOutput::Streamed { dep_path: "project", emit, color: true };
+    assert!(run_with_output(dir.path(), invocation, output, extra_env).success());
+}
+
+fn stdout_lines(events: &Mutex<Vec<LogEvent>>) -> Vec<String> {
+    events
+        .lock()
+        .expect("lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Lifecycle(log) => match &log.message {
+                LifecycleMessage::Stdio { line, .. } => Some(line.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn streamed_script_with_color_gets_force_color() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    fn record(event: &LogEvent) {
+        EVENTS
+            .lock()
+            .expect("lock")
+            .push(event.clone());
+    }
+
+    if std::env::var_os("FORCE_COLOR").is_some() {
+        // The child inherits the runner's value, which takes precedence.
+        return;
+    }
+    streamed_force_color(&HashMap::new(), record);
+    assert_eq!(stdout_lines(&EVENTS), ["1"]);
+}
+
+#[test]
+fn streamed_script_keeps_a_configured_force_color() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    fn record(event: &LogEvent) {
+        EVENTS
+            .lock()
+            .expect("lock")
+            .push(event.clone());
+    }
+
+    let extra_env = HashMap::from([("FORCE_COLOR".to_string(), "3".to_string())]);
+    streamed_force_color(&extra_env, record);
+    assert_eq!(stdout_lines(&EVENTS), ["3"]);
+}
+
 fn manifest() -> serde_json::Value {
     serde_json::json!({ "name": "t", "version": "1.0.0" })
 }
@@ -107,6 +168,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
         pkg_root,
         crate::ScriptInvocation { stage, script, args },
         ScriptOutput::Inherit,
+        &HashMap::new(),
     )
 }
 
@@ -114,8 +176,8 @@ fn run_with_output(
     pkg_root: &Path,
     invocation: crate::ScriptInvocation<'_>,
     output: ScriptOutput<'_>,
+    extra_env: &HashMap<String, String>,
 ) -> ScriptExit {
-    let extra_env = HashMap::new();
     run_script(&RunScript {
         environment: crate::ScriptEnvironment {
             init_cwd: pkg_root,
@@ -123,7 +185,7 @@ fn run_with_output(
             npm_execpath: None,
             node_gyp_path: None,
             user_agent: None,
-            extra_env: &extra_env,
+            extra_env,
         },
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &[],

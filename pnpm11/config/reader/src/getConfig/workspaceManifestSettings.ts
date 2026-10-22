@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { isCamelCase } from '@pnpm/text.naming-cases'
 import type { ProjectManifest, RemoteSideEffectsCacheSettings } from '@pnpm/types'
@@ -32,6 +34,7 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
 }: WorkspaceManifestSettingsOptions): void {
   const skipped: ReadonlySet<string> | undefined = skipSettings
   const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  resolveLockfileDir(settingsFromManifest as { lockfileDir?: unknown }, workspaceDir)
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
@@ -87,4 +90,11 @@ function applyWorkspaceSetting (pnpmConfig: Config & ConfigContext, { key, value
   }
   // @ts-expect-error -- the value's type depends on which key this is
   pnpmConfig[key] = value
+}
+
+/** A relative `lockfileDir` names a directory of the workspace, wherever pnpm runs. */
+function resolveLockfileDir (settings: { lockfileDir?: unknown }, workspaceDir: string | undefined): void {
+  if (workspaceDir != null && typeof settings.lockfileDir === 'string') {
+    settings.lockfileDir = path.resolve(workspaceDir, settings.lockfileDir)
+  }
 }

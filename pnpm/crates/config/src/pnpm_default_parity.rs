@@ -161,7 +161,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
             scripts_prepend_node_path_scalar(cfg.scripts_prepend_node_path),
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
-        ("node-experimental-package-map", Bool(cfg.node_experimental_package_map)),
+        ("node-experimental-package-map", Bool(cfg.node_package_map_mode.loads())),
         ("node-package-map-type", node_package_map_type_scalar(cfg.node_package_map_type)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
@@ -174,6 +174,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("fetch-timeout", Int(cfg.fetch_timeout as i64)),
         ("fetch-warn-timeout-ms", Int(cfg.fetch_warn_timeout_ms as i64)),
         ("fetch-min-speed-ki-bps", Int(cfg.fetch_min_speed_ki_bps as i64)),
+        ("max-tarball-unpacked-size", Int(cfg.max_tarball_unpacked_size as i64)),
         ("frozen-store", Bool(cfg.frozen_store)),
         (
             "minimum-release-age",

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/pnpr",
   "private": true,
-  "version": "0.1.0-alpha.14",
+  "version": "0.1.0-alpha.16",
   "description": "pnpm-compatible npm registry server, written in Rust",
   "keywords": [
     "pnpm",
@@ -22,10 +22,11 @@
     "preinstall": "node install.js"
   },
   "engines": {
-    "node": ">=18.*"
+    "node": ">=18"
   },
   "files": [
     "bin/pnpr",
+    "bin/pnpr.mjs",
     "install.js",
     "LICENSE.md"
   ]

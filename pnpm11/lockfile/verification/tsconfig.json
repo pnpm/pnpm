@@ -16,6 +16,9 @@
       "path": "../../catalogs/protocol-parser"
     },
     {
+      "path": "../../catalogs/resolver"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {
@@ -43,10 +46,19 @@
       "path": "../../installing/context"
     },
     {
+      "path": "../../installing/deps-resolver"
+    },
+    {
       "path": "../../pkg-manifest/reader"
     },
     {
+      "path": "../../resolving/git-resolver"
+    },
+    {
       "path": "../../resolving/resolver-base"
+    },
+    {
+      "path": "../../workspace/project-manifest-reader"
     },
     {
       "path": "../types"

@@ -84,6 +84,86 @@ pub struct WorkspaceState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_dependencies: Option<BTreeMap<String, ConfigDependency>>,
     pub settings: WorkspaceStateSettings,
+    /// What the last validation proved about each project. `None` when it
+    /// recorded nothing, which leaves every project to be proven from the
+    /// lockfiles.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validation: Option<Validation>,
+}
+
+/// The inputs each project was last proven installed against.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Validation {
+    /// Filesystem time, in nanoseconds since the Unix epoch, by which every
+    /// entry of [`Self::files`] was stat'd. A file whose mtime is this close to
+    /// it may have been rewritten without its mtime moving.
+    pub recorded_at_ns: i64,
+    /// The content digest of each input file the projects share (the
+    /// lockfile, patches, pnpmfiles), keyed by path, with the stat it was
+    /// read at.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub files: BTreeMap<String, FileSignature>,
+    /// The digest of the lockfile the projects were proven against, unless
+    /// [`Self::lockfiles`] names another one. `None` when there was none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockfile: Option<String>,
+    /// The digest of the manifest each project was proven installed with,
+    /// keyed by importer id. A project without an entry is not proven
+    /// installed.
+    pub manifests: BTreeMap<String, String>,
+    /// The digest of the lockfile a project was proven against, keyed by
+    /// importer id, where it is not [`Self::lockfile`].
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub lockfiles: BTreeMap<String, Option<String>>,
+}
+
+impl Validation {
+    /// What the project with `importer_id` was proven installed with.
+    #[must_use]
+    pub fn project(&self, importer_id: &str) -> Option<ProjectValidation<'_>> {
+        let manifest = self.manifests.get(importer_id)?;
+        let lockfile = self.lockfiles.get(importer_id).unwrap_or(&self.lockfile);
+        Some(ProjectValidation { manifest, lockfile: lockfile.as_deref() })
+    }
+
+    /// Record that the project with `importer_id` was proven installed with
+    /// `manifest` and `lockfile`.
+    pub fn insert_project(
+        &mut self,
+        importer_id: String,
+        manifest: String,
+        lockfile: Option<&str>,
+    ) {
+        if lockfile == self.lockfile.as_deref() {
+            self.lockfiles.remove(&importer_id);
+        } else {
+            self.lockfiles.insert(importer_id.clone(), lockfile.map(str::to_string));
+        }
+        self.manifests.insert(importer_id, manifest);
+    }
+}
+
+/// The content digests a project was proven installed against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProjectValidation<'a> {
+    /// The digest of the project's manifest.
+    pub manifest: &'a str,
+    /// The digest of the lockfile, or `None` when there was none.
+    pub lockfile: Option<&'a str>,
+}
+
+/// A file's content digest and the stat it was read at.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileSignature {
+    pub mtime_ns: i64,
+    /// The inode change time, which no tool that restores an mtime can set
+    /// back. `None` where the platform does not report it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctime_ns: Option<i64>,
+    pub size: u64,
+    pub digest: String,
 }
 
 /// Subset of pnpm's config keys that its deps-status check compares to
@@ -107,6 +187,10 @@ pub struct WorkspaceState {
 pub struct WorkspaceStateSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub allow_builds: Option<BTreeMap<String, serde_json::Value>>,
+    /// The `skills` decisions of `permissions`, recorded only when there
+    /// are any. pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_skills: Option<BTreeMap<String, bool>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_install_peers: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -138,6 +222,10 @@ pub struct WorkspaceStateSettings {
     pub hoist_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ignored_optional_dependencies: Option<Vec<String>>,
+    /// `addMissingPeerTypes`, recorded only while it is on. pnpm v11 has no
+    /// such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub add_missing_peer_types: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_workspace_packages: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -145,6 +233,10 @@ pub struct WorkspaceStateSettings {
     /// `lockfile.includeResolutionSettings`, recorded only while it is on.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lockfile_include_resolution_settings: Option<bool>,
+    /// `lockfile.integrityTarget`, recorded only while it is not the
+    /// default. pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockfile_integrity_target: Option<String>,
     /// Minutes a published version must age before it may be installed.
     /// pnpm resolves this to a concrete `24 * 60` default, so it must be
     /// recorded for pnpm's all-key freshness check to stay on the fast
@@ -183,6 +275,9 @@ pub struct WorkspaceStateSettings {
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skills_dirs: Option<Vec<String>>,
     /// The `supportedArchitectures` the install ran with, as pnpm's
     /// config JSON (`{ os, cpu, libc }`). A change must invalidate the
     /// repeat-install fast path so previously skipped platform packages
@@ -199,6 +294,9 @@ pub struct WorkspaceStateSettings {
     pub trust_policy: Option<TrustPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_policy_exclude: Option<Vec<String>>,
+    /// Which global-virtual-store slots are project-scoped depends on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side_effects_cache_exclude: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_policy_ignore_after: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

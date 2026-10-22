@@ -5,13 +5,13 @@ title: pnpm self-update
 
 Updates pnpm to the latest version or the one specified.
 
-```
+```sh
 pnpm self-update [<version>]
 ```
 
 Usage examples:
 
-```
+```sh
 pnpm self-update
 pnpm self-update 10
 pnpm self-update next-10
@@ -24,7 +24,7 @@ The behavior of `pnpm self-update` depends on the project context:
 
 ### In a project that pins pnpm
 
-When the project's `package.json` has a `packageManager` field set to pnpm (or a `devEngines.packageManager` entry for pnpm), `self-update` only updates the pinned version in `package.json` to the resolved one. It does not install pnpm globally. The next time you run a pnpm command, pnpm will automatically download and switch to the specified version.
+When the project's manifest has a `packageManager` field set to pnpm (or a `devEngines.packageManager` entry for pnpm), `self-update` updates the pinned version in that manifest to the resolved one. In a workspace, this is the workspace root's manifest, even when the command runs in a workspace package. It also installs the resolved version globally, as it does outside a project. The pin is written after the global install, so a failed install leaves the project unchanged.
 
 ### Outside a project (or when the pnpm pin is ignored)
 
@@ -32,7 +32,7 @@ If the project does not pin pnpm, or the pin is being ignored via [`pmOnFail: ig
 
 ### When Homebrew or Corepack manages pnpm
 
-`pnpm self-update` fails if Homebrew installed pnpm or Corepack runs it. Update a Homebrew install with `brew upgrade pnpm` (or `brew upgrade pnpm@11` for a versioned formula).
+If Homebrew installed pnpm or Corepack runs it, `pnpm self-update` leaves the global pnpm alone. In a project that pins pnpm, it still updates the pin. Outside such a project, it fails. Update a Homebrew install with `brew upgrade pnpm` (or `brew upgrade pnpm@11` for a versioned formula).
 
 ## Project settings are ignored
 
@@ -47,7 +47,7 @@ When `self-update` refuses a version that is younger than the `minimumReleaseAge
 
 Since v11.10.0, `pnpm self-update` (and `packageManager` version-switching) can install and link **pnpm v12**, the Rust port. It is published under both the `pnpm` and `@pnpm/exe` names on the `latest-12` dist-tag:
 
-```
+```sh
 pnpm self-update latest-12
 ```
 
