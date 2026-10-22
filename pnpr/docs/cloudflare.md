@@ -103,6 +103,7 @@ and the public URL pnpr writes into tarball links:
   "vars": { "PNPR_PUBLIC_URL": "https://pnpr.<your-subdomain>.workers.dev" },
   "containers": [
     {
+      "name": "pnpr-container",
       "class_name": "PnprContainer",
       "image": "./Dockerfile",
       "max_instances": 1,
@@ -112,7 +113,13 @@ and the public URL pnpr writes into tarball links:
   "durable_objects": {
     "bindings": [{ "name": "PNPR", "class_name": "PnprContainer" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PnprContainer"] }]
+  "exports": {
+    "PnprContainer": {
+      "type": "durable-object",
+      "storage": "sqlite",
+      "container": "pnpr-container"
+    }
+  }
 }
 ```
 
