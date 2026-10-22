@@ -641,7 +641,11 @@ async fn libsql_schema_migrations_refuses_future_version() {
         .await
         .unwrap();
 
-    let err = super::schema::init_schema(&backend.pool.connect().unwrap()).await.unwrap_err();
+    let err = super::schema::init_schema(&backend.pool.connect().unwrap(), || async {
+        Ok::<(), RegistryError>(())
+    })
+    .await
+    .unwrap_err();
     let err_str = err.to_string();
     assert!(
         err_str.contains("newer than supported version"),

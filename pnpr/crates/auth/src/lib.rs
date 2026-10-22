@@ -139,11 +139,7 @@ impl AuthState {
 
     /// Revoke every token `username` holds. Returns how many were revoked.
     pub async fn revoke_all_tokens(&self, username: &str) -> Result<usize> {
-        let held = self.tokens.list_for_user(username).await?;
-        for (key, _) in &held {
-            self.tokens.revoke_by_key(key).await?;
-        }
-        Ok(held.len())
+        self.tokens.revoke_all_for_user(username).await
     }
 
     /// Create `username` with `password`, or change the password of the
@@ -387,6 +383,17 @@ pub trait TokenBackend: Send + Sync {
     /// this hashes first and defers to [`Self::revoke_by_key`].
     async fn revoke_by_raw(&self, raw: &str) -> Result<Option<TokenRecord>> {
         self.revoke_by_key(&sha256_hex(raw.as_bytes())).await
+    }
+
+    /// Remove every token `username` holds. Returns how many were removed.
+    async fn revoke_all_for_user(&self, username: &str) -> Result<usize> {
+        let mut revoked = 0;
+        for (key, _) in &self.list_for_user(username).await? {
+            if self.revoke_by_key(key).await?.is_some() {
+                revoked += 1;
+            }
+        }
+        Ok(revoked)
     }
 }
 

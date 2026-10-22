@@ -43,6 +43,7 @@ impl TokenBackend for LibsqlAuth {
             kind: new_token.kind,
         };
         self.insert_token(token_hash, &record).await?;
+        self.sync_replica().await?;
         Ok((raw, record))
     }
 
@@ -53,6 +54,8 @@ impl TokenBackend for LibsqlAuth {
 
     async fn touch_key(&self, key: &str, now: u64) -> Result<()> {
         let sql_now = token_timestamp_to_sql(now);
+        // Not synced back into a replica: this runs on authenticated
+        // requests, and the background sync carries the timestamp.
         with_auth_timeout::<_, RegistryError>(
             self.timeout,
             self.pool.run(|conn| async move {
@@ -145,7 +148,21 @@ impl TokenBackend for LibsqlAuth {
             conn.execute("DELETE FROM tokens WHERE token_hash = ?1", params![key]).await
         })
         .await?;
+        self.sync_replica().await?;
         Ok(Some(record))
+    }
+
+    async fn revoke_all_for_user(&self, username: &str) -> Result<usize> {
+        let removed = self.pool.run(|conn| async move {
+            conn.execute("DELETE FROM tokens WHERE username = ?1", params![username]).await
+        })
+        .await?;
+        // Another instance may have revoked the tokens this replica still
+        // holds, so a zero-row delete does not settle whether to pull.
+        if removed > 0 || self.replica_holds_tokens(username).await? {
+            self.sync_replica().await?;
+        }
+        Ok(usize::try_from(removed).unwrap_or(usize::MAX))
     }
 
     async fn check_readiness(&self) -> Result<()> {
@@ -180,6 +197,26 @@ impl LibsqlAuth {
         })
         .await?;
         Ok(())
+    }
+
+    /// Whether the embedded replica still lists a token of `username`;
+    /// `false` without a replica, since the pool then reads the primary.
+    async fn replica_holds_tokens(&self, username: &str) -> Result<bool> {
+        if !self.is_replica {
+            return Ok(false);
+        }
+        with_auth_timeout::<_, RegistryError>(
+            self.timeout,
+            self.pool.run(|conn| async move {
+                let mut rows = conn.query(
+                    "SELECT 1 FROM tokens WHERE username = ?1 LIMIT 1",
+                    params![username],
+                )
+                .await?;
+                Ok(rows.next().await?.is_some())
+            }),
+        )
+        .await
     }
 }
 

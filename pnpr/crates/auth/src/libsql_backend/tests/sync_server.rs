@@ -3,55 +3,78 @@
 //! the primary's `/info` route, bootstraps the replica from `/export`,
 //! pulls frames from `/sync`, and sends writes to the primary over Hrana.
 //! The primary here is a local libsql database behind a mock of those
-//! routes.
+//! routes that serves the frames of its own WAL.
 
-use super::{Builder, LibsqlAuth, MaxUsers, TokenBackend, UserBackend, is_unique_violation};
+use super::{
+    Builder, LibsqlAuth, MaxUsers, TokenBackend, UpsertOutcome, UserBackend, is_unique_violation,
+};
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     routing::{get, post},
 };
-use libsql::Value;
+use libsql::{Connection, Database, Value};
 use pnpr_config::LibsqlSettings;
 use serde_json::{Value as JsonValue, json};
 use std::{
+    net::SocketAddr,
     path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 
+/// The layout of a `SQLite` WAL file, whose frames the sync protocol serves
+/// one generation per checkpoint.
+const WAL_HEADER_SIZE: usize = 32;
+const WAL_FRAME_SIZE: usize = 24 + 4096;
+
 struct Primary {
-    backend: LibsqlAuth,
-    /// The one session the fake Hrana endpoint runs every statement on.
-    conn: libsql::Connection,
+    _db: Database,
+    conn: Connection,
     path: PathBuf,
+    /// Exports so far; each one checkpoints the WAL.
     exports: AtomicUsize,
     pipelines: AtomicUsize,
+    /// The sync generation. `SQLite` restarts the WAL at frame 1 with a new
+    /// salt after a checkpoint, which the protocol expresses as the next
+    /// generation.
+    generation: AtomicUsize,
+    salt: std::sync::Mutex<Option<[u8; 8]>>,
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
-    let directory = tempfile::tempdir().unwrap();
-    let primary_path = directory.path().join("primary.db");
-    let db = Builder::new_local(&primary_path).build().await.unwrap();
-    let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
-    backend.add_or_login("alice", "secret").await.unwrap();
-    let token = backend.issue("alice").await.unwrap();
-    let conn = backend.pool.connect().unwrap();
+/// A primary at `path`, served on a loopback port.
+async fn serve_primary(path: PathBuf) -> (Arc<Primary>, SocketAddr, tokio::task::JoinHandle<()>) {
+    let db = Builder::new_local(&path).build().await.unwrap();
+    let conn = db.connect().unwrap();
+    // A primary keeps a WAL for the frames it serves; a plain local database
+    // runs with a rollback journal.
+    let mut journal_mode = conn
+        .query("PRAGMA journal_mode = WAL", ())
+        .await
+        .unwrap();
+    while journal_mode
+        .next()
+        .await
+        .unwrap()
+        .is_some()
+    {}
     let primary = Arc::new(Primary {
-        backend,
+        _db: db,
         conn,
-        path: primary_path,
+        path,
         exports: AtomicUsize::new(0),
         pipelines: AtomicUsize::new(0),
+        generation: AtomicUsize::new(1),
+        salt: std::sync::Mutex::new(None),
     });
     let app = Router::new()
         .route("/info", get(info))
         .route("/export/{generation}", get(export))
-        .route("/sync/{generation}/{start}/{end}", get(end_of_generation))
+        .route("/sync/{generation}/{start}/{end}", get(sync))
         .route("/v3/pipeline", post(pipeline))
         .with_state(Arc::clone(&primary));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -59,20 +82,38 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
     let server = tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
+    (primary, address, server)
+}
 
-    for (index, sync_interval_secs) in [None, Some(0)].into_iter().enumerate() {
-        let settings = LibsqlSettings {
-            url: format!("http://{address}"),
-            auth_token: None,
-            replica_path: Some(
-                directory
-                    .path()
-                    .join(format!("replica{index}"))
-                    .join("auth.db"),
-            ),
-            sync_interval_secs,
-            max_connections: None,
-        };
+fn replica_settings(
+    address: SocketAddr,
+    replica_path: PathBuf,
+    sync_interval_secs: Option<u64>,
+) -> LibsqlSettings {
+    LibsqlSettings {
+        url: format!("http://{address}"),
+        auth_token: None,
+        replica_path: Some(replica_path),
+        sync_interval_secs,
+        max_connections: None,
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let db = Builder::new_local(&primary.path).build().await.unwrap();
+    let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
+    backend.add_or_login("alice", "secret").await.unwrap();
+
+    for (index, sync_interval_secs) in [Some(1), Some(0)].into_iter().enumerate() {
+        let token = backend.issue("alice").await.unwrap();
+        let replica_path = directory
+            .path()
+            .join(format!("replica{index}"))
+            .join("auth.db");
+        let settings = replica_settings(address, replica_path, sync_interval_secs);
         let pipelines_before_connect = primary.pipelines.load(Ordering::SeqCst);
         let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
 
@@ -102,18 +143,111 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
             primary.pipelines.load(Ordering::SeqCst) > pipelines_after_connect,
             "writes go to the primary",
         );
-        let owner = primary.backend.lookup(&issued).await.unwrap();
+        let owner = backend.lookup(&issued).await.unwrap();
         assert_eq!(owner.as_deref(), Some("alice"));
+        let owner = replica.lookup(&issued).await.unwrap();
+        assert_eq!(owner.as_deref(), Some("alice"), "own write visible");
+
+        let mut tokens = vec![token, issued];
+        if sync_interval_secs == Some(1) {
+            let fresh = backend.issue("alice").await.unwrap();
+            let owner = wait_for_token(&replica, &fresh).await;
+            assert_eq!(owner.as_deref(), Some("alice"), "background sync pulls the write");
+            tokens.push(fresh);
+        }
+
+        let revoked = replica.revoke_all_for_user("alice").await.unwrap();
+        assert_eq!(revoked, tokens.len());
+        for token in &tokens {
+            assert_eq!(backend.lookup(token).await.unwrap(), None);
+            assert_eq!(replica.lookup(token).await.unwrap(), None, "own bulk revoke visible");
+        }
     }
     server.abort();
 }
 
-async fn info() -> Json<JsonValue> {
-    Json(json!({ "current_generation": 1 }))
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn embedded_replica_sets_up_the_schema_on_an_empty_primary() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let replica_path = directory
+        .path()
+        .join("replica")
+        .join("auth.db");
+    let settings = replica_settings(address, replica_path, None);
+    let replica = LibsqlAuth::connect(&settings, MaxUsers::Limited(2)).await.unwrap();
+
+    let (outcome, _) = replica.add_or_login("carol", "secret").await.unwrap();
+    assert!(matches!(outcome, UpsertOutcome::Created));
+    let token = replica.issue("carol").await.unwrap();
+    let owner = replica.lookup(&token).await.unwrap();
+    assert_eq!(owner.as_deref(), Some("carol"));
+
+    let mut rows = primary.conn
+        .query("SELECT value FROM auth_counters WHERE name = 'users'", ())
+        .await
+        .unwrap();
+    let counter: i64 = rows
+        .next()
+        .await
+        .unwrap()
+        .unwrap()
+        .get(0)
+        .unwrap();
+    assert_eq!(counter, 1, "the capped registration claimed a slot on the primary");
+    server.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn bulk_revocation_refreshes_a_replica_whose_tokens_went_elsewhere() {
+    let directory = tempfile::tempdir().unwrap();
+    let (primary, address, server) = serve_primary(directory.path().join("primary.db")).await;
+    let db = Builder::new_local(&primary.path).build().await.unwrap();
+    let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
+    backend.add_or_login("alice", "secret").await.unwrap();
+    let replica_path = directory
+        .path()
+        .join("replica")
+        .join("auth.db");
+    let settings = replica_settings(address, replica_path, Some(0));
+    let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
+
+    let stale = backend.issue("alice").await.unwrap();
+    replica.issue("alice").await.unwrap();
+    assert_eq!(
+        replica
+            .lookup(&stale)
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("alice"),
+    );
+    assert_eq!(backend.revoke_all_for_user("alice").await.unwrap(), 2);
+
+    let revoked = replica.revoke_all_for_user("alice").await.unwrap();
+    assert_eq!(revoked, 0, "the primary had nothing left to revoke");
+    assert_eq!(replica.lookup(&stale).await.unwrap(), None, "the replica caught up");
+    server.abort();
+}
+
+/// Poll `replica` for `token` until it is visible or the wait runs out.
+async fn wait_for_token(replica: &LibsqlAuth, token: &str) -> Option<String> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    loop {
+        let owner = replica.lookup(token).await.unwrap();
+        if owner.is_some() || tokio::time::Instant::now() > deadline {
+            return owner;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+}
+
+async fn info(State(primary): State<Arc<Primary>>) -> Json<JsonValue> {
+    let (generation, _) = primary.wal_state();
+    Json(json!({ "current_generation": generation }))
 }
 
 async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
-    primary.exports.fetch_add(1, Ordering::SeqCst);
     let mut checkpoint = primary.conn
         .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
         .await
@@ -124,13 +258,18 @@ async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
         .unwrap()
         .is_some()
     {}
+    primary.exports.fetch_add(1, Ordering::SeqCst);
     std::fs::read(&primary.path).unwrap()
 }
 
-/// The primary has no frames beyond the export, so every pull ends the
-/// only generation.
-async fn end_of_generation() -> (StatusCode, Json<JsonValue>) {
-    (StatusCode::BAD_REQUEST, Json(json!({ "generation": 1 })))
+/// WAL frames `[start, end)` of `generation`, or the generation to move to.
+async fn sync(
+    State(primary): State<Arc<Primary>>,
+    Path((generation, start, end)): Path<(usize, usize, usize)>,
+) -> Result<Vec<u8>, (StatusCode, Json<JsonValue>)> {
+    let (current, wal) = primary.wal_state();
+    let frames = if generation == current { wal_frames(&wal, start, end) } else { None };
+    frames.ok_or_else(|| (StatusCode::BAD_REQUEST, Json(json!({ "generation": current }))))
 }
 
 async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<JsonValue> {
@@ -143,7 +282,43 @@ async fn pipeline(State(primary): State<Arc<Primary>>, body: String) -> Json<Jso
     Json(json!({ "baton": "primary", "base_url": null, "results": results }))
 }
 
+/// Frames `[start, end)` of `wal`, clipped to the frames it holds; `None`
+/// past its end. A restarted WAL keeps the frames of its previous salt
+/// behind the new ones, so only the leading frames carrying the header's
+/// salt count.
+fn wal_frames(wal: &[u8], start: usize, end: usize) -> Option<Vec<u8>> {
+    let salt = wal.get(16..24)?;
+    let frame_offset = |frame: usize| WAL_HEADER_SIZE + (frame - 1) * WAL_FRAME_SIZE;
+    let frame_salt = |frame: usize| wal.get(frame_offset(frame) + 8..frame_offset(frame) + 16);
+    let available = (1..=wal.len() / WAL_FRAME_SIZE)
+        .take_while(|&frame| frame_salt(frame) == Some(salt))
+        .count();
+    if start == 0 || start > available {
+        return None;
+    }
+    let end = end.min(available + 1);
+    Some(wal[frame_offset(start)..frame_offset(end)].to_vec())
+}
+
 impl Primary {
+    /// The current generation and the WAL holding its frames.
+    fn wal_state(&self) -> (usize, Vec<u8>) {
+        let mut wal_path = self.path.clone().into_os_string();
+        wal_path.push("-wal");
+        let wal = std::fs::read(wal_path).unwrap_or_default();
+        let mut salt = self.salt.lock().unwrap();
+        let header_salt = wal
+            .get(16..24)
+            .map(|bytes| <[u8; 8]>::try_from(bytes).unwrap());
+        if header_salt.is_some() && header_salt != *salt {
+            if salt.is_some() {
+                self.generation.fetch_add(1, Ordering::SeqCst);
+            }
+            *salt = header_salt;
+        }
+        (self.generation.load(Ordering::SeqCst), wal)
+    }
+
     async fn answer(&self, request: &JsonValue) -> JsonValue {
         match request["type"].as_str() {
             Some("batch") => self.run_batch(request["batch"]["steps"].as_array().unwrap()).await,
