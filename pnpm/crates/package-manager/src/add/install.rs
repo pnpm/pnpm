@@ -114,7 +114,9 @@ pub(super) fn seed_picked_versions(
             continue;
         };
         let direct = locked.direct(&package);
-        let pinned_elsewhere = direct.is_some_and(|(locked, _)| locked != Some(&semver));
+        let pinned_elsewhere = direct.is_some_and(|(locked, _)| {
+            !locked.is_some_and(|locked| same_build(locked, &semver))
+        });
         let settled = match direct {
             Some(_) if pinned_elsewhere => false,
             Some((_, locked_specifier)) if locked_specifier == specifier => true,
@@ -168,8 +170,14 @@ impl<'l> LockedVersions<'l> {
             .filter(|(key, _)| key.name == *name)
             .map(|(key, _)| key.suffix.version_semver())
             .peekable();
-        versions.peek().is_some() && versions.all(|locked| locked == Some(version))
+        versions.peek().is_some()
+            && versions.all(|locked| locked.is_some_and(|locked| same_build(locked, version)))
     }
+}
+/// `Version`'s own equality ignores build metadata, which names a different
+/// package here.
+pub(super) fn same_build(locked: &Version, picked: &Version) -> bool {
+    locked == picked && locked.build == picked.build
 }
 /// What the install resolves from: the importers whose catalog pins are
 /// withheld, the versions the add named, and the catalogs as it rewrote
