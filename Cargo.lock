@@ -5249,6 +5249,7 @@ name = "pnpm-ffi-process"
 version = "0.0.1"
 dependencies = [
  "libc",
+ "pipe-trait",
  "text-block-macros",
  "windows-sys 0.61.2",
 ]

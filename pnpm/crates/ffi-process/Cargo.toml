@@ -13,6 +13,10 @@ repository.workspace = true
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+# `published_umask` reads the mask procfs publishes, which only Linux has.
+[target.'cfg(target_os = "linux")'.dependencies]
+pipe-trait = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Security",

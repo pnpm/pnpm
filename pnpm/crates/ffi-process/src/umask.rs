@@ -1,5 +1,8 @@
 //! The calling process's file-creation mask.
 
+#[cfg(target_os = "linux")]
+use pipe_trait::Pipe;
+
 /// The process's file-creation mask.
 ///
 /// POSIX offers no way to read the mask without writing it: `umask(2)`
@@ -28,7 +31,10 @@ pub fn current_umask() -> u32 {
 /// has no `thread-self`, or before 4.7, which does not print the line.
 #[cfg(target_os = "linux")]
 fn published_umask() -> Option<u32> {
-    parse_published_umask(&std::fs::read_to_string("/proc/thread-self/status").ok()?)
+    "/proc/thread-self/status"
+        .pipe(std::fs::read_to_string)
+        .ok()?
+        .pipe_as_ref(parse_published_umask)
 }
 
 /// Separate from [`published_umask`] so a test can drive it without a
