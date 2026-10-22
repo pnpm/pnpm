@@ -3,41 +3,45 @@ id: cloudflare
 title: Deploying on Cloudflare
 ---
 
-pnpr is a long-running server, so on Cloudflare it runs as a
-[Container](https://developers.cloudflare.com/containers/) rather than as a
-Worker. A small Worker receives every request and forwards it to one container
-running the published pnpr image. The container sleeps when idle and starts
-again on the next request, so an idle registry costs nothing beyond the plan
-fee.
+You can run pnpr on Cloudflare, but not as a Worker. pnpr is an ordinary
+long-running server, so it needs a
+[Container](https://developers.cloudflare.com/containers/). The setup is one
+container running the published pnpr image, plus a few lines of Worker that
+pass every request through to it. When nobody has used the registry for a
+while, the container goes to sleep, and the next request wakes it up. An idle
+registry costs you nothing beyond the plan fee.
 
-The state lives outside the container, where it survives sleeps and restarts:
+The container's disk is wiped whenever it stops, so everything that has to
+survive lives somewhere else:
 
-- **Hosted packages** go to an R2 bucket through the
-  [S3 backend](storage.md). R2 is S3-compatible and charges nothing for egress.
-- **Users and tokens** go to a [Turso](https://turso.tech) database through the
+- Published packages go to an R2 bucket. pnpr talks to it through its
+  [S3 backend](storage.md), and R2 charges nothing for egress.
+- Users and tokens go to a [Turso](https://turso.tech) database through the
   [libsql auth backend](auth-backends.md). Cloudflare's own databases do not
-  speak a protocol pnpr can use.
-- **The upstream cache** and the publish journal stay on the container's disk,
-  which is wiped when the container stops. The cache refills on demand. The
-  journal caveat for ephemeral disks in [Storage](storage.md#s3-publish-journal-and-lifecycle-caveats)
-  applies.
+  speak a protocol pnpr can use, so Turso is the simplest option.
+- The upstream cache and the publish journal stay on the container's disk.
+  Losing the cache only means fetching from npm again. Losing the journal in
+  the middle of a publish is the ephemeral-disk case described in
+  [Storage](storage.md#s3-publish-journal-and-lifecycle-caveats).
 
-## What you need
+## Before you start
 
-- A Cloudflare account on the Workers Paid plan. Containers are not on the free
-  plan.
+You need:
+
+- A Cloudflare account on the Workers Paid plan. Containers are not available
+  on the free plan.
 - [Wrangler](https://developers.cloudflare.com/workers/wrangler/) and Docker on
   the machine you deploy from. Wrangler builds the image locally and pushes it
   to Cloudflare's registry.
-- An R2 bucket and an R2 API token with Object Read and Write on it. Note the
-  access key ID and secret access key.
-- A Turso database and a read-write token for it. Note the `libsql://` URL.
+- An R2 bucket, and an R2 API token with Object Read and Write on it. Keep the
+  access key ID and the secret access key.
+- A Turso database and a read-write token for it. Keep the `libsql://` URL.
 
 ## The project
 
-Four files make up the deployment. Put them in one directory.
+The whole deployment is four files in one directory.
 
-The image wraps the published one and adds your config:
+The Dockerfile takes the published image and adds your config:
 
 ```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpr:<version>
@@ -45,9 +49,8 @@ COPY pnpr.yaml /pnpr/pnpr.yaml
 CMD ["serve", "--listen", "0.0.0.0:7677", "--config", "/pnpr/pnpr.yaml", "--cache", "/pnpr/cache"]
 ```
 
-The config points the hosted store at the bucket and auth at Turso. The
-credentials arrive as environment variables, which the Worker below passes
-into the container:
+The pnpr config points the hosted store at your bucket and auth at Turso. The
+credentials arrive as environment variables, which the Worker below sets:
 
 ```yaml title="pnpr.yaml"
 storage: /pnpr/storage
@@ -122,9 +125,12 @@ and the public URL pnpr writes into tarball links:
 }
 ```
 
-The Worker forwards every request to one named container instance and hands
-the secrets to it as environment variables. `PNPR_PUBLIC_URL` is read by pnpr
-as `--public-url`, like every other flag's `PNPR_` variable:
+The Worker forwards every request to the container and hands it the secrets.
+One part of it deserves an explanation. When the container has been asleep,
+Cloudflare can take 20 to 60 seconds to bring it back. The container library
+waits only 20 seconds for the port by default and then fails the request with
+a 500. The `fetch` override below waits longer, so the first request after a
+sleep gets a slow answer instead of an error:
 
 ```ts title="src/index.ts"
 import { Container, getContainer } from "@cloudflare/containers";
@@ -155,8 +161,8 @@ export class PnprContainer extends Container<Env> {
     };
   }
 
-  // A cold start takes longer than the library waits for the port by
-  // default, which would answer the first request after a sleep with a 500.
+  // Wait longer than the library's default for a cold start, so the first
+  // request after a sleep gets an answer instead of a 500.
   override async fetch(request: Request): Promise<Response> {
     if (!this.ctx.container?.running) {
       try {
@@ -181,17 +187,20 @@ export default {
 };
 ```
 
-Install the two dependencies the Worker needs:
+`PNPR_PUBLIC_URL` works because pnpr reads every flag from an environment
+variable with the `PNPR_` prefix. This one is `--public-url`.
+
+Finally, install the two packages the Worker needs:
 
 ```sh
 pnpm add -D wrangler
 pnpm add @cloudflare/containers
 ```
 
-## Deploy
+## Deploying
 
-Store the credentials as Worker secrets. Each command prompts for the value,
-so nothing lands in a file or your shell history:
+Store the credentials as Worker secrets. Each command asks for the value, so
+nothing ends up in a file or in your shell history:
 
 ```sh
 pnpm wrangler secret put AWS_ACCESS_KEY_ID
@@ -201,54 +210,61 @@ pnpm wrangler secret put PNPR_LIBSQL_TOKEN
 openssl rand -hex 32 | pnpm wrangler secret put PNPR_SECRET
 ```
 
-Then deploy. The first deploy prints the Worker's URL; put it in
-`PNPR_PUBLIC_URL` and deploy once more:
+Now deploy:
 
 ```sh
 pnpm wrangler deploy
 ```
 
-The first request after a deploy or a sleep starts the container, which takes
-a few seconds. Check it with the health endpoint, then point pnpm at the
-registry's npm base:
+The first deploy prints the Worker's URL. Put it into `PNPR_PUBLIC_URL` in
+`wrangler.jsonc` and deploy again.
+
+Make a first request to wake the container, then point pnpm at the registry's
+npm base:
 
 ```sh
 curl https://pnpr.<your-subdomain>.workers.dev/-/ping
 pnpm config set registry https://pnpr.<your-subdomain>.workers.dev/npm/
 ```
 
-A change to the Worker alone, such as a new variable, deploys without
-rebuilding the image:
+When you change only the Worker, for example to set a variable, you can skip
+the image build:
 
 ```sh
 pnpm wrangler deploy --containers-rollout=none
 ```
 
-## What to expect
+## Things to know
 
-- **The first request after a sleep is slow.** Cloudflare takes 20 to 60
-  seconds to bring the container back, while pnpr itself starts in well under
-  a second. The `fetch` override above keeps the request waiting for that
-  long instead of failing it. A longer `sleepAfter` keeps the container warm
-  at the cost of its idle memory and disk.
-- **TLS and the hostname** come from Cloudflare, which is the
-  [reverse proxy](tls-and-reverse-proxy.md) this setup runs behind. Add a
-  custom domain to the Worker to serve the registry from your own hostname.
-- **The edge rewrites `Accept-Encoding`.** The container sees `gzip, br`
-  whatever the client sent, so a [tar registry](configuration.md#tar-registries)
-  behind this Worker serves gzip-coded tars rather than zstd-coded ones.
-  Installs are unaffected; the transfer is larger.
-- **One instance** is enough for a team registry. The Worker above always
-  forwards to the single container named `pnpr`, so raising `max_instances`
-  alone starts nothing more. To run replicas, spread requests across several
-  names or use the `getRandom` helper from the same package. Replicas share the
-  bucket and the database, which the
-  [S3 backend supports](storage.md#concurrent-writers), but each keeps its own
-  upstream cache.
-- **Publishing passes through the Worker**, so the plan's request body limit
-  caps the size of a published tarball.
-- **Container output** is in the Workers logs in the Cloudflare dashboard.
-  `wrangler tail` shows the Worker's own events only.
-- **Billing has no hard cap.** `max_instances` and `sleepAfter` bound what a
-  forgotten deployment can cost, and a budget alert in the dashboard sends an
-  email when projected spend crosses a threshold.
+**The first request after a sleep is slow.** Expect 20 to 60 seconds. pnpr
+itself starts in well under a second; the wait is Cloudflare bringing the
+container back. If that bothers you, raise `sleepAfter`. The container then
+stays up longer, and you pay for its idle memory and disk.
+
+**TLS and the hostname come from Cloudflare.** This setup runs behind
+Cloudflare as its [reverse proxy](tls-and-reverse-proxy.md). To serve the
+registry from your own hostname, add a custom domain to the Worker.
+
+**Cloudflare rewrites `Accept-Encoding`.** Whatever a client sends, the
+container sees `gzip, br`. If you run a
+[tar registry](configuration.md#tar-registries) behind this Worker, pnpm
+receives gzip-coded tars rather than zstd-coded ones. Installs work the same;
+the downloads are larger.
+
+**One container is enough for a team.** The Worker above always talks to the
+one container named `pnpr`, so raising `max_instances` on its own changes
+nothing. If you do want replicas, spread requests over several container
+names, or use the `getRandom` helper from the same package. Replicas can share
+the bucket and the database, which the
+[S3 backend supports](storage.md#concurrent-writers), but each one has its own
+upstream cache.
+
+**Publishes go through the Worker**, so your plan's request body limit caps
+the size of a package you can publish.
+
+**Container logs are in the dashboard**, under the Worker's logs.
+`wrangler tail` shows only the Worker's own events.
+
+**There is no spending cap.** `max_instances` and `sleepAfter` bound what a
+forgotten deployment can cost. A budget alert in the dashboard emails you when
+projected spend crosses a threshold, but it does not stop anything.

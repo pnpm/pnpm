@@ -352,7 +352,7 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
 - pnpr decodes at most 4.25 GiB from one `.tgz`, the most pnpm accepts by default. A version past that has no tar. Copies of tars waiting for the level-19 encoding share a 1 GiB quota, and a request makes no copy when it is full or when another request is already copying that version.
 - `tarballs` is accepted only on npm registries.
 
-`tarballs: tar` can also go on the main router, so the base every pnpm project already uses serves tars. That suits a registry whose clients are all pnpm 12.15 or newer. npm, Yarn, and older pnpm then have nothing to download from that base: it serves no `.tgz` path, and only a version with [registry revisions](/registry-revisions) keeps a tarball URL in its metadata. A project whose lockfile was written against the `.tgz` base records `.tgz` hashes, so it runs `pnpm install --update-checksums` once after the switch.
+You can also set `tarballs: tar` on the main router, so the base every pnpm project already uses serves tars. That works when all your clients are pnpm 12.15 or newer. npm, Yarn, and older pnpm cannot install from such a base: it has no `.tgz` path, and its metadata has no tarball URL, except for versions with [registry revisions](/registry-revisions). A project whose lockfile was written against the `.tgz` base has `.tgz` hashes in it, so run `pnpm install --update-checksums` there once after the switch.
 
 ## Teams {#teams}
 
