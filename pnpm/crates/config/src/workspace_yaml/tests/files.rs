@@ -93,6 +93,22 @@ changedFilesIgnorePattern:
     assert_eq!(config.changed_files_ignore_pattern, [".github/**", "**/README.md"]);
 }
 
+/// `requiredScripts` comes from `pnpm-workspace.yaml` only: the global
+/// `config.yaml` cannot set it.
+#[test]
+fn required_scripts_applies_from_workspace_yaml_and_not_from_global_config() {
+    let yaml = "requiredScripts:\n  - build\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    assert!(config.required_scripts.is_empty());
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert_eq!(config.required_scripts, ["build"]);
+
+    let mut global: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    global.clear_workspace_only_fields();
+    assert!(global.required_scripts.is_none());
+}
+
 #[test]
 fn find_walks_up_to_parent_dir() {
     let tmp = tempfile::tempdir().unwrap();

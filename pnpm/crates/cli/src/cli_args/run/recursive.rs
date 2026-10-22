@@ -52,9 +52,9 @@ use pnpm_workspace_task_scheduler::{
 use script_budget::{ScriptBudget, ScriptPermit, run_script_budget};
 use selection::{
     HiddenScriptCheck, RunReporting, a_project_has_the_script, build_run_task_graph,
-    check_a_project_has_the_script, filter_hidden_requested_scripts, print_run_dry_run,
-    print_selected_project_commands, report_run_outcome, resume_task_graph, run_concurrency,
-    run_process_tracker, run_state_settings, run_tasks,
+    check_a_project_has_the_script, check_required_script, filter_hidden_requested_scripts,
+    print_run_dry_run, print_selected_project_commands, report_run_outcome, resume_task_graph,
+    run_concurrency, run_process_tracker, run_state_settings, run_tasks,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -85,6 +85,15 @@ pub enum RecursiveRunError {
     NoSelectedScript {
         #[error(not(source))]
         script_name: String,
+    },
+
+    #[display("Missing script \"{script_name}\" in packages: {packages}")]
+    #[diagnostic(code(ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT))]
+    MissingRequiredScript {
+        #[error(not(source))]
+        script_name: String,
+        /// The comma-separated names of the projects that lack it.
+        packages: String,
     },
 
     #[display("\"pnpm recursive run\" failed in {count} packages")]
@@ -349,6 +358,13 @@ impl RecursiveRun<'_, '_> {
         task_graph: &mut TaskGraph,
         full_task_graph: &TaskGraph,
     ) -> miette::Result<()> {
+        check_required_script(
+            task_graph,
+            self.graph,
+            self.script.script_name,
+            &self.config.required_scripts,
+        )?;
+
         // Hidden scripts (names starting with `.`) can only be invoked from
         // within another script, detected by an inherited
         // `npm_lifecycle_event`. Checked only for the tasks the invocation

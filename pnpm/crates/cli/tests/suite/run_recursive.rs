@@ -1070,3 +1070,5 @@ mod concurrency;
 mod output;
 
 mod environment;
+
+mod required_scripts;

@@ -222,6 +222,7 @@ fn create_config(
         test_pattern: Vec::new(),
         legacy_dir_filtering: false,
         sync_injected_deps_after_scripts: Vec::new(),
+        required_scripts: Vec::new(),
         changed_files_ignore_pattern: Vec::new(),
         git_shallow_hosts: pnpm_config::default_git_shallow_hosts(),
         supported_architectures: None,
