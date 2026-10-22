@@ -21,6 +21,7 @@ pub(super) async fn pick_latest_range(
     if needs_types_metadata(inputs.add, package_name) {
         return resolve_explicit_registry_spec(package_name, "latest", None, manifest, inputs)
             .await?
+            .map(|picked| picked.range)
             .ok_or_else(|| AddError::ResolveLatest {
                 name: package_name.to_string(),
                 error: crate::resolve_latest::ResolveLatestError::NoLatestVersion,
@@ -49,13 +50,22 @@ pub(super) async fn pick_latest_range(
         .map_err(|error| AddError::ResolveLatest { name: package_name.to_string(), error })?;
     Ok(calc_version_range(&latest.version, None, None, inputs.add.range_spec_style))
 }
+/// A registry specifier resolved to a concrete version, and the manifest
+/// range that records it.
+pub(super) struct PickedRange {
+    pub(super) range: String,
+    pub(super) version: String,
+}
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the
 /// manifest range pnpm would record: the spec resolved to a concrete
-/// version (through the *same* resolver path the follow-up install uses, so
-/// the pinned version equals the version the install locks — `resolutionMode`
-/// and `minimumReleaseAge` included), carrying the operator the existing
-/// entry pins, then the spec's, then the configured default. So `pnpm add
-/// foo@^7` records `^7.8.4`, not `^7`.
+/// version (through the *same* resolver path the follow-up install uses —
+/// `resolutionMode` and `minimumReleaseAge` included), carrying the operator
+/// the existing entry pins, then the spec's, then the configured default. So
+/// `pnpm add foo@^7` records `^7.8.4`, not `^7`.
+///
+/// The saved range can admit versions newer than the one picked (`foo@dev`
+/// saved as `^3.9.4` while `3.9.10` exists), so the install has to be seeded
+/// with [`PickedRange::version`] to lock it.
 ///
 /// Returns `Ok(None)` — write the specifier verbatim — for anything that is
 /// not a plain registry range/tag/version for `package_name` itself:
@@ -68,7 +78,7 @@ pub(super) async fn resolve_explicit_registry_spec(
     prev_specifier: Option<&str>,
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
-) -> Result<Option<String>, AddError> {
+) -> Result<Option<PickedRange>, AddError> {
     if spec.starts_with("npm:") {
         return Ok(None);
     }
@@ -102,14 +112,15 @@ pub(super) async fn resolve_explicit_registry_spec(
         return Ok(None);
     };
 
-    Ok(Some(saved_registry_range(
+    let range = saved_registry_range(
         &picked.version,
         package_name,
         &registry,
         prev_specifier,
         spec,
         add.range_spec_style,
-    )))
+    );
+    Ok(Some(PickedRange { range, version: picked.version.to_string() }))
 }
 pub(super) fn add_pick_policy(
     inputs: &AddResolveInputs<'_, '_>,

@@ -31,6 +31,9 @@ pub(super) struct ResolvedAddedDependency {
     pub(super) updated_catalogs: Catalogs,
     pub(super) warnings: Vec<LogEvent>,
     pub(super) types_selector: Option<String>,
+    /// The version an explicit registry specifier resolved to, which the
+    /// install must lock.
+    pub(super) picked_version: Option<String>,
 }
 pub(super) async fn resolve_added_dependency(
     package_selector: &str,
@@ -40,7 +43,10 @@ pub(super) async fn resolve_added_dependency(
     let selector = AddSelector::parse(package_selector, manifest, inputs).await?;
     let package_name = selector.package_name(package_selector);
     let prev_specifier = declared_specifier(manifest, package_name);
-    let bare_specifier = bare_save_specifier(
+    let SaveSpecifier {
+        specifier: bare_specifier,
+        picked_version,
+    } = bare_save_specifier(
         package_selector,
         &selector,
         prev_specifier.as_deref(),
@@ -65,6 +71,7 @@ pub(super) async fn resolve_added_dependency(
         updated_catalogs,
         warnings,
         types_selector,
+        picked_version,
     })
 }
 
@@ -196,7 +203,7 @@ pub(super) async fn bare_save_specifier(
     prev_specifier: Option<&str>,
     manifest: &PackageManifest,
     inputs: &AddResolveInputs<'_, '_>,
-) -> Result<String, AddError> {
+) -> Result<SaveSpecifier, AddError> {
     let package_name = selector.package_name(package_selector);
     let explicit_spec = selector.explicit_spec(package_selector);
     if let Some(workspace_specifier) = workspace_save_specifier(
@@ -207,33 +214,53 @@ pub(super) async fn bare_save_specifier(
         inputs.add.range_spec_style,
         inputs.workspace_packages,
     ) {
-        return Ok(workspace_specifier);
+        return Ok(workspace_specifier.into());
     }
     if let Some(version_spec) =
         explicit_spec.and_then(|spec| node_runtime_version_spec(package_name, spec))
     {
-        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs).await;
+        return resolve_node_runtime_specifier(version_spec, prev_specifier, inputs)
+            .await
+            .map(SaveSpecifier::from);
     }
     if let Some(specifier) =
         explicit_spec.and_then(|spec| runtime_save_specifier(package_name, spec))
     {
-        return Ok(specifier);
+        return Ok(specifier.into());
     }
     if let Some(ProtocolSelector::Jsr(jsr)) = selector.protocol.as_ref() {
         return Ok(resolve_jsr_save_specifier(jsr, manifest, inputs).await?
-            .unwrap_or_else(|| package_selector.to_string()));
+            .unwrap_or_else(|| package_selector.to_string())
+            .into());
     }
     match (explicit_spec, prev_specifier) {
-        (Some(spec), prev) => {
-            Ok(resolve_explicit_registry_spec(package_name, spec, prev, manifest, inputs)
-                .await?
-                .unwrap_or_else(|| normalized_save_specifier(spec)))
-        }
-        (None, Some(prev)) => Ok(prev.to_string()),
+        (Some(spec), prev) => Ok(
+            match resolve_explicit_registry_spec(package_name, spec, prev, manifest, inputs).await?
+            {
+                Some(picked) => {
+                    SaveSpecifier { specifier: picked.range, picked_version: Some(picked.version) }
+                }
+                None => normalized_save_specifier(spec).into(),
+            },
+        ),
+        (None, Some(prev)) => Ok(prev.to_string().into()),
         (None, None) => match cataloged_specifier(package_name, inputs) {
-            Some(specifier) => Ok(specifier),
-            None => pick_latest_range(package_name, manifest, inputs).await,
+            Some(specifier) => Ok(specifier.into()),
+            None => {
+                pick_latest_range(package_name, manifest, inputs).await.map(SaveSpecifier::from)
+            }
         },
+    }
+}
+/// What [`bare_save_specifier`] records, and the version it resolved an
+/// explicit registry specifier to.
+pub(super) struct SaveSpecifier {
+    specifier: String,
+    picked_version: Option<String>,
+}
+impl From<String> for SaveSpecifier {
+    fn from(specifier: String) -> Self {
+        Self { specifier, picked_version: None }
     }
 }
 /// The `catalog:` reference for a dependency the catalog already lists, or
@@ -472,7 +499,7 @@ pub(super) async fn resolve_jsr_save_specifier(
         &inputs,
     )
     .await?;
-    Ok(range.map(|range| format!("jsr:{range}")))
+    Ok(range.map(|picked| format!("jsr:{}", picked.range)))
 }
 /// Split a `pacquet add` argument into its package name and optional
 /// `@<version>` part. The version separator is the first `@` at or after

@@ -1,6 +1,7 @@
 mod install;
 use install::{
-    AddSeed, add_install, merged_catalogs_override, project_seed_policy, selected_add_seed,
+    AddSeed, add_install, lockfile_importer, merged_catalogs_override, project_seed_policy,
+    seed_picked_versions, selected_add_seed,
 };
 
 mod specifier;
@@ -206,15 +207,24 @@ where
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let (add, owned, manifest) = self.split();
         begin::<Reporter>(add, &owned);
-        let (catalog_ctx, updated_catalogs) =
-            prepare_single_add::<Reporter>(add, &owned, manifest).await?;
-        let (dropped_pins, preferred_versions_override) = catalog_version_requests(
+        let (catalog_ctx, prepared) = prepare_single_add::<Reporter>(add, &owned, manifest).await?;
+        let (mut dropped_pins, mut preferred_versions_override) = catalog_version_requests(
             add.package_names,
             manifest,
             &catalog_ctx.catalogs,
             add.lockfile.document,
             add.config,
             owned.save_catalog_name.as_deref(),
+        );
+        seed_picked_versions(
+            &prepared.picked_versions,
+            manifest
+                .path()
+                .parent()
+                .and_then(|manifest_dir| {
+                    lockfile_importer(add.lockfile.document, add.config, manifest_dir)
+                }),
+            (&mut dropped_pins, &mut preferred_versions_override),
         );
         let install_result = add_install(
             add,
@@ -225,7 +235,7 @@ where
                 preferred_versions_override,
                 catalogs_override: merged_catalogs_override(
                     catalog_ctx.catalogs,
-                    &updated_catalogs,
+                    &prepared.updated_catalogs,
                 ),
             },
         )
@@ -258,6 +268,7 @@ where
             &owned,
             manifest,
             (selected.projects, &selected_indices),
+            &prepared.picked_versions,
             prepared.catalogs_override,
             &prepared.catalogs,
         );
