@@ -184,12 +184,24 @@ fn the_siginfo_flag_is_read_back_from_the_disposition() {
 ///
 /// Calling such a handler through `extern "C" fn(c_int)` would leave it
 /// reading its second and third arguments from whatever the registers held,
-/// so this asserts on the `siginfo_t` the handler received rather than only
-/// on being reached.
+/// so the assertion is on the `siginfo_t` the handler received rather than
+/// only on its being reached.
+///
+/// In a child process because the installer runs behind a `Once`. A test
+/// that tracked a temp file first would have spent it, leaving this one to
+/// install `earlier` over nothing: `raise` would then call `earlier`
+/// directly, and the assertions would pass while no forwarding ran at all.
+/// The child also keeps the altered `SIGTERM` disposition to itself.
 #[cfg(unix)]
 #[test]
 fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
-    use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+    use std::{
+        env,
+        process::Command,
+        sync::atomic::{AtomicBool, AtomicI32, Ordering},
+    };
+
+    const CHILD_MARKER: &str = "PNPM_FS_SIGINFO_FORWARDING_CHILD";
 
     static REACHED_WITH: AtomicI32 = AtomicI32::new(0);
     static DETAILS_MATCHED: AtomicBool = AtomicBool::new(false);
@@ -207,33 +219,47 @@ fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
         DETAILS_MATCHED.store(matched, Ordering::Release);
     }
 
-    // SAFETY: an all-zero `sigaction` is a valid one to build on, and the
-    // pointer is to a fully initialized stack local that outlives the call.
-    // A null `oldact` discards the disposition being replaced.
-    unsafe {
-        let mut action: libc::sigaction = std::mem::zeroed();
-        action.sa_flags = libc::SA_SIGINFO;
-        action.sa_sigaction = earlier as *const () as usize;
-        libc::sigemptyset(&raw mut action.sa_mask);
-        assert_eq!(libc::sigaction(libc::SIGTERM, &raw const action, std::ptr::null_mut()), 0);
+    if env::var_os(CHILD_MARKER).is_some() {
+        // SAFETY: an all-zero `sigaction` is a valid one to build on, and the
+        // pointer is to a fully initialized stack local that outlives the
+        // call. A null `oldact` discards the disposition being replaced.
+        unsafe {
+            let mut action: libc::sigaction = std::mem::zeroed();
+            action.sa_flags = libc::SA_SIGINFO;
+            action.sa_sigaction = earlier as *const () as usize;
+            libc::sigemptyset(&raw mut action.sa_mask);
+            assert_eq!(libc::sigaction(libc::SIGTERM, &raw const action, std::ptr::null_mut()), 0);
+        }
+
+        // pnpm's handler goes on top, so `earlier` is the disposition it
+        // records and the one it passes the signal on to.
+        super::install_temp_file_cleanup();
+
+        // SAFETY: `raise` delivers to this thread, where the disposition is
+        // pnpm's handler over `earlier`, so neither ends the process and the
+        // call returns.
+        assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+
+        assert_eq!(
+            REACHED_WITH.load(Ordering::Acquire),
+            libc::SIGTERM,
+            "the signal was not passed on to the handler pnpm replaced",
+        );
+        assert!(
+            DETAILS_MATCHED.load(Ordering::Acquire),
+            "the replaced handler was called without the delivery's `siginfo_t`",
+        );
+        return;
     }
 
-    // pnpm's handler goes on top, so `earlier` is the disposition it records
-    // and the one it passes the signal on to.
-    super::install_temp_file_cleanup();
-
-    // SAFETY: `raise` is async-signal-safe and delivers to this thread. The
-    // disposition is `earlier` by way of pnpm's handler, so neither ends the
-    // process and `raise` returns.
-    assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
-
-    assert_eq!(
-        REACHED_WITH.load(Ordering::Acquire),
-        libc::SIGTERM,
-        "the replaced handler was not reached",
-    );
-    assert!(
-        DETAILS_MATCHED.load(Ordering::Acquire),
-        "the replaced handler was called without the delivery's `siginfo_t`",
-    );
+    let status = Command::new(env::current_exe().expect("test binary path"))
+        .args([
+            "--exact",
+            "pending_temp::tests::a_replaced_siginfo_handler_is_passed_the_signal_details",
+            "--nocapture",
+        ])
+        .env(CHILD_MARKER, "1")
+        .status()
+        .expect("spawn child test process");
+    assert!(status.success(), "the child's forwarding assertions failed: {status:?}");
 }
