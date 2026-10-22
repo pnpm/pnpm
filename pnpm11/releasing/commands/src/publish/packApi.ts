@@ -3,14 +3,15 @@ import path from 'node:path'
 
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { readProjectManifest } from '@pnpm/cli.utils'
+import { readProjectManifest, type ReadProjectManifestOpts, tryReadProjectManifest } from '@pnpm/cli.utils'
+import { pickRegistryForPackage, pickRegistryPrefixForUrl } from '@pnpm/config.pick-registry-for-package'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { packlistWithSources } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
-import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
+import { createExportableManifest, type ExportedManifest, readReadmeFile, type WorkspacePackageEntry, type WorkspacePackageLookup } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
-import type { DependencyManifest, ProjectManifest } from '@pnpm/types'
+import type { DependencyManifest, Project, ProjectManifest } from '@pnpm/types'
 import { glob } from 'tinyglobby'
 import validateNpmPackageName from 'validate-npm-package-name'
 
@@ -19,6 +20,7 @@ import type { PackOptions, PackResultJson } from './pack.js'
 import { checkPackedBinsForCrlf, isManifestEntry, packPkg } from './packTarball.js'
 import { fetchPreviousChangelog, type PreviousChangelogOptions } from './previousChangelog.js'
 import { bindRunScriptsIfPresent } from './publish.js'
+import { getPublishConfigRegistry } from './publishPackedPkg.js'
 
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}' // cspell:disable-line
 
@@ -167,13 +169,55 @@ async function createPackedManifest (
 }
 
 async function findWorkspacePackages (opts: PackOptions): Promise<WorkspacePackageLookup | undefined> {
-  const workspacePackages: WorkspacePackageLookup | undefined = opts.allProjects ??
+  const projects = await findWorkspaceProjects(opts)
+  if (projects == null) return undefined
+  return Promise.all(projects.map(async (project): Promise<WorkspacePackageEntry> => ({
+    manifest: project.manifest,
+    rootDir: project.rootDir,
+    registryPrefix: await publishRegistryPrefix(project, opts),
+  })))
+}
+
+async function findWorkspaceProjects (opts: PackOptions): Promise<Project[] | undefined> {
+  const projects = opts.allProjects ??
     (opts.selectedProjectsGraph ? Object.values(opts.selectedProjectsGraph).map((p) => p.package) : undefined) ??
     (opts.allProjectsGraph ? Object.values(opts.allProjectsGraph).map((p) => p.package) : undefined)
-  if (workspacePackages || !opts.workspaceDir) return workspacePackages
+  if (projects || !opts.workspaceDir) return projects
   const { filterProjectsBySelectorObjectsFromDir } = await import('@pnpm/workspace.projects-filter')
   const result = await filterProjectsBySelectorObjectsFromDir(opts.workspaceDir, [])
   return result.allProjects
+}
+
+/**
+ * The prefix declared for the registry `pnpm publish` would publish `project`
+ * to: the registry `publishConfig` names for the published name, else the
+ * scope's registry, read from the {@link publicationManifest}. The scope is
+ * that of the published name, which `publishConfig.name` may rename.
+ */
+async function publishRegistryPrefix (
+  project: Project,
+  opts: Pick<PackOptions, 'registriesByScope' | 'registriesByPrefix' | 'engineStrict'>
+): Promise<string | undefined> {
+  if (opts.registriesByPrefix == null || opts.registriesByScope == null) return undefined
+  const manifest = await publicationManifest(project, opts)
+  const publishedName = manifest.publishConfig?.name ?? manifest.name ?? project.manifest.name
+  if (publishedName == null) return undefined
+  const registry = getPublishConfigRegistry(manifest.publishConfig, publishedName) ??
+    pickRegistryForPackage(opts.registriesByScope, publishedName)
+  return pickRegistryPrefixForUrl(opts.registriesByPrefix, registry)
+}
+
+/**
+ * The manifest `pnpm publish` selects the registry from. A project that
+ * publishes from `publishConfig.directory` packs that directory's manifest, so
+ * it is read from there once it exists; until then, and for every other
+ * project, the project's own manifest is what will be published.
+ */
+async function publicationManifest (project: Project, opts: ReadProjectManifestOpts): Promise<ProjectManifest> {
+  const directory = project.manifest.publishConfig?.directory
+  if (!directory) return project.manifest
+  const { manifest } = await tryReadProjectManifest(path.join(project.rootDir, directory), opts)
+  return manifest ?? project.manifest
 }
 
 interface CollectPackedFilesOptions {

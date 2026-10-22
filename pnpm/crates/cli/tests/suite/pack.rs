@@ -17,6 +17,7 @@ use std::{fmt::Write, fs, path::Path};
 
 mod output;
 mod variants;
+mod workspace_registry_prefix;
 
 #[test]
 fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {

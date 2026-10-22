@@ -382,4 +382,33 @@ impl Config {
         registries.insert("default".to_string(), self.registry.clone());
         registries
     }
+
+    /// The named-registry prefix declared for the registry at `registry_url`:
+    /// the `prefix` of a `registries` entry or a `namedRegistries` alias. A
+    /// published manifest qualifies a `workspace:` dependency with it so the
+    /// dependency names the registry its consumers address it by.
+    ///
+    /// URLs compare with a trailing slash and a lower-case scheme and host.
+    /// When several prefixes declare one URL, the first in alphabetical order
+    /// is answered. The built-in `gh` and `npmjs` prefixes are not declared
+    /// by the project and are never answered.
+    #[must_use]
+    pub fn declared_registry_prefix(&self, registry_url: &str) -> Option<&str> {
+        let wanted = comparable_registry_url(registry_url);
+        self.registries_by_prefix
+            .iter()
+            .find(|(_, url)| comparable_registry_url(url) == wanted)
+            .map(|(prefix, _)| prefix.as_str())
+    }
+}
+
+/// `registry` with a trailing slash and a lower-case scheme and host, so two
+/// spellings of one registry compare equal. A URL that does not parse compares
+/// as written.
+fn comparable_registry_url(registry: &str) -> String {
+    let normalized = pnpm_network::normalize_registry_url(registry);
+    match url::Url::parse(&normalized) {
+        Ok(url) => url.to_string(),
+        Err(_) => normalized.into_owned(),
+    }
 }

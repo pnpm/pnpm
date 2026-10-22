@@ -1,5 +1,5 @@
 use super::{
-    Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifest,
+    Arc, Catalogs, HashMap, NodeLinker, Path, PathBuf, PnpmfileHooks, WorkspacePackageManifests,
     lexical_normalize,
 };
 
@@ -54,8 +54,10 @@ pub struct PackManifestOptions {
     /// share one worker per pnpmfile across every packed project instead
     /// of re-spawning it per project.
     pub before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
-    /// Workspace packages lookup used when a dependency is not installed in `node_modules`.
-    pub workspace_packages: Option<Arc<HashMap<String, WorkspacePackageManifest>>>,
+    /// Workspace packages by name: the version of a `workspace:` dependency
+    /// that is not installed in `node_modules`, and the registry prefix the
+    /// rewritten specifier carries.
+    pub workspace_packages: Option<Arc<WorkspacePackageManifests>>,
 }
 
 pub struct PackOutputOptions {
