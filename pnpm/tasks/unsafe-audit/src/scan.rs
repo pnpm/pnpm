@@ -314,7 +314,7 @@ fn opens_unsafe(line: &str) -> bool {
     // A comment or a block-comment continuation describes an `unsafe`
     // rather than being one. The continuation is a `*` that ends the line
     // or is followed by a space or the `/` that closes the comment, which
-    // is what tells it from a dereference such as `*slot = unsafe { … }`.
+    // is what tells it from a dereference such as `*slot = unsafe { x }`.
     let continues_block_comment = trimmed
         .strip_prefix('*')
         .is_some_and(|rest| {
