@@ -45,8 +45,11 @@ pub fn native_architecture() -> Option<&'static str> {
     }
 }
 
-/// `IsWow64Process2` is missing before Windows 10 version 1511, so it is
-/// looked up rather than linked, which would stop pnpm from starting there.
+/// [`IsWow64Process2`][IsWow64Process2-ext] is missing before Windows 10
+/// version 1511, so it is looked up rather than linked, which would stop pnpm
+/// from starting there.
+///
+/// [IsWow64Process2-ext]: https://learn.microsoft.com/en-us/windows/win32/api/wow64apiset/nf-wow64apiset-iswow64process2
 fn load_is_wow64_process2() -> Option<IsWow64Process2> {
     // SAFETY: both names are NUL-terminated literals that `s!` builds, and
     // `kernel32` is loaded into every process for its lifetime, so the
