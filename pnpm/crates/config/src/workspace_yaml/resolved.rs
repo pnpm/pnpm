@@ -106,6 +106,7 @@ impl WorkspaceSettings {
             optimistic_repeat_install: as_set(config, "optimisticRepeatInstall"),
             minimum_release_age: as_set(config, "minimumReleaseAge"),
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
+            runtime: as_set(config, "runtime"),
 
             macos_backup: Some(MacosBackupSettings {
                 exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
@@ -147,7 +148,6 @@ impl WorkspaceSettings {
             engine_strict: Some(config.engine_strict),
             force_ignores_platform: Some(config.force_ignores_platform),
             node_version: config.node_version.clone(),
-            runtime: Some(!config.skip_runtimes),
             runtime_on_fail: config.runtime_on_fail,
             node_download_mirrors: Some(config.node_download_mirrors.clone()),
             scripts_prepend_node_path: Some(config.scripts_prepend_node_path),

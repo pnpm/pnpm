@@ -99,6 +99,7 @@ fn from_resolved_reports_every_setting() {
                 "mergeGitBranchLockfiles",
                 "optimisticRepeatInstall",
                 "preferSymlinkedExecutables",
+                "runtime",
             ]
             .into_iter()
             .map(|key| (key.to_string(), serde_json::Value::Bool(true))),

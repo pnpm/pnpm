@@ -97,6 +97,41 @@ fn command_line_runtime_setting_overrides_the_workspace_yaml() {
     assert_installed(&workspace, std::slice::from_ref(&fixture));
 }
 
+/// An `updateConfig` hook reads `runtime` only when a source set it, as on
+/// pnpm 11, where `--no-runtime` is the `runtime: false` setting.
+#[test]
+fn update_config_sees_runtime_only_when_set() {
+    let dump_config = "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'seen.json'), JSON.stringify(config));\n  return config;\n} } }";
+    for (yaml, args, expected) in [
+        ("", &[][..], None),
+        ("runtime: false\n", &[][..], Some(false)),
+        ("", &["--no-runtime"][..], Some(false)),
+        ("", &["--config.runtime=true"][..], Some(true)),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, yaml);
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+        write_devengines_manifest(&workspace, fixture.version, Some("download"));
+        write_runtime_lockfile_for_group(
+            &workspace,
+            std::slice::from_ref(&fixture),
+            "devDependencies",
+        );
+        fs::write(workspace.join(".pnpmfile.cjs"), dump_config).unwrap();
+
+        command(&workspace)
+            .with_arg("install")
+            .with_args(args)
+            .assert()
+            .success();
+        let seen: Value =
+            serde_json::from_slice(&fs::read(workspace.join("seen.json")).unwrap()).unwrap();
+        assert_eq!(seen.get("runtime").and_then(Value::as_bool), expected, "{yaml:?} {args:?}");
+        assert_eq!(seen.get("runtime").is_some(), expected.is_some(), "{yaml:?} {args:?}");
+    }
+}
+
 #[test]
 fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     let root = tempfile::tempdir().unwrap();
