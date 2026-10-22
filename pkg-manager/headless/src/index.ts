@@ -485,7 +485,7 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
       // Only a full graph covering all importers can replace the recorded map.
       // Filtered or incremental installs must preserve the other entries.
       const hoistMapIsComplete = lockfileToDepGraphOpts.includeUnchangedDeps &&
-        equals([...importerIds].sort(), Object.keys(wantedLockfile.importers).sort())
+        equals([...importerIds].sort(compareCodePoints), Object.keys(wantedLockfile.importers).sort(compareCodePoints))
       newHoistedDependencies = hoistMapIsComplete
         ? hoisted
         : { ...opts.hoistedDependencies, ...hoisted }
@@ -1011,4 +1011,8 @@ async function linkAllModules (
       name: depNode.name,
     })),
   })
+}
+
+function compareCodePoints (a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
 }
