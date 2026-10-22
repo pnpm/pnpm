@@ -9,10 +9,10 @@ Log out of an npm registry. Revokes the authentication token on the registry and
 pnpm logout [--registry <url>]
 ```
 
-Since v12.1.0, pnpm removes a token written by `pnpm login` from the global
-[`config.yaml`](./config.md), and also checks
-[`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations) for a token written
-by an earlier version. A token supplied by `.npmrc`, another config file, or the
+`pnpm logout` removes the token from
+[`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations) and from the
+[`_auth`](../npmrc.md#_auth) setting in the global [`config.yaml`](./config.md),
+where pnpm 12.1 to 12.15 wrote it. A token supplied by `.npmrc`, another config file, or the
 environment is revoked at the registry but must be removed from that source
 manually.
 

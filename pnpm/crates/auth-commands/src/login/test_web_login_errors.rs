@@ -163,8 +163,8 @@ async fn should_propagate_non_enoent_errors_from_reading_auth_ini() {
         .await
         .unwrap_err();
 
-    let LoginError::ReadConfigYaml { error, .. } = &err else {
-        panic!("expected ReadConfigYaml, got {err:?}");
+    let LoginError::ReadAuthIni { error, .. } = &err else {
+        panic!("expected ReadAuthIni, got {err:?}");
     };
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
     // The web-login messages are surfaced before the read is attempted.
@@ -451,9 +451,9 @@ async fn rejects_a_done_url_containing_control_characters() {
     assert!(infos().is_empty(), "got {:?}", infos());
 }
 
-/// A registry the `_auth` reader would refuse is refused before the network:
+/// A registry the config reader would refuse is refused before the network:
 /// authenticating first would spend a round-trip to produce a `config.yaml`
-/// that no later command can load. The message carries no part of the URL,
+/// route that no later command can load. The message carries no part of the URL,
 /// which can hold credentials.
 #[tokio::test]
 async fn should_refuse_a_registry_the_config_reader_would_reject() {
@@ -474,8 +474,8 @@ async fn should_refuse_a_registry_the_config_reader_would_reject() {
     assert!(login_writes().is_empty(), "nothing may be written for a refused registry");
 }
 
-/// The same guard for a scope: `_auth` keys it, and one that is not a package
-/// scope makes the document unloadable.
+/// The same guard for a scope: `registries` routes it, and one that is not a
+/// package scope makes the document unloadable.
 #[tokio::test]
 async fn should_refuse_a_scope_the_config_reader_would_reject() {
     web_auth_fake!(FakeHost, RecordingReporter);

@@ -45,8 +45,8 @@ async fn should_use_web_login_when_registry_supports_it() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("config.yaml was written");
-    assert_eq!(path, &config_dir.join("config.yaml"));
+    let (path, _) = writes.first().expect("auth.ini was written");
+    assert_eq!(path, &config_dir.join("auth.ini"));
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
         Some("web-auth-token-123".to_owned()),
@@ -258,7 +258,7 @@ async fn should_succeed_when_config_file_does_not_exist() {
 
     let result = login::<FakeHost, RecordingReporter>(&client(), opts(&registry, config_dir))
         .await
-        .expect("login succeeds despite a missing config.yaml");
+        .expect("login succeeds despite missing config files");
 
     assert_eq!(result, format!("Logged in on {registry}/"));
     let writes = login_writes();
