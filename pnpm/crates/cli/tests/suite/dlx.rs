@@ -533,3 +533,24 @@ fn dlx_recovers_ignored_builds() {
         drop(root);
     }
 }
+
+/// pnpm's dlx resolves a version-less package to `latest`, so a caller's
+/// `tag` that names no version of the package must not fail the run.
+#[test]
+#[cfg_attr(not(unix), ignore = "dlx bin execution is only exercised on Unix")]
+fn dlx_ignores_the_caller_projects_tag_setting() {
+    let CommandTempCwd { pacquet, root, workspace, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    append_workspace_yaml_key(&workspace, "tag", "no-such-tag");
+
+    let output = pacquet
+        .with_args(["dlx", "@pnpm.e2e/hello-world-js-bin"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    assert!(String::from_utf8_lossy(&output).contains("Hello world!"));
+    drop(root);
+}

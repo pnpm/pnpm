@@ -389,7 +389,7 @@ fn add_without_a_version_resolves_the_configured_tag() {
         CommandTempCwd::init().add_mocked_registry_with_own_storage();
     let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     npmrc_info.set_dist_tag(name, "100.0.0", "dev");
-    append_workspace_setting(&workspace, "tag: dev");
+    crate::_utils::append_workspace_yaml_key(&workspace, "tag", "dev");
 
     pacquet_in(&workspace)
         .with_args(["add", name, "--lockfile-only"])
@@ -425,7 +425,7 @@ fn install_resolves_a_versionless_npm_alias_to_the_configured_tag() {
         CommandTempCwd::init().add_mocked_registry_with_own_storage();
     let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
     npmrc_info.set_dist_tag(name, "100.0.0", "dev");
-    append_workspace_setting(&workspace, "tag: dev");
+    crate::_utils::append_workspace_yaml_key(&workspace, "tag", "dev");
     std::fs::write(
         workspace.join("package.json"),
         serde_json::json!({ "dependencies": { "alias": format!("npm:{name}") } }).to_string(),
@@ -441,15 +441,64 @@ fn install_resolves_a_versionless_npm_alias_to_the_configured_tag() {
     drop((root, npmrc_info)); // cleanup
 }
 
-fn append_workspace_setting(workspace: &std::path::Path, line: &str) {
-    let path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = std::fs::read_to_string(&path).expect("read pnpm-workspace.yaml");
-    if !yaml.ends_with('\n') {
-        yaml.push('\n');
-    }
-    yaml.push_str(line);
-    yaml.push('\n');
-    std::fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
+/// pnpm reads `<pkg>@` as `<pkg>`, so the empty version resolves the tag.
+#[test]
+fn add_with_an_empty_version_resolves_the_configured_tag() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    npmrc_info.set_dist_tag(name, "100.0.0", "dev");
+    crate::_utils::append_workspace_yaml_key(&workspace, "tag", "dev");
+
+    pacquet_in(&workspace)
+        .with_args(["add", &format!("{name}@"), "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, name), "^100.0.0");
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// An empty specifier in the manifest resolves the tag, as in pnpm.
+#[test]
+fn install_resolves_an_empty_specifier_to_the_configured_tag() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    npmrc_info.set_dist_tag(name, "100.0.0", "dev");
+    crate::_utils::append_workspace_yaml_key(&workspace, "tag", "dev");
+    std::fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { (name): "" } }).to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
+}
+
+#[test]
+fn add_without_a_version_resolves_the_tag_from_the_environment() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let name = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+    npmrc_info.set_dist_tag(name, "100.0.0", "dev");
+
+    pacquet_in(&workspace)
+        .with_env("PNPM_CONFIG_TAG", "dev")
+        .with_args(["add", name, "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(&workspace, name), "^100.0.0");
+    assert_eq!(locked_version(&workspace, name), "100.0.0");
+    drop((root, npmrc_info)); // cleanup
 }
 
 fn pacquet_in(workspace: &std::path::Path) -> std::process::Command {

@@ -147,6 +147,8 @@ impl AddSelector {
             (None, Some(protocol)) => protocol.explicit_spec(package_selector),
             (None, None) => split_name_spec(package_selector).1,
         }
+        // pnpm reads `foo@` as `foo`, which resolves the `tag` setting.
+        .filter(|spec| !spec.is_empty())
     }
 }
 /// The dependency's current specifier, so a re-add keeps the
