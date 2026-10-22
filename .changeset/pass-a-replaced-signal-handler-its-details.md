@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-pnpm now passes an interrupt on to the handler it replaced in the form that handler expects. A host that installed its own `SIGINT`, `SIGTERM`, or `SIGHUP` handler asking for the signal's details, as a program embedding pnpm may, was called without them.
+pnpm now passes an interrupt on to the handler it replaced, with the arguments that handler expects. A handler that asked for the signal's details was called without them. Only a program that embeds pnpm and installs its own `SIGINT`, `SIGTERM` or `SIGHUP` handler was affected.
