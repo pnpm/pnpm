@@ -52,6 +52,16 @@ fn no_warning_for_a_builtin_named_registry() {
     assert_eq!(unmatched_registry_options_warning(&config), None);
 }
 
+/// A `registries` entry whose only route is the bare `@` scope becomes the
+/// default registry and is stored under no scope, so it must be matched
+/// through `config.registry`.
+#[test]
+fn no_warning_for_an_entry_routed_only_through_the_default_scope() {
+    let mut config = config_with(&[], &["https://pnpr.example.com/npm/"]);
+    config.registry = "https://pnpr.example.com/npm/".to_string();
+    assert_eq!(unmatched_registry_options_warning(&config), None);
+}
+
 #[test]
 fn warns_about_an_entry_matching_no_configured_registry() {
     let config = config_with(

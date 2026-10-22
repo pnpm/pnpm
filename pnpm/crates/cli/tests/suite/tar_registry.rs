@@ -119,6 +119,30 @@ fn installs_from_a_tar_registry_and_pins_the_tar_hashes() {
     drop((root, npmrc_info));
 }
 
+/// An entry routed only through the bare `@` scope is the default registry,
+/// so the install must not report it as an entry that matches no registry.
+/// <https://github.com/pnpm/tasks/issues/184>
+#[test]
+fn an_entry_routed_through_the_default_scope_is_not_reported_as_unmatched() {
+    let (env, tar_registry) = project();
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = env;
+    use_tar_registry(&workspace, &tar_registry, Some("pnpr"));
+    let output = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr).into_owned();
+    println!("{stderr}");
+    assert!(!stderr.contains("do not match any configured registry"), "{stderr}");
+    drop((root, npmrc_info));
+}
+
 #[test]
 fn a_lockfile_only_resolution_records_the_hash_a_tar_registry_omits() {
     let (env, tar_registry) = project();
