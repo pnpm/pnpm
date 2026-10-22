@@ -11,6 +11,7 @@ import { createWorkspaceState } from './createWorkspaceState.js'
 import { getFilePath } from './filePath.js'
 import { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 import { loadWorkspaceState } from './loadWorkspaceState.js'
+import { resolveStoreLocationSettings } from './storeLocation.js'
 import type { ProjectsList, WorkspaceState, WorkspaceStateSettings } from './types.js'
 import { recordValidation, trustsEveryFile } from './validation.js'
 
@@ -54,7 +55,10 @@ export interface StateValidationOptions {
 
 export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): Promise<void> {
   logger.debug({ msg: 'updating workspace state' })
-  const workspaceState = createWorkspaceState(opts)
+  const workspaceState = createWorkspaceState({
+    ...opts,
+    settings: { ...opts.settings, ...resolveStoreLocationSettings(opts.settings, opts.workspaceDir) },
+  })
   const cacheFile = getFilePath(opts.workspaceDir)
   const cacheDir = path.dirname(cacheFile)
   const tempFile = pathTemp(cacheDir)

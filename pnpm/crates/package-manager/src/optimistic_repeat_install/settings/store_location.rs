@@ -1,34 +1,26 @@
 use super::{Config, SettingsComparison, WorkspaceStateSettings};
-use pnpm_config::GetHomeDir;
-use std::path::MAIN_SEPARATOR_STR;
+use std::path::Path;
 
-/// `storeDir` and `virtualStoreDir` as configured, the raw values pnpm v11
-/// records, with a leading `~/` in `storeDir` expanded as pnpm v11 does.
+/// The configured `storeDir` and `virtualStoreDir` as the directories they
+/// resolve to, the form pnpm v11 records, so a relative and an absolute
+/// spelling of one directory compare equal. A setting that is not configured
+/// stays unset.
 pub(super) fn store_location_settings(
     config: &Config,
     rest: WorkspaceStateSettings,
 ) -> WorkspaceStateSettings {
-    let configured =
-        |key: &str| config.explicit_settings.get(key).and_then(serde_json::Value::as_str);
+    let configured = |key: &str, dir: &Path| {
+        config.explicit_settings
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|raw| !raw.is_empty())
+            .map(|_| pnpm_fs::lexical_normalize(dir).to_string_lossy().into_owned())
+    };
     WorkspaceStateSettings {
-        store_dir: configured("storeDir").map(expand_home_prefix::<pnpm_config::Host>),
-        virtual_store_dir: configured("virtualStoreDir").map(str::to_string),
+        store_dir: configured("storeDir", config.store_dir.root()),
+        virtual_store_dir: configured("virtualStoreDir", config.virtual_store_dir()),
         ..rest
     }
-}
-
-fn expand_home_prefix<Sys: GetHomeDir>(path: &str) -> String {
-    let Some(relative) = path
-        .strip_prefix("~/")
-        .or_else(|| path.strip_prefix(r"~\"))
-    else {
-        return path.to_string();
-    };
-    let Some(home_dir) = Sys::home_dir() else { return path.to_string() };
-    let mut joined = home_dir.into_os_string();
-    joined.push(MAIN_SEPARATOR_STR);
-    joined.push(relative);
-    pnpm_fs::lexical_normalize(std::path::Path::new(&joined)).to_string_lossy().into_owned()
 }
 
 impl SettingsComparison<'_> {
@@ -43,6 +35,3 @@ impl SettingsComparison<'_> {
         .map(|(key, _)| key)
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -107,7 +107,7 @@ export const WORKSPACE_STATE_SETTING_KEYS = [
   'publicHoistPattern',
   // `node_modules` is linked from the store and virtual store it was
   // installed with, so a change to either must reach the install, which
-  // recreates it.
+  // recreates it. Recorded as resolved by `resolveStoreLocationSettings`.
   'storeDir',
   // A `supportedArchitectures` change alters which platform-specific
   // optional dependencies are installed without touching the lockfile,

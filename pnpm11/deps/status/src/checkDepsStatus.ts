@@ -3,7 +3,7 @@ import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, normalizeUnsetSetting, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, normalizeUnsetSetting, resolveStoreLocationSettings, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals } from 'ramda'
 
@@ -17,7 +17,7 @@ import { getWantedLockfileDirs, scanWantedLockfiles } from './wantedLockfiles.js
 export type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 
 export async function checkDepsStatus (opts: CheckDepsStatusOptions): Promise<CheckDepsStatusResult> {
-  const workspaceState = loadWorkspaceState(opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir)
+  const workspaceState = loadWorkspaceState(workspaceStateDir(opts))
   if (!workspaceState) {
     if (opts.allProjects == null && opts.workspaceDir == null && opts.rootProjectManifest == null) {
       // There is no project here at all (for example, a mistyped command fell
@@ -149,16 +149,21 @@ function findSettingsIssue (opts: CheckDepsStatusOptions, workspaceState: Worksp
 }
 
 function findChangedSetting (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
+  const storeLocation: Partial<WorkspaceStateSettings> = resolveStoreLocationSettings(opts, workspaceStateDir(opts))
   const ignoredSettings = new Set<keyof WorkspaceStateSettings>(opts.ignoredWorkspaceStateSettings)
   ignoredSettings.add('catalogs')
   for (const settingName of WORKSPACE_STATE_SETTING_KEYS) {
     if (ignoredSettings.has(settingName as keyof WorkspaceStateSettings)) continue
     const settingKey = settingName as keyof WorkspaceStateSettings
     const storedValue = normalizeUnsetSetting(settingKey, storedSettings[settingKey])
-    const currentValue = normalizeUnsetSetting(settingKey, opts[settingKey])
+    const currentValue = normalizeUnsetSetting(settingKey, settingKey in storeLocation ? storeLocation[settingKey] : opts[settingKey])
     if (!equals(storedValue, currentValue)) return settingName
   }
   return undefined
+}
+
+function workspaceStateDir (opts: CheckDepsStatusOptions): string {
+  return opts.lockfileDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir
 }
 
 /**

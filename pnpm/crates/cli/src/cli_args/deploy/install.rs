@@ -172,24 +172,7 @@ pub(super) fn create_deploy_install_config(
     deploy_config.dedupe_peer_dependents = false;
     deploy_config.dedupe_injected_deps = false;
     deploy_config.node_linker = node_linker;
-    record_deployed_store_location(&mut deploy_config, base_config);
     deploy_config
-}
-
-/// The workspace state records the configured store location, and the
-/// deploy directory's own config is its `pnpm-workspace.yaml`, which carries
-/// no `storeDir` and only a `virtualStoreDir` it can keep.
-fn record_deployed_store_location(deploy_config: &mut Config, base_config: &Config) {
-    let settings = &mut deploy_config.explicit_settings;
-    settings.remove("storeDir");
-    match configured_virtual_store_dir(base_config) {
-        Some(raw) => {
-            settings.insert("virtualStoreDir".to_string(), serde_json::Value::from(raw));
-        }
-        None => {
-            settings.remove("virtualStoreDir");
-        }
-    }
 }
 
 impl DeployArgs {

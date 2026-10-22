@@ -6,8 +6,12 @@
 use crate::_utils::{append_workspace_yaml_key, flatten_report, pacquet_in};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pipe_trait::Pipe;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn add_remove_and_update_refuse_a_modules_dir_linked_from_another_store() {
@@ -28,9 +32,11 @@ fn add_remove_and_update_refuse_a_modules_dir_linked_from_another_store() {
             &[
                 "ERR_PNPM_UNEXPECTED_STORE",
                 "Unexpected store location",
-                r#"are currently linked from the store at ""#,
-                r#"/pacquet-store/v11". pnpm now wants to use the store at ""#,
-                r#"/other-store/v11" to link dependencies."#,
+                "are currently linked from the store at",
+                "pacquet-store",
+                "pnpm now wants to use the store at",
+                "other-store",
+                "to link dependencies.",
             ],
         );
         assert!(
@@ -39,11 +45,14 @@ fn add_remove_and_update_refuse_a_modules_dir_linked_from_another_store() {
         );
     }
 
-    install_records(&workspace, r#"/other-store/v11""#);
-    let workspace_state =
-        fs::read_to_string(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
-            .expect("read the workspace state");
-    assert!(workspace_state.contains(r#""storeDir": "../other-store""#), "{workspace_state}");
+    let other_store = Path::new("other-store").join("v11");
+    install_records(&workspace, "storeDir", &other_store);
+    let workspace_state = read_json(&workspace.join("node_modules/.pnpm-workspace-state-v1.json"));
+    let recorded_store_dir = recorded_path(&workspace_state["settings"], "storeDir");
+    assert!(
+        recorded_store_dir.is_absolute() && recorded_store_dir.ends_with(&other_store),
+        "{recorded_store_dir:?}",
+    );
 
     drop((root, mock_instance));
 }
@@ -66,7 +75,7 @@ fn add_refuses_a_modules_dir_linked_from_another_virtual_store() {
     );
     assert!(workspace.join("node_modules/is-positive").exists(), "add purged node_modules");
 
-    install_records(&workspace, r#""virtualStoreDir": ".vs""#);
+    install_records(&workspace, "virtualStoreDir", Path::new(".vs"));
 
     drop((root, mock_instance));
 }
@@ -105,16 +114,30 @@ fn install_is_positive(workspace: &Path) {
 }
 
 /// `pnpm install` recreates the modules directory, whose `.modules.yaml`
-/// then holds `expected`.
-fn install_records(workspace: &Path, expected: &str) {
+/// then records a `field` path ending in `expected`.
+fn install_records(workspace: &Path, field: &str, expected: &Path) {
     pacquet_in(workspace)
         .with_arg("install")
         .assert()
         .success();
     assert!(workspace.join("node_modules/is-positive").exists());
-    let modules_yaml = fs::read_to_string(workspace.join("node_modules/.modules.yaml"))
-        .expect("read .modules.yaml");
-    assert!(modules_yaml.contains(expected), "expected {expected:?} in {modules_yaml}");
+    let modules = read_json(&workspace.join("node_modules/.modules.yaml"));
+    let recorded = recorded_path(&modules, field);
+    assert!(recorded.ends_with(expected), "{field}: {recorded:?}");
+}
+
+fn read_json(path: &Path) -> serde_json::Value {
+    fs::read_to_string(path)
+        .expect("read the file")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse the file as JSON")
+}
+
+fn recorded_path(record: &serde_json::Value, field: &str) -> PathBuf {
+    record[field]
+        .as_str()
+        .map(|raw| pnpm_fs::lexical_normalize(Path::new(raw)))
+        .unwrap_or_else(|| panic!("{field} is recorded"))
 }
 
 fn run_failing(workspace: &Path, args: &[&str]) -> String {

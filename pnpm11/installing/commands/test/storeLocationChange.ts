@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { STORE_VERSION } from '@pnpm/constants'
 import { add, install } from '@pnpm/installing.commands'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest } from '@pnpm/types'
@@ -40,14 +41,14 @@ test.each([
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
 })
 
-test('a single-project install records the configured storeDir, not the resolved store', async () => {
+test('a single-project install records the configured storeDir, not the default store', async () => {
   prepareEmpty()
   await add.handler({ ...DEFAULT_OPTS, dir: process.cwd() }, ['is-positive@1.0.0'])
 
-  expect(readRecordedStoreDir()).toBe(DEFAULT_OPTS.storeDir)
+  expect(readRecordedStoreDir()).toBe(path.resolve(DEFAULT_OPTS.storeDir, STORE_VERSION))
 })
 
-test('a recursive install records the configured storeDir, not the resolved store', async () => {
+test('a recursive install records the configured storeDir, not the default store', async () => {
   preparePackages([
     { name: 'project-1', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } },
   ])
@@ -62,7 +63,7 @@ test('a recursive install records the configured storeDir, not the resolved stor
     workspaceDir: process.cwd(),
   })
 
-  expect(readRecordedStoreDir()).toBe(DEFAULT_OPTS.storeDir)
+  expect(readRecordedStoreDir()).toBe(path.resolve(DEFAULT_OPTS.storeDir, STORE_VERSION))
 })
 
 function readRecordedStoreDir (): string | undefined {
