@@ -68,7 +68,7 @@ impl<Entry: 'static> SignalList<Entry> {
     /// entry added during the walk may or may not be reached.
     pub fn for_each(&self, mut visit: impl FnMut(&'static Entry)) {
         let mut next = self.head.load(Ordering::Acquire);
-        // SAFETY: every pointer in the list came from the `Box::leak` in
+        // SAFETY: every pointer in the list came from the `Box::into_raw` in
         // `push` and is never freed, so each stays dereferenceable for the
         // life of the process. The reference handed to `visit` is `'static`
         // for the same reason.
@@ -84,7 +84,7 @@ impl<Entry: 'static> SignalList<Entry> {
     pub fn find(&self, mut accepts: impl FnMut(&'static Entry) -> bool) -> Option<&'static Entry> {
         let mut next = self.head.load(Ordering::Acquire);
         // SAFETY: as in `for_each`, every pointer in the list came from the
-        // `Box::leak` in `push` and is never freed.
+        // `Box::into_raw` in `push` and is never freed.
         while let Some(node) = unsafe { next.as_ref() } {
             if accepts(&node.entry) {
                 return Some(&node.entry);
