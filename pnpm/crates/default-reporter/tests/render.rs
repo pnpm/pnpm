@@ -3,8 +3,6 @@
 //! produces for the same events. Colors are constructed off for readable
 //! plain-text assertions and on for the ANSI-specific ones.
 
-#![forbid(unsafe_code)]
-
 use pnpm_default_reporter::{
     MaxLogLevel, SummaryScope,
     colors::Colors,

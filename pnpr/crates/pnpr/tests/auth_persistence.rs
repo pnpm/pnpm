@@ -5,8 +5,6 @@
 //!
 //! [#11974]: https://github.com/pnpm/pnpm/issues/11974
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

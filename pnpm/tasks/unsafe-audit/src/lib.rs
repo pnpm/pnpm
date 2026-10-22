@@ -1,15 +1,14 @@
 //! Holds the workspace to the [`unsafe` policy](../../../UNSAFE_POLICY.md).
 //!
 //! The policy's rule is that a crate either abstracts a foreign or
-//! raw-pointer API or forbids `unsafe` outright. [`exempt`] records which
-//! crates are the former, and [`audit`] fails the rest.
+//! raw-pointer API or holds no `unsafe` at all. The workspace manifest
+//! lints `unsafe_code` for every member; [`exempt`] records which crates
+//! may opt out of it, and [`audit`] fails the rest.
 //!
 //! The record lives in code rather than in the policy document so the two
 //! cannot drift: a crate added to one tier without an entry here is caught
 //! by [`audit`], and an entry whose crate no longer holds any `unsafe` is
 //! caught as stale.
-
-#![forbid(unsafe_code)]
 
 pub use crates::{Member, members};
 pub use exemption::{Exemption, Tier, exempt};

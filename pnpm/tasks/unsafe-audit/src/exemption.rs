@@ -16,11 +16,9 @@ pub enum Tier {
     /// Test support: fixtures and harnesses that need a foreign call to
     /// set up a scenario production code never creates.
     TestSupport,
-    /// A macro the crate uses expands to `unsafe` under its own
-    /// `#[allow(unsafe_code)]`, which `forbid` rejects at the expansion
-    /// site. The crate writes none of its own, and carries
-    /// `#![deny(unsafe_code)]` instead, which the expansion's `allow`
-    /// overrides where it has to and nothing else does.
+    /// A macro the crate uses expands to `unsafe`. The crate writes none
+    /// of its own, which is what the audit holds it to: every `unsafe` its
+    /// source spells out is hand-written, and so a finding.
     MacroGenerated,
 }
 
@@ -39,8 +37,8 @@ pub struct Exemption {
 
 /// The crates the policy lets hold `unsafe`.
 ///
-/// Every other workspace member must carry `#![forbid(unsafe_code)]` and
-/// contain no `unsafe`. Adding to this list is a policy decision, not a
+/// Every other workspace member takes the workspace's `unsafe_code` lint
+/// and holds no `unsafe`. Adding to this list is a policy decision, not a
 /// convenience: read
 /// [the policy](../../../UNSAFE_POLICY.md) before you do.
 #[must_use]

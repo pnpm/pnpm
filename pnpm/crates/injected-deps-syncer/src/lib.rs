@@ -9,8 +9,6 @@
 //! the copies are refreshed as independent files so a watcher on the
 //! injected package sees each write.
 
-#![forbid(unsafe_code)]
-
 pub use dir_patcher::{
     Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
     extend_files_map,

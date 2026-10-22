@@ -1,7 +1,5 @@
 //! npm's `includePrerelease` range semantics, built on `node_semver`.
 
-#![forbid(unsafe_code)]
-
 use std::borrow::Cow;
 
 use node_semver::{Range, Version};

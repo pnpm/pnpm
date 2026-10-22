@@ -1,8 +1,6 @@
 //! Cross-process tests for [`pnpm_fs::DirLock`]: what a waiter sees of a
 //! holder in another process, alive and killed.
 
-#![forbid(unsafe_code)]
-
 use pnpm_fs::DirLock;
 use std::{
     fs,

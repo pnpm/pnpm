@@ -316,6 +316,10 @@ allow_branch = "main"
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(dylint_lib, values("perfectionist"))'] }
 
+# Crates that may hold `unsafe` opt out at their crate root.
+# UNSAFE_POLICY.md says which, and what a `// SAFETY:` comment there has to discharge.
+unsafe_code = "warn"
+
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 nursery = { level = "warn", priority = -1 }

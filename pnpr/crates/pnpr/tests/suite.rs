@@ -1,8 +1,6 @@
 // Shared helpers, declared once so the files below can use them without
 // each loading a copy.
 
-#![forbid(unsafe_code)]
-
 #[path = "common/ecosystem.rs"]
 mod ecosystem;
 #[path = "common/network.rs"]

@@ -10,6 +10,8 @@
 //! raw call would be, so [`SingleThreaded`] carries the proof that makes
 //! it sound.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(unix)]
 pub use core_dump::suppress_core_dump;
 #[cfg(unix)]

@@ -7,6 +7,8 @@
 //! handles never leave the crate, because a standard handle is borrowed
 //! from the process and must not be closed by whoever asked for it.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(windows)]
 pub use console::{enable_virtual_terminal_processing, stop_inheriting_standard_handles};
 #[cfg(unix)]

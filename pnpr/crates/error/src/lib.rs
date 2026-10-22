@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 pub use redact_url::redact_url_credentials;
 
 mod redact_url;

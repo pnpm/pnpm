@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 pub mod presets;
 pub use presets::{
     MockConfigPresets, REGISTRY_MOCK_LOCAL_PATTERNS, TAR_REGISTRY, proxy_config,

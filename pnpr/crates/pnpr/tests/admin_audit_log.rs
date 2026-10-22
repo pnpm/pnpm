@@ -1,8 +1,6 @@
 //! Integration tests verifying that administrative, user, rule, team, SCIM,
 //! and unpublish operations emit structured audit records under `pnpr::audit`.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

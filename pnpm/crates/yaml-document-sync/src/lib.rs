@@ -1,7 +1,5 @@
 //! Update YAML values while retaining the presentation of unchanged entries.
 
-#![forbid(unsafe_code)]
-
 pub use scalar_aliases::ScalarAliases;
 pub use yamlpatch::Error;
 

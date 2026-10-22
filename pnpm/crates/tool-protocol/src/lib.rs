@@ -6,8 +6,6 @@
 //! next lockfile major, because `engines.runtime` / `devEngines.runtime`
 //! store no protocol and read back as `runtime:`.
 
-#![forbid(unsafe_code)]
-
 /// The protocol of a provisioned tool.
 pub const TOOL_PROTOCOL: &str = "tool:";
 

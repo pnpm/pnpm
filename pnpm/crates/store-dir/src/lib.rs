@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 pub mod store_index;
 pub use add_files_from_dir::*;
 pub use cas_file::*;

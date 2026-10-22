@@ -15,8 +15,6 @@
 //!   `minimumReleaseAge` and `trustPolicy='no-downgrade'` to every
 //!   npm-resolved lockfile entry the install loads.
 
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

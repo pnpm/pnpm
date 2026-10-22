@@ -10,6 +10,8 @@
 //! thread-safe, which it performs on every connection it opens except on
 //! `wasm32`, where it compiles the check out.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 /// Whether the `SQLite` the process is linked against was built thread-safe.
 ///
 /// A database opened on a single-threaded build hands out a connection that

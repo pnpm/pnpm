@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 #![expect(clippy::print_stderr, reason = "developer tool, not part of the pnpm binary")]

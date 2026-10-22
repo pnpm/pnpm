@@ -9,8 +9,6 @@
 //! Patterns without `?` use a literal-segment walk; the character-aware
 //! fallback handles `?` patterns.
 
-#![forbid(unsafe_code)]
-
 use std::sync::Arc;
 
 use regex::Regex;

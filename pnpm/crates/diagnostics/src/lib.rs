@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 pub mod stdout;
 
 pub use collapsed_chain::{collapsed_message, install_report_handler};

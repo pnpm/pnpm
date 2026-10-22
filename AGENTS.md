@@ -20,12 +20,12 @@ capabilities, abstractions, compatibility, and releases.
 
 [UNSAFE_POLICY.md](./UNSAFE_POLICY.md) governs every `unsafe` in pacquet and
 pnpr: which crates may hold one, what a `// SAFETY:` comment has to
-discharge, and the `#![forbid(unsafe_code)]` every other crate carries.
+discharge, and the workspace `unsafe_code` lint every other crate takes.
 `cargo test -p pnpm-unsafe-audit` enforces the parts a test can check, and
 names what to do about each departure.
 
 Read it before adding a foreign call. The short version: a crate either
-abstracts a foreign or raw-pointer API, or forbids `unsafe` outright, and
+abstracts a foreign or raw-pointer API, or holds no `unsafe` at all, and
 adding a call means adding it to the `pnpm-ffi-*` crate that owns the
 surface rather than to the crate that needs the result.
 

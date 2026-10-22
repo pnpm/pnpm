@@ -15,8 +15,6 @@
 //! resolution instead, which is the one place the two stacks compute
 //! the same verdict by different routes.
 
-#![forbid(unsafe_code)]
-
 pub use filter::filter_peer_issues;
 pub use render::{BadPeerIssue, MissingPeerIssue, render_peer_issues};
 

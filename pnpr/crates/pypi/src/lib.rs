@@ -8,8 +8,6 @@
 //! routing: project-name normalization, the project document and its two
 //! renderings, distribution-filename parsing, and the upload form.
 
-#![forbid(unsafe_code)]
-
 pub mod multipart;
 
 pub use pnpr_package_name::PythonNameError as NameError;

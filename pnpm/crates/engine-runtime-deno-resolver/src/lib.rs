@@ -10,8 +10,6 @@
 //!    emits one [`PlatformAssetResolution`](pnpm_lockfile::PlatformAssetResolution)
 //!    per `(os, cpu)` triple.
 
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

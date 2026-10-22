@@ -38,8 +38,6 @@
 //! unlinks the file unconditionally, with the fix it blocks on
 //! the lock until the simulated writer releases it.
 
-#![forbid(unsafe_code)]
-
 use std::{
     fs,
     sync::{Arc, Mutex, mpsc},

@@ -4,8 +4,6 @@
 //!
 //! See [`DirectoryFetcher`] for the public entry point.
 
-#![forbid(unsafe_code)]
-
 pub use error::DirectoryFetcherError;
 pub use fetcher::{DirectoryFetchOutput, DirectoryFetcher};
 

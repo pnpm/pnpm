@@ -1,12 +1,9 @@
 //! The policy, as a test.
 
-#![forbid(unsafe_code)]
-
 use pnpm_unsafe_audit::{audit, workspace_root};
 
 /// Every workspace member either is exempt from the `unsafe` policy and
-/// holds `unsafe` for the reason its exemption gives, or forbids `unsafe`
-/// outright.
+/// holds `unsafe` for the reason its exemption gives, or holds none.
 ///
 /// The failure names each departure and what to do about it. Read
 /// `UNSAFE_POLICY.md` before adding an exemption to make one pass.

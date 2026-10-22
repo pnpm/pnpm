@@ -3,8 +3,6 @@
 //! `catalogs.default` nested under the named catalogs — into the
 //! single flat [`Catalogs`] map every resolver consumer expects.
 
-#![forbid(unsafe_code)]
-
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};

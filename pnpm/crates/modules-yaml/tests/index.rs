@@ -4,8 +4,6 @@
 //! Further `.modules.yaml` behavior-branch tests live in sibling files
 //! (`real_fs.rs`, `fakes.rs`).
 
-#![forbid(unsafe_code)]
-
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{

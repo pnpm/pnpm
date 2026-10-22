@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]

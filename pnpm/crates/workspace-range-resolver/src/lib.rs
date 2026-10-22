@@ -2,8 +2,6 @@
 //! range tokens — `*`, `^`, `~`, the empty string, or an arbitrary
 //! semver range.
 
-#![forbid(unsafe_code)]
-
 use node_semver::{Range, Version};
 
 /// Pick the highest workspace-sibling version matching `range`.

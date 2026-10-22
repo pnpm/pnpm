@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 
 fn versions() -> Vec<String> {

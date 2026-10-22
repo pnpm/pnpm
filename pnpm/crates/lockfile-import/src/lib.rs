@@ -12,8 +12,6 @@
 //! versions a range allows, and a version no longer published is ignored
 //! rather than fatal.
 
-#![forbid(unsafe_code)]
-
 pub use npm::collect_npm_lockfile_versions;
 pub use yarn::{YarnSyntaxError, collect_yarn_lockfile_versions};
 

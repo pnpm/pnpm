@@ -7,8 +7,6 @@
 //! npm-style name to drive metadata fetches and the JSR-style name to
 //! restore the original alias.
 
-#![forbid(unsafe_code)]
-
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_name::is_valid_old_npm_package_name;

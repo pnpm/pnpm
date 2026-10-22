@@ -13,7 +13,6 @@
 //! markers and extras constrain a solution, and what the resulting
 //! `pylock.toml` says.
 
-#![forbid(unsafe_code)]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 

@@ -14,8 +14,6 @@
 //! startup: [`set_cwd`] (the project root, for relative paths and workspace
 //! zooming) and [`set_package_version`] (rendered in the `Done in ...` line).
 
-#![forbid(unsafe_code)]
-
 pub mod colors;
 pub mod diff;
 pub mod format;

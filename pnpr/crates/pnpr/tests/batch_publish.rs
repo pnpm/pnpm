@@ -2,8 +2,6 @@
 //! publish endpoint `pnpm publish --batch` talks to. Static-mode (no
 //! upstream) to keep the tests hermetic.
 
-#![forbid(unsafe_code)]
-
 use crate::npm;
 
 use axum::{

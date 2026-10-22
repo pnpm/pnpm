@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![cfg_attr(target_family = "wasm", recursion_limit = "256")]
 
 pub use add::*;

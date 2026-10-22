@@ -1,8 +1,6 @@
 //! Commands for authenticating with npm registries: `login` / `adduser` and
 //! `logout`.
 
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

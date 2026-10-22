@@ -1,4 +1,3 @@
-#![forbid(unsafe_code)]
 #![expect(clippy::print_stdout, reason = "developer tool, not part of the pnpm binary")]
 
 mod trust_history;

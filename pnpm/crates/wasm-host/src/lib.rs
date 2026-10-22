@@ -3,8 +3,6 @@
 //! The supervisor retains request results until read or cancelled. Guest memory
 //! is borrowed only during an import call, never while an operation is pending.
 
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 pub use pnpm_ffi_webcontainer::{HostError, Request, close_resource, request};
 

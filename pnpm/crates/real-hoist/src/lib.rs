@@ -37,8 +37,6 @@
 //!
 //! [yarn-hoist]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts
 
-#![forbid(unsafe_code)]
-
 pub use tree::{percent_encode_path, pkg_id};
 
 use derive_more::{Display, Error};

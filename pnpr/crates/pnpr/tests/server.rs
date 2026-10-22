@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 #[path = "server/registry_discovery.rs"]
 mod registry_discovery;
 

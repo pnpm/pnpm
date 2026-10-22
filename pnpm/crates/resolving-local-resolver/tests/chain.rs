@@ -1,8 +1,6 @@
 //! Verify that [`LocalResolver`] composes into the
 //! [`pnpm_resolving_default_resolver::DefaultResolver`] chain.
 
-#![forbid(unsafe_code)]
-
 use pnpm_lockfile::LockfileResolution;
 use pnpm_resolving_default_resolver::{DefaultResolver, SpecNotSupportedByAnyResolverError};
 use pnpm_resolving_local_resolver::{LocalResolver, LocalResolverContext};

@@ -126,8 +126,8 @@ this workspace.
 ### `unsafe`
 
 [`../UNSAFE_POLICY.md`](../UNSAFE_POLICY.md) applies here as it does to
-pacquet: every `pnpr-*` crate carries `#![forbid(unsafe_code)]`, and a
-foreign call goes into the `pnpm-ffi-*` crate that owns its surface.
+pacquet: every `pnpr-*` crate takes the workspace's `unsafe_code` lint, and
+a foreign call goes into the `pnpm-ffi-*` crate that owns its surface.
 
 ### Comments
 

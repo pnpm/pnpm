@@ -3,8 +3,6 @@
 //! edit reaches the `team:` rules, and that the roster lives in the hosted
 //! store rather than in the process.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

@@ -1,8 +1,6 @@
 //! The Cargo registry surface: sparse index, downloads, `cargo publish`,
 //! yank, and proxying an upstream sparse index and its downloads.
 
-#![forbid(unsafe_code)]
-
 #[path = "cargo_registry/behavior.rs"]
 mod behavior;
 

@@ -11,6 +11,9 @@ pub struct Member {
     pub name: String,
     /// The directory holding its manifest.
     pub directory: PathBuf,
+    /// Whether its manifest takes the workspace lint table, which is what
+    /// puts the `unsafe_code` lint in front of its compilation.
+    pub inherits_workspace_lints: bool,
     /// The crate roots: the library, each binary, and each integration
     /// test, example and benchmark. Each is a separate crate, so an inner
     /// attribute on one does not reach the others.
@@ -26,6 +29,22 @@ pub(crate) fn declares_a_workspace(path: &Path) -> bool {
         .ok()
         .and_then(|text| toml::from_str::<WorkspaceManifest>(&text).ok())
         .is_some_and(|manifest| manifest.workspace.is_some())
+}
+
+/// The level the workspace manifest sets `unsafe_code` to, if it sets one.
+///
+/// Cargo takes both the bare `"warn"` and the `{ level = "warn" }` form, so
+/// a manifest written either way reads the same here.
+pub(crate) fn workspace_unsafe_code_level(root: &Path) -> Option<String> {
+    let manifest: WorkspaceManifest = read_manifest(&root.join("Cargo.toml"));
+    match manifest.workspace?.lints.rust.get("unsafe_code")? {
+        toml::Value::String(level) => Some(level.clone()),
+        toml::Value::Table(table) => table
+            .get("level")?
+            .as_str()
+            .map(ToOwned::to_owned),
+        _ => None,
+    }
 }
 
 /// Every member of the workspace rooted at `root`.
@@ -67,11 +86,13 @@ fn member_directories(root: &Path, pattern: &str) -> Vec<PathBuf> {
 fn member(directory: &Path) -> Member {
     let manifest: PackageManifest = read_manifest(&directory.join("Cargo.toml"));
     let roots = roots(directory, &manifest);
+    let inherits_workspace_lints = manifest.lints.is_some_and(|lints| lints.workspace);
     let package =
         manifest.package.unwrap_or_else(|| panic!("{} has a package table", directory.display()));
     Member {
         name: package.name,
         directory: directory.to_path_buf(),
+        inherits_workspace_lints,
         roots,
         sources: sources(directory),
     }
@@ -192,11 +213,26 @@ struct Workspace {
     members: Vec<String>,
     #[serde(default)]
     exclude: Vec<String>,
+    #[serde(default)]
+    lints: WorkspaceLints,
+}
+
+#[derive(Deserialize, Default)]
+struct WorkspaceLints {
+    #[serde(default)]
+    rust: std::collections::BTreeMap<String, toml::Value>,
+}
+
+#[derive(Deserialize)]
+struct Lints {
+    #[serde(default)]
+    workspace: bool,
 }
 
 #[derive(Deserialize)]
 struct PackageManifest {
     package: Option<Package>,
+    lints: Option<Lints>,
     lib: Option<Target>,
     #[serde(default)]
     bin: Vec<Target>,

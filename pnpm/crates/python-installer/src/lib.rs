@@ -1,7 +1,6 @@
 // `plan_add`'s install future carries the engine's whole resolve-and-fetch
 // graph; proving it `Send` walks deeper than rustc's default limit.
 
-#![forbid(unsafe_code)]
 #![recursion_limit = "256"]
 
 #[cfg(target_family = "wasm")]

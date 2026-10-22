@@ -17,8 +17,6 @@
 //! so a caller can ask what a specifier is without depending on the code
 //! that resolves it.
 
-#![forbid(unsafe_code)]
-
 use std::path::{Path, PathBuf};
 
 use pnpm_fs::{lexical_normalize, relative_path};

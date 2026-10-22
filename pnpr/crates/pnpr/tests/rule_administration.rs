@@ -2,8 +2,6 @@
 //! registry with `rulesManagedBy: api`: what a change does to requests, who
 //! may make one, and that changes live in the hosted store.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

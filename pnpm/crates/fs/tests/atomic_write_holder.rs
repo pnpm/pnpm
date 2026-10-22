@@ -5,7 +5,6 @@
 //! stand in for. Windows has no SIGINT delivery to a child; `kill` there is
 //! `TerminateProcess`, against which no cleanup can run.
 
-#![forbid(unsafe_code)]
 #![cfg(unix)]
 
 use std::{

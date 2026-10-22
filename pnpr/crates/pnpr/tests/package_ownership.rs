@@ -1,8 +1,6 @@
 //! Integration tests for package ownership, the maintainer model,
 //! $owners policy token, npm owner mutations, and package tombstones.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

@@ -7,8 +7,6 @@
 //! helpers are also exposed directly for callers that only need the
 //! workspace-protocol rewrite.
 
-#![forbid(unsafe_code)]
-
 pub use create::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
     read_readme_file,

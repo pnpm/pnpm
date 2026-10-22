@@ -9,6 +9,8 @@
 //! cancelled. Guest memory is borrowed only during an import call, never
 //! while an operation is pending.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(target_family = "wasm")]
 pub mod fs;
 

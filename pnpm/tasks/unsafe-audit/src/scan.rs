@@ -1,6 +1,6 @@
 //! Reading the policy off the source.
 
-use crate::{Member, Tier, exemption::exemption_for};
+use crate::{Exemption, Member, Tier, exemption::exemption_for};
 use std::path::{Path, PathBuf};
 
 /// What an `unsafe` the scan found is.
@@ -39,12 +39,17 @@ pub struct Occurrence {
 pub enum Finding {
     /// A crate the policy does not exempt holds `unsafe`.
     UnsafeInConsumer { crate_name: String, occurrence: Occurrence },
-    /// A crate the policy does not exempt is missing the attribute that
-    /// would stop one being added.
-    MissingForbid { crate_name: String, root: PathBuf },
-    /// A crate whose macros expand to `unsafe` is missing the attribute
-    /// that would stop a hand-written one being added.
-    MissingDeny { crate_name: String, root: PathBuf },
+    /// The workspace manifest does not lint `unsafe_code`, so nothing
+    /// stops an `unsafe` compiling in a crate that never asked to hold one.
+    UnsafeCodeNotLinted { level: Option<String> },
+    /// A member does not take the workspace lint table, so the
+    /// `unsafe_code` lint never reaches it.
+    NotInheritingWorkspaceLints { crate_name: String },
+    /// A crate the policy exempts does not opt out of the lint, so the
+    /// `unsafe` it exists to hold is a warning.
+    MissingOptOut { crate_name: String, root: PathBuf },
+    /// A crate the policy does not exempt opts out of the lint.
+    UnsanctionedOptOut { crate_name: String, root: PathBuf },
     /// A crate is exempt but holds no `unsafe`, so the exemption is stale.
     StaleExemption { crate_name: String },
     /// An `unsafe extern` block appears outside a `-sys` crate.
@@ -68,24 +73,42 @@ impl std::fmt::Display for Finding {
                  {occurrence}\n    Move the call into the abstraction crate that owns the \
                  surface, or add a new one for a surface that has no owner yet.",
             ),
-            Self::MissingForbid { crate_name, root } => write!(
+            Self::UnsafeCodeNotLinted { level: Some(level) } => write!(
                 formatter,
-                "{crate_name} is not exempt from the unsafe policy, so {} needs \
-                 `#![forbid(unsafe_code)]`",
+                "the workspace manifest lints `unsafe_code` at `{level}`, which does not hold \
+                 a crate to the policy.\n    `[workspace.lints.rust]` needs at least \
+                 `unsafe_code = \"warn\"`; CI's `--deny warnings` makes it an error.",
+            ),
+            Self::UnsafeCodeNotLinted { level: None } => write!(
+                formatter,
+                "the workspace manifest does not lint `unsafe_code`, so nothing stops an \
+                 `unsafe` compiling.\n    `[workspace.lints.rust]` needs \
+                 `unsafe_code = \"warn\"`; CI's `--deny warnings` makes it an error.",
+            ),
+            Self::NotInheritingWorkspaceLints { crate_name } => write!(
+                formatter,
+                "{crate_name} does not take the workspace lint table, so the `unsafe_code` \
+                 lint does not reach it.\n    Its manifest needs a `[lints]` table with \
+                 `workspace = true`.",
+            ),
+            Self::MissingOptOut { crate_name, root } => write!(
+                formatter,
+                "{crate_name} is exempt from the unsafe policy, so {} needs an \
+                 `allow(unsafe_code)` inner attribute.\n    Without it the `unsafe` the \
+                 crate exists to hold is a warning, and CI's `--deny warnings` an error.",
                 root.display(),
             ),
-            Self::MissingDeny { crate_name, root } => write!(
+            Self::UnsanctionedOptOut { crate_name, root } => write!(
                 formatter,
-                "{crate_name} writes no `unsafe` of its own, so {} needs \
-                 `#![deny(unsafe_code)]`.\n    `forbid` would reject its macro expansion's \
-                 own `#[allow(unsafe_code)]`; `deny` lets that through and stops everything \
-                 else.",
+                "{crate_name} is not exempt from the unsafe policy, but {} opts out of the \
+                 `unsafe_code` lint.\n    Drop the attribute, or add the crate to `exempt()` \
+                 if the policy really does let it hold `unsafe`.",
                 root.display(),
             ),
             Self::StaleExemption { crate_name } => write!(
                 formatter,
                 "{crate_name} is exempt from the unsafe policy but holds no `unsafe`.\n    \
-                 Drop its entry from `exempt()` and give it `#![forbid(unsafe_code)]`.",
+                 Drop its entry from `exempt()`, and the opt-out from its crate root.",
             ),
             Self::ForeignAbiOutsideSysCrate { crate_name, occurrence } => write!(
                 formatter,
@@ -105,42 +128,96 @@ impl std::fmt::Display for Finding {
 /// An empty answer is the policy holding.
 #[must_use]
 pub fn audit(root: &Path) -> Vec<Finding> {
-    crate::members(root)
-        .iter()
-        .flat_map(|member| audit_member(root, member))
-        .collect()
+    let mut findings = workspace_findings(root);
+    findings.extend(crate::members(root).iter().flat_map(|member| audit_member(root, member)));
+    findings
+}
+
+/// The check that is the workspace's rather than any member's: a member
+/// inheriting the lint table means nothing unless the table lints
+/// `unsafe_code`.
+fn workspace_findings(root: &Path) -> Vec<Finding> {
+    let level = crate::crates::workspace_unsafe_code_level(root);
+    let linted = level
+        .as_deref()
+        .is_some_and(|level| matches!(level, "warn" | "deny" | "forbid"));
+    if linted { Vec::new() } else { vec![Finding::UnsafeCodeNotLinted { level }] }
 }
 
 fn audit_member(root: &Path, member: &Member) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    if !member.inherits_workspace_lints {
+        findings.push(Finding::NotInheritingWorkspaceLints { crate_name: member.name.clone() });
+    }
     let occurrences: Vec<Occurrence> = member.sources
         .iter()
         .flat_map(|source| occurrences(root, source))
         .collect();
-    let Some(exemption) = exemption_for(&member.name) else {
-        return consumer_findings(root, member, occurrences);
-    };
-    if exemption.tier == Tier::MacroGenerated {
-        return macro_generated_findings(root, member, &occurrences);
+    match exemption_for(&member.name) {
+        None => findings.extend(consumer_findings(root, member, occurrences)),
+        Some(exemption) if exemption.tier == Tier::MacroGenerated => {
+            findings.extend(macro_generated_findings(root, member, &occurrences));
+        }
+        Some(exemption) => findings.extend(exempt_findings(root, member, exemption, occurrences)),
     }
+    findings
+}
+
+/// A crate the policy exempts holds the `unsafe` its exemption describes,
+/// opts out of the lint so that `unsafe` compiles, and discharges each one
+/// in a safety comment.
+fn exempt_findings(
+    root: &Path,
+    member: &Member,
+    exemption: Exemption,
+    occurrences: Vec<Occurrence>,
+) -> Vec<Finding> {
     if occurrences.is_empty() {
         return vec![Finding::StaleExemption { crate_name: member.name.clone() }];
     }
-    occurrences
-        .into_iter()
-        .filter_map(|occurrence| match occurrence.kind {
-            Kind::ForeignAbiBlock => (exemption.tier != Tier::ForeignAbi).then(|| {
-                Finding::ForeignAbiOutsideSysCrate { crate_name: member.name.clone(), occurrence }
+    let mut findings = missing_opt_outs(root, member);
+    findings.extend(
+        occurrences
+            .into_iter()
+            .filter_map(|occurrence| match occurrence.kind {
+                Kind::ForeignAbiBlock => (exemption.tier != Tier::ForeignAbi).then(|| {
+                    Finding::ForeignAbiOutsideSysCrate {
+                        crate_name: member.name.clone(),
+                        occurrence,
+                    }
+                }),
+                Kind::ForeignSignature => None,
+                Kind::Operation => (!occurrence.has_safety_comment).then(|| {
+                    Finding::MissingSafetyComment { crate_name: member.name.clone(), occurrence }
+                }),
             }),
-            Kind::ForeignSignature => None,
-            Kind::Operation => (!occurrence.has_safety_comment).then(|| {
-                Finding::MissingSafetyComment { crate_name: member.name.clone(), occurrence }
-            }),
+    );
+    findings
+}
+
+/// The crate roots of an exempt crate that do not opt out of the lint.
+///
+/// Every root, not just the one holding the `unsafe`: each is its own
+/// compilation unit, and an opt-out on a root that turns out not to need
+/// one costs nothing.
+fn missing_opt_outs(root: &Path, member: &Member) -> Vec<Finding> {
+    member.roots
+        .iter()
+        .filter(|crate_root| !opts_out_of_unsafe_code(crate_root))
+        .map(|missing| Finding::MissingOptOut {
+            crate_name: member.name.clone(),
+            root: relative(root, missing),
         })
         .collect()
 }
 
-/// A crate the policy does not exempt may hold no `unsafe` at all, and
-/// needs the attribute that keeps it that way in each of its crate roots.
+/// A crate the policy does not exempt may hold no `unsafe` at all, and may
+/// not opt out of the lint that says so.
+///
+/// The `unsafe` scan is what enforces the policy here, and it reads the
+/// source rather than the lint level, so an `unsafe` hidden behind a
+/// hand-written `allow` is still a finding. Flagging the opt-out as well
+/// catches the crate that is set up to hold one before it does.
 fn consumer_findings(root: &Path, member: &Member, occurrences: Vec<Occurrence>) -> Vec<Finding> {
     let mut findings: Vec<Finding> = occurrences
         .into_iter()
@@ -149,18 +226,18 @@ fn consumer_findings(root: &Path, member: &Member, occurrences: Vec<Occurrence>)
     findings.extend(
         member.roots
             .iter()
-            .filter(|crate_root| !forbids_unsafe(crate_root))
-            .map(|missing| Finding::MissingForbid {
+            .filter(|crate_root| opts_out_of_unsafe_code(crate_root))
+            .map(|opted_out| Finding::UnsanctionedOptOut {
                 crate_name: member.name.clone(),
-                root: relative(root, missing),
+                root: relative(root, opted_out),
             }),
     );
     findings
 }
 
 /// A crate whose macros expand to `unsafe` writes none of its own, so the
-/// scan's job there is the opposite: every occurrence is hand-written and
-/// so a finding, and the attribute it needs is `deny` rather than `forbid`.
+/// scan's job there is the opposite: every occurrence the source holds is
+/// hand-written, and so a finding.
 fn macro_generated_findings(
     root: &Path,
     member: &Member,
@@ -173,24 +250,17 @@ fn macro_generated_findings(
             occurrence: occurrence.clone(),
         })
         .collect();
-    findings.extend(
-        member.roots
-            .iter()
-            .filter(|crate_root| !denies_unsafe(crate_root))
-            .map(|missing| Finding::MissingDeny {
-                crate_name: member.name.clone(),
-                root: relative(root, missing),
-            }),
-    );
+    findings.extend(missing_opt_outs(root, member));
     findings
 }
 
 /// Every `unsafe` in one file.
 ///
 /// A line scan, not a parse: it is the shape of the thing the policy
-/// governs, and `#![forbid(unsafe_code)]` is what actually stops an
-/// `unsafe` compiling. What this adds is catching the crate that has
-/// neither.
+/// governs, and the workspace's `unsafe_code` lint is what actually stops
+/// an `unsafe` compiling. What this adds is reading the source rather than
+/// the lint level, so an `unsafe` a hand-written `allow` would let through
+/// is still found.
 fn occurrences(root: &Path, source: &Path) -> Vec<Occurrence> {
     let Ok(text) = std::fs::read_to_string(source) else { return Vec::new() };
     let lines: Vec<&str> = text.lines().collect();
@@ -324,18 +394,25 @@ fn has_safety_comment(above: &[&str]) -> bool {
         .any(|line| line.starts_with("// SAFETY:"))
 }
 
-/// Whether a crate root forbids `unsafe`.
-fn forbids_unsafe(root: &Path) -> bool {
-    has_attribute(root, "#![forbid(unsafe_code)]")
+/// Whether a crate root opts out of the `unsafe_code` lint.
+fn opts_out_of_unsafe_code(root: &Path) -> bool {
+    let Ok(text) = std::fs::read_to_string(root) else {
+        return false;
+    };
+    text.lines().any(opts_out)
 }
 
-/// Whether a crate root denies `unsafe`.
-fn denies_unsafe(root: &Path) -> bool {
-    has_attribute(root, "#![deny(unsafe_code)]")
-}
-
-fn has_attribute(root: &Path, attribute: &str) -> bool {
-    std::fs::read_to_string(root).is_ok_and(|text| text.contains(attribute))
+/// Whether a line is an inner attribute opting out of the `unsafe_code`
+/// lint.
+///
+/// The attribute has to open the line, which leaves out a doc comment
+/// describing one and a fixture quoting one as data. It has to be the
+/// inner form too: an outer `#[allow(unsafe_code)]` covers one item rather
+/// than the crate, and an `unsafe` it lets through is caught by the scan
+/// that reads the source instead of the lint level.
+fn opts_out(line: &str) -> bool {
+    let line = line.trim_start();
+    line.starts_with("#![allow(unsafe_code") || line.starts_with("#![expect(unsafe_code")
 }
 
 fn relative(root: &Path, path: &Path) -> PathBuf {

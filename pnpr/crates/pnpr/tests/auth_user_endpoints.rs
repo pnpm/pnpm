@@ -4,8 +4,6 @@
 //! the rest gate behind a valid bearer token in the same way as
 //! `npm whoami` / `npm profile get` / `npm logout` expect.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{HeaderValue, Request, StatusCode, header},

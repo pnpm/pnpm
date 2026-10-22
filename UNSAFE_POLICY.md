@@ -27,8 +27,9 @@ and `security-framework-sys`. pnpm's own foreign ABI — the WebContainer
 supervisor's imports — lives in
 [`pnpm-webcontainer-sys`](./pnpm/crates/webcontainer-sys).
 
-A `-sys` crate is not safe to call and does not pretend to be. It carries
-no `#![forbid(unsafe_code)]`, because declaring the ABI is its whole job.
+A `-sys` crate is not safe to call and does not pretend to be. It opts out
+of the workspace's `unsafe_code` lint, because declaring the ABI is its
+whole job.
 
 ### `pnpm-ffi-*` crates: turn one ABI into a safe API
 
@@ -68,13 +69,23 @@ the abstraction is missing a function, not that the test needs its own.
 
 ### Consumers: everything else
 
-Every other crate carries `#![forbid(unsafe_code)]` in its crate root, and
-in the root of each of its integration-test targets, which are separate
-crates that the library's attribute does not reach.
+Every other crate holds no `unsafe`, and carries no attribute saying so.
+`[workspace.lints.rust]` in the root manifest lints `unsafe_code`, and
+every member takes that table with a `[lints]` table of its own holding
+`workspace = true`. The one entry reaches each of a member's compilation
+units: the library, every binary, every integration test, and the build
+script.
 
-`forbid`, not `deny`: `deny` can be switched off again by an inner
-`#[allow]`, so it states a preference where this document states a rule.
-`forbid` cannot, and rustc rejects the attempt rather than the `unsafe`.
+The level is `warn`, which is the level the workspace's other lints use and
+which `cargo clippy -- --deny warnings` makes an error in CI. `forbid` is
+the stronger attribute, but Cargo refuses a member that inherits the lint
+table and overrides one entry of it, so each crate that must hold `unsafe`
+would have to restate the whole table and keep it in step with the root. A
+`warn` the exempt crates opt out of at their own root keeps one copy of it.
+
+The opt-out is not a loophole, because the audit reads the source rather
+than the lint level: an `unsafe` behind a hand-written `allow` is a
+finding, and in a crate the allowlist does not name, so is the `allow`.
 
 ## What `unsafe` is permitted at all
 
@@ -184,11 +195,12 @@ Two further rules:
 [`pnpm/tasks/unsafe-audit`](./pnpm/tasks/unsafe-audit) walks every
 workspace member and fails when:
 
-- a crate outside its allowlist contains `unsafe`;
-- a crate outside its allowlist is missing `#![forbid(unsafe_code)]`, in
-  the library root or in an integration-test root;
-- a crate whose macros expand to `unsafe` is missing
-  `#![deny(unsafe_code)]`, or writes an `unsafe` of its own;
+- the root manifest does not lint `unsafe_code`, or a member does not take
+  the workspace lint table, so the lint never reaches it;
+- a crate outside its allowlist contains `unsafe`, or opts out of the lint;
+- a crate on its allowlist does not opt out, so the `unsafe` it exists to
+  hold would not compile;
+- a crate whose macros expand to `unsafe` writes an `unsafe` of its own;
 - a crate on the allowlist no longer contains any `unsafe`, so the
   allowlist entry is stale;
 - an `unsafe extern` block appears outside a `-sys` crate;

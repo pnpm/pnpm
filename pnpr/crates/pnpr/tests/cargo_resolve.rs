@@ -6,8 +6,6 @@
 //! rendered `Cargo.lock`. These tests stand a mock sparse index up and
 //! assert what the server fetched from it as much as what it returned.
 
-#![forbid(unsafe_code)]
-
 use crate::tokens::issue_token;
 use axum::{
     body::{Body, to_bytes},

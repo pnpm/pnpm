@@ -1,8 +1,6 @@
 //! The SCIM endpoints (`/-/pnpr/v0/scim/v2`) with `auth.scim`: who may call
 //! them, the `User` resource, and what deprovisioning takes away.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

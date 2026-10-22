@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 pub mod dns;
 #[cfg(target_family = "wasm")]

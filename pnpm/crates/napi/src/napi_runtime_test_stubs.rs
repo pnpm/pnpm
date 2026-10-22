@@ -15,8 +15,8 @@
 // can't be used — clippy's `unnecessary_safety_comment` rejects it on a fn with
 // no unsafe body.
 //
-// The `allow` is what the crate's `#![deny(unsafe_code)]` leaves for the
-// boundary it cannot cover: see the `unsafe` policy's note on this crate.
+// The crate opts out of the workspace's `unsafe_code` lint because the
+// `napi` macro expands to `unsafe`; see the `unsafe` policy's note on it.
 #[expect(unsafe_code, reason = "a stub has to carry the host symbol's own name")]
 mod stubs {
     #[unsafe(no_mangle)]

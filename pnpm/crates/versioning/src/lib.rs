@@ -11,8 +11,6 @@
 //! See the native monorepo versioning RFC:
 //! <https://github.com/pnpm/rfcs/pull/18>.
 
-#![forbid(unsafe_code)]
-
 pub use apply::{AppliedRelease, apply_release_plan};
 pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
 pub use error::VersioningError;

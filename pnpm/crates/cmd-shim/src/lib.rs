@@ -6,8 +6,6 @@
 //!   resolution between bins of the same name.
 //! - Generating the actual shim file contents.
 
-#![forbid(unsafe_code)]
-
 pub use bin_resolver::*;
 pub use capabilities::*;
 pub use link_bins::*;

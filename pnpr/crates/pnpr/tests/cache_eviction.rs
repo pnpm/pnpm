@@ -1,8 +1,6 @@
 //! Integration tests for upstream proxy cache reclamation, orphan pruning,
 //! and LRU eviction.
 
-#![forbid(unsafe_code)]
-
 use pnpr::{
     Config,
     cache_maintenance::{

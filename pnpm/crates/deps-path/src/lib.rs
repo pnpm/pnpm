@@ -9,8 +9,6 @@
 //! `to_virtual_store_name` shortcut skips), and walk balanced parens
 //! to locate the peer-suffix / `(patch_hash=…)` boundary.
 
-#![forbid(unsafe_code)]
-
 pub use create_peer_dep_graph_hash::create_peer_dep_graph_hash;
 pub use dep_path::DepPath;
 pub use dep_path_to_filename::dep_path_to_filename;

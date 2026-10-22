@@ -24,6 +24,8 @@
 //! either type, because Stacked Borrows rejects aliasing a plain test
 //! cannot see.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 pub use list::SignalList;
 pub use registry::{Registration, SignalRegistry};
 

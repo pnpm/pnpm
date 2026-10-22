@@ -5,8 +5,6 @@
 //! resolved [`CatalogResolutionFound::resolution`] feeds back in as a
 //! plain bare specifier.
 
-#![forbid(unsafe_code)]
-
 use std::path::Path;
 
 use derive_more::{Display, Error};

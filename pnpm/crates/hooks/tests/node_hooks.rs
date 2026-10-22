@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 

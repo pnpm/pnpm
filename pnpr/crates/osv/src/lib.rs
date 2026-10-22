@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 mod loader;
 use loader::{load_from_directory, load_from_zip};
 

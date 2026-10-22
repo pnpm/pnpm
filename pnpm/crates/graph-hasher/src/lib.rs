@@ -11,8 +11,6 @@
 //! Reference (object-hash@3.0.0):
 //! - <https://github.com/puleos/object-hash/blob/v3.0.0/index.js>
 
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
 #[cfg(not(target_family = "wasm"))]

@@ -10,8 +10,6 @@
 //! resolvers use, because that is how pnpm expresses "a platform archive
 //! rather than a package"; Yarn is a package manager, not a runtime.
 
-#![forbid(unsafe_code)]
-
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

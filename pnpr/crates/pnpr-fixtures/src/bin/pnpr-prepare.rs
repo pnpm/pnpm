@@ -1,5 +1,3 @@
-#![forbid(unsafe_code)]
-
 use std::path::PathBuf;
 
 use clap::Parser;

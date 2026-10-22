@@ -10,6 +10,8 @@
 //! one this crate adds: no allocating, no locking, no unwinding. See
 //! `install` on Unix and `on_console_event` on Windows.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(windows)]
 pub use console::{Handled, on_console_event};
 #[cfg(unix)]

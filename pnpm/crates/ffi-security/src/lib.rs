@@ -9,6 +9,8 @@
 //! to build an object, which is the one shape a restricted `trustd` takes
 //! that pnpm has to recognise.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(target_vendor = "apple")]
 pub use ssl_policy::server_ssl_policy;
 

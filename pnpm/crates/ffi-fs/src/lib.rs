@@ -13,6 +13,8 @@
 //! the caller's if the foreign calls were safe, so they stay with the
 //! caller.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(target_os = "android")]
 pub use advisory_lock::{AdvisoryLock, lock_file};
 pub use confined_open::open_directory_beneath;

@@ -3,8 +3,6 @@
 //! exercises the full request/response shape upstream callers depend
 //! on (`manifest`, `requires_build`, `files_map` keys).
 
-#![forbid(unsafe_code)]
-
 use pnpm_directory_fetcher::DirectoryFetcher;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};

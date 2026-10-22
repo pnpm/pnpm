@@ -3,8 +3,6 @@
 //! writes into the package rules, who may make one, and which packages it
 //! applies to.
 
-#![forbid(unsafe_code)]
-
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

@@ -9,6 +9,8 @@
 //!
 //! One module per import module, named after it.
 
+#![allow(unsafe_code, reason = "exempt by UNSAFE_POLICY.md, enforced by pnpm-unsafe-audit")]
+
 #[cfg(target_family = "wasm")]
 pub mod pnpm_fs;
 #[cfg(target_family = "wasm")]

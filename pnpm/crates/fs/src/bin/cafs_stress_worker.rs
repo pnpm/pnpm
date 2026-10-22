@@ -11,7 +11,6 @@
 //! `verify_or_rewrite` recovery path that holds the store together when
 //! N processes race on the same blob.
 
-#![forbid(unsafe_code)]
 #![expect(clippy::print_stderr, reason = "test-only helper binary")]
 
 use pnpm_fs::ensure_file;

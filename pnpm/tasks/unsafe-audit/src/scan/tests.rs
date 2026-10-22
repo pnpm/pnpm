@@ -1,4 +1,4 @@
-use super::{Kind, has_safety_comment, kind, opens_unsafe};
+use super::{Kind, has_safety_comment, kind, opens_unsafe, opts_out};
 
 #[test]
 fn an_unsafe_block_opens_one() {
@@ -19,7 +19,7 @@ fn an_unsafe_block_opens_one() {
 #[test]
 fn the_word_alone_opens_nothing() {
     for line in [
-        "#![forbid(unsafe_code)]",
+        "#![allow(unsafe_code)]",
         "pub fn default_unsafe_perm() -> bool {",
         "/// `unsafe` is the crate's purpose",
         "// SAFETY: the unsafe below is sound",
@@ -123,4 +123,33 @@ fn an_unrelated_comment_block_between_breaks_the_pairing() {
 fn no_comment_at_all_is_no_pairing() {
     assert!(!has_safety_comment(&[]));
     assert!(!has_safety_comment(&["let value = compute();"]));
+}
+
+/// The inner attribute is what exempts a whole crate, and it is the only
+/// thing that may: the crates allowed to hold `unsafe` are a fixed list,
+/// so a line that merely mentions the attribute must not read as one.
+#[test]
+fn an_inner_attribute_opts_out() {
+    for line in [
+        "#![allow(unsafe_code)]",
+        r#"#![allow(unsafe_code, reason = "declares the ABI")]"#,
+        "#![expect(unsafe_code)]",
+        "    #![allow(unsafe_code)]",
+    ] {
+        assert!(opts_out(line), "{line}");
+    }
+}
+
+#[test]
+fn nothing_else_opts_out() {
+    for line in [
+        "//! The crate carries `#![allow(unsafe_code)]`.",
+        "/// Whether a crate root has `#![allow(unsafe_code)]`.",
+        r##"    let attribute = "#![allow(unsafe_code)]";"##,
+        "#[allow(unsafe_code)]",
+        "#![allow(clippy::pedantic)]",
+        "#![forbid(unsafe_code)]",
+    ] {
+        assert!(!opts_out(line), "{line}");
+    }
 }
