@@ -31,28 +31,61 @@ fn hoisted_reinstall_refreshes_a_directory_fetched_by_the_builtin_directory_fetc
     drop(root);
 }
 
+/// The TypeScript directory fetcher reads only `resolution.directory`.
 #[test]
-fn builtin_directory_fetcher_result_cannot_gain_files() {
-    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    set_up_directory_fetcher(
-        &workspace,
-        r"async fetch (cafs, resolution, opts, fetchers) {
-      const result = await fetchers.directory(cafs, { type: 'directory', directory: 'source' }, opts);
-      result.filesMap.set('injected.js', result.filesMap.get('package.json'));
+fn builtin_directory_fetcher_reads_only_the_directory_field() {
+    for resolution in [
+        "{ directory: 'source' }",
+        "{ ...resolution, type: 'directory', directory: 'source', path: 'unused' }",
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        set_up_directory_fetcher(
+            &workspace,
+            &format!(
+                "async fetch (cafs, resolution, opts, fetchers) {{
+      return fetchers.directory(cafs, {resolution}, opts);
+    }}",
+            ),
+        );
+        pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+        let installed = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/index.js");
+        assert_eq!(fs::read_to_string(installed).unwrap(), "first", "{resolution}");
+        drop(root);
+    }
+}
+
+#[test]
+fn builtin_directory_fetcher_result_must_be_returned_unchanged() {
+    for change in [
+        "result.filesMap.set('injected.js', result.filesMap.get('package.json'));",
+        "result.filesMap.delete('index.js');",
+    ] {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        set_up_directory_fetcher(
+            &workspace,
+            &format!(
+                "async fetch (cafs, resolution, opts, fetchers) {{
+      const result = await fetchers.directory(cafs, {{ type: 'directory', directory: 'source' }}, opts);
+      {change}
       return result;
-    }",
-    );
-    let output = pacquet_at(&workspace)
-        .with_arg("install")
-        .assert()
-        .failure();
-    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    assert_diagnostic_contains(&stderr, "not listed by the native directory fetcher");
-    assert!(
-        !workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/injected.js").exists(),
-        "a modified directory listing must not be imported",
-    );
-    drop(root);
+    }}",
+            ),
+        );
+        let output = pacquet_at(&workspace)
+            .with_arg("install")
+            .assert()
+            .failure();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        assert_diagnostic_contains(&stderr, "not listed by the native directory fetcher");
+        assert!(
+            !workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json").exists(),
+            "{change}: a modified directory listing must not be imported",
+        );
+        drop(root);
+    }
 }
 
 /// The TypeScript picker rejects the `directory` fetcher outright when the

@@ -32,6 +32,8 @@ use std::{
 pub(super) struct CustomFetched {
     resolution: Option<LockfileResolution>,
     cas_paths: Option<HashMap<String, PathBuf>>,
+    /// See [`crate::SlotImportSource::source_exists`].
+    source_exists: bool,
 }
 pub(super) struct SnapshotFetch<'f> {
     package_key: &'f PackageKey,
@@ -210,7 +212,7 @@ impl InstallPackageBySnapshot<'_> {
         // lockfile entry says otherwise.
         let source_is_mutable = matches!(resolution, LockfileResolution::Directory(_));
         let (cas_paths, extracted, source_exists) = match custom.cas_paths {
-            Some(paths) => (paths, ExtractedPackageMetadata::default(), true),
+            Some(paths) => (paths, ExtractedPackageMetadata::default(), custom.source_exists),
             None => {
                 self.fetch_cas_paths::<Reporter>(SnapshotFetch {
                     package_key,

@@ -32,7 +32,7 @@ impl InstallPackageBySnapshot<'_> {
         download: &IngestTarballToStore<'_>,
     ) -> Result<CustomFetched, InstallPackageBySnapshotError> {
         let Some(session) = self.fetching.custom_fetcher_session else {
-            return Ok(CustomFetched { resolution: None, cas_paths: None });
+            return Ok(CustomFetched { resolution: None, cas_paths: None, source_exists: true });
         };
         let config = self.ctx.config;
         let opts = serde_json::json!({
@@ -51,15 +51,25 @@ impl InstallPackageBySnapshot<'_> {
         Ok(match session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await? {
             CustomFetchOutcome::Declined(resolution)
             | CustomFetchOutcome::Delegate { delegate: resolution, .. } => {
-                CustomFetched { resolution: Some(resolution), cas_paths: None }
+                CustomFetched { resolution: Some(resolution), cas_paths: None, source_exists: true }
             }
+            // The walk already used this install's directory options.
+            CustomFetchOutcome::Walked { directory, .. } => CustomFetched {
+                resolution: Some(directory.resolution()),
+                source_exists: directory.exists,
+                cas_paths: Some(directory.files_map),
+            },
             CustomFetchOutcome::Fetched { resolution, tarball } => {
                 let cas_paths = self.prepare_custom_tarball::<Reporter>(
                     SnapshotFetch { package_key, package_id, resolution: &resolution, download },
                     tarball.files_map.clone(),
                 )
                 .await?;
-                CustomFetched { resolution: Some(resolution), cas_paths: Some(cas_paths) }
+                CustomFetched {
+                    resolution: Some(resolution),
+                    cas_paths: Some(cas_paths),
+                    source_exists: true,
+                }
             }
         })
     }

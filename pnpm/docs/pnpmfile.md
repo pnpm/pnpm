@@ -444,6 +444,8 @@ Fetches package files and returns metadata about the fetched package.
   - `localTarball` - Fetcher for local tarballs
   - `gitHostedTarball` - Fetcher for GitHub/GitLab/Bitbucket tarballs. Not available yet in pnpm 12.
   - `directory` - Fetcher for local directories. It rejects with `ERR_PNPM_TARBALL_INTEGRITY` if the lockfile pins an archive integrity for the package.
+
+  In pnpm 12, a fetch result that came from `localTarball`, `remoteTarball`, or `directory` must be returned unchanged. pnpm rejects a result whose `filesMap` gained, lost, or changed a file, and it ignores a changed `manifest` or `requiresBuild`. To install different files, return a [`{ delegate }` envelope](#delegating-to-the-built-in-fetchers) instead.
   - `git` - Fetcher for git repositories. Not available yet in pnpm 12.
   - `binary` - Fetcher for runtime archives, such as Node.js. Not available yet in pnpm 12.
 

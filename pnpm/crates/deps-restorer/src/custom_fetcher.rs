@@ -7,7 +7,7 @@ use crate::{
 use callbacks::{NativeCallbacks, Verified, WalkedDirectory, drive_fetcher};
 use pnpm_config::Config;
 use pnpm_hooks::{CustomFetcher, custom_fetcher_adapter::CustomFetcherPicker};
-use pnpm_lockfile::{DirectoryResolution, LockfileResolution};
+use pnpm_lockfile::LockfileResolution;
 use pnpm_reporter::Reporter;
 use pnpm_tarball::{FetchedTarball, IngestTarballToStore, TarballError};
 use serde::Deserialize;
@@ -21,8 +21,19 @@ use std::{
 
 pub(crate) enum CustomFetchOutcome {
     Declined(LockfileResolution),
-    Delegate { resolution: LockfileResolution, delegate: LockfileResolution },
-    Fetched { resolution: LockfileResolution, tarball: Arc<FetchedTarball> },
+    Delegate {
+        resolution: LockfileResolution,
+        delegate: LockfileResolution,
+    },
+    Fetched {
+        resolution: LockfileResolution,
+        tarball: Arc<FetchedTarball>,
+    },
+    /// The hook returned the result of `fetchers.directory` unchanged.
+    Walked {
+        resolution: LockfileResolution,
+        directory: WalkedDirectory,
+    },
 }
 
 /// What a resolve-time archive fetch settles for a tarball-shaped
@@ -144,12 +155,9 @@ fn decode_fetch_outcome(
         let returned: ReturnedFiles =
             serde_json::from_value(result).map_err(|error| failure(package_id, error))?;
         if returned.local {
-            // The install pass walks the directory again, as it does for a
-            // `{ delegate }` envelope naming it.
-            let directory = walked_directory(&returned, verified.directories, package_id)?;
-            return Ok(CustomFetchOutcome::Delegate {
+            return Ok(CustomFetchOutcome::Walked {
+                directory: walked_directory(&returned, verified.directories, package_id)?,
                 resolution: decode_resolution(selected_resolution, None, package_id)?,
-                delegate: LockfileResolution::Directory(DirectoryResolution { directory }),
             });
         }
         let tarball = verified_tarball(&returned, verified.archives, package_id)?;
@@ -219,7 +227,7 @@ fn walked_directory(
     returned: &ReturnedFiles,
     walked: Vec<WalkedDirectory>,
     package_id: &str,
-) -> Result<String, InstallPackageBySnapshotError> {
+) -> Result<WalkedDirectory, InstallPackageBySnapshotError> {
     let mut matches = walked
         .into_iter()
         .filter(|walked| walked.files_map == returned.files_map);
@@ -230,9 +238,8 @@ fn walked_directory(
                 package_id,
                 "custom fetcher returned local files not listed by the native directory fetcher",
             )
-        })?
-        .directory;
-    if matches.any(|other| other.directory != directory) {
+        })?;
+    if matches.any(|other| other.directory != directory.directory) {
         return Err(failure(package_id, "custom fetcher returned an ambiguous directory"));
     }
     Ok(directory)

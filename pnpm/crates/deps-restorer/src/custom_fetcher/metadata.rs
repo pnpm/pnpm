@@ -38,6 +38,9 @@ impl CustomFetcherSession {
                 CustomFetchOutcome::Delegate { resolution, delegate } => {
                     (resolution, Some(delegate), None)
                 }
+                CustomFetchOutcome::Walked { resolution, directory } => {
+                    (resolution, Some(directory.resolution()), None)
+                }
             };
         let source = delegate.as_ref().unwrap_or(&resolution);
         let tarball = if let Some(tarball) = fetched {
