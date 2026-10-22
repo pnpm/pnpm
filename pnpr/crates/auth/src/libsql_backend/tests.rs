@@ -1,7 +1,7 @@
 use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
     UserBackend, UserCreation, UserRemoval, params, retry_database_conflicts,
-    schema::{ensure_user_counter, is_transaction_conflict},
+    schema::{ensure_user_counter, is_transaction_conflict, is_unique_violation},
     with_auth_timeout,
 };
 use crate::token_store::sha256_hex;
@@ -439,6 +439,23 @@ async fn reject_remote_transaction(
         })
         .collect();
     axum::Json(serde_json::json!({"baton": null, "base_url": null, "results": results}))
+}
+
+/// Turso reports a duplicate row as a Hrana stream error whose message
+/// carries the `SQLite` result code, not as a `SQLite` result code of its own.
+#[test]
+fn unique_violations_include_hrana_stream_errors() {
+    let turso_duplicate = libsql::Error::Hrana(Box::from(
+        r#"stream error: `Error { message: "SQLite error: UNIQUE constraint failed: auth_counters.name", code: "SQLITE_CONSTRAINT" }`"#,
+    ));
+    assert!(is_unique_violation(&turso_duplicate));
+    let turso_busy = libsql::Error::Hrana(Box::from(
+        r#"stream error: `Error { message: "database is locked", code: "SQLITE_BUSY" }`"#,
+    ));
+    assert!(!is_unique_violation(&turso_busy));
+    assert!(!is_unique_violation(&libsql::Error::ConnectionFailed(
+        "UNIQUE constraint failed".to_string()
+    )));
 }
 
 async fn begin_registration_transaction(conn: &libsql::Connection) -> Result<libsql::Transaction> {

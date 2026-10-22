@@ -52,7 +52,9 @@ backend:
 | `replicaPath` | no | Path to a local **embedded replica**. When set, reads (token lookups) hit this local file instead of a network round-trip; writes still go to the primary. Absent ⇒ every read is a remote query. |
 | `syncInterval` | no | How often the embedded replica pulls from the primary. Accepts an interval string (such as `60s` or `1m`) or integer seconds. Only meaningful with `replicaPath`; bounds how stale a read can be (token-revocation lag). `0` disables background sync. Defaults to `60s`. `syncIntervalSecs` is also accepted. |
 
-For a remote primary (e.g. Turso), serve reads from a local replica:
+For a remote primary on a self-hosted `sqld`, serve reads from a local
+replica. Turso Cloud does not serve the protocol the embedded replica uses, so
+leave `replicaPath` unset there.
 
 ```yaml title="pnpr.yaml"
 backend:
