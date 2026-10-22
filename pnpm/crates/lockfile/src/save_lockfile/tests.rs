@@ -644,7 +644,7 @@ fn save_writes_through_a_symlink_chain_when_allowed() {
             .permissions()
             .mode()
             & 0o777,
-        0o640
+        0o640,
     );
     for link in [&path, &staging.join(Lockfile::FILE_NAME)] {
         assert!(std::fs::symlink_metadata(link).unwrap().is_symlink(), "{link:?}");
