@@ -966,7 +966,7 @@ overrides:
   hosted-git-info@1: npm:@pnpm/hosted-git-info@1.0.0
   http-cache-semantics@<4.3.0: ^4.3.0
   http-proxy-middleware@<2.0.7: ^2.0.7
-  ip-address@<10.7.1: ^10.7.1
+  ip-address@<10.7.4: ^10.7.4
   isexe@3: 3.1.1
   istanbul-reports: npm:@zkochan/istanbul-reports
   js-yaml@<3.15.2: ^3.15.2
@@ -13662,8 +13662,8 @@ packages:
     resolution: {integrity: sha512-DRsRnQrbzdFjaQ1oe4C6/EIUymIOEix1qROEJTF9dbMq+M4Zrm6VaLp6SD/B9IsiEjPZuBSnWWFN+udajugdWA==}
     engines: {node: '>=20'}
 
-  ip-address@10.7.3:
-    resolution: {integrity: sha512-A1kdq/tSb5QjvKvAMgIoEvDBIgL7qaqVP/jkvSwYYRZ9iEzvPpopxp2wQfu3SuZRHtpHNxMn8Fs0bS+gf5Xmwg==}
+  ip-address@10.7.4:
+    resolution: {integrity: sha512-DWBMKyeM25D70nrIiTkgQth59/G+naKOTep6huF9j+GmeK3DMD60Zvxg5d5qQnz+38AHgou6ean2LECX+lrKDg==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -22496,7 +22496,7 @@ snapshots:
 
   into-stream@9.1.0: {}
 
-  ip-address@10.7.3: {}
+  ip-address@10.7.4: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -24733,7 +24733,7 @@ snapshots:
 
   socks@2.8.8:
     dependencies:
-      ip-address: 10.7.3
+      ip-address: 10.7.4
       smart-buffer: 4.2.0
 
   sonic-boom@1.4.1:
