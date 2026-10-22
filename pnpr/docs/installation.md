@@ -24,6 +24,22 @@ are available for:
 
 Only the binary matching your platform is downloaded.
 
+## Container image
+
+pnpr is also published as the `ghcr.io/pnpm/pnpr` container image:
+
+```sh
+docker run -p 7677:7677 -v pnpr-storage:/pnpr/storage ghcr.io/pnpm/pnpr:<version>
+```
+
+- The entrypoint is `pnpr`. Arguments after the image name replace the default
+  command, `serve --listen 0.0.0.0:7677 --storage /pnpr/storage --cache /pnpr/cache`.
+- `/pnpr/storage` and `/pnpr/cache` are volumes. Only `/pnpr/storage` holds
+  data that must survive.
+- The working directory is `/pnpr`, so relative paths in the bundled config
+  resolve there.
+- The server runs as the non-root `pnpr` user.
+
 ## Verify the installation
 
 ```sh

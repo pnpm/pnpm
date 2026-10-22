@@ -9,7 +9,7 @@ This guide explains pnpr's event architecture and shows how to integrate externa
 
 ## Architecture decision
 
-pnpr v1 deliberately does not maintain an in-process HTTP webhook dispatch queue.
+pnpr deliberately does not maintain an in-process HTTP webhook dispatch queue.
 
 Building an internal webhook queue inside a registry server introduces operational drawbacks:
 
@@ -23,14 +23,7 @@ Instead, pnpr provides durable, structured integration points designed to feed e
 
 ### 1. Structured audit logs
 
-Every mutating administrative or registry action in pnpr emits a structured event under the `pnpr::audit` tracing target at `info` level.
-
-These events cover:
-- Package version publishes and unpublishes
-- Dist-tag assignments and updates
-- User account creation, modification, and deletion
-- Token generation and revocation
-- Team membership and package access changes
+Administrative and destructive operations in pnpr emit a structured event under the `pnpr::audit` tracing target at `info` level. They cover account, team, rule, and SCIM changes, token revocation, unpublishes, dist-tag changes, and image deletions. Publishes and token creation are not audited. The full list of actions and their fields is in [Admin audit logs](configuration.md#admin-audit-logs).
 
 When configured with `log.format: json`, pnpr outputs each audit event as a single-line JSON record on `stdout`:
 
@@ -40,10 +33,12 @@ When configured with `log.format: json`, pnpr outputs each audit event as a sing
   "level": "INFO",
   "target": "pnpr::audit",
   "fields": {
-    "action": "publish",
+    "action": "package.dist_tag_set",
+    "actor": "alice",
     "package": "@mycompany/utils",
+    "tag": "latest",
     "version": "1.2.0",
-    "username": "alice",
+    "registry": "local",
     "request_id": "c8a14b09-1a73-42e1-95be-726ff342f534",
     "client_ip": "192.168.1.50"
   }

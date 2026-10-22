@@ -27,6 +27,10 @@ The hosted store has the same layout on disk and in a bucket:
 <namespace>/packages/<name>/blobs/<file>
 ```
 
+A hosted registry declared under an
+[ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems) without an
+`org` is stored under `orgs/<ecosystem>~<name>/`.
+
 Every package name, org and file name is one path segment. Lowercase
 letters, digits, `.`, `_` and `-` are kept, and every other byte is written
 as `!` and two hex digits, so `@scope/pkg` is stored as `!40scope!2fpkg`.
@@ -80,8 +84,8 @@ s3:
 | `prefix` | no | Key prefix every object is stored under. |
 | `accessKeyId` | no | Access key. Falls back to `AWS_ACCESS_KEY_ID` when unset. |
 | `secretAccessKey` | no | Secret key. Falls back to `AWS_SECRET_ACCESS_KEY` when unset. |
-| `forcePathStyle` | no | Use path-style addressing (`endpoint/bucket/key`) instead of virtual-hosted (`bucket.endpoint/key`). MinIO typically needs `true`; AWS and R2 work with the default. |
-| `allowHttp` | no | Allow plain-HTTP endpoints, needed for a local MinIO over `http://`. Defaults to HTTPS-only. |
+| `forcePathStyle` | no | Use path-style addressing (`endpoint/bucket/key`) instead of virtual-hosted (`bucket.endpoint/key`). Defaults to `false`. MinIO typically needs `true`; AWS and R2 work with the default. |
+| `allowHttp` | no | Boolean. Allow plain-HTTP endpoints, needed for a local MinIO over `http://`. Defaults to `false` (HTTPS only). |
 
 ## Concurrent writers {#concurrent-writers}
 
@@ -126,6 +130,10 @@ s3:
   bucket: my-pnpr-packages
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
+
+auth:
+  htpasswd:
+    file: ./htpasswd
 
 registries:
   local:

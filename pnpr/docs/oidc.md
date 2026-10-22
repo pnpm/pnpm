@@ -188,6 +188,23 @@ change dist-tags separately, manage accounts, publish batches, or reach other
 pnpr services. Request the token after building so it stays valid through the
 publish request; its issuer's expiry applies to every request.
 
+## Keys
+
+Every block rejects unknown keys.
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `name` | yes | Provider name, used in the `/-/oidc/<name>/` URLs. |
+| `issuer` | yes | The provider's issuer URL. |
+| `audience` | yes | The expected `aud` claim. For browser sign-in, the client ID. |
+| `login.clientSecret` | no | Client secret for browser sign-in. Omit for public clients with PKCE. |
+| `login.users` | yes, with `login` | Bindings of `subject`, `username`, and optional `claims`. |
+| `login.groups.claim` | no | The ID-token claim that lists groups. Defaults to `groups`. |
+| `login.groups.teams` | yes, with `groups` | Grants of `group`, `registry`, and `team`. See [Teams from groups](#teams-from-groups). |
+| `workloads[].identity` | yes | A binding of `subject`, `username`, and optional `claims`. |
+| `workloads[].registry` | yes | The hosted npm registry the workload publishes to. |
+| `workloads[].packages` | yes | The exact package names the workload may publish. |
+
 ## Validation and operations
 
 pnpr accepts RS256 and ES256 signatures and verifies the issuer, audience,

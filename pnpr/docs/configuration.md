@@ -14,6 +14,10 @@ to the public npm registry:
 ```yaml title="pnpr.yaml"
 storage: ./storage
 
+auth:
+  htpasswd:
+    file: ./htpasswd
+
 registries:
   local:
     type: hosted
@@ -35,11 +39,18 @@ registries:
 defaultRegistry: main
 ```
 
-Pass it with `-c`:
+Pass it with `-c`, and create the first account with
+[`pnpr add-user`](cli.md#add-user):
 
 ```sh
+pnpr -c ./pnpr.yaml add-user alice
 pnpr -c ./pnpr.yaml
 ```
+
+Relative paths in the config, such as `storage`, `cache`,
+`auth.htpasswd.file`, `auth.tokens.file`, `osv.path`, and `ui.dir`, resolve
+against the config file's directory. For the bundled config, they resolve
+against the working directory.
 
 ## `storage` and `cache`
 
@@ -107,7 +118,7 @@ must be one URL-safe segment: it cannot be empty, `.` or `..`, start with `.`,
 or contain `/`, `\`, `:`, `%`, `?`, `#`, whitespace, or control characters. The
 `~` must arrive unencoded: `%7E` does not select the named registry.
 
-Since v0.1.0-alpha.11, a registry also declares which package ecosystem it
+A registry also declares which package ecosystem it
 serves, through `ecosystem:` (`npm`, `cargo`, `pypi`, or `oci`; npm by default).
 Each ecosystem is addressed through its own path prefix (`/npm/`, `/cargo/`,
 `/pypi/`, or `/oci/`), and registry names can be reused across ecosystems
@@ -194,7 +205,7 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace. Must be a single path-safe segment. |
+| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<ecosystem>~<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
@@ -244,11 +255,12 @@ registries:
 | `access` | Which pnpr users may reach this registry at `/~<name>/` (and resolve through it). Required for a non-`public` upstream. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
 | `packages` | The names this upstream serves through pnpr. See [above](#the-packages-map). |
-| `maxage` | Per-registry packument freshness window. Overrides pnpr's global packument TTL / `--packument-ttl-secs` for this registry. |
+| `maxAge` | Per-registry packument freshness window. Overrides [`packumentTtl`](#packumentttl) and `--packument-ttl` for this registry. Aliases: `maxage`, `max_age`. |
 | `timeout` | Per-request upstream deadline. Defaults to `30s`. |
 | `maxFails` | Consecutive failures before the upstream circuit breaker opens. Defaults to `2`; `0` disables the breaker. |
 | `failTimeout` | Cooldown before an open circuit is probed again. Defaults to `5m`. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
+| `search` | Opts this upstream into browser-facing search and organization discovery. Defaults to `false`. See [Browsing and discovery](discovery.md). |
 | `cache` | Whether tarballs fetched from this registry are cached locally. Defaults to `true`; `false` streams verified tarballs through a temporary file. With caching on, pnpr computes a SHA-512 `dist.integrity` for up to 64 versions per fetched packument that omit one, caching each tarball it hashes. |
 
 Interval values accept strings such as `30s`, `5m`, `1h30m`, or a bare number
@@ -313,7 +325,7 @@ A router also takes [`tarballs`](#tar-registries).
 
 ### Tar registries
 
-A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A version with [registry revisions](/registry-revisions) keeps its `dist.tarball` on the digest route, its `dist.revision`, and its `dist.revisions` history, because a revision is always addressed by the digest of its tar. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
+A registry with `tarballs: tar` serves each version as an uncompressed tar, the gzip-decoded content of its `.tgz`, with HTTP content coding the client's `Accept-Encoding` allows. Its metadata describes the tars: `dist.integrity` is the hash of the tar, and `dist.tarball`, `dist.shasum`, and `dist.signatures` are left out. A version with [registry revisions](https://pnpm.io/registry-revisions) keeps its `dist.tarball` on the digest route, its `dist.revision`, and its `dist.revisions` history, because a revision is always addressed by the digest of its tar. A tool that verifies npm signatures through its registry, such as `pnpm/setup`, needs a `.tgz` registry.
 
 To offer tars next to `.tgz` files, add a router over the same sources:
 
@@ -352,7 +364,7 @@ npm, Yarn, and pnpm projects that do not opt in keep using `main`. A pnpm projec
 - pnpr decodes at most 4.25 GiB from one `.tgz`, the most pnpm accepts by default. A version past that has no tar. Copies of tars waiting for the level-19 encoding share a 1 GiB quota, and a request makes no copy when it is full or when another request is already copying that version.
 - `tarballs` is accepted only on npm registries.
 
-You can also set `tarballs: tar` on the main router, so the base every pnpm project already uses serves tars. That works when all your clients are pnpm 12.15 or newer. npm, Yarn, and older pnpm cannot install from such a base: it has no `.tgz` path, and its metadata has no tarball URL, except for versions with [registry revisions](/registry-revisions). A project whose lockfile was written against the `.tgz` base has `.tgz` hashes in it, so run `pnpm install --update-checksums` there once after the switch.
+You can also set `tarballs: tar` on the main router, so the base every pnpm project already uses serves tars. That works when all your clients are pnpm 12.15 or newer. npm, Yarn, and older pnpm cannot install from such a base: it has no `.tgz` path, and its metadata has no tarball URL, except for versions with [registry revisions](https://pnpm.io/registry-revisions). A project whose lockfile was written against the `.tgz` base has `.tgz` hashes in it, so run `pnpm install --update-checksums` there once after the switch.
 
 ## Teams {#teams}
 
@@ -478,7 +490,8 @@ oci:
   maxManifestBytes: 4194304   # 4 MiB
 ```
 
-Both limits must be greater than zero.
+The values shown are the defaults. Both limits must be greater than zero. See
+[Container images](container-images.md#authentication) for `bearerAuth`.
 
 ## `cors`
 
@@ -544,7 +557,7 @@ requestTimeout: 60s
 
 How long cached upstream packuments remain fresh before pnpr revalidates them against the upstream registry.
 
-Defaults to `10s`. Can be overridden per-process with the `--packument-ttl` CLI flag.
+Defaults to `5m`. Can be overridden per-process with the `--packument-ttl` CLI flag.
 
 Accepts `packumentTtl` (camelCase) or `packument_ttl` (snake_case).
 Can be specified as an integer number of seconds (e.g. `10`) or with a duration suffix (e.g. `10s`, `1m`).
@@ -574,8 +587,10 @@ ui:
 
 ## `auth`
 
-By default users are stored in an htpasswd file and tokens in a local SQLite
-database:
+Without `auth.htpasswd.file` and without a [`backend`](auth-backends.md),
+accounts and tokens live in memory and are lost on restart, and
+`pnpr add-user` refuses to run. The bundled config stores users in an htpasswd
+file and tokens in a local SQLite database:
 
 ```yaml title="pnpr.yaml"
 auth:
@@ -695,8 +710,8 @@ artifacts:
 
   The CLI flag `--disable-artifacts` overrides this setting. With artifacts off,
   its routes are not mounted and the `GET /-/pnpr` handshake advertises an empty
-  artifact-version list. The handshake itself is served when either the resolver
-  or artifact surface is enabled, so an artifact-only tier is discoverable.
+  artifact-version list. The handshake itself is served when any surface is
+  enabled, so an artifact-only tier is discoverable.
 
   `orgs` declares the organizations this server keeps build output for, and who
   may read and who may publish what each one owns. An organization owns three
@@ -717,7 +732,8 @@ artifacts:
 
   `quota` bounds what the artifact store keeps, in GiB: `ownerGiB` for one
   owner (an organization, or a cache name), defaulting to 1, and `totalGiB` for
-  all of them together, defaulting to 10. A `pnpm pipeline` task result can hold
+  all of them together, defaulting to 10. Both must be positive, and `ownerGiB`
+  cannot exceed `totalGiB`. A `pnpm pipeline` task result can hold
   release binaries, so a server that stores them usually needs more:
 
 ```yaml title="pnpr.yaml"
@@ -739,8 +755,8 @@ pipeline:
   Who may read and submit runs is decided by [`artifacts.orgs`](#registry-resolver-and-artifact-surfaces).
 
 Something must be served: a config with no registries (or the registry
-surface disabled by flag), the resolver disabled, and artifacts disabled is a
-startup error.
+surface disabled by flag), the resolver disabled, artifacts disabled, and the
+pipeline surface disabled is a startup error.
 
 The health endpoint (`/-/ping`) and the account endpoints (login, whoami, and
 token management) are always served, whichever surfaces are enabled, so
@@ -751,7 +767,7 @@ token management) are always served, whichever surfaces are enabled, so
 
 Resolver route classification (see
 [Install acceleration](install-acceleration.md#private-registries)) treats the
-official npm registry as public out of the box. If clients resolve against
+official npm registry and `npm.jsr.io` as public out of the box. If clients resolve against
 other registries that serve anonymously-readable content, declare them as
 public routes so their resolutions can be cached and shared across all callers:
 
@@ -766,6 +782,17 @@ routes:
 Each rule may name a `registry` origin, a `package` glob, or both. Rules fail
 closed on a typo: a present-but-unparsable `registry` URL or `package` glob
 drops the whole rule (with a warning) rather than widening it.
+
+The resolver refuses to connect to loopback, private, and link-local
+addresses, other than the `--public-url` host. To resolve through an upstream
+on an internal network, list its addresses in `allowedPrivateNetworks`, as IPs
+or CIDR blocks:
+
+```yaml title="pnpr.yaml"
+routes:
+  allowedPrivateNetworks:
+    - 10.0.0.0/8
+```
 
 ## `osv`
 
@@ -791,6 +818,8 @@ log:
   level: error     # trace, debug, http, info, warn, or error
 ```
 
+`format` defaults to `pretty` and `level` to `info`. Only `type: stdout` is
+implemented. Any other value logs a warning, and pnpr still writes to stdout.
 `RUST_LOG` always overrides the configured level. See the
 [CLI reference](cli.md#logging).
 
@@ -839,6 +868,7 @@ Audit events record the `action`, the `actor` (the authenticated username, `"sci
   - `package.unpublish`: unpublishing an entire package (`actor`, `package`, `registry`).
   - `package.unpublish_tarball`: unpublishing a specific package version tarball (`actor`, `package`, `tarball`, `version`, `registry`).
   - `package.update_packument`: modifying packument metadata directly (`actor`, `package`, `registry`).
+  - `package.update_maintainers`: changing a package's maintainers (`actor`, `package`, `registry`).
   - `package.dist_tag_set`: assigning a dist-tag (`actor`, `package`, `tag`, `version`, `registry`).
   - `package.dist_tag_remove`: deleting a dist-tag (`actor`, `package`, `tag`, `registry`).
   - `oci.delete_blob`: deleting an OCI blob (`actor`, `repository`, `digest`).
@@ -869,8 +899,12 @@ s3:
   secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 ```
 
+`${ENV_VAR:-default}` and `${ENV_VAR-default}` supply a value for an unset
+variable. An unset variable without a default becomes an empty string, and
+pnpr logs a warning.
+
 Unresolved `${ENV_VAR}` references in secret-bearing fields (`secret`,
 `secrets.cache`, `secrets.oci`, `s3.secretAccessKey`, `auth.scim.token`,
-OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token`) fail fast at
-startup with a fatal configuration error. This prevents accidental fallback to
+OIDC `clientSecret`, SQL/libsql `authToken`, upstream `token` and
+`bearerToken`, and upstream `headers` values) fail fast at startup with a fatal configuration error. This prevents accidental fallback to
 empty credentials or per-process secrets when an environment variable is unset.

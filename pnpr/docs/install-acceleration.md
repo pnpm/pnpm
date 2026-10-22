@@ -80,7 +80,7 @@ A `cargo.enabled` or `python.enabled` workspace with `pnprServer` set offloads
 those resolutions automatically. When the server does not serve an ecosystem's
 resolution, pnpm resolves it locally instead of failing.
 
-Since pnpr v0.1.0-alpha.9, `pnpm install --fix-lockfile` is forwarded as a
+`pnpm install --fix-lockfile` is forwarded as a
 repair request, including during filtered installs. The server regenerates
 broken lockfile metadata while retaining locked versions that remain
 compatible. The `fixLockfile` list in `GET /-/pnpr` tells the client which
@@ -88,9 +88,9 @@ resolver protocol versions support that request.
 
 ## What a configured server does not cost
 
-Since pnpm v12.0.0-rc.6, an install skips the exchanges it doesn't need, so a
-configured `pnprServer` no longer makes an up-to-date project pay a round trip
-that a direct install would have answered locally:
+An install skips the exchanges it doesn't need, so a configured `pnprServer`
+does not make an up-to-date project pay a round trip that a direct install
+would have answered locally:
 
 - The repeat-install "Already up to date" fast path runs with a pnpr server
   configured. Changing the `trustPolicy*`, `minimumReleaseAgeStrict`, or
@@ -102,20 +102,20 @@ that a direct install would have answered locally:
   policy. Server-verified and server-resolved lockfiles are recorded into that
   cache, so the next install can use it.
 
-See [pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230) and
-[pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234) for background.
-
 ## Which registries the server will touch {#allowlist}
 
 The resolver only fetches from origins the operator has configured: a
 **default-deny allowlist** made of the configured
 [registries](configuration.md#registries-and-defaultregistry), the declared
-[public routes](configuration.md#routes), the built-in official npm registry,
-and pnpr's own origin. A request whose `registry`/`registries` (or whose
+[public routes](configuration.md#routes), the built-in official npm registry
+and `npm.jsr.io`, and pnpr's own origin. A request whose `registry`/`registries` (or whose
 direct `http(s)`/`git` URL dependencies, overrides, or lockfile tarball URLs)
 point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
-resolver to make the server fetch from an arbitrary internal address.
+resolver to make the server fetch from an arbitrary internal address. An
+allowlisted host that resolves to a loopback, private, or link-local address is
+refused too, unless
+[`routes.allowedPrivateNetworks`](configuration.md#routes) lists it.
 
 ## Private registries {#private-registries}
 
