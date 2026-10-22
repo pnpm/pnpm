@@ -674,6 +674,31 @@ fn store_prune_removes_the_private_engine_installs_no_process_holds() {
     assert!(held.dir().exists(), "prune must keep the private install in use");
 }
 
+#[test]
+fn store_prune_removes_the_metadata_cache() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    pacquet_at(&workspace)
+        .with_args(["add", "is-positive@1.0.0"])
+        .assert()
+        .success();
+    let metadata_dir = npmrc_info.cache_dir.join("v12/metadata");
+    assert!(metadata_dir.exists(), "add must cache the metadata it resolved");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "store prune failed: {stderr}");
+    assert!(stderr.contains("Removed all cached metadata files"), "stderr={stderr}");
+    assert!(
+        !npmrc_info.cache_dir.join("v12").exists(),
+        "store prune must remove the metadata cache",
+    );
+}
+
 /// The resolver chain claims every protocol pnpm supports, but only an
 /// archive can be put in the store. A local dependency is refused by name
 /// rather than failing further down as a resolution-shape mismatch.

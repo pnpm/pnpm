@@ -24,6 +24,7 @@ mod pkg_content_check;
 mod private_install;
 mod project_registry;
 mod prune;
+mod prune_cached_metadata;
 mod prune_cas;
 mod store_dir;
 mod store_lock;

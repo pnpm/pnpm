@@ -64,7 +64,7 @@ impl StoreCommand {
                 )
                 .into_diagnostic()
                 .wrap_err("cleaning the expired dlx cache")?;
-                config.store_dir.prune().wrap_err("pruning store")?;
+                config.store_dir.prune(&config.cache_dir).wrap_err("pruning store")?;
                 remove_orphaned_private_engine_installs(config)?;
                 Ok(())
             }
