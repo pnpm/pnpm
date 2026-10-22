@@ -9,4 +9,4 @@ Prints the index file of a specific package from the store. The package is speci
 pnpm cat-index <pkg name>@<pkg version>
 ```
 
-The output is JSON that lists each file of the package with its `digest`, `mode`, and `size`. To find the packages that contain a file, pass its hash to [`pnpm find-hash`](./find-hash.md). To print a file, use [`pnpm cat-file`](./cat-file.md).
+The output is JSON that lists each file of the package with its `digest`, `mode`, and `size`. To find the packages that contain a file, pass its hash to [`pnpm find-hash`](./find-hash.md).

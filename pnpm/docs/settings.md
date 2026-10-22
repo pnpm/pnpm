@@ -388,7 +388,7 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 * [patchedDependencies](./cli/patch.md#patcheddependencies)
 * [pnpmfile](./pnpmfile.md#pnpmfile), [globalPnpmfile](./pnpmfile.md#globalpnpmfile) and [ignorePnpmfile](./pnpmfile.md#ignorepnpmfile)
 * [audit.level](./cli/audit.md#auditlevel), [audit.ignore](./cli/audit.md#auditignore) and [audit.ignorePrune](./cli/audit.md#auditignoreprune)
-* [initVersion](./cli/init.md#initversion), [initLicense](./cli/init.md#initlicense) and [initAuthorName / initAuthorEmail / initAuthorUrl](./cli/init.md#initauthorname-initauthoremail-initauthorurl)
+* [initPackageManager](./cli/init.md#initpackagemanager), [initType](./cli/init.md#inittype), [initVersion](./cli/init.md#initversion), [initLicense](./cli/init.md#initlicense) and [initAuthorName / initAuthorEmail / initAuthorUrl](./cli/init.md#initauthorname-initauthoremail-initauthorurl)
 * [legacyDirFiltering](./filtering.md#legacydirfiltering)
 * [concurrencyGroups](./workspace-task-orchestration.md#concurrencygroups)
 * [tasks](./workspace-task-orchestration.md#configure-task-dependencies), [pipelines](./cli/pipeline.md#pipelines) and [pipelineBase](./cli/pipeline.md#pipelinebase)

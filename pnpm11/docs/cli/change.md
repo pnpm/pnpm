@@ -81,7 +81,7 @@ Validate the pending change intents, and check the versions committed in the wor
 pnpm change check
 ```
 
-Unlike `pnpm change status`, which reports the release the pending intents produce, `check` validates the intents without planning versions from them, and checks only the versions already in the manifests. A malformed intent fails the command, as it would at release time. Run it on every pull request: a package whose version drifted out of its epic's band, or out of step with its fixed group, fails the command. Every violation is listed, including ones in packages the current release does not touch.
+Unlike `pnpm change status`, which reports the release the pending intents produce, `check` plans the release from the pending intents without reporting it, and checks only the versions already in the manifests. An intent that would fail at release time, such as one naming a package outside the workspace, fails the command. Run it on every pull request: a package whose version drifted out of its epic's band, or out of step with its fixed group, fails the command. Every violation is listed, including ones in packages the current release does not touch.
 
 ## Options
 
