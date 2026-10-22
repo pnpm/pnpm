@@ -2,7 +2,7 @@ import * as execa from 'execa'
 import fs from 'fs'
 import path from 'path'
 
-const artifactsDir = path.join(__dirname, '../..')
+const artifactsDir = path.join(import.meta.dirname, '../..')
 
 function build (target: string) {
   let artifactFile = path.join(artifactsDir, target, 'pnpm')
@@ -13,7 +13,7 @@ function build (target: string) {
     fs.unlinkSync(artifactFile)
   } catch {}
   execa.sync('pkg', ['../../dist/pnpm.cjs', `--config=../../package-${target}.json`], {
-    cwd: path.join(__dirname, '..'),
+    cwd: path.join(import.meta.dirname, '..'),
     stdio: 'inherit',
   })
   // Verifying that the artifact was created.

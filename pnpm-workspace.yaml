@@ -247,6 +247,7 @@ catalog:
   mem: ^8.1.1
   micromatch: ^4.0.8
   nock: 13.3.4
+  node: runtime:24.22.1
   node-fetch: npm:@pnpm/node-fetch@1.0.0
   normalize-newline: 3.0.0
   normalize-package-data: ^7.0.1
@@ -270,7 +271,7 @@ catalog:
   path-name: ^1.0.0
   path-temp: ^2.1.1
   pidtree: ^0.6.0
-  pkg: npm:@yao-pkg/pkg@5.12.0
+  pkg: npm:@yao-pkg/pkg@6.23.0
   preferred-pm: ^3.1.4
   pretty-bytes: ^5.6.0
   pretty-ms: ^7.0.1

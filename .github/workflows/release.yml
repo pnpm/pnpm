@@ -37,7 +37,8 @@ jobs:
       # `pnpm/bundle.ts` step on the runner's default Node. See #11988 /
       # release 10.34.0 incident for context. pnpm 12 publishes through npm's
       # trusted publishing (OIDC) itself, so the Node version doesn't matter
-      # for the upload.
+      # for the upload. `pkg` needs Node 22+, so `@pnpm/exe` declares its own
+      # `node` runtime devDependency, which its build scripts run on.
       - name: Install pnpm and Node
         uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
