@@ -183,10 +183,29 @@ export class PnprContainer extends Container<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    return getContainer(env.PNPR, "pnpr").fetch(request);
+    const headers = new Headers(request.headers);
+    headers.set("accept-encoding", "zstd, gzip");
+    const response = await getContainer(env.PNPR, "pnpr").fetch(
+      new Request(request, { headers }),
+    );
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      encodeBody: "manual",
+    });
   },
 };
 ```
+
+The default export also fixes compression. Cloudflare removes `zstd` from a
+request's `Accept-Encoding` before the Worker sees it, so without help pnpr
+would never send zstd. The Worker asks pnpr for `zstd, gzip`, which is what
+pnpm sends anyway, and `encodeBody: "manual"` hands the coded body back
+untouched. Cloudflare then passes it as-is to clients that accept zstd and
+decodes it for those that do not. This only matters for a
+[tar registry](configuration.md#tar-registries); a `.tgz` is served as stored
+whatever the request asks for.
 
 `PNPR_PUBLIC_URL` works because pnpr reads every flag from an environment
 variable with the `PNPR_` prefix. This one is `--public-url`.
@@ -246,11 +265,11 @@ stays up longer, and you pay for its idle memory and disk.
 Cloudflare as its [reverse proxy](tls-and-reverse-proxy.md). To serve the
 registry from your own hostname, add a custom domain to the Worker.
 
-**Cloudflare rewrites `Accept-Encoding`.** Whatever a client sends, the
-container sees `gzip, br`. If you run a
-[tar registry](configuration.md#tar-registries) behind this Worker, pnpm
-receives gzip-coded tars rather than zstd-coded ones. Installs work the same;
-the downloads are larger.
+**Tars reach other clients uncompressed.** Because the Worker always asks for
+zstd, a client that accepts only gzip gets a tar that Cloudflare has decoded
+back to plain bytes. Only pnpm installs from a tar registry, and it accepts
+zstd, so in practice this affects someone fetching a tar by hand. Metadata is
+not affected: Cloudflare compresses JSON again for gzip clients.
 
 **One container is enough for a team.** The Worker above always talks to the
 one container named `pnpr`, so raising `max_instances` on its own changes
