@@ -85,7 +85,7 @@ These are the environment variables created by pnpm:
 * **npm_lifecycle_event** - the name of the running script.
 * **npm_lifecycle_script** - the command of the running script.
 * **npm_package_json** - the path to the package's `package.json`.
-* **npm_package_\*** - the fields of `package.json`, such as `npm_package_name` and `npm_package_version`.
+* **npm_package_\*** - the `name`, `version`, `config`, `engines`, and `bin` fields of `package.json`, such as `npm_package_name` and `npm_package_config_port`.
 * **npm_config_user_agent** - the user agent of pnpm.
 * **npm_execpath** - the path to the pnpm executable.
 * **npm_node_execpath** and **NODE** - the path to the Node.js executable.

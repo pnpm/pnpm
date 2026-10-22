@@ -13,4 +13,4 @@ pnpm prefix
 
 ### --global, -g
 
-Prints the global prefix directory instead: the directory that holds the global packages. pnpm creates the global bin directory if it is missing. The command fails with `ERR_PNPM_NO_GLOBAL_BIN_DIR` if no global bin directory is configured. Run [`pnpm setup`](./setup.md) to configure one.
+Prints the global prefix directory instead: the parent of the global packages directory that [`pnpm root -g`](./root.md) prints. pnpm creates the global bin directory if it is missing. The command fails with `ERR_PNPM_NO_GLOBAL_BIN_DIR` if no global bin directory is configured, and with `ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH` if the global bin directory is not in `PATH`. Run [`pnpm setup`](./setup.md) to configure one.

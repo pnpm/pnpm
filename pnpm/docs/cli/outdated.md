@@ -67,7 +67,7 @@ Doesn't check `optionalDependencies`.
 
 ### --optional
 
-Checks `optionalDependencies`. This overrides `--no-optional`.
+Checks `optionalDependencies`.
 
 ### --sort-by
 

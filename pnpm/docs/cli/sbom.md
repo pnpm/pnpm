@@ -100,7 +100,7 @@ Don't include `optionalDependencies`.
 
 ### --optional
 
-Include `optionalDependencies`. This overrides `--no-optional`.
+Include `optionalDependencies`.
 
 ### --filter &lt;package_selector\>
 

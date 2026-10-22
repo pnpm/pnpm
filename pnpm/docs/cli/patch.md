@@ -5,7 +5,7 @@ title: "pnpm patch <pkg>"
 
 Prepare a package for patching (inspired by a similar command in Yarn).
 
-This command extracts the package to `node_modules/.pnpm_patches/<name>@<version>` (or the [`--edit-dir`](#--edit-dir--d-dir)), a directory you can edit at will.
+This command extracts the package to `node_modules/.pnpm_patches/<pkg>`, where `<pkg>` is the argument as given, such as `foo` or `foo@1.0.0` (or the [`--edit-dir`](#--edit-dir--d-dir)), a directory you can edit at will.
 
 Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>` being the directory you received) to generate a patchfile and register it into your top-level manifest via the [`patchedDependencies`] field.
 

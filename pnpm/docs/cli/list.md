@@ -67,7 +67,7 @@ Don't display packages from `optionalDependencies`.
 
 ### --optional
 
-Include packages from `optionalDependencies`. This overrides `--no-optional`.
+Include packages from `optionalDependencies`.
 
 ### --only-projects
 

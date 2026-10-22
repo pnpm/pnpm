@@ -47,4 +47,4 @@ When `self-update` refuses a version that is younger than the `minimumReleaseAge
 
 ## What gets installed
 
-`self-update` installs the unscoped `pnpm` package. Its native binaries ship as `@pnpm/exe.<platform>-<arch>` packages, which pnpm links directly, with no Node.js launcher.
+For pnpm 12 and newer, `self-update` installs the unscoped `pnpm` package. Its native binaries ship as `@pnpm/exe.<platform>-<arch>` packages, which pnpm links directly, with no Node.js launcher. An older version is installed as `@pnpm/exe` on platforms where it runs, and as `pnpm` otherwise.

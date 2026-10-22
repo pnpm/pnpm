@@ -62,7 +62,7 @@ A value of `0` or less means the number of CPU cores minus its absolute value, a
 
 If true, stops when a task throws an error.
 
-Only `run`, `exec`, `test`, `start`, `stop`, `rebuild`, and `install-test` accept this option. Other commands reject it.
+`--no-bail` is accepted only by `run`, `exec`, `test`, `start`, `stop`, `rebuild`, `install-test`, and the `pnpm <script>` shorthand. Other commands reject it.
 
 This config does not affect the exit code.
 Even if `--no-bail` is used, all tasks will finish but if any of the tasks fail,
