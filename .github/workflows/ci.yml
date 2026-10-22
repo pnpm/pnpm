@@ -19,6 +19,32 @@ jobs:
         .github/scripts/npm-package-publication-state.test.sh
         .github/scripts/npm-staged-publication.test.sh
 
+  pkg-fetch-cache:
+    name: Seed pkg-fetch cache
+    runs-on: ubuntu-latest
+    env:
+      PNPM_CONFIG_ENABLE_GLOBAL_VIRTUAL_STORE: 'false'
+    steps:
+    - name: Checkout Commit
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      with:
+        persist-credentials: false
+    - name: Install pnpm and Node
+      uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+      with:
+        runtime: node@20
+        install: false
+    - name: pnpm install
+      run: pnpm install --filter=@pnpm/exe
+      timeout-minutes: 3
+    # Runs the release step with this workflow's read-only token, so a pinned
+    # hash or artifact access that would fail the release fails here first.
+    - name: Seed pkg-fetch's cache
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PKG_CACHE_PATH: ${{ runner.temp }}/pkg-cache
+      run: .github/scripts/seed-pkg-fetch-cache.sh
+
   build:
     # Skip pull_request events from PRs in the same repo. This prevents
     # duplicate build jobs from running when creating a PR in the original repo.

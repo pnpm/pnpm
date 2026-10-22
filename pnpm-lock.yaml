@@ -1005,6 +1005,7 @@ pnpmfileChecksum: sha256-mx8+uzkaD2WO2V3h9zTchFZZX3QdTTMrkVNvy8svgCY=
 
 patchedDependencies:
   '@yao-pkg/pkg': bd2ac4c8420dfa1c5b5a9533acd33505efdd440aeac201e0ca85d85b9c467354
+  '@yao-pkg/pkg-fetch@3.6.6': 025ec1562c6585dba7980321a4e728b53184db903ee08dad1010a55e3397f298
   graceful-fs@4.2.11: 68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1
   mdast-util-to-string@2.0.0: 78bd3240806e30c963b9f930251eb10b9940e506f7cc8910fb3d17d7867956a2
   normalize-package-data@7.0.1: af60eac3676a4332c8fa7d590432a962fe77991523e608340cd80eb2a8a035db
@@ -19910,7 +19911,7 @@ snapshots:
       minimatch: 3.1.5
       semver: 7.7.4
 
-  '@yao-pkg/pkg-fetch@3.6.6':
+  '@yao-pkg/pkg-fetch@3.6.6(patch_hash=025ec1562c6585dba7980321a4e728b53184db903ee08dad1010a55e3397f298)':
     dependencies:
       picocolors: 1.1.1
       progress: 2.0.3
@@ -19930,7 +19931,7 @@ snapshots:
       '@babel/traverse': 7.29.7(supports-color@8.1.1)
       '@babel/types': 7.29.7
       '@roberts_lando/vfs': 0.3.3
-      '@yao-pkg/pkg-fetch': 3.6.6
+      '@yao-pkg/pkg-fetch': 3.6.6(patch_hash=025ec1562c6585dba7980321a4e728b53184db903ee08dad1010a55e3397f298)
       esbuild: 0.28.2
       into-stream: 9.1.0
       multistream: 4.1.0
