@@ -170,30 +170,37 @@ struct Entries {
 /// Read one directory, keeping its subdirectories and its `.rs` files.
 ///
 /// A nested `target` is a build directory rather than source, so it is
-/// left out; an unreadable directory contributes nothing.
+/// left out. A directory that cannot be read is a failure rather than an
+/// empty answer: this walk decides which sources the policy is checked
+/// against, so one it silently skipped would pass whatever it holds.
+///
+/// Each entry is classified by its own type rather than by following its
+/// path, so a symlink is never traversed: one pointing at an ancestor
+/// would otherwise keep the walk going forever, and one pointing at a
+/// sibling would scan it twice.
 fn read_entries(directory: &Path) -> Entries {
-    let Ok(entries) = std::fs::read_dir(directory) else {
-        return Entries { directories: Vec::new(), sources: Vec::new() };
-    };
-    let (directories, files): (Vec<PathBuf>, Vec<PathBuf>) = entries
-        .map(|entry| entry.expect("read a source directory").path())
-        .partition(|path| path.is_dir());
-    Entries {
-        directories: directories
-            .into_iter()
-            .filter(|path| {
-                path.file_name()
-                    .is_none_or(|name| name != "target")
-            })
-            .collect(),
-        sources: files
-            .into_iter()
-            .filter(|path| {
-                path.extension()
-                    .is_some_and(|extension| extension == "rs")
-            })
-            .collect(),
+    let entries = std::fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
+    let mut found = Entries { directories: Vec::new(), sources: Vec::new() };
+    for entry in entries {
+        let entry = entry.expect("read a source directory");
+        let file_type = entry.file_type().expect("read a source entry's type");
+        let path = entry.path();
+        if file_type.is_dir() {
+            if path
+                .file_name()
+                .is_none_or(|name| name != "target")
+            {
+                found.directories.push(path);
+            }
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "rs")
+        {
+            found.sources.push(path);
+        }
     }
+    found
 }
 
 fn read_manifest<Manifest: serde::de::DeserializeOwned>(path: &Path) -> Manifest {

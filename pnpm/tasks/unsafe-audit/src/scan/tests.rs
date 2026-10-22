@@ -153,3 +153,24 @@ fn nothing_else_opts_out() {
         assert!(!opts_out(line), "{line}");
     }
 }
+
+/// A dereference opens with the same `*` a block-comment continuation
+/// does. This scan is the policy gate, so a line mistaken for prose would
+/// carry its `unsafe` past both the scan and the `// SAFETY:` check.
+#[test]
+fn a_dereference_is_not_a_block_comment() {
+    for line in
+        ["    *slot = unsafe { libc::geteuid() };", "    *pointer = unsafe { read(source) };"]
+    {
+        assert!(opens_unsafe(line), "{line}");
+    }
+}
+
+/// A block-comment continuation is prose either way it is written: a `*`
+/// alone, a `*` before the text, or the `*/` that closes the comment.
+#[test]
+fn a_block_comment_continuation_opens_nothing() {
+    for line in ["     * unsafe { read() }", "     *", "     */", "    * unsafe {"] {
+        assert!(!opens_unsafe(line), "{line}");
+    }
+}

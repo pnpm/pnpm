@@ -286,7 +286,8 @@ fn macro_generated_findings(
 /// the lint level, so an `unsafe` a hand-written `allow` would let through
 /// is still found.
 fn occurrences(root: &Path, source: &Path) -> Vec<Occurrence> {
-    let Ok(text) = std::fs::read_to_string(source) else { return Vec::new() };
+    let text = std::fs::read_to_string(source)
+        .unwrap_or_else(|error| panic!("read {}: {error}", source.display()));
     let lines: Vec<&str> = text.lines().collect();
     lines
         .iter()
@@ -311,8 +312,15 @@ fn occurrences(root: &Path, source: &Path) -> Vec<Occurrence> {
 fn opens_unsafe(line: &str) -> bool {
     let trimmed = line.trim_start();
     // A comment or a block-comment continuation describes an `unsafe`
-    // rather than being one.
-    if trimmed.starts_with("//") || trimmed.starts_with('*') {
+    // rather than being one. The continuation is a `*` that ends the line
+    // or is followed by a space or the `/` that closes the comment, which
+    // is what tells it from a dereference such as `*slot = unsafe { … }`.
+    let continues_block_comment = trimmed
+        .strip_prefix('*')
+        .is_some_and(|rest| {
+            rest.is_empty() || rest.starts_with('/') || rest.starts_with(char::is_whitespace)
+        });
+    if trimmed.starts_with("//") || continues_block_comment {
         return false;
     }
     unsafe_tokens(line)
