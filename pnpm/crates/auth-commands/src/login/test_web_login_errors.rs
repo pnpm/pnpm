@@ -563,3 +563,37 @@ async fn should_restore_auth_ini_when_the_config_yaml_write_fails() {
     assert!(path.ends_with("auth.ini"), "got {writes:?}");
     assert_eq!(text, "kept=value\n");
 }
+
+/// An unreadable `config.yaml` fails the login before anything is written.
+#[tokio::test]
+async fn should_write_nothing_when_config_yaml_cannot_be_read() {
+    web_auth_fake!(FakeHost, RecordingReporter, set_fetch);
+    login_fake!(FakeHost, set_ini_read, login_writes);
+    reset();
+    reset_login();
+    set_fetch(Box::new(|| Ok(ok_token("tok"))));
+    set_ini_read(Box::new(|path| {
+        if path.ends_with("config.yaml") {
+            Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))
+        } else {
+            Ok(String::new())
+        }
+    }));
+
+    let mut server = mockito::Server::new_async().await;
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(json!({"loginUrl": "https://example.org/auth/login", "doneUrl": "https://example.org/auth/done"}).to_string())
+        .create_async()
+        .await;
+    let registry = server.url();
+
+    let err =
+        login::<FakeHost, RecordingReporter>(&client(), opts(&registry, Path::new("/mock/config")))
+            .await
+            .unwrap_err();
+
+    assert!(matches!(err, LoginError::ReadConfigYaml { .. }), "got {err:?}");
+    assert!(login_writes().is_empty(), "nothing may be written: {:?}", login_writes());
+}
