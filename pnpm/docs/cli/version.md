@@ -3,8 +3,6 @@ id: version
 title: pnpm version
 ---
 
-Added in: v11.0.0
-
 Bump the package version.
 
 ```sh
@@ -29,8 +27,6 @@ pnpm version prerelease --preid beta
 
 ## Recursive releases
 
-Added in: v11.13.0
-
 Run with `-r` and **no version argument** to consume the pending change intents recorded by [`pnpm change`](./change.md):
 
 ```sh
@@ -50,6 +46,10 @@ pnpm version -r --dry-run
 Narrow it to part of the workspace with `--filter`. The selection is expanded until it settles, so fixed-group companions and dependents whose ranges the bump invalidates are pulled in automatically.
 
 The working tree must be clean unless `--dry-run` or `--no-git-checks` is passed. See [Release management](../versioning.md) for the full workflow.
+
+A bump runs the `preversion`, `version`, and `postversion` scripts of each bumped package. `--dry-run` and [`ignoreScripts`](../settings/build.md#ignorescripts) skip them.
+
+Outside a workspace, the bare `pnpm version -r` fails with `ERR_PNPM_WORKSPACE_ONLY`.
 
 ## Options
 
@@ -71,7 +71,11 @@ pnpm version patch --message "chore: release v%s"
 
 ### --tag-version-prefix &lt;prefix\>
 
-Prefix used when creating the git tag. Defaults to `v` (e.g. `v1.2.3`). Set to an empty string to drop the prefix entirely.
+Prefix used when creating the git tag. Defaults to the `tagVersionPrefix` setting, or `v` (e.g. `v1.2.3`) when the setting is unset. Set to an empty string to drop the prefix entirely.
+
+### --dry-run
+
+Print what the command would do without changing anything. It works for a single-package bump and for `pnpm version -r`.
 
 ### --no-git-tag-version
 
@@ -87,11 +91,11 @@ Sign the generated git tag with GPG (`git tag -s`).
 
 ### --no-git-checks
 
-Do not check whether the working tree is clean before bumping the version.
+Do not check whether the working tree is clean before bumping the version. Without this option, a dirty working tree fails with `ERR_PNPM_UNCLEAN_WORKING_TREE`.
 
 ### --allow-same-version
 
-Allow setting the version to the current version. This can be useful for CI pipelines.
+Allow setting the version to the current version. This can be useful for CI pipelines. Without this option, such a bump fails with `ERR_PNPM_VERSION_NOT_CHANGED`.
 
 ### --recursive, -r
 

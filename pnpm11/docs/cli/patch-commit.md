@@ -17,7 +17,7 @@ pnpm patch-commit <path>
 
 ## Options
 
-### ---patches-dir &lt;patchesDir>
+### --patches-dir &lt;patchesDir>
 
 The generated patch file will be saved to this directory. By default, patches are saved to the `patches` directory in the root of the project.
 

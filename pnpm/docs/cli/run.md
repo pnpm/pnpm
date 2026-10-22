@@ -5,7 +5,11 @@ title: pnpm run
 
 Aliases: `run-script`
 
-Runs a script defined in the package's manifest file.
+Runs a script defined in the package's manifest file. Without a script name, `pnpm run` lists the available scripts:
+
+```sh
+pnpm run
+```
 
 ## Examples
 
@@ -17,11 +21,10 @@ Let's say you have a `watch` script configured in your `package.json`, like so:
 }
 ```
 
-You can now run that script by using `pnpm run watch`! Simple, right?
-Another thing to note for those that like to save keystrokes and time is that
-all scripts get aliased in as pnpm commands, so ultimately `pnpm watch` is just
-shorthand for `pnpm run watch` (ONLY for scripts that do not share the same name
-as already existing pnpm commands).
+Run it with `pnpm run watch`. `pnpm watch` is a shorthand for `pnpm run watch`.
+The shorthand works only for scripts whose name is not a pnpm command. A
+built-in command runs instead of a same-named script, except for the commands
+listed in [`pnpm pm`](./pm.md), which run the script.
 
 ## Running multiple scripts
 
@@ -79,6 +82,15 @@ These environment variables may be used to get contextual information about the 
 These are the environment variables created by pnpm:
 
 * **npm_command** - contains the name of the executed command. If the executed command is `pnpm run`, then the value of this variable will be "run-script".
+* **npm_lifecycle_event** - the name of the running script.
+* **npm_lifecycle_script** - the command of the running script.
+* **npm_package_json** - the path to the package's `package.json`.
+* **npm_package_\*** - the fields of `package.json`, such as `npm_package_name` and `npm_package_version`.
+* **npm_config_user_agent** - the user agent of pnpm.
+* **npm_execpath** - the path to the pnpm executable.
+* **npm_node_execpath** and **NODE** - the path to the Node.js executable.
+* **INIT_CWD** - the directory pnpm was run from.
+* **PNPM_SCRIPT_SRC_DIR** - the directory of the package whose script runs.
 * **FORCE_COLOR** - set to `1` when pnpm prints the script's output itself and pnpm's own output is in color. pnpm prints the output itself with [`--stream`](#--stream) or [`--parallel`](#--parallel), or when several scripts run at once. A `FORCE_COLOR` that is already set is kept.
 
 ## Options
@@ -138,8 +150,6 @@ lengthy build process.
 
 ### --sequential, -s
 
-Added in: v11.14.0
-
 Run the selected scripts one by one. This forces [`--workspace-concurrency`](./recursive.md#--workspace-concurrency) to `1`, so scripts matched by a [regex selector](#running-multiple-scripts) never overlap, neither across workspace packages nor within a single package.
 
 ```sh
@@ -150,7 +160,7 @@ In a recursive run this serializes scripts across workspace projects as well as 
 
 :::note
 
-For `pnpm run`, `-s` is the shorthand for `--sequential`. Everywhere else in the CLI, `-s` remains the shorthand for `--reporter=silent`. The long form `--silent` is unaffected in all commands.
+For `pnpm run`, `-s` is the shorthand for `--sequential`. This includes the `pnpm <script>` shorthand, so `pnpm -s watch` means `pnpm run --sequential watch`. Everywhere else in the CLI, `-s` remains the shorthand for `--reporter=silent`. The long form `--silent` is unaffected in all commands.
 
 :::
 
@@ -217,11 +227,15 @@ An example of a `pnpm-exec-summary.json` file:
 }
 ```
 
-Possible values of `status` are: 'passed', 'queued', 'running'.
+Possible values of `status` are `passed`, `queued`, `running`, `skipped`, and `failure`. A failed entry also has `prefix` and `message` fields. The key of a task other than the requested script is `<dir>#<task>`.
 
 ### --reporter-hide-prefix
 
 Hide workspace prefix from output from child processes that are run in parallel, and only print the raw output. This can be useful if you are running on CI and the output must be in a specific format without any prefixes (e.g. [GitHub Actions annotations](https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#setting-an-error-message)). Only `--reporter=append-only` is supported.
+
+### --sort, --reverse, --bail
+
+See [`--[no-]sort`](./recursive.md#--no-sort), [`--reverse`](./recursive.md#--reverse), and [`--[no-]bail`](./recursive.md#--no-bail).
 
 ### --filter &lt;package_selector\>
 

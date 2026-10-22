@@ -17,6 +17,10 @@ Install the specified version of a runtime.
 pnpm runtime set <name> <version> [-g]
 ```
 
+Without `-g`, the runtime is added to the current project as `<name>@runtime:<version>`. By default it goes to [`devEngines.runtime`](../package_json.md#devenginesruntime). With `--save-prod`, it goes to `engines.runtime`.
+
+After installing, pnpm suggests running [`pnpm shim add <name>`](./shim.md) so that the bare command picks the project's runtime.
+
 #### Supported runtimes
 
 - `node` - Node.js
@@ -25,13 +29,13 @@ pnpm runtime set <name> <version> [-g]
 
 :::info
 
-Since v11.0.0, installing a Node.js runtime (via `pnpm runtime set node …` or `node@runtime:<version>`) does not extract the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This roughly halves the number of files pnpm has to hash, write to the CAS, and link during a runtime install. If you still need `npm`, install it separately with `pnpm add -g npm`.
+Installing a Node.js runtime (via `pnpm runtime set node …` or `node@runtime:<version>`) does not install the bundled `npm`, `npx`, and `corepack`. If you need `npm`, install it separately with `pnpm add -g npm`.
 
 :::
 
 :::info
 
-Since v11.22.0, resolving a Node.js version (through [`devEngines.runtime`](../package_json.md#devenginesruntime) or a `runtime:` specifier) is much faster. The per-version release metadata is cached in the [cache directory](./cache-path.md) after its signature is verified, and an exact stable version such as `runtime:22.23.2` no longer downloads the Node.js release index. A pinned runtime whose metadata was fetched once resolves without any network access, which removes the delay on the first `node` invocation in a project pinning an already-downloaded runtime.
+The release metadata of a Node.js version is cached in the [cache directory](./cache-path.md) after its signature is verified. A pinned runtime whose metadata was fetched once resolves without network access.
 
 :::
 
@@ -89,3 +93,11 @@ pnpm runtime set bun latest -g
 ### --global, -g
 
 Install the runtime globally.
+
+### --save-dev, -D
+
+Save the runtime to `devEngines.runtime`. This is the default.
+
+### --save-prod, -P
+
+Save the runtime to `engines.runtime`.

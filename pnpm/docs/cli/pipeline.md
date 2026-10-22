@@ -98,20 +98,7 @@ Added in: v12.12.0
 
 A cacheable task's result can also be shared through the server [`remoteCache`](../settings/build.md#remotecache) names: a server that speaks the Turborepo Remote Cache API, such as Vercel Remote Cache, or a [pnpr](/pnpr) server. A CI run that publishes its results lets a later run on another machine restore them instead of running the tasks.
 
-Results are signed artifacts, the same kind the [remote side-effects cache](../settings/build.md#sideeffectscacheremote) uses. A machine restores a result only when it is signed by one of its `trustedKeys`, so only the machines that hold a private key can publish results others will use.
-
-```yaml title="pnpm-workspace.yaml"
-remoteCache:
-  org: acme
-```
-
-```yaml title="~/.config/pnpm/config.yaml"
-remoteCache:
-  url: https://vercel.com/api
-  team: team_abc123
-  trustedKeys:
-    ci-2026: <base64 public key>
-```
+Results are signed artifacts, the same kind the [remote side-effects cache](../settings/build.md#sideeffectscacheremote) uses. A machine restores a result only when it is signed by one of its `trustedKeys`, so only the machines that hold a private key can publish results others will use. See [`remoteCache`](../settings/build.md#remotecache) for the configuration.
 
 On the machine that publishes, usually CI, add the private key and turn publishing on. A published result includes the task's output files and its captured terminal output, so publish only from machines whose logs every reader may see:
 
@@ -132,7 +119,7 @@ A remote result that is missing, untrusted, or fails verification is a miss, and
 
 ## Reporting a run
 
-Every run writes a summary and an event stream under pnpm's pipeline data directory. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration), under the organization [`remoteCache.org`](../settings/build.md#remotecache) names; `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
+Every run writes a summary and an event stream under `<cacheDir>/pipeline/<hash of the workspace path>`, the directory that also holds the task cache. `--report` submits them to the [pnpr](/pnpr/pipeline-runs) server named by [`pnprServer`](/pnpr/install-acceleration), under the organization [`remoteCache.org`](../settings/build.md#remotecache) names; `--report-to <url>` submits them elsewhere, which is the better spelling when the server that stores runs is not the one that accelerates installs. A failed run is reported before the command exits non-zero.
 
 ## Watching a repository
 
@@ -143,6 +130,8 @@ pnpm pipeline --repo https://github.com/acme/app.git --watch
 The watch agent polls the repository and runs the pipeline for every new revision of the followed branch. It is a proof of concept, not a hosted CI service.
 
 ## Options
+
+`pnpm pipeline` first runs a frozen install, and it accepts every [`pnpm install`](./install.md) option to tune that install.
 
 ### --dry-run
 
@@ -178,7 +167,7 @@ The repository the watch agent polls: a URL or a local path, anything git accept
 
 ### --watch
 
-Watch `--repo` and run the pipeline for every new revision instead of running once in the current directory.
+Watch `--repo` and run the pipeline for every new revision instead of running once in the current directory. Requires `--repo`.
 
 ### --branch &lt;name&gt;
 
@@ -186,11 +175,17 @@ The branch the watch agent follows. Defaults to `main`.
 
 ### --interval &lt;seconds&gt;
 
-Seconds between polls of the watched repository. Defaults to `30`.
+Seconds between polls of the watched repository. Must be at least `1`. Defaults to `30`.
 
 ### --once
 
-With `--watch`, poll once, build if there is a new revision, and exit.
+With `--watch`, poll once, build if there is a new revision, and exit. Requires `--watch`.
+
+## Errors
+
+* `ERR_PNPM_NO_PIPELINES`: `pnpm-workspace.yaml` has no `pipelines` setting.
+* `ERR_PNPM_UNKNOWN_PIPELINE`: no pipeline has the requested name.
+* `ERR_PNPM_PIPELINE_FAIL`: at least one task failed. The command exits non-zero.
 
 ## Settings
 

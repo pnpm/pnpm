@@ -8,7 +8,7 @@ Added in: v11.0.0
 Remove a published package version from the registry.
 
 ```sh
-pnpm unpublish [<pkg>[@<version>]] [--force]
+pnpm unpublish <pkg>[@<version>] [--force]
 ```
 
 :::warning
@@ -37,7 +37,7 @@ Unpublish an entire package (all versions). Requires `--force`:
 pnpm unpublish foo --force
 ```
 
-When run without arguments inside a package directory, pnpm unpublishes the current package version read from the local `package.json`.
+A package name is required. Without one, the command fails with `ERR_PNPM_UNPUBLISH_REQUIRED`.
 
 ## Options
 
@@ -47,8 +47,8 @@ Required when removing an entire package (all versions) rather than a specific v
 
 ### --registry &lt;url\>
 
-The registry to publish to. Defaults to the registry configured for the package.
+The registry to remove the package from. Defaults to the registry configured for the package.
 
 ### --otp &lt;code\>
 
-When the registry requires two-factor authentication, supply the one-time password via this flag or the `PNPM_CONFIG_OTP` environment variable.
+When the registry requires two-factor authentication, supply the one-time password with this option.

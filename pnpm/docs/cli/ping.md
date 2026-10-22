@@ -3,15 +3,22 @@ id: ping
 title: pnpm ping
 ---
 
-Added in: v11.0.0
-
 Ping the configured registry to verify connectivity.
 
 ```sh
 pnpm ping [--registry <url>]
 ```
 
-On success, the registry's response is printed. This is useful for quickly confirming that the current machine can reach the registry without installing or publishing anything.
+On success, pnpm prints the registry URL and the round-trip time:
+
+```text
+PING https://registry.npmjs.org/
+PONG 120ms
+```
+
+If the registry answers with a non-empty JSON object or array, pnpm prints it on a further `PONG` line. If the request fails, the command fails with `ERR_PNPM_PING_ERROR`.
+
+This is useful for quickly confirming that the current machine can reach the registry without installing or publishing anything.
 
 ## Options
 

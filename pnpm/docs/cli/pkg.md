@@ -3,8 +3,6 @@ id: pkg
 title: pnpm pkg
 ---
 
-Added in: v11.3.0
-
 Manages the contents of `package.json` from the command line.
 
 ```sh

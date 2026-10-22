@@ -15,7 +15,7 @@ Review what dependencies may do: run build scripts (`build`) and provide [agent 
 
 Alias: `pnpm approve`
 
-Approve or deny what the dependencies awaiting approval request. A package appears once, with everything it requests:
+Approve or deny what the dependencies awaiting approval request. An install that skips a package's build scripts or skills records it as awaiting approval, so run `pnpm install` first. A package appears once, with everything it requests:
 
 ```
 drizzle-kit  build, skills

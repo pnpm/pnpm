@@ -31,6 +31,8 @@ A bin that is already in the global bin directory belongs to something else (a g
 
 Adding a shim while `globalShims: false` is set fails with `ERR_PNPM_SHIMS_DISABLED`: that setting turns every project-aware shim off, so the shim would sit on `PATH` doing nothing.
 
+Without a package, the command fails with `ERR_PNPM_SHIM_NO_PACKAGE`. If no global bin directory is configured, it fails with `ERR_PNPM_NO_GLOBAL_BIN_DIR`. Run [`pnpm setup`](./setup.md) to create one. `pnpm shim` without a subcommand fails with `ERR_PNPM_SHIM_NO_SUBCOMMAND`.
+
 ### rm
 
 ```sh

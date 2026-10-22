@@ -28,13 +28,9 @@ Show verbose output.
 
 Show parseable output instead of tree view.
 
-### --global, -g
-
-List packages in the global install directory instead of in the current project.
-
 ### --prod, -P
 
-Only display the dependency tree for packages in `dependencies`.
+Only display the dependency tree for packages in `dependencies` and `optionalDependencies`.
 
 ### --dev, -D
 
@@ -44,13 +40,9 @@ Only display the dependency tree for packages in `devDependencies`.
 
 Display only dependencies within a specific depth.
 
-### --only-projects
-
-Display only dependencies that are also projects within the workspace.
-
 ### --exclude-peers
 
-Exclude peer dependencies from the results (but dependencies of peer dependencies are not ignored).
+Accepted for compatibility, but has no effect. `pnpm why` always includes peer dependencies.
 
 ### --filter &lt;package_selector\>
 
