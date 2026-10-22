@@ -595,6 +595,29 @@ pub fn write_marker_script(relative_path: &str) -> String {
     format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
 }
 
+/// How long [`wait_for_marker_script`] gives another project's script to
+/// reach its marker.
+///
+/// Longer than [`CHILD_DEADLINE`], which waits on a child the test spawned
+/// itself. Reaching a marker here takes a whole `pacquet` run to schedule,
+/// install and spawn the project that writes it, which on a loaded runner
+/// costs tens of seconds. The deadline is a deadlock detector, so a pair
+/// that never overlaps fails instead of hanging, and the `slow-timeout` in
+/// `.config/nextest.toml` stops a test that makes no progress well after
+/// it.
+const MARKER_DEADLINE: Duration = Duration::from_mins(2);
+
+/// A package script that waits for `relative_path` to appear, paired with
+/// the [`write_marker_script`] of whichever project it waits on. One pair
+/// proves two scripts overlapped; two pairs prove an ordering.
+#[must_use]
+pub fn wait_for_marker_script(relative_path: &str) -> String {
+    let deadline = MARKER_DEADLINE.as_millis();
+    format!(
+        r#"node -e "const fs = require('fs'); const deadline = Date.now() + {deadline}; (function poll () {{ if (fs.existsSync('{relative_path}')) process.exit(0); if (Date.now() > deadline) process.exit(1); setTimeout(poll, 50) }})()""#,
+    )
+}
+
 /// A package script that appends `line` and a newline to `relative_path`,
 /// the portable stand-in for `echo <line> >> <path>`. `cmd` would carry
 /// the spaces before its redirection operator into the file, and would
