@@ -589,8 +589,8 @@ ui:
 ## `auth`
 
 Without `auth.htpasswd.file` and without a [`backend`](auth-backends.md),
-accounts and tokens live in memory and are lost on restart, and
-`pnpr add-user` refuses to run. The bundled config stores users in an htpasswd
+accounts live in memory and are lost on restart, and `pnpr add-user` refuses
+to run. Tokens live in memory too unless `auth.tokens.file` is set. The bundled config stores users in an htpasswd
 file and tokens in a local SQLite database:
 
 ```yaml title="pnpr.yaml"

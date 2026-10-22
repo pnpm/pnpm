@@ -102,8 +102,9 @@ backend:
 | `startupTimeout` | no | Startup connection and schema setup deadline. Defaults to `5m`. |
 
 When the `backend:` block is absent, the `auth.htpasswd` / `auth.tokens`
-settings apply. Without `auth.htpasswd.file`, accounts and tokens
-[live in memory](configuration.md#auth). With a `backend:` block,
+settings apply. Without `auth.htpasswd.file`, accounts
+[live in memory](configuration.md#auth), and so do tokens unless
+`auth.tokens.file` is set. With a `backend:` block,
 `auth.htpasswd.file` and `auth.tokens.file` are ignored, and only the
 `auth.htpasswd.max_users` registration cap is read. Omitted
 `max_users` and `max_users: -1` both disable self-registration; set a
