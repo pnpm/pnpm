@@ -705,6 +705,37 @@ fn add_command_reuses_a_locked_version_without_resolving() {
 }
 
 #[test]
+fn promoting_the_locked_version_through_a_range_skips_resolution() {
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let assert = pacquet_at(&workspace)
+        .with_args(["add", "@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0"])
+        .assert()
+        .success();
+    assert!(
+        String::from_utf8_lossy(&assert.get_output().stdout)
+            .contains("Lockfile is up to date, resolution step is skipped"),
+        "a range that picks the only locked version needs no resolution",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn readding_the_locked_version_through_a_range_skips_resolution() {
     let CommandTempCwd { workspace, root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

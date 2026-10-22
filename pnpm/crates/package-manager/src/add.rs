@@ -1,6 +1,6 @@
 mod install;
 use install::{
-    AddSeed, add_install, lockfile_importer, merged_catalogs_override, project_seed_policy,
+    AddSeed, LockedVersions, add_install, merged_catalogs_override, project_seed_policy,
     seed_picked_versions, selected_add_seed,
 };
 
@@ -221,12 +221,14 @@ where
         );
         seed_picked_versions(
             &prepared.picked_versions,
-            manifest
-                .path()
-                .parent()
-                .and_then(|manifest_dir| {
-                    lockfile_importer(add.lockfile.document, add.config, manifest_dir)
-                }),
+            &LockedVersions::of(
+                add.lockfile.document,
+                add.config,
+                manifest
+                    .path()
+                    .parent()
+                    .expect("manifest path always has a parent dir"),
+            ),
             (&mut dropped_pins, &mut preferred_versions_override),
         );
         let install_result = add_install(

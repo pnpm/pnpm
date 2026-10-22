@@ -78,7 +78,7 @@ pub(super) fn selected_add_seed(
         );
         seed_picked_versions(
             picked,
-            lockfile_importer(add.lockfile.document, add.config, &projects[index].root_dir),
+            &LockedVersions::of(add.lockfile.document, add.config, &projects[index].root_dir),
             (&mut names, &mut preferred),
         );
         if names.is_empty() {
@@ -98,46 +98,72 @@ pub(super) fn selected_add_seed(
     AddSeed { seed_policies, preferred_versions_override, catalogs_override }
 }
 /// Prefer the version an explicit specifier picked, since the saved range can
-/// admit newer ones, and withhold the pin `importer` holds at another version.
-/// A version `importer` already locks needs no seed, so the install can keep
-/// its fast path.
+/// admit newer ones, and withhold the pin the importer holds at another
+/// version. A version the lockfile already settles needs no seed, so the
+/// install can keep its fast path.
 pub(super) fn seed_picked_versions(
     picked_versions: &[PickedVersion],
-    importer: Option<&ProjectSnapshot>,
+    locked: &LockedVersions<'_>,
     seed: (&mut HashSet<String>, &mut PreferredVersions),
 ) {
     let (dropped_pins, preferred) = seed;
     for PickedVersion { name, version } in picked_versions {
-        let locked = importer.and_then(|importer| locked_version(importer, name));
-        if locked.as_deref() == Some(version.as_str()) {
+        let direct = locked.direct(name);
+        let settled = match direct.as_deref() {
+            Some(direct) => direct == version,
+            None => locked.only_version_of(name, version),
+        };
+        if settled {
             continue;
         }
         crate::install_with_fresh_lockfile::prefer_requested_version(preferred, name, version);
-        if locked.is_some() {
+        if direct.is_some() {
             dropped_pins.insert(name.clone());
         }
     }
 }
-fn locked_version(importer: &ProjectSnapshot, name: &str) -> Option<String> {
-    importer
-        .dependencies_by_groups(crate::DIRECT_GROUPS)
-        .find(|(alias, _)| alias.to_string() == name)?
-        .1
-        .version
-        .as_regular()
-        .map(|locked| locked.version().to_string())
-}
-/// The lockfile entry of the importer `manifest` belongs to.
-pub(super) fn lockfile_importer<'l>(
+/// What the wanted lockfile holds for the importer an add rewrites.
+pub(super) struct LockedVersions<'l> {
     lockfile: Option<&'l Lockfile>,
-    config: &Config,
-    manifest_dir: &std::path::Path,
-) -> Option<&'l ProjectSnapshot> {
-    let importer_id = pnpm_workspace::importer_id_from_root_dir(
-        config.lockfile_dir_for(manifest_dir),
-        manifest_dir,
-    );
-    lockfile?.importers.get(&importer_id)
+    importer: Option<&'l ProjectSnapshot>,
+}
+impl<'l> LockedVersions<'l> {
+    pub(super) fn of(
+        lockfile: Option<&'l Lockfile>,
+        config: &Config,
+        manifest_dir: &std::path::Path,
+    ) -> Self {
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(
+            config.lockfile_dir_for(manifest_dir),
+            manifest_dir,
+        );
+        let importer = lockfile.and_then(|lockfile| lockfile.importers.get(&importer_id));
+        Self { lockfile, importer }
+    }
+
+    /// The version the importer locks `name` at as a direct dependency.
+    fn direct(&self, name: &str) -> Option<String> {
+        self.importer?
+            .dependencies_by_groups(crate::DIRECT_GROUPS)
+            .find(|(alias, _)| alias.to_string() == name)?
+            .1
+            .version
+            .as_regular()
+            .map(|locked| locked.version().to_string())
+    }
+
+    /// Whether `version` is the one version of `name` the lockfile holds, which
+    /// is then what the fast path links a new direct dependency to.
+    fn only_version_of(&self, name: &str, version: &str) -> bool {
+        let mut versions = self.lockfile
+            .and_then(|lockfile| lockfile.packages.as_ref())
+            .into_iter()
+            .flatten()
+            .filter(|(key, _)| key.name.to_string() == name)
+            .map(|(key, _)| key.suffix.version().to_string())
+            .peekable();
+        versions.peek().is_some() && versions.all(|locked| locked == version)
+    }
 }
 /// What the install resolves from: the importers whose catalog pins are
 /// withheld, the versions the add named, and the catalogs as it rewrote
