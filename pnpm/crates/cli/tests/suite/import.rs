@@ -620,7 +620,9 @@ fn import_replaces_external_lockfile_and_preserves_its_env_document() {
                 version: "1.0.0".to_string(),
             },
         );
-    env_lockfile.write(root.path()).expect("write external env document");
+    env_lockfile
+        .write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("write external env document");
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
     pacquet
@@ -683,7 +685,9 @@ fn import_preserves_shared_lockfile_when_writing_a_branch_lockfile() {
                 version: "1.0.0".to_string(),
             },
         );
-    env_lockfile.write(root.path()).expect("write shared env document");
+    env_lockfile
+        .write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("write shared env document");
     let shared_lockfile =
         fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read shared lockfile");
     write_file(root.path(), "pnpm-lock.feature!import.yaml", "# stale branch lockfile\n");

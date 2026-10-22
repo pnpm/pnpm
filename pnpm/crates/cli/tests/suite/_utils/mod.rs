@@ -582,7 +582,9 @@ pub fn repin_snapshot_dependency(
         .get_mut(&dependency.parse().expect("parse the dependency name"))
         .unwrap_or_else(|| panic!("snapshot {snapshot_key} does not pin {dependency}"));
     *pin = serde_saphyr::from_str(new_ref).expect("parse the new dependency ref");
-    lockfile.save_to_path(lockfile_path).expect("write the rewritten lockfile");
+    lockfile
+        .save_to_path(lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("write the rewritten lockfile");
 }
 
 /// A package script that creates `relative_path` as an empty file: the

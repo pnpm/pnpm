@@ -163,7 +163,7 @@ fn save_pnpr_lockfile(
         return Ok(());
     }
     lockfile
-        .save_to_path(lockfile_path)
+        .save_to_path(lockfile_path, state.config.symlinked_lockfile())
         .map_err(|err| miette::miette!("{err}"))
         .wrap_err("writing the pnpr-resolved lockfile")?;
     if link.lockfile.trust {

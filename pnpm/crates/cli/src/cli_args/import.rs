@@ -65,7 +65,7 @@ impl ImportArgs {
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {
                 env_lockfile
-                    .write(lockfile_dir)
+                    .write(lockfile_dir, state.config.symlinked_lockfile())
                     .into_diagnostic()
                     .wrap_err("preserving the env lockfile after import")?;
             }

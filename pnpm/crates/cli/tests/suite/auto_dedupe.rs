@@ -62,7 +62,7 @@ fn prepare_duplicates(workspace: &Path) {
         .unwrap()
         .specifier = "^100.0.0".into();
     lockfile
-        .save_to_path(&workspace.join("pnpm-lock.yaml"))
+        .save_to_path(&workspace.join("pnpm-lock.yaml"), pnpm_lockfile::SymlinkedLockfile::Refuse)
         .unwrap();
 }
 

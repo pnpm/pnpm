@@ -122,7 +122,7 @@ pub async fn resolve_and_install_config_deps_updating<Reporter: self::Reporter>(
     // snapshots; drop them before writing.
     prune_env_lockfile(&mut env_lockfile);
     verify_config_dep_resolutions(&env_lockfile, config_deps, opts).await?;
-    write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+    write_verified_env_lockfile(&env_lockfile, opts.root_dir, opts.symlinked_lockfile)?;
     install_config_deps::<Reporter>(&env_lockfile, opts).await?;
     Ok(saved_specifiers)
 }

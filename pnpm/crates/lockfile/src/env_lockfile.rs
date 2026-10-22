@@ -14,10 +14,10 @@
 
 use crate::{
     LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,
-    extract_main_document,
+    SymlinkedLockfile, extract_main_document,
     git_merge_file::{ParsedWantedFile, parse_wanted_file},
     merge_env_lockfile_changes,
-    save_lockfile::ensure_lockfile_is_not_symlink,
+    save_lockfile::lockfile_write_target,
     serialize_yaml,
     yaml_documents::{
         YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, normalize_lockfile_content,
@@ -143,8 +143,13 @@ impl EnvLockfile {
     /// Write this env document as the first YAML document of
     /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
     /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An unchanged
-    /// document is not rewritten.
-    pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
+    /// document is not rewritten, and a changed one treats a symlinked
+    /// lockfile as `symlinked` says.
+    pub fn write(
+        &self,
+        root_dir: &Path,
+        symlinked: SymlinkedLockfile,
+    ) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
         let raw = match fs::read_to_string(&path) {
@@ -162,13 +167,13 @@ impl EnvLockfile {
         if existing.as_deref() == Some(combined.as_str()) {
             return Ok(());
         }
-        ensure_lockfile_is_not_symlink(&path).map_err(SaveLockfileError::WriteFile)?;
-        write_atomic(&path, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
+        let target = lockfile_write_target(&path, symlinked).map_err(SaveLockfileError::WriteFile)?;
+        write_atomic(&target, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
     }
 }
 
 /// Reads the leading env document, following a symlink;
-/// [`ensure_lockfile_is_not_symlink`] covers why only writes refuse one.
+/// [`SymlinkedLockfile`] covers why only writes may refuse one.
 fn read_env_document(path: &Path) -> io::Result<Option<String>> {
     match File::open(path) {
         Ok(file) => read_first_yaml_document(file),

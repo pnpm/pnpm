@@ -3,7 +3,7 @@
 //! before the lockfile is written.
 
 use crate::ConfigDepError;
-use pnpm_lockfile::{EnvLockfile, PackageKey};
+use pnpm_lockfile::{EnvLockfile, PackageKey, SymlinkedLockfile};
 use pnpm_package_name::is_valid_old_npm_package_name;
 use std::path::Path;
 
@@ -12,9 +12,10 @@ use std::path::Path;
 pub fn write_verified_env_lockfile(
     env_lockfile: &EnvLockfile,
     root_dir: &Path,
+    symlinked_lockfile: SymlinkedLockfile,
 ) -> Result<(), ConfigDepError> {
     verify_env_lockfile(env_lockfile)?;
-    env_lockfile.write(root_dir).map_err(ConfigDepError::WriteLockfile)
+    env_lockfile.write(root_dir, symlinked_lockfile).map_err(ConfigDepError::WriteLockfile)
 }
 
 /// Reject config-dependency and optional-subdep names/versions before they

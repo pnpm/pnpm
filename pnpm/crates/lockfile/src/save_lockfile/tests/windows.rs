@@ -1,5 +1,5 @@
 use super::LOCKFILE_YAML;
-use crate::Lockfile;
+use crate::{Lockfile, SymlinkedLockfile};
 use pnpm_fs::test_support::with_retry_observer;
 use std::{fs, io, os::windows::fs::OpenOptionsExt, sync::mpsc};
 use tempfile::tempdir;
@@ -38,7 +38,7 @@ fn save_recovers_after_the_lockfile_is_briefly_held() {
                 drop(handle.take());
             }
         },
-        || lockfile.save_to_path(&path),
+        || lockfile.save_to_path(&path, SymlinkedLockfile::Refuse),
     );
     let attempts: Vec<_> = receiver.try_iter().collect();
     eprintln!("save result: {result:?}; real filesystem attempts: {attempts:?}");

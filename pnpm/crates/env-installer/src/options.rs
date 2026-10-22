@@ -34,6 +34,7 @@ pub struct ConfigDepsInstallOptions<'a> {
     pub root_dir: &'a Path,
     /// `--frozen-lockfile`: refuse to mutate the env lockfile.
     pub frozen_lockfile: bool,
+    pub symlinked_lockfile: pnpm_lockfile::SymlinkedLockfile,
     pub mode: ConfigDepsInstallMode,
 }
 
