@@ -19,7 +19,9 @@ Or alternatively, run `pnpm audit --fix`.
 
 If you want to tolerate some vulnerabilities as they don't affect your project, you may use the [`audit.ignore`] setting.
 
-Since v11, `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bulk` endpoint. The response does not include CVE identifiers, so advisories are filtered by GitHub advisory ID (GHSA) instead. If you previously listed CVEs under `auditConfig.ignoreCves`, replace each entry with the corresponding `GHSA-xxxx-xxxx-xxxx` value (shown in the `More info` column of `pnpm audit` output) under [`audit.ignore`].
+`pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bulk` endpoint. The response does not include CVE identifiers, so advisories are identified by GitHub advisory ID (GHSA).
+
+The command exits with code `1` when an advisory at or above the [audit level](#--audit-level-severity) remains after ignored advisories are removed.
 
 [overrides]: ../settings/dependency-resolution.md#overrides
 [`audit.ignore`]: #auditignore
@@ -27,8 +29,6 @@ Since v11, `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bu
 ## Commands
 
 ### signatures
-
-Added in: v11.1.0
 
 ```sh
 pnpm audit signatures
@@ -46,10 +46,10 @@ The command exits with code `1` if any package has an invalid signature, or if a
 
 ### --audit-level &lt;severity\>
 
-* Type: **low**, **moderate**, **high**, **critical**
+* Type: **info**, **low**, **moderate**, **high**, **critical**
 * Default: **low**
 
-Only print advisories with severity greater than or equal to `<severity>`.
+Only print advisories with severity greater than or equal to `<severity>`. Advisories below this level also do not fail the command.
 
 This can also be set via [`audit.level`](#auditlevel) in `pnpm-workspace.yaml`.
 
@@ -57,15 +57,13 @@ This can also be set via [`audit.level`](#auditlevel) in `pnpm-workspace.yaml`.
 
 Add overrides to the `pnpm-workspace.yaml` file to force non-vulnerable versions of the dependencies.
 
-Use `--fix=update` (added in v11.0.0) to fix vulnerabilities by updating the vulnerable packages in the lockfile instead of adding overrides.
+Use `--fix=update` to fix vulnerabilities by updating the vulnerable packages in the lockfile instead of adding overrides.
 
 When [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) is set, `--fix` also adds the minimum patched version of each advisory to [`minimumReleaseAgeExclude`](../settings/dependency-resolution.md#minimumreleaseageexclude) in `pnpm-workspace.yaml`, so the security fix can be installed without waiting for the release age window.
 
 ### --interactive, -i
 
-Added in: v11.0.0
-
-Review the advisories selected by `--fix` and pick which ones to apply. Only usable together with `--fix`.
+Review the advisories selected by `--fix` and pick which ones to apply. Implies `--fix=override` when `--fix` is not given.
 
 ### --json
 
@@ -77,9 +75,13 @@ Output audit report in JSON format.
 
 Only audit dev dependencies.
 
-### --prod, -P
+### --prod, --production, -P
 
-Only audit production dependencies.
+Only audit `dependencies` and `optionalDependencies`.
+
+### --optional
+
+Audit `optionalDependencies`. This is the default.
 
 ### --no-optional
 
@@ -92,25 +94,19 @@ So the process will fail only if the registry actually successfully responds wit
 
 ### --ignore-unfixable
 
-Added in: v10.11.0
-
 Ignore all advisories with no resolution.
 
-Since v11, unfixable advisories are tracked by GHSA rather than CVE.
-
-Their IDs are saved in `pnpm-workspace.yaml` the same way as with [`--ignore`](#--ignore-vulnerability).
+Their GHSA IDs are saved in `pnpm-workspace.yaml` the same way as with [`--ignore`](#--ignore-vulnerability).
 
 ### --ignore &lt;vulnerability\>
 
-Added in: v10.11.0
+Ignore a vulnerability by its GitHub advisory ID (GHSA).
 
-Ignore a vulnerability by its GitHub advisory ID (GHSA). Before v11 this flag accepted CVE identifiers.
-
-The ID is saved in `pnpm-workspace.yaml`, which is created if missing, and no audit report is printed. It is added to [`audit.ignore`](#auditignore) if that list is already set, otherwise to `auditConfig.ignoreGhsas`. pnpm 12 still reads `auditConfig.ignoreGhsas`, so the advisory stays ignored either way.
+The ID is saved in `pnpm-workspace.yaml`, which is created if missing, and no audit report is printed. It is added to [`audit.ignore`](#auditignore) if that list is already set, otherwise to the deprecated `auditConfig.ignoreGhsas`, which pnpm still reads. To have a new project write to `audit.ignore`, create the list first (`audit: { ignore: [] }`).
 
 ## Configuration
 
-`pnpm audit` is configured in the `audit` section of `pnpm-workspace.yaml` (added in v11.16.0):
+`pnpm audit` is configured in the `audit` section of `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 audit:
@@ -122,7 +118,7 @@ audit:
 ### audit.level
 
 * Default: **low**
-* Type: **low**, **moderate**, **high**, **critical**
+* Type: **info**, **low**, **moderate**, **high**, **critical**
 
 Only print advisories with severity greater than or equal to this level. Same as the [`--audit-level`](#--audit-level-severity) flag.
 
@@ -161,8 +157,8 @@ audit:
 
 :::info
 
-Before v11.16.0, these settings were named `auditLevel` and `auditConfig.ignoreGhsas`. These deprecated names are still supported in pnpm v12; when both are set, the `audit` section takes precedence and a warning is printed.
+`auditLevel` and `auditConfig.ignoreGhsas` are deprecated names for `audit.level` and `audit.ignore`, and pnpm still reads them. When both spellings are set, the `audit` section takes precedence and a warning is printed.
 
-Before v11, `auditConfig.ignoreCves` was used to filter advisories by CVE identifier. That setting is no longer recognized.
+`auditConfig.ignoreCves` is not recognized. Replace each CVE with the matching `GHSA-xxxx-xxxx-xxxx` ID, shown in the `More info` column of `pnpm audit` output, under [`audit.ignore`](#auditignore).
 
 :::

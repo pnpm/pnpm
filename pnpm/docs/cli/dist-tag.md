@@ -3,9 +3,9 @@ id: dist-tag
 title: pnpm dist-tag
 ---
 
-Added in: v11.0.0
-
 Manage distribution tags for a package. Dist-tags provide human-readable aliases (like `latest`, `next`, `beta`) that point to specific package versions on the registry.
+
+Aliases: `dist-tags`
 
 ```sh
 pnpm dist-tag add <pkg>@<version> [<tag>]
@@ -17,7 +17,7 @@ pnpm dist-tag ls [<pkg>]
 
 ### add &lt;pkg\>@&lt;version\> [&lt;tag\>]
 
-Tag the specified version of a package with a dist-tag. If `<tag>` is omitted, the value of the [`tag`](../settings/other.md#tag) setting is used (defaults to `latest`).
+Tag the specified version of a package with a dist-tag. If `<tag>` is omitted, `latest` is used. The version must be an exact semver version. A range fails with `ERR_PNPM_DIST_TAG_ADD_INVALID_VERSION`.
 
 ```sh
 pnpm dist-tag add foo@1.2.0 next
@@ -33,7 +33,7 @@ pnpm dist-tag rm foo next
 
 ### ls [&lt;pkg\>]
 
-List all dist-tags for a package. If no package name is given, the dist-tags for the current package (read from the local `package.json`) are shown.
+List all dist-tags for a package. `list` is accepted as an alias of `ls`. If no package name is given, the dist-tags for the current package (read from the local `package.json`) are shown.
 
 ```sh
 pnpm dist-tag ls foo
@@ -60,4 +60,4 @@ The registry to operate on. Defaults to the registry configured for the package.
 
 ### --otp &lt;code\>
 
-When the registry requires two-factor authentication, supply the one-time password via this flag or the `PNPM_CONFIG_OTP` environment variable.
+When the registry requires two-factor authentication, supply the one-time password via this flag. When the registry uses web-based authentication, pnpm prints a URL to open instead. Rerun the command with `--otp` once the login finishes.

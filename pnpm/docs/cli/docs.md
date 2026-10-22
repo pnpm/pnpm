@@ -3,19 +3,23 @@ id: docs
 title: pnpm docs
 ---
 
-Added in: v11.0.0
-
 Aliases: `home`
 
 Open a package's documentation (or homepage) in the browser.
 
 ```sh
-pnpm docs [<pkg> ...]
+pnpm docs <pkg>[@<version>]
 ```
 
-When run without arguments inside a package directory, it opens the documentation for the current project.
+pnpm fetches the package's metadata from the registry.
 
-If the package does not declare a valid `homepage`, pnpm falls back to `https://npmx.dev/package/<name>`.
+If the package does not declare a valid `homepage`, pnpm falls back to `https://npmx.dev/package/<name>`. When no browser can be opened, pnpm prints the URL.
+
+## Options
+
+### --registry &lt;url\>
+
+The registry to fetch the package's metadata from.
 
 ## Examples
 
@@ -23,16 +27,4 @@ Open the documentation for a published package:
 
 ```sh
 pnpm docs lodash
-```
-
-Open the documentation for multiple packages at once:
-
-```sh
-pnpm docs react react-dom
-```
-
-Open the documentation for the current project:
-
-```sh
-pnpm docs
 ```
