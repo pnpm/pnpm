@@ -78,7 +78,6 @@ fn slot_released_during_a_walk_stays_usable() {
 #[cfg(unix)]
 #[test]
 fn die_from_signal_does_not_dump_core() {
-    use pipe_trait::Pipe;
     use std::{
         env, io,
         os::unix::process::{CommandExt, ExitStatusExt},
@@ -96,7 +95,7 @@ fn die_from_signal_does_not_dump_core() {
     let temp = dir.path().join(".pnpm-lock.yaml.123.2.tmp");
     fs::write(&temp, "partial lockfile").expect("stage temp file");
 
-    let mut command = env::current_exe().expect("test binary path").pipe(Command::new);
+    let mut command = Command::new(env::current_exe().expect("test binary path"));
     command
         .args(["--exact", "pending_temp::tests::die_from_signal_does_not_dump_core", "--nocapture"])
         .env(CHILD_TEMP_ENV, &temp);
