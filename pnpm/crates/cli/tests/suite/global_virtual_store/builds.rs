@@ -941,7 +941,7 @@ fn gvs_builds_each_slot_of_a_git_dependency() {
             "name": "native-addon",
             "version": "1.0.0",
             "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" },
-            "scripts": { "install": "node -e \"require('fs').writeFileSync('built', '')\"" },
+            "scripts": { "install": r#"node -e "require('fs').writeFileSync('built', '')""# },
         })
         .to_string(),
     );
@@ -953,7 +953,7 @@ fn gvs_builds_each_slot_of_a_git_dependency() {
         set_gvs_workspace_yaml(
             &workspace,
             &format!(
-                "{allow_builds}overrides:\n  '@pnpm.e2e/dep-of-pkg-with-1-dep': {dependency_version}\n"
+                "{allow_builds}overrides:\n  '@pnpm.e2e/dep-of-pkg-with-1-dep': {dependency_version}\n",
             ),
         );
         pacquet(&workspace)
