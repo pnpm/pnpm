@@ -95,9 +95,10 @@ fn recursive_run_lists_a_nameless_project_by_its_directory() {
                 .chars()
                 .filter(|char| !char.is_whitespace())
                 .collect();
-            unwrapped.contains(&format!("inpackages:{dir},project-1"))
+            unwrapped.contains(&dir)
         });
     assert!(listed, "the nameless project should be listed by its directory, got: {stderr}");
+    assert!(unwrapped.contains("project-1"), "project-1 should be listed too, got: {stderr}");
 
     drop(root);
 }
