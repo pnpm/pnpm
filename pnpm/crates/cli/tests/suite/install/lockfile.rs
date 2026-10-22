@@ -1084,12 +1084,10 @@ fn allow_symlinked_lockfile_writes_through_the_symlink() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
-    workspace_yaml.push_str("\nallowSymlinkedLockfile: true\n");
-    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
     let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
 
     new_pacquet_command(&workspace)
+        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", "true")
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
@@ -1102,9 +1100,11 @@ fn allow_symlinked_lockfile_writes_through_the_symlink() {
     drop((root, mock_instance));
 }
 
+/// The repository that commits the symlink must not be the one that allows
+/// writing through it.
 #[cfg(unix)]
 #[test]
-fn changed_symlinked_lockfile_is_refused_by_default() {
+fn changed_symlinked_lockfile_is_refused_even_if_the_workspace_yaml_allows_it() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -1113,6 +1113,9 @@ fn changed_symlinked_lockfile_is_refused_by_default() {
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("\nallowSymlinkedLockfile: true\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
     let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
     let before = fs::read_to_string(&source_lockfile).unwrap();
 

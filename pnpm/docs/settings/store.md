@@ -181,7 +181,7 @@ Added in: v12.16.0
 
 When `pnpm-lock.yaml` is a symlink, pnpm reads it through the link but refuses to write changes to it. Set this to `true` to write the updated lockfile to the file the symlink points to. pnpm follows the whole chain of links, keeps every link in place, and keeps the target file's permissions. A lockfile that does not change is never written.
 
-Enable it only if you control where the lockfile links to. A changed lockfile is written to whatever file the link points at.
+Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE=true`. The setting in `pnpm-workspace.yaml` is ignored, because the repository that commits the symlink must not be the one that allows writing through it.
 
 ### lockfile.includeResolutionSettings
 
