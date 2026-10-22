@@ -154,6 +154,13 @@ fn pnpx_alias_with_package_named_like_subcommand_keeps_env_file_for_the_package(
 }
 
 #[test]
+fn steps_over_a_clustered_short_option_taking_a_value() {
+    let (paths, remaining) = scan(&argv(&["-rC", "project", "--env-file", ".env", "run", "build"]));
+    assert_eq!(paths, vec![PathBuf::from(".env")]);
+    assert_eq!(strings(&remaining), vec!["pnpm", "-rC", "project", "run", "build"]);
+}
+
+#[test]
 fn strip_flags_keeps_everything_else() {
     let stripped =
         strip_flags(&argv(&["--recursive", "--env-file", "a.env", "install", "--env-file=b.env"]));

@@ -10,7 +10,10 @@
 
 use crate::{
     cli_args::grammar,
-    flag_relocation::{ArgTable, attached_short_option_prefix, inline_long_option_name},
+    flag_relocation::{
+        ArgTable, attached_short_option_prefix, inline_long_option_name,
+        short_cluster_consumes_value,
+    },
 };
 use clap::Command;
 use std::{collections::HashSet, ffi::OsString};
@@ -291,13 +294,9 @@ pub(crate) fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> O
     if let Some(long) = rest.strip_prefix('-') {
         return Some(long_option_width(long, next, arity));
     }
-    let short = rest
-        .chars()
-        .next()
-        .expect("checked non-empty");
-    let is_bare_short = rest.chars().count() == 1;
-    let consumes_value = arity.short_consumes_value(short).unwrap_or(false);
-    Some(if consumes_value && is_bare_short { 2 } else { 1 })
+    let consumes_value =
+        short_cluster_consumes_value(rest, |short| arity.short_consumes_value(short));
+    Some(1 + usize::from(consumes_value))
 }
 
 /// [`option_width`] for a `--long` option, given the token after it and
