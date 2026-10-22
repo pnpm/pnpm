@@ -71,11 +71,18 @@ fn read_umask() -> u32 {
 }
 
 /// The mask as Linux publishes it, in the `Umask:` line of
-/// `/proc/self/status`. `None` where `procfs` is not mounted, or on a
-/// kernel before 4.7, which does not print the line.
+/// `/proc/thread-self/status`.
+///
+/// `thread-self` rather than `self` so that the line read is the calling
+/// thread's, which is the mask the fallback below would have reported.
+/// The two name the same mask unless a thread has unshared its filesystem
+/// information, which pnpm never does.
+///
+/// `None` where `procfs` is not mounted, on a kernel before 3.17, which
+/// has no `thread-self`, or before 4.7, which does not print the line.
 #[cfg(target_os = "linux")]
 fn published_umask() -> Option<u32> {
-    parse_published_umask(&std::fs::read_to_string("/proc/self/status").ok()?)
+    parse_published_umask(&std::fs::read_to_string("/proc/thread-self/status").ok()?)
 }
 
 /// Separate from [`published_umask`] so a test can drive it without a
