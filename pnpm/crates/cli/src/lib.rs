@@ -173,7 +173,7 @@ fn run_cli() -> miette::Result<()> {
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // A version spec (`pnpm with 10 <cmd>`) is left for the `with`
     // subcommand to handle.
-    let argv = with_current::rewrite(argv, &single_threaded)?;
+    let argv = with_current::rewrite(argv, single_threaded)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);

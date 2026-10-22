@@ -10,12 +10,18 @@
 /// Evidence that no thread but the main one exists yet.
 ///
 /// Claim it at the top of `main`, before a runtime, a thread pool, or
-/// anything else that spawns, and pass it to whatever changes the
-/// environment. The value carries the proof: a function that takes one
-/// cannot be called from a thread that was spawned after it was claimed,
-/// because there was no way to obtain one by then.
+/// anything else that spawns, and spend it on the change the process
+/// needs.
+///
+/// What the type carries: it is neither `Send` nor `Sync`, so it cannot
+/// reach a spawned thread, and [`Self::set_var`] takes it by value, so it
+/// is spent at the first call and cannot be kept for a second one. What it
+/// cannot carry is that the claiming thread has spawned nothing between
+/// the claim and the call, because no value can observe that. Keeping the
+/// two adjacent is the caller's part, and moving the witness into the call
+/// makes every later use a compile error.
 #[must_use = "the witness is the proof that the environment may be changed"]
-pub struct SingleThreaded(());
+pub struct SingleThreaded(std::marker::PhantomData<*const ()>);
 
 impl SingleThreaded {
     /// Claim the witness, which only the first caller gets.
@@ -32,16 +38,20 @@ impl SingleThreaded {
                 std::sync::atomic::Ordering::Acquire,
             )
             .is_ok()
-            .then_some(Self(()))
+            .then_some(Self(std::marker::PhantomData))
     }
 
     /// Set `name` to `value` in the process environment, where every later
     /// read of it will see the new value, this process's children included.
-    pub fn set_var(&self, name: &str, value: &str) {
-        // SAFETY: the witness exists, so this is the thread that claimed it
-        // and no other thread had been spawned at that point. A thread
-        // spawned since cannot be running this, because obtaining a witness
-        // to call it with is no longer possible.
+    ///
+    /// Takes the witness by value, so a process makes one such change and
+    /// cannot hold the proof for a second one after it has spawned.
+    pub fn set_var(self, name: &str, value: &str) {
+        // SAFETY: the race `setenv` has is a concurrent read from another
+        // thread. The witness is neither `Send` nor `Sync`, so this runs on
+        // the thread that claimed it, and the claim is the first in the
+        // process; that the caller spends it before spawning is the
+        // obligation `SingleThreaded` documents.
         unsafe { std::env::set_var(name, value) };
     }
 }

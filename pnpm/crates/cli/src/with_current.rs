@@ -30,10 +30,12 @@ pub struct MissingWithCurrentCommand;
 /// `pnpm_config_pm_on_fail` env var.
 ///
 /// `single_threaded` is what permits that environment change, and so what
-/// pins this call to the stretch of `main` before any thread starts.
+/// pins this call to the stretch of `main` before any thread starts. It is
+/// taken by value, so the caller cannot reach for it again once a runtime
+/// or a pool is up.
 pub fn rewrite(
     argv: Vec<OsString>,
-    single_threaded: &pnpm_ffi_process::SingleThreaded,
+    single_threaded: pnpm_ffi_process::SingleThreaded,
 ) -> miette::Result<Vec<OsString>> {
     let (argv, force_pm_on_fail_ignore) = plan(argv)?;
     if force_pm_on_fail_ignore {
