@@ -16,7 +16,7 @@ publisher-owned artifacts, and key lifecycle policy are deliberately left out.
 :::
 
 When a dependency has a build script, every machine that installs it pays for
-that build. pnpm's local [`sideEffectsCache`](/settings/build#sideeffectscache)
+that build. pnpm's local [`sideEffectsCache`](https://pnpm.io/settings/build#sideeffectscache)
 makes the second install on the *same* machine cheap; this feature extends the
 same idea across machines, by having one trusted builder publish the build
 output and everyone else restore it.
@@ -64,9 +64,8 @@ artifacts:
 ```
 
 With `artifacts.enabled: false` (the default) the three routes are not mounted
-at all, and the handshake at `GET /-/pnpr` does not advertise them. Since pnpr
-v0.1.0-alpha.9, an artifact-only tier may set `resolver.enabled: false`, declare
-no registries, and enable only `artifacts`; pnpm 12.1 can connect to that tier.
+at all, and the handshake at `GET /-/pnpr` does not advertise them. An artifact-only tier may set `resolver.enabled: false`,
+declare no registries, and enable only `artifacts`.
 
 By default artifacts live at `<cache>/shared-artifacts/v0`. When the pnpr config
 has an [`s3:` block](storage.md), they live under the reserved
@@ -114,7 +113,7 @@ sideEffectsCache:
 
 `packages` is an independent allowlist: a package is only a candidate when it is
 listed there *and* has `requiresBuild: true`, *and* passes
-[`allowBuilds`](/settings/build#allowbuilds), *and* has a verified source
+[`allowBuilds`](https://pnpm.io/settings/build#allowbuilds), *and* has a verified source
 integrity. `--ignore-scripts` returns without making a request at all.
 
 The trust material (`trustedKeys`, `privateKey`, and everything else that
@@ -122,7 +121,7 @@ describes the act of signing) is refused in `pnpm-workspace.yaml` with
 `ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST`. The repository being installed is
 not a trust root: if it could name the signing key, a cloned repository could
 turn the machine's key into a signing oracle. Those fields come from the [global
-configuration file](/cli/config) instead, which travels with the machine:
+configuration file](https://pnpm.io/cli/config) instead, which travels with the machine:
 
 ```yaml title="~/.config/pnpm/config.yaml"
 sideEffectsCache:
@@ -154,8 +153,8 @@ over both files. This is the shape a CI runner wants for material it must not co
 The `PNPM_REMOTE_SIDE_EFFECTS_CACHE_*` names still work, and the ones above win
 when both are set.
 
-Since pnpm v12.12.0, `org` and the trust material can also be set under the
-[`remoteCache`](/settings/build#remotecache) setting, which the task cache of
+`org` and the trust material can also be set under the
+[`remoteCache`](https://pnpm.io/settings/build#remotecache) setting, which the task cache of
 `pnpm pipeline` shares. A field set there wins over the same field under
 `sideEffectsCache.remote`. `remoteCache.url` stores the artifacts on a server
 that speaks the Turborepo Remote Cache API instead of on pnpr.
@@ -251,7 +250,7 @@ other platform or libc family is treated as compatible by guessing.
 The base64 `payload` of a signed envelope is the exact UTF-8 JSON covered by the
 `ecdsa-p256-sha256` signature, and verification always uses those unchanged
 bytes. Signing opaque bytes avoids having to agree on JSON canonicalization
-between the Rust and TypeScript implementations. Signatures are canonical ASN.1
+between clients. Signatures are canonical ASN.1
 DER; verification keys are P-256 `SubjectPublicKeyInfo` DER; `keyId` is an
 opaque case-sensitive UTF-8 string of 1 to 256 bytes with no control characters.
 
@@ -266,14 +265,15 @@ decoded payload\0
 decoded DER signature
 ```
 
-Since pnpr v0.1.0-alpha.9, every candidate and signed payload carries a
+Every candidate and signed payload carries a
 discriminated subject. Dependency side effects use
 `{ kind: 'dependency-side-effects', package, sourceIntegrity }` and an input key
 beginning with `dependency-side-effects:v1:`. The protocol also defines
 `{ kind: 'workspace-task', project, task }` with a `workspace-task:v1:` input
 key, so workspace-task artifacts cannot be confused with dependency builds.
-The current pnpm integration publishes and restores dependency side effects;
-the workspace-task subject reserves the protocol identity for task artifacts.
+pnpm publishes and restores dependency side effects under the first subject,
+and the remote task cache of `pnpm pipeline` signs and publishes task results
+under the second.
 
 Input keys carry no host platform identity; compatibility tags live in the
 signed payload instead. The artifact kind and input-key prefix must match the

@@ -57,9 +57,10 @@ dependency confusion.
 pnpr -c ./pnpr.yaml
 ```
 
-It listens on `127.0.0.1:7677`. (Running plain `pnpr` with no config works
-too, using the minimal production default that proxies npmjs and provides
-a local hosted registry at `/npm/~local/`.)
+It listens on `127.0.0.1:7677`. Running plain `pnpr` with no config works
+too. The bundled config proxies npmjs and provides a local hosted registry at
+`/npm/~local/`, whose packages need a login. It allows no self-registration,
+so create accounts with [`pnpr add-user`](cli.md#add-user).
 
 ## Point a client at it
 

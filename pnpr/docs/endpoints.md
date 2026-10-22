@@ -74,7 +74,7 @@ Every request routes through the registry graph:
   registry; a write that routes to an upstream is rejected.
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
-- Served `dist.tarball` URLs are rewritten onto the configured `public_url`
+- Served `dist.tarball` URLs are rewritten onto `--public-url` (`PNPR_PUBLIC_URL`)
   and stay canonical for the base the client addressed (`/npm/` or
   `/npm/~<name>/`), so lockfiles don't bake in a registry name.
 
@@ -97,15 +97,14 @@ artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
 `ignoreManifestCheck`, `trustLockfile`, `minimumReleaseAge`,
 `minimumReleaseAgeExclude`, `minimumReleaseAgeIgnoreMissingTime`,
 `trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`, and
-`fixLockfile`. Since v0.1.0-alpha.9, a repair request regenerates broken
+`fixLockfile`. A repair request regenerates broken
 lockfile metadata while retaining compatible locked versions, including for a
 filtered install.
 
 Every registry the request would make pnpr fetch from (the `registry` and
 `registries` origins, plus any direct `http(s)`/`git` URL in a dependency
-spec, an override, or an input-lockfile tarball) must be on the server's fetch
-allowlist (the configured registries, declared public routes, the built-in npm
-registry, and pnpr's own origin). An off-allowlist origin is rejected up front,
+spec, an override, or an input-lockfile tarball) must be on the server's
+[fetch allowlist](install-acceleration.md#allowlist). An off-allowlist origin is rejected up front,
 before any server-side fetch. Upstream credentials are never taken from the
 client: pnpr selects its own server-owned credential per route (see
 [Install acceleration](install-acceleration.md#private-registries)), and a URL
@@ -183,9 +182,9 @@ are checked against the serving registry's matching
 | `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
 | `GET` | `/@scope/{name}@{version}` | Scoped tarball by exact version. |
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
-| `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and, since v0.1.0-alpha.11, the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
+| `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). |
+| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](https://pnpm.io/registry-revisions). |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
@@ -201,8 +200,8 @@ When OSV checks are enabled, vulnerable versions are removed from packuments
 and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.
 
-Since v0.1.0-alpha.8, the digest route answers integrity-addressed
-[registry revisions](/registry-revisions). The digest is the SHA-512 of the
+The digest route answers integrity-addressed
+[registry revisions](https://pnpm.io/registry-revisions). The digest is the SHA-512 of the
 uncompressed tar, on every registry, `.tgz` and tar registries alike. The
 response is the tar with `Content-Type: application/x-tar`, sent with the
 `gzip` or `zstd` content coding the client's `Accept-Encoding` allows, or with
@@ -274,7 +273,7 @@ way no writer's update is silently discarded. See
 
 ## Staged publishing endpoints
 
-These implement the server half of [`pnpm stage`](/cli/stage), npm's
+These implement the server half of [`pnpm stage`](https://pnpm.io/cli/stage), npm's
 [staged publishing](https://docs.npmjs.com/staged-publishing) workflow, where a
 version is uploaded first and promoted later. A staged version is held back
 rather than made visible: it isn't installable, and nothing is written under
@@ -319,7 +318,7 @@ endpoint rather than masking as a `404`.
 
 ## Team endpoints
 
-pnpr serves npm's team endpoints in the shape [`pnpm team`](/cli/team)
+pnpr serves npm's team endpoints in the shape [`pnpm team`](https://pnpm.io/cli/team)
 consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |

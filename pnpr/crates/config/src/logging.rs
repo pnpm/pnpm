@@ -69,10 +69,9 @@ pub enum LogLevel {
 
 impl LogLevel {
     /// Convert to an `EnvFilter` directive string. `http` is not a
-    /// tracing level, so we expand it to `info` for the framework
-    /// plus a `pnpr::access=info` target so the per-request
-    /// access log surfaces even when the rest of the crate is
-    /// quieter. Structured audit records (`pnpr::audit=info`) are
+    /// tracing level and filters the same as `info`: the per-request
+    /// `pnpr::access` records are emitted at `info`, so both levels
+    /// include them. Structured audit records (`pnpr::audit=info`) are
     /// retained across all levels so security events are not lost.
     #[must_use]
     pub fn as_filter_directive(self) -> &'static str {

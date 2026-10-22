@@ -69,7 +69,7 @@ backend:
 
 The trade-off is read freshness: an embedded replica reflects another replica's
 writes (a token issued or revoked elsewhere) only after the next background
-sync, so a lower `syncIntervalSecs` means less revocation lag. Omit
+sync, so a lower positive `syncInterval` means less revocation lag. Omit
 `replicaPath` to always read the primary directly.
 
 ## PostgreSQL
@@ -101,25 +101,16 @@ backend:
 | `timeout` | no | Request-path auth database deadline. Defaults to `30s`. |
 | `startupTimeout` | no | Startup connection and schema setup deadline. Defaults to `5m`. |
 
-When the `backend:` block is absent, auth stays on local disk and the
-`auth.htpasswd` / `auth.tokens` settings apply as before. The
-`auth.htpasswd.max_users` registration cap is honored either way. Omitted
+When the `backend:` block is absent, the `auth.htpasswd` / `auth.tokens`
+settings apply. Without `auth.htpasswd.file`, accounts
+[live in memory](configuration.md#auth), and so do tokens unless
+`auth.tokens.file` is set. With a `backend:` block,
+`auth.htpasswd.file` and `auth.tokens.file` are ignored, and only the
+`auth.htpasswd.max_users` registration cap is read. Omitted
 `max_users` and `max_users: -1` both disable self-registration; set a
 non-negative cap to let new users register.
 
 ## Extensibility model
 
-pnpr v1 relies on compile-time Rust trait implementations rather than a
-dynamic plugin runtime (such as WebAssembly, Lua, or dynamic C libraries).
-Custom user storage and token management implement the `UserBackend` and
-`TokenBackend` traits defined in `pnpr-auth`:
-
-- **`UserBackend`**: handles user lookup, credential verification (bcrypt
-  password hashing), user creation, password updates, and deprovisioning.
-- **`TokenBackend`**: manages bearer token creation, validation, listing, and
-  revocation.
-
-Registering custom backends at compile time avoids external scripting runtime
-dependencies (such as WebAssembly or Lua), while request-path backend calls use
-Rust dynamic dispatch through trait objects (`Arc<dyn UserBackend>`,
-`Arc<dyn TokenBackend>`).
+Custom user and token backends are compiled into pnpr. There is no plugin
+runtime.

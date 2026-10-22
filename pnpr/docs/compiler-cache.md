@@ -114,5 +114,5 @@ The endpoint implements `GET`, `HEAD`, and `PUT` at
 `/-/pnpr/v0/compiler-cache/<cache>/<key>`, plus `PROPFIND` for virtual parent
 directories. It is the subset sccache uses, not a general WebDAV filesystem.
 Local builds keep using ordinary Cargo commands. The pnpm
-[`sideEffectsCache`](/settings/build#sideeffectscache) setting governs npm
+[`sideEffectsCache`](https://pnpm.io/settings/build#sideeffectscache) setting governs npm
 dependency side effects and does not configure this integration.

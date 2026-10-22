@@ -3,6 +3,9 @@ id: cli
 title: CLI reference
 ---
 
+`pnpr` runs the registry server when no subcommand is given. The other
+subcommands are offline maintenance tools.
+
 ```sh
 pnpr [serve] [OPTIONS]
 pnpr config check
@@ -11,7 +14,7 @@ pnpr export --out <dir> [OPTIONS]
 pnpr migrate-storage [OPTIONS]
 pnpr upgrade-storage [--dry-run]
 pnpr import-htpasswd --source <path> [OPTIONS]
-pnpr add-user <username> [--password <password>]
+pnpr add-user <username>
 pnpr oci-gc --registry <name> [OPTIONS]
 pnpr cache-gc [OPTIONS]
 ```
@@ -27,8 +30,8 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | `--storage <path>` | Override the [storage](configuration.md) directory from the loaded config. This directory is the source of truth for hosted packages. |
 | `--cache <path>` | Override the disposable cache directory (the mirror of upstream registries, resolver cache, and local shared-artifact store). Defaults to a `.pnpr-cache` subdirectory of the storage path. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` URLs in served packuments. Defaults to `http://<listen>`. |
-| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Alias: `--packument-ttl-secs`. A registry's `maxage` overrides it for that registry. |
-| `--osv` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. |
+| `--packument-ttl <interval>` | Duration before a cached packument is considered stale and refetched (e.g. `5m`, `300s`, or bare seconds). Defaults to [`packumentTtl`](configuration.md#packumentttl), which defaults to `5m`. Alias: `--packument-ttl-secs`. A registry's `maxAge` overrides it for that registry. |
+| `--osv [<bool>]` | Enable local [OSV](https://osv.dev/) npm vulnerability checks. Requires a local OSV npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`. `--osv false` turns off checks that the config enables. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm registry surface (packument and tarball reads, publish, unpublish, dist-tags, and search) that is otherwise served whenever the config declares at least one registry. The health and login/token endpoints stay available. |
 | `--disable-resolver` | Disable the install-accelerator surface: `GET /-/pnpr`, `POST /-/pnpr/v0/resolve`, and `POST /-/pnpr/v0/verify-lockfile`. Overrides `resolver.enabled`. |
@@ -37,13 +40,15 @@ Server options apply to `pnpr serve` (and bare `pnpr`). Global path options (`-c
 | `-h, --help` | Print help. |
 | `-V, --version` | Print version. |
 
-## Every flag has an environment variable
+## Environment variables
 
-Since v0.1.0-alpha.11, pnpr reads any option from an environment variable when
-the flag is omitted. The variable is the flag's name with a `PNPR_` prefix, so
-`--public-url` becomes `PNPR_PUBLIC_URL` and `--disable-resolver` becomes
-`PNPR_DISABLE_RESOLVER`. A flag given on the command line wins over its
-variable. Boolean flags accept `true`, `1`, `yes`, `on`, `false`, `0`, `no`,
+pnpr reads every option in the [Options](#options) table, except `--help` and
+`--version`, from an environment variable when the flag is omitted. The variable is the flag's name with a
+`PNPR_` prefix, so `--config` becomes `PNPR_CONFIG`, `--storage` becomes
+`PNPR_STORAGE`, `--cache` becomes `PNPR_CACHE`, `--public-url` becomes
+`PNPR_PUBLIC_URL`, and `--disable-resolver` becomes `PNPR_DISABLE_RESOLVER`.
+The flags of the maintenance subcommands have no environment variable. A flag
+given on the command line wins over its variable. Boolean flags accept `true`, `1`, `yes`, `on`, `false`, `0`, `no`,
 and `off`.
 
 ```sh
@@ -70,7 +75,7 @@ Audits hosted package documents (`package.json`) against stored blobs. Inspects 
 # Full checksum verification (SHA-1 and Subresource Integrity)
 pnpr verify
 
-# Fast presence check without recomputing hashes
+# Check that every blob exists, without comparing hashes
 pnpr verify --skip-hashes
 
 # Prune unreferenced blobs left behind by interrupted operations (older than 24h)
@@ -113,13 +118,24 @@ pnpr migrate-storage --to-bucket my-bucket --verify
 
 | Flag | Description |
 | --- | --- |
-| `--from <dir>` | Source hosted storage directory. Defaults to configured `storage.hosted_dir`. |
+| `--from <dir>` | Source hosted storage directory. Defaults to the configured [`storage`](configuration.md#storage-and-cache) directory (`--storage`). |
 | `--to-bucket <name>` | Destination S3 bucket name. |
 | `--to-region <region>` | Destination S3 AWS region (e.g. `us-east-1`). |
 | `--to-endpoint <url>` | Custom S3 endpoint URL (for MinIO, Cloudflare R2, etc.). |
 | `--to-prefix <prefix>` | Destination key prefix within the bucket. |
 | `--dry-run` | Report packages and blobs to migrate without uploading. |
 | `--verify` | Read back and verify content of uploaded blobs after transfer. |
+
+Without `--to-bucket`, the command migrates into the bucket of the config's
+[`s3:`](storage.md#backends) block. With `--to-bucket`, only the `--to-*` flags
+describe the destination. The region, endpoint, and prefix are not read from
+the config, credentials come only from `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY`, and `forcePathStyle` and `allowHttp` cannot be set.
+To reach a plain-HTTP MinIO, configure the `s3:` block instead:
+
+```sh
+pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
+```
 
 ### upgrade-storage
 
@@ -174,13 +190,15 @@ htpasswd file, run it while pnpr is stopped. A running pnpr does not see the
 new account, and its next account change overwrites the file.
 
 ```sh
-# Prompts for the password, or reads it from stdin
+# Prompts for the password
 pnpr add-user alice
+
+# Reads the password from one line of stdin
+printf '%s\n' "$PASSWORD" | pnpr add-user alice
 ```
 
-| Flag | Description |
-| --- | --- |
-| `--password <password>` | The account's password. Read from the terminal or stdin when omitted. |
+The password is read from the terminal, or from one line of stdin when stdin is
+not a terminal. It cannot be passed as a flag.
 
 ### oci-gc
 
@@ -194,7 +212,7 @@ the whole run.
 | --- | --- |
 | `--registry <name>` | The concrete hosted OCI registry to collect, by its config name. Required. |
 | `--dry-run` | Report the candidates without deleting anything. |
-| `--min-age-secs <n>` | Keep blobs younger than this. Defaults to `86400`, so an interrupted push can still resume. `0` collects every unreferenced blob. |
+| `--min-age <interval>` | Keep blobs younger than this (e.g. `1d`, `86400s`, or bare seconds). Defaults to `1d`, so an interrupted push can still resume. `0` collects every unreferenced blob. Alias: `--min-age-secs`. |
 
 ### cache-gc
 
@@ -208,7 +226,7 @@ cache size and age limits.
 | --- | --- |
 | `--dry-run` | Report the candidates without deleting anything. |
 | `--max-size <size>` | Maximum total cache size to retain (e.g. `10GB`, `500MB`, or raw bytes). Evicts oldest files first (LRU). Overrides the config value. |
-| `--max-age-secs <n>` | Maximum file age in seconds. Entries older than this are deleted. Overrides the config value. |
+| `--max-age <interval>` | Maximum file age (e.g. `30d`, `1h`, or bare seconds). Entries older than this are deleted. Overrides the config value. Alias: `--max-age-secs`. |
 | `--orphans-only` | Only prune orphaned upstream namespaces without evicting active cache entries. |
 
 ## Logging
@@ -221,8 +239,11 @@ RUST_LOG=debug pnpr
 ```
 
 The config `log.level` accepts `trace`, `debug`, `http`, `info`, `warn`, and
-`error`. `http` enables one access-log record per request while keeping the
-rest of the crate quieter.
+`error`. `info` (the default) and `http` both log one access record per request,
+and `warn` and `error` drop them. To keep access records while quieting the
+rest, set
+`RUST_LOG=warn,pnpr::access=info,pnpr::audit=info`. A `RUST_LOG` value that
+omits `pnpr::audit=info` drops the audit records below `warn`.
 
 ## Examples
 
@@ -260,7 +281,7 @@ pnpr uses standard exit codes:
 
 | Code | Meaning | Description |
 | --- | --- | --- |
-| `0` | Success | The command completed successfully. For the server, indicates clean termination after `SIGINT` or `SIGTERM`. For maintenance commands (`config check`, `verify`, `export`, `migrate-storage`, `import-htpasswd`), indicates all checks and transfers succeeded. |
+| `0` | Success | The command completed successfully. For the server, indicates clean termination after `SIGINT` or `SIGTERM`. For a maintenance subcommand, indicates all checks and transfers succeeded. |
 | `1` | Error | The command failed. Causes include invalid CLI flags, YAML configuration errors, address binding conflicts (port already in use), missing storage/auth files, or integrity audit failures (such as `pnpr verify` finding missing or corrupted blobs). |
 
 In Unix shells, if an external supervisor kills the process before the graceful shutdown handler finishes, the exit status will reflect the signal number (for example, `130` for `SIGINT` or `143` for `SIGTERM`).

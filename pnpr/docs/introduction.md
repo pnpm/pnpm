@@ -10,7 +10,7 @@ it. It hosts your own packages and proxies upstream registries such as
 `registry.npmjs.org`, with its own authentication and access controls. It plays roughly
 the role [verdaccio](https://verdaccio.org/) plays in the JavaScript ecosystem.
 
-Since v0.1.0-alpha.11, one instance can serve more than npm. It also speaks the
+One instance can serve more than npm. It also speaks the
 Cargo and Python protocols and the [OCI distribution
 API](container-images.md), so a workspace that ships a package, a crate, a
 Python distribution, and an image can [publish all four in one
