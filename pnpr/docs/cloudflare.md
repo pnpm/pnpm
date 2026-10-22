@@ -205,10 +205,13 @@ pnpm wrangler deploy --containers-rollout=none
 - **TLS and the hostname** come from Cloudflare, which is the
   [reverse proxy](tls-and-reverse-proxy.md) this setup runs behind. Add a
   custom domain to the Worker to serve the registry from your own hostname.
-- **One instance** is enough for a team registry. Raising `max_instances` runs
-  several replicas against the same bucket and database, which the
-  [S3 backend supports](storage.md#concurrent-writers), but each replica keeps
-  its own upstream cache.
+- **One instance** is enough for a team registry. The Worker above always
+  forwards to the single container named `pnpr`, so raising `max_instances`
+  alone starts nothing more. To run replicas, spread requests across several
+  names or use the `getRandom` helper from the same package. Replicas share the
+  bucket and the database, which the
+  [S3 backend supports](storage.md#concurrent-writers), but each keeps its own
+  upstream cache.
 - **Publishing passes through the Worker**, so the plan's request body limit
   caps the size of a published tarball.
 - **Container output** is in the Workers logs in the Cloudflare dashboard.
