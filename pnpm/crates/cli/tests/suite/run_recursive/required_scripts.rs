@@ -60,6 +60,70 @@ fn recursive_run_ignores_projects_without_an_unlisted_script() {
     drop(root);
 }
 
+/// A project without a `name` is listed by its directory.
+#[test]
+fn recursive_run_lists_a_nameless_project_by_its_directory() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            ("nameless", json!({ "version": "1.0.0" })),
+        ],
+    );
+    require_scripts(&workspace, "build");
+
+    let output = pacquet
+        .with_args(["-r", "run", "build"])
+        .output()
+        .expect("spawn pacquet");
+
+    assert!(!output.status.success(), "a project without the required script must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let unwrapped: String = stderr
+        .chars()
+        .filter(|char| !char.is_whitespace() && *char != '│')
+        .collect();
+    let nameless_dir = workspace.join("nameless");
+    let canonical_dir = fs::canonicalize(&nameless_dir).expect("canonicalize the project dir");
+    let listed = [nameless_dir, canonical_dir]
+        .iter()
+        .any(|dir| {
+            let dir: String = dir
+                .display()
+                .to_string()
+                .chars()
+                .filter(|char| !char.is_whitespace())
+                .collect();
+            unwrapped.contains(&format!("inpackages:{dir},project-1"))
+        });
+    assert!(listed, "the nameless project should be listed by its directory, got: {stderr}");
+
+    drop(root);
+}
+
+/// Only the projects selected for the run must have the script.
+#[test]
+fn filtered_recursive_run_checks_only_the_selected_projects() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", json!({ "name": "project-1", "version": "1.0.0" })),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+    require_scripts(&workspace, "build");
+
+    pacquet
+        .with_args(["-r", "--filter", "project-2", "run", "build"])
+        .assert()
+        .success();
+    assert!(workspace.join("project-2/ran.txt").exists(), "project-2 should run build");
+
+    drop(root);
+}
+
 fn require_scripts(workspace: &Path, script: &str) {
     let workspace_yaml = workspace.join("pnpm-workspace.yaml");
     let yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
