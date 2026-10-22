@@ -6,15 +6,14 @@ title: pnpm fetch
 Fetch packages from a lockfile into virtual store, package manifest is ignored.
 A missing package manifest is not created.
 
+`pnpm fetch` requires `pnpm-lock.yaml` and does not update it. When the project pins a pnpm version that commands would switch to, `pnpm fetch` also downloads that pnpm into the store, so a later `pnpm install --offline` finds it.
+
 ## Usage scenario
 
 This command is specifically designed to improve building a docker image.
 
-You may have read the [official guide] to writing a Dockerfile for a Node.js
-app, if you haven't read it yet, you may want to read it first.
-
-From that guide, we learn to write an optimized Dockerfile for projects using
-pnpm, which looks like
+A typical Dockerfile for a project using pnpm looks like this (see also
+[Working with Docker](../docker.md)):
 
 ```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12
@@ -23,7 +22,8 @@ RUN pnpm runtime set node 22 -g
 
 WORKDIR /app
 
-# Files required by pnpm install
+# Files required by pnpm install. Leave out .pnpmfile.mjs if the project has none,
+# because COPY fails on a missing source.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmfile.mjs ./
 
 # If you patched any package, include patches before install too
@@ -58,7 +58,8 @@ RUN pnpm runtime set node 22 -g
 
 WORKDIR /app
 
-# Files required by pnpm install
+# Files required by pnpm install. Leave out .pnpmfile.mjs if the project has none,
+# because COPY fails on a missing source.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .pnpmfile.mjs ./
 
 # If you patched any package, include patches before install too
@@ -131,10 +132,10 @@ Local `file:` protocol dependencies are skipped during `pnpm fetch`, since they 
 
 Only development packages will be fetched
 
-### --prod, -P
+### --prod, --production, -P
 
 Development packages will not be fetched
 
+### --ignore-pnpmfile
 
-
-[official guide]: https://github.com/nodejs/docker-node#readme
+Don't run the hooks of the [pnpmfile](../pnpmfile.md).

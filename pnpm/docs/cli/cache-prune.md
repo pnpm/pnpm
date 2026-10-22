@@ -17,9 +17,12 @@ Deletes the registry metadata cache directories that this version of pnpm can no
 pnpm cache prune
 ```
 
-pnpm v12.4.0 changed the metadata cache directory name of every registry, so the first install after upgrading refetched metadata into a new directory and left the old one in place. Nothing reads it, and no other subcommand removes it, because [`cache list`](./cache-list.md), [`cache view`](./cache-view.md) and [`cache delete`](./cache-delete.md) all search under the configured registry's current directory name. `cache prune` goes through all three metadata roots, `v12/metadata`, `v12/metadata-full` and `v12/metadata-full-filtered`, and removes the directories whose names this version cannot read.
+pnpm keeps registry metadata in three roots, `v12/metadata`, `v12/metadata-full` and `v12/metadata-full-filtered`, with one directory per registry named after the registry's full URL. `cache prune` removes:
 
-A later version moved the metadata cache from `v11/` to `v12/`, because the cache file format changed. `cache prune` removes every directory under `v11/metadata`, `v11/metadata-full`, `v11/metadata-full-filtered` and `v11/metadata-private`.
+- every directory under `v11/metadata`, `v11/metadata-full`, `v11/metadata-full-filtered` and `v11/metadata-private`, which older pnpm versions use;
+- the directories under the `v12/` roots that are named after the registry's host alone, which this version cannot read.
+
+No other subcommand removes these directories, because [`cache list`](./cache-list.md), [`cache view`](./cache-view.md) and [`cache delete`](./cache-delete.md) all search under the configured registry's current directory name.
 
 Each removed directory is printed as the metadata root followed by the directory name:
 
@@ -45,7 +48,7 @@ The list on stdout is the same as a real prune's, so you can diff the two runs o
 
 :::warning
 
-The cache directory is shared by every pnpm on the machine. If an older pnpm runs on the same machine under the same [`cacheDir`](../settings/other.md#cachedir), it may still read and write the directories that prune removes, and pruning costs that CLI one metadata refetch. Only the cache is affected, and it refills itself. Use `--dry-run` to see the list before removing anything.
+The cache directory is shared by every pnpm on the machine. If an older pnpm runs on the same machine under the same [`cacheDir`](../settings/other.md#cachedir), it may still read and write the directories that prune removes. Projects that use that pnpm refetch registry metadata after a prune, and their offline installs fail until they do. Only the cache is affected, and it refills itself. Use `--dry-run` to see the list before removing anything.
 
 :::
 

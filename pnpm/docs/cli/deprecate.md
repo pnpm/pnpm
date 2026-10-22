@@ -3,19 +3,13 @@ id: deprecate
 title: pnpm deprecate
 ---
 
-Added in: v11.0.0
-
 Set a deprecation message on a published package version. Consumers running `pnpm install` will see this message when the matching version is installed.
 
 ```sh
 pnpm deprecate <pkg>[@<version-range>] <message>
 ```
 
-To clear a deprecation message, use [`pnpm undeprecate`](#pnpm-undeprecate) or pass an empty string:
-
-```sh
-pnpm deprecate foo@1.0.0 ""
-```
+To clear a deprecation message, use [`pnpm undeprecate`](#pnpm-undeprecate). An empty message fails with `ERR_PNPM_DEPRECATE_MESSAGE_REQUIRED`.
 
 ## Examples
 
@@ -41,15 +35,15 @@ pnpm deprecate foo "This package is no longer maintained"
 
 ### --registry &lt;url\>
 
-The registry to publish to. Defaults to the registry configured for the package.
+The registry to write the deprecation to. Defaults to the registry configured for the package.
 
 ### --otp &lt;code\>
 
-When the registry requires two-factor authentication, supply the one-time password via this flag or the `PNPM_CONFIG_OTP` environment variable.
+When the registry requires two-factor authentication, supply the one-time password via this flag.
 
 ## pnpm undeprecate
 
-Remove a deprecation message from a package version. Equivalent to running `pnpm deprecate <pkg>[@<version-range>] ""`.
+Remove a deprecation message from a package version.
 
 ```sh
 pnpm undeprecate <pkg>[@<version-range>]

@@ -17,7 +17,7 @@ pnpm dist-tag ls [<pkg>]
 
 ### add &lt;pkg\>@&lt;version\> [&lt;tag\>]
 
-Tag the specified version of a package with a dist-tag. If `<tag>` is omitted, the value of the [`tag`](../settings/other.md#tag) setting is used (defaults to `latest`).
+Tag the specified version of a package with a dist-tag. If `<tag>` is omitted, `latest` is used. The version must be an exact semver version. A range fails with `ERR_PNPM_DIST_TAG_ADD_INVALID_VERSION`.
 
 ```sh
 pnpm dist-tag add foo@1.2.0 next
@@ -47,4 +47,4 @@ The registry to operate on. Defaults to the registry configured for the package.
 
 ### --otp &lt;code\>
 
-When the registry requires two-factor authentication, supply the one-time password via this flag or the `PNPM_CONFIG_OTP` environment variable.
+When the registry requires two-factor authentication, supply the one-time password via this flag.

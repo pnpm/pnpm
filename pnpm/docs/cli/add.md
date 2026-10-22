@@ -65,7 +65,7 @@ Naming a [package manager](../package-managers.md) (`npm`, `yarn` or `bun`) reco
 pnpm add yarn@4
 ```
 
-writes `"packageManager": "yarn@4.18.0"`, and every other package manager is recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager). Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit [`node@tool:22`](../package-sources.md#provisioned-tools) spelling does since v12.13.0. `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@tool:1.3.0`).
+writes `"packageManager": "yarn@4.18.0"`. npm and Bun are recorded as a range in [`devEngines.packageManager`](../package_json.md#devenginespackagemanager) instead. Each write removes the other field. Naming a runtime (`node`, `deno`) records it under `engines.runtime`, as the explicit [`node@tool:22`](../package-sources.md#provisioned-tools) spelling does since v12.13.0. `bun` is both, and is declared as the project's package manager unless you ask for the runtime (`pnpm add bun@tool:1.3.0`).
 
 Globally, `pnpm add -g yarn` installs the current Yarn line rather than the Classic-only `yarn` package, and `pnpm add -g node@22` installs that Node.js release rather than a wrapper that downloads one.
 
@@ -124,10 +124,14 @@ Install the specified packages as `optionalDependencies`.
 Saved dependencies will be configured with an exact version rather than using
 pnpm's default semver range operator.
 
+### --save-build
+
+Install `crate:` packages as Cargo build dependencies.
+
 ### --save-peer
 
 Using `--save-peer` will add one or more packages to `peerDependencies` and
-install them as dev dependencies.
+install them as dev dependencies. `--no-save-peer` overrides a `savePeer: true` setting.
 
 ### --save-types
 
@@ -141,7 +145,11 @@ pnpm add express --save-types
 # saves express to dependencies, @types/express to devDependencies
 ```
 
-Set `saveTypes: true` in `pnpm-workspace.yaml` to enable this by default.
+Set [`saveTypes: true`](../settings/other.md#savetypes) in `pnpm-workspace.yaml` to enable this by default. `--no-save-types` overrides that setting.
+
+### --save-prefix &lt;prefix\>
+
+The prefix of the saved version range: `^`, `~`, `=` for an explicit exact pin, or an empty string for a bare exact version. Overrides the [`savePrefix`](../settings/other.md#saveprefix) setting.
 
 ### --tilde
 
@@ -152,30 +160,24 @@ range (`~1.2.3`) instead of the default caret range (`^1.2.3`).
 
 ### --save-catalog
 
-Added in: v10.12.1
-
 Save the new dependency to the default [catalog].
 
 ### --save-catalog-name &lt;catalog_name\>
 
-Added in: v10.12.1
-
 Save the new dependency to the specified [catalog].
 
-[catalog]: catalogs.md
+[catalog]: ../catalogs.md
 
 ### --config
 
-Added in: v10.8.0
-
-Save the dependency to [configDependencies](config-dependencies.md).
+Save the dependency to [configDependencies](../config-dependencies.md).
 
 Since v12.12.0, the saved range follows the same rules as for a dependency in `package.json`.
 
 ### --ignore-workspace-root-check
 
-Adding a new dependency to the root workspace package fails, unless the
-`--ignore-workspace-root-check` or `-w` flag is used.
+Adding a new dependency to the root workspace package fails, unless you pass
+`--ignore-workspace-root-check` or target the root with `-w` (`--workspace-root`).
 
 For instance, `pnpm add debug -w`.
 
@@ -196,8 +198,6 @@ registry.
 
 ### --allow-build
 
-Added in: v10.4.0
-
 A list of package names that are allowed to run postinstall scripts during installation.
 
 Example:
@@ -215,6 +215,14 @@ pnpm add --allow-build=!core-js my-bundler
 ```
 
 writes `allowBuilds: { core-js: false }`, so the package is never asked about again. Global installs (`pnpm add -g`) record the denial too.
+
+### --lockfile-only
+
+Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or writing `node_modules`.
+
+### --force
+
+Reinstall every package the lockfile names, relinking packages that an earlier install already linked.
 
 ### --registry
 

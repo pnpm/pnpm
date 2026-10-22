@@ -3,8 +3,6 @@ id: access
 title: pnpm access
 ---
 
-Added in: v11.11.0
-
 Manages package access and visibility on the registry.
 
 ```sh
@@ -59,6 +57,8 @@ Set the package visibility.
 pnpm access set status=public @myorg/pkg
 pnpm access set status=private @myorg/pkg
 ```
+
+`restricted` is accepted as a synonym for `private`. `pnpm access public <package>` and `pnpm access restricted <package>` are shorthands for `set status=public` and `set status=private`.
 
 Only scoped packages can change visibility. Unscoped packages are always public, and attempting to change one fails with `ERR_PNPM_ACCESS_SET_STATUS_UNSCOPED`.
 

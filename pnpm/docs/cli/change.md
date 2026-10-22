@@ -3,8 +3,6 @@ id: change
 title: pnpm change
 ---
 
-Added in: v11.13.0
-
 Records a change intent: which packages a change affects, the bump type for each, and a summary that becomes the changelog entry. The intent file is written to `.changeset/` in the [changesets](https://github.com/changesets/changesets) format.
 
 ```sh
@@ -75,13 +73,13 @@ Private packages (`"private": true`) are never checked against the registry for 
 
 Added in: v12.4.0
 
-Validate the versions committed in the workspace against the [epic](../versioning.md#epics) bands and [fixed group](../versioning.md#fixed-groups) lockstep declared in `pnpm-workspace.yaml`.
+Validate the pending change intents, and check the versions committed in the workspace against the [epic](../versioning.md#epics) bands and [fixed group](../versioning.md#fixed-groups) lockstep declared in `pnpm-workspace.yaml`.
 
 ```sh
 pnpm change check
 ```
 
-Unlike `pnpm change status`, which reports the release the pending intents produce, `check` looks only at the versions already in the manifests. It reads no intents, so it is the step to run on every pull request: a package whose version drifted out of its epic's band, or out of step with its fixed group, fails the command. Every violation is listed, including ones in packages the current release does not touch.
+Unlike `pnpm change status`, which reports the release the pending intents produce, `check` plans the release from the pending intents without reporting it, and checks only the versions already in the manifests. An intent that would fail at release time, such as one naming a package outside the workspace, fails the command. Run it on every pull request: a package whose version drifted out of its epic's band, or out of step with its fixed group, fails the command. Every violation is listed, including ones in packages the current release does not touch.
 
 ## Options
 

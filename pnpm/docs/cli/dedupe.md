@@ -15,6 +15,26 @@ Since v12.4.1, `pnpm dedupe` processes every project in the workspace by default
 
 Check if running dedupe would result in changes without installing packages or editing the lockfile. Exits with a non-zero status code if changes are possible.
 
+### `--lockfile-only`
+
+Only update `pnpm-lock.yaml`. Packages are not downloaded and `node_modules` is not written.
+
+### `--ignore-scripts`
+
+Don't run lifecycle scripts of the project or its dependencies.
+
+### `--ignore-pnpmfile`
+
+Don't run the hooks of the [pnpmfile](../pnpmfile.md).
+
+### `--offline`
+
+Use only packages already in the store. A package missing from the store fails the command.
+
+### `--prefer-offline`
+
+Prefer cached packages and metadata over the network, even past their freshness window.
+
 ### `--filter <package_selector>`
 
 Restrict the command to the selected projects. [Read more about filtering.](../filtering.md)

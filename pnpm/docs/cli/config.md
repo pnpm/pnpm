@@ -30,7 +30,7 @@ The global `rc` file (registry/auth settings only) is at:
 * On macOS: **~/Library/Preferences/pnpm/rc**
 * On Linux: **~/.config/pnpm/rc**
 
-You can also retrieve the path to your global config file by running (added in v10.21.0):
+You can also retrieve the path to your global config file by running:
 
 ```sh
 pnpm config get globalconfig
@@ -67,7 +67,7 @@ The `set` command does not accept a property path.
 
 ### get &lt;key>
 
-Print the config value for the provided key.
+Print the config value for the provided key. Strings, numbers, and booleans are printed as plain text, objects and arrays as JSON, and an unset key as `undefined`. With `--json`, every value is printed as JSON.
 
 The `key` can be a simple key:
 
@@ -102,12 +102,6 @@ Show all the config settings. Output is a JSON object.
 
 Auth-related settings are hidden from the output; use `pnpm config get <key>` to read them explicitly.
 
-:::note
-
-Since v11, `pnpm config get` (without `--json`) no longer prints INI-formatted text. It prints JSON for objects and arrays, and raw strings for strings, numbers, booleans, and nulls. `pnpm config get --json` prints all values as JSON. `pnpm config list` always prints a JSON object.
-
-:::
-
 ## Options
 
 ### --global, -g
@@ -117,6 +111,8 @@ Set the configuration in the global config file.
 With `get` and `list`, show the global configuration without the settings from the project's `pnpm-workspace.yaml` and `.npmrc`.
 
 ### --location
+
+* Type: **project**, **global**
 
 By default, `--location` is set to `global`.
 
