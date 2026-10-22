@@ -78,7 +78,7 @@ lengthy build process.
 
 ### --shell-mode, -c
 
-Runs the command inside of a shell. Uses `/bin/sh` on UNIX and `cmd.exe` on Windows.
+Runs the command inside a shell. Uses `/bin/sh` on UNIX and `cmd.exe` on Windows.
 
 ### --report-summary
 

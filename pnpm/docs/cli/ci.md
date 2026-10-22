@@ -15,4 +15,4 @@ pnpm ci
 
 ## Options
 
-`pnpm ci` accepts the options of [`pnpm install`](./install.md), such as `--prod`, `--offline`, and `--filter`, and the [`--lockfile`](./clean.md#--lockfile--l) option of `pnpm clean`.
+`pnpm ci` accepts the options of [`pnpm install`](./install.md), such as `--prod`, `--offline`, and `--filter`.

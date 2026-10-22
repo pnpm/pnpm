@@ -19,9 +19,9 @@ Or alternatively, run `pnpm audit --fix`.
 
 If you want to tolerate some vulnerabilities as they don't affect your project, you may use the [`audit.ignore`] setting.
 
-`pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bulk` endpoint. The response does not include CVE identifiers, so advisories are identified by GitHub advisory ID (GHSA).
+`pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bulk` endpoint. The response does not include CVE identifiers, so advisories are identified by the GitHub advisory ID (GHSA) in their URL.
 
-The command exits with code `1` when an advisory at or above the [audit level](#--audit-level-severity) remains after ignored advisories are removed.
+The command exits with code `1` when an advisory at or above the [audit level](#--audit-level-severity) remains after ignored advisories are removed. With `--ignore` or `--ignore-unfixable`, the command only saves the IDs and exits with code `0`.
 
 [overrides]: ../settings/dependency-resolution.md#overrides
 [`audit.ignore`]: #auditignore
@@ -94,7 +94,7 @@ So the process will fail only if the registry actually successfully responds wit
 
 ### --ignore-unfixable
 
-Ignore all advisories with no resolution.
+Ignore all advisories with no resolution. An unfixable advisory without a GHSA ID cannot be ignored and fails the command with `ERR_PNPM_AUDIT_MISSING_GHSA`.
 
 Their GHSA IDs are saved in `pnpm-workspace.yaml` the same way as with [`--ignore`](#--ignore-vulnerability).
 

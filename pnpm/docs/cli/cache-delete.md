@@ -23,6 +23,6 @@ pnpm cache delete '@babel/*'
 
 :::warning
 
-Without arguments, `pnpm cache delete` deletes every cached metadata file of the configured registry.
+Without arguments, `pnpm cache delete` deletes every cached metadata file of the configured registry. The descriptor-scoped metadata under `v12/metadata-private` is not affected.
 
 :::

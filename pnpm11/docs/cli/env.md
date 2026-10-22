@@ -84,4 +84,4 @@ pnpm env list 16
 
 ### --global, -g
 
-The changes are made systemwide.
+The changes are made systemwide. `use` and `remove` require this option. Without it, they fail with `ERR_PNPM_NOT_IMPLEMENTED_YET`.

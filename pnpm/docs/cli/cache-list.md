@@ -15,7 +15,7 @@ Lists the available packages metadata cache. Supports filtering by glob.
 pnpm cache list [<pattern>...]
 ```
 
-Only the cache of the configured registry is listed. Each match is printed on its own line as a path relative to the metadata cache directory, `<registry-key>/<name>.jsonl`. Without arguments, every cached package of the registry is listed.
+The command searches the cache of the configured registry, in the metadata directory that the current resolution mode reads. Each match is printed on its own line as a path relative to that directory, `<registry-key>/<name>.jsonl`. Without arguments, every package in it is listed.
 
 ```sh
 pnpm cache list 'react*'

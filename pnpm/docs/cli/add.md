@@ -218,7 +218,7 @@ writes `allowBuilds: { core-js: false }`, so the package is never asked about ag
 
 ### --lockfile-only
 
-Only update `pnpm-lock.yaml`. Dependencies are not downloaded.
+Update `package.json` and `pnpm-lock.yaml` without downloading dependencies or writing `node_modules`.
 
 ### --force
 
