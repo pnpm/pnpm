@@ -154,6 +154,24 @@ export class PnprContainer extends Container<Env> {
       PNPR_PUBLIC_URL: env.PNPR_PUBLIC_URL,
     };
   }
+
+  // A cold start takes longer than the library waits for the port by
+  // default, which would answer the first request after a sleep with a 500.
+  override async fetch(request: Request): Promise<Response> {
+    if (!this.ctx.container?.running) {
+      try {
+        await this.startAndWaitForPorts(7677, {
+          instanceGetTimeoutMS: 120_000,
+          portReadyTimeoutMS: 180_000,
+          abort: request.signal,
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return new Response(`pnpr is starting, retry shortly (${message})\n`, { status: 503 });
+      }
+    }
+    return super.fetch(request);
+  }
 }
 
 export default {
@@ -208,9 +226,18 @@ pnpm wrangler deploy --containers-rollout=none
 
 ## What to expect
 
+- **The first request after a sleep is slow.** Cloudflare takes 20 to 60
+  seconds to bring the container back, while pnpr itself starts in well under
+  a second. The `fetch` override above keeps the request waiting for that
+  long instead of failing it. A longer `sleepAfter` keeps the container warm
+  at the cost of its idle memory and disk.
 - **TLS and the hostname** come from Cloudflare, which is the
   [reverse proxy](tls-and-reverse-proxy.md) this setup runs behind. Add a
   custom domain to the Worker to serve the registry from your own hostname.
+- **The edge rewrites `Accept-Encoding`.** The container sees `gzip, br`
+  whatever the client sent, so a [tar registry](configuration.md#tar-registries)
+  behind this Worker serves gzip-coded tars rather than zstd-coded ones.
+  Installs are unaffected; the transfer is larger.
 - **One instance** is enough for a team registry. The Worker above always
   forwards to the single container named `pnpr`, so raising `max_instances`
   alone starts nothing more. To run replicas, spread requests across several
