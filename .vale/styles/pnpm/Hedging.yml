@@ -1,12 +1,11 @@
 extends: existence
-message: "'%s' hedges. State what pnpm does, or leave it out."
+message: "Remove '%s' or name the condition behind the claim."
 level: error
 ignorecase: true
 tokens:
   - basically
   - essentially
   - arguably
-  - probably
   - hopefully
   - should just work
   - more or less

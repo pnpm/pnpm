@@ -1,5 +1,5 @@
 extends: existence
-message: "Replace the dash with a period or a comma."
+message: "Check whether a period or comma would make this easier to read."
 link: https://developers.google.com/style/dashes
 level: error
 nonword: true
