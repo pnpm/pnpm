@@ -6,10 +6,13 @@ pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_r
 pub(super) use merge_metadata::{
     current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
 };
+pub(super) use settings_diff::check_modules_settings_diff;
 
 mod build_markers;
 
 mod merge_metadata;
+
+mod settings_diff;
 
 mod integrity;
 
@@ -165,33 +168,6 @@ fn slot_bins_are_relocatable(
         .is_ok_and(|package_dir| {
             bin_dir_is_relocatable(&package_dir.join("node_modules").join(".bin"), root)
         })
-}
-
-/// The `validateModules` half pacquet enforces: when the mutation is
-/// not a plain install (upstream `installsOnly === false`), a drift in
-/// the persisted layout settings fails with the upstream `*_DIFF`
-/// error instead of silently recreating the modules directory. Check
-/// order matches upstream `validateModules`. Drift in the fields this
-/// does not cover (store dir, node linker, layout version) still takes
-/// the recreate path.
-pub(super) fn check_modules_settings_diff(
-    modules: &pnpm_modules_yaml::ModulesLayout,
-    config: &Config,
-) -> Result<(), InstallError> {
-    if modules.virtual_store_dir_max_length != config.virtual_store_dir_max_length {
-        return Err(InstallError::VirtualStoreDirMaxLengthDiff);
-    }
-    if normalized_pattern(modules.public_hoist_pattern.as_deref())
-        != normalized_pattern(config.public_hoist_pattern.as_deref())
-    {
-        return Err(InstallError::PublicHoistPatternDiff);
-    }
-    if normalized_pattern(modules.hoist_pattern.as_deref())
-        != normalized_pattern(config.hoist_pattern.as_deref())
-    {
-        return Err(InstallError::HoistPatternDiff);
-    }
-    Ok(())
 }
 
 /// Upstream compares patterns with `?? []`: `None` and an empty list
