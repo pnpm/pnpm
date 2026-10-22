@@ -5,6 +5,7 @@
 //! change to the crate. `cargo nextest` runs each test in its own
 //! process.
 
+#![forbid(unsafe_code)]
 #![expect(
     clippy::print_stderr,
     reason = "test helpers log to stderr; only the pnpm binary must survive a closed stderr"

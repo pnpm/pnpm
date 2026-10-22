@@ -6,6 +6,8 @@
 //! entry, and an entry that appears in both buckets has its weight bumped
 //! by the lockfile weight so it outranks single-source matches.
 
+#![forbid(unsafe_code)]
+
 pub use version_selector_type::get_version_selector_type;
 
 use std::{borrow::Cow, collections::HashMap};

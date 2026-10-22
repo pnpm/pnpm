@@ -5,6 +5,8 @@
 //! make rendered output misrepresent what is installed, so every such
 //! string is filtered before it is printed.
 
+#![forbid(unsafe_code)]
+
 use std::borrow::Cow;
 
 /// Strip control and formatting characters from store-derived text before it

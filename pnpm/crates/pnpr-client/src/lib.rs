@@ -18,6 +18,7 @@
 //! its own private namespace. The opt-in shared-artifact `PoC` is a separate
 //! stateful protocol surface.
 
+#![forbid(unsafe_code)]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 

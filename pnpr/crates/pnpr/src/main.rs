@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use clap::Parser;
 use pnpm_diagnostics::println;
 use pnpr::{

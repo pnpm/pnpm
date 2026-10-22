@@ -16,6 +16,8 @@
 //! registry's live [`TeamDirectory`], so evaluation needs only the caller's
 //! identity.
 
+#![forbid(unsafe_code)]
+
 pub use access::{AccessList, AccessToken, Identity, Membership};
 pub use package_rules::{PackageRules, RuleOverride};
 pub use teams::{TeamDirectory, Teams};

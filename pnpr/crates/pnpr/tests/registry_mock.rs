@@ -5,6 +5,8 @@
 //! assert that pnpr rewrites tarball URLs and abbreviates that
 //! format correctly without any upstream proxy.
 
+#![forbid(unsafe_code)]
+
 use crate::storage as common;
 
 use axum::{

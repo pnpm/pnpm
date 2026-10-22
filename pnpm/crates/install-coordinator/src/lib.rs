@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 #[cfg_attr(target_os = "wasi", path = "metadata_file_wasi.rs")]
 mod metadata_file;
 mod mutation;

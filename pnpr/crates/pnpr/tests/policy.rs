@@ -4,6 +4,8 @@
 //! `$anonymous` rule and the explicit-entry 401/403 answers.
 //! Static-mode (no upstream) to keep the tests hermetic.
 
+#![forbid(unsafe_code)]
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

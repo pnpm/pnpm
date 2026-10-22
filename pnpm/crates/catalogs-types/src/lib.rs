@@ -1,6 +1,8 @@
 //! Defines [`Catalog`] and [`Catalogs`], the normalized in-memory shape
 //! every other catalogs crate consumes.
 
+#![forbid(unsafe_code)]
+
 use std::collections::BTreeMap;
 
 /// The well-known name of the default catalog. Matches the literal pnpm

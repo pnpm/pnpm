@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub use artifact_identity::{OrgAccess, OrgGrant};
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
 

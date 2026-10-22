@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use std::path::{Path, PathBuf};
 
 /// Resolve the directory pnpm reads its global `config.yaml` from,

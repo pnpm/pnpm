@@ -7,6 +7,8 @@
 //! lives in the CLI crate, alongside the install pipeline it needs —
 //! mirroring how pnpm's `global.commands` sit above `installing.deps-installer`.
 
+#![forbid(unsafe_code)]
+
 pub use cache_key::create_global_cache_key;
 pub use check_bin_conflicts::{
     CheckGlobalBinConflictsError, GlobalBinConflictError, bin_slot_exists,

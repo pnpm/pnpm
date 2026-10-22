@@ -7,6 +7,8 @@
 //! between dependency-independent tasks. Mirrors `taskGraph.ts` /
 //! `taskScheduler.ts` in pnpm's `@pnpm/workspace.task-scheduler`.
 
+#![forbid(unsafe_code)]
+
 pub use asynchronous::schedule_graph_async;
 pub use build::{build_pipeline_task_graph, build_task_graph};
 pub use graph::{

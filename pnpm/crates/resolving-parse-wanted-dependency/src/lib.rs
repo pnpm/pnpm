@@ -2,6 +2,8 @@
 //! raw manifest or `add` argument into its `(alias, bareSpecifier)` halves and
 //! compares the supported equivalent forms of Git specifiers.
 
+#![forbid(unsafe_code)]
+
 pub use pnpm_package_name as validate_npm_package_name;
 
 pub use git_specifier::git_specifiers_are_equivalent;

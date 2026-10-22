@@ -10,6 +10,8 @@
 //! manifest write is the commit point, and a blob no manifest names is
 //! garbage for collection rather than a half-published release.
 
+#![forbid(unsafe_code)]
+
 pub mod media_type;
 
 pub use digest::{Digest, DigestError};

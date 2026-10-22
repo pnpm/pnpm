@@ -1,6 +1,8 @@
 //! Integration tests for the auth, dist-tag, and publish endpoints.
 //! Static-mode (no upstream) to keep the tests hermetic.
 
+#![forbid(unsafe_code)]
+
 #[path = "auth_publish/scoped_publishing.rs"]
 mod scoped_publishing;
 

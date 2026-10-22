@@ -13,6 +13,8 @@
 //! [`ok_202`], [`ok_token`], [`web_auth_body`] — carry no mutable state, so
 //! they stay ordinary `pub` items shared across every test.
 
+#![forbid(unsafe_code)]
+
 use pnpm_diagnostics::miette::{self, Diagnostic};
 use pnpm_network_web_auth::{
     OtpChallenge, OtpError, OtpErrorBody, WebAuthFetchError, WebAuthFetchResponse,

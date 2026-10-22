@@ -1,8 +1,6 @@
 use std::{collections::HashMap, io, sync::Mutex};
 #[cfg(unix)]
-use std::{
-    io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, ptr, time::Duration,
-};
+use std::{io::Read, os::unix::process::CommandExt, path::Path, process::Stdio, time::Duration};
 
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::watch;
@@ -260,15 +258,11 @@ fn wait_for_process_group(_: u32) {}
 /// are still shutting down.
 #[cfg(unix)]
 fn group_is_running(leader: i32, table: Option<&Path>) -> bool {
-    let group = -leader;
-    // SAFETY: `group` names the process group pnpm created for the
-    // child. `waitpid` with `WNOHANG` never blocks, and `kill` with
-    // signal 0 only probes; `ESRCH` says the group is empty.
-    let empty = unsafe {
-        while libc::waitpid(group, ptr::null_mut(), libc::WNOHANG) > 0 {}
-        libc::kill(group, 0) != 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
-    };
-    !empty && table.is_none_or(|table| process_table::has_running_member(table, leader))
+    let Ok(leader) = u32::try_from(leader) else { return false };
+    pnpm_ffi_signal::group_has_members(leader)
+        && table.is_none_or(|table| {
+            process_table::has_running_member(table, i32::try_from(leader).unwrap_or(0))
+        })
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -310,23 +304,20 @@ fn prepare_command(_: &mut Command) {}
 
 #[cfg(unix)]
 fn terminate_process(pid: u32, separate_process_group: bool) {
-    let Ok(pid) = i32::try_from(pid) else { return };
-    let target = if separate_process_group { -pid } else { pid };
-    // SAFETY: a negative target signals the process group created by
-    // `prepare_command`; a positive target signals the foreground child.
-    // ESRCH is harmless when the process exited concurrently.
-    unsafe {
-        libc::kill(target, libc::SIGKILL);
-    }
+    // The group is the one `prepare_command` created for the child; the
+    // bare child is the one that stayed in pnpm's own foreground group.
+    let target = if separate_process_group {
+        pnpm_ffi_signal::Target::Group(pid)
+    } else {
+        pnpm_ffi_signal::Target::Process(pid)
+    };
+    pnpm_ffi_signal::signal_target(target, libc::SIGKILL);
 }
 
 #[cfg(unix)]
 fn terminate_descendant(pid: i32) {
-    // SAFETY: every PID comes from the OS process list as a descendant of
-    // this process. ESRCH is harmless when it exited concurrently.
-    unsafe {
-        libc::kill(pid, libc::SIGKILL);
-    }
+    let Ok(pid) = u32::try_from(pid) else { return };
+    pnpm_ffi_signal::signal_target(pnpm_ffi_signal::Target::Process(pid), libc::SIGKILL);
 }
 
 #[cfg(unix)]
@@ -437,28 +428,7 @@ fn terminate_process(pid: u32, _separate_process_group: bool) {
 
 #[cfg(windows)]
 fn taskkill_path() -> Option<std::path::PathBuf> {
-    use std::{ffi::OsString, os::windows::ffi::OsStringExt, ptr};
-
-    use windows_sys::Win32::System::SystemInformation::GetSystemDirectoryW;
-
-    // SAFETY: the first call requests the required UTF-16 buffer length.
-    // The second call writes into a buffer of that size, and its returned
-    // length is checked before constructing the path.
-    unsafe {
-        let required = GetSystemDirectoryW(ptr::null_mut(), 0);
-        if required == 0 {
-            return None;
-        }
-        let mut buffer = vec![0_u16; required as usize];
-        let length = GetSystemDirectoryW(buffer.as_mut_ptr(), required);
-        if length == 0 || length >= required {
-            return None;
-        }
-        Some(
-            std::path::PathBuf::from(OsString::from_wide(&buffer[..length as usize]))
-                .join("taskkill.exe"),
-        )
-    }
+    pnpm_ffi_fs::system_directory().map(|directory| directory.join("taskkill.exe"))
 }
 
 #[cfg(unix)]

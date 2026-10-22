@@ -4,6 +4,8 @@
 //! cover those exact bytes, so implementations do not need to agree on a JSON
 //! canonicalization algorithm before they can interoperate.
 
+#![forbid(unsafe_code)]
+
 pub use compatibility::{
     CompatibilityScopes, compatibility_rank, compatibility_rank_prevalidated, compatibility_scopes,
     linux_glibc_supported_tags, linux_glibc_tag, macos_supported_tags, macos_tag,

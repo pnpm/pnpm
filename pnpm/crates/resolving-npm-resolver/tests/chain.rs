@@ -7,6 +7,8 @@
 //! lockfile 12.0 format writes `<name>@<alias>:<version>` keys, such an
 //! alias would make the version slot ambiguous.
 
+#![forbid(unsafe_code)]
+
 use std::collections::HashMap;
 
 use pnpm_resolving_npm_resolver::{MergeNamedRegistriesError, merge_named_registries};

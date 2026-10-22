@@ -9,6 +9,8 @@
 //! [`VariationsResolution`](pnpm_lockfile::VariationsResolution)
 //! variant per `(os, cpu, libc?)` triple.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

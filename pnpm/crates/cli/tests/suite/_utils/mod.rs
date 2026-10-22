@@ -1,5 +1,10 @@
-pub mod console;
-pub mod terminal;
+//! The console and terminal harnesses live in `pnpm-testing-utils`: they
+//! are foreign-call wrappers, which the `unsafe` policy keeps out of a
+//! consumer crate, test targets included.
+#[cfg(windows)]
+pub use pnpm_testing_utils::console;
+#[cfg(unix)]
+pub use pnpm_testing_utils::terminal;
 
 pub use pnpm_testing_utils::bin::read_v11_bundle_path;
 

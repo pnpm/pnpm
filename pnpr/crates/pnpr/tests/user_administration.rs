@@ -2,6 +2,8 @@
 //! what creating, re-keying, and removing an account does to logins and
 //! tokens.
 
+#![forbid(unsafe_code)]
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},

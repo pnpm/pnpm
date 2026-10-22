@@ -562,10 +562,8 @@ fn a_configured_endpoint_lands_on_the_key_that_wins() {
 /// behaviours differ.
 #[test]
 fn an_absent_allow_http_pins_https_only() {
-    let _env = EnvGuard::snapshot(["AWS_ALLOW_HTTP"]);
-    // SAFETY: `EnvGuard` holds the process-wide env-mutation lock for the
-    // lifetime of `_env` and restores the variable on drop.
-    unsafe { std::env::set_var("AWS_ALLOW_HTTP", "true") };
+    let env = EnvGuard::snapshot(["AWS_ALLOW_HTTP"]);
+    env.set("AWS_ALLOW_HTTP", "true");
 
     let builder = crate::s3::s3_builder(&s3_settings_for(None, None));
     assert_eq!(

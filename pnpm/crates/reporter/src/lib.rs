@@ -11,6 +11,8 @@
 //! channels are added incrementally as the surrounding code starts using
 //! them.
 
+#![forbid(unsafe_code)]
+
 pub use fatal_error::FatalErrorLog;
 
 pub use dependencies::{

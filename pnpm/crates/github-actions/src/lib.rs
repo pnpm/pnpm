@@ -1,5 +1,7 @@
 //! Inspect GitHub Actions dependencies and update their commit pins while preserving workflow formatting.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 pub(crate) use pnpm_process as process;
 #[cfg(not(target_family = "wasm"))]

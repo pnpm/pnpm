@@ -22,6 +22,8 @@
 //! manifest, warming the shared mem cache so the install pass reuses
 //! the extraction without re-downloading.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

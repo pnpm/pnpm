@@ -9,6 +9,8 @@
 //! resources; [`standalone::build_standalone_chain`] assembles the one a
 //! single resolve outside an install gets.
 
+#![forbid(unsafe_code)]
+
 pub mod standalone;
 
 use derive_more::{Display, Error};

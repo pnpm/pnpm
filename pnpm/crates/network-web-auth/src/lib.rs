@@ -4,6 +4,8 @@
 //! This is the Rust port of the TypeScript `@pnpm/network.web-auth`
 //! package.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

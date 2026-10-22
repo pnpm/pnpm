@@ -15,6 +15,8 @@
 //! `prepare_package` lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_which as which;
 

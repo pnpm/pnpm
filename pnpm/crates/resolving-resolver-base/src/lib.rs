@@ -15,6 +15,8 @@
 //! (a verifier needs [`pnpm_lockfile::LockfileResolution`]; a
 //! resolver result *also* carries one).
 
+#![forbid(unsafe_code)]
+
 pub use errors::{
     GitResolveError, NoMatchingVersionError, RegistryResponseError, RegistryResponseErrorOptions,
 };

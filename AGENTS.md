@@ -16,6 +16,19 @@ Apply [PHILOSOPHY.md](./PHILOSOPHY.md) when implementing, triaging, or reviewing
 changes. It defines the core requirements and the approach to existing
 capabilities, abstractions, compatibility, and releases.
 
+## `unsafe` policy (Rust only)
+
+[UNSAFE_POLICY.md](./UNSAFE_POLICY.md) governs every `unsafe` in pacquet and
+pnpr: which crates may hold one, what a `// SAFETY:` comment has to
+discharge, and the `#![forbid(unsafe_code)]` every other crate carries.
+`cargo test -p pnpm-unsafe-audit` enforces the parts a test can check, and
+names what to do about each departure.
+
+Read it before adding a foreign call. The short version: a crate either
+abstracts a foreign or raw-pointer API, or forbids `unsafe` outright, and
+adding a call means adding it to the `pnpm-ffi-*` crate that owns the
+surface rather than to the crate that needs the result.
+
 ## pnpm v12 and v11 development policy
 
 pnpm v12, implemented in Rust under `pnpm/`, is the target for new development. pnpm v11, implemented in TypeScript under `pnpm11/`, is maintained for bug fixes.

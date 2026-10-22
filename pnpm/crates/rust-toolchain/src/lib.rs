@@ -7,6 +7,8 @@
 //! toolchain directory is complete or absent: it is unpacked beside where it
 //! belongs and moved there.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

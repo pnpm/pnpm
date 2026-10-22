@@ -10,6 +10,8 @@
 //! - `projects`    — glob-expand `packages:` into [`Project`]s.
 //!   Public entry point: [`find_workspace_projects`].
 
+#![forbid(unsafe_code)]
+
 pub use api::{EnvVarOs, Host};
 pub use importer_id::importer_id_from_root_dir;
 pub use include::{

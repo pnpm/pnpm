@@ -91,6 +91,30 @@ impl EnvGuard {
         // so `Drop` will restore it.
         unsafe { env::set_var(name, value) };
     }
+
+    /// Clear a variable under the lock the guard holds, so a value the
+    /// developer's shell exports cannot reach the code under test.
+    ///
+    /// The same footgun as [`Self::set`]: the variable must have been
+    /// listed in [`Self::snapshot`]'s `vars`, or the clearing leaks beyond
+    /// the guard.
+    pub fn remove(&self, name: &'static str) {
+        // SAFETY: as in `set`, the guard holds `env_mutex`, so no other
+        // `EnvGuard`-using test in this process is running concurrently,
+        // and the variable was named at `snapshot` time so `Drop` will
+        // restore it.
+        unsafe { env::remove_var(name) };
+    }
+
+    /// Clear several variables under the lock the guard holds.
+    pub fn remove_all<Iter>(&self, names: Iter)
+    where
+        Iter: IntoIterator<Item = &'static str>,
+    {
+        for name in names {
+            self.remove(name);
+        }
+    }
 }
 
 impl Drop for EnvGuard {

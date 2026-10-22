@@ -21,6 +21,8 @@
 //! route into a [`Footprint`]. The footprint's [`Footprint::digest`] is
 //! the per-resolution private key the cache layer will gate on.
 
+#![forbid(unsafe_code)]
+
 pub use url_credentials::{
     sanitize_registry_tarball_url, strip_url_credentials, url_has_inline_credentials,
 };

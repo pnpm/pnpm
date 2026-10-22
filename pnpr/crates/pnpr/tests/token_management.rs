@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,

@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
@@ -143,6 +144,10 @@ fn is_reported_error(error: &miette::Report) -> bool {
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
 fn run_cli() -> miette::Result<()> {
+    // Claimed here, before anything spawns, because `with current` has to
+    // change the environment and only a single-threaded process may.
+    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
+        .expect("the CLI claims the single-threaded witness once, at startup");
     let argv: Vec<OsString> = std::env::args_os().collect();
     // A context-aware global shim is this executable launched under the
     // shim's name, so dispatch runs on the raw argv before any rewriting
@@ -169,7 +174,7 @@ fn run_cli() -> miette::Result<()> {
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // A version spec (`pnpm with 10 <cmd>`) is left for the `with`
     // subcommand to handle.
-    let argv = with_current::rewrite(argv)?;
+    let argv = with_current::rewrite(argv, &single_threaded)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);

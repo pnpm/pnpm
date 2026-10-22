@@ -2,6 +2,8 @@
 //! request and in chunks, manifests, tags, the catalog, and the access rules
 //! every one of them goes through.
 
+#![forbid(unsafe_code)]
+
 #[path = "oci_registry/referrers.rs"]
 mod referrers;
 

@@ -15,6 +15,8 @@
 //!   downloaded body to extract the integrity of a single file. The
 //!   verifier path uses it when only one variant's hash is needed.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

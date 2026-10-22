@@ -300,16 +300,14 @@ fn grant_inherited_dir_mode_does_not_follow_a_swapped_symlink() {
 #[cfg(unix)]
 #[test]
 fn grant_inherited_dir_mode_refuses_a_swapped_fifo_without_blocking() {
-    use std::{ffi::CString, fs, os::unix::ffi::OsStrExt, os::unix::fs::PermissionsExt};
+    use std::{fs, os::unix::fs::PermissionsExt};
 
     let tmp = tempfile::tempdir().unwrap();
     let store = tmp.path().join("store");
     fs::create_dir(&store).unwrap();
     fs::set_permissions(&store, fs::Permissions::from_mode(0o2775)).unwrap();
     let shard = store.join("ab");
-    let c_path = CString::new(shard.as_os_str().as_bytes()).unwrap();
-    // SAFETY: `c_path` is a valid NUL-terminated path.
-    assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+    pnpm_ffi_fs::create_fifo(&shard, 0o600).expect("create the FIFO");
 
     let error = super::grant_inherited_dir_mode(&shard, &store).unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::NotADirectory);

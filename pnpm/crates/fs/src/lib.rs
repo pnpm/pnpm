@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod file_mode;
 #[cfg(all(windows, feature = "test"))]
 pub mod test_support;

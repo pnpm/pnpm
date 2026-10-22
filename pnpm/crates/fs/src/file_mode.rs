@@ -45,41 +45,13 @@ pub fn store_inode_mode_is_linkable(mode: u32, desired: u32) -> bool {
 }
 
 /// The process's current umask, read once: the CLI never changes it, and
-/// the import hot path would otherwise pay two `umask(2)` syscalls per
-/// file.
+/// the import hot path would otherwise pay a syscall per file.
 #[cfg(unix)]
 #[must_use]
 pub fn current_umask() -> u32 {
-    static UMASK: std::sync::LazyLock<u32> = std::sync::LazyLock::new(|| {
-        // SAFETY: `umask` is always safe to call. Reading the mask requires
-        // setting it, so both calls are made back to back with nothing in
-        // between but the other `umask` call, and this runs once per process
-        // behind a `LazyLock` initializer. A file another thread creates in
-        // that window gets the unmasked creation mode, which carries no
-        // executable bit and does not match any desired mode, so the import
-        // tiers copy it instead of linking it.
-        let mask = unsafe { libc::umask(0) };
-        // SAFETY: Restores the mask the call above read, making the read
-        // invisible to every other thread.
-        unsafe { libc::umask(mask) };
-        widen_mode(mask)
-    });
+    static UMASK: std::sync::LazyLock<u32> =
+        std::sync::LazyLock::new(pnpm_ffi_process::current_umask);
     *UMASK
-}
-
-/// `libc::umask` speaks `mode_t`, a `u16` on macOS and a `u32` on Linux.
-/// `Into` is the one widening both platforms' clippy accepts: a cast is
-/// `cast_lossless` on macOS and `u32::from` is `useless_conversion` on
-/// Linux.
-#[cfg(unix)]
-fn widen_mode(mode: impl Into<u32>) -> u32 {
-    mode.into()
-}
-
-/// The narrowing counterpart of [`widen_mode`], generic for the same reason.
-#[cfg(all(unix, not(target_os = "linux")))]
-fn narrow_mode<Mode: TryFrom<u32>>(mode: u32) -> io::Result<Mode> {
-    Mode::try_from(mode).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))
 }
 
 /// Cache the host process mask for WASI permission calculations.

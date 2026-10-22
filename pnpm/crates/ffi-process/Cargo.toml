@@ -1,0 +1,25 @@
+[package]
+name = "pnpm-ffi-process"
+description = "Safe abstractions over the process-control foreign calls pnpm makes"
+version = "0.0.1"
+publish = false
+authors.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+  "Win32_Security",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_LibraryLoader",
+  "Win32_System_SystemInformation",
+] }
+
+[lints]
+workspace = true

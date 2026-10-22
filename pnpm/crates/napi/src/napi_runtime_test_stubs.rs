@@ -14,14 +14,20 @@
 // nothing else defines these names, and never called. A `// SAFETY:` prefix
 // can't be used — clippy's `unnecessary_safety_comment` rejects it on a fn with
 // no unsafe body.
-#[unsafe(no_mangle)]
-extern "C" fn napi_call_threadsafe_function() {}
+//
+// The `allow` is what the crate's `#![deny(unsafe_code)]` leaves for the
+// boundary it cannot cover: see the `unsafe` policy's note on this crate.
+#[expect(unsafe_code, reason = "a stub has to carry the host symbol's own name")]
+mod stubs {
+    #[unsafe(no_mangle)]
+    extern "C" fn napi_call_threadsafe_function() {}
 
-#[unsafe(no_mangle)]
-extern "C" fn napi_release_threadsafe_function() {}
+    #[unsafe(no_mangle)]
+    extern "C" fn napi_release_threadsafe_function() {}
 
-#[unsafe(no_mangle)]
-extern "C" fn napi_delete_reference() {}
+    #[unsafe(no_mangle)]
+    extern "C" fn napi_delete_reference() {}
 
-#[unsafe(no_mangle)]
-extern "C" fn napi_reference_unref() {}
+    #[unsafe(no_mangle)]
+    extern "C" fn napi_reference_unref() {}
+}

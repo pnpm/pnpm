@@ -860,21 +860,9 @@ fn exec_output_ends_while_a_detached_grandchild_runs() {
 #[cfg(target_os = "windows")]
 fn start_detached_waiter(waiter_pid_path: &Path) {
     use std::{os::windows::process::CommandExt, process::Stdio};
-    use windows_sys::Win32::{
-        Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation},
-        System::{
-            Console::{GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE},
-            Threading::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS},
-        },
-    };
+    use windows_sys::Win32::System::Threading::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 
-    // SAFETY: `GetStdHandle` returns a borrowed handle, and
-    // `SetHandleInformation` only changes its inherit flag.
-    unsafe {
-        for stream in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
-            SetHandleInformation(GetStdHandle(stream), HANDLE_FLAG_INHERIT, 0);
-        }
-    }
+    pnpm_testing_utils::handles::stop_inheriting_standard_handles();
     let waiter_pid = std::process::Command::new("node")
         .args(["-e", "setTimeout(() => {}, 60000)"])
         .stdin(Stdio::null())

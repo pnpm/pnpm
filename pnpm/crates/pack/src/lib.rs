@@ -11,6 +11,8 @@
 //! sorting the workspace projects — lives in the CLI command alongside
 //! pacquet's other recursive commands, and calls [`api`] per project.
 
+#![forbid(unsafe_code)]
+
 pub use capabilities::{
     FsAtomicWrite, FsCreateDirAll, FsFileLen, FsIsExecutable, FsReadFile, Host,
 };

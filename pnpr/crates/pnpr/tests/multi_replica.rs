@@ -6,6 +6,8 @@
 //! drive two routers over one bucket the way a load balancer would spread
 //! requests over two containers.
 
+#![forbid(unsafe_code)]
+
 use crate::{npm, pausing_store};
 
 use axum::{

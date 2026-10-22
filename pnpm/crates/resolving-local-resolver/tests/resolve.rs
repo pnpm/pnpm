@@ -1,6 +1,8 @@
 //! Resolution tests for the local-filesystem resolver, one
 //! `#[tokio::test]` per scenario.
 
+#![forbid(unsafe_code)]
+
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_resolving_local_resolver::{

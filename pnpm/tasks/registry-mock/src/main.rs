@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use std::env::temp_dir;
 
 use clap::Parser;

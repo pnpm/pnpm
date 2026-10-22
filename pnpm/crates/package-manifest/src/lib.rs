@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod package_manager_spec;
 pub use bins::{
     MAX_PRECALCULATED_BINS, MAX_PRECALCULATED_BINS_BYTES, PackageBin, ScriptRuntime,

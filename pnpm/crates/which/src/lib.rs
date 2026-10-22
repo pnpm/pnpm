@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 #[cfg(not(target_family = "wasm"))]
 pub use which::*;
 

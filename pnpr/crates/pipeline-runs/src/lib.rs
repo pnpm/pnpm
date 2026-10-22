@@ -8,6 +8,8 @@
 //! authoritative one every replica of a deployment shares — rather than on
 //! the replica that happened to receive the submission.
 
+#![forbid(unsafe_code)]
+
 use pnpr_error::{RegistryError, Result};
 use pnpr_storage::{PipelineRunKey, Storage};
 use serde::{Deserialize, Serialize};

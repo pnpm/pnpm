@@ -13,6 +13,8 @@
 //! content resolves only when the pnpr server is configured with an
 //! access-bearing upstream the caller is authorized to use.
 
+#![forbid(unsafe_code)]
+
 use pnpr_fixtures::MockConfigPresets;
 use std::{
     collections::{BTreeMap, HashSet},

@@ -12,6 +12,8 @@
 //!
 //! [`ResolutionVerifier`]: pnpm_resolving_resolver_base::ResolutionVerifier
 
+#![forbid(unsafe_code)]
+
 pub use cache::{
     CACHE_FILE_NAME, COMPACT_TRIGGER_BYTES, CacheLockfile, CacheLookupResult, CachePrecomputed,
     CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,

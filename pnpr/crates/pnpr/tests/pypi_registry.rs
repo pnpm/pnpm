@@ -1,6 +1,8 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
+#![forbid(unsafe_code)]
+
 use crate::{ecosystem as common, storage::object_key, tokens::issue_token};
 use axum::{
     body::Body,

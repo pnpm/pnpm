@@ -3,6 +3,8 @@
 //! an unsealed one is rolled back, and the journal directory carries
 //! no residue after a successful publish.
 
+#![forbid(unsafe_code)]
+
 use crate::npm;
 
 use axum::{

@@ -10,6 +10,8 @@
 //! config-finalization seam in the CLI drives this crate before the
 //! main install runs.
 
+#![forbid(unsafe_code)]
+
 pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
 pub use options::{

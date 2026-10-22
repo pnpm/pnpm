@@ -120,30 +120,20 @@ fn read_from(
 
 #[cfg(unix)]
 fn read_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<FileState> {
-    use std::os::{
-        fd::AsRawFd as _,
-        unix::{ffi::OsStrExt as _, fs::PermissionsExt as _},
-    };
+    use std::os::unix::fs::PermissionsExt as _;
 
-    let name = std::ffi::CString::new(name.as_bytes())?;
-    match read_link_at(&parent.handle, &name) {
+    match pnpm_ffi_fs::read_link_at(&parent.handle, name) {
         Ok(target) => return Ok(FileState::Symlink(target)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(FileState::Missing),
-        Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {}
+        // `InvalidInput` means the entry is not a symlink, which is the one
+        // case that carries on to the open below.
+        Err(error) if error.kind() == io::ErrorKind::InvalidInput => {}
         Err(error) => return Err(error),
     }
-    // `O_NONBLOCK` so that a path which is a FIFO or a device is rejected
-    // below on its type. Opening one read-only otherwise waits for a writer,
-    // and a metadata path never has one. A regular file is unaffected.
-    // SAFETY: `name` is NUL-terminated and the pinned parent remains valid.
-    let descriptor = unsafe {
-        libc::openat(
-            parent.handle.as_raw_fd(),
-            name.as_ptr(),
-            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK,
-        )
-    };
-    let mut file = match file_from_descriptor(descriptor) {
+    // The non-blocking open is what lets a FIFO or a device at this name be
+    // rejected below on its type: a blocking read-only open of one would
+    // wait for a writer, and a metadata path never has one.
+    let mut file = match pnpm_ffi_fs::open_file_at_without_blocking(&parent.handle, name) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(FileState::Missing),
         Err(error) => return Err(error),
@@ -187,19 +177,18 @@ fn write_file(
     mode: u32,
 ) -> io::Result<()> {
     use std::io::Write as _;
-    use std::os::{unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+    use std::os::unix::fs::PermissionsExt as _;
 
-    let destination = std::ffi::CString::new(name.as_bytes())?;
     let (temporary, mut file) = create_temporary_file(parent, name)?;
     let result = (|| {
         file.write_all(contents)?;
         file.set_permissions(fs::Permissions::from_mode(mode))?;
         pnpm_fs::sync_file(&file)?;
-        rename_at(parent, &temporary, &destination)
+        pnpm_ffi_fs::rename_at(&parent.handle, &temporary, name)
     })();
     drop(file);
     if result.is_err() {
-        let _ = unlink_at(parent, &temporary);
+        let _ = pnpm_ffi_fs::unlink_at(&parent.handle, &temporary);
     }
     result
 }
@@ -211,21 +200,11 @@ fn write_file(parent: &PinnedDirectory, name: &OsStr, contents: &[u8]) -> io::Re
 
 #[cfg(unix)]
 fn write_symlink(parent: &PinnedDirectory, name: &OsStr, target: &Path) -> io::Result<()> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
-
-    let destination = std::ffi::CString::new(name.as_bytes())?;
-    let target = std::ffi::CString::new(target.as_os_str().as_bytes())?;
-    let temporary = temporary_name(name)?;
-    // SAFETY: the target and temporary name are NUL-terminated, and the
-    // directory descriptor remains valid.
-    if unsafe { libc::symlinkat(target.as_ptr(), parent.handle.as_raw_fd(), temporary.as_ptr()) }
-        != 0
-    {
-        return Err(io::Error::last_os_error());
-    }
-    let result = rename_at(parent, &temporary, &destination);
+    let temporary = temporary_name(name);
+    pnpm_ffi_fs::symlink_at(target, &parent.handle, &temporary)?;
+    let result = pnpm_ffi_fs::rename_at(&parent.handle, &temporary, name);
     if result.is_err() {
-        let _ = unlink_at(parent, &temporary);
+        let _ = pnpm_ffi_fs::unlink_at(&parent.handle, &temporary);
     }
     result
 }
@@ -262,45 +241,14 @@ fn windows_temporary_path(parent: &PinnedDirectory, name: &OsStr) -> PathBuf {
 
 #[cfg(windows)]
 fn replace_windows_path(source: &Path, destination: &Path) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt as _;
-    use windows_sys::Win32::Storage::FileSystem::{
-        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
-    };
-
-    let source = source
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect::<Vec<_>>();
-    let destination = destination
-        .as_os_str()
-        .encode_wide()
-        .chain(Some(0))
-        .collect::<Vec<_>>();
-    // SAFETY: both paths are NUL-terminated and remain alive for the call.
-    if unsafe {
-        MoveFileExW(
-            source.as_ptr(),
-            destination.as_ptr(),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-        )
-    } != 0
-    {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
+    pnpm_ffi_fs::rename_over(source, destination)
 }
 
 #[cfg(unix)]
 fn remove_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<()> {
-    use std::os::unix::ffi::OsStrExt as _;
-
-    let name = std::ffi::CString::new(name.as_bytes())?;
-    match unlink_at(parent, &name) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
+    match pnpm_ffi_fs::unlink_at(&parent.handle, name) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
     }
 }
 
@@ -317,22 +265,10 @@ fn remove_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<()> {
 fn create_temporary_file(
     parent: &PinnedDirectory,
     name: &OsStr,
-) -> io::Result<(std::ffi::CString, fs::File)> {
-    use std::os::fd::AsRawFd as _;
-
+) -> io::Result<(OsString, fs::File)> {
     loop {
-        let temporary = temporary_name(name)?;
-        // SAFETY: the name is NUL-terminated, the directory descriptor remains
-        // valid, and a successful descriptor is immediately owned.
-        let descriptor = unsafe {
-            libc::openat(
-                parent.handle.as_raw_fd(),
-                temporary.as_ptr(),
-                libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
-                0o600,
-            )
-        };
-        match file_from_descriptor(descriptor) {
+        let temporary = temporary_name(name);
+        match pnpm_ffi_fs::create_file_at(&parent.handle, &temporary, 0o600) {
             Ok(file) => return Ok((temporary, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),
@@ -341,9 +277,7 @@ fn create_temporary_file(
 }
 
 #[cfg(unix)]
-fn temporary_name(name: &OsStr) -> io::Result<std::ffi::CString> {
-    use std::os::unix::ffi::OsStrExt as _;
-
+fn temporary_name(name: &OsStr) -> OsString {
     let mut temporary = OsString::from(".");
     temporary.push(name);
     temporary.push(format!(
@@ -351,88 +285,7 @@ fn temporary_name(name: &OsStr) -> io::Result<std::ffi::CString> {
         pnpm_fs::process_id(),
         TEMPORARY_FILE_ID.fetch_add(1, Ordering::Relaxed),
     ));
-    Ok(std::ffi::CString::new(temporary.as_bytes())?)
-}
-
-#[cfg(unix)]
-fn rename_at(
-    parent: &PinnedDirectory,
-    source: &std::ffi::CStr,
-    destination: &std::ffi::CStr,
-) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-
-    // SAFETY: both names and the pinned directory descriptor remain valid.
-    if unsafe {
-        libc::renameat(
-            parent.handle.as_raw_fd(),
-            source.as_ptr(),
-            parent.handle.as_raw_fd(),
-            destination.as_ptr(),
-        )
-    } == 0
-    {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(unix)]
-fn unlink_at(parent: &PinnedDirectory, name: &std::ffi::CStr) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-
-    // SAFETY: the name and pinned directory descriptor remain valid.
-    if unsafe { libc::unlinkat(parent.handle.as_raw_fd(), name.as_ptr(), 0) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(unix)]
-fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathBuf> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStringExt as _};
-
-    let mut capacity = 256;
-    loop {
-        let mut contents = Vec::<u8>::with_capacity(capacity);
-        // SAFETY: the name and directory descriptor are valid, and the buffer
-        // exposes `capacity` writable bytes to `readlinkat`.
-        let length = unsafe {
-            libc::readlinkat(
-                directory.as_raw_fd(),
-                name.as_ptr(),
-                contents.as_mut_ptr().cast(),
-                contents.capacity(),
-            )
-        };
-        if length == -1 {
-            return Err(io::Error::last_os_error());
-        }
-        let length = usize::try_from(length).expect("readlinkat returned a nonnegative length");
-        if length < contents.capacity() {
-            // SAFETY: `readlinkat` initialized exactly `length` bytes.
-            unsafe {
-                contents.set_len(length);
-            }
-            return Ok(OsString::from_vec(contents).into());
-        }
-        capacity *= 2;
-    }
-}
-
-#[cfg(unix)]
-fn file_from_descriptor(descriptor: libc::c_int) -> io::Result<fs::File> {
-    use std::os::fd::{FromRawFd as _, OwnedFd};
-
-    if descriptor == -1 {
-        Err(io::Error::last_os_error())
-    } else {
-        // SAFETY: a successful `openat` returned a new owned descriptor.
-        let descriptor = unsafe { OwnedFd::from_raw_fd(descriptor) };
-        Ok(fs::File::from(descriptor))
-    }
+    temporary
 }
 
 mod directory;

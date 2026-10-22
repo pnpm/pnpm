@@ -5,6 +5,8 @@
 //! local storage and matches on package name. Tests rely on that
 //! behavior.
 
+#![forbid(unsafe_code)]
+
 use pnpr_error::Result;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;

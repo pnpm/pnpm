@@ -73,11 +73,12 @@ fn open_or_create_directory_at(
     component: &str,
     path: &Path,
 ) -> Result<fs::File> {
+    let component = std::ffi::OsStr::new(component);
     loop {
-        match open_directory_at(parent, component) {
+        match pnpm_ffi_fs::open_directory_at(parent, component) {
             Ok(handle) => return Ok(handle),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                create_directory_at(parent, component)
+                pnpm_ffi_fs::create_directory_at(parent, component, 0o777)
                     .or_else(accept_existing_directory)
                     .into_diagnostic()
                     .wrap_err_with(|| format!("create Cargo directory {}", path.display()))?;
@@ -111,66 +112,13 @@ fn accept_existing_directory(error: io::Error) -> io::Result<()> {
 }
 
 #[cfg(unix)]
-fn open_directory_at(parent: &fs::File, name: &str) -> io::Result<fs::File> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
-
-    let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
-    // SAFETY: `name` is NUL-terminated, `parent` stays open for the call, and
-    // the returned descriptor is owned immediately on success.
-    let descriptor = unsafe {
-        libc::openat(
-            parent.as_raw_fd(),
-            name.as_ptr(),
-            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_DIRECTORY | libc::O_NOFOLLOW,
-        )
-    };
-    file_from_descriptor(descriptor)
-}
-
-#[cfg(unix)]
-fn create_directory_at(parent: &fs::File, name: &str) -> io::Result<()> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
-
-    let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
-    // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
-    if unsafe { libc::mkdirat(parent.as_raw_fd(), name.as_ptr(), 0o777) } == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::last_os_error())
-    }
-}
-
-#[cfg(unix)]
-fn file_from_descriptor(descriptor: libc::c_int) -> io::Result<fs::File> {
-    use std::os::fd::{FromRawFd as _, OwnedFd};
-
-    if descriptor == -1 {
-        Err(io::Error::last_os_error())
-    } else {
-        // SAFETY: a successful `openat` returns a new descriptor owned by the caller.
-        let descriptor = unsafe { OwnedFd::from_raw_fd(descriptor) };
-        Ok(fs::File::from(descriptor))
-    }
-}
-
-#[cfg(unix)]
 pub(super) fn read_workspace_file(
     directory: &ManagedDirectory,
     name: &str,
 ) -> io::Result<(String, Option<u32>)> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+    use std::os::unix::fs::PermissionsExt as _;
 
-    let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
-    // SAFETY: `name` is NUL-terminated, and the directory descriptor remains
-    // valid for the call. `O_NOFOLLOW` prevents a file-level symlink redirect.
-    let descriptor = unsafe {
-        libc::openat(
-            directory.handle.as_raw_fd(),
-            name.as_ptr(),
-            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW,
-        )
-    };
-    let file = file_from_descriptor(descriptor)?;
+    let file = pnpm_ffi_fs::open_file_at(&directory.handle, std::ffi::OsStr::new(name))?;
     let mode = file.metadata()?.permissions().mode();
     let contents = io::read_to_string(file)?;
     Ok((contents, Some(mode)))
@@ -192,9 +140,8 @@ pub(super) fn write_workspace_file(
     mode: Option<u32>,
 ) -> io::Result<()> {
     use std::io::Write as _;
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+    use std::os::unix::fs::PermissionsExt as _;
 
-    let destination = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
     let (temporary, mut file) = create_workspace_temporary(directory, name)?;
     let result = (|| {
         file.write_all(bytes)?;
@@ -202,28 +149,11 @@ pub(super) fn write_workspace_file(
             file.set_permissions(fs::Permissions::from_mode(mode))?;
         }
         pnpm_fs::sync_file(&file)?;
-        // SAFETY: both names are valid C strings and both directory descriptors
-        // refer to the same live, pinned directory.
-        if unsafe {
-            libc::renameat(
-                directory.handle.as_raw_fd(),
-                temporary.as_ptr(),
-                directory.handle.as_raw_fd(),
-                destination.as_ptr(),
-            )
-        } == 0
-        {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        }
+        pnpm_ffi_fs::rename_at(&directory.handle, &temporary, std::ffi::OsStr::new(name))
     })();
     drop(file);
     if result.is_err() {
-        // SAFETY: `temporary` is NUL-terminated and the directory handle is valid.
-        unsafe {
-            libc::unlinkat(directory.handle.as_raw_fd(), temporary.as_ptr(), 0);
-        }
+        let _ = pnpm_ffi_fs::unlink_at(&directory.handle, &temporary);
     }
     result
 }
@@ -244,34 +174,25 @@ pub(super) fn force_workspace_symlink(
     target: &Path,
     name: &str,
 ) -> io::Result<pnpm_fs::ForceSymlinkOutcome> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
-
     let wanted = pnpm_fs::relative_path(&directory.path, target);
-    let wanted_c = std::ffi::CString::new(wanted.as_os_str().as_bytes())?;
-    let name_c = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
+    let entry = std::ffi::OsStr::new(name);
     let mut warning = None;
     loop {
-        // SAFETY: both paths are NUL-terminated and the directory handle is valid.
-        if unsafe {
-            libc::symlinkat(wanted_c.as_ptr(), directory.handle.as_raw_fd(), name_c.as_ptr())
-        } == 0
-        {
-            return Ok(pnpm_fs::ForceSymlinkOutcome { reused: false, warning });
+        match pnpm_ffi_fs::symlink_at(&wanted, &directory.handle, entry) {
+            Ok(()) => return Ok(pnpm_fs::ForceSymlinkOutcome { reused: false, warning }),
+            Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
+            Err(_) => {}
         }
-        let error = io::Error::last_os_error();
-        if error.kind() != io::ErrorKind::AlreadyExists {
-            return Err(error);
-        }
-        match read_link_at(&directory.handle, &name_c) {
+        match pnpm_ffi_fs::read_link_at(&directory.handle, entry) {
             Ok(existing) if existing == wanted => {
                 return Ok(pnpm_fs::ForceSymlinkOutcome { reused: true, warning });
             }
             // A symlink pointing somewhere else is ours to replace.
-            Ok(_) => unlink_at(directory, &name_c)?,
-            // `EINVAL` from `readlinkat` means the entry is not a
+            Ok(_) => unlink_at(directory, entry)?,
+            // `InvalidInput` from reading the link means the entry is not a
             // symlink at all, so it is moved aside rather than removed.
-            Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {
-                warning = Some(move_occupant_aside(directory, &name_c, name)?);
+            Err(error) if error.kind() == io::ErrorKind::InvalidInput => {
+                warning = Some(move_occupant_aside(directory, entry, name)?);
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
@@ -282,18 +203,11 @@ pub(super) fn force_workspace_symlink(
 /// Remove the entry, tolerating a concurrent install having removed it
 /// first.
 #[cfg(unix)]
-fn unlink_at(directory: &ManagedDirectory, name: &std::ffi::CStr) -> io::Result<()> {
-    use std::os::fd::AsRawFd as _;
-
-    // SAFETY: `name` is NUL-terminated and the directory handle is valid.
-    if unsafe { libc::unlinkat(directory.handle.as_raw_fd(), name.as_ptr(), 0) } == 0 {
-        return Ok(());
+fn unlink_at(directory: &ManagedDirectory, name: &std::ffi::OsStr) -> io::Result<()> {
+    match pnpm_ffi_fs::unlink_at(&directory.handle, name) {
+        Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
     }
-    let error = io::Error::last_os_error();
-    if error.kind() == io::ErrorKind::NotFound {
-        return Ok(());
-    }
-    Err(error)
 }
 
 /// Rename the non-symlink occupying the wanted name out of the way,
@@ -301,68 +215,21 @@ fn unlink_at(directory: &ManagedDirectory, name: &std::ffi::CStr) -> io::Result<
 #[cfg(unix)]
 fn move_occupant_aside(
     directory: &ManagedDirectory,
-    name_c: &std::ffi::CStr,
+    entry: &std::ffi::OsStr,
     name: &str,
 ) -> io::Result<String> {
-    use std::os::fd::AsRawFd as _;
-
     let ignored_name = format!(
         ".ignored_{name}-{}-{}",
         pnpm_fs::process_id(),
         MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
     );
-    let ignored = std::ffi::CString::new(ignored_name.as_bytes())?;
-    // SAFETY: both names are NUL-terminated and both descriptors refer to
-    // the same valid directory.
-    if unsafe {
-        libc::renameat(
-            directory.handle.as_raw_fd(),
-            name_c.as_ptr(),
-            directory.handle.as_raw_fd(),
-            ignored.as_ptr(),
-        )
-    } != 0
-    {
-        return Err(io::Error::last_os_error());
-    }
+    pnpm_ffi_fs::rename_at(&directory.handle, entry, std::ffi::OsStr::new(&ignored_name))?;
     Ok(format!(
         "Symlink wanted name was occupied by directory or file. Old entity moved: {:?}{}{} => {ignored_name}",
         directory.path,
         std::path::MAIN_SEPARATOR,
         name,
     ))
-}
-
-#[cfg(unix)]
-fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathBuf> {
-    use std::os::{fd::AsRawFd as _, unix::ffi::OsStringExt as _};
-
-    let mut capacity = 256;
-    loop {
-        let mut contents = Vec::<u8>::with_capacity(capacity);
-        // SAFETY: the name and directory descriptor are valid, and the buffer has
-        // `capacity` writable bytes. `readlinkat` initializes the returned prefix.
-        let length = unsafe {
-            libc::readlinkat(
-                directory.as_raw_fd(),
-                name.as_ptr(),
-                contents.as_mut_ptr().cast(),
-                contents.capacity(),
-            )
-        };
-        if length == -1 {
-            return Err(io::Error::last_os_error());
-        }
-        let length = usize::try_from(length).expect("readlinkat returned a nonnegative length");
-        if length < contents.capacity() {
-            // SAFETY: `readlinkat` initialized exactly `length` bytes on success.
-            unsafe {
-                contents.set_len(length);
-            }
-            return Ok(std::ffi::OsString::from_vec(contents).into());
-        }
-        capacity *= 2;
-    }
 }
 
 #[cfg(windows)]
@@ -378,26 +245,14 @@ pub(super) fn force_workspace_symlink(
 fn create_workspace_temporary(
     directory: &ManagedDirectory,
     name: &str,
-) -> io::Result<(std::ffi::CString, fs::File)> {
-    use std::os::fd::AsRawFd as _;
+) -> io::Result<(std::ffi::OsString, fs::File)> {
     loop {
-        let temporary_name = format!(
+        let temporary = std::ffi::OsString::from(format!(
             ".{name}.pnpm-{}-{}",
             pnpm_fs::process_id(),
             MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
-        );
-        let temporary = std::ffi::CString::new(temporary_name.as_bytes())?;
-        // SAFETY: the name is NUL-terminated, the directory descriptor remains
-        // valid, and a successful call returns a new descriptor owned by this function.
-        let descriptor = unsafe {
-            libc::openat(
-                directory.handle.as_raw_fd(),
-                temporary.as_ptr(),
-                libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
-                0o600,
-            )
-        };
-        match file_from_descriptor(descriptor) {
+        ));
+        match pnpm_ffi_fs::create_file_at(&directory.handle, &temporary, 0o600) {
             Ok(file) => return Ok((temporary, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),

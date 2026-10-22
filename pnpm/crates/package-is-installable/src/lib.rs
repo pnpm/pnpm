@@ -1,5 +1,7 @@
 //! Evaluates whether a package can be installed on the current host.
 
+#![forbid(unsafe_code)]
+
 pub use check_engine::{
     Engine, InvalidNodeVersionError, UnsupportedEngineError, WantedEngine, check_engine,
 };

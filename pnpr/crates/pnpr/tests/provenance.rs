@@ -1,6 +1,8 @@
 //! Integration tests for npm publish with sigstore provenance,
 //! and the `/-/npm/v1/attestations` and `/-/npm/v1/keys` endpoints.
 
+#![forbid(unsafe_code)]
+
 use crate::{network::loopback_networks, npm::publish_doc, tokens::issue_token};
 use axum::{
     body::{Body, to_bytes},

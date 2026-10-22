@@ -3,6 +3,8 @@
 //! of a real bucket, so it exercises the full publish (stage → upload)
 //! and serve (stream-from-bucket) wiring without a network.
 
+#![forbid(unsafe_code)]
+
 use crate::{npm, storage::object_key};
 
 use axum::{

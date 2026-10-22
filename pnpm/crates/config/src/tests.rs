@@ -1,5 +1,4 @@
 use std::{
-    env,
     ffi::OsString,
     fmt::Write as _,
     fs, io,

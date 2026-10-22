@@ -6,6 +6,8 @@
 //! lumped `FsApi` pattern at
 //! <https://github.com/KSXGitHub/parallel-disk-usage/blob/2aa39917f9/src/app/hdd.rs#L25-L35>.
 
+#![forbid(unsafe_code)]
+
 use chrono::{TimeZone, Utc};
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{

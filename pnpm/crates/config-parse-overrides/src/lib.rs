@@ -8,6 +8,8 @@
 //! [`Catalogs`] map when the caller has no catalogs configured — any
 //! `catalog:` value will then fall through to the missing-entry branch.
 
+#![forbid(unsafe_code)]
+
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;

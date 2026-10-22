@@ -1,6 +1,8 @@
 //! Splits the `catalog:` protocol prefix off a manifest bare specifier
 //! and returns the requested catalog name.
 
+#![forbid(unsafe_code)]
+
 use pnpm_catalogs_types::DEFAULT_CATALOG_NAME;
 
 const CATALOG_PROTOCOL: &str = "catalog:";

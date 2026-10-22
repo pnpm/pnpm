@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use derive_more::{Display, Error};
 use pep508_rs::PackageName as PythonPackageName;
 use pnpr_error::RegistryError;

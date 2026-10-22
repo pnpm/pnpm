@@ -105,10 +105,12 @@ fn a_termination_of_pnpm_reaches_the_pnpm_it_switched_to() {
     }
     assert!(started.exists(), "the switched pnpm should have started");
 
-    // SAFETY: signalling this test's own process, which is what `kill` aimed
-    // at pnpm alone does.
-    let signalled = unsafe { libc::kill(libc::getpid(), libc::SIGTERM) };
-    assert_eq!(signalled, 0, "the signal should reach pnpm");
+    // Signalling this test's own process, which is what `kill` aimed at
+    // pnpm alone does.
+    pnpm_ffi_signal::signal_target(
+        pnpm_ffi_signal::Target::Process(std::process::id()),
+        libc::SIGTERM,
+    );
 
     let status = switched
         .join()

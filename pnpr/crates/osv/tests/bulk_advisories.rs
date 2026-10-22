@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use pnpr_osv::OsvIndex;
 use std::{collections::HashMap, fs};
 

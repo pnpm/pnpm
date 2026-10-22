@@ -6,6 +6,8 @@
 //! optional `-musl` suffix — so the SHASUMS file alone has every
 //! integrity needed without per-asset SHA256 sidecar requests.
 
+#![forbid(unsafe_code)]
+
 #[cfg(target_family = "wasm")]
 extern crate pnpm_http as reqwest;
 

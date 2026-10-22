@@ -9,6 +9,8 @@
 //! rules replace root ignore files; required paths and standard package files
 //! are appended at the root. Bundled dependencies use the same selection.
 
+#![forbid(unsafe_code)]
+
 pub use ignore_walk::files_field::{FilesMatcher, build_files_matcher};
 
 use derive_more::{Display, Error};

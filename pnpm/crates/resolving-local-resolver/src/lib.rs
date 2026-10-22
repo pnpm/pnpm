@@ -22,6 +22,8 @@
 //!   `workspace:` specs so they don't accidentally route to a
 //!   named-registry alias named `link` / `file` / `workspace`.
 
+#![forbid(unsafe_code)]
+
 pub use chain::{LocalPathResolver, LocalResolver, LocalSchemeResolver};
 pub use local_resolver::{
     LocalCurrentPkg, LocalResolveResult, LocalResolverContext, LocalResolverOptions,

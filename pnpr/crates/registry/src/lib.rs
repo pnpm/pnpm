@@ -25,6 +25,8 @@
 //! not concrete. The check is static because [`PackagePattern`]'s coverage
 //! relation is decidable for this deliberately small glob language.
 
+#![forbid(unsafe_code)]
+
 pub use config_error::RegistryConfigError;
 
 pub use package_pattern::PackagePattern;

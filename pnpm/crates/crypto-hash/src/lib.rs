@@ -6,6 +6,8 @@
 //! shortening after their own pre-escape step. Keeping the helpers in
 //! one place avoids duplicating the sha2 dependency in every consumer.
 
+#![forbid(unsafe_code)]
+
 use base64::{
     Engine as _,
     engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},

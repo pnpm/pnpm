@@ -34,6 +34,15 @@ pnpm-engine-runtime-deno-resolver = { path = "pnpm/crates/engine-runtime-deno-re
 pnpm-engine-runtime-node-resolver = { path = "pnpm/crates/engine-runtime-node-resolver" }
 pnpm-env-installer = { path = "pnpm/crates/env-installer" }
 pnpm-env-replace = { path = "pnpm/crates/env-replace" }
+pnpm-ffi-fs = { path = "pnpm/crates/ffi-fs" }
+pnpm-ffi-process = { path = "pnpm/crates/ffi-process" }
+pnpm-ffi-security = { path = "pnpm/crates/ffi-security" }
+pnpm-ffi-signal = { path = "pnpm/crates/ffi-signal" }
+pnpm-ffi-sqlite = { path = "pnpm/crates/ffi-sqlite" }
+pnpm-ffi-terminal = { path = "pnpm/crates/ffi-terminal" }
+pnpm-ffi-webcontainer = { path = "pnpm/crates/ffi-webcontainer" }
+pnpm-signal-registry = { path = "pnpm/crates/signal-registry" }
+pnpm-webcontainer-sys = { path = "pnpm/crates/webcontainer-sys" }
 pnpm-fs = { path = "pnpm/crates/fs" }
 pnpm-fs-packlist = { path = "pnpm/crates/fs-packlist" }
 pnpm-git-utils = { path = "pnpm/crates/git-utils" }

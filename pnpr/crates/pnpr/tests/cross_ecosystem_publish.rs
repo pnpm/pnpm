@@ -2,6 +2,8 @@
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 
+#![forbid(unsafe_code)]
+
 use crate::{npm, storage::object_key};
 
 use axum::{

@@ -1,6 +1,8 @@
 //! Integration tests for the `-/stage` endpoints — the server half of
 //! `pnpm stage`. Static-mode (no upstream) to keep the tests hermetic.
 
+#![forbid(unsafe_code)]
+
 use crate::{npm, storage::object_key};
 
 use axum::{

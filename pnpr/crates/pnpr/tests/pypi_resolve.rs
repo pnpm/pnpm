@@ -8,6 +8,8 @@
 //! metadata from the file an index publishes beside it, and downloads the
 //! wheel only when there is no such file.
 
+#![forbid(unsafe_code)]
+
 use crate::tokens::issue_token;
 use axum::{
     body::{Body, to_bytes},

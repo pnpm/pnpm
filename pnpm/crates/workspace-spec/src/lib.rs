@@ -16,6 +16,8 @@
 //! `pnpm-workspace-range-resolver`'s `resolve_workspace_range` for
 //! the matching range-pick logic.
 
+#![forbid(unsafe_code)]
+
 use std::fmt;
 
 /// Parsed `workspace:` bare specifier — a record of `(alias, version)`

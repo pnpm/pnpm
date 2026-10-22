@@ -1,5 +1,7 @@
 //! npm package-name validation using the `validForOldPackages` rules.
 
+#![forbid(unsafe_code)]
+
 pub use is_valid_old_npm_package_name as is_valid_dependency_alias;
 
 /// Whether `version` is a valid package version component for the filesystem.

@@ -3,6 +3,8 @@
 //! cover branches (e.g. a custom `virtualStoreDir`) that the install
 //! pipeline only reaches transitively.
 
+#![forbid(unsafe_code)]
+
 use indexmap::IndexSet;
 use pipe_trait::Pipe;
 use pnpm_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};

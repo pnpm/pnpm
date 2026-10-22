@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub use abbreviate::abbreviate_packument;
 pub use packument::{
     extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod asynchronous {
     #[cfg(target_family = "wasm")]
     pub use crate::{ChildStderr, ChildStdin, ChildStdout, child::AsyncChild as Child};

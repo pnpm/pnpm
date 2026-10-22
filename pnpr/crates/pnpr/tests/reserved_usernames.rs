@@ -6,6 +6,8 @@
 //!
 //! Existing accounts logging in with their correct password continue to work.
 
+#![forbid(unsafe_code)]
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
