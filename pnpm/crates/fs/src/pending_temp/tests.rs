@@ -136,3 +136,104 @@ fn die_from_signal_does_not_dump_core() {
     assert_eq!(status.signal(), Some(libc::SIGABRT), "process should die by SIGABRT: {status:?}");
     assert!(!status.core_dumped(), "die_from_signal must not dump core: {status:?}");
 }
+
+/// Pins that the flag deciding which signature a replaced handler is called
+/// through is read from the disposition rather than assumed.
+///
+/// `sigaction` stores the one-argument and three-argument handlers in a
+/// union, so nothing but `SA_SIGINFO` distinguishes them, and calling one
+/// through the other's signature is undefined. This is the read that makes
+/// the distinction, driven here against a handler installed each way.
+#[cfg(unix)]
+#[test]
+fn the_siginfo_flag_is_read_back_from_the_disposition() {
+    extern "C" fn plain(_: libc::c_int) {}
+    extern "C" fn detailed(_: libc::c_int, _: *mut libc::siginfo_t, _: *mut libc::c_void) {}
+
+    // `SIGUSR2` because pnpm installs no handler for it, so this cannot
+    // disturb the dispositions this module records.
+    let flags_for = |handler: usize, flags: libc::c_int| {
+        // SAFETY: an all-zero `sigaction` is a valid one to build on, and
+        // both pointers are to fully initialized stack locals that outlive
+        // their calls. A null `oldact` discards the disposition replaced,
+        // and a null `act` only reads the current one back.
+        unsafe {
+            let mut action: libc::sigaction = std::mem::zeroed();
+            action.sa_flags = flags;
+            action.sa_sigaction = handler;
+            libc::sigemptyset(&raw mut action.sa_mask);
+            assert_eq!(libc::sigaction(libc::SIGUSR2, &raw const action, std::ptr::null_mut()), 0);
+            let mut read: libc::sigaction = std::mem::zeroed();
+            assert_eq!(libc::sigaction(libc::SIGUSR2, std::ptr::null(), &raw mut read), 0);
+            (read.sa_sigaction, read.sa_flags & libc::SA_SIGINFO != 0)
+        }
+    };
+
+    let (address, takes_siginfo) = flags_for(plain as *const () as usize, 0);
+    assert_eq!(address, plain as *const () as usize);
+    assert!(!takes_siginfo, "a handler installed without SA_SIGINFO read as taking siginfo");
+
+    let (address, takes_siginfo) = flags_for(detailed as *const () as usize, libc::SA_SIGINFO);
+    assert_eq!(address, detailed as *const () as usize);
+    assert!(takes_siginfo, "a handler installed with SA_SIGINFO read as not taking siginfo");
+}
+
+/// Pins that a replaced handler installed with `SA_SIGINFO` is called with
+/// the delivery's details, which is what a program embedding pnpm gets back
+/// when pnpm passes an interrupt on to the handler it found.
+///
+/// Calling such a handler through `extern "C" fn(c_int)` would leave it
+/// reading its second and third arguments from whatever the registers held,
+/// so this asserts on the `siginfo_t` the handler received rather than only
+/// on being reached.
+#[cfg(unix)]
+#[test]
+fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
+    use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+
+    static REACHED_WITH: AtomicI32 = AtomicI32::new(0);
+    static DETAILS_MATCHED: AtomicBool = AtomicBool::new(false);
+
+    extern "C" fn earlier(
+        signal: libc::c_int,
+        siginfo: *mut libc::siginfo_t,
+        _context: *mut libc::c_void,
+    ) {
+        REACHED_WITH.store(signal, Ordering::Release);
+        // SAFETY: the kernel hands a handler installed with `SA_SIGINFO` a
+        // valid `siginfo_t` for the delivery, and this reads one `c_int`
+        // field of it without retaining the pointer.
+        let matched = !siginfo.is_null() && unsafe { (*siginfo).si_signo } == signal;
+        DETAILS_MATCHED.store(matched, Ordering::Release);
+    }
+
+    // SAFETY: an all-zero `sigaction` is a valid one to build on, and the
+    // pointer is to a fully initialized stack local that outlives the call.
+    // A null `oldact` discards the disposition being replaced.
+    unsafe {
+        let mut action: libc::sigaction = std::mem::zeroed();
+        action.sa_flags = libc::SA_SIGINFO;
+        action.sa_sigaction = earlier as *const () as usize;
+        libc::sigemptyset(&raw mut action.sa_mask);
+        assert_eq!(libc::sigaction(libc::SIGTERM, &raw const action, std::ptr::null_mut()), 0);
+    }
+
+    // pnpm's handler goes on top, so `earlier` is the disposition it records
+    // and the one it passes the signal on to.
+    super::install_temp_file_cleanup();
+
+    // SAFETY: `raise` is async-signal-safe and delivers to this thread. The
+    // disposition is `earlier` by way of pnpm's handler, so neither ends the
+    // process and `raise` returns.
+    assert_eq!(unsafe { libc::raise(libc::SIGTERM) }, 0);
+
+    assert_eq!(
+        REACHED_WITH.load(Ordering::Acquire),
+        libc::SIGTERM,
+        "the replaced handler was not reached",
+    );
+    assert!(
+        DETAILS_MATCHED.load(Ordering::Acquire),
+        "the replaced handler was called without the delivery's `siginfo_t`",
+    );
+}

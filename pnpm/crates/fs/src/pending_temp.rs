@@ -37,6 +37,9 @@ use std::{
 #[cfg(any(unix, windows))]
 use std::sync::Once;
 
+#[cfg(unix)]
+use std::sync::atomic::AtomicBool;
+
 /// The terminal and service-manager signals that end pnpm without running
 /// destructors.
 #[cfg(unix)]
@@ -48,6 +51,15 @@ const SIGNALS: [libc::c_int; 3] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP];
 /// call, as `SIG_IGN` dispositions are left untouched at install time.
 #[cfg(unix)]
 static PREVIOUS: [AtomicUsize; SIGNALS.len()] = [const { AtomicUsize::new(0) }; SIGNALS.len()];
+
+/// Whether the matching [`PREVIOUS`] entry was installed with `SA_SIGINFO`,
+/// and so takes three arguments rather than one. The union `sigaction`
+/// stores the two forms in does not say which it holds, and calling one
+/// through the other's signature is undefined, so the flag is read
+/// alongside the pointer and kept with it.
+#[cfg(unix)]
+static PREVIOUS_TAKES_SIGINFO: [AtomicBool; SIGNALS.len()] =
+    [const { AtomicBool::new(false) }; SIGNALS.len()];
 
 /// The registered path as the cleanup reads it: a C string on Unix, where
 /// the reader is a signal handler and only `unlink` is async-signal-safe.
@@ -229,11 +241,19 @@ fn install_handler_for(index: usize, signal: libc::c_int) {
             return;
         }
         PREVIOUS[index].store(previous.sa_sigaction, Ordering::Release);
+        PREVIOUS_TAKES_SIGINFO[index].store(
+            previous.sa_flags & libc::SA_SIGINFO != 0,
+            Ordering::Release,
+        );
         let mut action: libc::sigaction = std::mem::zeroed();
         action.sa_sigaction = clean_temp_files as *const () as usize;
+        // `SA_SIGINFO` so the handler receives the delivery's `siginfo_t`
+        // and context, which is what lets it pass them on to a replaced
+        // handler that was itself installed with `SA_SIGINFO`.
+        //
         // `SA_RESTART` keeps the in-flight syscalls underneath from failing
         // with `EINTR` when the handler fires.
-        action.sa_flags = libc::SA_RESTART;
+        action.sa_flags = libc::SA_SIGINFO | libc::SA_RESTART;
         libc::sigemptyset(&raw mut action.sa_mask);
         libc::sigaction(signal, &raw const action, ptr::null_mut());
     }
@@ -248,7 +268,11 @@ fn install_handler_for(index: usize, signal: libc::c_int) {
 /// Everything up to the chained call is async-signal-safe: atomic loads and
 /// `unlink`.
 #[cfg(unix)]
-extern "C" fn clean_temp_files(signal: libc::c_int) {
+extern "C" fn clean_temp_files(
+    signal: libc::c_int,
+    siginfo: *mut libc::siginfo_t,
+    context: *mut libc::c_void,
+) {
     let Some(index) = SIGNALS
         .iter()
         .position(|candidate| *candidate == signal)
@@ -265,13 +289,25 @@ extern "C" fn clean_temp_files(signal: libc::c_int) {
         // it as handled beats calling address 1 if that ever changes.
         return;
     }
-    // SAFETY: `previous` is the `sa_sigaction` read back at install time of
-    // a disposition that was neither the default nor ignore, so it holds a
-    // handler installed without `SA_SIGINFO` — an `extern "C" fn(c_int)`
-    // that outlives the process. Nothing in this process installs a
-    // three-argument `SA_SIGINFO` handler for these signals.
-    let handler: extern "C" fn(libc::c_int) = unsafe { std::mem::transmute(previous) };
-    handler(signal);
+    if PREVIOUS_TAKES_SIGINFO[index].load(Ordering::Acquire) {
+        // SAFETY: `previous` is the `sa_sigaction` read back at install time
+        // from a disposition whose `sa_flags` carried `SA_SIGINFO`, so it is
+        // the address of a function of exactly this signature, and a handler
+        // stays installed for the life of the process. The two pointers are
+        // the ones this delivery was handed, which is what that signature is
+        // called with.
+        let handler: extern "C" fn(libc::c_int, *mut libc::siginfo_t, *mut libc::c_void) =
+            unsafe { std::mem::transmute(previous) };
+        handler(signal, siginfo, context);
+    } else {
+        // SAFETY: `previous` is the `sa_sigaction` read back at install time
+        // from a disposition whose `sa_flags` did not carry `SA_SIGINFO`, so
+        // the union held `sa_handler`: the address of a function of exactly
+        // this signature. A handler stays installed for the life of the
+        // process.
+        let handler: extern "C" fn(libc::c_int) = unsafe { std::mem::transmute(previous) };
+        handler(signal);
+    }
 }
 
 /// Unlink the pending temp files, then end the process as `signal` would
