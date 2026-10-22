@@ -10,6 +10,10 @@
 //!   comparators allowed in peer specs and rewrites every
 //!   `workspace:` segment in place so a compound `a || workspace:>=`
 //!   round-trips correctly.
+//!
+//! The regular form qualifies the rewritten specifier with the target's
+//! [`WorkspacePackageManifest::registry_prefix`]; a peer range stays a plain
+//! semver range.
 
 use std::{
     collections::HashMap,
@@ -91,7 +95,35 @@ pub fn replace_workspace_protocol(
     dep_spec: &str,
     dir: &Path,
     modules_dir: Option<&Path>,
-    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    workspace_packages: Option<&WorkspacePackageManifests>,
+) -> Result<String, ReplaceWorkspaceProtocolError> {
+    replace_workspace_spec(
+        dep_name,
+        dep_spec,
+        dir,
+        modules_dir,
+        workspace_packages,
+        RegistryPrefix::Carry,
+    )
+}
+
+/// Whether a rewritten specifier carries the target's
+/// [`WorkspacePackageManifest::registry_prefix`]. A peer range omits it: the
+/// consumer matches the range against the installed version with semver, and
+/// a prefix is no part of a semver range.
+#[derive(Clone, Copy)]
+enum RegistryPrefix {
+    Carry,
+    Omit,
+}
+
+fn replace_workspace_spec(
+    dep_name: &str,
+    dep_spec: &str,
+    dir: &Path,
+    modules_dir: Option<&Path>,
+    workspace_packages: Option<&WorkspacePackageManifests>,
+    registry_prefix: RegistryPrefix,
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     let Some(rest) = dep_spec.strip_prefix("workspace:") else {
         return Ok(dep_spec.to_string());
@@ -111,19 +143,43 @@ pub fn replace_workspace_protocol(
             Some('~') => "~",
             _ => "",
         };
-        return Ok(published_spec(dep_name, &manifest, token));
+        return Ok(published_spec(dep_name, &manifest, token, registry_prefix));
     }
 
     if let Some(relative) = strip_workspace_relative_prefix(dep_spec) {
         let manifest =
             read_and_check_manifest(dep_name, dep_name, &dir.join(relative), workspace_packages)?;
-        return Ok(published_spec(dep_name, &manifest, ""));
+        return Ok(published_spec(dep_name, &manifest, "", registry_prefix));
     }
 
-    if rest.contains('@') {
-        return Ok(format!("npm:{rest}"));
+    Ok(explicit_version_spec(dep_name, rest, workspace_packages, registry_prefix))
+}
+
+/// The published form of `workspace:<version>` and
+/// `workspace:<alias>@<version>`. The version is published as written, so the
+/// target's manifest is not read and a target that is not a workspace package
+/// leaves the specifier plain; only the prefix of its registry is looked up.
+fn explicit_version_spec(
+    dep_name: &str,
+    rest: &str,
+    workspace_packages: Option<&WorkspacePackageManifests>,
+    registry_prefix: RegistryPrefix,
+) -> String {
+    let (target_pkg_name, version) = match rest.rfind('@') {
+        Some(0) => return format!("npm:{rest}"),
+        Some(index) => (&rest[..index], &rest[index + 1..]),
+        None => (dep_name, rest),
+    };
+    let prefix = match registry_prefix {
+        RegistryPrefix::Carry => workspace_package_at(workspace_packages, target_pkg_name, version)
+            .and_then(|pkg| pkg.registry_prefix.as_deref()),
+        RegistryPrefix::Omit => None,
+    };
+    match (prefix, rest.contains('@')) {
+        (Some(prefix), _) => format!("{prefix}:{rest}"),
+        (None, true) => format!("npm:{rest}"),
+        (None, false) => rest.to_string(),
     }
-    Ok(rest.to_string())
 }
 
 /// Rewrites a `peerDependencies` value at publish time.
@@ -137,7 +193,7 @@ pub fn replace_workspace_protocol_peer_dependency(
     dep_spec: &str,
     dir: &Path,
     modules_dir: Option<&Path>,
-    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    workspace_packages: Option<&WorkspacePackageManifests>,
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
@@ -145,12 +201,13 @@ pub fn replace_workspace_protocol_peer_dependency(
     match parsed_peer_spec(dep_spec) {
         Some(ParsedPeer::Alias(alias)) => return Ok(alias),
         Some(ParsedPeer::Relative) => {
-            return replace_workspace_protocol(
+            return replace_workspace_spec(
                 dep_name,
                 dep_spec,
                 dir,
                 modules_dir,
                 workspace_packages,
+                RegistryPrefix::Omit,
             );
         }
         None => {}
@@ -198,6 +255,42 @@ fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
     relative.then_some(ParsedPeer::Relative)
 }
 
+/// The workspace package `name` at `version`, or the one project of that name
+/// when `version` is none of them. Several projects of the name and no match
+/// select nothing: a guess would send a consumer to another project's
+/// registry.
+fn workspace_package_at<'a>(
+    workspace_packages: Option<&'a WorkspacePackageManifests>,
+    name: &str,
+    version: &str,
+) -> Option<&'a WorkspacePackageManifest> {
+    let projects = workspace_packages?.get(name)?;
+    if let Some(project) = projects
+        .iter()
+        .find(|project| project.version == version)
+    {
+        return Some(project);
+    }
+    match projects.as_slice() {
+        [only] => Some(only),
+        _ => None,
+    }
+}
+
+/// The workspace package a `workspace:` specifier falls back on when the
+/// dependency is not installed: the first project of the name with a version,
+/// else the first, so that a missing version can be reported.
+fn workspace_package_named<'a>(
+    workspace_packages: Option<&'a WorkspacePackageManifests>,
+    name: &str,
+) -> Option<&'a WorkspacePackageManifest> {
+    let projects = workspace_packages?.get(name)?;
+    projects
+        .iter()
+        .find(|project| project.is_complete())
+        .or_else(|| projects.first())
+}
+
 /// The directory a workspace dependency is installed under: the caller's, or
 /// the project's own `node_modules`.
 fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
@@ -205,13 +298,29 @@ fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
 }
 
 /// The specifier a published manifest records for a workspace dependency: the
-/// resolved version, or an `npm:` alias when the package is published under
-/// another name.
-fn published_spec(dep_name: &str, manifest: &WorkspacePackageManifest, token: &str) -> String {
-    if manifest.name == dep_name {
-        return format!("{token}{version}", version = manifest.version);
+/// resolved version, aliased when the package is published under another
+/// name, and qualified with the registry prefix the manifest carries.
+fn published_spec(
+    dep_name: &str,
+    manifest: &WorkspacePackageManifest,
+    token: &str,
+    registry_prefix: RegistryPrefix,
+) -> String {
+    let WorkspacePackageManifest {
+        name,
+        version,
+        registry_prefix: prefix,
+    } = manifest;
+    let prefix = match registry_prefix {
+        RegistryPrefix::Carry => prefix.as_deref(),
+        RegistryPrefix::Omit => None,
+    };
+    match (prefix, name == dep_name) {
+        (Some(prefix), true) => format!("{prefix}:{token}{version}"),
+        (Some(prefix), false) => format!("{prefix}:{name}@{token}{version}"),
+        (None, true) => format!("{token}{version}"),
+        (None, false) => format!("npm:{name}@{token}{version}"),
     }
-    format!("npm:{name}@{token}{version}", name = manifest.name, version = manifest.version)
 }
 
 /// An aliased peer keeps its alias; a range sentinel with no version behind it
@@ -231,16 +340,16 @@ fn read_and_check_manifest(
     dep_name: &str,
     target_pkg_name: &str,
     dependency_dir: &Path,
-    workspace_packages: Option<&HashMap<String, WorkspacePackageManifest>>,
+    workspace_packages: Option<&WorkspacePackageManifests>,
 ) -> Result<WorkspacePackageManifest, ReplaceWorkspaceProtocolError> {
     let manifest_from_dir = read_manifest_fields(dependency_dir)?;
     if let Some(manifest) = &manifest_from_dir
         && manifest.is_complete()
     {
-        return Ok(manifest.clone());
+        return Ok(manifest.clone().with_registry_prefix_of(workspace_packages));
     }
 
-    let workspace_manifest = workspace_packages.and_then(|pkgs| pkgs.get(target_pkg_name));
+    let workspace_manifest = workspace_package_named(workspace_packages, target_pkg_name);
     if let Some(manifest) = workspace_manifest
         && manifest.is_complete()
     {
@@ -273,6 +382,7 @@ fn read_manifest_fields(
     Ok(value.map(|value| WorkspacePackageManifest {
         name: field(&value, "name"),
         version: field(&value, "version"),
+        registry_prefix: None,
     }))
 }
 
@@ -292,19 +402,42 @@ fn cannot_resolve_error(
     CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string(), package_name, reason }
 }
 
-/// The two fields the rewriters consult on the dependency's manifest.
-/// `version` is empty when a workspace package was found but its
-/// `package.json` has no `version` field, so the caller can report that
-/// instead of claiming the dependency is not installed.
+/// The workspace's packages by name. A name holds one entry per project that
+/// carries it: a workspace may hold several versions of one package.
+pub type WorkspacePackageManifests = HashMap<String, Vec<WorkspacePackageManifest>>;
+
+/// The fields the rewriters consult on the dependency's manifest, and the
+/// registry prefix the dependency publishes under. `version` is empty when a
+/// workspace package was found but its `package.json` has no `version` field,
+/// so the caller can report that instead of claiming the dependency is not
+/// installed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspacePackageManifest {
     pub name: String,
     pub version: String,
+    /// The named-registry prefix of the registry the package publishes to,
+    /// when the workspace declares one for that registry. A published
+    /// specifier for the package carries it (`work:1.0.0`), so a consumer
+    /// records one lockfile key for the package whether it addresses the
+    /// package through the prefix or through this manifest. `None` leaves the
+    /// specifier plain.
+    pub registry_prefix: Option<String>,
 }
 
 impl WorkspacePackageManifest {
     fn is_complete(&self) -> bool {
         !self.name.is_empty() && !self.version.is_empty()
+    }
+
+    /// A manifest read from `node_modules` says nothing about registries; the
+    /// prefix is that of the workspace project of the same name and version.
+    fn with_registry_prefix_of(
+        mut self,
+        workspace_packages: Option<&WorkspacePackageManifests>,
+    ) -> Self {
+        self.registry_prefix = workspace_package_at(workspace_packages, &self.name, &self.version)
+            .and_then(|project| project.registry_prefix.clone());
+        self
     }
 }
 
