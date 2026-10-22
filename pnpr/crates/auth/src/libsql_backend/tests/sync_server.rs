@@ -59,7 +59,12 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
     let settings = LibsqlSettings {
         url: format!("http://{address}"),
         auth_token: None,
-        replica_path: Some(directory.path().join("replica.db")),
+        replica_path: Some(
+            directory
+                .path()
+                .join("replicas")
+                .join("auth.db"),
+        ),
         sync_interval_secs: None,
     };
     let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();

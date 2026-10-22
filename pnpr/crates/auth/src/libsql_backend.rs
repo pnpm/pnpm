@@ -41,7 +41,7 @@ use libsql::{
 use pnpm_network::is_url_secure_for_credentials;
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
-use std::{sync::atomic::AtomicU64, time::Duration};
+use std::{path::Path, sync::atomic::AtomicU64, time::Duration};
 
 /// Deadline for request-path auth reads, beyond which a stalled endpoint
 /// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
@@ -102,33 +102,45 @@ impl LibsqlAuth {
             });
         }
         let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
-        let auth_token = settings.auth_token.clone().unwrap_or_default();
-        let db = match &settings.replica_path {
-            Some(path) => {
-                let mut builder =
-                    Builder::new_remote_replica(path, settings.url.clone(), auth_token)
-                        .connector(connector);
-                let interval = settings.sync_interval_secs.unwrap_or(
-                    LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS,
-                );
-                if interval > 0 {
-                    builder = builder.sync_interval(Duration::from_secs(interval));
-                }
-                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
-            }
-            None => {
-                with_auth_timeout(
-                    DEFAULT_STARTUP_TIMEOUT,
-                    Box::pin(
-                        Builder::new_remote(settings.url.clone(), auth_token)
-                            .connector(connector)
-                            .build(),
-                    ),
-                )
-                .await?
-            }
+        let db = if let Some(path) = &settings.replica_path {
+            Self::open_replica(path, settings, connector).await?
+        } else {
+            let auth_token = settings.auth_token.clone().unwrap_or_default();
+            with_auth_timeout(
+                DEFAULT_STARTUP_TIMEOUT,
+                Box::pin(
+                    Builder::new_remote(settings.url.clone(), auth_token)
+                        .connector(connector)
+                        .build(),
+                ),
+            )
+            .await?
         };
         Self::from_database(db, max_users).await
+    }
+
+    /// Open the embedded replica at `path`, creating its directory the way
+    /// the local stores create theirs.
+    async fn open_replica(
+        path: &Path,
+        settings: &LibsqlSettings,
+        connector: LibsqlConnector,
+    ) -> Result<Database> {
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            tokio::fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
+        }
+        let auth_token = settings.auth_token.clone().unwrap_or_default();
+        let mut builder = Builder::new_remote_replica(path, settings.url.clone(), auth_token)
+            .connector(connector);
+        let interval =
+            settings.sync_interval_secs.unwrap_or(LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS);
+        if interval > 0 {
+            builder = builder.sync_interval(Duration::from_secs(interval));
+        }
+        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await
     }
 
     /// Build the backend from an already-open [`Database`]. Shared by
