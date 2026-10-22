@@ -25,6 +25,8 @@ use std::{
 
 struct Primary {
     backend: LibsqlAuth,
+    /// The one session the fake Hrana endpoint runs every statement on.
+    conn: libsql::Connection,
     path: PathBuf,
     exports: AtomicUsize,
     pipelines: AtomicUsize,
@@ -35,11 +37,13 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
     let directory = tempfile::tempdir().unwrap();
     let primary_path = directory.path().join("primary.db");
     let db = Builder::new_local(&primary_path).build().await.unwrap();
-    let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited).await.unwrap();
+    let backend = LibsqlAuth::from_database(db, MaxUsers::Unlimited, 4).await.unwrap();
     backend.add_or_login("alice", "secret").await.unwrap();
     let token = backend.issue("alice").await.unwrap();
+    let conn = backend.pool.connect().unwrap();
     let primary = Arc::new(Primary {
         backend,
+        conn,
         path: primary_path,
         exports: AtomicUsize::new(0),
         pipelines: AtomicUsize::new(0),
@@ -67,6 +71,7 @@ async fn embedded_replica_follows_a_primary_on_the_newer_sync_protocol() {
                     .join("auth.db"),
             ),
             sync_interval_secs,
+            max_connections: None,
         };
         let pipelines_before_connect = primary.pipelines.load(Ordering::SeqCst);
         let replica = LibsqlAuth::connect(&settings, MaxUsers::Unlimited).await.unwrap();
@@ -109,7 +114,7 @@ async fn info() -> Json<JsonValue> {
 
 async fn export(State(primary): State<Arc<Primary>>) -> Vec<u8> {
     primary.exports.fetch_add(1, Ordering::SeqCst);
-    let mut checkpoint = primary.backend.conn
+    let mut checkpoint = primary.conn
         .query("PRAGMA wal_checkpoint(TRUNCATE)", ())
         .await
         .unwrap();
@@ -146,7 +151,7 @@ impl Primary {
                 "type": "ok",
                 "response": {
                     "type": "get_autocommit",
-                    "is_autocommit": self.backend.conn.is_autocommit(),
+                    "is_autocommit": self.conn.is_autocommit(),
                 },
             }),
             Some("describe") => json!({
@@ -194,7 +199,7 @@ impl Primary {
             .as_array()
             .map(|args| args.iter().map(hrana_arg).collect())
             .unwrap_or_default();
-        let mut rows = self.backend.conn.query(sql, args).await?;
+        let mut rows = self.conn.query(sql, args).await?;
         let cols: Vec<JsonValue> = (0..rows.column_count())
             .map(|index| json!({ "name": rows.column_name(index), "decltype": null }))
             .collect();
@@ -208,7 +213,7 @@ impl Primary {
         Ok(json!({
             "cols": cols,
             "rows": encoded_rows,
-            "affected_row_count": self.backend.conn.changes(),
+            "affected_row_count": self.conn.changes(),
             "last_insert_rowid": null,
         }))
     }

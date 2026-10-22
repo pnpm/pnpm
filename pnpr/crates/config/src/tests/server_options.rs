@@ -316,6 +316,7 @@ fn sql_backend_and_libsql_settings_redact_passwords_and_tokens_in_debug() {
         auth_token: Some("secret_auth_token".to_string()),
         replica_path: None,
         sync_interval_secs: None,
+        max_connections: None,
     };
     let rendered_libsql = format!("{libsql:?}");
     assert!(!rendered_libsql.contains("mysecrettoken"));
