@@ -302,8 +302,8 @@ keep the certificates in a file.
 ### NODE_EXTRA_CA_CERTS
 
 The path to a PEM file with extra CA certificates, set as an environment
-variable. pnpm trusts them in addition to the system trust store and to `ca`
-or `cafile`. pnpm ignores a missing or unreadable file.
+variable. pnpm adds them to the trusted CAs: the system trust store, or `ca` or
+`cafile` when one is set. pnpm ignores a missing or unreadable file.
 
 ### &lt;URL&gt;&#58;ca
 

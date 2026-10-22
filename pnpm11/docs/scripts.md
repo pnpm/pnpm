@@ -30,7 +30,7 @@ pnpm sets the following environment variables during lifecycle script execution:
 - `npm_package_version`: the package version
 - `npm_package_config_*`, `npm_package_engines_*`, `npm_package_bin_*`: the
   `config`, `engines`, and `bin` fields of the manifest, one variable per entry
-  (for example, `npm_package_config_port`)
+  (for example, `npm_package_config_port`). A string `bin` sets `npm_package_bin`.
 - `npm_package_json`: the path to the package's `package.json`
 - `npm_lifecycle_event`: the name of the running script (e.g., `postinstall`)
 - `npm_lifecycle_script`: the command of the running script
@@ -46,9 +46,10 @@ pnpm sets the following environment variables during lifecycle script execution:
 
 :::note
 
-pnpm does not set `npm_config_*` environment variables from its configuration.
-Other `npm_config_*` variables in the environment reach the script unchanged,
-except auth settings.
+Apart from the variables above, pnpm does not set `npm_config_*` variables from
+its configuration. Other `npm_config_*` variables in the environment reach the
+script unchanged, except auth, scope-registry, and per-registry settings (names
+starting with `_`, `/`, or `@`, or containing `:_`).
 
 :::
 

@@ -9,7 +9,7 @@ pnpm v11 introduced several breaking changes to how configuration is read and wh
 
 ```sh
 cd /path/to/your/project
-pnx codemod run pnpm-v10-to-v11
+pnx codemod run pnpm-v10-to-v11   # pnpx on pnpm v10
 # or
 pnpm add --global codemod
 codemod run pnpm-v10-to-v11
