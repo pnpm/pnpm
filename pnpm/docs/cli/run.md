@@ -47,7 +47,7 @@ pnpm run "/^hello:(?!b$).*$/"
 
 Matching is not anchored, so `"/build:.*/"` also matches `prebuild:web`. Anchor the pattern with `^` and `$` when you need an exact prefix.
 
-Matched scripts run in lexicographical order, so the selection is deterministic regardless of the order the scripts appear in `package.json`. Since v12.2.0 they run concurrently, up to [`--workspace-concurrency`](./recursive.md#--workspace-concurrency), with each script's output prefixed by its name. To run them strictly one at a time, add [`--sequential`](#--sequential--s).
+Matched scripts run in lexicographical order by default. With [`--sequential`](#--sequential--s), they run strictly one at a time and preserve the order they appear in `package.json`. Since v12.2.0 concurrent runs execute up to [`--workspace-concurrency`](./recursive.md#--workspace-concurrency), with each script's output prefixed by its name.
 
 With `--no-bail`, a failing script does not stop the others: every matched script is allowed to finish, and the command then exits with `ERR_PNPM_RUN_FAILED`, listing the ones that failed in selection order.
 
@@ -140,7 +140,7 @@ lengthy build process.
 
 Added in: v11.14.0
 
-Run the selected scripts one by one. This forces [`--workspace-concurrency`](./recursive.md#--workspace-concurrency) to `1`, so scripts matched by a [regex selector](#running-multiple-scripts) never overlap — neither across workspace packages nor within a single package.
+Run the selected scripts one by one in the order they appear in `package.json`. This forces [`--workspace-concurrency`](./recursive.md#--workspace-concurrency) to `1`, so scripts matched by a [regex selector](#running-multiple-scripts) never overlap — neither across workspace packages nor within a single package.
 
 ```sh
 pnpm run --sequential "/^build:.*/"
