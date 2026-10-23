@@ -1163,6 +1163,8 @@ test('catalogs work in a package injected through a relative workspace: path', a
   fs.rmSync('pnpm-lock.yaml')
   await expect(install()).resolves.not.toThrow()
 
+  expect(JSON.parse(fs.readFileSync('lib/package.json', 'utf8')).dependencies['is-positive']).toBe('catalog:project/common')
+
   const lockfile = readLockfile()
 
   expect(lockfile.importers).toEqual({
