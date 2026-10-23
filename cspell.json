@@ -245,6 +245,7 @@
     "metacharacter",
     "metafile",
     "millis",
+    "mimalloc",
     "minioadmin",
     "mintimeout",
     "mkfifo",
