@@ -39,7 +39,7 @@ pub(super) fn occurrences(root: &Path, source: &Path) -> Vec<Occurrence> {
 ///
 /// The word has to start a token, so `unsafe_code` and `unsafePerm` do not
 /// match, and it has to be followed by what makes it an operation rather
-/// than prose, so a comment or a string mentioning it does not either.
+/// than prose, so a line describing one does not match.
 fn opens_unsafe(line: &str) -> bool {
     let trimmed = line.trim_start();
     // A comment or a block-comment continuation describes an `unsafe`
@@ -83,12 +83,12 @@ fn kind(line: &str) -> Kind {
 /// What follows each `unsafe` token on a line, with the leading space
 /// taken off.
 ///
-/// A token inside a string literal is left out, because the scanner's own
-/// fixtures are lines of Rust quoted as data and a diagnostic can quote
-/// one too.
+/// The line is code: [`occurrences`] blanks what a line quotes or comments
+/// out before the scan reads it, so a token reaching here is one the line
+/// executes.
 fn unsafe_tokens(line: &str) -> impl Iterator<Item = &str> {
     line.match_indices("unsafe")
-        .filter(move |(index, _)| !preceded_by_word(line, *index) && !quoted(line, *index))
+        .filter(move |(index, _)| !preceded_by_word(line, *index))
         .map(move |(index, token)| line[index + token.len()..].trim_start())
 }
 
@@ -99,43 +99,6 @@ fn preceded_by_word(line: &str, index: usize) -> bool {
         .chars()
         .next_back()
         .is_some_and(|character| character.is_alphanumeric() || character == '_')
-}
-
-/// Whether `index` falls inside a string literal, which an odd number of
-/// unescaped quotes before it means.
-///
-/// A line-local count, not a lexer: a raw string or a multi-line literal
-/// can fool it. What that costs is a wrong answer on a line that mentions
-/// `unsafe` inside such a literal, and the attribute check is what
-/// actually keeps `unsafe` out of a crate.
-fn quoted(line: &str, index: usize) -> bool {
-    let before = &line[..index];
-    if opens_raw_string(before) {
-        return true;
-    }
-    let mut quotes = 0;
-    let mut escaped = false;
-    for character in before.chars() {
-        match character {
-            _ if escaped => escaped = false,
-            '\\' => escaped = true,
-            '"' => quotes += 1,
-            _ => {}
-        }
-    }
-    quotes % 2 == 1
-}
-
-/// Whether a raw string opens in `before`.
-///
-/// A raw string takes no escapes, so the quote count above cannot be read
-/// through one. Everything after the opener on the line is treated as
-/// inside it, which is why this is checked first.
-fn opens_raw_string(before: &str) -> bool {
-    before
-        .match_indices('r')
-        .filter(|(index, _)| !preceded_by_word(before, *index))
-        .any(|(index, _)| before[index + 1..].trim_start_matches('#').starts_with('"'))
 }
 
 /// Whether the comment block above an `unsafe` carries a safety line: one

@@ -79,19 +79,21 @@ fn a_token_inside_a_string_literal_opens_nothing() {
         r#"        "    let value = unsafe { read() };","#,
         r#"    panic!("unsafe fn found");"#,
     ] {
-        assert!(!opens_unsafe(line), "{line}");
+        let found = occurrences_in(line);
+        assert!(found.is_empty(), "{line}: {found:?}");
     }
 }
 
-/// A raw string takes no escapes, so the quote count cannot be read
-/// through one: inside `r##"..."##` a lone `"#` leaves the count even
-/// while the token is still inside the literal.
+/// A raw string takes no escapes, so a quote count cannot be read through
+/// one: inside `r##"..."##` a lone `"#` leaves the count even while the
+/// token is still inside the literal.
 #[test]
 fn a_token_inside_a_raw_string_opens_nothing() {
     for line in
         [r##"        r#"unsafe extern "C" {"#,"##, r###"    let text = r##"a "# unsafe { b"##;"###]
     {
-        assert!(!opens_unsafe(line), "{line}");
+        let found = occurrences_in(line);
+        assert!(found.is_empty(), "{line}: {found:?}");
     }
 }
 
@@ -99,7 +101,8 @@ fn a_token_inside_a_raw_string_opens_nothing() {
 /// is still inside the literal that holds it.
 #[test]
 fn an_escaped_quote_does_not_end_a_literal() {
-    assert!(!opens_unsafe(r#"    let text = "a \" unsafe { b";"#));
+    let found = occurrences_in(r#"    let text = "a \" unsafe { b";"#);
+    assert!(found.is_empty(), "{found:?}");
 }
 
 #[test]
@@ -215,5 +218,22 @@ fn an_unsafe_inside_a_block_comment_opens_nothing() {
 fn an_unsafe_after_a_multiline_raw_string_still_opens_one() {
     let found =
         occurrences_in("fn main() {\n    let s = r#\"\nnot code\n\"#;\n    unsafe { read() }\n}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+}
+
+/// A string closed earlier on the line leaves an `unsafe` after it an
+/// operation. The lexical pass blanks contents but keeps delimiters, so
+/// anything counting quotes on the blanked line still sees an opener.
+#[test]
+fn an_unsafe_after_a_closed_raw_string_on_one_line_opens_one() {
+    let found = occurrences_in("fn main() {\n    let v = r#\"x\"#; unsafe { read() }\n}\n");
+    assert_eq!(found.len(), 1, "{found:?}");
+}
+
+/// A `'"'` is one character literal, not the start of a string, so an
+/// `unsafe` after it is an operation.
+#[test]
+fn an_unsafe_after_a_quote_character_literal_opens_one() {
+    let found = occurrences_in("fn main() {\n    if c == '\"' { unsafe { read() } }\n}\n");
     assert_eq!(found.len(), 1, "{found:?}");
 }
