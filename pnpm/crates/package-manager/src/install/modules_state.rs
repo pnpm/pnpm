@@ -6,7 +6,7 @@ pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_r
 pub(super) use merge_metadata::{
     current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
 };
-pub(super) use settings_diff::check_modules_settings_diff;
+pub(super) use settings_diff::{check_modules_settings_diff, same_path};
 
 mod build_markers;
 
@@ -213,12 +213,8 @@ pub(crate) fn modules_layout_consistent_with(
         && modules.node_linker == Some(map_node_linker(node_linker))
         && hoist_patterns_match
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
-        && modules.store_dir == config.store_dir.display().to_string()
-        && modules.virtual_store_dir
-            == config
-                .virtual_store_dir()
-                .to_string_lossy()
-                .as_ref()
+        && same_path(Path::new(&modules.store_dir), config.store_dir.root())
+        && same_path(Path::new(&modules.virtual_store_dir), config.virtual_store_dir())
 }
 
 /// Whether `.modules.yaml` records any ignored build that the current

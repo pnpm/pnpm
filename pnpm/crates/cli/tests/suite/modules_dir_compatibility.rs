@@ -3,7 +3,9 @@
 //! recreates it. Mirrors `validateModules` and `checkCompatibility` in
 //! `pnpm11/installing/deps-installer/src/install/`.
 
-use crate::_utils::{append_workspace_yaml_key, flatten_report, pacquet_in};
+use crate::_utils::{
+    append_workspace_yaml_key, enable_gvs_in_workspace_yaml, flatten_report, pacquet_in,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pipe_trait::Pipe;
@@ -20,11 +22,7 @@ fn add_remove_and_update_refuse_a_modules_dir_linked_from_another_store() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     install_is_positive(&workspace);
 
-    let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
-    let switched = yaml.replace("storeDir: ../pacquet-store", "storeDir: ../other-store");
-    assert_ne!(yaml, switched, "the harness should write `storeDir: ../pacquet-store`");
-    fs::write(&yaml_path, switched).expect("write pnpm-workspace.yaml");
+    switch_store_dir(&workspace);
 
     for args in [&["add", "is-negative@1.0.0"][..], &["remove", "is-positive"], &["update"]] {
         assert_report_contains(
@@ -104,6 +102,112 @@ fn add_refuses_a_modules_dir_with_another_layout_version() {
     assert!(workspace.join("node_modules/is-positive").exists(), "add purged node_modules");
 
     drop((root, mock_instance));
+}
+
+/// `validateModules` purges only for a plain install: `add` keeps a modules
+/// directory whose drift it does not report, such as a `nodeLinker` change.
+#[test]
+fn add_keeps_a_modules_dir_installed_with_another_node_linker() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    for name in ["dep", "dep2"] {
+        let dir = root.path().join(name);
+        fs::create_dir_all(&dir).expect("create the dependency");
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
+        )
+        .expect("write the dependency manifest");
+    }
+    pacquet_in(&workspace)
+        .with_args(["add", "file:../dep"])
+        .assert()
+        .success();
+    let marker = workspace.join("node_modules/marker.txt");
+    fs::write(&marker, "kept").expect("write the marker");
+    append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+
+    pacquet_in(&workspace)
+        .with_args(["add", "file:../dep2"])
+        .assert()
+        .success();
+
+    assert!(marker.exists(), "add purged node_modules");
+
+    drop((root, mock_instance));
+}
+
+/// A script runs the same from whichever store `node_modules` was linked
+/// from, so `pnpm run` passes verification and keeps the recorded store for
+/// the install that recreates the tree.
+#[test]
+fn run_passes_verification_after_a_store_change_that_install_acts_on() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "scripts": { "start": "node --version" },
+            "dependencies": { "is-positive": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    switch_store_dir(&workspace);
+
+    pacquet_in(&workspace)
+        .with_args(["--config.verify-deps-before-run=error", "run", "start"])
+        .assert()
+        .success();
+
+    let state = read_json(&workspace.join("node_modules/.pnpm-workspace-state-v1.json"));
+    let recorded_store_dir = recorded_path(&state["settings"], "storeDir");
+    assert!(
+        recorded_store_dir.ends_with(Path::new("pacquet-store").join("v11")),
+        "{recorded_store_dir:?}",
+    );
+    install_records(&workspace, "storeDir", &Path::new("other-store").join("v11"));
+
+    drop((root, mock_instance));
+}
+
+/// Under a global virtual store, the state records the configured
+/// `virtualStoreDir` anchored at the project, as pnpm v11 does, not the
+/// global virtual store.
+#[test]
+fn the_workspace_state_records_the_configured_virtual_store_dir_under_a_global_virtual_store() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    enable_gvs_in_workspace_yaml(
+        &workspace,
+        "virtualStoreDir: node_modules/.vs\nglobalVirtualStoreDir: ../gvs\n",
+    );
+    install_is_positive(&workspace);
+
+    let state = read_json(&workspace.join("node_modules/.pnpm-workspace-state-v1.json"));
+    let recorded = recorded_path(&state["settings"], "virtualStoreDir");
+    assert!(
+        recorded.is_absolute()
+            && recorded.ends_with(Path::new("workspace").join("node_modules").join(".vs")),
+        "{recorded:?}",
+    );
+
+    drop((root, mock_instance));
+}
+
+fn switch_store_dir(workspace: &Path) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    let switched = yaml.replace("storeDir: ../pacquet-store", "storeDir: ../other-store");
+    assert_ne!(yaml, switched, "the harness should write `storeDir: ../pacquet-store`");
+    fs::write(&yaml_path, switched).expect("write pnpm-workspace.yaml");
 }
 
 fn install_is_positive(workspace: &Path) {

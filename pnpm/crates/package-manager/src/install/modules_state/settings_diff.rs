@@ -7,8 +7,8 @@ use super::{
 /// not a plain install (upstream `installsOnly === false`), a modules
 /// directory whose recorded layout disagrees with the current config fails
 /// instead of being recreated. Check order matches upstream
-/// `validateModules`, then its `checkCompatibility`. A `nodeLinker` drift
-/// still takes the recreate path: upstream does not check it.
+/// `validateModules`, then its `checkCompatibility`. Upstream checks no
+/// `nodeLinker` drift.
 pub(in super::super) fn check_modules_settings_diff(
     modules: &pnpm_modules_yaml::ModulesLayout,
     config: &Config,
@@ -84,7 +84,7 @@ fn recorded_store_matches(recorded: &str, store_dir: &Path) -> bool {
 
 /// Upstream compares with `path.relative`: lexically, and ignoring case on
 /// Windows.
-fn same_path(left: &Path, right: &Path) -> bool {
+pub(in super::super) fn same_path(left: &Path, right: &Path) -> bool {
     let left = pnpm_fs::lexical_normalize(left);
     let right = pnpm_fs::lexical_normalize(right);
     if cfg!(windows) {
