@@ -234,7 +234,8 @@ So an alternative is to use a typical Dockerfile with layers that are built incr
 
 This example assumes the project has a `pnpm-workspace.yaml`. If it does not,
 use `COPY pnpm-lock.yaml /app/` instead. If you patched any package, also copy
-the patches directory before running `pnpm fetch`.
+the patches directory before running `pnpm fetch`. Copy the files that
+[`include`](./config-includes.md) names in `pnpm-workspace.yaml` there too.
 
 ```dockerfile title="Dockerfile"
 FROM ghcr.io/pnpm/pnpm:12 AS base
