@@ -154,10 +154,11 @@ struct MockProvider {
     advertised: Advertised,
     discovery: DiscoveryGate,
 }
-/// What the mock's discovery document advertises.
+/// What the mock's discovery document and key set advertise.
 struct Advertised {
     auth_method: Mutex<String>,
     workload_only: std::sync::atomic::AtomicBool,
+    rotated_key: Mutex<Option<SigningKey>>,
 }
 #[derive(Default)]
 struct DiscoveryGate {
@@ -178,6 +179,7 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
         advertised: Advertised {
             auth_method: Mutex::new("client_secret_basic".to_string()),
             workload_only: std::sync::atomic::AtomicBool::new(false),
+            rotated_key: Mutex::new(None),
         },
         discovery: DiscoveryGate::default(),
     });
@@ -191,9 +193,12 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
                 document["token_endpoint_auth_methods_supported"] = json!([*state.advertised.auth_method.lock().unwrap()]);
                 Json(document)
             }))
+        .route("/other-tenant/.well-known/openid-configuration", get(async |State(state): State<Arc<MockProvider>>| {
+            Json(metadata(&state.issuer))
+        }))
         .route("/jwks", get(async |State(state): State<Arc<MockProvider>>| {
             *state.key_requests.lock().unwrap() += 1;
-            Json(jwks(&state.key))
+            Json(jwks(state.advertised.rotated_key.lock().unwrap().as_ref().unwrap_or(&state.key)))
         }))
         .route("/token", post(async |State(state): State<Arc<MockProvider>>, Form(form): Form<HashMap<String, String>>| {
             *state.token_requests.lock().unwrap() += 1;
@@ -384,6 +389,48 @@ async fn workloads_verify_against_issuers_without_an_authorization_endpoint() {
     });
     let state = OidcState::new(&[login], "https://registry.example").unwrap();
     assert!(state.start("example", LoginReturn::Token).await.is_err());
+    task.abort();
+}
+
+#[tokio::test]
+async fn discovery_requires_a_document_for_the_configured_issuer() {
+    let (provider, task) = mock_provider().await;
+    for issuer in
+        [format!("{}/missing", provider.issuer), format!("{}/other-tenant", provider.issuer)]
+    {
+        let state = OidcState::new(&[config(&issuer)], "https://registry.example").unwrap();
+        assert!(
+            state
+                .workload(&sign(&payload(&issuer), &provider.key))
+                .await
+                .is_err(),
+            "{issuer}",
+        );
+    }
+    assert_eq!(*provider.key_requests.lock().unwrap(), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn workloads_verify_after_the_signing_key_rotates() {
+    let (provider, task) = mock_provider().await;
+    let state = OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap();
+    state
+        .workload(&sign(&payload(&provider.issuer), &provider.key))
+        .await
+        .unwrap();
+    let rotated = SigningKey::from_bytes((&[43u8; 32]).into()).unwrap();
+    let token = sign(&payload(&provider.issuer), &rotated);
+    *provider.advertised.rotated_key.lock().unwrap() = Some(rotated);
+    state.providers["example"].metadata.lock().await.attempted_at =
+        Instant::now().checked_sub(Duration::from_secs(31));
+    let workload = state
+        .workload(&token)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(workload.identity.username, "ci");
+    assert_eq!(*provider.key_requests.lock().unwrap(), 2);
     task.abort();
 }
 
