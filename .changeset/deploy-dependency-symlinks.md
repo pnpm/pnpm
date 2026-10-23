@@ -6,4 +6,4 @@
 "pacquet": patch
 ---
 
-`pnpm deploy` now preserves selected internal symlinks whose targets are installed dependencies or other files outside the copied file set. This applies to default and legacy deploys. Fixes [pnpm/pnpm#17288](https://github.com/pnpm/pnpm/issues/17288).
+`pnpm deploy` now keeps a deployed symlink that points inside the project even if its target is not among the deployed files, such as a link into `node_modules` [#17288](https://github.com/pnpm/pnpm/issues/17288).

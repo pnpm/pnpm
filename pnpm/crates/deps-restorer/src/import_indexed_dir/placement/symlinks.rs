@@ -87,6 +87,10 @@ fn validate_symlink_target(
     Ok(link_target)
 }
 
+/// Recreate the symlink at `store_path` as `target`, reporting whether the
+/// entry is handled. A link that [`SymlinkRoots::policy`] leaves out is
+/// not recreated: a file link is left for the caller to import as a file,
+/// and a directory link is left out.
 pub(super) fn place_symlink_entry(
     placement: Placement,
     store_path: &Path,

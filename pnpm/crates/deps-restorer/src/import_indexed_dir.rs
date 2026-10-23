@@ -54,6 +54,8 @@ pub struct ImportIndexedDirOpts<'a> {
     ///
     /// Callers must ensure that the target path uniquely identifies its contents.
     pub safe_to_skip: bool,
+    /// Which source symlinks are recreated as symlinks. `None` imports
+    /// every entry as a file.
     pub symlink_targets: Option<SymlinkTargets>,
     /// The install's [`ModulesSwapLock`], which serializes this install's
     /// forced replacements of private targets with those of the other
@@ -62,9 +64,14 @@ pub struct ImportIndexedDirOpts<'a> {
     pub swap_lock: Option<&'a ModulesSwapLock>,
 }
 
+/// The source symlinks an import recreates. Either way, a link whose
+/// target leads out of the package is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SymlinkTargets {
+    /// Only links whose target is imported too. A file link to a target
+    /// left out is imported as a file, and a directory link is left out.
     Imported,
+    /// Every link, whether or not its target is imported.
     Internal,
 }
 

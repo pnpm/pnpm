@@ -26,6 +26,12 @@ use symlinks::{
 /// means the recursive mkdir for a deeper dir always finds its ancestor
 /// already on disk, so each call costs one `mkdirat` instead of walking
 /// up.
+///
+/// `symlinks_final_dir` is `None` to import every entry as a file. With
+/// `Some`, an entry whose source is a symlink is recreated as one when
+/// the [`SymlinkTargets`] policy selects it, and the path names the
+/// directory `dir_path` is finally moved to, which a staged import
+/// writes elsewhere first.
 pub(super) fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
