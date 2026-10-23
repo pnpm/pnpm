@@ -297,3 +297,56 @@ module.exports = {{
 
     source
 }
+
+/// A resolver that reports no manifest leaves the dependencies to the
+/// `package.json` the directory fetcher read, as the TypeScript CLI does.
+#[test]
+fn builtin_directory_fetcher_supplies_the_manifest_to_a_fresh_resolution() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, "1.0.0");
+    for (name, manifest) in [
+        (
+            "parent",
+            r#"{"name":"@pnpm.e2e/dep-of-pkg-with-1-dep","version":"1.0.0","dependencies":{"child":"1.0.0"}}"#,
+        ),
+        ("child", r#"{"name":"child","version":"1.0.0"}"#),
+    ] {
+        fs::create_dir(workspace.join(name)).expect("create source");
+        fs::write(workspace.join(name).join("package.json"), manifest).expect("write manifest");
+    }
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"const sources = { '@pnpm.e2e/dep-of-pkg-with-1-dep': 'parent', child: 'child' };
+module.exports = {
+  resolvers: [{
+    canResolve (wanted) { return wanted.alias in sources; },
+    resolve (wanted) {
+      return {
+        id: `${wanted.alias}@1.0.0`,
+        resolution: { type: 'custom:directory', source: sources[wanted.alias] },
+      };
+    },
+  }],
+  fetchers: [{
+    canFetch (pkgId, resolution) { return resolution.type === 'custom:directory'; },
+    fetch (cafs, resolution, opts, fetchers) {
+      return fetchers.directory(cafs, { type: 'directory', directory: resolution.source }, opts);
+    },
+  }],
+};
+",
+    )
+    .expect("write pnpmfile");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.contains("child: child@1.0.0"), "the parent's dependency is locked");
+    assert!(lockfile.contains("source: parent"), "the custom resolution is recorded as resolved");
+    assert!(!lockfile.contains(&*workspace.to_string_lossy()), "no absolute path is recorded");
+    assert!(workspace.join("node_modules/.pnpm/node_modules/child/package.json").exists());
+    drop(root);
+}
