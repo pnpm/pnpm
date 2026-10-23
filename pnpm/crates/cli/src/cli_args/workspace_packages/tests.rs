@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::Path,
+};
 
 use pnpm_config::Config;
 use pnpm_package_manifest::PackageManifest;
@@ -31,6 +35,7 @@ fn config_with_work_prefix() -> Config {
     let mut config = Config::new();
     config.registries_by_scope = BTreeMap::from([("@work".to_string(), WORK.to_string())]);
     config.registries_by_prefix = BTreeMap::from([("work".to_string(), WORK.to_string())]);
+    config.workspace_registry_prefixes = BTreeSet::from(["work".to_string()]);
     config
 }
 
@@ -176,4 +181,44 @@ fn an_unbuilt_publish_directory_leaves_the_project_manifest_to_select_the_regist
     let project = project_publishing_from_dist(root.path(), json!({ "registry": WORK }), None);
 
     assert_eq!(registry_prefix_of_project(project), Some("work".to_string()));
+}
+
+#[test]
+fn a_prefix_the_workspace_does_not_declare_is_not_published() {
+    let mut config = config_with_work_prefix();
+    config.workspace_registry_prefixes.clear();
+    let project = project_with_manifest(
+        Path::new("/workspace/pkg"),
+        json!({ "name": "@work/pkg", "version": "1.0.0" }),
+    );
+
+    let map = build_workspace_package_manifest_map(&[project], &config).expect("build the map");
+
+    assert_eq!(map["@work/pkg"][0].registry_prefix, None);
+}
+
+#[test]
+fn a_workspace_without_prefixes_does_not_read_publish_directories() {
+    let root = tempfile::tempdir().expect("project dir");
+    fs::create_dir_all(root.path().join("dist")).expect("create dist");
+    fs::write(root.path().join("dist/package.json"), "{ not json")
+        .expect("write the dist manifest");
+    let project = project_publishing_from_dist(root.path(), json!({}), None);
+
+    let map = build_workspace_package_manifest_map(&[project], &Config::new())
+        .expect("an unread manifest cannot fail the build");
+
+    assert_eq!(map["pkg-f"][0].registry_prefix, None);
+}
+
+#[test]
+fn an_unreadable_publish_directory_manifest_is_an_error_when_prefixes_are_declared() {
+    let root = tempfile::tempdir().expect("project dir");
+    fs::create_dir_all(root.path().join("dist")).expect("create dist");
+    fs::write(root.path().join("dist/package.json"), "{ not json")
+        .expect("write the dist manifest");
+    let project = project_publishing_from_dist(root.path(), json!({}), None);
+
+    build_workspace_package_manifest_map(&[project], &config_with_work_prefix())
+        .expect_err("the prefix of a dependency on it would be guessed");
 }
