@@ -15,9 +15,10 @@ impl StoreDir {
     ///
     /// A symbolic link is not a directory here, so it is kept. So is a
     /// directory that is or holds this store or one of `protected_dirs`,
-    /// for a `cacheDir` that encloses them. Each directory is held open
-    /// while its children go, so a link put in its place meanwhile does
-    /// not redirect the removal (see [`OpenDir`]).
+    /// for a `cacheDir` that encloses them. `cache_dir` is held open and
+    /// each layout directory is opened and emptied through it, so a link
+    /// put in either's place meanwhile does not redirect the removal (see
+    /// [`OpenDir`]).
     ///
     /// The caller holds the store's prune lock, which keeps out the installs
     /// that read the cache.
@@ -38,9 +39,9 @@ impl StoreDir {
         let names = child_names(&cache_dir)?;
         remove_metadata_dirs(&cache_dir, &names, &protected)?;
         for name in names.iter().filter(|name| is_layout_version(name)) {
-            let path = cache_dir.path().join(name);
-            let Some(layout_dir) =
-                OpenDir::open_no_follow(&path).map_err(|error| read_error(&path, error))?
+            let Some(layout_dir) = cache_dir
+                .open_child_dir(name.as_ref())
+                .map_err(|error| read_error(&cache_dir.path().join(name), error))?
             else {
                 continue;
             };

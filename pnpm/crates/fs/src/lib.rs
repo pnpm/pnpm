@@ -70,7 +70,6 @@ mod lock_mode;
 mod open_dir;
 mod pending_temp;
 mod private_named_tempfile;
-mod random_hex;
 mod read_modules_dir;
 mod realpath_missing;
 mod relative_path;

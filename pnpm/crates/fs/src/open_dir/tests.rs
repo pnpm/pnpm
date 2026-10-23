@@ -12,6 +12,28 @@ fn create_tree(root: &Path) {
     symlink_dir(&root.join("real"), &root.join("link")).unwrap();
 }
 
+fn names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| {
+            entry
+                .unwrap()
+                .file_name()
+                .into_string()
+                .unwrap()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+/// Replace `root/real` with a link to `root/elsewhere`, moving the real
+/// directory to `root/moved`.
+fn substitute_real(root: &Path) {
+    fs::rename(root.join("real"), root.join("moved")).unwrap();
+    symlink_dir(&root.join("elsewhere"), &root.join("real")).unwrap();
+}
+
 #[test]
 fn open_follows_a_link_in_its_place() {
     let root = tempdir().unwrap();
@@ -39,16 +61,20 @@ fn open_rejects_a_file_and_nothing() {
 }
 
 #[test]
-fn open_no_follow_opens_only_a_real_directory() {
+fn open_child_dir_opens_only_a_real_directory() {
     let root = tempdir().unwrap();
     create_tree(root.path());
+    let dir = OpenDir::open(root.path()).unwrap();
 
-    let real = OpenDir::open_no_follow(&root.path().join("real")).unwrap();
-    let link = OpenDir::open_no_follow(&root.path().join("link")).unwrap();
-    let file = OpenDir::open_no_follow(&root.path().join("real/file")).unwrap();
-    let missing = OpenDir::open_no_follow(&root.path().join("missing")).unwrap();
+    let real = dir.open_child_dir("real".as_ref()).unwrap();
+    let link = dir.open_child_dir("link".as_ref()).unwrap();
+    let file = OpenDir::open(&root.path().join("real"))
+        .unwrap()
+        .open_child_dir("file".as_ref())
+        .unwrap();
+    let missing = dir.open_child_dir("missing".as_ref()).unwrap();
 
-    assert!(real.is_some());
+    assert_eq!(real.map(|dir| dir.path().to_path_buf()), Some(root.path().join("real")));
     assert!(link.is_none());
     assert!(file.is_none());
     assert!(missing.is_none());
@@ -58,16 +84,15 @@ fn open_no_follow_opens_only_a_real_directory() {
 fn remove_child_dir_removes_a_directory_with_its_contents() {
     let root = tempdir().unwrap();
     create_tree(root.path());
+    fs::write(root.path().join("real/metadata/registry/other.json"), "{}").unwrap();
+    symlink_dir(&root.path().join("real/file"), &root.path().join("real/metadata/to-file"))
+        .unwrap();
     let dir = OpenDir::open(&root.path().join("real")).unwrap();
 
     let removed = dir.remove_child_dir("metadata".as_ref()).unwrap();
 
     assert!(removed);
-    let left: Vec<_> = fs::read_dir(root.path().join("real"))
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name())
-        .collect();
-    assert_eq!(left, ["file"]);
+    assert_eq!(names(&root.path().join("real")), ["file"]);
 }
 
 #[test]
@@ -110,9 +135,8 @@ fn remove_child_dir_ignores_a_link_substituted_after_the_open() {
     create_tree(root.path());
     fs::create_dir_all(root.path().join("elsewhere/metadata")).unwrap();
     fs::write(root.path().join("elsewhere/metadata/victim"), "").unwrap();
-    let dir = OpenDir::open_no_follow(&root.path().join("real")).unwrap().unwrap();
-    fs::rename(root.path().join("real"), root.path().join("moved")).unwrap();
-    symlink_dir(&root.path().join("elsewhere"), &root.path().join("real")).unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+    substitute_real(root.path());
 
     let canonical = dir.canonical_path().unwrap();
     let removed = dir.remove_child_dir("metadata".as_ref()).unwrap();
@@ -124,22 +148,35 @@ fn remove_child_dir_ignores_a_link_substituted_after_the_open() {
             .join("elsewhere/metadata/victim")
             .exists(),
     );
+    assert_eq!(names(&root.path().join("moved")), ["file"]);
+}
+
+/// Same race one level up: the parent is replaced after the open, and a
+/// child opened through it must be the opened parent's child.
+#[cfg(unix)]
+#[test]
+fn open_child_dir_ignores_a_link_substituted_after_the_open() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::create_dir_all(root.path().join("real/v12/metadata")).unwrap();
+    fs::create_dir_all(root.path().join("elsewhere/v12/metadata")).unwrap();
+    fs::write(root.path().join("elsewhere/v12/metadata/victim"), "").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+    substitute_real(root.path());
+
+    let child = dir
+        .open_child_dir("v12".as_ref())
+        .unwrap()
+        .expect("the opened directory still has v12");
+    let canonical = child.canonical_path().unwrap();
+    let removed = child.remove_child_dir("metadata".as_ref()).unwrap();
+
+    assert_eq!(canonical, None);
+    assert!(removed);
     assert!(
-        !root
-            .path()
-            .join("moved/metadata")
+        root.path()
+            .join("elsewhere/v12/metadata/victim")
             .exists(),
     );
-    let left_behind: Vec<_> = fs::read_dir(root.path().join("moved"))
-        .unwrap()
-        .map(|entry| {
-            entry
-                .unwrap()
-                .file_name()
-                .into_string()
-                .unwrap()
-        })
-        .filter(|name| name.starts_with("metadata."))
-        .collect();
-    assert_eq!(left_behind.len(), 1, "the renamed directory stays in the opened one");
+    assert_eq!(names(&root.path().join("moved/v12")), Vec::<String>::new());
 }
