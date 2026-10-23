@@ -259,6 +259,7 @@ fn create_config(
         minimum_release_age_exclude_prune: false,
         catalogs: None,
         save_catalog_name: None,
+        tag: None,
         save_prefix: None,
         save_exact: false,
         save_peer: false,

@@ -840,6 +840,11 @@ pub struct WorkspaceSettings {
     /// [`Config::save_catalog_name`]: crate::Config::save_catalog_name
     pub save_catalog_name: Option<String>,
 
+    /// `tag` from `pnpm-workspace.yaml`. See [`Config::tag`].
+    ///
+    /// [`Config::tag`]: crate::Config::tag
+    pub tag: Option<String>,
+
     /// `savePrefix` from `pnpm-workspace.yaml`. See
     /// [`Config::save_prefix`].
     ///

@@ -101,6 +101,7 @@ impl WorkspaceSettings {
 
     pub(super) fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
+        substitute_optional_string::<Sys>(&mut self.tag);
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);

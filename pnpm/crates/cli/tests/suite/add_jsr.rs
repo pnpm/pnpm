@@ -16,8 +16,13 @@ use tempfile::TempDir;
 /// `npm.jsr.io`; point it at the mocked registry, which serves the
 /// `@jsr/pnpm-e2e__bar` fixture up to 2.0.0.
 fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
+    route_jsr_to_the_mocked_registry(CommandTempCwd::init().add_mocked_registry())
+}
+
+fn route_jsr_to_the_mocked_registry(
+    cwd: CommandTempCwd<AddMockedRegistry>,
+) -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } = cwd;
     let npmrc = fs::read_to_string(&npmrc_info.npmrc_path).expect("read the harness .npmrc");
     let jsr_registry = npmrc_info.mock_instance.url();
     fs::write(&npmrc_info.npmrc_path, format!("{npmrc}@jsr:registry={jsr_registry}\n"))
@@ -79,5 +84,29 @@ fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
     assert_eq!(entry.specifier, "jsr:~1.0.1");
     assert_eq!(entry.version.to_string(), "@jsr/pnpm-e2e__bar@1.0.1");
 
+    drop((root, anchor));
+}
+
+/// A `jsr:` selector with no version resolves the `tag` setting.
+#[test]
+fn add_resolves_a_versionless_jsr_selector_to_the_configured_tag() {
+    let (root, workspace, anchor) = route_jsr_to_the_mocked_registry(
+        CommandTempCwd::init().add_mocked_registry_with_own_storage(),
+    );
+    anchor.set_dist_tag("@jsr/pnpm-e2e__bar", "1.0.0", "dev");
+    _utils::append_workspace_yaml_key(&workspace, "tag", "dev");
+
+    pacquet_in(&workspace)
+        .with_args(["add", "jsr:@pnpm-e2e/bar", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert_eq!(
+        dependency_spec(&workspace, "dependencies", "@pnpm-e2e/bar").as_deref(),
+        Some("jsr:^1.0.0"),
+    );
+    let lockfile = read_lockfile(&workspace.join(Lockfile::FILE_NAME));
+    let entry = root_dependency(&lockfile, "@pnpm-e2e/bar");
+    assert_eq!(entry.version.to_string(), "@jsr/pnpm-e2e__bar@1.0.0");
     drop((root, anchor));
 }

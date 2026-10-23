@@ -34,9 +34,6 @@ If you `pnpm add` a package and you don't provide a specific version, then it
 will install the package at the version registered under the tag from this
 setting.
 
-This also sets the tag that is added to the `package@version` specified by the
-`pnpm tag` command if no explicit tag is given.
-
 ### globalDir
 
 * Default:

@@ -1714,6 +1714,11 @@ pub struct Config {
     /// `undefined`).
     pub save_catalog_name: Option<String>,
 
+    /// The dist-tag a dependency with no version resolves to, as in
+    /// `pnpm add foo` or an `npm:foo` alias. The `tag` setting. Unset means
+    /// `latest`; read it through [`Config::default_tag`].
+    pub tag: Option<String>,
+
     /// The range operator `pnpm add` prepends to a resolved version
     /// when saving it: `^` (the default), `~`, or `""` for an exact
     /// pin. The `savePrefix` setting, overridden per-invocation by
@@ -1864,6 +1869,15 @@ impl Config {
     /// required package warns instead of failing the install.
     pub fn effective_engine_strict(&self) -> bool {
         self.engine_strict && !self.force
+    }
+
+    /// [`tag`](Self::tag), or `latest` when it is unset or empty.
+    #[must_use]
+    pub fn default_tag(&self) -> &str {
+        self.tag
+            .as_deref()
+            .filter(|tag| !tag.is_empty())
+            .unwrap_or("latest")
     }
 
     #[must_use]

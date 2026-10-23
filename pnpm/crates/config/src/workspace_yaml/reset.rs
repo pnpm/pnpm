@@ -157,7 +157,7 @@ impl WorkspaceSettings {
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,
             trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
-            init_license, init_version, pm_on_fail, versioning, save_catalog_name,
+            init_license, init_version, pm_on_fail, versioning, save_catalog_name, tag,
             save_prefix, tag_version_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
             allow_builds, concurrency_groups, boot_config,
         });
