@@ -15,6 +15,7 @@ pub use byte_size::{ByteSize, parse_byte_size};
 pub use hosted::{HostedConfig, Management};
 pub use ip_network::{IpNetwork, parse_trusted_proxies};
 pub use logging::{LogConfig, LogFormat, LogLevel};
+pub use metrics::MetricsConfig;
 pub use pnpr_policy::{TeamDirectory, Teams};
 pub use s3::{HostedStoreConfig, S3Settings, build_s3_store, normalize_key_prefix};
 pub use scim::ScimConfig;
@@ -52,6 +53,8 @@ mod ip_network;
 mod loading;
 mod logging;
 use logging::build_log_config;
+
+mod metrics;
 
 mod registry_graph;
 use registry_graph::{
@@ -205,6 +208,8 @@ pub struct HttpConfig {
     /// this duration to process, it is aborted and returns 504 Gateway Timeout.
     /// `None` or 0 disables request timeouts.
     pub request_timeout: Option<Duration>,
+    /// Who may scrape Prometheus metrics. `None` serves none.
+    pub metrics: Option<MetricsConfig>,
 }
 
 impl HttpConfig {

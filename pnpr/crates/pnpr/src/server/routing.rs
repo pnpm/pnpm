@@ -56,6 +56,16 @@ pub(super) fn router_with_auth_and_osv(
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 ) -> pnpr_error::Result<Router> {
+    state_and_router(config, auth, osv_index).map(|(_, router)| router)
+}
+
+/// The main router and the state it serves, which [`metrics_listener_router`]
+/// shares.
+pub(super) fn state_and_router(
+    config: Config,
+    auth: AuthState,
+    osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
+) -> pnpr_error::Result<(AppState, Router)> {
     let cors_origins = cors_origins(&config)?;
     let surfaces = EnabledSurfaces {
         resolver: config.features.resolver.enabled,
@@ -65,7 +75,8 @@ pub(super) fn router_with_auth_and_osv(
     };
     let ui_dir = if surfaces.registry { super::web_ui::locate(&config.http.ui)? } else { None };
     let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
-    finish_router(state, surfaces, cors_origins, ui_dir.as_deref())
+    let router = finish_router(state.clone(), surfaces, cors_origins, ui_dir.as_deref())?;
+    Ok((state, router))
 }
 
 fn finish_router(
@@ -110,6 +121,41 @@ fn finish_router(
         );
     }
     Ok(with_observability_layers(router, state.clone()).with_state(state))
+}
+
+/// Health probes and, per [`metrics_on_main_listener`], metrics, each with a
+/// `/~<name>/`-addressed twin.
+fn probe_routes(state: &AppState) -> Router<AppState> {
+    let mut router: Router<AppState> = Router::new();
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        router = router
+            .route(&path("/-/ping"), get(serve_ping))
+            .route(&path("/-/ready"), get(serve_ready))
+            .route(&path("/-/live"), get(serve_live));
+        if metrics_on_main_listener(state) {
+            router = router
+                .route(&path("/-/metrics"), get(serve_metrics))
+                .route(&path("/metrics"), get(serve_metrics));
+        }
+    }
+    router
+}
+
+/// The main listener serves metrics only to a scraper that sends
+/// `metrics.token`, and never when `metrics.listen` gives them their own.
+fn metrics_on_main_listener(state: &AppState) -> bool {
+    state.inner.config.http.metrics
+        .as_ref()
+        .is_some_and(|metrics| metrics.token.is_some() && metrics.listen.is_none())
+}
+
+/// The router for `metrics.listen`, sharing `state` with the main router so
+/// both report the same counters.
+pub(super) fn metrics_listener_router(state: AppState) -> Router {
+    Router::new()
+        .route("/metrics", get(serve_metrics))
+        .with_state(state)
 }
 
 fn apply_request_timeout(
@@ -167,16 +213,7 @@ fn surface_routes(
     // The configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router: Router<AppState> = Router::new();
-    for base in ["", "/~{registry}"] {
-        let path = |tail: &str| format!("{base}{tail}");
-        router = router
-            .route(&path("/-/ping"), get(serve_ping))
-            .route(&path("/-/ready"), get(serve_ready))
-            .route(&path("/-/live"), get(serve_live))
-            .route(&path("/-/metrics"), get(serve_metrics))
-            .route(&path("/metrics"), get(serve_metrics));
-    }
+    let mut router = probe_routes(state);
     router = router
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())

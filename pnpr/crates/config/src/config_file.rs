@@ -1,7 +1,7 @@
 use super::{
     AccessSpec, ByteSize, Deserialize, Ecosystem, IndexMap, Interval, LogConfig, LogFormat,
-    LogLevel, Management, OciConfig, PackageAccess, PathBuf, S3Settings, ScimConfig, TarballFormat,
-    UpstreamAuthFile, default_storage_string, oidc,
+    LogLevel, Management, MetricsConfig, OciConfig, PackageAccess, PathBuf, S3Settings, ScimConfig,
+    TarballFormat, UpstreamAuthFile, default_storage_string, oidc,
 };
 
 /// Disk shape of the `routes:` block.
@@ -235,6 +235,9 @@ pub(super) struct ConfigFile {
     pub(super) ui: UiFile,
     #[serde(default)]
     pub(super) oci: OciConfig,
+    /// Who may scrape Prometheus metrics. Omitted ⇒ pnpr serves none.
+    #[serde(default)]
+    pub(super) metrics: Option<MetricsConfig>,
     /// pnpr-only block: store the hosted (published) packages in an
     /// S3-compatible object store instead of `storage`.
     #[serde(default)]

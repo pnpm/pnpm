@@ -1,6 +1,11 @@
+use std::future::IntoFuture;
+
+use axum::Router;
+use futures_util::FutureExt as _;
+
 use super::{
-    Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, RegistryDocuments, Storage,
-    router_with_auth_and_osv, shutdown_signal,
+    AppState, Arc, AuthState, Config, Ecosystem, NodelayTcpListener, PeerAddr, RegistryDocuments,
+    Storage, metrics_listener_router, shutdown_signal, state_and_router,
 };
 
 /// Load the OSV index only for surfaces that consult it. An artifacts-only
@@ -96,12 +101,52 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // should not leave a bound socket behind or put a `pnpr listening` line
     // immediately above the error saying it is not.
     crate::cache_maintenance::spawn_periodic_cache_eviction(&config);
-    let app = router_with_auth_and_osv(config, auth, osv_index)?;
-    let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
+    let (state, app) = state_and_router(config, auth, osv_index)?;
+    let metrics = bind_metrics_listener(state).await?;
+    let listener = tokio::net::TcpListener::bind(listen).await?;
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    serve_until_shutdown(listener, app, metrics).await
+}
+
+/// The listener `metrics.listen` names, with the router it serves.
+struct MetricsListener {
+    listener: tokio::net::TcpListener,
+    router: Router,
+}
+
+async fn bind_metrics_listener(state: AppState) -> pnpr_error::Result<Option<MetricsListener>> {
+    let Some(listen) = state.inner.config.http.metrics.as_ref().and_then(|metrics| metrics.listen)
+    else {
+        return Ok(None);
+    };
+    let listener = tokio::net::TcpListener::bind(listen).await
+        .map_err(|err| {
+            std::io::Error::new(err.kind(), format!("cannot bind metrics.listen {listen}: {err}"))
+        })?;
+    tracing::info!(listen = %listener.local_addr()?, "pnpr serving metrics");
+    Ok(Some(MetricsListener { listener, router: metrics_listener_router(state) }))
+}
+
+async fn serve_until_shutdown(
+    listener: tokio::net::TcpListener,
+    app: Router,
+    metrics: Option<MetricsListener>,
+) -> pnpr_error::Result<()> {
+    let shutdown = shutdown_signal().shared();
+    let main = axum::serve(
+        NodelayTcpListener(listener),
+        app.into_make_service_with_connect_info::<PeerAddr>(),
+    )
+    .with_graceful_shutdown(shutdown.clone())
+    .into_future();
+    match metrics {
+        None => main.await?,
+        Some(MetricsListener { listener, router }) => {
+            let metrics =
+                axum::serve(listener, router).with_graceful_shutdown(shutdown).into_future();
+            tokio::try_join!(main, metrics)?;
+        }
+    }
     Ok(())
 }
 
@@ -139,13 +184,8 @@ pub async fn serve_listener(
     // would silently fall back to in-memory auth and ignore a persisted
     // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
-    let app = router_with_auth_and_osv(config, auth, osv_index)?;
+    let (state, app) = state_and_router(config, auth, osv_index)?;
+    let metrics = bind_metrics_listener(state).await?;
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(
-        NodelayTcpListener(listener),
-        app.into_make_service_with_connect_info::<PeerAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
-    Ok(())
+    serve_until_shutdown(listener, app, metrics).await
 }

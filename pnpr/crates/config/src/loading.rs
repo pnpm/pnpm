@@ -303,7 +303,19 @@ fn build_http_config(
         trusted_proxies,
         trusted_proxy_header,
         request_timeout,
+        metrics: build_metrics_config(file, listen)?,
     })
+}
+
+fn build_metrics_config(
+    file: &mut ConfigFile,
+    listen: SocketAddr,
+) -> Result<Option<super::MetricsConfig>, RegistryError> {
+    let metrics = file.metrics.take();
+    if let Some(metrics) = &metrics {
+        metrics.validate(listen)?;
+    }
+    Ok(metrics)
 }
 
 fn build_storage_config(

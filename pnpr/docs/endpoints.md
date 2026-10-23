@@ -36,11 +36,11 @@ own pages.
 | `GET` | `/-/ping` | Health check. Returns `{}` on success, or 503 if storage or auth is unavailable. |
 | `GET` | `/-/ready` | Container / Kubernetes readiness probe. Checks storage and auth backends, returning `{"status": "ok", "storage": "ok", "auth": "ok"}` on success or 503 on failure. |
 | `GET` | `/-/live` | Container / Kubernetes liveness probe. Returns `{"status": "ok"}` when the server process is alive and handling requests. |
-| `GET` | `/-/metrics` | Unauthenticated Prometheus metrics endpoint. Emits standard Prometheus text format (`text/plain; version=0.0.4`) exposing request rates, durations, response bytes, in-flight gauges, and cache stats. Unauthenticated access is intentional for cluster monitoring and metrics scrapers. |
-| `GET` | `/metrics` | Unauthenticated Prometheus metrics endpoint for scrapers. |
 | `GET` | `/-/pnpr/v0/sign-in` | The [OIDC providers](oidc.md#browser-sign-in) that offer browser sign-in, as `{"oidc": [{"name": ...}]}`. |
 | `GET` | `/-/oidc/{provider}/login` | Starts browser sign-in. With `?return=ui`, sign-in ends in the [web UI](web-ui.md) instead of on a page that shows the token. pnpr refuses `return=ui` when it does not serve the web UI. |
 | `POST` | `/-/oidc/handoff?flow=<flow>` | Returns `{"token": ..., "expires": ...}` for the sign-in `flow` that a sign-in with `return=ui` passes to the web UI. The token is released only to the browser that signed in, once, within a minute. |
+
+`GET /-/metrics` and `GET /metrics` serve Prometheus metrics only when [`metrics`](./configuration.md#prometheus-metrics) is configured.
 
 The [user and token endpoints](#user-and-token-endpoints) below are also
 always available, whichever surfaces are enabled.
