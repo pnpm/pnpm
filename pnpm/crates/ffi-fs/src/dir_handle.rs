@@ -7,6 +7,7 @@
 //! calls are concerned, and `O_NOFOLLOW` refuses a symlink at the name
 //! itself.
 
+use super::FileMode;
 use std::{
     ffi::{CString, OsStr, OsString},
     fs::File,
@@ -76,9 +77,9 @@ pub fn open_search_directory(path: &Path) -> io::Result<File> {
 
 /// Create the directory `name` inside `parent` at `mode`, before the umask
 /// is applied to it.
-pub fn create_directory_at(parent: &File, name: &OsStr, mode: u32) -> io::Result<()> {
+pub fn create_directory_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<()> {
     let name = entry_name(name)?;
-    let mode = narrow_mode(mode)?;
+    let mode = mode.narrow();
     // SAFETY: `name` is NUL-terminated and borrowed for the whole call, and
     // the `&File` keeps the parent descriptor open across it. `mkdirat`
     // reads the name, writes nothing through a pointer, and retains
@@ -105,10 +106,10 @@ pub fn open_file_at_without_blocking(parent: &File, name: &OsStr) -> io::Result<
 
 /// Create the file `name` inside `parent` at `mode`, failing if anything
 /// already occupies the name.
-pub fn create_file_at(parent: &File, name: &OsStr, mode: u32) -> io::Result<File> {
+pub fn create_file_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<File> {
     let name = entry_name(name)?;
     let flags = libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC;
-    adopt(open_at(parent, &name, flags, Some(narrow_mode(mode)?)))
+    adopt(open_at(parent, &name, flags, Some(mode.narrow())))
 }
 
 /// Rename `from` to `to`, both inside `parent`, replacing whatever `to`
@@ -197,9 +198,9 @@ pub fn read_link_at(parent: &File, name: &OsStr) -> io::Result<PathBuf> {
 /// Linux has no `fchmodat` that refuses to follow the final symlink, so
 /// there a caller changes the mode through the handle it already holds.
 #[cfg(not(target_os = "linux"))]
-pub fn set_mode_at(parent: &File, name: &OsStr, mode: u32) -> io::Result<()> {
+pub fn set_mode_at(parent: &File, name: &OsStr, mode: FileMode) -> io::Result<()> {
     let name = entry_name(name)?;
-    let mode = narrow_mode(mode)?;
+    let mode = mode.narrow();
     // SAFETY: `name` is NUL-terminated and borrowed for the whole call, and
     // the `&File` keeps the parent descriptor open across it. `fchmodat`
     // takes the mode and the flag word by value.
@@ -282,13 +283,6 @@ fn entry_name(name: &OsStr) -> io::Result<CString> {
 fn path_argument(path: &OsStr) -> io::Result<CString> {
     CString::new(path.as_bytes())
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
-}
-
-/// Narrow a mode to the platform's `mode_t`, a `u16` on macOS and a `u32`
-/// on Linux.
-fn narrow_mode(mode: u32) -> io::Result<libc::mode_t> {
-    libc::mode_t::try_from(mode)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "mode does not fit mode_t"))
 }
 
 #[cfg(test)]

@@ -262,13 +262,17 @@ fn remove_file(parent: &PinnedDirectory, name: &OsStr) -> io::Result<()> {
 }
 
 #[cfg(unix)]
+/// Owner-only, so a staged metadata file is unreadable to anyone else even
+/// where the umask would have allowed more.
+const PRIVATE_FILE_MODE: pnpm_ffi_fs::FileMode = pnpm_ffi_fs::FileMode::from_mode(0o600);
+
 fn create_temporary_file(
     parent: &PinnedDirectory,
     name: &OsStr,
 ) -> io::Result<(OsString, fs::File)> {
     loop {
         let temporary = temporary_name(name);
-        match pnpm_ffi_fs::create_file_at(&parent.handle, &temporary, 0o600) {
+        match pnpm_ffi_fs::create_file_at(&parent.handle, &temporary, PRIVATE_FILE_MODE) {
             Ok(file) => return Ok((temporary, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),

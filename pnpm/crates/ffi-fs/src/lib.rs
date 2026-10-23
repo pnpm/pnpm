@@ -29,6 +29,8 @@ pub use dir_handle::{
 pub use exchange::exchange_dirents;
 #[cfg(unix)]
 pub use fifo::create_fifo;
+#[cfg(unix)]
+pub use file_mode::FileMode;
 #[cfg(target_vendor = "apple")]
 pub use sync::fsync;
 #[cfg(unix)]
@@ -51,6 +53,8 @@ mod dir_handle;
 mod exchange;
 #[cfg(unix)]
 mod fifo;
+#[cfg(unix)]
+mod file_mode;
 #[cfg(target_vendor = "apple")]
 mod sync;
 #[cfg(unix)]

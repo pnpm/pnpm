@@ -12,6 +12,16 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(unix)]
 static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
+/// As open as the umask allows, which is what `std::fs::create_dir` asks
+/// for.
+#[cfg(unix)]
+const DIRECTORY_MODE: pnpm_ffi_fs::FileMode = pnpm_ffi_fs::FileMode::from_mode(0o777);
+
+/// Owner-only, so a staged file is unreadable to anyone else even where
+/// the umask would have allowed more.
+#[cfg(unix)]
+const PRIVATE_FILE_MODE: pnpm_ffi_fs::FileMode = pnpm_ffi_fs::FileMode::from_mode(0o600);
+
 pub(super) struct ManagedDirectory {
     pub(super) path: PathBuf,
     #[cfg(unix)]
@@ -78,7 +88,7 @@ fn open_or_create_directory_at(
         match pnpm_ffi_fs::open_directory_at(parent, component) {
             Ok(handle) => return Ok(handle),
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                pnpm_ffi_fs::create_directory_at(parent, component, 0o777)
+                pnpm_ffi_fs::create_directory_at(parent, component, DIRECTORY_MODE)
                     .or_else(accept_existing_directory)
                     .into_diagnostic()
                     .wrap_err_with(|| format!("create Cargo directory {}", path.display()))?;
@@ -252,7 +262,7 @@ fn create_workspace_temporary(
             pnpm_fs::process_id(),
             MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
         ));
-        match pnpm_ffi_fs::create_file_at(&directory.handle, &temporary, 0o600) {
+        match pnpm_ffi_fs::create_file_at(&directory.handle, &temporary, PRIVATE_FILE_MODE) {
             Ok(file) => return Ok((temporary, file)),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(error),

@@ -1,5 +1,5 @@
 use super::{
-    DirectoryAccess, create_directory_at, create_file_at, open_directory_at,
+    DirectoryAccess, FileMode, create_directory_at, create_file_at, open_directory_at,
     open_directory_for_traversal, open_file_at, open_file_at_without_blocking, read_link_at,
     rename_at, symlink_at, unlink_at,
 };
@@ -46,7 +46,8 @@ fn a_created_directory_is_opened_by_the_handle_that_created_it() {
     let fixture = tempfile::tempdir().expect("a temporary directory");
     let root = open_root(fixture.path());
 
-    create_directory_at(&root, OsStr::new("made"), 0o755).expect("create made");
+    create_directory_at(&root, OsStr::new("made"), FileMode::from_mode(0o755))
+        .expect("create made");
     let made = open_directory_at(&root, OsStr::new("made")).expect("open made");
     assert!(
         made.metadata()
@@ -60,8 +61,9 @@ fn creating_a_file_twice_reports_the_name_as_taken() {
     let fixture = tempfile::tempdir().expect("a temporary directory");
     let root = open_root(fixture.path());
 
-    create_file_at(&root, OsStr::new("once"), 0o600).expect("create once");
-    let error = create_file_at(&root, OsStr::new("once"), 0o600).expect_err("the name is taken");
+    create_file_at(&root, OsStr::new("once"), FileMode::from_mode(0o600)).expect("create once");
+    let error = create_file_at(&root, OsStr::new("once"), FileMode::from_mode(0o600))
+        .expect_err("the name is taken");
     assert_eq!(error.kind(), io::ErrorKind::AlreadyExists, "{error:?}");
 }
 
@@ -70,7 +72,8 @@ fn creating_a_file_twice_reports_the_name_as_taken() {
 #[test]
 fn a_fifo_opens_without_waiting_for_a_writer() {
     let fixture = tempfile::tempdir().expect("a temporary directory");
-    crate::create_fifo(&fixture.path().join("pipe"), 0o600).expect("create the FIFO");
+    crate::create_fifo(&fixture.path().join("pipe"), FileMode::from_mode(0o600))
+        .expect("create the FIFO");
     let root = open_root(fixture.path());
 
     let pipe = open_file_at_without_blocking(&root, OsStr::new("pipe")).expect("open the FIFO");

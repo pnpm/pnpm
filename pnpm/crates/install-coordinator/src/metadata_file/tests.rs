@@ -7,7 +7,8 @@ use std::{sync::mpsc, thread, time::Duration};
 fn capturing_a_fifo_rejects_it_instead_of_waiting_for_a_writer() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("package.json");
-    pnpm_ffi_fs::create_fifo(&path, 0o644).expect("create the FIFO");
+    pnpm_ffi_fs::create_fifo(&path, pnpm_ffi_fs::FileMode::from_mode(0o644))
+        .expect("create the FIFO");
 
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || sender.send(MetadataFile::capture(path).map(|_| ())));

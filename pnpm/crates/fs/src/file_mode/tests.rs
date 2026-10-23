@@ -307,7 +307,8 @@ fn grant_inherited_dir_mode_refuses_a_swapped_fifo_without_blocking() {
     fs::create_dir(&store).unwrap();
     fs::set_permissions(&store, fs::Permissions::from_mode(0o2775)).unwrap();
     let shard = store.join("ab");
-    pnpm_ffi_fs::create_fifo(&shard, 0o600).expect("create the FIFO");
+    pnpm_ffi_fs::create_fifo(&shard, pnpm_ffi_fs::FileMode::from_mode(0o600))
+        .expect("create the FIFO");
 
     let error = super::grant_inherited_dir_mode(&shard, &store).unwrap_err();
     assert_eq!(error.kind(), std::io::ErrorKind::NotADirectory);

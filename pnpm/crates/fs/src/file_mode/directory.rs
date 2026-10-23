@@ -146,21 +146,21 @@ fn add_opened_dir_mode_bits(
     access: pnpm_ffi_fs::DirectoryAccess,
     extra: u32,
 ) -> io::Result<()> {
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::os::unix::fs::MetadataExt as _;
     let search_only = access == pnpm_ffi_fs::DirectoryAccess::SearchOnly;
     let meta = child.metadata()?;
     if search_only && meta.uid() != pnpm_ffi_process::effective_user_id() {
         return Ok(());
     }
-    let mode = meta.mode() & 0o7777;
-    let merged = mode | extra;
+    let mode = pnpm_ffi_fs::FileMode::from(meta.permissions());
+    let merged = pnpm_ffi_fs::FileMode::from_mode(mode.mode() | extra);
     if merged == mode {
         return Ok(());
     }
     let result = if search_only {
         chmod_search_only_directory(parent, name, child, merged)
     } else {
-        child.set_permissions(std::fs::Permissions::from_mode(merged))
+        child.set_permissions(merged.into())
     };
     match result {
         Err(error) if is_unchangeable(&error) => Ok(()),
@@ -195,11 +195,11 @@ fn chmod_search_only_directory(
     _parent: &std::fs::File,
     _name: &std::ffi::OsStr,
     child: &std::fs::File,
-    mode: u32,
+    mode: pnpm_ffi_fs::FileMode,
 ) -> io::Result<()> {
-    use std::os::unix::{fs::PermissionsExt, io::AsRawFd};
+    use std::os::unix::io::AsRawFd as _;
     let path = format!("/proc/self/fd/{}", child.as_raw_fd());
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    std::fs::set_permissions(path, mode.into())
 }
 
 #[cfg(all(unix, not(target_os = "linux")))]
@@ -207,7 +207,7 @@ fn chmod_search_only_directory(
     parent: &std::fs::File,
     name: &std::ffi::OsStr,
     _child: &std::fs::File,
-    mode: u32,
+    mode: pnpm_ffi_fs::FileMode,
 ) -> io::Result<()> {
     pnpm_ffi_fs::set_mode_at(parent, name, mode)
 }
