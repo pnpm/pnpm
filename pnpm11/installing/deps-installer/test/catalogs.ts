@@ -1115,6 +1115,75 @@ test('catalogs work when inject-workspace-packages=true', async () => {
   })
 })
 
+// Regression test for https://github.com/pnpm/pnpm/issues/17280
+//
+// A relative workspace: path is claimed by the local resolver, not by the
+// workspace matching of the npm resolver. The injected package is not an
+// importer, so nothing else resolves its catalog: specifiers. Both
+// resolutions that walk the package are covered: recalculating the graph
+// over a lockfile that recorded the version the package pinned itself, and
+// a fresh lockfile.
+test('catalogs work in a package injected through a relative workspace: path', async () => {
+  expect.hasAssertions()
+
+  const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: {
+        'is-positive': 'catalog:project/common',
+        lib: 'workspace:../lib',
+      },
+    },
+  ])
+  fs.mkdirSync('lib')
+  const writeLib = (isPositiveSpecifier: string) => {
+    fs.writeFileSync('lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': isPositiveSpecifier,
+      },
+    }))
+  }
+
+  const install = () => mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    injectWorkspacePackages: true,
+    preferFrozenLockfile: false,
+    catalogs: {
+      'project/common': { 'is-positive': '1.0.0' },
+    },
+  })
+
+  writeLib('1.0.0')
+  await install()
+  writeLib('catalog:project/common')
+  await expect(install()).resolves.not.toThrow()
+  fs.rmSync('pnpm-lock.yaml')
+  await expect(install()).resolves.not.toThrow()
+
+  expect(JSON.parse(fs.readFileSync('lib/package.json', 'utf8')).dependencies['is-positive']).toBe('catalog:project/common')
+
+  const lockfile = readLockfile()
+
+  expect(lockfile.importers).toEqual({
+    project1: {
+      dependencies: {
+        'is-positive': { specifier: 'catalog:project/common', version: '1.0.0' },
+        lib: { specifier: 'workspace:../lib', version: 'file:lib' },
+      },
+    },
+  })
+
+  expect(lockfile.snapshots).toStrictEqual({
+    'is-positive@1.0.0': {},
+    'lib@file:lib': {
+      dependencies: { 'is-positive': '1.0.0' },
+    },
+  })
+})
+
 describe('dedupe', () => {
   test('valid catalog resolutions are preserved when running pnpm dedupe', async () => {
     const { options, projects, readLockfile } = preparePackagesAndReturnObjects([

@@ -8,16 +8,16 @@ import type { DirectoryResolution, LatestInfo, LatestQuery, Resolution, ResolveR
 import type { DependencyManifest, PkgResolutionId } from '@pnpm/types'
 import { readProjectManifestOnly, safeReadParentPublishManifest } from '@pnpm/workspace.project-manifest-reader'
 
-import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalPackageSpec, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
+import { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalPackageSpec, type LocalResolvedVia, parseLocalPath, parseLocalScheme, type WantedLocalDependency } from './parseBareSpecifier.js'
 
-export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type WantedLocalDependency }
+export { barePathIsUnambiguous, isDriveLetterPrefix, isFilespec, isLocalFilesystemSpecifier, isTarballFilename, linkedDirectoryPath, localFilePath, type LocalResolvedVia, type WantedLocalDependency }
 export { fileSpecToPackageRootLink } from './packageRootLink.js'
 
 export interface LocalResolveResult extends ResolveResult {
   manifest?: DependencyManifest
   normalizedBareSpecifier?: string
   resolution: DirectoryResolution | TarballResolution
-  resolvedVia: 'local-filesystem'
+  resolvedVia: LocalResolvedVia
 }
 
 export interface LocalResolverContext {
@@ -99,7 +99,7 @@ async function resolveSpec (
     return {
       id: opts.currentPkg.id,
       resolution: opts.currentPkg.resolution as DirectoryResolution,
-      resolvedVia: 'local-filesystem',
+      resolvedVia: spec.resolvedVia,
     }
   }
 
@@ -112,7 +112,7 @@ async function resolveSpec (
       directory: spec.dependencyPath,
       type: 'directory',
     },
-    resolvedVia: 'local-filesystem',
+    resolvedVia: spec.resolvedVia,
   }
 }
 
@@ -136,7 +136,7 @@ async function resolveTarballSpec (
         id: spec.id,
         normalizedBareSpecifier: spec.normalizedBareSpecifier,
         resolution: opts.currentPkg.resolution as TarballResolution,
-        resolvedVia: 'local-filesystem',
+        resolvedVia: spec.resolvedVia,
       }
     }
     throw err
@@ -148,7 +148,7 @@ async function resolveTarballSpec (
       integrity,
       tarball: spec.id,
     },
-    resolvedVia: 'local-filesystem',
+    resolvedVia: spec.resolvedVia,
   }
 }
 
