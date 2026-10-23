@@ -14,9 +14,10 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { after, describe, it } from 'node:test'
+import tls from 'node:tls'
 import { URL, fileURLToPath } from 'node:url'
 
-import { INTEGRITY_KEYS, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
+import { INTEGRITY_KEYS, TLS_CA_FILE, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WRAPPER_FILES = ['native-binary.mjs', 'bin/pnpm.mjs', 'bin/pnpx.mjs']
@@ -33,6 +34,8 @@ echo "ran: $*"
 const SPAWNS_THE_BINARY = process.platform === 'win32' &&
   'the stand-in for the native binary is a shell script, which Windows cannot spawn'
 const DOWNLOADED_BINARY = process.platform === 'win32' ? 'pnpm-native.exe' : 'pnpm-native'
+const ADDS_DEFAULT_CAS = tls.setDefaultCACertificates == null &&
+  'this Node.js cannot add a CA to the ones fetch trusts after startup'
 // The variables that could name a registry or a user `.npmrc` from the
 // environment the tests run in.
 const ENV_NPM_CONFIG = ['registry', 'userconfig'].flatMap((name) => [
@@ -221,6 +224,93 @@ describe('corepack entry point', () => {
     assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
   })
 
+  it('refuses a registry certificate that no configured CA vouches for', async () => {
+    const fixture = await createFixture({ tls: true })
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${fixture.registryUrl}/`])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Could not reach/)
+    assert.deepEqual(fixture.requests, [])
+  })
+
+  it('trusts the CA in the cafile the user .npmrc names', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `cafile=${TLS_CA_FILE}`,
+    ])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture)
+  })
+
+  it('trusts every inline ca[] entry of the user .npmrc', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    // npm writes a PEM on one line, its line breaks escaped. The fixture CA
+    // comes first, so keeping only the last entry would not trust it.
+    const inline = (file) => JSON.stringify(fs.readFileSync(file, 'utf8'))
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `ca[]=${inline(TLS_CA_FILE)}`,
+      `ca[]=${inline(path.join(path.dirname(TLS_CA_FILE), 'server.crt'))}`,
+    ])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture)
+  })
+
+  it('trusts the CA the workspace .npmrc names for the registry it names', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    writeNpmrc(fixture, 'project/.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `cafile=${TLS_CA_FILE}`,
+    ])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture)
+  })
+
+  it('trusts the CA the workspace .npmrc scopes to the registry', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    writeNpmrc(fixture, 'project/.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:ca=${JSON.stringify(fs.readFileSync(TLS_CA_FILE, 'utf8'))}`,
+    ])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [])
+
+    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture)
+  })
+
+  it('does not trust a CA scoped to another registry', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `//registry.example.com/:cafile=${TLS_CA_FILE}`,
+    ])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assert.match(result.stderr, /Could not reach/)
+    assert.deepEqual(fixture.requests, [])
+  })
+
+  it('does not let a project .npmrc add a CA to an unchecked download', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    writeNpmrc(fixture, 'project/.npmrc', [`cafile=${TLS_CA_FILE}`])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${fixture.registryUrl}/`])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      COREPACK_INTEGRITY_KEYS: '0',
+    })
+    assert.match(result.stderr, /Could not reach/)
+    assert.deepEqual(fixture.requests, [])
+  })
+
   it('reports a disabled network instead of reaching for one', async () => {
     const fixture = await createFixture()
 
@@ -297,8 +387,18 @@ function userNpmConfig (userNpmrc) {
   return {
     ...Object.fromEntries(ENV_NPM_CONFIG.map((name) => [name, undefined])),
     COREPACK_NPM_REGISTRY: undefined,
+    // A CA the machine running the tests trusts must not make a TLS test pass.
+    NODE_EXTRA_CA_CERTS: undefined,
+    NODE_USE_SYSTEM_CA: undefined,
     npm_config_userconfig: userNpmrc,
   }
+}
+
+function assertDownloaded (fixture) {
+  assert.deepEqual(new Set(fixture.requests.map(({ url }) => url)), new Set([
+    `/${packageName}/${VERSION}`,
+    `/${packageName}/-/${VERSION}.tgz`,
+  ]))
 }
 
 function nerfDart (registryUrl) {

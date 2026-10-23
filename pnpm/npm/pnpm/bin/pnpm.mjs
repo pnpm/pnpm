@@ -27,6 +27,7 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import tls from 'node:tls'
 import { URL } from 'node:url'
 import { readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
 
@@ -80,11 +81,13 @@ async function nativeBinary () {
     fail(`This copy of the pnpm package is missing the downloader it needs: ${err.message}`)
   })
   const signature = signaturePolicy()
+  const { certificates, ...access } = registryAccess({ readProjectNpmrc: signature.verifySignature !== false })
+  trustCertificates(certificates)
   try {
     await downloadPnpmExecutable({
       version,
       destPath: DOWNLOADED_BINARY,
-      ...registryAccess({ readProjectNpmrc: signature.verifySignature !== false }),
+      ...access,
       ...signature,
     })
   } catch (err) {
@@ -94,9 +97,12 @@ async function nativeBinary () {
 }
 
 /**
- * The registry to download from, and the headers to send it. Corepack's
- * `COREPACK_NPM_REGISTRY` wins. Otherwise npm's sources decide, highest first:
- * the environment, the project `.npmrc`, the user `.npmrc`.
+ * The registry to download from, the headers to send it, and the CA
+ * certificates to trust it with. Corepack's `COREPACK_NPM_REGISTRY` wins, and
+ * Corepack reaches it through Node.js's own CAs. Otherwise npm's sources
+ * decide, highest first: the environment, the project `.npmrc`, the user
+ * `.npmrc`. A registry behind a private CA is only reachable with the `ca` or
+ * `cafile` that the same `.npmrc` files hold for npm and pnpm.
  *
  * The project `.npmrc` is read only with `readProjectNpmrc`, which the caller
  * passes while the download is checked against npm's signature. The signature
@@ -108,7 +114,7 @@ async function nativeBinary () {
 function registryAccess ({ readProjectNpmrc }) {
   const corepackRegistry = process.env.COREPACK_NPM_REGISTRY
   if (corepackRegistry) {
-    return { registry: corepackRegistry, headers: corepackHeaders() }
+    return { registry: corepackRegistry, headers: corepackHeaders(), certificates: [] }
   }
   const npmrc = readUserNpmrc()
   if (readProjectNpmrc) {
@@ -116,9 +122,51 @@ function registryAccess ({ readProjectNpmrc }) {
   }
   const registry = npmrc['@pnpm:registry'] || settingFromEnv('registry') || npmrc.registry
   if (!registry) {
-    return { registry: DEFAULT_REGISTRY, headers: corepackHeaders() }
+    return { registry: DEFAULT_REGISTRY, headers: corepackHeaders(), certificates: npmrcCertificates(npmrc, DEFAULT_REGISTRY) }
   }
-  return { registry, headers: npmrcHeaders(npmrc, registry) }
+  return { registry, headers: npmrcHeaders(npmrc, registry), certificates: npmrcCertificates(npmrc, registry) }
+}
+
+/**
+ * The PEM certificates of the `.npmrc` `ca` (a single value or `ca[]` entries,
+ * line breaks escaped as `\n` the way npm writes them) and `cafile` settings:
+ * the top-level ones, and those scoped to `registry` under the longest
+ * `//host[:port]/path/` prefix that has any. Text around and between the
+ * certificates is dropped.
+ */
+function npmrcCertificates (npmrc, registry) {
+  const scope = registryPrefixes(registry).find((prefix) => npmrc[`${prefix}:ca`] != null || npmrc[`${prefix}:cafile`] != null)
+  const settings = scope == null ? [''] : ['', `${scope}:`]
+  const pemTexts = settings.flatMap((key) => [npmrc[`${key}ca`] ?? []].flat()).map((value) => value.replaceAll('\\n', '\n'))
+  for (const cafile of settings.map((key) => npmrc[`${key}cafile`]).filter(Boolean)) {
+    try {
+      pemTexts.push(fs.readFileSync(cafile, 'utf8'))
+    } catch (err) {
+      console.error(`Could not read ${cafile}, so its CA certificates are not used: ${err.message}`)
+    }
+  }
+  return pemTexts.flatMap((pem) => pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [])
+}
+
+/**
+ * Adds `certificates` to the CAs Node.js trusts, which keeps the defaults, so a
+ * download host that the registry redirects to stays reachable. Process-wide,
+ * like the proxy `get-pnpm` applies: `fetch` takes no CA of its own. Only the
+ * download runs in this process; the native binary reads `.npmrc` itself.
+ */
+function trustCertificates (certificates) {
+  if (certificates.length === 0) {
+    return
+  }
+  if (tls.setDefaultCACertificates == null) {
+    console.error('This Node.js cannot apply the ca and cafile settings of .npmrc to the download. Set NODE_EXTRA_CA_CERTS to the CA file instead.')
+    return
+  }
+  try {
+    tls.setDefaultCACertificates([...tls.getCACertificates('default'), ...certificates])
+  } catch (err) {
+    console.error(`Could not use the CA certificates from .npmrc: ${err.message}`)
+  }
 }
 
 /** Credentials for Corepack's registry, read the way Corepack reads its own. */
@@ -178,7 +226,8 @@ function projectDir () {
 
 /**
  * The top-level settings of the `.npmrc` at `file`, each passed through
- * `parseEntry`, which returns the `[key, value]` to keep or `undefined`.
+ * `parseEntry`, which returns the `[key, value]` to keep or `undefined`. A
+ * `key[]` setting collects every value it is given into an array under `key`.
  */
 function readNpmrc (file, parseEntry) {
   const settings = Object.create(null)
@@ -202,8 +251,15 @@ function readNpmrc (file, parseEntry) {
       continue
     }
     const entry = parseEntry(line.slice(0, separator).trim(), unquote(line.slice(separator + 1).trim()), file)
-    if (entry != null) {
-      settings[entry[0]] = entry[1]
+    if (entry == null) {
+      continue
+    }
+    const [key, value] = entry
+    if (key.endsWith('[]')) {
+      const name = key.slice(0, -2)
+      settings[name] = [...(Array.isArray(settings[name]) ? settings[name] : []), value]
+    } else {
+      settings[key] = value
     }
   }
   return settings
@@ -226,10 +282,31 @@ function expandEnv (value) {
  * They are sent only over HTTPS or to the local machine.
  */
 function npmrcHeaders (npmrc, registry) {
-  const url = new URL(registry.endsWith('/') ? registry : `${registry}/`)
+  const url = registryUrl(registry)
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback(url.hostname))) {
     return undefined
   }
+  for (const scope of [':@pnpm', '']) {
+    for (const prefix of registryPrefixes(registry)) {
+      const authorization = npmrcAuthorization(npmrc, `${prefix}${scope}`)
+      if (authorization != null) {
+        return { authorization }
+      }
+    }
+  }
+  return undefined
+}
+
+function registryUrl (registry) {
+  return new URL(registry.endsWith('/') ? registry : `${registry}/`)
+}
+
+/**
+ * The `//host[:port]/path/` keys `.npmrc` scopes registry settings to, longest
+ * first, then the same without the port.
+ */
+function registryPrefixes (registry) {
+  const url = registryUrl(registry)
   const prefixes = []
   for (const host of new Set([url.host, url.hostname])) {
     for (let pathname = url.pathname; ; pathname = pathname.slice(0, pathname.lastIndexOf('/', pathname.length - 2) + 1)) {
@@ -239,15 +316,7 @@ function npmrcHeaders (npmrc, registry) {
       }
     }
   }
-  for (const scope of [':@pnpm', '']) {
-    for (const prefix of prefixes) {
-      const authorization = npmrcAuthorization(npmrc, `${prefix}${scope}`)
-      if (authorization != null) {
-        return { authorization }
-      }
-    }
-  }
-  return undefined
+  return prefixes
 }
 
 function isLoopback (hostname) {
