@@ -7,6 +7,7 @@ use super::{
     render_task_graph_dry_run, resume_task_graph_from, reverse_task_graph, task_graph_to_json,
     task_run_execution_settings, throw_or_filter_hidden_scripts, write_recursive_summary,
 };
+use pnpm_workspace_projects_graph::BaseProject;
 
 /// Whether a task name addresses scripts by `RegExp` literal rather than by
 /// name.
@@ -29,6 +30,40 @@ pub(super) fn check_a_project_has_the_script(
         return Ok(());
     }
     Err(no_requested_script_error(script_name, all_packages_selected).into())
+}
+
+/// A script listed in `requiredScripts` must exist in every requested
+/// project.
+pub(super) fn check_required_script(
+    task_graph: &TaskGraph,
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    script_name: &str,
+    required_scripts: &[String],
+) -> Result<(), RecursiveRunError> {
+    if !required_scripts
+        .iter()
+        .any(|required| required == script_name)
+    {
+        return Ok(());
+    }
+    let missing: Vec<String> = task_graph
+        .values()
+        .filter(|node| node.requested && node.scripts.is_empty())
+        .map(|node| project_display_name(graph, &node.project))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(RecursiveRunError::MissingRequiredScript {
+        script_name: script_name.to_string(),
+        packages: missing.join(", "),
+    })
+}
+
+fn project_display_name(graph: &ProjectGraph<GraphPkg<'_>>, project: &Path) -> String {
+    graph[project].package
+        .manifest_name()
+        .map_or_else(|| project.display().to_string(), str::to_string)
 }
 
 pub(super) fn a_project_has_the_script(task_graph: &TaskGraph) -> bool {

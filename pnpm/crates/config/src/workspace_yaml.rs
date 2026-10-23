@@ -260,7 +260,7 @@ macro_rules! identically_named_settings {
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
             test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
-            sync_injected_deps_after_scripts,
+            sync_injected_deps_after_scripts, required_scripts,
             resolution_mode, catalog_mode, catalog_prune,
             minimum_release_age_exclude_prune, save_peer, save_exact, save_types,
             registry_supports_time_field,

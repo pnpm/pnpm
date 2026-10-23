@@ -246,7 +246,7 @@ When the check finds that nothing changed, pnpm skips the install, including the
 
 ### requiredScripts
 
-Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail.
+Scripts listed in this array are required in each project selected by `pnpm -r run <script name>`. Otherwise, the run fails.
 
 ```yaml title="pnpm-workspace.yaml"
 requiredScripts:

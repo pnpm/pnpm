@@ -639,6 +639,10 @@ pub struct WorkspaceSettings {
     /// [`Config::sync_injected_deps_after_scripts`](crate::settings::Config::sync_injected_deps_after_scripts).
     pub sync_injected_deps_after_scripts: Option<Vec<String>>,
 
+    /// `requiredScripts` from `pnpm-workspace.yaml` — see
+    /// [`Config::required_scripts`](crate::settings::Config::required_scripts).
+    pub required_scripts: Option<Vec<String>>,
+
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
     /// optional-dependency platform check at install time: a
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
