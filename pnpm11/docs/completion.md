@@ -36,8 +36,6 @@ pnpm completion fish > ~/.config/fish/completions/pnpm.fish
 
 Features:
 
-- Provide completion for `pnpm --filter <package>`.
 - Provide completion for `pnpm remove` command, even in workspace's packages (by specifying `--filter` option).
-- Provide completion for scripts in `package.json`.
 
 [pnpm-shell-completion]: https://github.com/g-plane/pnpm-shell-completion

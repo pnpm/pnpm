@@ -185,11 +185,11 @@ For instance, this will run a command in all projects except for `foo`:
 pnpm --filter=!foo <cmd>
 ```
 
-And this will run a command in all projects that are not under the `lib`
-directory:
+And this will run a command in all projects that are not in the `lib`
+directory or below it:
 
 ```sh
-pnpm --filter=!./lib <cmd>
+pnpm --filter='!./lib/**' <cmd>
 ```
 
 Since v11.28.0, selectors are applied in the order they are given. An exclusion

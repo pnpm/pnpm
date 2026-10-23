@@ -3,16 +3,8 @@ id: completion
 title: Command line tab-completion
 ---
 
-:::info
-
-Completion for pnpm v9+ is incompatible with completion for older pnpm versions.
-If you have already installed pnpm completion for a version older than v9, you must uninstall it first to ensure that completion for v9+ works properly.
-You can do this by removing the section of code that contains `__tabtab` in your dot files.
-
-:::
-
 Unlike other popular package managers, which usually require plugins, pnpm
-supports command line tab-completion for Bash, Zsh, Fish, and similar shells.
+supports command line tab-completion for Bash, Fish, PowerShell, and Zsh.
 
 `pnpm completion <shell>` prints completion code to standard output. Supported
 shell names are `bash`, `fish`, `pwsh`, and `zsh`.
@@ -30,6 +22,21 @@ To setup autocompletion for Fish, run:
 pnpm completion fish > ~/.config/fish/completions/pnpm.fish
 ```
 
+To setup autocompletion for Zsh, run:
+
+```sh
+pnpm completion zsh > ~/completion-for-pnpm.zsh
+echo 'source ~/completion-for-pnpm.zsh' >> ~/.zshrc
+```
+
+To setup autocompletion for PowerShell, run:
+
+```powershell
+pnpm completion pwsh >> $PROFILE
+```
+
+Any other shell name fails with `ERR_PNPM_UNSUPPORTED_SHELL`.
+
 Since v12.4.0, the generated completions cover the [`pn` alias](./pnpm-cli.md#short-aliases) as well, in Bash, Fish, PowerShell, and Zsh.
 
 ## g-plane/pnpm-shell-completion
@@ -38,8 +45,6 @@ Since v12.4.0, the generated completions cover the [`pn` alias](./pnpm-cli.md#sh
 
 Features:
 
-- Provide completion for `pnpm --filter <package>`.
 - Provide completion for `pnpm remove` command, even in workspace's packages (by specifying `--filter` option).
-- Provide completion for scripts in `package.json`.
 
 [pnpm-shell-completion]: https://github.com/g-plane/pnpm-shell-completion

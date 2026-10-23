@@ -25,7 +25,7 @@ title: Feature Comparison
 | [Hooks]                          |:white_check_mark:|:x:               |
 | [Build script security]          |:white_check_mark:|:x:               |
 | [SBOM generation]                |:white_check_mark:|:white_check_mark:| `pnpm sbom`, `npm sbom`. |
-| [Listing licenses]               |:white_check_mark:|:x:               | pnpm supports it via `pnpm licenses list`. |
+| [Listing licenses]               |:white_check_mark:|:x:               | `pnpm licenses list` |
 
 [Auto-install before script run]: ./settings/build.md#verifydepsbeforerun
 [Autoinstalling peers]: ./settings/peer-dependencies.md#autoinstallpeers
@@ -33,7 +33,7 @@ title: Feature Comparison
 [Config dependencies]: ./config-dependencies.md
 [Dynamic package execution]: ./cli/pnx.md
 [Hoisted `node_modules`]: ./settings/node-modules.md#nodelinker
-[JSR registry support]: ./cli/add.md#install-from-the-jsr-registry
+[JSR registry support]: ./package-sources.md#jsr-registry
 [Listing licenses]: ./cli/licenses.md
 [Build script security]: ./settings/build.md#allowbuilds
 [Managing runtimes]: ./cli/runtime.md

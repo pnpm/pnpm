@@ -44,7 +44,7 @@ To fix this error, all dependencies that use the [workspace protocol] should be 
 
 ## ERR_PNPM_PEER_DEP_ISSUES
 
-`pnpm install` will fail if the project has unresolved peer dependencies or the peer dependencies are not matching the wanted ranges. To fix this, install the missing peer dependencies.
+With [`strictPeerDependencies`](./settings/peer-dependencies.md#strictpeerdependencies) enabled, `pnpm install` fails if the project has unresolved peer dependencies or the peer dependencies are not matching the wanted ranges. To fix this, install the missing peer dependencies.
 
 You may also selectively ignore these errors using the [peerDependencyRules.ignoreMissing] and [peerDependencyRules.allowedVersions] settings.
 
@@ -74,27 +74,6 @@ The registry answered a request for one package with the metadata of a different
 
 Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
 
-## ERR_PNPM_MISMATCHED_RELEASE_CHANNEL
-
-The config field `use-node-version` defines a release channel different from version suffix.
-
-For example:
-* `rc/20.0.0` defines an `rc` channel but the version is that of a stable release.
-* `release/20.0.0-rc.0` defines a `release` channel but the version is that of an RC release.
-
-To fix this error, either remove the release channel prefix or correct the version suffix.
-
-It is not allowed to specify node versions like `lts/Jod`.
-The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z.
-
 ## ERR_PNPM_INVALID_NODE_VERSION
 
-The value of config field `use-node-version` has an invalid syntax.
-
-Below are the valid forms of `use-node-version`:
-* Stable release:
-  * `X.Y.Z` (`X`, `Y`, `Z` are integers)
-  * `release/X.Y.Z` (`X`, `Y`, `Z` are integers)
-* RC release:
-  * `X.Y.Z-rc.W` (`X`, `Y`, `Z`, `W` are integers)
-  * `rc/X.Y.Z-rc.W` (`X`, `Y`, `Z`, `W` are integers)
+The [`nodeVersion`](./settings/cli.md#nodeversion) setting is not an exact semver version, such as `22.22.3`.
