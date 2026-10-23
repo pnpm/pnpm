@@ -1119,7 +1119,10 @@ test('catalogs work when inject-workspace-packages=true', async () => {
 //
 // A relative workspace: path is claimed by the local resolver, not by the
 // workspace matching of the npm resolver. The injected package is not an
-// importer, so nothing else resolves its catalog: specifiers.
+// importer, so nothing else resolves its catalog: specifiers. Both
+// resolutions that walk the package are covered: recalculating the graph
+// over a lockfile that recorded the version the package pinned itself, and
+// a fresh lockfile.
 test('catalogs work in a package injected through a relative workspace: path', async () => {
   expect.hasAssertions()
 
@@ -1133,23 +1136,31 @@ test('catalogs work in a package injected through a relative workspace: path', a
     },
   ])
   fs.mkdirSync('lib')
-  fs.writeFileSync('lib/package.json', JSON.stringify({
-    name: 'lib',
-    version: '1.0.0',
-    dependencies: {
-      'is-positive': 'catalog:project/common',
-    },
-  }))
+  const writeLib = (isPositiveSpecifier: string) => {
+    fs.writeFileSync('lib/package.json', JSON.stringify({
+      name: 'lib',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': isPositiveSpecifier,
+      },
+    }))
+  }
 
   const install = () => mutateModules(installProjects(projects), {
     ...options,
     lockfileOnly: true,
     injectWorkspacePackages: true,
+    preferFrozenLockfile: false,
     catalogs: {
       'project/common': { 'is-positive': '1.0.0' },
     },
   })
 
+  writeLib('1.0.0')
+  await install()
+  writeLib('catalog:project/common')
+  await expect(install()).resolves.not.toThrow()
+  fs.rmSync('pnpm-lock.yaml')
   await expect(install()).resolves.not.toThrow()
 
   const lockfile = readLockfile()

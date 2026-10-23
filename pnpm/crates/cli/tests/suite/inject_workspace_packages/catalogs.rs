@@ -98,7 +98,9 @@ fn assert_frozen_install_accepts_catalog_peers(shared_lockfile: bool, peer_speci
 /// A `catalog:` dependency of a package injected through a relative path
 /// (`workspace:../lib`) resolves through the catalogs, as one of a package
 /// injected by name does. The package sits outside the workspace, so
-/// nothing else resolves its specifiers.
+/// nothing else resolves its specifiers. Both resolutions that walk the
+/// package are covered: recalculating the graph over a lockfile that
+/// recorded the version the package pinned itself, and a fresh lockfile.
 #[test]
 fn install_resolves_the_catalog_deps_of_a_package_injected_by_relative_path() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -106,6 +108,7 @@ fn install_resolves_the_catalog_deps_of_a_package_injected_by_relative_path() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     append_workspace_yaml_key(&workspace, "packages", "[]");
     append_workspace_yaml_key(&workspace, "injectWorkspacePackages", "true");
+    append_workspace_yaml_key(&workspace, "preferFrozenLockfile", "false");
     append_workspace_yaml_key(
         &workspace,
         "catalogs",
@@ -113,13 +116,15 @@ fn install_resolves_the_catalog_deps_of_a_package_injected_by_relative_path() {
     );
     let lib = root.path().join("lib");
     fs::create_dir_all(&lib).expect("create lib");
-    let lib_manifest = serde_json::json!({
-        "name": "lib",
-        "version": "1.0.0",
-        "dependencies": { "@pnpm.e2e/foo": "catalog:project/common" },
-    })
-    .to_string();
-    fs::write(lib.join("package.json"), &lib_manifest).expect("write lib manifest");
+    let lib_manifest = |foo_specifier: &str| {
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/foo": foo_specifier },
+        })
+        .to_string()
+    };
+    fs::write(lib.join("package.json"), lib_manifest("1.0.0")).expect("write lib manifest");
     fs::write(
         workspace.join("package.json"),
         serde_json::json!({
@@ -130,7 +135,18 @@ fn install_resolves_the_catalog_deps_of_a_package_injected_by_relative_path() {
         .to_string(),
     )
     .expect("write app manifest");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
 
+    let lib_manifest = lib_manifest("catalog:project/common");
+    fs::write(lib.join("package.json"), &lib_manifest).expect("switch lib to the catalog");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove the lockfile");
     pacquet_in(&workspace)
         .with_arg("install")
         .assert()
