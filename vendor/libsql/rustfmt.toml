@@ -1,0 +1,2 @@
+# A vendored crate keeps its upstream formatting. See PNPM_PATCH.md.
+disable_all_formatting = true

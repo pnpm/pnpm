@@ -21,8 +21,7 @@ export function formatStagedRust (repo, { format = pinnedRustfmt } = {}) {
   // `R` is load-bearing: git reports a renamed file that was edited as one
   // rename rather than an addition, so without it the destination of a
   // `git mv` is committed unformatted.
-  // A vendored crate keeps its upstream formatting and edition.
-  const staged = gitPaths(repo, ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z', '--', '*.rs', ':(exclude)vendor/'])
+  const staged = gitPaths(repo, ['diff', '--cached', '--name-only', '--diff-filter=ACMR', '-z', '--', '*.rs'])
   if (staged.length === 0) return 0
 
   const root = fs.realpathSync(repo)

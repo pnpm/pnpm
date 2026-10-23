@@ -54,19 +54,6 @@ test('formats every staged Rust file and stages what changed', (context) => {
   assert.doesNotMatch(git(repo, 'show', ':kept.txt'), /\/\/ reformatted/)
 })
 
-test('leaves a staged file of a vendored crate as it is', (context) => {
-  const repo = repoWithSources(context, ['own.rs'])
-  fs.mkdirSync(path.join(repo, 'vendor/crate/src'), { recursive: true })
-  fs.writeFileSync(path.join(repo, 'vendor/crate/src/lib.rs'), 'fn vendored() {}\n')
-  fs.appendFileSync(path.join(repo, 'own.rs'), 'fn staged() {}\n')
-  git(repo, 'add', '--all')
-
-  const { seen, format } = reformatter()
-  assert.equal(formatStagedRust(repo, { format }), 0)
-
-  assert.deepEqual(seen, [path.join(repo, 'own.rs')])
-})
-
 test('formats the destination of a staged rename', (context) => {
   const repo = repoWithSources(context, ['before.rs'])
   git(repo, 'mv', 'before.rs', 'after.rs')

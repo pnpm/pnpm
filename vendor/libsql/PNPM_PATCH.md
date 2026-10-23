@@ -17,3 +17,7 @@ local patch when a release carries it.
 `src/lib.rs` also allows all warnings. Cargo caps the lints of registry
 dependencies but not of path dependencies, so the workspace's `-D warnings`
 would otherwise fail on lints in this crate.
+
+`rustfmt.toml` disables formatting here. `cargo fmt --all` formats path
+dependencies too, and the pre-commit hook formats staged files as edition
+2024, which this edition 2021 crate does not parse as.
