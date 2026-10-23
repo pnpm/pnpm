@@ -1,6 +1,7 @@
 use super::{
     ImportIndexedDirError, ImportIndexedDirOpts, Placement, PreserveModulesFailure,
-    PreservedModules, existing_dirent_kind, file_matches_store_entry, marker_present, populate_dir,
+    PreservedModules, SymlinkTargets, existing_dirent_kind, file_matches_store_entry,
+    marker_present, populate_dir,
 };
 mod swap;
 use crate::import_into_fresh_target;
@@ -72,7 +73,7 @@ pub(super) fn stage_and_swap<Reporter: self::Reporter>(
         &paths,
         dir_path,
         cas_paths,
-        opts.preserve_symlinks,
+        opts.symlink_targets,
     )?;
     // A non-forced import into an absent target claims it with a single
     // lock-free rename so cold installs never touch the swap lock unless a
@@ -122,7 +123,7 @@ fn populate_staging_dir<Reporter: self::Reporter>(
     paths: &StagePaths,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
-    preserve_symlinks: bool,
+    symlink_targets: Option<SymlinkTargets>,
 ) -> Result<(), ImportIndexedDirError> {
     if let Err(error) = populate_dir::<Reporter>(
         logged_methods,
@@ -130,7 +131,7 @@ fn populate_staging_dir<Reporter: self::Reporter>(
         &paths.stage,
         cas_paths,
         Placement::Fresh,
-        preserve_symlinks.then_some(dir_path),
+        symlink_targets.map(|policy| (dir_path, policy)),
     ) {
         let _ = fs::remove_dir_all(&paths.stage);
         return Err(error);

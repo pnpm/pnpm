@@ -43,6 +43,7 @@ export interface Importer {
 }
 
 export interface ImportIndexedDirOptions {
+  symlinkTargets?: 'imported' | 'internal'
   keepModulesDir?: boolean
   /**
    * Whether a target that already holds this package is equivalent to the
@@ -308,7 +309,7 @@ function symlinkDirs (
       imported.add(entry)
     }
   }
-  return { ...dirs, imported }
+  return { ...dirs, imported, symlinkTargets: opts.symlinkTargets }
 }
 
 function importEntry (importFile: ImportFile, src: string, dest: string, links?: SymlinkDirs): void {

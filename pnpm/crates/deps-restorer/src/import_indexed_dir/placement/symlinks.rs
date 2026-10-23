@@ -1,6 +1,9 @@
 //! Recreating a source symlink in an imported package.
 
-use super::{ImportIndexedDirError, Placement, clear_dir_blocking_file, file_matches_store_entry};
+use super::{
+    ImportIndexedDirError, Placement, SymlinkTargets, clear_dir_blocking_file,
+    file_matches_store_entry,
+};
 use pnpm_fs::Host;
 use std::{
     collections::{HashMap, HashSet},
@@ -20,6 +23,7 @@ pub(super) struct SymlinkRoots<'a> {
     /// The imported entries and their directories, relative to the
     /// package, as [`imported_paths`] lists them.
     pub(super) imported: &'a HashSet<&'a str>,
+    pub(super) policy: SymlinkTargets,
 }
 
 /// Every key of `cas_paths` and each directory above it, the package root
@@ -83,10 +87,6 @@ fn validate_symlink_target(
     Ok(link_target)
 }
 
-/// Recreate the symlink at `store_path` as `target`, reporting whether the
-/// entry is handled. A link whose target the import leaves out is not
-/// recreated: a file link is left for the caller to import as a file, and
-/// a directory link is left out.
 pub(super) fn place_symlink_entry(
     placement: Placement,
     store_path: &Path,
@@ -95,7 +95,8 @@ pub(super) fn place_symlink_entry(
 ) -> Result<bool, ImportIndexedDirError> {
     let link_target = validate_symlink_target(store_path, target, roots.written_dir)?;
     let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
-    if !imports_link_target(target, &link_target, roots) {
+    if roots.policy == SymlinkTargets::Imported && !imports_link_target(target, &link_target, roots)
+    {
         return Ok(is_dir);
     }
     if placement == Placement::Repair && file_matches_store_entry(target, store_path) {

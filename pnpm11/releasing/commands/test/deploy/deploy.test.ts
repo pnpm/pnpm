@@ -2174,3 +2174,39 @@ function deployedPeerVersion (dependent: string): string {
   const dependentDir = fs.realpathSync(path.resolve('deploy/node_modules', dependent))
   return loadJsonFileSync<{ version: string }>(path.join(path.dirname(dependentDir), '@pnpm.e2e/peer-a/package.json')).version
 }
+
+testOnNonWindows.each([false, true])('deploy preserves links to dependencies and unselected targets (legacy=%s)', async (forceLegacyDeploy) => {
+  preparePackages([{ location: '.', package: {
+    name: 'app', version: '1.0.0', files: ['.next'],
+    dependencies: { 'local-dep': 'file:vendor/local-dep' },
+  } }])
+  fs.writeFileSync('pnpm-workspace.yaml', 'packages: [.]\ninjectWorkspacePackages: true\n')
+  fs.mkdirSync('vendor/local-dep', { recursive: true })
+  fs.writeFileSync('vendor/local-dep/package.json', JSON.stringify({ name: 'local-dep', version: '1.0.0', main: 'index.cjs' }))
+  fs.writeFileSync('vendor/local-dep/index.cjs', 'module.exports = 42')
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'app' }])
+  const opts = {
+    ...DEFAULT_OPTS, allProjects, selectedProjectsGraph,
+    dir: process.cwd(), lockfileDir: process.cwd(), workspaceDir: process.cwd(),
+    injectWorkspacePackages: true, sharedWorkspaceLockfile: true, ignoreScripts: true,
+  }
+  await install.handler(opts)
+  fs.mkdirSync('.next/node_modules/@scope', { recursive: true })
+  fs.writeFileSync('omitted.txt', 'omitted')
+  fs.writeFileSync('.next/control.txt', 'control')
+  const links = [
+    ['node_modules/alias', '../../node_modules/local-dep'],
+    ['node_modules/@scope/alias', '../../../node_modules/local-dep'],
+    ['file-link', '../omitted.txt'],
+    ['control-link', 'control.txt'],
+    ['chain', 'node_modules/alias'],
+  ]
+  for (const [name, target] of links) fs.symlinkSync(target, path.join('.next', name))
+  expect(fs.readFileSync('.next/node_modules/alias/index.cjs', 'utf8')).toBe('module.exports = 42')
+  await deploy.handler({ ...opts, forceLegacyDeploy, production: true, dev: false }, ['dist'])
+  for (const [name, target] of links) expect(fs.readlinkSync(path.join('dist/.next', name))).toBe(target)
+  const dependency = 'dist/.next/node_modules/alias/index.cjs'
+  expect(fs.readFileSync(dependency, 'utf8')).toBe('module.exports = 42')
+  expect(fs.realpathSync(dependency).startsWith(path.resolve('dist') + path.sep)).toBe(true)
+  expect(fs.existsSync('dist/omitted.txt')).toBe(false)
+})

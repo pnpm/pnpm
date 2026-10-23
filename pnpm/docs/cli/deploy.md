@@ -54,6 +54,8 @@ COPY --from=pruned /app/pruned .
 ENTRYPOINT ["node", "index.js"]
 ```
 
+Selected symlinks to existing paths within the project are preserved even when their targets are not copied. Links to installed dependencies resolve after deployment.
+
 ## Options
 
 ### --force

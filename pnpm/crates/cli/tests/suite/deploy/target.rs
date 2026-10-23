@@ -557,3 +557,76 @@ diff --git a/package.json b/package.json
 
     drop((root, mock_instance));
 }
+
+#[cfg(unix)]
+#[test]
+fn deploy_preserves_links_to_dependencies_and_unselected_targets() {
+    use std::{os::unix::fs::symlink, path::Path};
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages: [.]\ninjectWorkspacePackages: true\n",
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "app", "version": "1.0.0", "files": [".next"],
+            "dependencies": {"local-dep": "file:vendor/local-dep"}
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::create_dir_all(workspace.join("vendor/local-dep")).unwrap();
+    fs::write(
+        workspace.join("vendor/local-dep/package.json"),
+        r#"{"name":"local-dep","version":"1.0.0","main":"index.cjs"}"#,
+    )
+    .unwrap();
+    fs::write(workspace.join("vendor/local-dep/index.cjs"), "module.exports = 42").unwrap();
+    pacquet
+        .with_args(["install", "--offline", "--ignore-scripts"])
+        .assert()
+        .success();
+    fs::create_dir_all(workspace.join(".next/node_modules/@scope")).unwrap();
+    fs::write(workspace.join("omitted.txt"), "omitted").unwrap();
+    fs::write(workspace.join(".next/control.txt"), "control").unwrap();
+    let links = [
+        ("node_modules/alias", "../../node_modules/local-dep"),
+        ("node_modules/@scope/alias", "../../../node_modules/local-dep"),
+        ("file-link", "../omitted.txt"),
+        ("control-link", "control.txt"),
+        ("chain", "node_modules/alias"),
+    ];
+    for (name, target) in links {
+        symlink(target, workspace.join(".next").join(name)).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(workspace.join(".next/node_modules/alias/index.cjs")).unwrap(),
+        "module.exports = 42"
+    );
+    for (mode, flags) in [("default", &[][..]), ("legacy", &["--legacy"][..])] {
+        let destination = root.path().join(mode);
+        let command = pacquet_cmd(&workspace)
+            .with_args(["--filter", "app", "deploy", "--prod", "--offline", "--ignore-scripts"]);
+        command
+            .with_args(flags)
+            .with_arg(&destination)
+            .assert()
+            .success();
+        for (name, target) in links {
+            assert_eq!(
+                fs::read_link(destination.join(".next").join(name)).unwrap(),
+                Path::new(target)
+            );
+        }
+        let dependency = destination.join(".next/node_modules/alias/index.cjs");
+        assert_eq!(fs::read_to_string(&dependency).unwrap(), "module.exports = 42");
+        assert!(
+            fs::canonicalize(&dependency).unwrap().starts_with(&destination),
+            "{dependency:?} must resolve inside {destination:?}"
+        );
+        assert!(!destination.join("omitted.txt").exists(), "unselected target must stay omitted");
+    }
+}

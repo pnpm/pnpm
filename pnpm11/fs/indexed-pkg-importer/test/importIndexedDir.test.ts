@@ -631,3 +631,28 @@ test('overwriteDirSync() keeps the displaced directory on disk if both swap and 
   expect(movedAsidePath).toBeDefined()
   expect(fs.readFileSync(path.join(movedAsidePath!, 'package.json'), 'utf8')).toBe('{"name":"old"}')
 })
+
+test.each([false, true])('importIndexedDir() keeps unselected internal link targets (occupied=%s)', (occupied) => {
+  const tmp = tempDir()
+  const src = path.join(tmp, 'src')
+  const dest = path.join(tmp, 'dest')
+  fs.mkdirSync(path.join(src, 'omitted'), { recursive: true })
+  fs.writeFileSync(path.join(src, 'omitted/file.txt'), 'content')
+  fs.symlinkSync('omitted', path.join(src, 'directory-link'), 'dir')
+  fs.symlinkSync('omitted/file.txt', path.join(src, 'file-link'), 'file')
+  if (occupied) {
+    fs.mkdirSync(dest)
+    fs.writeFileSync(path.join(dest, 'file-link'), 'stale')
+  }
+  importIndexedDir({ importFile: fs.copyFileSync, importFileAtomic: fs.copyFileSync }, dest, new Map([
+    ['directory-link', path.join(src, 'directory-link')],
+    ['file-link', path.join(src, 'file-link')],
+  ]), { resolvedFrom: 'local-dir', symlinkTargets: 'internal' })
+  expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'directory-link')))).toBe(path.join(dest, 'omitted'))
+  if (process.platform !== 'win32' || fs.lstatSync(path.join(dest, 'file-link')).isSymbolicLink()) {
+    expect(fs.readlinkSync(path.join(dest, 'file-link'))).toBe('omitted/file.txt')
+  } else {
+    expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
+  }
+  expect(fs.existsSync(path.join(dest, 'omitted'))).toBe(false)
+})

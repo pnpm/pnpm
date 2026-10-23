@@ -1,7 +1,7 @@
 #[cfg(unix)]
 use super::{super::ImportIndexedDirError, FORCE_KEEP};
 use super::{
-    super::{ImportIndexedDirOpts, import_indexed_dir},
+    super::{ImportIndexedDirOpts, SymlinkTargets, import_indexed_dir},
     FORCE_SHARED, cas_map, write_source,
 };
 use pnpm_config::PackageImportMethod;
@@ -179,7 +179,10 @@ fn preserve_symlinks_preserves_symlinked_package_json() {
         PackageImportMethod::Copy,
         &target,
         &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            symlink_targets: Some(SymlinkTargets::Imported),
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .expect("import with preserve_symlinks should succeed");
 
@@ -207,7 +210,10 @@ fn preserve_symlinks_relocates_absolute_symlink() {
         PackageImportMethod::Copy,
         &target,
         &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            symlink_targets: Some(SymlinkTargets::Imported),
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .expect("import with preserve_symlinks should succeed");
 
@@ -234,24 +240,29 @@ fn preserve_symlinks_rejects_escaping_symlink() {
     fs::remove_file(&link_file).unwrap();
     symlink("../../outside", &link_file).unwrap();
 
-    let target = tmp.path().join("target");
-    let err = import_indexed_dir::<SilentReporter>(
-        &AtomicU8::new(0),
-        PackageImportMethod::Copy,
-        &target,
-        &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
-    )
-    .expect_err("import with escaping symlink should fail");
+    for policy in [SymlinkTargets::Imported, SymlinkTargets::Internal] {
+        let target = tmp.path().join(format!("{policy:?}"));
+        let err = import_indexed_dir::<SilentReporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::Copy,
+            &target,
+            &cas,
+            ImportIndexedDirOpts {
+                symlink_targets: Some(policy),
+                ..ImportIndexedDirOpts::default()
+            },
+        )
+        .expect_err("import with escaping symlink should fail");
 
-    assert!(
-        matches!(err, ImportIndexedDirError::SymlinkTargetEscapes { .. }),
-        "expected SymlinkTargetEscapes error, got {err:?}",
-    );
-    assert!(
-        fs::symlink_metadata(target.join("link.txt")).is_err(),
-        "destination link must not be created",
-    );
+        assert!(
+            matches!(err, ImportIndexedDirError::SymlinkTargetEscapes { .. }),
+            "expected SymlinkTargetEscapes error, got {err:?}",
+        );
+        assert!(
+            fs::symlink_metadata(target.join("link.txt")).is_err(),
+            "destination link must not be created",
+        );
+    }
 }
 
 #[cfg(unix)]
@@ -273,7 +284,10 @@ fn preserve_symlinks_imports_a_link_to_a_left_out_file_as_that_file() {
         PackageImportMethod::Copy,
         &target,
         &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            symlink_targets: Some(SymlinkTargets::Imported),
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .expect("import with preserve_symlinks should succeed");
 
@@ -299,7 +313,10 @@ fn preserve_symlinks_leaves_out_a_directory_link_to_a_left_out_directory() {
         PackageImportMethod::Copy,
         &target,
         &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            symlink_targets: Some(SymlinkTargets::Imported),
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .expect("import with preserve_symlinks should succeed");
 
@@ -326,7 +343,10 @@ fn preserve_symlinks_relativizes_an_absolute_link_through_a_linked_root() {
         PackageImportMethod::Copy,
         &target,
         &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            symlink_targets: Some(SymlinkTargets::Imported),
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .expect("import with preserve_symlinks should succeed");
 
@@ -349,7 +369,10 @@ fn preserve_symlinks_recreates_an_internal_junction() {
         PackageImportMethod::Copy,
         &target,
         &cas,
-        ImportIndexedDirOpts { preserve_symlinks: true, ..ImportIndexedDirOpts::default() },
+        ImportIndexedDirOpts {
+            symlink_targets: Some(SymlinkTargets::Imported),
+            ..ImportIndexedDirOpts::default()
+        },
     )
     .expect("import with preserve_symlinks should succeed");
 
@@ -389,4 +412,46 @@ fn force_import_replaces_a_dangling_directory_link() {
 
     assert!(!pnpm_fs::is_symlink_or_junction(&target).unwrap());
     assert_eq!(fs::read(target.join("package.json")).unwrap(), b"{}");
+}
+
+#[cfg(unix)]
+#[test]
+fn internal_symlink_targets_survive_fresh_staged_and_repaired_imports() {
+    use std::{os::unix::fs::symlink, path::Path};
+
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("src");
+    write_source(&src, "omitted/file.txt", b"content");
+    symlink("omitted", src.join("directory-link")).unwrap();
+    symlink("omitted/file.txt", src.join("file-link")).unwrap();
+    let cas = cas_map(&[
+        ("directory-link", src.join("directory-link")),
+        ("file-link", src.join("file-link")),
+    ]);
+    let opts = ImportIndexedDirOpts {
+        symlink_targets: Some(SymlinkTargets::Internal),
+        ..ImportIndexedDirOpts::default()
+    };
+    for (name, opts) in [
+        ("fresh", opts),
+        ("staged", ImportIndexedDirOpts { force: true, ..opts }),
+        ("repair", ImportIndexedDirOpts { force: true, safe_to_skip: true, ..opts }),
+    ] {
+        let target = tmp.path().join(name);
+        if opts.force {
+            fs::create_dir_all(&target).unwrap();
+            fs::write(target.join("file-link"), b"stale").unwrap();
+        }
+        import_indexed_dir::<SilentReporter>(
+            &AtomicU8::new(0),
+            PackageImportMethod::Copy,
+            &target,
+            &cas,
+            opts,
+        )
+        .unwrap();
+        assert_eq!(fs::read_link(target.join("directory-link")).unwrap(), Path::new("omitted"));
+        assert_eq!(fs::read_link(target.join("file-link")).unwrap(), Path::new("omitted/file.txt"));
+        assert!(!target.join("omitted").exists(), "{target:?} must not copy unselected files");
+    }
 }
