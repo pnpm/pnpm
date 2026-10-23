@@ -148,6 +148,20 @@ fn short_with_conflicting_arity_moves_with_the_value_its_command_reads() {
 }
 
 #[test]
+fn short_with_conflicting_arity_takes_a_command_name_as_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-d", "edit", "patch", "foo"]),
+        ["pnpm", "patch", "-d", "edit", "foo"],
+        "`edit` does not declare -d, so `patch -d` reads `edit` as its value",
+    );
+    assert_eq!(
+        relocate(&["pnpm", "-d", "add", "foo"]),
+        ["pnpm", "add", "-d", "foo"],
+        "`add` declares -d, so the boolean reading stands",
+    );
+}
+
+#[test]
 fn short_with_conflicting_arity_before_a_script_stays_put() {
     let argv = ["pnpm", "-o", "dist", "build"];
     assert_eq!(relocate(&argv), argv);
