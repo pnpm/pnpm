@@ -241,8 +241,8 @@ describe('corepack entry point', () => {
       `cafile=${TLS_CA_FILE}`,
     ])
 
-    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
-    assertDownloaded(fixture)
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
   })
 
   it('trusts every inline ca[] entry of the user .npmrc', { skip: ADDS_DEFAULT_CAS }, async () => {
@@ -256,21 +256,26 @@ describe('corepack entry point', () => {
       `ca[]=${inline(path.join(path.dirname(TLS_CA_FILE), 'server.crt'))}`,
     ])
 
-    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
-    assertDownloaded(fixture)
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
   })
 
   it('trusts the CA the workspace .npmrc names for the registry it names', { skip: ADDS_DEFAULT_CAS }, async () => {
     const fixture = await createFixture({ tls: true })
     fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    fs.mkdirSync(path.join(fixture.projectDir, 'certs'))
+    fs.copyFileSync(TLS_CA_FILE, path.join(fixture.projectDir, 'certs/ca.pem'))
+    // Relative to the .npmrc, as pnpm reads it, not to the directory pnpm runs in.
     writeNpmrc(fixture, 'project/.npmrc', [
       `registry=${fixture.registryUrl}/`,
-      `cafile=${TLS_CA_FILE}`,
+      'cafile=certs/ca.pem',
     ])
     const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [])
+    const packageDir = path.join(fixture.projectDir, 'packages/a')
+    fs.mkdirSync(packageDir, { recursive: true })
 
-    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
-    assertDownloaded(fixture)
+    const result = await runEntry({ ...fixture, projectDir: packageDir }, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
   })
 
   it('trusts the CA the workspace .npmrc scopes to the registry', { skip: ADDS_DEFAULT_CAS }, async () => {
@@ -282,8 +287,8 @@ describe('corepack entry point', () => {
     ])
     const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [])
 
-    await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
-    assertDownloaded(fixture)
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
   })
 
   it('does not trust a CA scoped to another registry', { skip: ADDS_DEFAULT_CAS }, async () => {
@@ -394,11 +399,21 @@ function userNpmConfig (userNpmrc) {
   }
 }
 
-function assertDownloaded (fixture) {
+/**
+ * The download went through: get-pnpm places the binary only once its
+ * signature and checksum are verified and it is extracted. Where the stand-in
+ * can be spawned, the binary also has to have run.
+ */
+function assertDownloaded (fixture, result) {
   assert.deepEqual(new Set(fixture.requests.map(({ url }) => url)), new Set([
     `/${packageName}/${VERSION}`,
     `/${packageName}/-/${VERSION}.tgz`,
   ]))
+  assert.ok(fs.existsSync(path.join(fixture.dir, DOWNLOADED_BINARY)), result.stderr)
+  if (!SPAWNS_THE_BINARY) {
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /ran: --version/)
+  }
 }
 
 function nerfDart (registryUrl) {

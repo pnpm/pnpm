@@ -228,6 +228,8 @@ function projectDir () {
  * The top-level settings of the `.npmrc` at `file`, each passed through
  * `parseEntry`, which returns the `[key, value]` to keep or `undefined`. A
  * `key[]` setting collects every value it is given into an array under `key`.
+ * A relative top-level `cafile` is resolved against the directory of `file`,
+ * as pnpm resolves it.
  */
 function readNpmrc (file, parseEntry) {
   const settings = Object.create(null)
@@ -255,7 +257,9 @@ function readNpmrc (file, parseEntry) {
       continue
     }
     const [key, value] = entry
-    if (key.endsWith('[]')) {
+    if (key === 'cafile' && value !== '') {
+      settings.cafile = path.resolve(path.dirname(file), value)
+    } else if (key.endsWith('[]')) {
       const name = key.slice(0, -2)
       settings[name] = [...(Array.isArray(settings[name]) ? settings[name] : []), value]
     } else {
