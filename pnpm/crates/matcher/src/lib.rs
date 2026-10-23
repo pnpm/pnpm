@@ -198,6 +198,7 @@ fn compile_many(patterns: &[String]) -> MatcherImpl {
 /// A compiled glob pattern. `*` matches any sequence including empty,
 /// `?` matches one character, and every other character is literal. The
 /// match is anchored — pattern must consume the whole input.
+
 #[derive(Clone)]
 pub struct WildcardMatcher {
     /// Segments between `*`s. For pattern `a*b*c` this is
