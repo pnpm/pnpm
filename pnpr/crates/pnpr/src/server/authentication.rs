@@ -265,8 +265,7 @@ async fn resolve_caller(
         }
         if let Some(record) = state.inner.identity.auth.tokens.lookup_record(&raw_token).await? {
             check_token_restrictions(&record, method, path, client_ip)?;
-            let key = super::ecosystem::sha256_hex(raw_token.as_bytes());
-            state.inner.identity.last_used.record(&key, record.last_used_at);
+            state.inner.identity.last_used.record_raw(&raw_token, record.last_used_at);
             return Ok(Identity::user(record.username));
         }
     }
