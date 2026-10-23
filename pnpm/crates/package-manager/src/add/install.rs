@@ -108,29 +108,25 @@ pub(super) fn seed_picked_versions(
     seed: (&mut HashSet<String>, &mut PreferredVersions),
 ) {
     let (dropped_pins, preferred) = seed;
-    for PickedVersion { alias, name, version, specifier } in picked_versions {
-        let (Ok(alias_name), Ok(package), Ok(semver)) =
-            (alias.parse::<PkgName>(), name.parse::<PkgName>(), version.parse::<Version>())
-        else {
+    for picked in picked_versions {
+        let Some(lock) = locked.unsettled_pick(picked) else {
             continue;
         };
-        let direct = locked.direct(&alias_name);
-        let pinned_elsewhere = direct.is_some_and(|(locked, _)| {
-            !locked.is_some_and(|locked| same_build(locked, &semver))
-        });
-        let settled = match direct {
-            Some(_) if pinned_elsewhere => false,
-            Some((_, locked_specifier)) if locked_specifier == specifier => true,
-            _ => locked.only_version_of(&package, &semver),
-        };
-        if settled {
-            continue;
-        }
-        crate::install_with_fresh_lockfile::prefer_requested_version(preferred, name, version);
-        if pinned_elsewhere {
-            dropped_pins.insert(alias.clone());
+        crate::install_with_fresh_lockfile::prefer_requested_version(
+            preferred,
+            &picked.name,
+            &picked.version,
+        );
+        if lock == PickLock::PinnedElsewhere {
+            dropped_pins.insert(picked.alias.clone());
         }
     }
+}
+/// How the importer locks a pick the install has to move to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PickLock {
+    Unpinned,
+    PinnedElsewhere,
 }
 /// What the wanted lockfile holds for the importer an add rewrites.
 pub(super) struct LockedVersions<'l> {
@@ -149,6 +145,30 @@ impl<'l> LockedVersions<'l> {
         );
         let importer = lockfile.and_then(|lockfile| lockfile.importers.get(&importer_id));
         Self { lockfile, importer }
+    }
+
+    /// `None` when the fast lockfile update already lands on `picked`.
+    fn unsettled_pick(&self, picked: &PickedVersion) -> Option<PickLock> {
+        let PickedVersion { alias, name, version, specifier } = picked;
+        let (Ok(alias), Ok(name), Ok(version)) =
+            (alias.parse::<PkgName>(), name.parse::<PkgName>(), version.parse::<Version>())
+        else {
+            return None;
+        };
+        let direct = self.direct(&alias);
+        let pinned_elsewhere = direct.is_some_and(|(locked, _)| {
+            !locked.is_some_and(|locked| same_build(locked, &version))
+        });
+        let settled = match direct {
+            Some(_) if pinned_elsewhere => false,
+            Some((_, locked_specifier)) if locked_specifier == specifier => true,
+            _ => self.only_version_of(&name, &version),
+        };
+        match (settled, pinned_elsewhere) {
+            (true, _) => None,
+            (false, false) => Some(PickLock::Unpinned),
+            (false, true) => Some(PickLock::PinnedElsewhere),
+        }
     }
 
     /// The version and specifier the importer locks `name` at as a direct
