@@ -30,6 +30,10 @@ test "$actual_sha" = "$expected_sha" || {
 tar -xzf /tmp/pnpm.tgz -C /opt/pnpm
 rm /tmp/pnpm.tgz
 ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
+for alias in pn pnpx pnx; do
+  ln /opt/pnpm/pnpm "/opt/pnpm/$alias"
+  ln -s "/opt/pnpm/$alias" "/usr/local/bin/$alias"
+done
 installed="$(pnpm --version)"
 test "$installed" = "$PNPM_VERSION" || {
   echo "pnpm version mismatch: expected $PNPM_VERSION, got $installed" >&2
