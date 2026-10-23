@@ -88,7 +88,7 @@ catalog:
   '@zkochan/table': ^2.0.1
   adm-zip: ^0.6.1
   agentkeepalive: ^4.6.0
-  amaro: ^1.2.1
+  amaro: ^1.2.2
   ansi-diff: ^1.2.0
   archy: ^1.0.0
   better-path-resolve: 2.0.0
