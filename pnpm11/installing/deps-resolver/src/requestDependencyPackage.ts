@@ -100,7 +100,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
       getPatchInfo(ctx.patchedDependencies, manifest.name, manifest.version) != null,
     preferredVersions,
     preferWorkspacePackages: ctx.preferWorkspacePackages,
-    projectDir: (options.currentDepth > 0 && !wantedDependency.bareSpecifier.startsWith('file:'))
+    projectDir: (options.currentDepth > 0 && !isRelativeToDeclaringManifest(wantedDependency.bareSpecifier))
       ? ctx.lockfileDir
       : options.parentPkg.rootDir,
     skipFetch: ctx.dryRun,
@@ -115,6 +115,10 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
     rangeSpecStyle: options.rangeSpecStyle,
     readPackageHook: ctx.readPackageHook,
   }
+}
+
+function isRelativeToDeclaringManifest (bareSpecifier: string): boolean {
+  return bareSpecifier.startsWith('file:') || bareSpecifier.startsWith('workspace:.')
 }
 
 type ReleasePolicyOptions = Pick<RequestPackageOptions,
