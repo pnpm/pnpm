@@ -10,13 +10,18 @@ use pnpm_unsafe_audit::{audit, workspace_root};
 #[test]
 fn the_workspace_holds_to_the_unsafe_policy() {
     let findings = audit(&workspace_root());
-    assert!(
-        findings.is_empty(),
-        "the workspace departs from the unsafe policy:\n\n{}\n",
+    // A closure rather than a binding: `assert!` builds its message only
+    // when the assertion fails, and this keeps that.
+    let departures = || {
         findings
             .iter()
             .map(|finding| format!("  - {finding}"))
             .collect::<Vec<_>>()
-            .join("\n\n"),
+            .join("\n\n")
+    };
+    assert!(
+        findings.is_empty(),
+        "the workspace departs from the unsafe policy:\n\n{}\n",
+        departures(),
     );
 }
