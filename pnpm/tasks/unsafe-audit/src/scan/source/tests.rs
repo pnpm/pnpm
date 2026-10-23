@@ -1,5 +1,17 @@
 use super::{Kind, has_safety_comment, kind, opens_unsafe, opts_out};
 
+/// Drive [`super::occurrences`] over `source`, written to a scratch file.
+///
+/// A directory of its own per call: `cargo test` runs every test of a
+/// binary in one process, so a scratch path shared between them is one
+/// test writing the source another is reading.
+fn occurrences_in(source: &str) -> Vec<super::Occurrence> {
+    let directory = tempfile::tempdir().expect("create the scratch directory");
+    let file = directory.path().join("source.rs");
+    std::fs::write(&file, source).expect("write the scratch source");
+    super::occurrences(directory.path(), &file)
+}
+
 #[test]
 fn an_unsafe_block_opens_one() {
     for line in [
@@ -173,18 +185,6 @@ fn a_block_comment_continuation_opens_nothing() {
     for line in ["     * unsafe { read() }", "     *", "     */", "    * unsafe {"] {
         assert!(!opens_unsafe(line), "{line}");
     }
-}
-
-/// Drive [`super::occurrences`] over `source`, written to a scratch file.
-fn occurrences_in(source: &str) -> Vec<super::Occurrence> {
-    let directory =
-        std::env::temp_dir().join(format!("pnpm-unsafe-audit-scan-{}", std::process::id()));
-    std::fs::create_dir_all(&directory).expect("create the scratch directory");
-    let file = directory.join("source.rs");
-    std::fs::write(&file, source).expect("write the scratch source");
-    let found = super::occurrences(&directory, &file);
-    let _ = std::fs::remove_dir_all(&directory);
-    found
 }
 
 /// A string that spans lines holds lines that read as code on their own.

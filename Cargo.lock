@@ -6586,6 +6586,7 @@ name = "pnpm-unsafe-audit"
 version = "0.0.1"
 dependencies = [
  "serde",
+ "tempfile",
  "toml",
 ]
 

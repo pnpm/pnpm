@@ -14,5 +14,8 @@ repository.workspace = true
 serde = { workspace = true }
 toml = { workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [lints]
 workspace = true
