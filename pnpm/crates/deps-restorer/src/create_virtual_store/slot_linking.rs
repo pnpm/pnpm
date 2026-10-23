@@ -97,12 +97,7 @@ pub(super) fn merge_into_slot_group<'a>(group: &mut SlotDirGroup<'a>, slot: &'a 
         }
     }
 }
-/// How many completed cold snapshots accumulate before a link chunk
-/// runs. Small enough that each chunk's `block_in_place` pause stays in
-/// the low milliseconds; large enough that the rayon pass has real
-/// parallelism to spend it on.
-pub(super) const COLD_LINK_CHUNK: usize = 32;
-/// Build [`SlotLink`]s for one chunk of cold captures and run the
+/// Build [`SlotLink`]s for one batch of cold captures and run the
 /// parallel link pass over them. `template` carries the pass-invariant
 /// fields; its `slots` are ignored.
 pub(super) fn link_cold_chunk<Reporter: self::Reporter>(

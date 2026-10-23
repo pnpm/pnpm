@@ -37,6 +37,7 @@ use pnpm_tarball::{PrefetchIntegrityCheck, PrefetchResult, prefetch_cas_paths};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    pin::Pin,
     sync::Arc,
 };
 
@@ -362,6 +363,58 @@ pub enum CreateVirtualStoreError {
         #[error(source)]
         error: std::io::Error,
     },
+
+    #[display("The fetch was stopped by the check running alongside it")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_FETCH_ABORTED))]
+    ConcurrentCheckAborted,
+}
+
+/// A check the fetch runs alongside its downloads, such as a frozen
+/// install's lockfile verification. See
+/// [`CreateVirtualStore::run_with_check`].
+pub type ConcurrentCheck<'a> = Pin<Box<dyn Future<Output = CheckVerdict> + Send + 'a>>;
+
+/// What a [`ConcurrentCheck`] decides for the fetch running alongside it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckVerdict {
+    Continue,
+    /// The fetch stops with
+    /// [`CreateVirtualStoreError::ConcurrentCheckAborted`].
+    Abort,
+}
+
+/// Run `work` while polling `check`. An `Abort` verdict drops `work`;
+/// a `Continue` verdict settles `check`, so later calls run `work` alone.
+async fn run_checked<Output>(
+    check: &mut Option<ConcurrentCheck<'_>>,
+    work: impl Future<Output = Result<Output, CreateVirtualStoreError>>,
+) -> Result<Output, CreateVirtualStoreError> {
+    let Some(pending) = check.as_mut() else { return work.await };
+    let mut work = std::pin::pin!(work);
+    let verdict = tokio::select! {
+        verdict = pending => verdict,
+        output = &mut work => return output,
+    };
+    *check = None;
+    match verdict {
+        CheckVerdict::Continue => work.await,
+        CheckVerdict::Abort => Err(CreateVirtualStoreError::ConcurrentCheckAborted),
+    }
+}
+
+/// Drive `check` to its verdict once the fetch is done, so the caller
+/// can read what the check recorded whatever the fetch's outcome.
+async fn settle_check<Output>(
+    check: Option<ConcurrentCheck<'_>>,
+    result: Result<Output, CreateVirtualStoreError>,
+) -> Result<Output, CreateVirtualStoreError> {
+    match check {
+        None => result,
+        Some(pending) => match pending.await {
+            CheckVerdict::Continue => result,
+            CheckVerdict::Abort => Err(CreateVirtualStoreError::ConcurrentCheckAborted),
+        },
+    }
 }
 
 /// The wanted lockfile's two sections, once both are known to exist.

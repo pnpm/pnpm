@@ -4,7 +4,7 @@ use super::{
     slot_link, snapshot_with_dep, tarball_metadata_without_integrity,
 };
 use crate::{
-    create_virtual_store::cache_keys::snapshot_cache_key,
+    CheckVerdict, ConcurrentCheck, create_virtual_store::cache_keys::snapshot_cache_key,
     install_package_by_snapshot::host_platform_selector,
 };
 use pnpm_lockfile::{LockfileEntries, PackageKey, PkgName, SnapshotEntry};
@@ -12,18 +12,193 @@ use pnpm_reporter::SilentReporter;
 use std::{
     collections::{HashMap, HashSet},
     fs,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU8, Ordering},
+    },
 };
+
+/// A cold batch served from the tarball mem cache: `cold-00` carries a
+/// postinstall script, the others are build-free.
+struct ColdMemCacheBatch {
+    _root: tempfile::TempDir,
+    workspace_root: std::path::PathBuf,
+    config: &'static pnpm_config::Config,
+    snapshots: HashMap<PackageKey, SnapshotEntry>,
+    packages: HashMap<PackageKey, pnpm_lockfile::PackageMetadata>,
+    mem_cache: Arc<pnpm_tarball::MemCache>,
+}
+
+impl ColdMemCacheBatch {
+    fn new(package_count: usize) -> Self {
+        use pnpm_config::{Config, PackageImportMethod};
+        use pnpm_tarball::{CacheValue, CachedTarball, MemCache, package_mem_cache_key};
+
+        let root = tempfile::tempdir().expect("create temp dir");
+        let workspace_root = root.path().join("workspace");
+        fs::create_dir_all(&workspace_root).expect("create workspace root");
+        let modules_dir = workspace_root.join("node_modules");
+        let virtual_store_dir = modules_dir.join(".pacquet");
+        let store_dir = root.path().join("store");
+
+        let mut config = Config::new();
+        config.registry = "https://registry.test".to_string();
+        config.store_dir = store_dir.into();
+        config.modules_dir = modules_dir;
+        config.install_state_dir = virtual_store_dir;
+        config.package_import_method = PackageImportMethod::Copy;
+        config.offline = true;
+
+        let mut snapshots = HashMap::new();
+        let mut packages = HashMap::new();
+        let mem_cache = Arc::new(MemCache::default());
+        for index in 0..package_count {
+            let package_name = format!("cold-{index:02}");
+            let package_key = key(&package_name, "1.0.0");
+            let source_dir = workspace_root.join("prefetched").join(&package_name);
+            fs::create_dir_all(&source_dir).expect("create prefetched package dir");
+            let manifest_path = source_dir.join("package.json");
+            let manifest = if index == 0 {
+                format!(
+                    r#"{{"name":"{package_name}","version":"1.0.0","scripts":{{"postinstall":"node build.js"}}}}"#,
+                )
+            } else {
+                format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#)
+            };
+            let parsed_manifest: serde_json::Value =
+                serde_json::from_str(&manifest).expect("parse package manifest");
+            fs::write(&manifest_path, manifest).expect("write package manifest");
+            let index_path = source_dir.join("index.js");
+            fs::write(&index_path, "module.exports = true\n").expect("write package body");
+
+            let cas_paths = HashMap::from([
+                ("package.json".to_string(), manifest_path),
+                ("index.js".to_string(), index_path),
+            ]);
+            let bins = Some(Arc::new(std::collections::BTreeMap::from([(
+                package_name.clone(),
+                pnpm_package_manifest::PackageBin {
+                    path: "index.js".to_string(),
+                    prog: Some("node".to_string()),
+                    args: String::new(),
+                },
+            )])));
+            mem_cache.insert(
+                package_mem_cache_key(
+                    &format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
+                    Some(&DUMMY_SHA512.parse().expect("parse integrity")),
+                    false,
+                ),
+                Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(
+                    CachedTarball {
+                        files: Arc::new(cas_paths),
+                        manifest: Some(parsed_manifest),
+                        requires_build: None,
+                        bins,
+                    },
+                )))),
+            );
+
+            snapshots.insert(package_key.clone(), SnapshotEntry::default());
+            packages.insert(package_key.without_peer(), metadata_with_integrity(DUMMY_SHA512));
+        }
+
+        ColdMemCacheBatch {
+            _root: root,
+            workspace_root,
+            config: config.leak(),
+            snapshots,
+            packages,
+            mem_cache,
+        }
+    }
+
+    async fn run(
+        &self,
+        probe: &crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe,
+        check: Option<ConcurrentCheck<'_>>,
+    ) -> Result<super::super::CreateVirtualStoreOutput, super::super::CreateVirtualStoreError> {
+        use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
+        use pnpm_config::NodeLinker;
+        use pnpm_store_dir::StoreIndexWriter;
+        use pnpm_tarball::SharedReportedProgressKeys;
+
+        let allow_build_policy = AllowBuildPolicy::default();
+        let layout = VirtualStoreLayout::new(
+            self.config,
+            None,
+            Some(&self.snapshots),
+            Some(&self.packages),
+            Some(&allow_build_policy),
+            None,
+        );
+        let skipped = SkippedSnapshots::new();
+        let logged_methods = AtomicU8::new(0);
+        let progress_reported = SharedReportedProgressKeys::default();
+        let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&self.config.store_dir);
+        let requester = self.workspace_root.to_string_lossy().into_owned();
+
+        let output = CreateVirtualStore {
+            fetching: crate::VirtualStoreFetchInputs {
+                http_client: &pnpm_network::ThrottledClient::default(),
+                store_index_writer: &store_index_writer,
+                store_context: None,
+                cas_prefetch: None,
+                progress_reported: &progress_reported,
+                tarball_mem_cache: Some(&self.mem_cache),
+                custom_fetcher_session: None,
+                planned_canonical_fetches: None,
+            },
+            selection: crate::SnapshotSelection {
+                skipped: &skipped,
+                include_optional: true,
+                supported_architectures: None,
+                known_requires_build: None,
+                known_bins: None,
+            },
+            ctx: &crate::InstallContext {
+                caches: crate::InstallCaches {
+                    logged_methods: &logged_methods,
+                    swap_lock: None,
+                    git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
+                    materialized_graph: std::sync::Arc::default(),
+                    dir_clone_cache: None,
+                },
+
+                linker: crate::ModuleLinkerContext {
+                    layout: &layout,
+                    kind: NodeLinker::Isolated,
+                    bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
+                },
+                config: self.config,
+                workspace_root: &self.workspace_root,
+                requester: &requester,
+
+                allow_build_policy: &allow_build_policy,
+            },
+
+            entries: LockfileEntries {
+                packages: Some(&self.packages),
+                snapshots: Some(&self.snapshots),
+            },
+            current_entries: LockfileEntries::default(),
+            importers: &HashMap::new(),
+
+            dir_clone_cache: None,
+
+            link_concurrency_probe: Some(probe),
+        }
+        .run_with_check::<SilentReporter>(check)
+        .await;
+
+        drop(store_index_writer);
+        writer_task.await.expect("join store-index writer").expect("flush store-index writer");
+        output
+    }
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cold_batch_links_slots_in_parallel() {
-    use crate::{AllowBuildPolicy, SkippedSnapshots, VirtualStoreLayout};
-    use pnpm_config::{Config, NodeLinker, PackageImportMethod};
-    use pnpm_store_dir::StoreIndexWriter;
-    use pnpm_tarball::{
-        CacheValue, CachedTarball, MemCache, SharedReportedProgressKeys, package_mem_cache_key,
-    };
-
     if rayon::current_num_threads() < 2 {
         eprintln!(
             "skipping cold-batch concurrency assertion with rayon_threads={}",
@@ -32,143 +207,18 @@ async fn cold_batch_links_slots_in_parallel() {
         return;
     }
 
-    let root = tempfile::tempdir().expect("create temp dir");
-    let workspace_root = root.path().join("workspace");
-    fs::create_dir_all(&workspace_root).expect("create workspace root");
-    let modules_dir = workspace_root.join("node_modules");
-    let virtual_store_dir = modules_dir.join(".pacquet");
-    let store_dir = root.path().join("store");
-
-    let mut config = Config::new();
-    config.registry = "https://registry.test".to_string();
-    config.store_dir = store_dir.into();
-    config.modules_dir = modules_dir;
-    config.install_state_dir = virtual_store_dir.clone();
-    config.package_import_method = PackageImportMethod::Copy;
-    config.offline = true;
-    let config = config.leak();
-
-    let mut snapshots = HashMap::new();
-    let mut packages = HashMap::new();
-    let mem_cache = Arc::new(MemCache::default());
-    for package_name in ["cold-a", "cold-b", "cold-c", "cold-d"] {
-        let package_key = key(package_name, "1.0.0");
-        let source_dir = workspace_root.join("prefetched").join(package_name);
-        fs::create_dir_all(&source_dir).expect("create prefetched package dir");
-        let manifest_path = source_dir.join("package.json");
-        let manifest = if package_name == "cold-a" {
-            format!(
-                r#"{{"name":"{package_name}","version":"1.0.0","scripts":{{"postinstall":"node build.js"}}}}"#,
-            )
-        } else {
-            format!(r#"{{"name":"{package_name}","version":"1.0.0"}}"#)
-        };
-        let parsed_manifest: serde_json::Value =
-            serde_json::from_str(&manifest).expect("parse package manifest");
-        fs::write(&manifest_path, manifest).expect("write package manifest");
-        let index_path = source_dir.join("index.js");
-        fs::write(&index_path, "module.exports = true\n").expect("write package body");
-
-        let cas_paths = HashMap::from([
-            ("package.json".to_string(), manifest_path),
-            ("index.js".to_string(), index_path),
-        ]);
-        let bins = Some(Arc::new(std::collections::BTreeMap::from([(
-            package_name.to_string(),
-            pnpm_package_manifest::PackageBin {
-                path: "index.js".to_string(),
-                prog: Some("node".to_string()),
-                args: String::new(),
-            },
-        )])));
-        mem_cache.insert(
-            package_mem_cache_key(
-                &format!("https://registry.test/{package_name}/-/{package_name}-1.0.0.tgz"),
-                Some(&DUMMY_SHA512.parse().expect("parse integrity")),
-                false,
-            ),
-            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(CachedTarball {
-                files: Arc::new(cas_paths),
-                manifest: Some(parsed_manifest),
-                requires_build: None,
-                bins,
-            })))),
-        );
-
-        snapshots.insert(package_key.clone(), SnapshotEntry::default());
-        packages.insert(package_key.without_peer(), metadata_with_integrity(DUMMY_SHA512));
-    }
-
-    let allow_build_policy = AllowBuildPolicy::default();
-    let layout = VirtualStoreLayout::new(
-        config,
-        None,
-        Some(&snapshots),
-        Some(&packages),
-        Some(&allow_build_policy),
-        None,
-    );
-    let skipped = SkippedSnapshots::new();
-    let logged_methods = AtomicU8::new(0);
-    let progress_reported = SharedReportedProgressKeys::default();
-    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
-    let requester = workspace_root.to_string_lossy().into_owned();
+    let batch = ColdMemCacheBatch::new(4);
+    // Hold the first pass until every capture is in, so it has slots to
+    // link side by side.
     let probe =
-        crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::waiting_for_overlap();
-
-    let output = CreateVirtualStore {
-        fetching: crate::VirtualStoreFetchInputs {
-            http_client: &pnpm_network::ThrottledClient::default(),
-            store_index_writer: &store_index_writer,
-            store_context: None,
-            cas_prefetch: None,
-            progress_reported: &progress_reported,
-            tarball_mem_cache: Some(&mem_cache),
-            custom_fetcher_session: None,
-            planned_canonical_fetches: None,
-        },
-        selection: crate::SnapshotSelection {
-            skipped: &skipped,
-            include_optional: true,
-            supported_architectures: None,
-            known_requires_build: None,
-            known_bins: None,
-        },
-        ctx: &crate::InstallContext {
-            caches: crate::InstallCaches {
-                logged_methods: &logged_methods,
-                swap_lock: None,
-                git_source_cache: &pnpm_git_fetcher::GitSourceCache::default(),
-                materialized_graph: std::sync::Arc::default(),
-                dir_clone_cache: None,
-            },
-
-            linker: crate::ModuleLinkerContext {
-                layout: &layout,
-                kind: NodeLinker::Isolated,
-                bin_options: &pnpm_cmd_shim::LinkBinsOptions::default(),
-            },
-            config,
-            workspace_root: &workspace_root,
-            requester: &requester,
-
-            allow_build_policy: &allow_build_policy,
-        },
-
-        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
-        current_entries: LockfileEntries::default(),
-        importers: &HashMap::new(),
-
-        dir_clone_cache: None,
-
-        link_concurrency_probe: Some(&probe),
-    }
-    .run::<SilentReporter>()
-    .await
-    .expect("all-cold virtual-store creation should succeed from the mem cache");
-
-    drop(store_index_writer);
-    writer_task.await.expect("join store-index writer").expect("flush store-index writer");
+        crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::gating_first_cold_pass(
+            4,
+        )
+        .and_waiting_for_overlap();
+    let output = batch
+        .run(&probe, None)
+        .await
+        .expect("all-cold virtual-store creation should succeed from the mem cache");
 
     assert!(
         probe.max_concurrent() >= 2,
@@ -176,8 +226,8 @@ async fn cold_batch_links_slots_in_parallel() {
         probe.max_concurrent(),
         rayon::current_num_threads(),
     );
-    let cold_a = key("cold-a", "1.0.0");
-    let cold_b = key("cold-b", "1.0.0");
+    let cold_a = key("cold-00", "1.0.0");
+    let cold_b = key("cold-01", "1.0.0");
     assert_eq!(output.requires_build_by_snapshot.get(&cold_a), Some(&true));
     assert_eq!(output.requires_build_by_snapshot.get(&cold_b), Some(&false));
     assert!(
@@ -198,8 +248,76 @@ async fn cold_batch_links_slots_in_parallel() {
     );
     assert_eq!(
         output.materialized_snapshots.into_iter().collect::<HashSet<_>>(),
-        HashSet::from([cold_a, cold_b, key("cold-c", "1.0.0"), key("cold-d", "1.0.0"),]),
+        HashSet::from([cold_a, cold_b, key("cold-02", "1.0.0"), key("cold-03", "1.0.0"),]),
     );
+}
+/// A link pass must not stall the downloads: the probe holds the first
+/// pass until every capture is delivered, which only a drain that keeps
+/// running during the pass can reach. The batch is larger than any chunk
+/// a drain might link in-task between completions.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cold_downloads_complete_while_a_link_pass_runs() {
+    const PACKAGE_COUNT: usize = 40;
+
+    let batch = ColdMemCacheBatch::new(PACKAGE_COUNT);
+    let probe =
+        crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::gating_first_cold_pass(
+            PACKAGE_COUNT,
+        );
+    let output = batch
+        .run(&probe, None)
+        .await
+        .expect("all-cold virtual-store creation should succeed from the mem cache");
+
+    assert_eq!(
+        probe.first_cold_pass_delivered(),
+        Some(PACKAGE_COUNT),
+        "the first link pass started before the drain delivered every capture",
+    );
+    assert_eq!(output.materialized_snapshots.len(), PACKAGE_COUNT);
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_aborting_concurrent_check_stops_the_fetch() {
+    let batch = ColdMemCacheBatch::new(4);
+    let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
+    let check: ConcurrentCheck<'_> = Box::pin(async { CheckVerdict::Abort });
+
+    let outcome = batch.run(&probe, Some(check)).await;
+
+    assert!(
+        matches!(outcome, Err(super::super::CreateVirtualStoreError::ConcurrentCheckAborted)),
+        "an aborting check fails the fetch: {:?}",
+        outcome
+            .as_ref()
+            .err()
+            .map(ToString::to_string),
+    );
+}
+/// The check only reaches its verdict once every slot is linked, so the
+/// fetch has to keep driving it after its own work is done.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_fetch_drives_its_concurrent_check_to_the_verdict() {
+    let batch = ColdMemCacheBatch::new(4);
+    let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
+    let settled = AtomicBool::new(false);
+    let check: ConcurrentCheck<'_> = Box::pin(async {
+        while probe.total_entered() < 4 {
+            tokio::task::yield_now().await;
+        }
+        settled.store(true, Ordering::SeqCst);
+        CheckVerdict::Continue
+    });
+
+    let output = batch
+        .run(&probe, Some(check))
+        .await
+        .expect("a continuing check leaves the fetch's outcome alone");
+
+    assert!(
+        settled.load(Ordering::SeqCst),
+        "the check must reach its verdict before the fetch returns",
+    );
+    assert_eq!(output.materialized_snapshots.len(), 4);
 }
 /// A warm global-virtual-store slot is skipped without its store row's
 /// CAS blobs being checked: nothing imports them, and the row still
@@ -338,7 +456,13 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     let progress_reported = SharedReportedProgressKeys::default();
     let (store_index_writer, writer_task) = StoreIndexWriter::spawn(&config.store_dir);
     let requester = workspace_root.to_string_lossy().into_owned();
-    let probe = crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::default();
+    // One pass over all three captures, so the dedup is observable:
+    // variants that land in different passes each run a link task, and
+    // the later one short-circuits on the slot's completion marker.
+    let probe =
+        crate::create_virtual_dir_by_snapshot::tests::LinkConcurrencyProbe::gating_first_cold_pass(
+            3,
+        );
 
     CreateVirtualStore {
         fetching: crate::VirtualStoreFetchInputs {
