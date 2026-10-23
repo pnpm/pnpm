@@ -43,7 +43,7 @@ To fetch a private hosted repository over SSH, configure Git on the machine. See
 ### `engineStrict`
 
 - An install fails when an incompatible package is reached through a regular `dependencies` edge, even if that subtree hangs off an `optionalDependencies` entry. pnpm 11 installs the package and warns. Packages reachable only through optional edges are still skipped.
-- With [`--no-runtime`](./cli/install.md#--no-runtime), pnpm checks the root project's `engines.node` against the active Node.js, not the version pinned in `devEngines.runtime` or `engines.runtime`.
+- With [`--no-runtime`](./cli/install.md#--no-runtime) or `runtime: false`, pnpm checks the root project's `engines.node` against the active Node.js, not the version pinned in `devEngines.runtime` or `engines.runtime`.
 
 ### Package managers and runtimes named as packages
 
