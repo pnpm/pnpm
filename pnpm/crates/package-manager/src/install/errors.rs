@@ -89,6 +89,14 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_VIRTUAL_STORE_DIR_MAX_LENGTH_DIFF))]
     VirtualStoreDirMaxLengthDiff,
 
+    /// pnpm-only: upstream keeps such a tree on a mutation and leaves the
+    /// previous linker's packages behind.
+    #[display(
+        r#"This modules directory was created using a different node-linker value. Run "pnpm install" to recreate the modules directory."#
+    )]
+    #[diagnostic(code(ERR_PNPM_NODE_LINKER_DIFF))]
+    NodeLinkerDiff,
+
     #[display(
         "The current version of pnpm is not compatible with the available node_modules structure"
     )]

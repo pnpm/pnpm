@@ -104,11 +104,11 @@ fn add_refuses_a_modules_dir_with_another_layout_version() {
     drop((root, mock_instance));
 }
 
-/// `add` recreates a modules directory whose drift `validateModules` does not
-/// report, such as a `nodeLinker` change. Keeping it would leave the hoisted
-/// layout's packages behind, and the next `pnpm install` would not see them.
+/// `add` refuses a modules directory installed with another `nodeLinker`.
+/// Keeping it would leave the hoisted layout's packages behind, and purging
+/// it could drop links a filtered `add` does not recreate.
 #[test]
-fn add_recreates_a_modules_dir_installed_with_another_node_linker() {
+fn add_refuses_a_modules_dir_installed_with_another_node_linker() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -125,13 +125,17 @@ fn add_recreates_a_modules_dir_installed_with_another_node_linker() {
         .replace("nodeLinker: hoisted", "nodeLinker: isolated");
     fs::write(&yaml, switched).expect("write pnpm-workspace.yaml");
 
+    assert_report_contains(
+        &run_failing(&workspace, &["add", "is-positive@1.0.0"]),
+        &["ERR_PNPM_NODE_LINKER_DIFF"],
+    );
+    assert!(hoisted.exists(), "add purged node_modules");
+
     pacquet_in(&workspace)
-        .with_args(["add", "is-positive@1.0.0"])
+        .with_arg("install")
         .assert()
         .success();
-
-    assert!(fs::symlink_metadata(&hoisted).is_err(), "add left the hoisted transitive behind");
-    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
+    assert!(fs::symlink_metadata(&hoisted).is_err(), "install left the hoisted transitive behind");
 
     drop((root, mock_instance));
 }

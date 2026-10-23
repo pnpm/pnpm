@@ -6,7 +6,7 @@ pub(super) use build_markers::{gvs_build_marker_present, gvs_build_markers_may_r
 pub(super) use merge_metadata::{
     current_contains_dep_path, merge_filtered_modules_metadata, merge_pending_builds,
 };
-pub(super) use settings_diff::{check_modules_settings_diff, same_path};
+pub(super) use settings_diff::{refuse_drifted_modules_dir, same_path};
 
 mod build_markers;
 
