@@ -97,7 +97,7 @@ fn summarize_registry(config: &Config, name: &str) -> RegistrySummary {
 
 fn sanitize_diagnostic_url(raw: &str) -> String {
     let Ok(mut parsed) = url::Url::parse(raw) else {
-        return "<unparseable URL>".to_string();
+        return "<unparsable URL>".to_string();
     };
     let _ = parsed.set_username("");
     let _ = parsed.set_password(None);

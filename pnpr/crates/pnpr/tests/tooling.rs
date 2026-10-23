@@ -487,7 +487,7 @@ defaultRegistry:
 }
 
 #[test]
-fn test_config_check_hides_an_unparseable_database_url() {
+fn test_config_check_hides_an_unparsable_database_url() {
     let dir = TempDir::new().unwrap();
     let yaml = format!(
         r"
@@ -511,7 +511,7 @@ registries:
 
     let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
     let output = pnpr::config_check::format_report(&report);
-    assert!(output.contains("Auth: postgres (<unparseable URL>"), "{output}");
+    assert!(output.contains("Auth: postgres (<unparsable URL>"), "{output}");
     assert!(!output.contains("hunter2"), "{output}");
 }
 
