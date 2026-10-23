@@ -133,6 +133,16 @@ fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
 }
 
 #[test]
+fn short_with_conflicting_arity_steps_over_no_value() {
+    let argv = ["pnpm", "-o", "dist", "pack-app"];
+    assert_eq!(
+        relocate(&argv),
+        argv,
+        "`add -o` takes no value and `pack-app -o` does, so the scan reads `dist` as the command",
+    );
+}
+
+#[test]
 fn global_short_cluster_stays_in_place() {
     let argv = ["pnpm", "-rC", "project", "install"];
     assert_eq!(relocate(&argv), argv, "every short in the cluster is top-level grammar already");

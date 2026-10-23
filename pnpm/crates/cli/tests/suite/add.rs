@@ -770,6 +770,14 @@ fn add_accepts_lowercase_save_aliases() {
     assert_eq!(group_members(DependencyGroup::Prod), ["@pnpm.e2e/foo"]);
     assert_eq!(group_members(DependencyGroup::Dev), Vec::<String>::new());
 
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "-d", "@pnpm.e2e/bar@^100.0.0"])
+        .assert()
+        .success();
+    assert_eq!(group_members(DependencyGroup::Dev), ["@pnpm.e2e/bar"]);
+
     drop((root, npmrc_info)); // cleanup
 }
 
