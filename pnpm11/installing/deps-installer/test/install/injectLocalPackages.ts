@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
-import type { ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
 
@@ -2160,6 +2160,31 @@ test('injectWorkspacePackages injects a workspace dependency declared with a rel
 })
 
 test('injectWorkspacePackages resolves a relative workspace dependency of an injected project from its own directory', async () => {
+  const allProjects = prepareProjectWithRelativeWorkspaceDependency({})
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies).toEqual({
+    'lib-a': 'file:libs/lib-a',
+  })
+})
+
+test('a relative workspace dependency of a project injected via dependenciesMeta stays linked', async () => {
+  const allProjects = prepareProjectWithRelativeWorkspaceDependency({ 'lib-b': { injected: true } })
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies?.['lib-a']).toMatch(/^link:/)
+})
+
+function prepareProjectWithRelativeWorkspaceDependency (dependenciesMeta: ProjectManifest['dependenciesMeta']): ProjectOptions[] {
   const libAManifest = {
     name: 'lib-a',
     version: '1.0.0',
@@ -2177,6 +2202,7 @@ test('injectWorkspacePackages resolves a relative workspace dependency of an inj
     dependencies: {
       'lib-b': 'workspace:../../libs/lib-b',
     },
+    dependenciesMeta,
   }
   preparePackages([
     {
@@ -2192,8 +2218,7 @@ test('injectWorkspacePackages resolves a relative workspace dependency of an inj
       package: mainManifest,
     },
   ])
-
-  const allProjects: ProjectOptions[] = [
+  return [
     {
       buildIndex: 0,
       manifest: libAManifest,
@@ -2210,18 +2235,7 @@ test('injectWorkspacePackages resolves a relative workspace dependency of an inj
       rootDir: path.resolve('apps/main') as ProjectRootDir,
     },
   ]
-  const importers: MutatedProject[] = allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir }))
-  await mutateModules(importers, testDefaults({
-    allProjects,
-    dedupeInjectedDeps: false,
-    injectWorkspacePackages: true,
-  }))
-
-  const lockfile = assertProject(process.cwd()).readLockfile()
-  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies).toEqual({
-    'lib-a': 'file:libs/lib-a',
-  })
-})
+}
 
 test('inject local package that publishes from a directory built by prepare', async () => {
   const project1Manifest = {

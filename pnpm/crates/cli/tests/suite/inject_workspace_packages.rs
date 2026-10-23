@@ -440,9 +440,8 @@ fn inject_workspace_packages_applies_to_relative_path_workspace_spec() {
 }
 
 /// A relative-path `workspace:` dependency of an injected project
-/// resolves from that project's directory. `apps/main` injects
-/// `libs/lib-b`, whose `workspace:../lib-a` names `apps/lib-a` from the
-/// importer's directory.
+/// resolves from that project's directory: `libs/lib-b`'s
+/// `workspace:../lib-a` names `libs/lib-a`.
 #[test]
 fn relative_path_workspace_spec_of_an_injected_project_resolves_from_its_directory() {
     let CommandTempCwd {
@@ -502,12 +501,17 @@ fn relative_path_workspace_spec_of_an_injected_project_resolves_from_its_directo
 
     let lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
-    assert!(
-        lockfile.contains(
-            "lib-b@file:libs/lib-b:\n    dependencies:\n      lib-a: file:libs/lib-a\n"
-        ),
-        "lib-b's injected copy should depend on the injected libs/lib-a:\n{lockfile}",
-    );
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+    let lib_b_key: pnpm_lockfile::PkgNameVerPeer = "lib-b@file:libs/lib-b".parse().unwrap();
+    let lib_a_name: pnpm_lockfile::PkgName = "lib-a".parse().unwrap();
+    let lib_a = parsed.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&lib_b_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|deps| deps.get(&lib_a_name))
+        .unwrap_or_else(|| panic!("missing lib-a in the lib-b snapshot:\n{lockfile}"));
+    assert_eq!(lib_a.to_string(), "file:libs/lib-a", "lockfile:\n{lockfile}");
 
     drop((root, mock_instance));
 }
