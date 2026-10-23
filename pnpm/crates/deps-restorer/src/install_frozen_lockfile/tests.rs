@@ -58,8 +58,9 @@ fn empty_dependencies_yields_none() {
 
 #[tokio::test]
 async fn load_custom_fetcher_session_is_none_without_a_pnpmfile() {
-    let session =
-        super::load_custom_fetcher_session(None).await.expect("a missing pnpmfile is not an error");
+    let session = super::load_custom_fetcher_session(None, &pnpm_config::Config::new())
+        .await
+        .expect("a missing pnpmfile is not an error");
     assert!(session.is_none());
 }
 
@@ -69,7 +70,8 @@ async fn load_custom_fetcher_session_is_none_when_pnpmfile_exports_no_fetchers()
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "module.exports = { hooks: {} }\n")
         .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let session = super::load_custom_fetcher_session(hooks.as_ref()).await
+    let session = super::load_custom_fetcher_session(hooks.as_ref(), &pnpm_config::Config::new())
+        .await
         .expect("a fetchers-less pnpmfile is not an error");
     assert!(session.is_none());
 }
@@ -83,7 +85,8 @@ async fn load_custom_fetcher_session_loads_exported_fetchers() {
     )
     .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let session = super::load_custom_fetcher_session(hooks.as_ref()).await
+    let session = super::load_custom_fetcher_session(hooks.as_ref(), &pnpm_config::Config::new())
+        .await
         .expect("a well-formed fetchers export must load");
     assert!(session.is_some());
 }
@@ -98,7 +101,9 @@ async fn load_custom_fetcher_session_propagates_a_broken_pnpmfile() {
     std::fs::write(tmp.path().join(".pnpmfile.cjs"), "throw new Error('pnpmfile exploded')\n")
         .expect("write pnpmfile");
     let hooks = pnpm_hooks::finder::load_pnpmfile(tmp.path());
-    let Err(err) = super::load_custom_fetcher_session(hooks.as_ref()).await else {
+    let Err(err) =
+        super::load_custom_fetcher_session(hooks.as_ref(), &pnpm_config::Config::new()).await
+    else {
         panic!("a throwing pnpmfile must fail the load");
     };
     assert!(
