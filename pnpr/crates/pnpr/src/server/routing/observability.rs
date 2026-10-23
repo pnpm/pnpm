@@ -198,6 +198,7 @@ fn create_access_span(
         method = %method,
         uri = %uri,
         client_ip = tracing::field::Empty,
+        user = tracing::field::Empty,
         user_agent = tracing::field::Empty,
     );
     if let Some(ip) = client_ip {

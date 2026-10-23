@@ -92,6 +92,20 @@ where
         }
     }
 
+    fn on_record(
+        &self,
+        id: &tracing::span::Id,
+        values: &tracing::span::Record<'_>,
+        ctx: tracing_subscriber::layer::Context<'_, Subscriber>,
+    ) {
+        if let Some(span) = ctx.span(id) {
+            let mut extensions = span.extensions_mut();
+            if let Some(fields) = extensions.get_mut::<HashMap<String, String>>() {
+                values.record(&mut EventVisitor(fields));
+            }
+        }
+    }
+
     fn on_event(
         &self,
         event: &tracing::Event<'_>,
@@ -221,6 +235,15 @@ fn assert_request_span(record: &AuditRecord, expected_method: &str) {
     assert!(record.span_fields.contains_key("request_id"));
     assert_eq!(record.span_fields.get("method").map(String::as_str), Some(expected_method));
     assert!(record.span_fields.contains_key("uri"));
+    // The span records the caller. A SCIM call authenticates with the SCIM
+    // token rather than as a user, and a registration's actor is the new
+    // account, not the anonymous caller.
+    let caller = match (record.action.as_str(), record.fields.get("actor").map(String::as_str)) {
+        (_, Some("scim")) => return,
+        ("user.register", _) => Some("-"),
+        (_, actor) => actor,
+    };
+    assert_eq!(record.span_fields.get("user").map(String::as_str), caller, "{record:?}");
 }
 
 async fn send_bytes(
