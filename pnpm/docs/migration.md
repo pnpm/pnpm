@@ -3,7 +3,7 @@ id: migration
 title: Migrating from v10
 ---
 
-pnpm v11 introduced several breaking changes to how configuration is read and which settings are available, and pnpm v12 retains those changes. Most config changes are mechanical and can be applied by a codemod; the remainder require human attention. Apply them when moving from pnpm v10 to either newer major.
+pnpm v11 introduced several breaking changes to how configuration is read and which settings are available, and pnpm v12 retains those changes. Most config changes are mechanical and can be applied by a codemod; the remainder require human attention. Apply them when moving from pnpm v10 to either newer major. When moving to pnpm 12, also follow [Migrating from pnpm 11](./migration-v11.md).
 
 ## Run the codemod
 
