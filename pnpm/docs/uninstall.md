@@ -35,4 +35,14 @@ rm -rf "$(pnpm store path)"
 ```
 
 If you used pnpm in non-primary disks, then you must run the above command in every disk, where pnpm was used.
-pnpm creates one store per disk.
+pnpm creates one store per disk. On a disk other than the one with the pnpm home
+directory, the store is a `.pnpm-store` directory near the root of the disk, or
+`node_modules/.pnpm-store` inside the project.
+
+## Removing the cache, state, and configuration
+
+pnpm also writes to these directories. Remove them too:
+
+* the cache directory, see [`cacheDir`](./settings/other.md#cachedir) for its default location
+* the state directory, see [`stateDir`](./settings/other.md#statedir) for its default location
+* the directory of the global configuration file, see [Global configuration](./configuring.md#global-configuration)

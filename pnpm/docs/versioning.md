@@ -3,8 +3,6 @@ id: versioning
 title: Release management
 ---
 
-Added in: v11.13.0
-
 pnpm can version and release a workspace on its own, without a separate release tool. The workflow has two halves:
 
 1. As you work, [`pnpm change`](./cli/change.md) records **change intents**: small markdown files in `.changeset/` saying which packages a change affects, how each should be bumped, and a summary that becomes the changelog entry. These are committed alongside the change.
@@ -46,7 +44,7 @@ Because a recursive run can bump many packages to different versions, no git com
 
 ### First releases
 
-Since v11.16.0, the first release of a package publishes the version written in its manifest verbatim, instead of bumping off it. `pnpm version -r` and `pnpm change status` check the registry for each release's current version; when that version is not yet published, the package debuts at it and its pending change intents apply only from the next release. A newly added package seeded at `1100.0.0` with a `minor` intent is therefore published as `1100.0.0` rather than skipping straight to `1100.1.0`.
+The first release of a package publishes the version written in its manifest verbatim. `pnpm version -r` and `pnpm change status` check the registry for each release's current version; when that version is not yet published, the package debuts at it and its pending change intents apply only from the next release. A newly added package seeded at `1100.0.0` with a `minor` intent is therefore published as `1100.0.0` rather than skipping straight to `1100.1.0`.
 
 Private packages (`"private": true`) are never published, so they skip this registry check: their pending change intents are always applied on top of the version in their manifest.
 

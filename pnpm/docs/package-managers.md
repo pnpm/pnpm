@@ -101,10 +101,10 @@ See [Running a package manager or a runtime](./cli/pnx.md#running-a-package-mana
 
 A [git-hosted dependency](./package-sources.md#git-repository) that has to be built before it can be installed is prepared with the package manager it asks for, rather than with whatever the host happens to have:
 
-* its `packageManager` / `devEngines.packageManager` pin is honored;
-* failing a pin, the lockfile it ships names the package manager, and a `yarn.lock` written by Yarn Classic is no longer installed by Yarn Berry. Berry stamps `__metadata:` into every lockfile it writes and neither line can read the other's, so which one wrote it is a constraint, not a preference.
+* its `packageManager` / [`devEngines.packageManager`](./package_json.md#devenginespackagemanager) pin is honored;
+* failing a pin, the lockfile it ships names the package manager. A `yarn.lock` written by Yarn Classic is not installed by Yarn Berry. Berry stamps `__metadata:` into every lockfile it writes and neither line can read the other's, so which one wrote it is a constraint, not a preference.
 
-pnpm provides that package manager when the dependency pinned a version, or when the host cannot satisfy what the dependency needs. So a repository built with Yarn now installs on a machine that has only pnpm, while a host that already has a suitable one keeps using its own.
+pnpm provides that package manager when the dependency pinned a version, or when the host cannot satisfy what the dependency needs. So a repository built with Yarn installs on a machine that has only pnpm, while a host that already has a suitable one (under every name the build may invoke) keeps using its own.
 
 A pnpm pin is an exception when [`pmOnFail`](./settings/cli.md#pmonfail) is set to anything other than `download`. The running pnpm then prepares the dependency. The nested install applies the same `pmOnFail` to the dependency's pin, so `ignore` prepares it silently, `warn` prints a warning, and `error` fails the install.
 

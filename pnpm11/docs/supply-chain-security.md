@@ -7,11 +7,11 @@ Sometimes npm packages are compromised and published with malware. Luckily, ther
 
 ### Block risky postinstall scripts
 
-Historically, most compromised packages have used `postinstall` scripts to run code immediately upon installation. To mitigate this, pnpm v10 disables the automatic execution of `postinstall` scripts in dependencies. Although there is a setting to re-enable them globally using [dangerouslyAllowAllBuilds], we recommend explicitly listing only trusted dependencies using [allowBuilds]. This way, if a dependency did not require a build in the past, it won't suddenly run a malicious script if a compromised version is published. Still, we recommend being cautious when updating a trusted package that has a `postinstall` script, as [it might get compromised].
+Historically, most compromised packages have used `postinstall` scripts to run code immediately upon installation. To mitigate this, pnpm does not run the build scripts of dependencies unless they are allowed in [allowBuilds]. With [strictDepBuilds] (on by default), an install fails if a dependency has a build script that is not allowed. Although there is a setting to re-enable them globally using [dangerouslyAllowAllBuilds], we recommend explicitly listing only trusted dependencies using [allowBuilds]. This way, if a dependency did not require a build in the past, it won't suddenly run a malicious script if a compromised version is published. Still, we recommend being cautious when updating a trusted package that has a `postinstall` script, as [it might get compromised].
 
 ### Prevent exotic transitive dependencies
 
-You can prevent transitive dependencies from using exotic sources (like git repositories or direct tarball URLs) by setting [blockExoticSubdeps] to `true`. This ensures that all transitive dependencies are resolved from trusted sources, reducing the risk of supply chain attacks.
+You can prevent transitive dependencies from using exotic sources (like git repositories or direct tarball URLs) with [blockExoticSubdeps], which is on by default. This ensures that all transitive dependencies are resolved from trusted sources, reducing the risk of supply chain attacks.
 
 ### Delay dependency updates
 
@@ -46,6 +46,7 @@ If you install from more than one registry, use [namedRegistries] aliases for th
 [trustPolicyExclude]: settings/dependency-resolution.md#trustpolicyexclude
 [allowBuilds]: settings/build.md#allowbuilds
 [blockExoticSubdeps]: settings/dependency-resolution.md#blockexoticsubdeps
+[strictDepBuilds]: settings/build.md#strictdepbuilds
 [trustPolicyIgnoreAfter]: settings/dependency-resolution.md#trustpolicyignoreafter
 [namedRegistries]: settings/dependency-resolution.md#namedregistries
 [registries]: settings/dependency-resolution.md#registries
