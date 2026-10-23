@@ -356,14 +356,13 @@ impl PublishArgs {
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
         workspace_packages: Option<&Arc<WorkspacePackageManifests>>,
     ) -> miette::Result<PackResult> {
-        let workspace_packages = workspace_packages
-            .cloned()
-            .or_else(|| {
-                crate::cli_args::workspace_packages::discover_workspace_package_manifests(
-                    config.workspace_dir.as_deref(),
-                    config,
-                )
-            });
+        let workspace_packages = match workspace_packages {
+            Some(workspace_packages) => Some(Arc::clone(workspace_packages)),
+            None => crate::cli_args::workspace_packages::discover_workspace_package_manifests(
+                config.workspace_dir.as_deref(),
+                config,
+            )?,
+        };
         let manifest = crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
             &self.flags.manifest,
             config,
