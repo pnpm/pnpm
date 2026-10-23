@@ -1,15 +1,15 @@
 use clap::Parser;
 use pnpm_diagnostics::println;
 use pnpr::{
-    Command, Config, ConfigSource, ConfigSubcommand, LogConfig, LogFormat, RegistryError,
-    ServerArgs, default_cache_dir, run_command, serve,
+    Command, Config, ConfigSource, ConfigSubcommand, LogConfig, RegistryError, ServerArgs,
+    default_cache_dir, logging::log_subscriber, run_command, serve,
 };
 use std::{
     io::IsTerminal,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, util::SubscriberInitExt as _};
 
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
@@ -163,22 +163,7 @@ fn init_logging(logs: &LogConfig) {
     // escape codes are just noise that breaks downstream log parsing. The
     // writer is pinned to stdout explicitly so the `is_terminal` probe always
     // inspects the stream the subscriber actually writes to.
-    let builder = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_writer(std::io::stdout)
-        .with_ansi(std::io::stdout().is_terminal());
-    match logs.format {
-        // `with_current_span(true)` keeps the per-request span's
-        // `method`/`uri` fields attached to the single access event;
-        // `with_span_list(false)` drops the redundant entered-span
-        // array so each JSON line stays one flat access record.
-        LogFormat::Json => builder
-            .json()
-            .with_current_span(true)
-            .with_span_list(false)
-            .init(),
-        LogFormat::Pretty => builder.compact().init(),
-    }
+    log_subscriber(logs, filter, std::io::stdout, std::io::stdout().is_terminal()).init();
     if !logs.sink_is_supported() {
         tracing::warn!(
             sink = %logs.sink,
