@@ -469,6 +469,10 @@ registries:
   serves a name.
 - A change applies at once on the replica that took it. pnpr stores changes in
   the hosted store, so other replicas apply them within 10 seconds.
+- A shared cache in front of pnpr, such as a CDN, can keep serving a package
+  that a change makes private. A packument stays until its `max-age`, the
+  [`packumentTtl`](#packumentttl), runs out. A tarball carries no `max-age`, so
+  it stays for as long as the cache keeps it.
 - Resetting the changes brings back the config's rules.
 - If pnpr cannot read the stored changes, the registry admits nobody until a
   read succeeds.

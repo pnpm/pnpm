@@ -71,6 +71,10 @@ backend:
 
 secret: ${PNPR_SECRET}
 
+# The Worker below passes the client's address in X-Real-IP.
+trustedProxies: [10.0.0.0/8]
+trustedProxyHeader: x-real-ip
+
 auth:
   htpasswd:
     max_users: 3
@@ -184,6 +188,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const headers = new Headers(request.headers);
     headers.set("accept-encoding", "zstd, gzip");
+    headers.delete("x-forwarded-for");
+    headers.set("x-real-ip", request.headers.get("cf-connecting-ip") ?? "");
     const response = await getContainer(env.PNPR, "pnpr").fetch(
       new Request(request, { headers }),
     );
@@ -205,6 +211,14 @@ untouched. Cloudflare then passes it as-is to clients that accept zstd and
 decodes it for those that do not. This only matters for a
 [tar registry](configuration.md#tar-registries); a `.tgz` is served as stored
 whatever the request asks for.
+
+It also passes on the client's address. pnpr sees every request come from
+the container network, so without help a token limited to an address range
+would check the wrong address, and login rate limiting would count all clients
+as one. Cloudflare sets `CF-Connecting-IP` and does not let clients send it.
+The Worker copies it into `X-Real-IP`, and the
+[`trustedProxies`](tls-and-reverse-proxy.md#trustedproxies) setting in
+`pnpr.yaml` makes pnpr read it.
 
 `PNPR_PUBLIC_URL` works because pnpr reads every flag from an environment
 variable with the `PNPR_` prefix. This one is `--public-url`.
@@ -277,6 +291,15 @@ names, or use the `getRandom` helper from the same package. Replicas can share
 the bucket and the database, which the
 [S3 backend supports](storage.md#concurrent-writers), but each one has its own
 upstream cache.
+
+**The Worker caches nothing.** If you add a cache, store only `GET`
+responses without `private`, `no-store`, or `no-cache` in `Cache-Control`.
+A login answers with a new token and is marked only `no-cache`. Responses on
+a named base such as `/npm/~<name>/` are always `private, no-store`, so only
+the default base is cacheable. With [CORS](configuration.md#cors) on, pnpr's answer
+depends on the request's `Origin`, so keep requests with an `Origin` header
+out of a cache that does not key on it. A cache also outlives
+[rule changes](configuration.md#changing-rules-through-the-api).
 
 **Publishes go through the Worker**, so your plan's request body limit caps
 the size of a package you can publish.
