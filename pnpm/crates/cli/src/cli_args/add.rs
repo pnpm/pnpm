@@ -44,13 +44,13 @@ use std::{
 #[derive(Debug, Clone, Args)]
 pub struct AddDependencyOptions {
     /// Install the specified packages as regular dependencies.
-    #[clap(short = 'P', long)]
+    #[clap(short = 'P', visible_short_alias = 'p', long)]
     save_prod: bool,
     /// Install the specified packages as devDependencies.
-    #[clap(short = 'D', long)]
+    #[clap(short = 'D', visible_short_alias = 'd', long)]
     save_dev: bool,
     /// Install the specified packages as optionalDependencies.
-    #[clap(short = 'O', long)]
+    #[clap(short = 'O', visible_short_alias = 'o', long)]
     save_optional: bool,
     /// Install crate: packages as Cargo build dependencies.
     #[clap(long = "save-build")]

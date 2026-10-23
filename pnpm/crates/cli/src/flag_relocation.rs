@@ -304,7 +304,7 @@ fn scan_long_option_parts(
 }
 
 /// A cluster is judged by every short it stacks, not by its first one:
-/// `-ro dist` mixes the global `-r` with `pack-app`'s `-o`, and the whole
+/// `-rt linux-x64` mixes the global `-r` with `pack-app`'s `-t`, and the whole
 /// token has to travel for clap to see the option `pack-app` owns. One
 /// short the command does not declare pins the whole cluster, since moving
 /// it would hand that short to the command too.

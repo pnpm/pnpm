@@ -74,7 +74,7 @@ pub struct AddSaveArgs {
     pub no_save_types: bool,
     /// Saved dependencies will be configured with an exact version rather than using
     /// the default semver range operator.
-    #[clap(short = 'E', long = "save-exact")]
+    #[clap(short = 'E', visible_short_alias = 'e', long = "save-exact")]
     #[clap(id = "save_exact")]
     pub exact: bool,
     /// Save the resolved version with a `~` range prefix. Equivalent to `--save-prefix=~`.
