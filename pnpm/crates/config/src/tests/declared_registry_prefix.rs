@@ -1,4 +1,7 @@
-use super::{Config, assert_eq};
+use super::{
+    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, LinkProbe, OsString, Path, PathBuf,
+    assert_eq, fs, io, tempdir,
+};
 
 const WORK: &str = "https://npm.work.example.com/";
 
@@ -7,6 +10,10 @@ fn config_with_prefixes(prefixes: &[(&str, &str)]) -> Config {
     config.registries_by_prefix = prefixes
         .iter()
         .map(|(prefix, url)| (prefix.to_string(), url.to_string()))
+        .collect();
+    config.workspace_registry_prefixes = prefixes
+        .iter()
+        .map(|(prefix, _)| prefix.to_string())
         .collect();
     config
 }
@@ -36,4 +43,33 @@ fn the_alphabetically_first_of_several_prefixes_on_one_registry_is_answered() {
 fn the_built_in_prefixes_are_not_declared() {
     assert_eq!(Config::new().declared_registry_prefix("https://registry.npmjs.org/"), None);
     assert_eq!(Config::new().declared_registry_prefix("https://npm.pkg.github.com/"), None);
+}
+
+#[test]
+fn only_prefixes_from_the_workspace_yaml_are_declared() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "namedRegistries:\n  personal: https://registry.npmjs.org/\n  mine: https://npm.mine.example.com/\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        format!("registries:\n  {WORK}:\n    prefix: work\nnamedRegistries:\n  legacy: https://npm.legacy.example.com/\n"),
+    )
+    .expect("write workspace yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.declared_registry_prefix(WORK), Some("work"));
+    assert_eq!(config.declared_registry_prefix("https://npm.legacy.example.com/"), Some("legacy"));
+    assert_eq!(config.declared_registry_prefix("https://registry.npmjs.org/"), None);
+    assert_eq!(config.declared_registry_prefix("https://npm.mine.example.com/"), None);
+    assert!(config.registries_by_prefix.contains_key("mine"), "global aliases still resolve");
 }

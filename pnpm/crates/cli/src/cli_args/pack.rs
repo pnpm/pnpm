@@ -138,7 +138,11 @@ impl PackArgs {
                 out: self.out.clone(),
                 pack_destination: self.pack_destination.clone(),
                 before_packing_hooks,
-                workspace_packages: None,
+                workspace_packages:
+                    crate::cli_args::workspace_packages::discover_workspace_package_manifests(
+                        config.workspace_dir.as_deref(),
+                        config,
+                    )?,
             };
             let mut options = self.pack_options(dir.to_path_buf(), config, shared);
             set_injected_changelog(&mut options, config, dir).await?;
@@ -201,12 +205,6 @@ impl PackArgs {
         config: &Config,
         shared: PackSharedContext,
     ) -> PackOptions {
-        let workspace_packages = shared.workspace_packages.or_else(|| {
-            crate::cli_args::workspace_packages::discover_workspace_package_manifests(
-                config.workspace_dir.as_deref(),
-                config,
-            )
-        });
         PackOptions {
             dir,
             workspace_dir: config.workspace_dir.clone(),
@@ -228,7 +226,7 @@ impl PackArgs {
                     config.skip_manifest_obfuscation,
                 ),
                 before_packing_hooks: shared.before_packing_hooks,
-                workspace_packages,
+                workspace_packages: shared.workspace_packages,
             },
             output: pnpm_pack::PackOutputOptions {
                 gzip_level: self.pack_gzip_level,

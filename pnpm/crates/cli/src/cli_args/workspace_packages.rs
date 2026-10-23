@@ -45,6 +45,9 @@ fn publish_registry_prefix<'config>(
     name: &str,
     config: &'config Config,
 ) -> Result<Option<&'config str>, PackageManifestError> {
+    if config.workspace_registry_prefixes.is_empty() {
+        return Ok(None);
+    }
     let manifest = publication_manifest(project)?;
     let published_name = manifest
         .get("publishConfig")
@@ -78,17 +81,25 @@ fn publication_manifest(project: &Project) -> Result<Cow<'_, Value>, PackageMani
         return Ok(Cow::Borrowed(manifest));
     };
     Ok(safe_read_project_manifest_from_dir(&project.root_dir.join(directory))?
-        .map_or(Cow::Borrowed(manifest), Cow::Owned))
+        .map(Cow::Owned)
+        .unwrap_or(Cow::Borrowed(manifest)))
 }
 
+/// The workspace's packages, or `None` outside a workspace or when its
+/// projects cannot be discovered. A sibling's unreadable publication manifest
+/// is an error: the prefix of a dependency on it would be guessed.
 pub fn discover_workspace_package_manifests(
     workspace_dir: Option<&Path>,
     config: &Config,
-) -> Option<Arc<WorkspacePackageManifests>> {
-    let ws_dir = workspace_dir?;
-    let (projects, _) =
-        crate::cli_args::recursive::discover_workspace_projects(ws_dir, config).ok()?;
-    Some(Arc::new(build_workspace_package_manifest_map(&projects, config).ok()?))
+) -> Result<Option<Arc<WorkspacePackageManifests>>, PackageManifestError> {
+    let Some(ws_dir) = workspace_dir else {
+        return Ok(None);
+    };
+    let Ok((projects, _)) = crate::cli_args::recursive::discover_workspace_projects(ws_dir, config)
+    else {
+        return Ok(None);
+    };
+    build_workspace_package_manifest_map(&projects, config).map(Arc::new).map(Some)
 }
 
 pub fn create_publish_pack_manifest_options(
