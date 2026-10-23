@@ -524,7 +524,7 @@ fn jsr_sources_and_direct_jsr_registry_packages_use_their_own_metadata_policy() 
             (
                 "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
                 abbreviated,
-                2 - usize::from(direct),
+                1,
             ),
         ] {
             requests.push(

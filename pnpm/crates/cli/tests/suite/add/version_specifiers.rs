@@ -3,7 +3,8 @@ use super::{
     add_with_settings, assert_eq, bravo_dep_mature_up_to_1_0_1_minimum_release_age,
     exec_pacquet_in_temp_cwd, prod_spec, set_minimum_release_age,
 };
-use assert_cmd::{assert::OutputAssertExt, cargo::CommandCargoExt};
+use crate::_utils::pacquet_in;
+use assert_cmd::assert::OutputAssertExt;
 
 #[test]
 fn save_prefix_defaults_to_caret() {
@@ -499,12 +500,6 @@ fn add_without_a_version_resolves_the_tag_from_the_environment() {
     assert_eq!(prod_spec(&workspace, name), "^100.0.0");
     assert_eq!(locked_version(&workspace, name), "100.0.0");
     drop((root, npmrc_info)); // cleanup
-}
-
-fn pacquet_in(workspace: &std::path::Path) -> std::process::Command {
-    std::process::Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(workspace)
 }
 
 fn locked_version(workspace: &std::path::Path, name: &str) -> String {

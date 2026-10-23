@@ -12,6 +12,14 @@ fn tag_defaults_to_latest_and_applies_from_yaml() {
 }
 
 #[test]
+fn an_empty_tag_falls_back_to_latest() {
+    let mut config = Config::default();
+    let settings: WorkspaceSettings = serde_saphyr::from_str("tag: ''\n").unwrap();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert_eq!(config.default_tag(), "latest");
+}
+
+#[test]
 fn tag_is_read_from_a_config_override() {
     let values = BTreeMap::from([("tag".to_string(), "beta".to_string())]);
     let mut config = Config::default();

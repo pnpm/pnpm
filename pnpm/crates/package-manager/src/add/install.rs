@@ -108,12 +108,13 @@ pub(super) fn seed_picked_versions(
     seed: (&mut HashSet<String>, &mut PreferredVersions),
 ) {
     let (dropped_pins, preferred) = seed;
-    for PickedVersion { name, version, specifier } in picked_versions {
-        let (Ok(package), Ok(semver)) = (name.parse::<PkgName>(), version.parse::<Version>())
+    for PickedVersion { alias, name, version, specifier } in picked_versions {
+        let (Ok(alias_name), Ok(package), Ok(semver)) =
+            (alias.parse::<PkgName>(), name.parse::<PkgName>(), version.parse::<Version>())
         else {
             continue;
         };
-        let direct = locked.direct(&package);
+        let direct = locked.direct(&alias_name);
         let pinned_elsewhere = direct.is_some_and(|(locked, _)| {
             !locked.is_some_and(|locked| same_build(locked, &semver))
         });
@@ -127,7 +128,7 @@ pub(super) fn seed_picked_versions(
         }
         crate::install_with_fresh_lockfile::prefer_requested_version(preferred, name, version);
         if pinned_elsewhere {
-            dropped_pins.insert(name.clone());
+            dropped_pins.insert(alias.clone());
         }
     }
 }

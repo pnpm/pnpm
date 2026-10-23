@@ -105,5 +105,8 @@ fn add_resolves_a_versionless_jsr_selector_to_the_configured_tag() {
         dependency_spec(&workspace, "dependencies", "@pnpm-e2e/bar").as_deref(),
         Some("jsr:^1.0.0"),
     );
+    let lockfile = read_lockfile(&workspace.join(Lockfile::FILE_NAME));
+    let entry = root_dependency(&lockfile, "@pnpm-e2e/bar");
+    assert_eq!(entry.version.to_string(), "@jsr/pnpm-e2e__bar@1.0.0");
     drop((root, anchor));
 }

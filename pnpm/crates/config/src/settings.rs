@@ -1871,10 +1871,13 @@ impl Config {
         self.engine_strict && !self.force
     }
 
-    /// [`tag`](Self::tag), or `latest` when it is unset.
+    /// [`tag`](Self::tag), or `latest` when it is unset or empty.
     #[must_use]
     pub fn default_tag(&self) -> &str {
-        self.tag.as_deref().unwrap_or("latest")
+        self.tag
+            .as_deref()
+            .filter(|tag| !tag.is_empty())
+            .unwrap_or("latest")
     }
 
     #[must_use]
