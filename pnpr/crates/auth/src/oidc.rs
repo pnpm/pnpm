@@ -122,7 +122,7 @@ impl OidcState {
             return Err(RegistryError::NotFound);
         }
         let metadata = self.metadata(provider, MetadataFreshness::Cached).await?;
-        let client = self.login_client(provider, metadata.login.ok_or_else(unavailable)?)?;
+        let client = self.login_client(provider, metadata.login.clone().ok_or_else(unavailable)?)?;
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
         let (url, state, nonce) = client
             .authorize_url(

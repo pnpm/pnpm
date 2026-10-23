@@ -2,6 +2,8 @@
 //! keeps one copy alive for [`METADATA_TTL`] while [`REFRESH_INTERVAL`] bounds
 //! how often a failed discovery is retried.
 
+use std::sync::Arc;
+
 use super::{
     CoreJsonWebKeySet, CoreProviderMetadata, Deserialize, Duration, Instant, IssuerUrl,
     JsonWebKeySetUrl, OidcState, Provider, Result, rejected, secure_url, unavailable,
@@ -26,7 +28,6 @@ pub(super) enum MetadataFreshness {
 /// A provider's discovered metadata. Workload verification needs only the
 /// signing keys, so issuers without an interactive flow, such as GitHub
 /// Actions, need not publish an `authorization_endpoint`.
-#[derive(Clone)]
 pub(super) struct ProviderMetadata {
     pub(super) jwks: CoreJsonWebKeySet,
     /// The full metadata, present only for a provider with `login` configured.
@@ -42,7 +43,7 @@ struct SigningKeysDocument {
 
 #[derive(Default)]
 pub(super) struct MetadataCache {
-    pub(super) value: Option<(Instant, ProviderMetadata)>,
+    pub(super) value: Option<(Instant, Arc<ProviderMetadata>)>,
     pub(super) attempted_at: Option<Instant>,
 }
 
@@ -51,7 +52,7 @@ impl OidcState {
         &self,
         provider: &Provider,
         freshness: MetadataFreshness,
-    ) -> Result<ProviderMetadata> {
+    ) -> Result<Arc<ProviderMetadata>> {
         let cached = cached_metadata(&*provider.metadata.lock().await, freshness);
         if let Some(metadata) = cached {
             return Ok(metadata);
@@ -67,8 +68,8 @@ impl OidcState {
             }
             cache.attempted_at = Some(Instant::now());
         }
-        let metadata = self.discover(provider).await?;
-        provider.metadata.lock().await.value = Some((Instant::now(), metadata.clone()));
+        let metadata = Arc::new(self.discover(provider).await?);
+        provider.metadata.lock().await.value = Some((Instant::now(), Arc::clone(&metadata)));
         Ok(metadata)
     }
 
@@ -114,7 +115,7 @@ fn login_metadata(document: &[u8], jwks: CoreJsonWebKeySet) -> Result<CoreProvid
 fn cached_metadata(
     cache: &MetadataCache,
     freshness: MetadataFreshness,
-) -> Option<ProviderMetadata> {
+) -> Option<Arc<ProviderMetadata>> {
     let unexpired = cache.value
         .as_ref()
         .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL);
@@ -124,5 +125,5 @@ fn cached_metadata(
             cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL)
         }),
     }
-    .map(|(_, metadata)| metadata.clone())
+    .map(|(_, metadata)| Arc::clone(metadata))
 }
