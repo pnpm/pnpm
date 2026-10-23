@@ -163,24 +163,9 @@ async fn writes_in_flight_are_bounded_and_a_refused_token_retries() {
 }
 
 #[tokio::test]
-async fn a_failed_write_frees_its_slot_and_its_claim() {
+async fn a_failed_write_frees_its_slot_but_keeps_its_claim() {
     let (writer, _) = writer_over(TouchLog { fail: true, ..TouchLog::default() });
     assert!(writer.record_with(STALE, || "k".to_string()));
     wait_until(|| writer.writes_in_flight.available_permits() == MAX_WRITES_IN_FLIGHT).await;
-    let claimed = writer.claims
-        .lock()
-        .unwrap()
-        .written_at
-        .contains_key("k");
-    assert!(!claimed);
-    assert!(writer.record_with(STALE, || "k".to_string()));
-}
-
-#[test]
-fn a_failed_write_keeps_a_newer_claim() {
-    let (writer, _) = writer();
-    assert!(writer.claim("k", NOW));
-    assert!(writer.claim("k", NOW + LAST_USED_GRANULARITY_SECS));
-    super::release_claim(&writer.claims, "k", Some(NOW));
-    assert!(!writer.claim("k", NOW + LAST_USED_GRANULARITY_SECS));
+    assert!(!writer.record_with(STALE, || "k".to_string()));
 }

@@ -21,11 +21,12 @@ const MIN_CLAIMS_BEFORE_PRUNE: usize = 1024;
 
 /// Records when tokens are used. The write to the token store happens off
 /// the request path, at most once per [`LAST_USED_GRANULARITY_SECS`] per
-/// token. A request never waits for it or learns that it failed: the
-/// token's next request tries again.
+/// token. A request never waits for it or learns that it failed: a failed
+/// write keeps its claim, so the token's next write is due an interval
+/// later, and the stored time is at most one interval stale meanwhile.
 pub struct LastUsedWriter {
     tokens: Arc<dyn TokenBackend>,
-    claims: Arc<Mutex<Claims>>,
+    claims: Mutex<Claims>,
     writes_in_flight: Arc<Semaphore>,
 }
 
@@ -44,10 +45,10 @@ impl LastUsedWriter {
     pub fn new(tokens: Arc<dyn TokenBackend>) -> Self {
         Self {
             tokens,
-            claims: Arc::new(Mutex::new(Claims {
+            claims: Mutex::new(Claims {
                 written_at: HashMap::new(),
                 prune_at: MIN_CLAIMS_BEFORE_PRUNE,
-            })),
+            }),
             writes_in_flight: Arc::new(Semaphore::new(MAX_WRITES_IN_FLIGHT)),
         }
     }
@@ -78,18 +79,14 @@ impl LastUsedWriter {
         let Ok(permit) = Arc::clone(&self.writes_in_flight).try_acquire_owned() else {
             // The pool is busy with writes; the next request from this token
             // gets to try again.
-            release_claim(&self.claims, &key, None);
+            self.release(&key);
             return false;
         };
         let tokens = Arc::clone(&self.tokens);
-        let claims = Arc::clone(&self.claims);
         tokio::spawn(async move {
             let _permit = permit;
             if let Err(err) = tokens.touch_key(&key, now).await {
                 tracing::debug!(error = %err, "could not record a token's last use");
-                // Let the token's next request retry, unless a later write
-                // has claimed the interval since.
-                release_claim(&claims, &key, Some(now));
             }
         });
         true
@@ -104,14 +101,13 @@ impl LastUsedWriter {
         claims.insert(key, now);
         true
     }
-}
 
-/// Drop the claim on `key`, or with `written_at` given only the claim made
-/// at that time.
-fn release_claim(claims: &Mutex<Claims>, key: &str, written_at: Option<u64>) {
-    let mut claims = claims.lock().expect("LastUsedWriter mutex poisoned");
-    if written_at.is_none_or(|at| claims.written_at.get(key) == Some(&at)) {
-        claims.written_at.remove(key);
+    fn release(&self, key: &str) {
+        self.claims
+            .lock()
+            .expect("LastUsedWriter mutex poisoned")
+            .written_at
+            .remove(key);
     }
 }
 
