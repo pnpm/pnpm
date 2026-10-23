@@ -184,13 +184,8 @@ export class PnprContainer extends Container<Env> {
   }
 }
 
-const METRICS_PATH = /^(\/~[^/]+)?(\/-)?\/metrics$/;
-
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (METRICS_PATH.test(new URL(request.url).pathname)) {
-      return new Response("Not found\n", { status: 404 });
-    }
     const headers = new Headers(request.headers);
     headers.set("accept-encoding", "zstd, gzip");
     headers.delete("x-forwarded-for");
@@ -217,11 +212,7 @@ decodes it for those that do not. This only matters for a
 [tar registry](configuration.md#tar-registries); a `.tgz` is served as stored
 whatever the request asks for.
 
-The default export also keeps [metrics](configuration.md#prometheus-metrics)
-private. pnpr serves them without authentication, so the Worker answers their
-paths with a 404.
-
-Last, it passes on the client's address. pnpr sees every request come from
+It also passes on the client's address. pnpr sees every request come from
 the container network, so without help a token limited to an address range
 would check the wrong address, and login rate limiting would count all clients
 as one. Cloudflare sets `CF-Connecting-IP` and does not let clients send it.
