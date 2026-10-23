@@ -133,6 +133,7 @@ fn is_sensitive_param(key: &str) -> bool {
         || lower.contains("auth")
         || lower.contains("pass")
         || lower.contains("sig")
+        || lower == "user"
 }
 
 fn describe_storage_backend(config: &Config) -> String {

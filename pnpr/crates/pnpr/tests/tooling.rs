@@ -516,6 +516,35 @@ registries:
 }
 
 #[test]
+fn test_config_check_redacts_the_database_user_query_parameter() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!(
+        r"
+storage: '{}'
+cache: '{}'
+backend:
+  postgres:
+    url: 'postgres://db.example.com/pnpr?user=registry-admin'
+registries:
+  local:
+    type: hosted
+    packages:
+      '@acme/*':
+        publish: $authenticated
+",
+        dir.path().join("hosted").display(),
+        dir.path().join("cache").display(),
+    );
+    let config_file = dir.path().join("pnpr.yaml");
+    std::fs::write(&config_file, yaml).unwrap();
+
+    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
+    let output = pnpr::config_check::format_report(&report);
+    assert!(!output.contains("registry-admin"), "{output}");
+    assert!(output.contains("user=REDACTED"), "{output}");
+}
+
+#[test]
 fn test_htpasswd_import_malformed_and_collisions() {
     let dir = TempDir::new().unwrap();
     let source = dir.path().join("source-malformed");
