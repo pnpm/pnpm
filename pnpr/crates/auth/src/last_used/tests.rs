@@ -167,13 +167,12 @@ async fn a_failed_write_frees_its_slot_and_its_claim() {
     let (writer, _) = writer_over(TouchLog { fail: true, ..TouchLog::default() });
     assert!(writer.record_with(STALE, || "k".to_string()));
     wait_until(|| writer.writes_in_flight.available_permits() == MAX_WRITES_IN_FLIGHT).await;
-    assert!(
-        !writer.claims
-            .lock()
-            .unwrap()
-            .written_at
-            .contains_key("k")
-    );
+    let claimed = writer.claims
+        .lock()
+        .unwrap()
+        .written_at
+        .contains_key("k");
+    assert!(!claimed);
     assert!(writer.record_with(STALE, || "k".to_string()));
 }
 
