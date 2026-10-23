@@ -87,8 +87,9 @@ impl LibsqlAuth {
     /// file. libsql probes the primary for its newer sync protocol, the
     /// only one Turso Cloud serves, and falls back to the replication
     /// protocol of a self-hosted `sqld`. The initial sync is awaited
-    /// under [`DEFAULT_STARTUP_TIMEOUT`] on either protocol. Opening a
-    /// connection over the newer one blocks in place, so the caller must
+    /// under [`DEFAULT_STARTUP_TIMEOUT`] on either protocol. Until this
+    /// returns, a dial that times out is retried within that deadline.
+    /// Opening a connection over the newer one blocks in place, so the caller must
     /// run on tokio's multi-thread runtime. Without `replicaPath`, every
     /// read is a remote query against the primary — always fresh, but a
     /// network round-trip on the auth hot path.
@@ -104,6 +105,7 @@ impl LibsqlAuth {
             });
         }
         let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
+        let _startup_dials = connector.retry_timed_out_dials();
         let db = if let Some(path) = &settings.replica_path {
             Self::open_replica(path, settings, connector).await?
         } else {
