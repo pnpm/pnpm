@@ -34,6 +34,21 @@ pub fn install(interrupts: &[Interrupt], handler: Handler) {
     }
 }
 
+/// Whether `interrupt` already carries a handler, rather than the default
+/// or ignored disposition.
+///
+/// A caller that installs behind a process-global guard asks this to find
+/// out whether something else got there first. An interrupt whose
+/// disposition cannot be read reads as unhandled, which is what
+/// [`install`] treats it as.
+#[must_use]
+pub fn carries_handler(interrupt: Interrupt) -> bool {
+    current_disposition(slot(interrupt).number)
+        .is_some_and(|disposition| {
+            disposition.sa_sigaction != libc::SIG_DFL && disposition.sa_sigaction != libc::SIG_IGN
+        })
+}
+
 /// What an interrupt did before pnpm installed a handler for it.
 ///
 /// Handed to a [`Handler`], which is the only place it can be used: the

@@ -33,24 +33,6 @@ extern "C" fn record(
     DETAILS_MATCHED.store(matched, Ordering::Release);
 }
 
-/// Whether `signal` already carries a handler.
-///
-/// A test whose subject installs one behind a process-global `Once` asks
-/// this first: an installer that has already run leaves the subject's
-/// install a no-op, and the test would then assert against its own handler
-/// rather than against anything the subject forwarded.
-#[must_use]
-pub fn has_handler(signal: i32) -> bool {
-    // SAFETY: a null `act` makes this a read, and `oldact` points at a fully
-    // initialized stack local that outlives the call.
-    let standing = unsafe {
-        let mut current: libc::sigaction = std::mem::zeroed();
-        assert_eq!(libc::sigaction(signal, std::ptr::null(), &raw mut current), 0);
-        current.sa_sigaction
-    };
-    standing != libc::SIG_DFL && standing != libc::SIG_IGN
-}
-
 /// Install a handler for `signal` that asks for the delivery's details, run
 /// `install` so the subject's own handler replaces it, then raise `signal`
 /// and report what the replaced handler was called with.

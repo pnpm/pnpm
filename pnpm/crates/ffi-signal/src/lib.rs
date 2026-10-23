@@ -17,7 +17,7 @@ pub use console::{Handled, on_console_event};
 #[cfg(unix)]
 pub use death::die_from;
 #[cfg(unix)]
-pub use disposition::{Handler, Replaced, install};
+pub use disposition::{Handler, Replaced, carries_handler, install};
 #[cfg(unix)]
 pub use relay::{
     Target, group_has_members, has_controlling_terminal, holds_the_terminal, process_group_of,

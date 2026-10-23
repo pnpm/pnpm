@@ -862,7 +862,7 @@ fn start_detached_waiter(waiter_pid_path: &Path) {
     use std::{os::windows::process::CommandExt, process::Stdio};
     use windows_sys::Win32::System::Threading::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 
-    pnpm_testing_utils::handles::stop_inheriting_standard_handles();
+    pnpm_ffi_terminal::stop_inheriting_standard_handles();
     let waiter_pid = std::process::Command::new("node")
         .args(["-e", "setTimeout(() => {}, 60000)"])
         .stdin(Stdio::null())

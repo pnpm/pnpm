@@ -11,8 +11,6 @@ pub mod env_guard;
 pub mod fixtures;
 pub mod fs;
 pub mod git_repo;
-#[cfg(windows)]
-pub mod handles;
 pub mod known_failure;
 #[cfg(windows)]
 pub mod privileges;

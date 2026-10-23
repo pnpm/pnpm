@@ -22,7 +22,8 @@
 
 #![cfg(unix)]
 
-use pnpm_testing_utils::signal_delivery::{forwarded_delivery, has_handler};
+use pnpm_ffi_signal::{Interrupt, carries_handler};
+use pnpm_testing_utils::signal_delivery::forwarded_delivery;
 
 /// Asserts on the `siginfo_t` the replaced handler received rather than only
 /// on its being reached, because a wrong signature leaves those arguments
@@ -30,7 +31,7 @@ use pnpm_testing_utils::signal_delivery::{forwarded_delivery, has_handler};
 #[test]
 fn a_replaced_siginfo_handler_is_passed_the_signal_details() {
     assert!(
-        !has_handler(libc::SIGTERM),
+        !carries_handler(Interrupt::Terminate),
         "SIGTERM already carries a handler, so the `Once` behind \
          install_temp_file_cleanup is spent and this test would assert \
          nothing: see the comment at the top of this file",
