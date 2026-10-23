@@ -6,7 +6,7 @@
 
 - `ERR_PNPM_UNEXPECTED_STORE` if `node_modules` was linked from a different store.
 - `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE` if it was linked from a different virtual store directory.
-- `ERR_PNPM_MODULES_BREAKING_CHANGE` if it was installed by an incompatible pnpm version.
+- `ERR_PNPM_MODULES_BREAKING_CHANGE` if it was installed by an incompatible pnpm version, or if `node_modules/.modules.yaml` cannot be read.
 - `ERR_PNPM_NODE_LINKER_DIFF` if it was installed with a different `nodeLinker`.
 
 `pnpm install` now recreates `node_modules` after a `storeDir` or `virtualStoreDir` change. It used to report "Already up to date".
