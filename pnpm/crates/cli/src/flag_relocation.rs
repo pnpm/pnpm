@@ -23,10 +23,12 @@
 //! subcommand has no command to consult, so it steps over options using
 //! the union of every subcommand's arg table; on an arity conflict
 //! between subcommands the option is treated as boolean so a subcommand
-//! name is never swallowed as a value. Tokens move only when the first
-//! positional token names a real subcommand — external commands
-//! (`pnpm <script>`) keep their argv untouched, as does everything after
-//! a `--` terminator.
+//! name is never swallowed as a value. When that reading names no
+//! subcommand, the scan is retried with each subcommand's own arities, so
+//! `pnpm -o <dir> pack-app` still finds `pack-app` although `add -o` takes
+//! no value. Tokens move only when the scan finds a real subcommand:
+//! external commands (`pnpm <script>`) keep their argv untouched, as does
+//! everything after a `--` terminator.
 
 use clap::{Arg, Command};
 use std::{
@@ -170,11 +172,9 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
 
     expand_recursive_alias(&mut argv, &top_level, &subcommand_union);
 
-    let subcommand_index = find_positional(&argv, 1, &top_level, &subcommand_union);
-    let Some(subcommand_index) = subcommand_index else {
-        return argv;
-    };
-    let Some(subcommand) = cmd.find_subcommand(&argv[subcommand_index]) else {
+    let Some((subcommand_index, subcommand)) =
+        find_invoked_subcommand(cmd, &argv, &top_level, &subcommand_union)
+    else {
         return argv;
     };
     let subcommand_table = ArgTable::subcommand(subcommand);
@@ -185,6 +185,51 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
         return argv;
     }
     reorder_after_subcommand(argv, &moved_indexes, subcommand_index)
+}
+
+/// The invoked subcommand and its argv index, read first with the union's
+/// arities and then, if an option only subcommands declare precedes a
+/// positional that names no subcommand, with each subcommand's own.
+fn find_invoked_subcommand<'cmd>(
+    cmd: &'cmd Command,
+    argv: &[OsString],
+    top_level: &ArgTable,
+    subcommand_union: &ArgTable,
+) -> Option<(usize, &'cmd Command)> {
+    let index = find_positional(argv, 1, top_level, subcommand_union)?;
+    if let Some(subcommand) = cmd.find_subcommand(&argv[index]) {
+        return Some((index, subcommand));
+    }
+    if !argv[1..index].iter().any(|token| names_option_outside(token, top_level)) {
+        return None;
+    }
+    cmd.get_subcommands()
+        .find_map(|subcommand| {
+            let index = find_positional(argv, 1, top_level, &ArgTable::subcommand(subcommand))?;
+            cmd.find_subcommand(&argv[index])
+                .is_some_and(|found| found.get_name() == subcommand.get_name())
+                .then_some((index, subcommand))
+        })
+}
+
+/// Whether `token` is an option spelling at least one name `table` does
+/// not declare. A short cluster's attached value counts as names too,
+/// which errs toward a retry that finds nothing.
+fn names_option_outside(token: &OsStr, table: &ArgTable) -> bool {
+    let Some(token) = token.to_str() else {
+        return false;
+    };
+    if let Some(rest) = token.strip_prefix("--") {
+        let name = rest.split_once('=').map_or(rest, |(name, _)| name);
+        return !name.is_empty() && table.long_consumes_value(name).is_none();
+    }
+    token
+        .strip_prefix('-')
+        .is_some_and(|shorts| {
+            shorts
+                .chars()
+                .any(|short| table.short_consumes_value(short).is_none())
+        })
 }
 
 /// Rewrite a leading `recursive` / `multi` / `m` word into `--recursive`,

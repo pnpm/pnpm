@@ -133,13 +133,24 @@ fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
 }
 
 #[test]
-fn short_with_conflicting_arity_steps_over_no_value() {
-    let argv = ["pnpm", "-o", "dist", "pack-app"];
+fn short_with_conflicting_arity_moves_with_the_value_its_command_reads() {
     assert_eq!(
-        relocate(&argv),
-        argv,
-        "`add -o` takes no value and `pack-app -o` does, so the scan reads `dist` as the command",
+        relocate(&["pnpm", "-o", "dist", "pack-app"]),
+        ["pnpm", "pack-app", "-o", "dist"],
+        "`add -o` takes no value, but `pack-app -o` does",
     );
+    let crate::cli_args::cli_command::CliCommand::Patch(patch) =
+        parse(&["pnpm", "-d", "dir", "patch", "foo"]).command
+    else {
+        panic!("expected patch");
+    };
+    assert_eq!(patch.edit_dir.as_deref(), Some(std::path::Path::new("dir")));
+}
+
+#[test]
+fn short_with_conflicting_arity_before_a_script_stays_put() {
+    let argv = ["pnpm", "-o", "dist", "build"];
+    assert_eq!(relocate(&argv), argv);
 }
 
 #[test]
