@@ -165,3 +165,11 @@ pub(super) fn active_manifest_is_standin(
             .iter()
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_active_dir))
 }
+
+/// Record `--no-runtime` as the `runtime: false` setting the command line
+/// set, so `updateConfig` hooks read it and cannot override it.
+pub(super) fn record_no_runtime_flag(config: &mut Config) {
+    config.skip_runtimes = true;
+    config.explicit_settings.insert("runtime".to_string(), false.into());
+    config.cli_settings.insert("runtime".to_string());
+}

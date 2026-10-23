@@ -318,6 +318,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, engine_strict, "ENGINE_STRICT");
         json_field!(settings, reader, force_ignores_platform, "FORCE_IGNORES_PLATFORM");
         string_field!(settings, reader, node_version, "NODE_VERSION");
+        json_field!(settings, reader, runtime, "RUNTIME");
         enum_field!(settings, reader, runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
         json_field!(settings, reader, node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");
         enum_field!(

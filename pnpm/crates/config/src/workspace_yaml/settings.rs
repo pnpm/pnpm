@@ -557,6 +557,10 @@ pub struct WorkspaceSettings {
     /// See [`Config::node_version`](crate::settings::Config::node_version).
     pub node_version: Option<String>,
 
+    /// `runtime` from `pnpm-workspace.yaml`. `false` sets
+    /// [`Config::skip_runtimes`](crate::settings::Config::skip_runtimes).
+    pub runtime: Option<bool>,
+
     /// `runtimeOnFail` from `pnpm-workspace.yaml` / global `config.yaml`.
     pub runtime_on_fail: Option<RuntimeOnFail>,
 

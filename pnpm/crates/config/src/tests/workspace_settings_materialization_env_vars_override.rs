@@ -444,6 +444,59 @@ pub fn runtime_on_fail_from_workspace_yaml() {
     assert_eq!(config.runtime_on_fail, Some(crate::RuntimeOnFail::Download));
 }
 
+#[test]
+pub fn runtime_false_from_workspace_yaml_skips_runtimes() {
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("loads");
+    assert!(!config.skip_runtimes);
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "runtime: false\n")
+        .expect("write to pnpm-workspace.yaml");
+    let config = Config::new().current::<HostNoHome>(tmp.path()).expect("yaml is valid");
+    assert!(config.skip_runtimes);
+}
+
+#[test]
+pub fn runtime_env_var_overrides_workspace_yaml() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "runtime: false\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    struct HostWithRuntimeEnv;
+    impl EnvVar for HostWithRuntimeEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_RUNTIME" => Some("true".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithRuntimeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithRuntimeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithRuntimeEnv);
+    host_current_dir!(HostWithRuntimeEnv);
+
+    let config = Config::new().current::<HostWithRuntimeEnv>(tmp.path()).expect("loads");
+    assert!(!config.skip_runtimes);
+}
+
+#[test]
+pub fn global_config_cannot_set_runtime() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("config.yaml"), "runtime: false\n").expect("write config.yaml");
+    let settings = WorkspaceSettings::load_global(tmp.path())
+        .expect("loads global config")
+        .expect("config.yaml exists");
+    assert_eq!(settings.runtime, None);
+}
+
 /// `lockfileDir` moves the paths pnpm resolves against it: the root
 /// `node_modules` and the virtual store follow the pin, and the config
 /// root the install reads its root manifest and pnpmfile from becomes the

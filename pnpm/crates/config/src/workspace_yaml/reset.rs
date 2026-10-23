@@ -279,6 +279,7 @@ impl WorkspaceSettings {
                 config.enable_global_virtual_store = defaults.enable_global_virtual_store;
             }
             "maxsockets" => config.max_sockets = defaults.max_sockets,
+            "runtime" => config.skip_runtimes = defaults.skip_runtimes,
             // Shapes only a file has, whose resolved form lives under the
             // keys above, or one nothing resolves from: nothing to restore.
             "registries"

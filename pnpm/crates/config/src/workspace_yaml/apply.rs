@@ -327,6 +327,9 @@ impl WorkspaceSettings {
         overlay(&mut config.engine_strict, self.engine_strict.take());
         overlay(&mut config.force_ignores_platform, self.force_ignores_platform.take());
         overlay_some(&mut config.node_version, self.node_version.take());
+        if let Some(runtime) = self.runtime.take() {
+            config.skip_runtimes = !runtime;
+        }
         overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
         overlay(&mut config.node_download_mirrors, self.node_download_mirrors.take());
     }
