@@ -239,6 +239,7 @@
       "type": "category",
       "label": "Advanced",
       "items": [
+        "migration-v11",
         "migration",
         "errors",
         "logos",
