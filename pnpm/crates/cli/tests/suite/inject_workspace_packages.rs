@@ -439,6 +439,83 @@ fn inject_workspace_packages_applies_to_relative_path_workspace_spec() {
     drop((root, mock_instance));
 }
 
+/// A relative-path `workspace:` dependency of an injected project
+/// resolves from that project's directory: `libs/lib-b`'s
+/// `workspace:../lib-a` names `libs/lib-a`.
+#[test]
+fn relative_path_workspace_spec_of_an_injected_project_resolves_from_its_directory() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("injectWorkspacePackages: true\n");
+    workspace_yaml.push_str("dedupeInjectedDeps: false\n");
+    workspace_yaml.push_str("packages:\n  - 'apps/*'\n  - 'libs/*'\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "version": "0.0.0", "private": true }).to_string(),
+    )
+    .expect("write root package.json");
+
+    for (dir, manifest) in [
+        ("libs/lib-a", serde_json::json!({ "name": "lib-a", "version": "1.0.0" })),
+        (
+            "libs/lib-b",
+            serde_json::json!({
+                "name": "lib-b",
+                "version": "1.0.0",
+                "dependencies": { "lib-a": "workspace:../lib-a" },
+            }),
+        ),
+        (
+            "apps/main",
+            serde_json::json!({
+                "name": "main",
+                "version": "1.0.0",
+                "dependencies": { "lib-b": "workspace:*" },
+            }),
+        ),
+    ] {
+        fs::create_dir_all(workspace.join(dir)).expect("create the project directory");
+        fs::write(workspace.join(dir).join("package.json"), manifest.to_string())
+            .expect("write package.json");
+    }
+
+    pacquet
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    let parsed: pnpm_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
+        .unwrap_or_else(|err| panic!("re-parse pnpm-lock.yaml: {err}\n{lockfile}"));
+    let lib_b_key: pnpm_lockfile::PkgNameVerPeer = "lib-b@file:libs/lib-b".parse().unwrap();
+    let lib_a_name: pnpm_lockfile::PkgName = "lib-a".parse().unwrap();
+    let lib_a = parsed.snapshots
+        .as_ref()
+        .and_then(|snapshots| snapshots.get(&lib_b_key))
+        .and_then(|snapshot| snapshot.dependencies.as_ref())
+        .and_then(|deps| deps.get(&lib_a_name))
+        .unwrap_or_else(|| panic!("missing lib-a in the lib-b snapshot:\n{lockfile}"));
+    assert_eq!(lib_a.to_string(), "file:libs/lib-a", "lockfile:\n{lockfile}");
+
+    drop((root, mock_instance));
+}
+
 /// How a per-project-lockfile workspace injects `project-1` into `project-2`.
 #[derive(Clone, Copy)]
 enum Injection {

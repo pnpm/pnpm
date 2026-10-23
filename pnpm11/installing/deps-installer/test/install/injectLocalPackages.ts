@@ -5,7 +5,7 @@ import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { type MutatedProject, mutateModules, type ProjectOptions } from '@pnpm/installing.deps-installer'
 import { preparePackages } from '@pnpm/prepare'
-import type { ProjectRootDir } from '@pnpm/types'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { rimrafSync } from '@zkochan/rimraf'
 import { writeJsonFileSync } from 'write-json-file'
 
@@ -2158,6 +2158,84 @@ test('injectWorkspacePackages injects a workspace dependency declared with a rel
   expect(fs.lstatSync(path.resolve('project-2/node_modules/project-1')).isSymbolicLink()).toBe(true)
   expect(fs.realpathSync('project-2/node_modules/project-1')).toBe(path.resolve('node_modules/.pnpm/project-1@file+project-1/node_modules/project-1'))
 })
+
+test('injectWorkspacePackages resolves a relative workspace dependency of an injected project from its own directory', async () => {
+  const allProjects = prepareProjectWithRelativeWorkspaceDependency({})
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+    injectWorkspacePackages: true,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies).toEqual({
+    'lib-a': 'file:libs/lib-a',
+  })
+})
+
+test('a relative workspace dependency of a project injected via dependenciesMeta stays linked', async () => {
+  const allProjects = prepareProjectWithRelativeWorkspaceDependency({ 'lib-b': { injected: true } })
+  await mutateModules(allProjects.map(({ rootDir }) => ({ mutation: 'install', rootDir })), testDefaults({
+    allProjects,
+    dedupeInjectedDeps: false,
+  }))
+
+  const lockfile = assertProject(process.cwd()).readLockfile()
+  expect(lockfile.snapshots['lib-b@file:libs/lib-b'].dependencies?.['lib-a']).toMatch(/^link:/)
+})
+
+function prepareProjectWithRelativeWorkspaceDependency (dependenciesMeta: ProjectManifest['dependenciesMeta']): ProjectOptions[] {
+  const libAManifest = {
+    name: 'lib-a',
+    version: '1.0.0',
+  }
+  const libBManifest = {
+    name: 'lib-b',
+    version: '1.0.0',
+    dependencies: {
+      'lib-a': 'workspace:../lib-a',
+    },
+  }
+  const mainManifest = {
+    name: 'main',
+    version: '1.0.0',
+    dependencies: {
+      'lib-b': 'workspace:../../libs/lib-b',
+    },
+    dependenciesMeta,
+  }
+  preparePackages([
+    {
+      location: 'libs/lib-a',
+      package: libAManifest,
+    },
+    {
+      location: 'libs/lib-b',
+      package: libBManifest,
+    },
+    {
+      location: 'apps/main',
+      package: mainManifest,
+    },
+  ])
+  return [
+    {
+      buildIndex: 0,
+      manifest: libAManifest,
+      rootDir: path.resolve('libs/lib-a') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: libBManifest,
+      rootDir: path.resolve('libs/lib-b') as ProjectRootDir,
+    },
+    {
+      buildIndex: 0,
+      manifest: mainManifest,
+      rootDir: path.resolve('apps/main') as ProjectRootDir,
+    },
+  ]
+}
 
 test('inject local package that publishes from a directory built by prepare', async () => {
   const project1Manifest = {
