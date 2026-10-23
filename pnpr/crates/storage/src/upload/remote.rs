@@ -388,7 +388,7 @@ impl RemoteChunk {
         if size == 0 {
             let current = self.upload.backend.read(&self.upload.id).await?;
             if current.is_none_or(|current| {
-                current.record.closed || current.version != self.version
+                current.record.closed || !same_object_version(&current.version, &self.version)
             }) {
                 return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
             }
@@ -420,6 +420,17 @@ impl RemoteChunk {
         *self.upload.state.lock().await = VersionedRecord { record: self.snapshot, version };
         Ok(offset)
     }
+}
+
+/// Whether two observations name the same object version. The version id
+/// counts only when both sides carry one: Cloudflare R2 returns
+/// `x-amz-version-id` on PUT but not on GET.
+fn same_object_version(left: &UpdateVersion, right: &UpdateVersion) -> bool {
+    left.e_tag == right.e_tag
+        && match (&left.version, &right.version) {
+            (Some(left), Some(right)) => left == right,
+            _ => true,
+        }
 }
 
 #[cfg(test)]
