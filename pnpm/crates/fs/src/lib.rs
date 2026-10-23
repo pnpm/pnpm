@@ -20,6 +20,7 @@ pub use is_not_found::is_not_found;
 pub use is_subdir::is_subdir;
 pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
 pub use lock_mode::LockMode;
+pub use open_dir::OpenDir;
 #[cfg(unix)]
 pub use pending_temp::die_from_signal;
 pub use pending_temp::{
@@ -66,8 +67,10 @@ mod is_not_found;
 mod is_subdir;
 mod lexical_normalize;
 mod lock_mode;
+mod open_dir;
 mod pending_temp;
 mod private_named_tempfile;
+mod random_hex;
 mod read_modules_dir;
 mod realpath_missing;
 mod relative_path;

@@ -1,4 +1,5 @@
 use crate::{PruneError, StoreDir};
+use pnpm_fs::OpenDir;
 use std::{
     fs,
     io::{self, ErrorKind},
@@ -14,7 +15,9 @@ impl StoreDir {
     ///
     /// A symbolic link is not a directory here, so it is kept. So is a
     /// directory that is or holds this store or one of `protected_dirs`,
-    /// for a `cacheDir` that encloses them.
+    /// for a `cacheDir` that encloses them. Each directory is held open
+    /// while its children go, so a link put in its place meanwhile does
+    /// not redirect the removal (see [`OpenDir`]).
     ///
     /// The caller holds the store's prune lock, which keeps out the installs
     /// that read the cache.
@@ -27,73 +30,90 @@ impl StoreDir {
             .chain(protected_dirs.iter().copied())
             .map(|dir| dunce::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf()))
             .collect();
-        for path in cached_metadata_dirs(cache_dir)? {
-            if holds_any(&path, &protected) {
+        let cache_dir = match OpenDir::open(cache_dir) {
+            Ok(dir) => dir,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(read_error(cache_dir, error)),
+        };
+        let names = child_names(&cache_dir)?;
+        remove_metadata_dirs(&cache_dir, &names, &protected)?;
+        for name in names.iter().filter(|name| is_layout_version(name)) {
+            let path = cache_dir.path().join(name);
+            let Some(layout_dir) =
+                OpenDir::open_no_follow(&path).map_err(|error| read_error(&path, error))?
+            else {
                 continue;
-            }
-            match pnpm_fs::remove_dirent(&path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
-                Err(error) => return Err(PruneError::RemoveCachedMetadata { path, error }),
-            }
+            };
+            let nested = child_names(&layout_dir)?;
+            remove_metadata_dirs(&layout_dir, &nested, &protected)?;
         }
         pnpm_diagnostics::eprintln!("Removed all cached metadata files");
         Ok(())
     }
 }
 
-fn holds_any(dir: &Path, protected: &[PathBuf]) -> bool {
-    dunce::canonicalize(dir)
-        .is_ok_and(|dir| {
-            protected
-                .iter()
-                .any(|path| path.starts_with(&dir))
-        })
-}
-
-fn cached_metadata_dirs(cache_dir: &Path) -> Result<Vec<PathBuf>, PruneError> {
-    let mut metadata_dirs = Vec::new();
-    for (path, name) in child_dirs(cache_dir)? {
-        if name.starts_with("metadata") {
-            metadata_dirs.push(path);
-        } else if is_layout_version(&name) {
-            let nested = child_dirs(&path)?
-                .into_iter()
-                .filter(|(_, name)| name.starts_with("metadata"))
-                .map(|(path, _)| path);
-            metadata_dirs.extend(nested);
+/// Remove the directories among `names` whose name starts with `metadata`
+/// from `dir`, keeping those that are or hold a `protected` directory.
+fn remove_metadata_dirs(
+    dir: &OpenDir,
+    names: &[String],
+    protected: &[PathBuf],
+) -> Result<(), PruneError> {
+    let Some(canonical_dir) =
+        dir.canonical_path().map_err(|error| read_error(dir.path(), error))?
+    else {
+        tracing::warn!(
+            path = %dir.path().display(),
+            "a cache directory was replaced while pruning, its metadata is kept",
+        );
+        return Ok(());
+    };
+    for name in names
+        .iter()
+        .filter(|name| name.starts_with("metadata"))
+    {
+        if holds_any(&canonical_dir.join(name), protected) {
+            continue;
         }
+        dir.remove_child_dir(name.as_ref())
+            .map_err(|error| PruneError::RemoveCachedMetadata {
+                path: dir.path().join(name),
+                error,
+            })?;
     }
-    Ok(metadata_dirs)
+    Ok(())
 }
 
-/// The directories directly under `dir` with their names, none when `dir`
-/// is missing. Entries whose names are not UTF-8 are skipped.
-fn child_dirs(dir: &Path) -> Result<Vec<(PathBuf, String)>, PruneError> {
-    let read_error = |error| PruneError::ReadCacheDir { path: dir.to_path_buf(), error };
-    let entries = match fs::read_dir(dir) {
+fn holds_any(dir: &Path, protected: &[PathBuf]) -> bool {
+    protected
+        .iter()
+        .any(|path| path.starts_with(dir))
+}
+
+/// The names of the entries of `dir`, none when its path no longer leads
+/// anywhere. Entries whose names are not UTF-8 are skipped.
+fn child_names(dir: &OpenDir) -> Result<Vec<String>, PruneError> {
+    let read_error = |error| read_error(dir.path(), error);
+    let entries = match fs::read_dir(dir.path()) {
         Ok(entries) => entries,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(read_error(error)),
     };
-    let mut dirs = Vec::new();
+    let mut names = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(read_error)?;
-        if is_dir(&entry).map_err(read_error)?
-            && let Ok(name) = entry.file_name().into_string()
+        if let Ok(name) = entry
+            .map_err(read_error)?
+            .file_name()
+            .into_string()
         {
-            dirs.push((entry.path(), name));
+            names.push(name);
         }
     }
-    Ok(dirs)
+    Ok(names)
 }
 
-fn is_dir(entry: &fs::DirEntry) -> io::Result<bool> {
-    match entry.file_type() {
-        Ok(file_type) => Ok(file_type.is_dir()),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error),
-    }
+fn read_error(path: &Path, error: io::Error) -> PruneError {
+    PruneError::ReadCacheDir { path: path.to_path_buf(), error }
 }
 
 fn is_layout_version(name: &str) -> bool {
