@@ -434,6 +434,59 @@ registries:
 }
 
 #[test]
+fn test_config_check_reports_the_auth_backend_and_every_default_registry() {
+    let dir = TempDir::new().unwrap();
+    let yaml = format!(
+        r"
+storage: '{}'
+cache: '{}'
+backend:
+  libsql:
+    url: 'libsql://db.example.turso.io'
+    authToken: 'secret-database-token'
+    replicaPath: '{}'
+auth:
+  htpasswd:
+    max_users: 3
+registries:
+  local:
+    type: hosted
+    packages:
+      '@acme/*':
+        publish: $authenticated
+  crates:
+    type: hosted
+    ecosystem: cargo
+    org: crates
+    packages:
+      acme-crate:
+        publish: $authenticated
+defaultRegistry:
+  npm: local
+  cargo: crates
+",
+        dir.path().join("hosted").display(),
+        dir.path().join("cache").display(),
+        dir.path().join("replica.db").display(),
+    );
+    let config_file = dir.path().join("pnpr.yaml");
+    std::fs::write(&config_file, yaml).unwrap();
+
+    let report = pnpr::config_check::check_config(Some(&config_file)).unwrap();
+    let output = pnpr::config_check::format_report(&report);
+    let replica = dir.path().join("replica.db");
+    assert!(
+        output.contains(&format!(
+            "Auth: libsql (libsql://db.example.turso.io, replica: {}, registration: max 3)",
+            replica.display(),
+        )),
+        "{output}",
+    );
+    assert!(!output.contains("secret-database-token"), "{output}");
+    assert!(output.contains("Default registries: npm=local, cargo=crates"), "{output}");
+}
+
+#[test]
 fn test_htpasswd_import_malformed_and_collisions() {
     let dir = TempDir::new().unwrap();
     let source = dir.path().join("source-malformed");

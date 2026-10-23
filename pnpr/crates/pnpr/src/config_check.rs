@@ -1,6 +1,9 @@
 use miette::IntoDiagnostic as _;
-use pnpr_config::{Config, ConfigSource, FeatureOverrides, HostedStoreConfig, MaxUsers};
-use pnpr_registry::Registry;
+use pnpr_config::{
+    BackendConfig, Config, ConfigSource, FeatureOverrides, HostedStoreConfig, MaxUsers,
+};
+use pnpr_package_name::Ecosystem;
+use pnpr_registry::{Registries, Registry};
 use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
@@ -24,7 +27,8 @@ pub struct SurfaceSummary {
 pub struct ConfigCheckReport {
     pub source_description: String,
     pub registries: Vec<RegistrySummary>,
-    pub default_registry: Option<String>,
+    /// The default registry of each ecosystem that has one, as `(ecosystem, registry)`.
+    pub default_registries: Vec<(Ecosystem, String)>,
     pub storage_backend: String,
     pub hosted_dir: PathBuf,
     pub cache_dir: PathBuf,
@@ -151,14 +155,17 @@ fn build_report(config: &Config, source_description: String) -> ConfigCheckRepor
         .map(|name| summarize_registry(config, name))
         .collect();
 
-    let default_registry = config.routing.registries
-        .default_for(pnpr_registry::Ecosystem::Npm)
-        .map(ToString::to_string);
+    let default_registries = Ecosystem::all()
+        .filter_map(|ecosystem| {
+            let key = config.routing.registries.default_for(ecosystem)?;
+            Some((ecosystem, Registries::local_name(key).to_string()))
+        })
+        .collect();
 
     ConfigCheckReport {
         source_description,
         registries,
-        default_registry,
+        default_registries,
         storage_backend: describe_storage_backend(config),
         hosted_dir: config.storage.hosted_dir.clone(),
         cache_dir: config.storage.cache_dir.clone(),
@@ -173,15 +180,30 @@ fn build_report(config: &Config, source_description: String) -> ConfigCheckRepor
 
 fn format_auth_summary(config: &Config) -> String {
     let ht = &config.identity.auth.htpasswd;
-    let path = ht.file
-        .as_ref()
-        .map_or_else(|| "in-memory".to_string(), |file_path| file_path.display().to_string());
     let max = match ht.max_users {
         MaxUsers::Unlimited => "unlimited".to_string(),
         MaxUsers::Limited(n) => format!("max {n}"),
         MaxUsers::Disabled => "disabled".to_string(),
     };
-    format!("htpasswd ({path}, registration: {max})")
+    let (backend, location) = match &config.identity.backend {
+        BackendConfig::Local => (
+            "htpasswd",
+            ht.file
+                .as_ref()
+                .map_or_else(|| "in-memory".to_string(), |path| path.display().to_string()),
+        ),
+        BackendConfig::Libsql(settings) => {
+            let url = sanitize_diagnostic_url(&settings.url);
+            let location = match &settings.replica_path {
+                Some(replica) => format!("{url}, replica: {}", replica.display()),
+                None => url,
+            };
+            ("libsql", location)
+        }
+        BackendConfig::Postgres(settings) => ("postgres", sanitize_diagnostic_url(&settings.url)),
+        BackendConfig::Mysql(settings) => ("mysql", sanitize_diagnostic_url(&settings.url)),
+    };
+    format!("{backend} ({location}, registration: {max})")
 }
 
 #[must_use]
@@ -194,8 +216,12 @@ pub fn format_report(report: &ConfigCheckReport) -> String {
     for reg in &report.registries {
         let _ = writeln!(out, "    - {} ({}, {})", reg.name, reg.kind, reg.details);
     }
-    if let Some(def) = &report.default_registry {
-        let _ = writeln!(out, "  Default registry: {def}");
+    if !report.default_registries.is_empty() {
+        let defaults: Vec<String> = report.default_registries
+            .iter()
+            .map(|(ecosystem, registry)| format!("{ecosystem}={registry}"))
+            .collect();
+        let _ = writeln!(out, "  Default registries: {}", defaults.join(", "));
     }
     let _ = writeln!(out, "  Storage: {}", report.storage_backend);
     let display_cache = report.cache_dir.display();
