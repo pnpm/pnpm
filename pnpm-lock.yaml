@@ -415,8 +415,8 @@ catalogs:
       specifier: ^4.6.0
       version: 4.6.0
     amaro:
-      specifier: ^1.2.1
-      version: 1.2.1
+      specifier: ^1.2.2
+      version: 1.2.2
     ansi-diff:
       specifier: ^1.2.0
       version: 1.2.0
@@ -1370,7 +1370,7 @@ importers:
         version: link:../../worker
       amaro:
         specifier: 'catalog:'
-        version: 1.2.1
+        version: 1.2.2
       get-port:
         specifier: 'catalog:'
         version: 7.2.0
@@ -11580,8 +11580,8 @@ packages:
   '@cspell/dict-companies@3.2.13':
     resolution: {integrity: sha512-mBJeYzCkiiWgNQxKg7zyQOpFPwcXO4IAzXGbOEFfcQ4Q0G5Fa7Kqd8z+gvnvSK7NPWKJaFmiApC6I0cka02qmQ==}
 
-  '@cspell/dict-cpp@7.1.3':
-    resolution: {integrity: sha512-2d2MSh+C+xzzdqjLwtt40TdXWDR/pK0q1Q9L5zC+1EPSCIZxlN7CHbhlXWpl0JqUSdy2xaWaWucwnoGznMTneA==}
+  '@cspell/dict-cpp@7.2.0':
+    resolution: {integrity: sha512-hxz+OyQKV96/Bk2JYGsDuSOheYA5gd8KybXnoZMMu/mhZPnwhPi+qiS0Kjc0gLNbXjJ6wbBuXIQWi1UWpQBU/g==}
 
   '@cspell/dict-cryptocurrencies@5.0.5':
     resolution: {integrity: sha512-R68hYYF/rtlE6T/dsObStzN5QZw+0aQBinAXuWCVqwdS7YZo0X33vGMfChkHaiCo3Z2+bkegqHlqxZF4TD3rUA==}
@@ -11613,11 +11613,11 @@ packages:
   '@cspell/dict-en-common-misspellings@2.2.5':
     resolution: {integrity: sha512-c1bj+HXT8fafxrBT/nmVLwr7ILVomgVSGlWsb2wjJYanqvLJHXkCVmr0sM97F9FJeWQFIgwrRi5MWSYbNQAQ6A==}
 
-  '@cspell/dict-en-gb-mit@3.1.30':
-    resolution: {integrity: sha512-wmsPqPrO+GRfD8iA2jSKzRdEVd46ZbnDttRWM8RC4a8DkeiIanTtIgqX5V23jJibSgpsRVAtY+ktTw2nOK/Yvw==}
+  '@cspell/dict-en-gb-mit@3.1.32':
+    resolution: {integrity: sha512-bEASyTAzXLowmFWrZIJjeAeCpY9g3jcYDO3tVyFDL/UaAuz0UvCVgOEyg+Ym7bclijqvXmj0xXOD/cW2XWG8iw==}
 
-  '@cspell/dict-en_us@4.4.41':
-    resolution: {integrity: sha512-PsfGqN/dSSPpaSl1vKaPI4DHAmgbFITON398YUEvoduDM1mWXnDOL+qBQ/ZjpWs5+aaShPq5c1vpJg8fuQFOQw==}
+  '@cspell/dict-en_us@4.4.43':
+    resolution: {integrity: sha512-RK0zfFXSPi0G/zmV9YgUhS2xw9eTV/8DtQ+ouLIiRZ8ejWRt2zhAonu5di+qmIhzhQ62fg7d3tMz3WwRy82yJA==}
 
   '@cspell/dict-filetypes@3.0.18':
     resolution: {integrity: sha512-yU7RKD/x1IWmDLzWeiItMwgV+6bUcU/af23uS0+uGiFUbsY1qWV/D4rxlAAO6Z7no3J2z8aZOkYIOvUrJq0Rcw==}
@@ -11693,8 +11693,8 @@ packages:
   '@cspell/dict-node@5.0.9':
     resolution: {integrity: sha512-hO+ga+uYZ/WA4OtiMEyKt5rDUlUyu3nXMf8KVEeqq2msYvAPdldKBGH7lGONg6R/rPhv53Rb+0Y1SLdoK1+7wQ==}
 
-  '@cspell/dict-npm@5.2.54':
-    resolution: {integrity: sha512-7jQPRZL1XnZ0HPk5iYAq5WpJ5dpgKHRDBl9aB6uQQBJdo90mCF4bjPGSVl2HrWgx+IXlafiyx/QNO2XII/hgYg==}
+  '@cspell/dict-npm@5.2.55':
+    resolution: {integrity: sha512-5xD2h3kn9ZRVbA6JFfO4VQu8VXwXsJQf7mpn099LgfaL66JnXE+wzR5dysipsren3Apdb3HlUzVqRTtnQMoVGQ==}
 
   '@cspell/dict-php@4.1.3':
     resolution: {integrity: sha512-41oKzl7rLVrrVZA/Gs0ESnP6KliEX7c+IwaaNmOL3PAoHasFDVEmIFeENIzuDdM12UcHT+MlLkAm3Qw/lS/ERA==}
@@ -13369,8 +13369,8 @@ packages:
   '@types/lodash.throttle@4.1.9':
     resolution: {integrity: sha512-PCPVfpfueguWZQB7pJQK890F2scYKoDUL3iM522AptHWn7d5NQmeS/LTEHIcLr5PaTzl3dK2Z0xSUHHTHwaL5g==}
 
-  '@types/lodash@4.17.26':
-    resolution: {integrity: sha512-48NWfiY6oNcKOh47Z4h+sIvwcQR91h6KPhaYKgeMIrkT2jV82Gy90SErj60vW8jQbeMSOSbhIv3bZ7JoqPPVhA==}
+  '@types/lodash@4.17.27':
+    resolution: {integrity: sha512-VenMRv/eKNrspX9v3H4dbmjsrnCOYdYBG3kxXKk3dG6X+urBGcj2Prww3xw1U5K4FV/mE4h5GbWd0szEKf+9ew==}
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
@@ -13856,8 +13856,8 @@ packages:
   ajv@8.20.0:
     resolution: {integrity: sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==}
 
-  amaro@1.2.1:
-    resolution: {integrity: sha512-RXNB1/mbpbpwr4mVlQgYZVdY4CHl7rFExwov+XOTWfghpsM1s2sD/5u4oTQkKL4Pt0BGNIExSVjRcLMjcytIDQ==}
+  amaro@1.2.2:
+    resolution: {integrity: sha512-H1ReZZ8Te6HHaWAy9171A/iWkGZOusKCtdzmh6EnTgluiNiAV9OSmUIN5rZI1TZnw6+NAUNz+n6pAWoJAHhRIQ==}
     engines: {node: '>=22'}
 
   ansi-align@3.0.1:
@@ -14201,8 +14201,8 @@ packages:
     resolution: {integrity: sha512-4wXLh+SqvKDzWND9SGE8cWllVMc65LxHVrCePc56IbfrtORUyxTWCVMI8rbGIVRBSNf5C+zbfaken7Abs34AEQ==}
     engines: {node: '>=22.13'}
 
-  caniuse-lite@1.0.30001817:
-    resolution: {integrity: sha512-uZ1JG80BwhtMalIAGPxPfmNhHyd/B/nTdr3hITWlRamSyAdUStP1Gop01e7SD5q6J90ixJvWDbvmiFVfDgn4bw==}
+  caniuse-lite@1.0.30001818:
+    resolution: {integrity: sha512-XJbgo4adscw7R4MZU4/qVFkoMyPaNUAWmdNY4o/k9x7fFwmv4frIlndI9lWuaxviW9ObiZel9LuncnQPn6hQ5A==}
 
   chalk-template@1.1.3:
     resolution: {integrity: sha512-KDt7oQ+LRF2VLFsTAZd76ZNCKQa8LuW7SZkNJMkriMzvlSNj6dI+S+f41mfK9oTtil49seHVyabtt1753sFL2w==}
@@ -14656,8 +14656,8 @@ packages:
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
 
-  electron-to-chromium@1.5.461:
-    resolution: {integrity: sha512-3WZFARz1By+/rYcqQ0OLj4UcEdhd6tz2LEcDtKBUq7ey77EeJ1OtetY/5hjSUxw7dC5r5mA7FfkhRbqO9vnTCg==}
+  electron-to-chromium@1.5.463:
+    resolution: {integrity: sha512-nVWNU6ltFjopvOdD44J4zoBkgO0M+WZiFKKFV7EjebOH9z0KNphk6bCEjplXtJofL21ARIuuwWOCsFkBVklm6w==}
 
   emittery@0.13.1:
     resolution: {integrity: sha512-DeWwawk6r5yR9jFgnDKYt4sLS0LmHJJi3ZOnb5/JdbYwj3nW+FxQnHIjhBKz8YLC7oRNPVM9NQ47I3CVx34eqQ==}
@@ -15319,8 +15319,8 @@ packages:
   hookified@2.2.0:
     resolution: {integrity: sha512-p/LgFzRN5FeoD3DLS6bkUapeye6E4SI6yJs6KetENd18S+FBthqYq2amJUWpt5z0EQwwHemidjY5OqJGEKm5uA==}
 
-  hookified@3.0.4:
-    resolution: {integrity: sha512-Uos6DSO6BKv4DeR1C22UosRpeUaaoQgEQ+eDCyoJRll2OGzGpZc708vL7orIvqrYLo6zhVV+pkwO9zKVCsq3PQ==}
+  hookified@3.1.0:
+    resolution: {integrity: sha512-G2jPVpzwIiV7pcYcg62ngNvY+y0iCkKmuJIaQpomFdvtY89UiSvWuPiNo1AalSr1t2op1cdz21ZThZc3DSbmvA==}
     engines: {node: '>=22.18.0'}
 
   hosted-git-info@2.8.9:
@@ -16359,8 +16359,8 @@ packages:
   napi-macros@2.2.2:
     resolution: {integrity: sha512-hmEVtAGYzVQpCKdbQea4skABsdXW4RUh5t5mJ2zzqowJS2OyXZTU1KhDVFhx+NlWZ4ap9mqR9TcDO3LTTttd+g==}
 
-  napi-postinstall@0.3.5:
-    resolution: {integrity: sha512-NFMjXXkyodBJnRrM0A6qxFO1OLUbrYLDhP1ZLetlXnyx41gKOAmVyROibq85j7I8dda4aZMs9L7kmRvvjNf7Cg==}
+  napi-postinstall@0.3.7:
+    resolution: {integrity: sha512-jyU4cU4kVAmy/3qjP+DcoQTNXfINHc+dFw54gGqWC8nu0mpV0kOnk7kff+J+Q18SbX0k3Np8Rm7yFjd3phatNQ==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
     hasBin: true
 
@@ -16516,6 +16516,17 @@ packages:
           targets:
             - cpu: x64
               os: win32
+        - resolution:
+            archive: tarball
+            bin:
+              node: bin/node
+            integrity: sha256-w2lFUfbLiI/gvvtMsuE//kWwuyUo7BQefDopp9eXTRM=
+            type: binary
+            url: https://unofficial-builds.nodejs.org/download/release/v26.12.1/node-v26.12.1-linux-arm64-musl.tar.gz
+          targets:
+            - cpu: arm64
+              os: linux
+              libc: musl
         - resolution:
             archive: tarball
             bin:
@@ -16933,8 +16944,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  pnpm@11.28.7:
-    resolution: {integrity: sha512-IWGjCi3GSwwPCXhklvvOXwYb6WuP8R8LyY5rxnXgB0zrIluRl6J48vFx5sn7lxvR34ky5bwxBTuszdUrFaGuJg==}
+  pnpm@11.28.8:
+    resolution: {integrity: sha512-9piKMgRrmj9419fuB0eSa76QX/nf9zvxmruHvX0ZBqKskNk/c74ytfnhTCiZVpvLDJxeyKGeCD9dcburbdnguA==}
     engines: {node: '>=22.13'}
     hasBin: true
 
@@ -18050,8 +18061,8 @@ packages:
   vfile@6.0.3:
     resolution: {integrity: sha512-KzIbH/9tXat2u30jf+smMwFCsno4wHVdNmzFyL+T/L3UGqqk6JKfVqOFOZEpZSHADH1k40ab6NUIXZq422ov3Q==}
 
-  vscode-languageserver-textdocument@1.0.15:
-    resolution: {integrity: sha512-Gsfr9S8LU3S6885cS+NaleasJ0n3V5y/SOTqHCifQiXWFw3G9w9/YItDfwHrlCz+dSZWWZ8ilYVMcJe7Sz7Sxw==}
+  vscode-languageserver-textdocument@1.0.16:
+    resolution: {integrity: sha512-qeNEuOi9a3qkqRf7Gfez2WL2VwlBTLCNekHBGO9kxPVUp9XuY15yfTJ9jwvOwKI0I2MhUUfZq95NSp+LK1CLQg==}
 
   vscode-uri@3.2.0:
     resolution: {integrity: sha512-m2gXo3bn0G1kT9InzMf07fTbqMbGtyckj3bH5ktLO+1Ssv+yiATZ4dhwaQv9UZWxJh6E9IFGnQyjgWVDWVBDrg==}
@@ -18607,7 +18618,7 @@ snapshots:
       '@cspell/dict-aws': 4.0.17
       '@cspell/dict-bash': 4.2.3
       '@cspell/dict-companies': 3.2.13
-      '@cspell/dict-cpp': 7.1.3
+      '@cspell/dict-cpp': 7.2.0
       '@cspell/dict-cryptocurrencies': 5.0.5
       '@cspell/dict-csharp': 4.0.8
       '@cspell/dict-css': 4.1.2
@@ -18618,8 +18629,8 @@ snapshots:
       '@cspell/dict-dotnet': 5.0.15
       '@cspell/dict-elixir': 4.0.8
       '@cspell/dict-en-common-misspellings': 2.2.5
-      '@cspell/dict-en-gb-mit': 3.1.30
-      '@cspell/dict-en_us': 4.4.41
+      '@cspell/dict-en-gb-mit': 3.1.32
+      '@cspell/dict-en_us': 4.4.43
       '@cspell/dict-filetypes': 3.0.18
       '@cspell/dict-flutter': 1.1.1
       '@cspell/dict-fonts': 4.0.6
@@ -18643,7 +18654,7 @@ snapshots:
       '@cspell/dict-markdown': 2.0.18(@cspell/dict-css@4.1.2)(@cspell/dict-html-symbol-entities@4.0.5)(@cspell/dict-html@4.0.16)(@cspell/dict-typescript@3.2.3)
       '@cspell/dict-monkeyc': 1.1.2
       '@cspell/dict-node': 5.0.9
-      '@cspell/dict-npm': 5.2.54
+      '@cspell/dict-npm': 5.2.55
       '@cspell/dict-php': 4.1.3
       '@cspell/dict-powershell': 5.0.17
       '@cspell/dict-public-licenses': 2.0.17
@@ -18694,7 +18705,7 @@ snapshots:
 
   '@cspell/dict-companies@3.2.13': {}
 
-  '@cspell/dict-cpp@7.1.3': {}
+  '@cspell/dict-cpp@7.2.0': {}
 
   '@cspell/dict-cryptocurrencies@5.0.5': {}
 
@@ -18716,9 +18727,9 @@ snapshots:
 
   '@cspell/dict-en-common-misspellings@2.2.5': {}
 
-  '@cspell/dict-en-gb-mit@3.1.30': {}
+  '@cspell/dict-en-gb-mit@3.1.32': {}
 
-  '@cspell/dict-en_us@4.4.41': {}
+  '@cspell/dict-en_us@4.4.43': {}
 
   '@cspell/dict-filetypes@3.0.18': {}
 
@@ -18771,7 +18782,7 @@ snapshots:
 
   '@cspell/dict-node@5.0.9': {}
 
-  '@cspell/dict-npm@5.2.54': {}
+  '@cspell/dict-npm@5.2.55': {}
 
   '@cspell/dict-php@4.1.3': {}
 
@@ -19887,7 +19898,7 @@ snapshots:
     dependencies:
       command-exists: 1.2.9
       cross-spawn: 7.0.6
-      pnpm: 11.28.7
+      pnpm: 11.28.8
 
   '@pnpm/fetch@1001.0.0(@pnpm/logger@1001.0.1)(supports-color@10.2.2)':
     dependencies:
@@ -20953,13 +20964,13 @@ snapshots:
 
   '@types/lodash.kebabcase@4.1.9':
     dependencies:
-      '@types/lodash': 4.17.26
+      '@types/lodash': 4.17.27
 
   '@types/lodash.throttle@4.1.9':
     dependencies:
-      '@types/lodash': 4.17.26
+      '@types/lodash': 4.17.27
 
-  '@types/lodash@4.17.26': {}
+  '@types/lodash@4.17.27': {}
 
   '@types/mdast@4.0.4':
     dependencies:
@@ -21461,7 +21472,7 @@ snapshots:
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
-  amaro@1.2.1: {}
+  amaro@1.2.2: {}
 
   ansi-align@3.0.1:
     dependencies:
@@ -21700,8 +21711,8 @@ snapshots:
   browserslist@4.29.4:
     dependencies:
       baseline-browser-mapping: 2.11.30
-      caniuse-lite: 1.0.30001817
-      electron-to-chromium: 1.5.461
+      caniuse-lite: 1.0.30001818
+      electron-to-chromium: 1.5.463
       node-releases: 2.0.59
       update-browserslist-db: 1.3.4(browserslist@4.29.4)
 
@@ -21844,7 +21855,7 @@ snapshots:
     dependencies:
       path-temp: 3.0.0
 
-  caniuse-lite@1.0.30001817: {}
+  caniuse-lite@1.0.30001818: {}
 
   chalk-template@1.1.3:
     dependencies:
@@ -22106,7 +22117,7 @@ snapshots:
       gensequence: 8.0.8
       import-fresh: 3.3.1
       resolve-from: 5.0.0
-      vscode-languageserver-textdocument: 1.0.15
+      vscode-languageserver-textdocument: 1.0.16
       vscode-uri: 3.2.0
       xdg-basedir: 5.1.0
 
@@ -22278,7 +22289,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  electron-to-chromium@1.5.461: {}
+  electron-to-chromium@1.5.463: {}
 
   emittery@0.13.1: {}
 
@@ -23050,7 +23061,7 @@ snapshots:
 
   hookified@2.2.0: {}
 
-  hookified@3.0.4: {}
+  hookified@3.1.0: {}
 
   hosted-git-info@2.8.9: {}
 
@@ -23854,7 +23865,7 @@ snapshots:
 
   keyv@6.1.0:
     dependencies:
-      hookified: 3.0.4
+      hookified: 3.1.0
 
   kind-of@6.0.3: {}
 
@@ -24421,7 +24432,7 @@ snapshots:
   napi-macros@2.2.2:
     optional: true
 
-  napi-postinstall@0.3.5: {}
+  napi-postinstall@0.3.7: {}
 
   natural-compare@1.4.0: {}
 
@@ -24861,7 +24872,7 @@ snapshots:
 
   playwright-core@1.64.1: {}
 
-  pnpm@11.28.7: {}
+  pnpm@11.28.8: {}
 
   powershell-utils@0.2.1: {}
 
@@ -25908,7 +25919,7 @@ snapshots:
 
   unrs-resolver@1.12.2(patch_hash=9e44fe60fe5cd3ec628b4745dca0de2208757084e03808abb85a391117419bee):
     dependencies:
-      napi-postinstall: 0.3.5
+      napi-postinstall: 0.3.7
     optionalDependencies:
       '@unrs/resolver-binding-android-arm-eabi': 1.12.2
       '@unrs/resolver-binding-android-arm64': 1.12.2
@@ -26006,7 +26017,7 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vscode-languageserver-textdocument@1.0.15: {}
+  vscode-languageserver-textdocument@1.0.16: {}
 
   vscode-uri@3.2.0: {}
 
