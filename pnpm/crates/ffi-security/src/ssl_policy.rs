@@ -10,7 +10,7 @@ use security_framework_sys::{base::SecPolicyRef, policy::SecPolicyCreateSSL};
 /// `SecPolicy::create_ssl` cannot report that refusal: it hands the C
 /// function's return value to `core-foundation`'s create-rule wrapper,
 /// which asserts the reference is non-NULL and panics otherwise. A
-/// framework that will not hand out a policy is one of the shapes a
+/// framework that hands out no policy is one of the shapes a
 /// restricted `trustd` takes, so the C function is called directly and the
 /// NULL is read as "no policy".
 ///

@@ -69,8 +69,8 @@ pub fn file_information(path: &Path) -> io::Result<FileInformation> {
 /// modification times but not this one.
 ///
 /// `path` is opened for its attributes alone, which is the least access
-/// the query needs and the only one a file open for writing elsewhere will
-/// still grant.
+/// the query needs and the only one a file open for writing elsewhere
+/// still grants.
 pub fn change_time_ticks(path: &Path) -> io::Result<i64> {
     let file = File::options()
         .access_mode(FILE_READ_ATTRIBUTES)

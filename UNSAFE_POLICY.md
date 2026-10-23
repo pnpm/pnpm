@@ -23,9 +23,9 @@ them. No error translation, no ownership transfer, no convenience wrapper.
 An `unsafe extern` block may be written **only** in a `-sys` crate. The
 external `-sys` crates the workspace already depends on count as this tier:
 `libc`, `windows-sys`, `libsqlite3-sys` (reached through `rusqlite::ffi`),
-and `security-framework-sys`. pnpm's own foreign ABI — the WebContainer
-supervisor's imports — lives in
-[`pnpm-webcontainer-sys`](./pnpm/crates/webcontainer-sys).
+and `security-framework-sys`. pnpm's own `-sys` crates count too.
+[`pnpm/tasks/unsafe-audit`](./pnpm/tasks/unsafe-audit) names each crate in
+this tier, with what it declares.
 
 A `-sys` crate is not safe to call and does not pretend to be. It opts out
 of the workspace's `unsafe_code` lint, because declaring the ABI is its
@@ -56,8 +56,8 @@ It is named `pnpm-ffi-<surface>`, and it must:
 
 ### Test-support crates: the harnesses tests run under
 
-A fixture that has to reach a foreign surface to set up a scenario, a
-pseudo-terminal or a forked child's resource limits for example, is
+A fixture may have to reach a foreign surface to set up a scenario, a
+pseudo-terminal or a forked child's resource limits for example. It is
 abstracting that surface for the same reason a `pnpm-ffi-*` crate is, and
 under the same rules. It lives in
 [`pnpm-testing-utils`](./pnpm/crates/testing-utils) rather than in the test
@@ -79,13 +79,14 @@ script.
 The level is `warn`, which is the level the workspace's other lints use and
 which `cargo clippy -- --deny warnings` makes an error in CI. `forbid` is
 the stronger attribute, but Cargo refuses a member that inherits the lint
-table and overrides one entry of it, so each crate that must hold `unsafe`
-would have to restate the whole table and keep it in step with the root. A
-`warn` the exempt crates opt out of at their own root keeps one copy of it.
+table and overrides one entry of it. Each crate that must hold `unsafe`
+would therefore have to restate the whole table and keep it in step with
+the root. A `warn` the exempt crates opt out of at their own root keeps one
+copy of it.
 
-The opt-out is not a loophole, because the audit reads the source rather
-than the lint level: an `unsafe` behind a hand-written `allow` is a
-finding, and in a crate the allowlist does not name, so is the `allow`.
+The opt-out is not a loophole, because the audit reads the source and not
+the lint level. An `unsafe` behind a hand-written `allow` is a finding. In
+a crate the allowlist does not name, so is the `allow` itself.
 
 ## What `unsafe` is permitted at all
 
@@ -96,10 +97,10 @@ does not go in.
    only where the safe alternative is absent or wrong. "Absent" means the
    standard library and the workspace's existing dependencies do not offer
    the operation on the target in question. "Wrong" means they offer it and
-   it misbehaves there, which is a claim that needs the target named and
-   the misbehaviour described: see
-   [`pnpm-ffi-fs`](./pnpm/crates/ffi-fs)'s Apple `fsync` fallback and its
-   Android `flock` path for the shape of that argument.
+   it misbehaves there. That claim needs the target named and the
+   misbehaviour described. [`pnpm-ffi-fs`](./pnpm/crates/ffi-fs)'s Apple
+   `fsync` fallback and its Android `flock` path show the shape of that
+   argument.
 
 2. **A raw-pointer data structure that a safe one cannot replace.** A
    signal handler may not allocate, lock, or unwind, so the registry a
@@ -109,23 +110,24 @@ does not go in.
    handlers that walk it hold no `unsafe` of their own.
 
    Run Miri over a change to one of these. Stacked Borrows rejects
-   aliasing no ordinary test can see: deriving the pointer a structure
+   aliasing no ordinary test can see. Deriving the pointer a structure
    stores from a `&mut` is undefined once anything writes through a shared
-   reference to the same allocation, and that is easy to write and
-   impossible to observe otherwise. The crate's own module docs give the
+   reference to the same allocation. That is easy to write and impossible
+   to observe without Miri. The crate's own module docs give the
    invocation, including the flag its deliberate leaks need.
 
 3. **A mutation of process-global state the standard library marks
    unsafe.** `std::env::set_var` and `std::env::remove_var` are unsound
    when another thread reads the environment concurrently, and the reader
    can be inside a library the caller never calls directly. They are
-   permitted only behind a value that carries the exclusion:
-   `SingleThreaded` in [`pnpm-ffi-process`](./pnpm/crates/ffi-process),
-   claimed once at the top of `main` before anything spawns, and
-   `EnvGuard` in [`pnpm-testing-utils`](./pnpm/crates/testing-utils),
-   which holds a process-wide lock for a test's lifetime. A function that
-   takes one of those cannot be called without the proof; no new caller is
-   added without it.
+   permitted only behind a value that carries the exclusion.
+   `SingleThreaded` in [`pnpm-ffi-process`](./pnpm/crates/ffi-process)
+   carries it, claimed once at the top of `main` before anything spawns.
+   So does `EnvGuard` in
+   [`pnpm-testing-utils`](./pnpm/crates/testing-utils), which holds a
+   process-wide lock for a test's lifetime. A function that takes one of
+   those cannot be called without the proof; no new caller is added
+   without it.
 
 ## What is never permitted
 

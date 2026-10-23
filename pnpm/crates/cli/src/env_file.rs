@@ -24,8 +24,8 @@
 //! [`strip_flags`] removes its tokens from the argv a dispatched pnpm
 //! receives (an older pnpm would reject the unknown flag), and the loaded
 //! variables travel by environment inheritance instead. Tokens past the
-//! passthrough point — script arguments after `--`, or after a `run`/`exec`
-//! script name — are left alone (see `crate::parse_boundary`).
+//! passthrough point are left alone (see `crate::parse_boundary`). Those are
+//! the script arguments after `--`, or after a `run`/`exec` script name.
 
 use crate::{
     flag_relocation::ArgTable,

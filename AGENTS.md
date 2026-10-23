@@ -25,9 +25,9 @@ discharge, and the workspace `unsafe_code` lint every other crate takes.
 names what to do about each departure.
 
 Read it before adding a foreign call. The short version: a crate either
-abstracts a foreign or raw-pointer API, or holds no `unsafe` at all, and
-adding a call means adding it to the `pnpm-ffi-*` crate that owns the
-surface rather than to the crate that needs the result.
+abstracts a foreign or raw-pointer API, or holds no `unsafe` at all. A new
+call goes into the `pnpm-ffi-*` crate that owns the surface, not into the
+crate that needs the result.
 
 ## pnpm v12 and v11 development policy
 

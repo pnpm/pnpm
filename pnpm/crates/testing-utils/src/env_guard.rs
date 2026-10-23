@@ -101,8 +101,8 @@ impl EnvGuard {
     pub fn remove(&self, name: &'static str) {
         // SAFETY: as in `set`, the guard holds `env_mutex`, so no other
         // `EnvGuard`-using test in this process is running concurrently,
-        // and the variable was named at `snapshot` time so `Drop` will
-        // restore it.
+        // and the variable was named at `snapshot` time so `Drop`
+        // restores it.
         unsafe { env::remove_var(name) };
     }
 

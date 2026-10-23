@@ -49,7 +49,7 @@ impl SingleThreaded {
     }
 
     /// Set `name` to `value` in the process environment, where every later
-    /// read of it will see the new value, this process's children included.
+    /// read of it sees the new value, this process's children included.
     pub fn set_var(&self, name: &str, value: &str) {
         // SAFETY: the race `setenv` has is a concurrent read from another
         // thread. One witness exists and it is not `Sync`, so the thread
