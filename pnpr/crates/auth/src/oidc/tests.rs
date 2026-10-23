@@ -151,9 +151,13 @@ struct MockProvider {
     challenge: Mutex<Option<String>>,
     key_requests: Mutex<usize>,
     token_requests: Mutex<usize>,
+    advertised: Advertised,
+    discovery: DiscoveryGate,
+}
+/// What the mock's discovery document advertises.
+struct Advertised {
     auth_method: Mutex<String>,
     workload_only: std::sync::atomic::AtomicBool,
-    discovery: DiscoveryGate,
 }
 #[derive(Default)]
 struct DiscoveryGate {
@@ -171,18 +175,20 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
         challenge: Mutex::new(None),
         key_requests: Mutex::new(0),
         token_requests: Mutex::new(0),
-        auth_method: Mutex::new("client_secret_basic".to_string()),
-        workload_only: std::sync::atomic::AtomicBool::new(false),
+        advertised: Advertised {
+            auth_method: Mutex::new("client_secret_basic".to_string()),
+            workload_only: std::sync::atomic::AtomicBool::new(false),
+        },
         discovery: DiscoveryGate::default(),
     });
     let router = Router::new()
         .route("/.well-known/openid-configuration", get(async |State(state): State<Arc<MockProvider>>| {
                 state.discovery.wait().await;
-                if state.workload_only.load(std::sync::atomic::Ordering::Relaxed) {
+                if state.advertised.workload_only.load(std::sync::atomic::Ordering::Relaxed) {
                     return Json(workload_only_metadata(&state.issuer));
                 }
                 let mut document = metadata(&state.issuer);
-                document["token_endpoint_auth_methods_supported"] = json!([*state.auth_method.lock().unwrap()]);
+                document["token_endpoint_auth_methods_supported"] = json!([*state.advertised.auth_method.lock().unwrap()]);
                 Json(document)
             }))
         .route("/jwks", get(async |State(state): State<Arc<MockProvider>>| {
@@ -195,7 +201,7 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
                 return Json(json!({"error": "invalid_grant"}));
             }
             assert_eq!(form.get("grant_type").unwrap(), "authorization_code");
-                if *state.auth_method.lock().unwrap() == "client_secret_post" {
+                if *state.advertised.auth_method.lock().unwrap() == "client_secret_post" {
                     assert_eq!(form.get("client_secret").unwrap(), "secret");
                     assert_eq!(form.get("client_id").unwrap(), "pnpr-ci");
                 }
@@ -361,7 +367,7 @@ fn sessions_expire_and_configuration_fails_closed() {
 #[tokio::test]
 async fn workloads_verify_against_issuers_without_an_authorization_endpoint() {
     let (provider, task) = mock_provider().await;
-    provider.workload_only.store(true, std::sync::atomic::Ordering::Relaxed);
+    provider.advertised.workload_only.store(true, std::sync::atomic::Ordering::Relaxed);
     let state = OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap();
     let token = sign(&payload(&provider.issuer), &provider.key);
     let workload = state
@@ -466,7 +472,7 @@ async fn selects_client_secret_post_from_discovery() {
         groups: None,
     });
     let state = OidcState::new(&[config], "https://registry.example").unwrap();
-    *provider.auth_method.lock().unwrap() = "client_secret_post".to_string();
+    *provider.advertised.auth_method.lock().unwrap() = "client_secret_post".to_string();
     let start = state.start("example", LoginReturn::Token).await.unwrap();
     let query: HashMap<_, _> = Url::parse(&start.url)
         .unwrap()
