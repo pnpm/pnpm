@@ -74,19 +74,8 @@ Every other crate holds no `unsafe`, and carries no attribute saying so.
 every member takes that table with a `[lints]` table of its own holding
 `workspace = true`. The one entry reaches each of a member's compilation
 units: the library, every binary, every integration test, and the build
-script.
-
-The level is `warn`, which is the level the workspace's other lints use and
-which `cargo clippy -- --deny warnings` makes an error in CI. `forbid` is
-the stronger attribute, but Cargo refuses a member that inherits the lint
-table and overrides one entry of it. Each crate that must hold `unsafe`
-would therefore have to restate the whole table and keep it in step with
-the root. A `warn` the exempt crates opt out of at their own root keeps one
-copy of it.
-
-The opt-out is not a loophole, because the audit reads the source and not
-the lint level. An `unsafe` behind a hand-written `allow` is a finding. In
-a crate the allowlist does not name, so is the `allow` itself.
+script. The level is `warn`, which `cargo clippy -- --deny warnings` makes
+an error in CI.
 
 ## What `unsafe` is permitted at all
 
