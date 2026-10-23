@@ -103,6 +103,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'versioning'
 | 'registriesByScope'
 | 'registriesByPrefix'
+| 'workspaceRegistryPrefixes'
 | 'configByUri'
 | 'fetchRetries'
 | 'fetchRetryFactor'

@@ -1834,7 +1834,11 @@ describe('pack: workspace dependencies on packages that publish through a named-
     return workspaceDir
   }
 
-  async function packMain (workspaceDir: string, registriesByPrefix?: Record<string, string>): Promise<ProjectManifest> {
+  async function packMain (
+    workspaceDir: string,
+    registriesByPrefix?: Record<string, string>,
+    workspaceRegistryPrefixes = Object.keys(registriesByPrefix ?? {})
+  ): Promise<ProjectManifest> {
     await pack.handler({
       ...DEFAULT_OPTS,
       argv: { original: [] },
@@ -1843,6 +1847,7 @@ describe('pack: workspace dependencies on packages that publish through a named-
       extraBinPaths: [],
       registriesByScope: { default: 'https://registry.npmjs.org/', '@work': WORK_REGISTRY },
       registriesByPrefix,
+      workspaceRegistryPrefixes,
       catalogs: { default: { 'pkg-e': 'workspace:5.0.0' } },
       packDestination: workspaceDir,
     })
@@ -1865,8 +1870,11 @@ describe('pack: workspace dependencies on packages that publish through a named-
     expect(manifest.peerDependencies).toStrictEqual({ '@work/a': '^1.0.0' })
   })
 
-  test('stays plain when no prefix is declared for the registry', async () => {
-    const manifest = await packMain(prepareWorkspace())
+  test.each([
+    ['no prefix is declared for the registry', undefined, undefined],
+    ['only the global config declares the prefix', { work: WORK_REGISTRY }, []],
+  ])('stays plain when %s', async (_, registriesByPrefix, workspaceRegistryPrefixes) => {
+    const manifest = await packMain(prepareWorkspace(), registriesByPrefix, workspaceRegistryPrefixes)
 
     expect(manifest.dependencies).toStrictEqual({
       '@work/a': '1.0.0',

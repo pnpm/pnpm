@@ -179,6 +179,16 @@ pub fn routed_scopes(entries: &IndexMap<String, RegistryEntry>) -> BTreeSet<Stri
         .collect()
 }
 
+/// The prefixes `entries` declares.
+pub fn declared_prefixes(entries: &IndexMap<String, RegistryEntry>) -> impl Iterator<Item = &str> {
+    entries
+        .values()
+        .filter_map(|entry| match entry {
+            RegistryEntry::Declaration(declaration) => declaration.prefix.as_deref(),
+            RegistryEntry::ScopeRoute(_) => None,
+        })
+}
+
 /// Reject a `registries` map pnpm would otherwise read as something other
 /// than what it says.
 pub fn validate(entries: &IndexMap<String, RegistryEntry>) -> Result<(), LoadWorkspaceYamlError> {

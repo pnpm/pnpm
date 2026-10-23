@@ -143,7 +143,15 @@ async function applyProjectWorkspaceManifest (
     workspaceDir,
     workspaceManifest,
   })
+  pnpmConfig.workspaceRegistryPrefixes = getPrefixesDeclaredByWorkspaceManifest(workspaceManifest)
   return getRegistriesDeclaredByWorkspaceManifest(state, workspaceManifest)
+}
+
+/** The prefixes `registries` entries and the deprecated `namedRegistries` declare. */
+function getPrefixesDeclaredByWorkspaceManifest (workspaceManifest: WorkspaceManifest): string[] {
+  const declared = Object.values(workspaceManifest.registries ?? {})
+    .flatMap((entry) => typeof entry === 'object' && entry.prefix != null ? [entry.prefix] : [])
+  return [...declared, ...Object.keys(workspaceManifest.namedRegistries ?? {})]
 }
 
 /** For global installs, read settings from pnpm-workspace.yaml in the global package directory. */
