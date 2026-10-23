@@ -23,7 +23,7 @@ const MIN_CLAIMS_BEFORE_PRUNE: usize = 1024;
 /// the request path, at most once per [`LAST_USED_GRANULARITY_SECS`] per
 /// token. A request never waits for it or learns that it failed: a failed
 /// write keeps its claim, so the token's next write is due an interval
-/// later, and the stored time is at most one interval stale meanwhile.
+/// later.
 pub struct LastUsedWriter {
     tokens: Arc<dyn TokenBackend>,
     claims: Mutex<Claims>,
