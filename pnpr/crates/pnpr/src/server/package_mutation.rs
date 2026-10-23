@@ -189,6 +189,9 @@ async fn rewrite_packument(
                 rollback_hosted_packument(storage, name, &bytes, &hosted_packument.bytes).await;
                 return err.into_response();
             }
+            if let Err(err) = remove_unpublished_blobs(storage, name, &removed).await {
+                return err.into_response();
+            }
             log_packument_update(identity, name, source);
             ok_created()
         }
@@ -246,6 +249,21 @@ async fn record_removed_versions_in_tombstone(
         tombstone
     })
     .await?;
+    Ok(())
+}
+
+/// A rewrite that drops versions deletes their tarballs too: a client that
+/// read the packument from a tar registry has no `dist.tarball` to send the
+/// follow-up tarball DELETE for.
+async fn remove_unpublished_blobs(
+    storage: &pnpr_storage::Storage,
+    name: &CanonicalPackageName,
+    removed_versions: &[String],
+) -> Result<(), RegistryError> {
+    for version in removed_versions {
+        storage.remove_blob(name, &name.tarball_name_for_version(version)).await?;
+        storage.remove_blob(name, &name.sigstore_name_for_version(version)).await?;
+    }
     Ok(())
 }
 
