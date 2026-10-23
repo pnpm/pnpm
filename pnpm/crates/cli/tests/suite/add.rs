@@ -718,6 +718,69 @@ fn add_moves_dependency_to_new_group_and_keeps_other_groups() {
     drop((root, npmrc_info)); // cleanup
 }
 
+#[test]
+fn add_accepts_lowercase_save_aliases() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+
+    let run_add = |args: &[&str]| {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_arg("add")
+            .with_args(args)
+            .assert()
+            .success();
+    };
+    pacquet
+        .with_args(["add", "-d", "-e", "@pnpm.e2e/foo"])
+        .assert()
+        .success();
+    run_add(&["-o", "@pnpm.e2e/qar@^100.0.0"]);
+
+    let group_specs = |group: DependencyGroup| -> Vec<(String, String)> {
+        let manifest =
+            PackageManifest::from_path(workspace.join("package.json")).expect("read package.json");
+        manifest
+            .dependencies([group])
+            .map(|(name, spec)| (name.to_string(), spec.to_string()))
+            .collect()
+    };
+    let group_members = |group: DependencyGroup| -> Vec<String> {
+        group_specs(group)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect()
+    };
+    let dev = group_specs(DependencyGroup::Dev);
+    dbg!(&dev);
+    assert!(
+        matches!(dev.as_slice(), [(name, spec)] if name == "@pnpm.e2e/foo"
+            && spec.chars().all(|char| char.is_ascii_digit() || char == '.')),
+        "-d saves to devDependencies and -e saves an exact version",
+    );
+    assert_eq!(group_members(DependencyGroup::Optional), ["@pnpm.e2e/qar"]);
+
+    run_add(&["-p", "@pnpm.e2e/foo@^100.0.0"]);
+    assert_eq!(group_members(DependencyGroup::Prod), ["@pnpm.e2e/foo"]);
+    assert_eq!(group_members(DependencyGroup::Dev), Vec::<String>::new());
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["install", "-d", "@pnpm.e2e/bar@^100.0.0"])
+        .assert()
+        .success();
+    assert_eq!(group_members(DependencyGroup::Dev), ["@pnpm.e2e/bar"]);
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// `add` into one dependency group must leave the other groups' entries in
 /// the wanted lockfile and `node_modules`: a prod `add` must not erase the
 /// project's devDependencies from either.

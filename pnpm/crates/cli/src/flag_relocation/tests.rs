@@ -111,25 +111,68 @@ fn short_subcommand_flag_moves() {
 #[test]
 fn mixed_short_cluster_moves_with_its_value() {
     assert_eq!(
-        relocate(&["pnpm", "-ro", "dist", "pack-app"]),
-        ["pnpm", "pack-app", "-ro", "dist"],
-        "the global -r rides along so clap sees pack-app's -o after the subcommand",
+        relocate(&["pnpm", "-rt", "linux-x64", "pack-app"]),
+        ["pnpm", "pack-app", "-rt", "linux-x64"],
+        "the global -r rides along so clap sees pack-app's -t after the subcommand",
     );
     assert_eq!(
-        relocate(&["pnpm", "-rodist", "pack-app"]),
-        ["pnpm", "pack-app", "-rodist"],
+        relocate(&["pnpm", "-rtlinux-x64", "pack-app"]),
+        ["pnpm", "pack-app", "-rtlinux-x64"],
         "an attached value keeps the cluster a single token",
     );
 }
 
 #[test]
 fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
-    let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
+    let args = parse(&["pnpm", "-rt", "linux-x64", "pack-app"]);
     assert!(args.workspace.recursive);
     let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
         panic!("expected pack-app");
     };
-    assert_eq!(pack_app.output_dir.as_deref(), Some("dist"));
+    assert_eq!(pack_app.target, ["linux-x64"]);
+}
+
+#[test]
+fn short_with_conflicting_arity_moves_with_the_value_its_command_reads() {
+    assert_eq!(
+        relocate(&["pnpm", "-o", "dist", "pack-app"]),
+        ["pnpm", "pack-app", "-o", "dist"],
+        "`add -o` takes no value, but `pack-app -o` does",
+    );
+    let crate::cli_args::cli_command::CliCommand::Patch(patch) =
+        parse(&["pnpm", "-d", "dir", "patch", "foo"]).command
+    else {
+        panic!("expected patch");
+    };
+    assert_eq!(patch.edit_dir.as_deref(), Some(std::path::Path::new("dir")));
+}
+
+#[test]
+fn short_with_conflicting_arity_takes_a_command_name_as_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-d", "edit", "patch", "foo"]),
+        ["pnpm", "patch", "-d", "edit", "foo"],
+        "`edit` does not declare -d, so `patch -d` reads `edit` as its value",
+    );
+    assert_eq!(
+        relocate(&["pnpm", "-d", "add", "foo"]),
+        ["pnpm", "add", "-d", "foo"],
+        "`add` declares -d, so the boolean reading stands",
+    );
+}
+
+#[test]
+fn moved_option_never_takes_the_subcommand_as_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-o", "pack-app", "target"]),
+        ["pnpm", "pack-app", "-o", "target"],
+    );
+}
+
+#[test]
+fn short_with_conflicting_arity_before_a_script_stays_put() {
+    let argv = ["pnpm", "-o", "dist", "build"];
+    assert_eq!(relocate(&argv), argv);
 }
 
 #[test]
