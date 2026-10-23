@@ -42,8 +42,9 @@ for bin in pnpm pn; do
   }
 done
 for alias in pnpx pnx; do
-  "$alias" --help | grep -q -e "pnpm dlx" -e "$alias" || {
-    echo "$alias does not run pnpm dlx" >&2
-    exit 1
-  }
+  help="$("$alias" --help)"
+  case "$help" in
+    *"pnpm dlx"*) ;;
+    *) echo "$alias does not run pnpm dlx" >&2; exit 1 ;;
+  esac
 done
