@@ -16,9 +16,9 @@ impl StoreDir {
     /// A symbolic link is not a directory here, so it is kept. So is a
     /// directory that is or holds this store or one of `protected_dirs`,
     /// for a `cacheDir` that encloses them. `cache_dir` is held open and
-    /// each layout directory is opened and emptied through it, so a link
-    /// put in either's place meanwhile does not redirect the removal (see
-    /// [`OpenDir`]).
+    /// each layout directory is opened and emptied through it, so on Unix a
+    /// link put in either's place meanwhile does not redirect the removal
+    /// (see [`OpenDir`]).
     ///
     /// The caller holds the store's prune lock, which keeps out the installs
     /// that read the cache.
