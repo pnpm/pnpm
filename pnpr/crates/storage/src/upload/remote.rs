@@ -423,14 +423,13 @@ impl RemoteChunk {
 }
 
 /// Whether two observations name the same object version. The version id
-/// counts only when both sides carry one: Cloudflare R2 returns
-/// `x-amz-version-id` on PUT but not on GET.
+/// decides when both sides carry one, the `ETag` otherwise: Cloudflare R2
+/// returns `x-amz-version-id` on PUT but not on GET.
 fn same_object_version(left: &UpdateVersion, right: &UpdateVersion) -> bool {
-    left.e_tag == right.e_tag
-        && match (&left.version, &right.version) {
-            (Some(left), Some(right)) => left == right,
-            _ => true,
-        }
+    match (&left.version, &right.version) {
+        (Some(left), Some(right)) => left == right,
+        _ => left.e_tag == right.e_tag,
+    }
 }
 
 #[cfg(test)]

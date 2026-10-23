@@ -1,8 +1,9 @@
-use super::{MAX_CHUNKS, RemoteUploadStore, UploadRecord, VersionedRecord};
+use super::{MAX_CHUNKS, RemoteUploadStore, UploadRecord, VersionedRecord, same_object_version};
 use futures_util::stream::BoxStream;
 use object_store::{
     CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMode, PutMultipartOptions, PutOptions, PutPayload, PutResult, memory::InMemory, path::Path,
+    PutMode, PutMultipartOptions, PutOptions, PutPayload, PutResult, UpdateVersion,
+    memory::InMemory, path::Path,
 };
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::sync::Arc;
@@ -218,4 +219,20 @@ async fn an_empty_chunk_is_accepted_when_reads_omit_the_version_id() {
             .unwrap(),
         5,
     );
+}
+
+fn observed(e_tag: Option<&str>, version: Option<&str>) -> UpdateVersion {
+    UpdateVersion { e_tag: e_tag.map(Into::into), version: version.map(Into::into) }
+}
+
+#[test]
+fn version_ids_decide_when_both_observations_carry_one() {
+    assert!(same_object_version(&observed(Some("a"), Some("1")), &observed(Some("b"), Some("1"))));
+    assert!(!same_object_version(&observed(Some("a"), Some("1")), &observed(Some("a"), Some("2"))));
+}
+
+#[test]
+fn etags_decide_when_either_observation_lacks_a_version_id() {
+    assert!(same_object_version(&observed(Some("a"), Some("1")), &observed(Some("a"), None)));
+    assert!(!same_object_version(&observed(Some("a"), Some("1")), &observed(Some("b"), None)));
 }
