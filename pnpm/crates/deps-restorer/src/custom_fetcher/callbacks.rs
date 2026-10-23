@@ -36,6 +36,7 @@ pub(super) struct Verified {
 pub(crate) struct WalkedDirectory {
     pub(crate) directory: String,
     pub(crate) files_map: HashMap<String, PathBuf>,
+    pub(crate) manifest: Option<Value>,
     /// See [`crate::SlotImportSource::source_exists`].
     pub(crate) exists: bool,
 }
@@ -169,6 +170,7 @@ fn walk_callback_directory(
     walked.push(WalkedDirectory {
         directory: directory.to_string_lossy().into_owned(),
         files_map: output.files_map,
+        manifest: output.manifest,
         exists: output.exists,
     });
     Ok(result)

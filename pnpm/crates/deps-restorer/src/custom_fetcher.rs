@@ -42,8 +42,9 @@ pub(crate) enum CustomFetchOutcome {
 #[derive(Debug, Clone)]
 pub struct ResolvedTarballMetadata {
     pub resolution: LockfileResolution,
-    /// `None` when no archive was fetched, or when the archive ships no
-    /// readable `package.json`.
+    /// `None` when the fetch produced neither an archive nor a
+    /// `fetchers.directory` walk, or when what it produced has no readable
+    /// `package.json`.
     pub manifest: Option<Arc<Value>>,
 }
 
