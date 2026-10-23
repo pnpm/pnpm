@@ -66,7 +66,7 @@ pub fn open_directory_for_traversal(
 /// symlink at it is theirs to follow. Every step below the anchor goes
 /// through [`open_directory_for_traversal`], which refuses one.
 pub fn open_search_directory(path: &Path) -> io::Result<File> {
-    let path = entry_name(path.as_os_str())?;
+    let path = path_argument(path.as_os_str())?;
     let flags = search_only_flags() & !libc::O_NOFOLLOW;
     // SAFETY: `path` is NUL-terminated and borrowed for the whole call. The
     // flags create nothing, so `open` reads no variadic mode argument and
@@ -128,7 +128,7 @@ pub fn rename_at(parent: &File, from: &OsStr, to: &OsStr) -> io::Result<()> {
 }
 
 /// Remove the entry `name` inside `parent`. A directory at `name` is not
-/// removed: the call fails with [`io::ErrorKind::IsADirectory`].
+/// removed: the call fails with a platform-dependent error.
 pub fn unlink_at(parent: &File, name: &OsStr) -> io::Result<()> {
     let name = entry_name(name)?;
     // SAFETY: `name` is NUL-terminated and borrowed for the whole call, and
@@ -144,7 +144,7 @@ pub fn unlink_at(parent: &File, name: &OsStr) -> io::Result<()> {
 /// `target` is stored as given, so a relative one resolves against
 /// `parent` when the link is followed.
 pub fn symlink_at(target: &Path, parent: &File, name: &OsStr) -> io::Result<()> {
-    let target = entry_name(target.as_os_str())?;
+    let target = path_argument(target.as_os_str())?;
     let name = entry_name(name)?;
     // SAFETY: both strings are NUL-terminated and borrowed for the whole
     // call, and the `&File` keeps the parent descriptor open across it.
@@ -259,10 +259,28 @@ fn search_only_flags() -> libc::c_int {
     access | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC
 }
 
-/// An entry name as a C string, rejecting an interior NUL, which no
-/// filesystem can store and which would otherwise truncate the name.
+/// An entry name as a C string: one path component, which is what the
+/// handle's directory resolves.
+///
+/// A name holding a separator resolves below the directory rather than in
+/// it, `.` and `..` resolve elsewhere again, and an absolute name ignores
+/// the handle altogether. Refusing all three is what makes the module's
+/// promise hold for a name the caller did not build itself.
 fn entry_name(name: &OsStr) -> io::Result<CString> {
-    CString::new(name.as_bytes())
+    let bytes = name.as_bytes();
+    if bytes.is_empty() || bytes == b"." || bytes == b".." || bytes.contains(&b'/') {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "an entry name must be a single path component",
+        ));
+    }
+    path_argument(name)
+}
+
+/// A path as a C string, rejecting an interior NUL, which no filesystem can
+/// store and which would otherwise truncate the path.
+fn path_argument(path: &OsStr) -> io::Result<CString> {
+    CString::new(path.as_bytes())
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
 }
 

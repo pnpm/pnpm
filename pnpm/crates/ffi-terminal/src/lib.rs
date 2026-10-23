@@ -2,7 +2,7 @@
 //! makes.
 //!
 //! One of the FFI abstraction crates the
-//! [`unsafe` policy](../../../UNSAFE_POLICY.md) defines: the `unsafe` here
+//! `unsafe` policy in `UNSAFE_POLICY.md` defines: the `unsafe` here
 //! is the crate's purpose, and no caller needs any of its own. The console
 //! handles never leave the crate, because a standard handle is borrowed
 //! from the process and must not be closed by whoever asked for it.

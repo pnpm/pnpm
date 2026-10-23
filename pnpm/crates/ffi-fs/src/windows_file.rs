@@ -110,7 +110,7 @@ pub struct FileAttributes {
 /// Query `path`'s attributes without following a reparse point at `path`
 /// itself, so a symlink reports as one rather than as its target.
 pub fn file_attributes(path: &Path) -> io::Result<FileAttributes> {
-    let path = wide(path.as_os_str());
+    let path = wide(path.as_os_str())?;
     // SAFETY: `path` is a NUL-terminated UTF-16 buffer that `wide` built,
     // alive for the whole call, which reads it and retains no pointer.
     let attributes = unsafe { GetFileAttributesW(path.as_ptr()) };
@@ -133,7 +133,7 @@ pub fn file_attributes(path: &Path) -> io::Result<FileAttributes> {
 pub fn short_path(path: &Path) -> Option<PathBuf> {
     use std::os::windows::ffi::OsStringExt as _;
 
-    let path = wide(path.as_os_str());
+    let path = wide(path.as_os_str()).ok()?;
     // SAFETY: `path` is a NUL-terminated UTF-16 buffer that `wide` built,
     // alive for the whole call. A null output buffer with a zero length
     // asks only for the size the answer needs, which is the documented way
@@ -249,8 +249,8 @@ pub fn system_directory() -> Option<PathBuf> {
 /// [`std::fs::rename`] replaces the destination too but does not flush, so
 /// a crash can leave neither name pointing at the content.
 pub fn rename_over(source: &Path, destination: &Path) -> io::Result<()> {
-    let source = wide(source.as_os_str());
-    let destination = wide(destination.as_os_str());
+    let source = wide(source.as_os_str())?;
+    let destination = wide(destination.as_os_str())?;
     // SAFETY: both are NUL-terminated UTF-16 buffers that `wide` built,
     // alive for the whole call, which reads them and retains neither
     // pointer.
@@ -265,8 +265,18 @@ pub fn rename_over(source: &Path, destination: &Path) -> io::Result<()> {
 }
 
 /// A path as the NUL-terminated UTF-16 the Win32 wide entry points take.
-fn wide(path: &OsStr) -> Vec<u16> {
-    path.encode_wide()
-        .chain(std::iter::once(0))
-        .collect()
+///
+/// An interior NUL is rejected. Every entry point here stops at the first
+/// one, so a path holding one would name a different file than the caller
+/// asked for.
+fn wide(path: &OsStr) -> io::Result<Vec<u16>> {
+    let mut units: Vec<u16> = path.encode_wide().collect();
+    if units.contains(&0) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "a path cannot hold an interior NUL",
+        ));
+    }
+    units.push(0);
+    Ok(units)
 }

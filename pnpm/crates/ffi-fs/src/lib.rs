@@ -1,7 +1,7 @@
 //! Safe abstractions over the filesystem foreign calls pnpm makes.
 //!
 //! One of the FFI abstraction crates the
-//! [`unsafe` policy](../../../UNSAFE_POLICY.md) defines: the `unsafe` here
+//! `unsafe` policy in `UNSAFE_POLICY.md` defines: the `unsafe` here
 //! is the crate's purpose, and no caller needs any of its own. Every
 //! descriptor and handle a foreign call produces is adopted by a
 //! [`std::fs::File`] before it crosses back out, and every status code

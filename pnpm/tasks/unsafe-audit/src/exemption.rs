@@ -39,8 +39,7 @@ pub struct Exemption {
 ///
 /// Every other workspace member takes the workspace's `unsafe_code` lint
 /// and holds no `unsafe`. Adding to this list is a policy decision, not a
-/// convenience: read
-/// [the policy](../../../UNSAFE_POLICY.md) before you do.
+/// convenience: read `UNSAFE_POLICY.md` before you do.
 #[must_use]
 pub fn exempt() -> &'static [Exemption] {
     EXEMPT

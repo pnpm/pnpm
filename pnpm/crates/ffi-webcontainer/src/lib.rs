@@ -1,7 +1,7 @@
 //! Safe abstractions over the `WebContainer` supervisor's imports.
 //!
 //! One of the FFI abstraction crates the
-//! [`unsafe` policy](../../../UNSAFE_POLICY.md) defines: the `unsafe` here
+//! `unsafe` policy in `UNSAFE_POLICY.md` defines: the `unsafe` here
 //! is the crate's purpose, and no caller needs any of its own. The raw
 //! declarations are in [`pnpm-webcontainer-sys`](../webcontainer-sys).
 //!

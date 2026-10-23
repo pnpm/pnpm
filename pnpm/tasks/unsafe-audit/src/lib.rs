@@ -1,4 +1,4 @@
-//! Holds the workspace to the [`unsafe` policy](../../../UNSAFE_POLICY.md).
+//! Holds the workspace to the `unsafe` policy in `UNSAFE_POLICY.md`.
 //!
 //! The policy's rule is that a crate either abstracts a foreign or
 //! raw-pointer API or holds no `unsafe` at all. The workspace manifest

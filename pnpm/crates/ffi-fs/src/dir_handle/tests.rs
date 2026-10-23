@@ -165,3 +165,46 @@ fn a_name_holding_a_nul_is_rejected() {
     let error = open_file_at(&root, OsStr::new("a\0b")).expect_err("the name is rejected");
     assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{error:?}");
 }
+
+/// The module resolves every entry name in the handle's directory. A name
+/// that is not one component would resolve elsewhere, so it is rejected
+/// rather than passed to the `*at` call that would honour it.
+#[test]
+fn a_name_that_is_not_one_component_is_rejected() {
+    let fixture = tempfile::tempdir().expect("a temporary directory");
+    fs::create_dir(fixture.path().join("inside")).expect("create inside");
+    let root = open_root(fixture.path());
+
+    for name in ["..", "../outside", "inside/file", "/etc/passwd", ".", ""] {
+        let error = open_file_at(&root, OsStr::new(name)).expect_err(name);
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{name}: {error:?}");
+    }
+}
+
+/// `..` reaches the parent when the `*at` call honours it, so the rejection
+/// above is what keeps a name from naming a file outside the handle.
+#[test]
+fn a_parent_traversal_cannot_reach_outside_the_handle() {
+    let fixture = tempfile::tempdir().expect("a temporary directory");
+    fs::write(fixture.path().join("outside"), b"secret").expect("write outside");
+    fs::create_dir(fixture.path().join("inside")).expect("create inside");
+    let inside = open_root(&fixture.path().join("inside"));
+
+    let error = open_file_at(&inside, OsStr::new("../outside")).expect_err("rejected");
+    assert_eq!(error.kind(), io::ErrorKind::InvalidInput, "{error:?}");
+}
+
+/// A symlink target is a path rather than an entry name: a relative one
+/// resolves against the parent when the link is followed, so it may hold
+/// separators that an entry name may not.
+#[test]
+fn a_symlink_target_may_hold_separators() {
+    let fixture = tempfile::tempdir().expect("a temporary directory");
+    let root = open_root(fixture.path());
+
+    symlink_at(Path::new("inside/file"), &root, OsStr::new("link")).expect("create the link");
+    assert_eq!(
+        read_link_at(&root, OsStr::new("link")).expect("read the link"),
+        Path::new("inside/file"),
+    );
+}

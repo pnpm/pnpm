@@ -1,7 +1,7 @@
 //! Safe abstractions over the process-control foreign calls pnpm makes.
 //!
 //! One of the FFI abstraction crates the
-//! [`unsafe` policy](../../../UNSAFE_POLICY.md) defines: the `unsafe` here
+//! `unsafe` policy in `UNSAFE_POLICY.md` defines: the `unsafe` here
 //! is the crate's purpose, and no caller needs any of its own. Nothing in
 //! the public API hands out a raw descriptor, handle, pointer or `errno`.
 //!

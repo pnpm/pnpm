@@ -6,7 +6,7 @@
 //! reads cannot be a `Vec` behind a `Mutex`, and this crate is the raw
 //! structure that replaces one.
 //!
-//! The [`unsafe` policy](../../../UNSAFE_POLICY.md) permits this crate's
+//! The `unsafe` policy in `UNSAFE_POLICY.md` permits this crate's
 //! `unsafe` under its second category: a raw-pointer data structure that a
 //! safe one cannot replace. The constraint earns this crate and nothing
 //! wider, so the handlers that walk a registry hold no `unsafe` of their

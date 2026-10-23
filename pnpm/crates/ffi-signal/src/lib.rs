@@ -2,7 +2,7 @@
 //! makes.
 //!
 //! One of the FFI abstraction crates the
-//! [`unsafe` policy](../../../UNSAFE_POLICY.md) defines: the `unsafe` here
+//! `unsafe` policy in `UNSAFE_POLICY.md` defines: the `unsafe` here
 //! is the crate's purpose, and no caller needs any of its own.
 //!
 //! A handler installed through this crate is an ordinary Rust `fn`, and
