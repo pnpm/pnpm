@@ -284,7 +284,7 @@ export interface ResolvedPackage {
   }
 }
 
-export type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'previousDepPath'>
+export type ParentPkg = Pick<PkgAddress, 'nodeId' | 'installable' | 'rootDir' | 'optional' | 'pkgId' | 'resolvedVia' | 'lockedPeerContext' | 'previousDepPath' | 'wantedDependency'>
 
 export type ParentPkgAliases = Record<string, PkgAddress | true>
 

@@ -225,7 +225,7 @@ pub(super) async fn warm_child<Chain>(
         return;
     }
     let landed_prior = prior.as_ref().filter(|key| landed_on_prior_entry(key, child_id));
-    warm_grandchildren(ctx, resolver, &child, landed_prior, parent_depth + 1).await;
+    warm_grandchildren(ctx, resolver, &child, &wanted, landed_prior, parent_depth + 1).await;
 }
 
 /// Warm the children of a warmed `child`, whose own children the walk
@@ -234,6 +234,7 @@ async fn warm_grandchildren<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
     child: &pnpm_resolving_resolver_base::ResolveResult,
+    wanted: &WantedDependency,
     landed_prior: Option<&PkgNameVerPeer>,
     depth: i32,
 ) where
@@ -250,7 +251,7 @@ async fn warm_grandchildren<Chain>(
     let parent = WarmedParent {
         result: child,
         peer_shadowed: &child_peer_shadowed,
-        through_catalogs: resolves_children_through_catalogs(child),
+        through_catalogs: resolves_children_through_catalogs(child, wanted),
         claim_id: child.id.as_str(),
     };
     warm_result_children(

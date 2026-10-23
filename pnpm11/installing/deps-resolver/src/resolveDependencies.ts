@@ -165,8 +165,10 @@ function replaceCatalogProtocolOfInjectedWorkspaceDep (
   parentPkg: ParentPkg,
   extendedWantedDep: ExtendedWantedDependency
 ): void {
-  const isInjectedWorkspacePackage = parentPkg.resolvedVia === 'workspace' &&
-    parentPkg.pkgId.startsWith('file:')
+  const isWorkspacePackage = parentPkg.resolvedVia === 'workspace' ||
+    (parentPkg.resolvedVia === 'local-filesystem' &&
+      parentPkg.wantedDependency?.bareSpecifier.startsWith('workspace:') === true)
+  const isInjectedWorkspacePackage = isWorkspacePackage && parentPkg.pkgId.startsWith('file:')
   if (!isInjectedWorkspacePackage) return
   const catalogLookup = lookUpCatalogEntry(ctx.catalogResolver, extendedWantedDep.wantedDependency)
 

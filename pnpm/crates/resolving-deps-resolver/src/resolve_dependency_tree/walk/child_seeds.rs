@@ -286,8 +286,14 @@ pub(super) fn overlay_lookup_names<'edge>(
 /// context does not carry the catalogs the recording importer used.
 pub(super) fn resolves_children_through_catalogs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
+    wanted: &WantedDependency,
 ) -> bool {
-    result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
+    result.id.as_str().starts_with("file:")
+        && (result.resolved_via == "workspace"
+            || (result.resolved_via == "local-filesystem"
+                && wanted.bare_specifier
+                    .as_deref()
+                    .is_some_and(|specifier| specifier.starts_with("workspace:"))))
 }
 
 pub(super) fn catalogs_for_children(

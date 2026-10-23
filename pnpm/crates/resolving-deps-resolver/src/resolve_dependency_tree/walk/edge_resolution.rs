@@ -294,7 +294,7 @@ pub(super) fn seed_pending(
     resolved: ResolvedEdge,
 ) -> Result<NodeSeed, ResolveDependencyTreeError> {
     let alias = node_alias(wanted, &result, &resolved.id);
-    let identity = NodeIdentity::of(&result, &resolved.id);
+    let identity = NodeIdentity::of(&result, wanted, &resolved.id);
     let peer_shadowed = peer_shadowed_dependencies(
         result.package.manifest.as_deref(),
         edge.parent_pkg_aliases,
@@ -345,11 +345,15 @@ pub(super) struct NodeIdentity {
 }
 
 impl NodeIdentity {
-    pub(super) fn of(result: &Arc<pnpm_resolving_resolver_base::ResolveResult>, id: &str) -> Self {
+    pub(super) fn of(
+        result: &Arc<pnpm_resolving_resolver_base::ResolveResult>,
+        wanted: &WantedDependency,
+        id: &str,
+    ) -> Self {
         let kind = NodeKind::of(result, id);
         Self {
             kind,
-            resolves_children_through_catalogs: resolves_children_through_catalogs(result),
+            resolves_children_through_catalogs: resolves_children_through_catalogs(result, wanted),
             node_id: node_id_for(kind.is_leaf(), id),
         }
     }
