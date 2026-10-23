@@ -140,3 +140,21 @@ fn prune_succeeds_without_a_cache_dir() {
         .prune(&root.path().join("missing-cache"), &[])
         .expect("prune");
 }
+
+#[test]
+fn prune_keeps_a_symlinked_layout_dir_and_its_target() {
+    let root = tempdir().unwrap();
+    let store_dir = StoreDir::new(root.path().join("store"));
+    let cache_dir = root.path().join("cache");
+    let target = root.path().join("elsewhere");
+    create_dirs(&target, &["metadata/registry"]);
+    create_dirs(&cache_dir, &["v11/metadata"]);
+    symlink_dir(&target, &cache_dir.join("v12")).unwrap();
+
+    store_dir
+        .prune(&cache_dir, &[])
+        .expect("prune");
+
+    assert_kept(&cache_dir, &["v12/metadata/registry"]);
+    assert_removed(&cache_dir, &["v11/metadata"]);
+}
