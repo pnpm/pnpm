@@ -225,7 +225,7 @@ fn moved_option_indexes(
             break;
         };
         if scanned.moves {
-            for offset in 0..scanned.width.min(argv.len() - index) {
+            for offset in 0..scanned.width.min(subcommand_index - index) {
                 moved_indexes.insert(index + offset);
             }
         }

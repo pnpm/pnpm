@@ -162,6 +162,14 @@ fn short_with_conflicting_arity_takes_a_command_name_as_its_value() {
 }
 
 #[test]
+fn moved_option_never_takes_the_subcommand_as_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-o", "pack-app", "target"]),
+        ["pnpm", "pack-app", "-o", "target"],
+    );
+}
+
+#[test]
 fn short_with_conflicting_arity_before_a_script_stays_put() {
     let argv = ["pnpm", "-o", "dist", "build"];
     assert_eq!(relocate(&argv), argv);
