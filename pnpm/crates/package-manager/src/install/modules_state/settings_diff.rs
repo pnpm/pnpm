@@ -2,6 +2,7 @@ use super::{
     super::{Config, InstallError, LayoutVersion, NodeLinker, Path},
     map_node_linker, normalized_pattern,
 };
+use pnpm_modules_yaml::NodeLinker as ModulesNodeLinker;
 
 /// Refuses a mutation other than a plain install on a drifted modules
 /// directory that only a plain install may recreate: the drift
@@ -20,7 +21,10 @@ pub(in super::super) fn refuse_drifted_modules_dir(
         });
     };
     check_modules_settings_diff(modules, config)?;
-    if modules.node_linker != Some(map_node_linker(node_linker)) {
+    // A manifest from before `nodeLinker` existed omits it; those trees are
+    // isolated.
+    let recorded_linker = modules.node_linker.unwrap_or(ModulesNodeLinker::Isolated);
+    if recorded_linker != map_node_linker(node_linker) {
         return Err(InstallError::NodeLinkerDiff);
     }
     Ok(())
