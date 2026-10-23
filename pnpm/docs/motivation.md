@@ -18,7 +18,8 @@ new file to the store, instead of cloning the entire dependency just for the
 singular change.
 1. All the files are saved in a single place on the disk. When packages are
 installed, their files are hard-linked or cloned (copy-on-write) from that single
-place, consuming no additional disk space. See
+place, consuming no additional disk space. By default, pnpm copies files only
+when the filesystem supports neither. See
 [`packageImportMethod`](./settings/node-modules.md#packageimportmethod). This allows you to share dependencies of the same version
 across projects.
 
