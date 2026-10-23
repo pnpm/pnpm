@@ -5,7 +5,7 @@ use super::{
     create_hex_hash, extract_attachments, hosted_storage, integrity_addressed_tarball_path,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
-        record_publisher, serialize_staged_document,
+        record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
     },
     resolve_write_target, stream_decode_verify_and_write, tar_integrity_of, tgz_integrity_key,
     tombstones::{check_publish_tombstone, check_staged_tombstone},
@@ -176,7 +176,8 @@ pub(in super::super) async fn stage_publish(
     )?;
 
     check_staged_tombstone(state, &storage, &doc, hosted.is_some()).await?;
-    let ValidatedPublish { name, incoming, prepared, .. } = doc;
+    let ValidatedPublish { name, mut incoming, prepared, .. } = doc;
+    restore_submitted_tgz_integrities(&storage, &name, hosted.as_ref(), &mut incoming).await?;
 
     check_publishable_versions(&name, &incoming, hosted.as_ref(), &prepared)?;
 
