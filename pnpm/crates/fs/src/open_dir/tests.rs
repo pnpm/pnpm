@@ -29,6 +29,7 @@ fn names(dir: &Path) -> Vec<String> {
 
 /// Replace `root/real` with a link to `root/elsewhere`, moving the real
 /// directory to `root/moved`.
+#[cfg(unix)]
 fn substitute_real(root: &Path) {
     fs::rename(root.join("real"), root.join("moved")).unwrap();
     symlink_dir(&root.join("elsewhere"), &root.join("real")).unwrap();
