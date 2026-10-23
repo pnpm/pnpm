@@ -17,13 +17,14 @@ pub(super) struct InconsistentModulesDir<'a> {
 pub(super) fn purge_inconsistent_modules_dir(
     context: &InconsistentModulesDir<'_>,
 ) -> Result<(), InstallError> {
-    // Only a plain install recreates a drifted modules dir. Any other
-    // mutation fails on the drift upstream `validateModules` reports and
-    // otherwise keeps the directory (`forceNewModules = installsOnly`).
-    if !context.installs_only {
-        return context.modules_manifest.map_or(Ok(()), |modules| {
-            check_modules_settings_diff(modules, context.config)
-        });
+    // A mutation other than a plain install fails on the drift upstream
+    // `validateModules` reports. Other drift, such as a `nodeLinker` change,
+    // is purged even though upstream keeps the tree: the new `.modules.yaml`
+    // would hide the old layout's entries from every later install.
+    if !context.installs_only
+        && let Some(modules) = context.modules_manifest
+    {
+        check_modules_settings_diff(modules, context.config)?;
     }
     let (is_safe, target_dir) = purge_target(context.config, context.workspace_root);
     if !is_safe {

@@ -82,14 +82,17 @@ fn recorded_store_matches(recorded: &str, store_dir: &Path) -> bool {
                 .is_some_and(|parent| same_path(recorded, &parent.join("v3"))))
 }
 
-/// Upstream compares with `path.relative`: lexically, and ignoring case on
-/// Windows.
+/// Upstream compares with `path.relative`: lexically, and on Windows after
+/// `toLowerCase`, which folds non-ASCII letters too.
 pub(in super::super) fn same_path(left: &Path, right: &Path) -> bool {
     let left = pnpm_fs::lexical_normalize(left);
     let right = pnpm_fs::lexical_normalize(right);
     if cfg!(windows) {
-        left.as_os_str().eq_ignore_ascii_case(right.as_os_str())
+        left.to_string_lossy().to_lowercase() == right.to_string_lossy().to_lowercase()
     } else {
         left == right
     }
 }
+
+#[cfg(test)]
+mod tests;

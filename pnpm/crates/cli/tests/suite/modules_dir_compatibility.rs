@@ -104,36 +104,34 @@ fn add_refuses_a_modules_dir_with_another_layout_version() {
     drop((root, mock_instance));
 }
 
-/// `validateModules` purges only for a plain install: `add` keeps a modules
-/// directory whose drift it does not report, such as a `nodeLinker` change.
+/// `add` recreates a modules directory whose drift `validateModules` does not
+/// report, such as a `nodeLinker` change. Keeping it would leave the hoisted
+/// layout's packages behind, and the next `pnpm install` would not see them.
 #[test]
-fn add_keeps_a_modules_dir_installed_with_another_node_linker() {
+fn add_recreates_a_modules_dir_installed_with_another_node_linker() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    for name in ["dep", "dep2"] {
-        let dir = root.path().join(name);
-        fs::create_dir_all(&dir).expect("create the dependency");
-        fs::write(
-            dir.join("package.json"),
-            serde_json::json!({ "name": name, "version": "1.0.0" }).to_string(),
-        )
-        .expect("write the dependency manifest");
-    }
-    pacquet_in(&workspace)
-        .with_args(["add", "file:../dep"])
-        .assert()
-        .success();
-    let marker = workspace.join("node_modules/marker.txt");
-    fs::write(&marker, "kept").expect("write the marker");
     append_workspace_yaml_key(&workspace, "nodeLinker", "hoisted");
+    pacquet_in(&workspace)
+        .with_args(["add", "@pnpm.e2e/pkg-with-1-dep@100.0.0"])
+        .assert()
+        .success();
+    let hoisted = workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep");
+    assert!(hoisted.exists(), "the hoisted linker should place the transitive at the root");
+    let yaml = workspace.join("pnpm-workspace.yaml");
+    let switched = fs::read_to_string(&yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace("nodeLinker: hoisted", "nodeLinker: isolated");
+    fs::write(&yaml, switched).expect("write pnpm-workspace.yaml");
 
     pacquet_in(&workspace)
-        .with_args(["add", "file:../dep2"])
+        .with_args(["add", "is-positive@1.0.0"])
         .assert()
         .success();
 
-    assert!(marker.exists(), "add purged node_modules");
+    assert!(fs::symlink_metadata(&hoisted).is_err(), "add left the hoisted transitive behind");
+    assert!(workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists());
 
     drop((root, mock_instance));
 }
