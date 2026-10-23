@@ -5,9 +5,8 @@ use std::{
 };
 use tokio::sync::Semaphore;
 
-/// How far a token's stored last-used time may lag behind its actual last
-/// use, in seconds. A token in steady use costs one write per interval, not
-/// one per request.
+/// The interval that limits last-used writes, in seconds. A token in steady
+/// use costs one write per interval, not one per request.
 pub const LAST_USED_GRANULARITY_SECS: u64 = 60;
 
 /// How many writes may run at once. They share the token store's connection
