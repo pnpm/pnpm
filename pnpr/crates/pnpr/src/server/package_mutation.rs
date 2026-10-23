@@ -122,6 +122,7 @@ fn prepare_packument_rewrite(
         .into_response());
     }
     super::tar_registry::overlay_verified_tar_stats(&mut hosted, tar_integrities);
+    super::restore_tgz_integrities(&hosted, tar_integrities, packument);
     if let Some(err) = enforce_published_version_immutability(&hosted, name, packument) {
         return Err(err.into_response());
     }
