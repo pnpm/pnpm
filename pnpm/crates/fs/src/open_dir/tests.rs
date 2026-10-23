@@ -22,7 +22,7 @@ fn open_follows_a_link_in_its_place() {
     assert_eq!(dir.path(), root.path().join("link"));
     assert_eq!(
         dir.canonical_path().unwrap(),
-        Some(dunce::canonicalize(root.path().join("real")).unwrap())
+        Some(dunce::canonicalize(root.path().join("real")).unwrap()),
     );
 }
 
@@ -91,12 +91,12 @@ fn remove_child_dir_keeps_a_file_a_link_and_reports_nothing() {
             .join("real/metadata-link")
             .symlink_metadata()
             .unwrap()
-            .is_symlink()
+            .is_symlink(),
     );
     assert!(
         root.path()
             .join("real/metadata/registry/pkg.json")
-            .exists()
+            .exists(),
     );
 }
 
@@ -122,13 +122,13 @@ fn remove_child_dir_ignores_a_link_substituted_after_the_open() {
     assert!(
         root.path()
             .join("elsewhere/metadata/victim")
-            .exists()
+            .exists(),
     );
     assert!(
         !root
             .path()
             .join("moved/metadata")
-            .exists()
+            .exists(),
     );
     let left_behind: Vec<_> = fs::read_dir(root.path().join("moved"))
         .unwrap()
