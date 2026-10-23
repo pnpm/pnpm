@@ -974,14 +974,21 @@ test('lockfile catalog snapshots should remove unused entries', async () => {
 //
 //   node_modules/.pnpm/project2@file+packages+project2/node_modules/project2
 //
-test('catalogs work in injected dep', async () => {
+const injectedWorkspaceCatalogCases = [
+  { workspaceSpecifier: 'workspace:*', catalogName: 'default' },
+  { workspaceSpecifier: 'workspace:../project2', catalogName: 'default' },
+  { workspaceSpecifier: 'workspace:../project2', catalogName: 'project/common' },
+]
+
+test.each(injectedWorkspaceCatalogCases)('catalogs work in injected dep ($workspaceSpecifier, $catalogName)', async ({ workspaceSpecifier, catalogName }) => {
   expect.hasAssertions()
+  const catalogSpecifier = catalogName === 'default' ? 'catalog:' : `catalog:${catalogName}`
 
   const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       name: 'project1',
       dependencies: {
-        project2: 'workspace:*',
+        project2: workspaceSpecifier,
       },
       dependenciesMeta: {
         project2: { injected: true },
@@ -990,10 +997,13 @@ test('catalogs work in injected dep', async () => {
     {
       name: 'project2',
       dependencies: {
-        'is-positive': 'catalog:',
+        'is-positive': catalogSpecifier,
       },
     },
   ])
+
+  fs.mkdirSync('project2', { recursive: true })
+  fs.writeFileSync('project2/package.json', JSON.stringify(projects['project2' as ProjectId]))
 
   const install = () => mutateModules(installProjects(projects), {
     ...options,
@@ -1002,7 +1012,7 @@ test('catalogs work in injected dep', async () => {
     // packages if peer dependencies aren't resolved differently.
     dedupeInjectedDeps: false,
     catalogs: {
-      default: { 'is-positive': '1.0.0' },
+      [catalogName]: { 'is-positive': '1.0.0' },
     },
   })
 
@@ -1014,7 +1024,7 @@ test('catalogs work in injected dep', async () => {
 
   // The resolved catalogs should be correct.
   expect(lockfile.catalogs).toStrictEqual({
-    default: {
+    [catalogName]: {
       'is-positive': { specifier: '1.0.0', version: '1.0.0' },
     },
   })
@@ -1024,7 +1034,7 @@ test('catalogs work in injected dep', async () => {
     // test wouldn't be checking the correct scenario.
     project1: {
       dependencies: {
-        project2: { specifier: 'workspace:*', version: 'file:project2' },
+        project2: { specifier: workspaceSpecifier, version: 'file:project2' },
       },
       dependenciesMeta: {
         project2: { injected: true },
@@ -1032,7 +1042,7 @@ test('catalogs work in injected dep', async () => {
     },
     project2: {
       dependencies: {
-        'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+        'is-positive': { specifier: catalogSpecifier, version: '1.0.0' },
       },
     },
   })
@@ -1047,23 +1057,27 @@ test('catalogs work in injected dep', async () => {
   })
 })
 
-test('catalogs work when inject-workspace-packages=true', async () => {
+test.each(injectedWorkspaceCatalogCases)('catalogs work when inject-workspace-packages=true ($workspaceSpecifier, $catalogName)', async ({ workspaceSpecifier, catalogName }) => {
   expect.hasAssertions()
+  const catalogSpecifier = catalogName === 'default' ? 'catalog:' : `catalog:${catalogName}`
 
   const { options, projects, readLockfile } = preparePackagesAndReturnObjects([
     {
       name: 'project1',
       dependencies: {
-        project2: 'workspace:*',
+        project2: workspaceSpecifier,
       },
     },
     {
       name: 'project2',
       dependencies: {
-        'is-positive': 'catalog:',
+        'is-positive': catalogSpecifier,
       },
     },
   ])
+
+  fs.mkdirSync('project2', { recursive: true })
+  fs.writeFileSync('project2/package.json', JSON.stringify(projects['project2' as ProjectId]))
 
   const install = () => mutateModules(installProjects(projects), {
     ...options,
@@ -1073,7 +1087,7 @@ test('catalogs work when inject-workspace-packages=true', async () => {
     dedupeInjectedDeps: false,
     injectWorkspacePackages: true,
     catalogs: {
-      default: { 'is-positive': '1.0.0' },
+      [catalogName]: { 'is-positive': '1.0.0' },
     },
   })
 
@@ -1085,7 +1099,7 @@ test('catalogs work when inject-workspace-packages=true', async () => {
 
   // The resolved catalogs should be correct.
   expect(lockfile.catalogs).toStrictEqual({
-    default: {
+    [catalogName]: {
       'is-positive': { specifier: '1.0.0', version: '1.0.0' },
     },
   })
@@ -1095,12 +1109,12 @@ test('catalogs work when inject-workspace-packages=true', async () => {
     // test wouldn't be checking the correct scenario.
     project1: {
       dependencies: {
-        project2: { specifier: 'workspace:*', version: 'file:project2' },
+        project2: { specifier: workspaceSpecifier, version: 'file:project2' },
       },
     },
     project2: {
       dependencies: {
-        'is-positive': { specifier: 'catalog:', version: '1.0.0' },
+        'is-positive': { specifier: catalogSpecifier, version: '1.0.0' },
       },
     },
   })
@@ -1112,6 +1126,33 @@ test('catalogs work when inject-workspace-packages=true', async () => {
     'project2@file:project2': {
       dependencies: { 'is-positive': '1.0.0' },
     },
+  })
+})
+
+test.each([false, true])('file dependencies do not inherit workspace catalogs (injected=%s)', async (injected) => {
+  const { options, projects } = preparePackagesAndReturnObjects([
+    {
+      name: 'project1',
+      dependencies: { project2: 'file:../project2' },
+      dependenciesMeta: { project2: { injected } },
+    },
+    {
+      name: 'project2',
+      dependencies: { 'is-positive': 'catalog:project/common' },
+    },
+  ])
+  fs.mkdirSync('project2', { recursive: true })
+  fs.writeFileSync('project2/package.json', JSON.stringify(projects['project2' as ProjectId]))
+
+  await expect(mutateModules(installProjects(projects), {
+    ...options,
+    lockfileOnly: true,
+    injectWorkspacePackages: true,
+    dedupeInjectedDeps: false,
+    catalogs: { 'project/common': { 'is-positive': '1.0.0' } },
+  })).rejects.toMatchObject({
+    code: 'ERR_PNPM_UNSUPPORTED_PROTOCOL',
+    message: 'Unsupported protocol "catalog:" in the dependency specifier "catalog:project/common"',
   })
 })
 
