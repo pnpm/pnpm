@@ -94,7 +94,7 @@ function filterLog(log) {
 
     let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
-    assert!(hooks.has_filter_log().await);
+    assert_eq!(hooks.ignored_hooks().await, [pnpm_hooks::IgnoredHook::FilterLog]);
 
     let debug_log = serde_json::json!({
         "level": "debug",

@@ -260,7 +260,10 @@ This hook is executed after reading and parsing the lockfiles of the project, bu
 
 :::warning Deprecated in v11.23.0
 
-`importPackage` is deprecated and will be removed in the next major version. pnpm warns when a pnpmfile defines it, and defining it opts the installation out of the parallel package importer, making installation slower. If you rely on this hook, comment on [#14101](https://github.com/pnpm/pnpm/issues/14101).
+pnpm 12 ignores `importPackage` and warns when a pnpmfile defines it. Use
+[`packageImportMethod`](./settings/node-modules.md#packageimportmethod) to
+choose how packages are written to `node_modules`. If you rely on this hook,
+comment on [#14101](https://github.com/pnpm/pnpm/issues/14101).
 
 :::
 

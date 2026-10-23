@@ -102,6 +102,6 @@ async fn update_config_without_hook_returns_config_unchanged() {
         .await
         .expect("ok");
 
-    assert!(!hooks.has_filter_log().await);
+    assert!(hooks.ignored_hooks().await.is_empty());
     assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }

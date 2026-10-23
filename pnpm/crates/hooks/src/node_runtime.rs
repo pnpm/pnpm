@@ -205,10 +205,10 @@ impl crate::PnpmfileHooks for NodeJsHooks {
         }
     }
 
-    async fn has_filter_log(&self) -> bool {
+    async fn ignored_hooks(&self) -> Vec<crate::IgnoredHook> {
         match self.worker().await {
-            Ok(worker) => worker.has_filter_log().await,
-            Err(_) => false,
+            Ok(worker) => worker.ignored_hooks().await,
+            Err(_) => Vec::new(),
         }
     }
 

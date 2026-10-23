@@ -24,6 +24,39 @@ use tokio::sync::{mpsc, oneshot};
 /// they generate.
 pub(crate) const LOAD_PNPMFILE: &str = include_str!("load_pnpmfile.cjs");
 
+/// A pnpmfile hook that pnpm accepts in a pnpmfile but never runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IgnoredHook {
+    FilterLog,
+    ImportPackage,
+}
+
+impl IgnoredHook {
+    pub const ALL: [IgnoredHook; 2] = [IgnoredHook::FilterLog, IgnoredHook::ImportPackage];
+
+    /// The hook's key in the pnpmfile's `hooks` export.
+    #[must_use]
+    pub fn export_name(self) -> &'static str {
+        match self {
+            IgnoredHook::FilterLog => "filterLog",
+            IgnoredHook::ImportPackage => "importPackage",
+        }
+    }
+
+    /// The hooks among [`IgnoredHook::ALL`] whose export name is in `names`.
+    pub(crate) fn named_in(names: &[Value]) -> Vec<IgnoredHook> {
+        let is_named = |hook: &IgnoredHook| {
+            names
+                .iter()
+                .any(|name| *name == hook.export_name())
+        };
+        IgnoredHook::ALL
+            .into_iter()
+            .filter(is_named)
+            .collect()
+    }
+}
+
 /// A native operation requested by a JavaScript custom fetcher.
 pub struct FetcherCallback {
     pub method: FetcherMethod,
@@ -170,9 +203,9 @@ pub trait PnpmfileHooks: Send + Sync {
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
 
-    /// Whether this pnpmfile exports a callable `filterLog` hook.
-    async fn has_filter_log(&self) -> bool {
-        false
+    /// The [`IgnoredHook`]s this pnpmfile exports as callables.
+    async fn ignored_hooks(&self) -> Vec<IgnoredHook> {
+        Vec::new()
     }
 
     /// Whether this pnpmfile exports a callable `readPackage` hook.
@@ -453,8 +486,8 @@ impl PnpmfileHooks for ChecksumFreeHooks {
         self.0.filter_log(log, ctx).await
     }
 
-    async fn has_filter_log(&self) -> bool {
-        self.0.has_filter_log().await
+    async fn ignored_hooks(&self) -> Vec<IgnoredHook> {
+        self.0.ignored_hooks().await
     }
 
     async fn has_read_package(&self) -> Result<bool, HookError> {
