@@ -19,6 +19,7 @@ pub mod cli_commands;
 pub mod config_check;
 pub mod export;
 pub mod htpasswd_import;
+pub mod logging;
 pub mod migrate_storage;
 pub mod oci_maintenance;
 pub mod upgrade_storage;
