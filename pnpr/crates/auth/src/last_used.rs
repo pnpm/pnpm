@@ -45,7 +45,7 @@ impl LastUsedWriter {
         }
     }
 
-    /// Note that the token with `key` was used now. `last_used_at` is the
+    /// Record that the token with `key` was used now. `last_used_at` is the
     /// time the store holds for it, which the lookup that authenticated the
     /// request already read.
     pub fn record(&self, key: &str, last_used_at: u64) {
