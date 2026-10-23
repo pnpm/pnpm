@@ -262,6 +262,8 @@ impl WorkspaceSettings {
                         serde_json::Value::String(hosts.join(","))
                     }
                 }),
+            strict_ssl: config.tls.strict_ssl,
+            local_address: config.tls.local_address.map(|address| address.to_string()),
 
             // `audit` and `update` are the canonical spellings, so the
             // deprecated `auditLevel`, `auditConfig`, and `updateConfig`

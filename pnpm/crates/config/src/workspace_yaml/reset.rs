@@ -92,6 +92,19 @@ fn reset_proxy_setting(config: &mut Config, defaults: &Config, key: &str) {
     config.proxy = config.proxy_keys.resolve();
 }
 
+fn reset_audit_settings(config: &mut Config, defaults: &Config) {
+    config.audit_level = defaults.audit_level;
+    config.audit_config.clone_from(&defaults.audit_config);
+    config.audit_ignore_prune = defaults.audit_ignore_prune;
+}
+
+fn reset_tls_setting(config: &mut Config, defaults: &Config, key: &str) {
+    match key {
+        "strictSsl" => config.tls.strict_ssl = defaults.tls.strict_ssl,
+        _ => config.tls.local_address = defaults.tls.local_address,
+    }
+}
+
 /// Leave `virtualStoreOnly` mode with the hoist patterns the mode
 /// snapshotted, a pattern a source explicitly disabled included, unless a
 /// source still sets a pattern, and with the derivations that read the
@@ -268,11 +281,8 @@ impl WorkspaceSettings {
             "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
                 reset_proxy_setting(config, defaults, key);
             }
-            "audit" | "auditLevel" | "auditConfig" => {
-                config.audit_level = defaults.audit_level;
-                config.audit_config.clone_from(&defaults.audit_config);
-                config.audit_ignore_prune = defaults.audit_ignore_prune;
-            }
+            "strictSsl" | "localAddress" => reset_tls_setting(config, defaults, key),
+            "audit" | "auditLevel" | "auditConfig" => reset_audit_settings(config, defaults),
             "update" | "updateConfig" => config.update_config.clone_from(&defaults.update_config),
             "cleanupUnusedCatalogs" => config.catalog_prune = defaults.catalog_prune,
             "virtualStoreType" => {

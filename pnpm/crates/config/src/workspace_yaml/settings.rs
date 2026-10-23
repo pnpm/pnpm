@@ -317,6 +317,8 @@ pub struct WorkspaceSettings {
     pub no_proxy: Option<serde_json::Value>,
     pub proxy: Option<String>,
     pub noproxy: Option<serde_json::Value>,
+    pub strict_ssl: Option<bool>,
+    pub local_address: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
     /// name (`gh`, `work`, ...); inner string is the registry URL the

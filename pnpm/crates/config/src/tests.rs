@@ -402,3 +402,5 @@ mod json_env_multiple_registries;
 mod cli_setting_values;
 
 mod includes;
+
+mod tls_settings;

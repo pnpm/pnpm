@@ -79,6 +79,11 @@ fn from_resolved_reports_every_setting() {
             http_proxy: Some("http://proxy.example".to_string()),
             no_proxy: Some(pnpm_network::NoProxySetting::List(vec!["example.com".to_string()])),
         },
+        tls: pnpm_network::TlsConfig {
+            strict_ssl: Some(false),
+            local_address: Some([127, 0, 0, 2].into()),
+            ..pnpm_network::TlsConfig::default()
+        },
         update_config: UpdateConfig { changeset: Some(true), ..UpdateConfig::default() },
         // The settings that report as written, rather than as resolved.
         explicit_settings: [

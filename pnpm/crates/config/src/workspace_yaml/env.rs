@@ -113,6 +113,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.lockfile_dir);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
+        substitute_optional_string::<Sys>(&mut self.local_address);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }

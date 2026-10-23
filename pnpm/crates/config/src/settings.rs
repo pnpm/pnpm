@@ -687,7 +687,9 @@ pub struct Config {
     pub proxy_keys: crate::proxy_keys::ProxyKeys,
 
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
-    /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
+    /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`, with
+    /// `strictSsl` and `localAddress` also read from the yaml settings,
+    /// the environment, and the command line. The
     /// type lives in `pnpm-network` for the same reason as
     /// [`Self::proxy`]. `strict_ssl: None` here means "unset"; the
     /// `true` default is applied at client-build time by

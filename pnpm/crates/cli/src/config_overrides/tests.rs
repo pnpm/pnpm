@@ -693,6 +693,8 @@ mod paths;
 
 mod bare_flags;
 
+mod tls_settings;
+
 /// A setting no table claims is handed to [`Config::current`], keyed by its
 /// kebab-case name whichever spelling the command line used.
 #[test]
