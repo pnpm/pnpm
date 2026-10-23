@@ -144,6 +144,10 @@ establishes it here. `// SAFETY: this is fine` and
 placeholders: the first says nothing, and the second mistakes "has no
 preconditions" for an argument that this call site satisfies them.
 
+An `unsafe extern` block and an `unsafe extern "abi" fn` signature carry no
+`// SAFETY:` comment. The first states signatures and the second defines a
+callback, so neither discharges an obligation.
+
 The shape that works, for each precondition in turn: what the callee
 requires, and the local fact that makes it hold.
 
@@ -184,27 +188,13 @@ Two further rules:
 ## Enforcement
 
 [`pnpm/tasks/unsafe-audit`](./pnpm/tasks/unsafe-audit) walks every
-workspace member and fails when:
-
-- the root manifest does not lint `unsafe_code`, or a member does not take
-  the workspace lint table, so the lint never reaches it;
-- a crate outside its allowlist contains `unsafe`, or opts out of the lint;
-- a crate on its allowlist does not opt out, so the `unsafe` it exists to
-  hold would not compile;
-- a crate whose macros expand to `unsafe` writes an `unsafe` of its own;
-- a crate on the allowlist no longer contains any `unsafe`, so the
-  allowlist entry is stale;
-- an `unsafe extern` block appears outside a `-sys` crate;
-- an `unsafe` block, function or implementation is not preceded by a
-  `// SAFETY:` comment. An `unsafe extern` block and an
-  `unsafe extern "abi" fn` signature are not: the first states signatures
-  and the second defines a callback, so neither discharges an obligation.
+workspace member. `cargo test -p pnpm-unsafe-audit` names each departure it
+finds, and what to do where naming it does not already say.
 
 The allowlist in that crate is the authoritative list of which crates are
 in which tier. This document explains the tiers; the allowlist records the
 membership, so the two cannot drift.
 
-What the audit cannot check, a reviewer must: whether a `// SAFETY:`
-comment discharges the obligation, and whether a safe alternative was
-looked for. See the
+A `// SAFETY:` comment's argument, and whether a safe alternative was
+looked for, are a reviewer's to judge. See the
 [review guide](./.agents/skills/review-code/references/REVIEW_GUIDE.md).
