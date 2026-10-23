@@ -3294,8 +3294,6 @@ dependencies = [
 [[package]]
 name = "libsql"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30fe980ac5693ed1f3db490559fb578885e913a018df64af8a1a46e1959a78df"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -6767,6 +6765,7 @@ dependencies = [
  "base64 0.23.1",
  "bcrypt",
  "chrono",
+ "futures-util",
  "getrandom 0.4.3",
  "http 0.2.12",
  "hyper 0.14.32",
