@@ -14,24 +14,24 @@ pnpm 12 reads the same `pnpm-lock.yaml`, `pnpm-workspace.yaml`, and store as pnp
    pnpm self-update 12
    ```
 
-   See [Installation](./installation.md) for other ways to install pnpm 12. pnpm 12 is a native executable and does not need Node.js to run.
+   See [Installation](./installation.md) for other ways to install pnpm 12. If you install it another way, also update the pin, for example by running `pnpm self-update 12` with pnpm 12. Otherwise pnpm 12 runs the pinned pnpm 11. pnpm 12 is a native executable and does not need Node.js to run.
 3. Run `pnpm install` and fix any setting it reports as not recognized in `pnpm-workspace.yaml`. See [Unrecognized settings fail](#unrecognized-settings-fail).
-4. Check the items below that apply to your project: scripts that match error output, `--frozen-lockfile false` in CI, private Git dependencies over SSH, pnpmfile hooks, custom certificates, and `shellEmulator`.
+4. Read the [behavior changes](#behavior-changes) below and act on those that apply to your project. CI scripts, private Git dependencies, and pnpmfile hooks are the usual places to look.
 5. Commit the updated `package.json` and `pnpm-lock.yaml`.
 
 ## Behavior changes
 
 ### Unrecognized settings fail
 
-pnpm 12 reports a setting in `pnpm-workspace.yaml` that it does not recognize and suggests the closest real name. If the project pins a pnpm version the running pnpm satisfies, the command fails with `ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS`. Otherwise it is a warning. Remove the setting or fix its spelling. `pnpm config` commands never fail on it.
+pnpm 11 warned about a setting in `pnpm-workspace.yaml` that it did not recognize. In pnpm 12, if the project pins a pnpm version the running pnpm satisfies, that warning is an error, `ERR_PNPM_UNRECOGNIZED_WORKSPACE_SETTINGS`. Otherwise it stays a warning. pnpm 12 also rejects `confirmModulesPurge`, a pnpm 11 setting. Remove the setting or fix its spelling. `pnpm config` commands never fail on it.
 
-### `--frozen-lockfile false`
+### Boolean flags with a separate value
 
-pnpm rejects `pnpm install --frozen-lockfile false`. Use `--no-frozen-lockfile` to disable frozen-lockfile mode, and `--frozen-lockfile` without a value to enable it.
+pnpm rejects a boolean flag followed by its value as a separate argument, such as `--frozen-lockfile false` or `--prod false`. Write `--frozen-lockfile=false` or `--no-frozen-lockfile` instead.
 
 ### Git-hosted dependencies
 
-A dependency on GitHub, GitLab, or Bitbucket always resolves through the host's HTTPS URL, and the lockfile never records an SSH URL for it. pnpm no longer probes the network to choose between HTTPS and SSH. Self-hosted Git servers and URLs with embedded credentials keep their exact URL.
+A dependency on GitHub, GitLab, or Bitbucket always resolves through the host's HTTPS URL, and the lockfile never records an SSH URL for it. pnpm no longer probes the network to choose between HTTPS and SSH. Self-hosted Git servers and URLs with embedded credentials keep their exact URL. An SSH URL already in the lockfile changes only when pnpm re-resolves that entry.
 
 To fetch a private hosted repository over SSH, configure Git on the machine. See [Using SSH for private repositories](./package-sources.md#using-ssh-for-private-repositories).
 
@@ -43,11 +43,15 @@ To fetch a private hosted repository over SSH, configure Git on the machine. See
 ### `engineStrict`
 
 - An install fails when an incompatible package is reached through a regular `dependencies` edge, even if that subtree hangs off an `optionalDependencies` entry. pnpm 11 installs the package and warns. Packages reachable only through optional edges are still skipped.
-- With runtimes skipped ([`--no-runtime`](./cli/install.md#--no-runtime) or `runtime: false`), pnpm checks the root project's `engines.node` against the active Node.js, not the version pinned in `devEngines.runtime` or `engines.runtime`.
+- With [`--no-runtime`](./cli/install.md#--no-runtime), pnpm checks the root project's `engines.node` against the active Node.js, not the version pinned in `devEngines.runtime` or `engines.runtime`.
 
 ### Package managers and runtimes named as packages
 
 `pnpm add yarn`, `pnpm add -g node`, `pnx node`, and similar commands provision the package manager or runtime instead of installing the npm package that shares its name. See [What changes for a project coming from v11](./package-managers.md#what-changes-for-a-project-coming-from-v11).
+
+### Global Node.js follows the project
+
+A Node.js installed globally with pnpm runs the version the current project pins in `devEngines.runtime`, `engines.runtime`, `.node-version`, or `.nvmrc`. pnpm downloads that version on first use. A version without a publisher signature, such as a Node.js prerelease, asks once whether you trust the project. See [Project-aware global bins](./global-packages.md#project-aware-global-bins). To turn this off, set [`globalShims: false`](./settings/other.md#globalshims) in the global configuration, or set `PNPM_SHIM_BYPASS=1` for one command.
 
 ### Global commands under `sudo`
 
@@ -89,4 +93,4 @@ Without `--runtime` or `pnpm.app.runtime`, [`pnpm pack-app`](./cli/pack-app.md) 
 
 [`--frozen-store`](./cli/install.md#--frozen-store) has no Node.js version requirement. The `ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE` error no longer exists.
 
-For the full list of changes, see the [v12.0.0 release notes](https://github.com/pnpm/pnpm/releases/tag/v12.0.0).
+See also the [release notes for 12.0.0](https://github.com/pnpm/pnpm/releases/tag/v12.0.0).
