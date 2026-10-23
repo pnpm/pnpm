@@ -44,7 +44,7 @@ The command exits with code `1` if any package has an invalid signature, or if a
 
 ### --audit-level &lt;severity\>
 
-* Type: **low**, **moderate**, **high**, **critical**
+* Type: **info**, **low**, **moderate**, **high**, **critical**
 * Default: **low**
 
 Only print advisories with severity greater than or equal to `<severity>`.
@@ -53,7 +53,7 @@ This can also be set via [`audit.level`](#auditlevel) in `pnpm-workspace.yaml`.
 
 ### --fix
 
-Add overrides to the `pnpm-workspace.yaml` file in order to force non-vulnerable versions of the dependencies.
+Add overrides to the `pnpm-workspace.yaml` file to force non-vulnerable versions of the dependencies.
 
 Use `--fix=update` (added in v11.0.0) to fix vulnerabilities by updating packages in the lockfile instead of adding overrides.
 
@@ -63,7 +63,7 @@ When [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseag
 
 Added in: v11.0.0
 
-Review the advisories selected by `--fix` and pick which ones to apply. Only usable together with `--fix`.
+Review the advisories selected by `--fix` and pick which ones to apply. Implies `--fix=override` when `--fix` is not given.
 
 ### --json
 
@@ -120,7 +120,7 @@ audit:
 ### audit.level
 
 * Default: **low**
-* Type: **low**, **moderate**, **high**, **critical**
+* Type: **info**, **low**, **moderate**, **high**, **critical**
 
 Only print advisories with severity greater than or equal to this level. Same as the [`--audit-level`](#--audit-level-severity) flag.
 

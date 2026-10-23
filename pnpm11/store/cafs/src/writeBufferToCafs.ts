@@ -212,7 +212,7 @@ export function optimisticRenameOverwrite (temp: string, fileDest: string): void
     // This is done to avoid lots of random crypto number generations.
     //   PR with related performance optimization: https://github.com/pnpm/pnpm/pull/6817
     //
-    // Probably the only scenario in which the temp directory will disappear
+    // The only known scenario in which the temp directory will disappear
     // before being renamed is when two containers use the same mounted directory
     // for their content-addressable store. In this case there's a chance that the process ID
     // will be the same in both containers.

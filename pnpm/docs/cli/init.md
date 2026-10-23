@@ -3,13 +3,15 @@ id: init
 title: "pnpm init"
 ---
 
-Create a `package.json` file.
+Create a `package.json` file. If `package.json` already exists, the command fails with `ERR_PNPM_PACKAGE_JSON_EXISTS`.
+
+```sh
+pnpm init
+```
 
 ## Options
 
 ### --bare
-
-Added in: v10.25.0
 
 Creates a `package.json` with only the required fields.
 
@@ -18,23 +20,39 @@ Creates a `package.json` with only the required fields.
 * Default: **module**
 * Type: **commonjs**, **module**
 
-Set the module system for the package.
+Set the module system for the package. Set [`initType`](#inittype) to change the default.
 
 ### --init-package-manager
 
-Pin the project to a pnpm version.
+* Default: **true**
 
-Since v11, the pin is written as a [`devEngines.packageManager`](../package_json.md#devenginespackagemanager) entry, so the resolved version is captured in `pnpm-lock.yaml`. Since v11.23.0 it is also written to the legacy `packageManager` field, as an exact version rather than a `^` range, because Corepack reads only `packageManager` and accepts nothing but an exact version.
+Pin the project to a pnpm version. Set [`initPackageManager`](#initpackagemanager) to change the default.
 
-Since v11.25.0, the pin can be newer than the pnpm that ran the command, so a project scaffolded by an outdated pnpm no longer inherits that staleness through its own pin ([#7490](https://github.com/pnpm/pnpm/issues/7490)). pnpm looks up the version published under the `latest` tag on the package-manager registries, and pins it **only when it is newer than the running version** — the lookup raises the pin, it never lowers it.
+The pin is written as a [`devEngines.packageManager`](../package_json.md#devenginespackagemanager) entry, so the resolved version is captured in `pnpm-lock.yaml`. It is also written to the `packageManager` field as an exact version, because Corepack reads only `packageManager` and accepts nothing but an exact version.
 
-Two things follow from that. `latest` is a tag rather than "the newest release", so the pin tracks whichever line the tag points at: with `latest` on the pnpm 12 line, a pnpm 11.25 running `pnpm init` pins the newest pnpm 12, while a pnpm 12 newer than the `latest` tag pins itself (so does anything older than 11.25, which predates the lookup). And when the lookup cannot answer — no network, an unreachable or slow registry, `--offline`, or a `latest` that [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) or [`trustPolicy`](../settings/dependency-resolution.md#trustpolicy) rejects — the running version is pinned, as before. The lookup never fails or hangs the command.
+pnpm looks up the version published under the `latest` tag on the package-manager registries, and pins it **only when it is newer than the running version**. Otherwise the running version is pinned. The lookup raises the pin, it never lowers it.
 
-Inside a workspace subpackage this flag has no effect — the pin is only added to the workspace root's `package.json`, and the subpackage follows it. Pass `--no-init-package-manager` to scaffold a manifest with no pin at all.
+`latest` is a tag rather than "the newest release", so the pin tracks whichever line the tag points at. A pnpm newer than the `latest` tag pins itself. When the lookup cannot answer (no network, an unreachable or slow registry, `--offline`, or a `latest` that [`minimumReleaseAge`](../settings/dependency-resolution.md#minimumreleaseage) or [`trustPolicy`](../settings/dependency-resolution.md#trustpolicy) rejects), the running version is pinned. The lookup never fails or hangs the command.
+
+Inside a workspace subpackage this flag has no effect. The pin is only added to the workspace root's `package.json`, and the subpackage follows it. Pass `--no-init-package-manager` to scaffold a manifest with no pin at all.
 
 ## Configuration
 
 These settings fill in fields of the scaffolded `package.json`. They may be set in `pnpm-workspace.yaml`, in the [global configuration file](./config.md), or through the environment as `PNPM_CONFIG_INIT_VERSION` and friends.
+
+### initPackageManager
+
+* Default: **true**
+* Type: **Boolean**
+
+Whether `pnpm init` pins the project to a pnpm version. Same as the [`--init-package-manager`](#--init-package-manager) flag.
+
+### initType
+
+* Default: **module**
+* Type: **commonjs**, **module**
+
+The module system written into the new `package.json`. Same as the [`--init-type`](#--init-type-type) flag.
 
 ### initVersion
 

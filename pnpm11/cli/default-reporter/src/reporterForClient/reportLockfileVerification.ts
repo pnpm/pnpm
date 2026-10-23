@@ -69,7 +69,7 @@ function formatCachedVerdict (verifiedAt: string | undefined): string {
 
 // Returns a leading-space-prefixed `at <path>` suffix only when the
 // lockfile sits outside the obvious project/workspace root — otherwise
-// the path is implied and printing it would just add noise to every
+// the path is implied and printing it would only add noise to every
 // install. Empty string when the path is omitted or matches the
 // expected location.
 //

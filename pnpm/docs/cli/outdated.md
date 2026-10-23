@@ -4,7 +4,10 @@ title: pnpm outdated
 ---
 
 Checks for outdated packages. The check can be limited to a subset of the
-installed packages by providing arguments (patterns are supported).
+installed packages by providing arguments. Patterns support `*` wildcards, and a
+leading `!` excludes matching packages.
+
+`pnpm outdated` exits with code 1 when any dependency is outdated.
 
 Examples:
 ```sh
@@ -38,6 +41,14 @@ Print details.
 
 Prints the outdated dependencies in the given format.
 
+### --json
+
+Shorthand for `--format json`.
+
+### --no-table
+
+Shorthand for `--format list`.
+
 ### --compatible
 
 Prints only versions that satisfy specifications in `package.json`.
@@ -46,7 +57,7 @@ Prints only versions that satisfy specifications in `package.json`.
 
 Checks only `devDependencies`.
 
-### --prod, -P
+### --prod, -P, --production
 
 Checks only `dependencies` and `optionalDependencies`.
 
@@ -54,12 +65,14 @@ Checks only `dependencies` and `optionalDependencies`.
 
 Doesn't check `optionalDependencies`.
 
+### --optional
+
+Checks `optionalDependencies`.
+
 ### --sort-by
 
-Specifies the order in which the output results are sorted. Currently only the value `name` is accepted.
+Specifies the order in which the output results are sorted. Currently only the value `name` is accepted. By default, results are sorted by the size of the version change, then by name.
 
 ### --include-github-actions
-
-Added in: v11.16.0
 
 Also check the GitHub Actions referenced by the repository's workflow files for updates. You can enable this by default by setting [`update.githubActions`](../settings/dependency-resolution.md#updategithubactions) to `true` in `pnpm-workspace.yaml`. See [Updating GitHub Actions](./update.md#updating-github-actions).

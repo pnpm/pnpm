@@ -3,9 +3,15 @@ id: remove
 title: pnpm remove
 ---
 
-Aliases: `rm`, `uninstall`, `un`
+Aliases: `rm`, `uninstall`, `un`, `uni`
 
 Removes packages from `node_modules` and from the project's `package.json`.
+
+```sh
+pnpm remove <pkg>...
+```
+
+Without a `--save-*` option, the package is removed from every dependency field.
 
 ## Options
 
@@ -19,7 +25,7 @@ every package found in subdirectories.
 
 ### --global, -g
 
-Remove a global package.
+Remove a global package and unlink its bins from the global bin directory.
 
 ### --save-dev, -D
 
@@ -32,6 +38,14 @@ Only remove the dependency from `optionalDependencies`.
 ### --save-prod, -P
 
 Only remove the dependency from `dependencies`.
+
+### --lockfile-only
+
+Update `package.json` and `pnpm-lock.yaml` without changing `node_modules`.
+
+### --lockfile-dir &lt;dir\>
+
+The directory in which `pnpm-lock.yaml` is created. It cannot be combined with `--global`.
 
 ### Supply-chain policy flags
 

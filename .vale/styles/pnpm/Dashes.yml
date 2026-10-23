@@ -1,0 +1,8 @@
+extends: existence
+message: "Check whether a period or comma would make this easier to read."
+link: https://developers.google.com/style/dashes
+level: error
+nonword: true
+tokens:
+  - '[—–]'
+  - '\s--\s'

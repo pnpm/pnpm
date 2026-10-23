@@ -149,14 +149,14 @@ the cycle's members, and may run them in any order relative to each other.
 The named package's requested task is the resume point.
 
 pnpm records which tasks pass as a recursive `run` or `exec` proceeds. When that
-record belongs to the same invocation — the same selected projects, command,
-arguments, and execution-affecting settings (including script bodies for
-`run`) — `--resume-from` skips exactly the tasks the record says passed,
+record belongs to the same invocation (the same selected projects, command,
+arguments, and execution-affecting settings, including script bodies for
+`run`), `--resume-from` skips exactly the tasks the record says passed,
 wherever they sit in the graph, and runs everything else. A record left by a
 different invocation is ignored rather than trusted.
 
-Without a usable record — a first run, a run interrupted before any task
-passed, or a `node_modules` directory pnpm cannot write to — pnpm falls back to
+Without a usable record (a first run, a run interrupted before any task
+passed, or a `node_modules` directory pnpm cannot write to), pnpm falls back to
 graph position: it omits the resume point's transitive dependencies, treating
 them as already completed, but still runs the resume task, its dependents, and
 unrelated tasks in the selected graph. That assumption holds after a failed run

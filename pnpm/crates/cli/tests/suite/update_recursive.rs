@@ -493,7 +493,7 @@ fn recursive_update_with_pattern_and_name_in_project() {
     assert!(!output.status.success(), "updating an undeclared package should fail");
     assert!(stderr.contains("ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES"), "{stderr}");
 
-    // Without `--depth 0` the same selector is simply a no-op.
+    // Without `--depth 0` the same selector is a no-op.
     pacquet(&workspace, ["-r", "update", "--latest", "@pnpm.e2e/this-does-not-exist"])
         .assert()
         .success();

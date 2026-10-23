@@ -1,0 +1,8 @@
+extends: existence
+message: "End with the issue link, not with the old behavior. Describe the old behavior in its own sentence if the reader needs it."
+link: https://github.com/pnpm/pnpm/blob/main/AGENTS.md#changeset-style
+level: warning
+ignorecase: true
+tokens:
+  - instead of
+  - rather than

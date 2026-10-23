@@ -135,7 +135,7 @@ fn multiple_progress_ticks() {
 
     for tick in 11..=15 {
         let output = diff.update(&format!("Progress: resolved {tick}\n"));
-        // Each tick should write the changed digit(s) but not the full line.
+        // Each tick should write the changed digits but not the full line.
         assert!(
             !output.contains("Progress"),
             "tick {tick} does not rewrite unchanged prefix: {output:?}",

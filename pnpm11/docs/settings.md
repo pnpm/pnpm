@@ -9,7 +9,7 @@ import SettingsAnchorRedirect from '@site/src/components/SettingsAnchorRedirect'
 
 pnpm gets its configuration from the command line, environment variables, and `pnpm-workspace.yaml`.
 
-Only auth and registry settings are read from `.npmrc` files. All other settings are configured in `pnpm-workspace.yaml` or the [global `config.yaml`](./configuring.md#global-configuration). Some settings are limited to one of them: settings that define the structure of `node_modules` (like `hoistPattern`, `publicHoistPattern`, `nodeLinker`, or `shamefullyHoist`) can only be set in `pnpm-workspace.yaml`, while settings that name machine-level state (like `stateDir` or `pnpmHomeDir`) are not read from `pnpm-workspace.yaml`.
+Only auth, registry, TLS, proxy, and `local-address` settings are read from `.npmrc` files. All other settings are configured in `pnpm-workspace.yaml` or the [global `config.yaml`](./configuring.md#global-configuration). Some settings are limited to one of them: settings that define the structure of `node_modules` (like `hoistPattern`, `publicHoistPattern`, `nodeLinker`, or `shamefullyHoist`) can only be set in `pnpm-workspace.yaml`, while settings that name machine-level state (like `stateDir` or `pnpmHomeDir`) are not read from `pnpm-workspace.yaml`.
 
 The `pnpm config` command can be used to read and edit the contents of the project and global configuration files.
 
@@ -34,7 +34,7 @@ Since v11.5.3, env variables are **not** expanded in settings of `pnpm-workspace
 
 :::note
 
-Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
+Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Since v11.25.0, `scope` is ignored there too. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
 
 :::
 
@@ -118,7 +118,7 @@ packageConfigs:
 
 Every setting is listed below, grouped by topic. Follow a setting to read its documentation, or open the full reference of a group.
 
-### Dependency Resolution
+### Dependency resolution
 
 [Full reference →](./settings/dependency-resolution.md)
 
@@ -151,7 +151,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [namedRegistries](./settings/dependency-resolution.md#namedregistries)
 * [pnprServer](./settings/dependency-resolution.md#pnprserver)
 
-### Node-Modules Settings
+### `node_modules` settings {#node-modules-settings}
 
 [Full reference →](./settings/node-modules.md#node-modules-settings)
 
@@ -171,7 +171,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [virtualStoreType](./settings/node-modules.md#virtualstoretype)
 * [enableGlobalVirtualStore](./settings/node-modules.md#enableglobalvirtualstore)
 
-### Dependency Hoisting Settings
+### Dependency hoisting settings
 
 [Full reference →](./settings/node-modules.md#dependency-hoisting-settings)
 
@@ -182,17 +182,16 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [shamefullyHoist](./settings/node-modules.md#shamefullyhoist)
 * [hoistingLimits](./settings/node-modules.md#hoistinglimits)
 
-### Store Settings
+### Store settings
 
 [Full reference →](./settings/store.md#store-settings)
 
 * [storeDir](./settings/store.md#storedir)
 * [verifyStoreIntegrity](./settings/store.md#verifystoreintegrity)
-* [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
 * [frozenStore](./settings/store.md#frozenstore)
 
-### Lockfile Settings
+### Lockfile settings
 
 [Full reference →](./settings/store.md#lockfile-settings)
 
@@ -204,7 +203,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [mergeGitBranchLockfilesBranchPattern](./settings/store.md#mergegitbranchlockfilesbranchpattern)
 * [peersSuffixMaxLength](./settings/store.md#peerssuffixmaxlength)
 
-### Network Settings
+### Network settings
 
 [Full reference →](./settings/network.md#network-settings)
 
@@ -215,7 +214,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [maxsockets](./settings/network.md#maxsockets)
 * [strictSsl](./settings/network.md#strictssl)
 
-### Request Settings
+### Request settings
 
 [Full reference →](./settings/network.md#request-settings)
 
@@ -230,7 +229,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [fetchMinSpeedKiBps](./settings/network.md#fetchminspeedkibps)
 * [maxTarballUnpackedSize](./settings/network.md#maxtarballunpackedsize)
 
-### Peer Dependency Settings
+### Peer dependency settings
 
 [Full reference →](./settings/peer-dependencies.md)
 
@@ -258,9 +257,8 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [engineStrict](./settings/cli.md#enginestrict)
 * [npmPath](./settings/cli.md#npmpath)
 * [pmOnFail](./settings/cli.md#pmonfail)
-* [ignoreWorkspaceRootCheck](./settings/cli.md#ignoreworkspacerootcheck)
 
-### Node.js Settings
+### Node.js settings
 
 [Full reference →](./settings/cli.md#nodejs-settings)
 
@@ -268,7 +266,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [runtimeOnFail](./settings/cli.md#runtimeonfail)
 * [nodeDownloadMirrors](./settings/cli.md#nodedownloadmirrors)
 
-### Build Settings
+### Build settings
 
 [Full reference →](./settings/build.md)
 
@@ -284,7 +282,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [allowBuilds](./settings/build.md#allowbuilds)
 * [dangerouslyAllowAllBuilds](./settings/build.md#dangerouslyallowallbuilds)
 
-### Versioning Settings
+### Versioning settings
 
 [Full reference →](./settings/versioning.md)
 
@@ -295,7 +293,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [versioning.epics](./settings/versioning.md#versioningepics)
 * [versioning.changelog.storage](./settings/versioning.md#versioningchangelogstorage)
 
-### Other Settings
+### Other settings
 
 [Full reference →](./settings/other.md)
 
@@ -326,7 +324,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [ci](./settings/other.md#ci)
 * [catalogPrune](./settings/other.md#catalogprune)
 
-### Workspace Settings
+### Workspace settings
 
 These settings are configured in `pnpm-workspace.yaml` as well, but are documented together with the workspace feature they belong to.
 

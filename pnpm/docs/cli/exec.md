@@ -5,17 +5,17 @@ title: pnpm exec
 
 Execute a shell command in scope of a project.
 
-`node_modules/.bin` is added to the `PATH`, so `pnpm exec` allows executing commands of dependencies.
+`node_modules/.bin` is added to the `PATH`, so `pnpm exec` allows executing commands of dependencies. The name of the current package is available through the environment variable `PNPM_PACKAGE_NAME`.
 
 ## Examples
 
-If you have Jest as a dependency of your project, there is no need to install Jest globally, just run it with `pnpm exec`:
+If you have Jest as a dependency of your project, there is no need to install Jest globally. Run it with `pnpm exec`:
 
 ```sh
 pnpm exec jest
 ```
 
-The `exec` part is actually optional when the command is not in conflict with a builtin pnpm command, so you may also just run:
+The `exec` part is actually optional when the command is not in conflict with a builtin pnpm command, so you may also run:
 
 ```sh
 pnpm jest
@@ -40,10 +40,7 @@ pnpm exec jest -r
 
 ### --recursive, -r
 
-Execute the shell command in every project of the workspace.
-
-The name of the current package is available through the environment variable
-`PNPM_PACKAGE_NAME`.
+Execute the shell command in every project of the workspace. The [recursive options](./recursive.md#options), such as `--workspace-concurrency`, `--[no-]sort`, and `--reverse`, apply.
 
 #### Examples
 
@@ -81,7 +78,7 @@ lengthy build process.
 
 ### --shell-mode, -c
 
-Runs the command inside of a shell. Uses `/bin/sh` on UNIX and `\cmd.exe` on Windows.
+Runs the command inside a shell. Uses `/bin/sh` on UNIX and `cmd.exe` on Windows.
 
 ### --report-summary
 

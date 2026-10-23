@@ -3,9 +3,7 @@ id: stage
 title: pnpm stage
 ---
 
-Added in: v11.3.0
-
-Stages packages for publishing using npm's [staged publishing](https://docs.npmjs.com/staged-publishing) workflow. Staged versions are not resolved by `pnpm install` until they are explicitly approved, letting you defer proof-of-presence (2FA) to a later point in time — useful for verifying release artifacts, smoke-testing CI, or coordinating multi-package releases.
+Stages packages for publishing using npm's [staged publishing](https://docs.npmjs.com/staged-publishing) workflow. Staged versions are not resolved by `pnpm install` until they are explicitly approved, letting you defer proof-of-presence (2FA) to a later point in time. This is useful for verifying release artifacts, smoke-testing CI, or coordinating multi-package releases.
 
 ```sh
 pnpm stage <subcommand> [options]
@@ -21,7 +19,7 @@ Stage a package for publishing.
 pnpm stage publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]
 ```
 
-Accepts the same arguments as [`pnpm publish`](./publish.md), but uploads the tarball to staging instead of promoting it to the live registry. The resulting **stage id** is printed and can be used with the other subcommands.
+Accepts the same arguments as [`pnpm publish`](./publish.md), including `--ignore-scripts`, `--force`, `--batch`, and the git checks, but uploads the tarball to staging instead of promoting it to the live registry. The resulting **stage id** is printed and can be used with the other subcommands.
 
 Use `--recursive` (or `-r`) to stage every publishable package in the workspace.
 
@@ -30,8 +28,10 @@ Use `--recursive` (or `-r`) to stage every publishable package in the workspace.
 List all staged package versions, or list the staged versions of a specific package.
 
 ```sh
-pnpm stage list [<package-spec>]
+pnpm stage list [<package-name>]
 ```
+
+The argument is a package name. A version specifier other than `*` is rejected.
 
 ### view
 
@@ -79,6 +79,10 @@ Download the tarball of a staged version for inspection.
 ```sh
 pnpm stage download <stage-id>
 ```
+
+The tarball is written to the current directory as `<name>-<version>-<stage-id>.tgz`, and its summary is printed. In a scoped name, the scope's `@` is dropped and `/` becomes `-`.
+
+A stage id is a hyphenated UUID, such as `123e4567-e89b-12d3-a456-426614174000`.
 
 ## Options
 

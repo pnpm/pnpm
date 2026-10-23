@@ -54,7 +54,7 @@ Added in: v11.3.0
 
 Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.
 
-## Life Cycle Scripts
+## Life cycle scripts
 
 * `prepack`
 * `prepare`

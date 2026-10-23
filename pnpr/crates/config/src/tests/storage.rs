@@ -77,6 +77,35 @@ backend:
 }
 
 #[test]
+fn libsql_backend_reads_max_connections() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: http://127.0.0.1:8080
+    maxConnections: 3
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap();
+    match config.identity.backend {
+        BackendConfig::Libsql(settings) => assert_eq!(settings.max_connections, Some(3)),
+        other => panic!("expected a libsql backend, got {other:?}"),
+    }
+}
+
+#[test]
+fn libsql_backend_rejects_an_empty_pool() {
+    let yaml = "\
+storage: /var/lib/pnpr
+backend:
+  libsql:
+    url: http://127.0.0.1:8080
+    maxConnections: 0
+";
+    let error = Config::from_yaml_str(yaml, Path::new("/etc/pnpr"), listen(), None).unwrap_err();
+    assert!(error.to_string().contains("maxConnections must be greater than 0"), "{error}");
+}
+
+#[test]
 fn libsql_backend_auth_token_is_optional() {
     let yaml = "\
 storage: /var/lib/pnpr

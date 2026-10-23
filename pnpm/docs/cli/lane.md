@@ -3,8 +3,6 @@ id: lane
 title: pnpm lane
 ---
 
-Added in: v11.13.0
-
 Manages per-package release lanes. A lane is a parallel release track: while a package is on one, the bare [`pnpm version -r`](./version.md#recursive-releases) releases it as `X.Y.Z-<lane>.N` prereleases while the rest of the workspace keeps releasing stable versions. Moving a package back to the main lane releases its accumulated stable version on the next run.
 
 ```sh
@@ -38,7 +36,11 @@ If no package has been assigned a lane, this prints `All packages are on the mai
 pnpm lane alpha --filter @example/cli
 ```
 
-`--filter` is required — it selects the packages to move. Lane names may contain only alphanumerics and hyphens, and cannot be purely numeric.
+`--filter` is required. It selects the packages to move. If it selects nothing, the command fails with `ERR_PNPM_VERSIONING_NO_PACKAGES`. Lane names may contain only alphanumerics and hyphens, and cannot be purely numeric. `main` in any other case, such as `MAIN`, is rejected.
+
+A package that is already on a different lane cannot move directly. The command fails with `ERR_PNPM_VERSIONING_ALREADY_ON_LANE`. Run `pnpm lane main --filter <pkg>` first.
+
+Outside a workspace, `pnpm lane` fails with `ERR_PNPM_WORKSPACE_ONLY`.
 
 ### Move packages back to the main lane
 
@@ -57,15 +59,15 @@ A package on a lane releases `X.Y.Z-<lane>.N`, where `X.Y.Z` is the stable versi
 | `2.0.0` | minor | `alpha` | `2.1.0-alpha.0` |
 | `2.1.0-alpha.0` | patch | `alpha` | `2.1.0-alpha.1` |
 | `2.1.0-alpha.1` | major | `alpha` | `3.0.0-alpha.0` |
-| `3.0.0-alpha.0` | — | `main` | `3.0.0` |
+| `3.0.0-alpha.0` | none | `main` | `3.0.0` |
 
-`N` restarts at `0` whenever the stable target changes. When a bump escalates the target — a `major` intent while the lane was building a minor — the target is recomputed and the counter resets.
+`N` restarts at `0` whenever the stable target changes. When a bump escalates the target (a `major` intent while the lane was building a minor), the target is recomputed and the counter resets.
 
 Packages in the same [fixed group](../versioning.md#fixed-groups) must move between lanes together.
 
 ## Options
 
-### --filter &lt;package_selector\&gt;
+### --filter &lt;package_selector\>
 
 Select the packages to move between lanes. Required when assigning a lane.
 

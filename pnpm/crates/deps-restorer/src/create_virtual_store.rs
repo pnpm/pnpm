@@ -243,7 +243,7 @@ pub(crate) type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, O
 /// The caller (`InstallFrozenLockfile::run`) folds these into its
 /// own [`crate::SkippedSnapshots`] so downstream consumers
 /// (`build_graph`, `link_bins`, hoisting, etc.) treat them as
-/// absent — a failed-fetch optional snapshot is simply not present
+/// absent — a failed-fetch optional snapshot is not present
 /// in the install graph.
 pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,

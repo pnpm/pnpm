@@ -5,15 +5,19 @@ title: "pnpm patch <pkg>"
 
 Prepare a package for patching (inspired by a similar command in Yarn).
 
-This command will cause a package to be extracted in a temporary directory intended to be editable at will.
+This command extracts the package to `node_modules/.pnpm_patches/<pkg>`, where `<pkg>` is the argument as given, such as `foo` or `foo@1.0.0` (or the [`--edit-dir`](#--edit-dir--d-dir)), a directory you can edit at will.
 
-Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>` being the temporary directory you received) to generate a patchfile and register it into your top-level manifest via the [`patchedDependencies`] field.
+Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>` being the directory you received) to generate a patchfile and register it into your top-level manifest via the [`patchedDependencies`] field.
 
 Usage:
 
 ```sh
 pnpm patch <pkg name>@<version>
 ```
+
+Run `pnpm install` first. Without installed dependencies, the command fails with `ERR_PNPM_PATCH_NO_LOCKFILE`.
+
+If several versions of the package are installed, pnpm asks which version to patch, then whether to apply the patch to all versions. If you apply it to all versions, the [`patchedDependencies`] key is the package name without a version.
 
 [`patchedDependencies`]: #patcheddependencies
 
@@ -30,9 +34,9 @@ To change a package's dependencies, don't use `pnpm patch` to modify its `packag
 
 ## Options
 
-### --edit-dir &lt;dir>
+### --edit-dir, -d &lt;dir>
 
-The package that needs to be patched will be extracted to this directory.
+The package that needs to be patched will be extracted to this directory. If the directory exists and is not empty, the command fails with `ERR_PNPM_PATCH_EDIT_DIR_EXISTS`. Without this option, a non-empty default directory fails with `ERR_PNPM_EDIT_DIR_NOT_EMPTY`.
 
 ### --ignore-existing
 
@@ -61,8 +65,6 @@ Dependencies can be patched by version range. The priority order is:
 1. Exact versions (highest priority)
 2. Version ranges
 3. Name-only patches (applies to all versions unless overridden)
-
-A special case: the version range `*` behaves like a name-only patch but does not ignore patch failures.
 
 Example:
 
@@ -93,8 +95,6 @@ In most cases, defining an exact version is enough to override a broader range.
 
 ### allowUnusedPatches
 
-Added in: v10.7.0 (Previously named `allowNonAppliedPatches`)
-
 * Default: **false**
 * Type: **Boolean**
 
@@ -106,8 +106,4 @@ patchedDependencies:
 allowUnusedPatches: true
 ```
 
-:::note
-
-In v11, patch application failures always throw an error — the `ignorePatchFailures` setting has been removed. When multiple patches in a group are applied, a failure in one does not prevent the rest from being attempted; all patch errors are reported together at the end.
-
-:::
+A patch that fails to apply fails the install. When several patches in a group are applied, a failure in one does not prevent the rest from being attempted, and all patch errors are reported together at the end.

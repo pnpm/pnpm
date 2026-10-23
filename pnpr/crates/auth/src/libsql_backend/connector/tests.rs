@@ -37,7 +37,13 @@ fn connector_trusting_test_ca() -> LibsqlConnector {
 }
 
 fn settings(url: String) -> LibsqlSettings {
-    LibsqlSettings { url, auth_token: None, replica_path: None, sync_interval_secs: None }
+    LibsqlSettings {
+        url,
+        auth_token: None,
+        replica_path: None,
+        sync_interval_secs: None,
+        max_connections: None,
+    }
 }
 
 #[tokio::test]

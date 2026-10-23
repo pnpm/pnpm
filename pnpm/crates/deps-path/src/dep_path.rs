@@ -3,7 +3,7 @@ use std::sync::Arc;
 /// Branded depPath string.
 ///
 /// A depPath is a `string` brand — it's never validated at the
-/// boundary, just used to keep depPath strings from getting mixed
+/// boundary, it only keeps depPath strings from getting mixed
 /// up with arbitrary strings in the type system. This newtype
 /// therefore exposes infallible `From<String>` / `From<&str>`
 /// constructors and skips a validating `TryFrom`.

@@ -54,14 +54,14 @@ resolutions:
 ```text
 node_modules
 └── .pnpm
-    ├── foo@1.0.0_bar@1.0.0+baz@1.0.0
+    ├── foo@1.0.0_bar@1.0.0_baz@1.0.0
     │   └── node_modules
     │       ├── foo
     │       ├── bar   -> ../../bar@1.0.0/node_modules/bar
     │       ├── baz   -> ../../baz@1.0.0/node_modules/baz
     │       ├── qux   -> ../../qux@1.0.0/node_modules/qux
     │       └── plugh -> ../../plugh@1.0.0/node_modules/plugh
-    ├── foo@1.0.0_bar@1.0.0+baz@1.1.0
+    ├── foo@1.0.0_bar@1.0.0_baz@1.1.0
     │   └── node_modules
     │       ├── foo
     │       ├── bar   -> ../../bar@1.0.0/node_modules/bar
@@ -76,8 +76,8 @@ node_modules
 ```
 
 We create symlinks either to the `foo` that is inside
-`foo@1.0.0_bar@1.0.0+baz@1.0.0` or to the one in
-`foo@1.0.0_bar@1.0.0+baz@1.1.0`.
+`foo@1.0.0_bar@1.0.0_baz@1.0.0` or to the one in
+`foo@1.0.0_bar@1.0.0_baz@1.1.0`.
 As a consequence, the Node.js module resolver will find the correct peers.
 
 *If a package has no peer dependencies but has dependencies with peers that are

@@ -15,8 +15,8 @@ In a CI environment, installation fails if a lockfile is present but needs an
 update. To allow lockfile updates in CI, run `pnpm install --no-frozen-lockfile`.
 
 Inside a [workspace], `pnpm install` installs all dependencies in all the
-projects. If you want to disable this behavior, set the `recursive-install`
-setting to `false`.
+projects. If you want to disable this behavior, set the
+[`recursiveInstall`](../settings/cli.md#recursiveinstall) setting to `false`.
 
 ![](/img/demos/pnpm-install.svg)
 
@@ -68,7 +68,7 @@ Skip installing runtime entries (e.g. Node.js downloaded via [`devEngines.runtim
 
 This is useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
 
-This can also be set via the `runtime=false` config in `pnpm-workspace.yaml`.
+This can also be set with `runtime: false` in `pnpm-workspace.yaml`.
 
 ## Options
 
@@ -142,18 +142,7 @@ If `true`, pnpm doesn't generate a lockfile and fails to install if the lockfile
 is out of sync with the manifest / an update is needed or no lockfile is
 present.
 
-This setting is `true` by default in [CI environments]. The following code is used to detect CI environments:
-
-```js title="https://github.com/watson/ci-info/blob/44e98cebcdf4403f162195fbcf90b1f69fc6e047/index.js#L54-L61"
-exports.isCI = !!(
-  env.CI || // Travis CI, CircleCI, Cirrus CI, GitLab CI, Appveyor, CodeShip, dsari
-  env.CONTINUOUS_INTEGRATION || // Travis CI, Cirrus CI
-  env.BUILD_NUMBER || // Jenkins, TeamCity
-  env.RUN_ID || // TaskCluster, dsari
-  exports.name ||
-  false
-)
-```
+This setting is `true` by default in [CI environments]. pnpm detects a CI environment with the [ci-info](https://github.com/watson/ci-info) package. Set `CI=false` to turn detection off.
 
 [CI environments]: https://github.com/watson/ci-info#supported-ci-tools
 

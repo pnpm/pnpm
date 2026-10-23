@@ -269,7 +269,7 @@ fn reuse_global_engine(
 /// The relink is best-effort *on the reuse decision only* — it does not
 /// weaken any check. [`link_exe_platform_binary`]'s wrapper-containment
 /// guard still runs and still refuses to link when the wrapper resolves
-/// outside `install_dir`; on refusal it links nothing. This helper simply
+/// outside `install_dir`; on refusal it links nothing. This helper
 /// reports that refusal as "not reusable" (returning `false`) instead of
 /// propagating it as a hard error, so the caller falls through to a fresh
 /// install rather than aborting the whole self-update. Nothing from the

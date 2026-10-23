@@ -90,7 +90,7 @@ function makeWarningReporter (
     if (!collapsedWarnings) {
       collapsedWarnings = new Rx.Subject()
       // For some reason, without using setTimeout, the warning summary is printed above the rest of the warnings
-      // Even though the summary event happens last. Probably a bug in "most".
+      // Even though the summary event happens last. Likely a bug in "most".
       setTimeout(() => {
         collapsedWarnings.next({ msg: warningMsg })
       }, 0)

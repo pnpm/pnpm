@@ -363,11 +363,19 @@ where
     triggers.requires_build()
 }
 
+/// A git-hosted row (one that records `requiresPrepare`) with no bundled
+/// manifest derives `requiresBuild` from its files and ignores the stored
+/// value, which existing stores may hold wrong
+/// ([pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224)).
 fn resolve_row_requires_build(
     stored: Option<bool>,
+    stored_requires_prepare: Option<bool>,
     manifest: Option<&serde_json::Value>,
     cas_paths: &HashMap<String, PathBuf>,
 ) -> bool {
+    if stored_requires_prepare.is_some() && manifest.is_none() {
+        return requires_build_from_cas_paths(cas_paths);
+    }
     match stored {
         Some(true) if stored_requires_build_needs_manifest_check(manifest, cas_paths.keys()) => {
             requires_build_from_cas_paths(cas_paths)
@@ -401,6 +409,7 @@ fn collect_prefetch_result(decoded: Vec<DecodedPrefetchRow>) -> PrefetchResult {
         }
         let calculated_requires_build = resolve_row_requires_build(
             stored_requires_build,
+            stored_requires_prepare,
             manifest.as_deref(),
             &verify_result.files_map,
         );

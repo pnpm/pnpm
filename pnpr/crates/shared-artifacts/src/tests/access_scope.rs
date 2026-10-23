@@ -5,7 +5,7 @@ use super::{
 
 /// Matching a tag set is order-independent, so two orderings are the same
 /// constraint and must not be two slots — otherwise a publisher reopens the
-/// swap simply by listing the same tags the other way round.
+/// swap by listing the same tags the other way round.
 #[tokio::test]
 async fn tag_order_does_not_open_a_second_slot() {
     let storage = TempDir::new().unwrap();

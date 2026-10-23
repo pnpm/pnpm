@@ -9,14 +9,14 @@ import SettingsAnchorRedirect from '@site/src/components/SettingsAnchorRedirect'
 
 pnpm gets its configuration from the command line, environment variables, and `pnpm-workspace.yaml`.
 
-Only auth and registry settings are read from `.npmrc` files. All other settings are configured in `pnpm-workspace.yaml` or the [global `config.yaml`](./configuring.md#global-configuration). Some settings are limited to one of them: settings that define the structure of `node_modules` (like `hoistPattern`, `publicHoistPattern`, `nodeLinker`, or `shamefullyHoist`) can only be set in `pnpm-workspace.yaml`, while settings that name machine-level state (like `stateDir` or `pnpmHomeDir`) are not read from `pnpm-workspace.yaml`.
+Only auth, registry, TLS, proxy, and `local-address` settings are read from `.npmrc` files. All other settings are configured in `pnpm-workspace.yaml` or the [global `config.yaml`](./configuring.md#global-configuration). Some settings are limited to one of them: settings that define the structure of `node_modules` (like `hoistPattern`, `publicHoistPattern`, `nodeLinker`, or `shamefullyHoist`) can only be set in `pnpm-workspace.yaml`, while settings that name machine-level state (like `stateDir` or `pnpmHomeDir`) are not read from `pnpm-workspace.yaml`.
 
 The `pnpm config` command can be used to read and edit the contents of the project and global configuration files.
 
 The relevant configuration files are:
 
 * Per-project configuration file: `/path/to/my/project/pnpm-workspace.yaml`
-* [Global configuration file](./cli/config.md)
+* [Global configuration file](./configuring.md#global-configuration)
 
 :::note
 
@@ -28,19 +28,17 @@ Values in the configuration files may contain env variables using the `${NAME}` 
 
 :::warning
 
-Since v11.5.3, env variables are **not** expanded in settings of `pnpm-workspace.yaml` that define registry URLs: `registry` and the URL values of [`registries`](./settings/dependency-resolution.md#registries) and [`namedRegistries`](./settings/dependency-resolution.md#namedregistries). Values containing a `${...}` placeholder in these settings are ignored. In the [registry declaration shape](./registries.md) of `registries` (since v11.23.0), the URL is the key rather than the value, and the same rule applies to the keys. Because `pnpm-workspace.yaml` is committed to the repository, expanding env variables in registry URLs could be exploited by a malicious repository to leak secrets from the environment to an attacker-controlled registry. Configure dynamic registry URLs in a trusted location instead: the global configuration file or CLI options.
+Env variables are **not** expanded in settings of `pnpm-workspace.yaml` that define registry URLs: `registry` and the URL values of [`registries`](./settings/dependency-resolution.md#registries) and [`namedRegistries`](./settings/dependency-resolution.md#namedregistries). Values containing a `${...}` placeholder in these settings are ignored. In the [registry declaration shape](./registries.md) of `registries`, the URL is the key rather than the value, and the same rule applies to the keys. Because `pnpm-workspace.yaml` is committed to the repository, expanding env variables in registry URLs could be exploited by a malicious repository to leak secrets from the environment to an attacker-controlled registry. Configure dynamic registry URLs in a trusted location instead: the global configuration file or CLI options.
 
-Since v12.7.0, the same applies to `userAgent`: a `userAgent` in `pnpm-workspace.yaml` that contains a `${...}` placeholder is ignored, because the user agent is sent to the configured registry with every request.
+Since v12.7.0, the same applies to [`userAgent`](./settings/network.md#useragent): a `userAgent` in `pnpm-workspace.yaml` that contains a `${...}` placeholder is ignored, because the user agent is sent to the configured registry with every request.
 
 :::
 
 :::note
 
-Since v11.22.0, a project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `npmrcAuthFile`, `pnpmHomeDir`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. Set them in the [global configuration file](./cli/config.md) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
+A project's `pnpm-workspace.yaml` cannot choose where pnpm keeps its credentials, its own installation, or other machine-level state: `bin`, `configDir`, `dir`, `globalBinDir`, `globalDir`, `macosBackup`, `npmrcAuthFile`, `pnpmHomeDir`, `scope`, `stateDir`, `userconfig`, and `workspaceDir` are ignored there, with a warning. [`ci`](./settings/other.md#ci) and [`tools`](./settings/cli.md#tools) are ignored there too, and [`globalShims`](./settings/other.md#globalshims) is read only from a `pnpm-workspace.yaml` in the pnpm home directory. Set them in the [global configuration file](./configuring.md#global-configuration) or on the command line instead. `cacheDir` and `storeDir` are unaffected.
 
 :::
-
-[INI-formatted]: https://en.wikipedia.org/wiki/INI_file
 
 ## packages
 
@@ -103,8 +101,6 @@ catalogs:
 
 ## packageConfigs
 
-Added in: v11.0.0
-
 Allows setting project-specific configuration for individual workspace packages. This replaces workspace project-specific `.npmrc` files.
 
 `packageConfigs` can be specified as a map of package names to config objects:
@@ -143,7 +139,7 @@ so pnpm reports which entries it ignored instead of applying them silently.
 
 Every setting is listed below, grouped by topic. Follow a setting to read its documentation, or open the full reference of a group.
 
-### Dependency Resolution
+### Dependency resolution
 
 [Full reference →](./settings/dependency-resolution.md)
 
@@ -175,8 +171,9 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [registries](./settings/dependency-resolution.md#registries)
 * [namedRegistries](./settings/dependency-resolution.md#namedregistries)
 * [pnprServer](./settings/dependency-resolution.md#pnprserver)
+* [autoDedupe](./settings/dependency-resolution.md#autodedupe)
 
-### Node-Modules Settings
+### `node_modules` settings {#node-modules-settings}
 
 [Full reference →](./settings/node-modules.md#node-modules-settings)
 
@@ -197,8 +194,9 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [dlxCacheMaxAge](./settings/node-modules.md#dlxcachemaxage)
 * [virtualStoreType](./settings/node-modules.md#virtualstoretype)
 * [enableGlobalVirtualStore](./settings/node-modules.md#enableglobalvirtualstore)
+* [globalVirtualStoreDir](./settings/node-modules.md#globalvirtualstoredir)
 
-### Dependency Hoisting Settings
+### Dependency hoisting settings
 
 [Full reference →](./settings/node-modules.md#dependency-hoisting-settings)
 
@@ -208,25 +206,27 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [hoistWorkspacePackages](./settings/node-modules.md#hoistworkspacepackages)
 * [shamefullyHoist](./settings/node-modules.md#shamefullyhoist)
 * [hoistingLimits](./settings/node-modules.md#hoistinglimits)
+* [externalDependencies](./settings/node-modules.md#externaldependencies)
 
-### Store Settings
+### Store settings
 
 [Full reference →](./settings/store.md#store-settings)
 
 * [storeDir](./settings/store.md#storedir)
 * [verifyStoreIntegrity](./settings/store.md#verifystoreintegrity)
-* [useRunningStoreServer](./settings/store.md#userunningstoreserver)
 * [strictStorePkgContentCheck](./settings/store.md#strictstorepkgcontentcheck)
 * [frozenStore](./settings/store.md#frozenstore)
 * [storeIndexFormat](./settings/store.md#storeindexformat)
 
-### Lockfile Settings
+### Lockfile settings
 
 [Full reference →](./settings/store.md#lockfile-settings)
 
 * [lockfile](./settings/store.md#lockfile)
+* [lockfileDir](./settings/store.md#lockfiledir)
 * [frozenLockfile](./settings/store.md#frozenlockfile)
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
+* [excludeLinksFromLockfile](./settings/store.md#excludelinksfromlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)
 * [lockfile.includeResolutionSettings](./settings/store.md#lockfileincluderesolutionsettings)
 * [lockfile.integrityTarget](./settings/store.md#lockfileintegritytarget)
@@ -234,7 +234,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [mergeGitBranchLockfilesBranchPattern](./settings/store.md#mergegitbranchlockfilesbranchpattern)
 * [peersSuffixMaxLength](./settings/store.md#peerssuffixmaxlength)
 
-### Network Settings
+### Network settings
 
 [Full reference →](./settings/network.md#network-settings)
 
@@ -244,8 +244,9 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [localAddress](./settings/network.md#localaddress)
 * [maxsockets](./settings/network.md#maxsockets)
 * [strictSsl](./settings/network.md#strictssl)
+* [userAgent](./settings/network.md#useragent)
 
-### Request Settings
+### Request settings
 
 [Full reference →](./settings/network.md#request-settings)
 
@@ -258,14 +259,17 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [fetchTimeout](./settings/network.md#fetchtimeout)
 * [fetchWarnTimeoutMs](./settings/network.md#fetchwarntimeoutms)
 * [fetchMinSpeedKiBps](./settings/network.md#fetchminspeedkibps)
+* [maxTarballUnpackedSize](./settings/network.md#maxtarballunpackedsize)
 
-### Peer Dependency Settings
+### Peer dependency settings
 
 [Full reference →](./settings/peer-dependencies.md)
 
 * [autoInstallPeers](./settings/peer-dependencies.md#autoinstallpeers)
+  * [Optional peer dependencies](./settings/peer-dependencies.md#optional-peer-dependencies)
   * [Version Conflicts](./settings/peer-dependencies.md#version-conflicts)
   * [Conflict Resolution](./settings/peer-dependencies.md#conflict-resolution)
+* [autoInstallPeersFromHighestMatch](./settings/peer-dependencies.md#autoinstallpeersfromhighestmatch)
 * [dedupePeerDependents](./settings/peer-dependencies.md#dedupepeerdependents)
 * [dedupePeers](./settings/peer-dependencies.md#dedupepeers)
 * [addMissingPeerTypes](./settings/peer-dependencies.md#addmissingpeertypes)
@@ -281,6 +285,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 [Full reference →](./settings/cli.md#cli-settings)
 
 * [[no-]color](./settings/cli.md#no-color)
+* [progress](./settings/cli.md#progress)
 * [loglevel](./settings/cli.md#loglevel)
 * [reporter](./settings/cli.md#reporter)
 * [useBetaCli](./settings/cli.md#usebetacli)
@@ -288,9 +293,8 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [engineStrict](./settings/cli.md#enginestrict)
 * [npmPath](./settings/cli.md#npmpath)
 * [pmOnFail](./settings/cli.md#pmonfail)
-* [ignoreWorkspaceRootCheck](./settings/cli.md#ignoreworkspacerootcheck)
 
-### Node.js Settings
+### Node.js settings
 
 [Full reference →](./settings/cli.md#nodejs-settings)
 
@@ -299,7 +303,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [nodeDownloadMirrors](./settings/cli.md#nodedownloadmirrors)
 * [tools](./settings/cli.md#tools)
 
-### Build Settings
+### Build settings
 
 [Full reference →](./settings/build.md)
 
@@ -319,7 +323,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [skills.dirs](./settings/build.md#skillsdirs)
 * [dangerouslyAllowAllBuilds](./settings/build.md#dangerouslyallowallbuilds)
 
-### Versioning Settings
+### Versioning settings
 
 [Full reference →](./settings/versioning.md)
 
@@ -330,20 +334,22 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [versioning.epics](./settings/versioning.md#versioningepics)
 * [versioning.changelog.storage](./settings/versioning.md#versioningchangelogstorage)
 
-### Other Settings
+### Other settings
 
 [Full reference →](./settings/other.md)
 
 * [savePrefix](./settings/other.md#saveprefix)
+* [saveExact](./settings/other.md#saveexact)
+* [saveTypes](./settings/other.md#savetypes)
 * [tag](./settings/other.md#tag)
 * [globalDir](./settings/other.md#globaldir)
 * [globalBinDir](./settings/other.md#globalbindir)
+* [globalShims](./settings/other.md#globalshims)
 * [npmrcAuthFile](./settings/other.md#npmrcauthfile)
 * [stateDir](./settings/other.md#statedir)
 * [cacheDir](./settings/other.md#cachedir)
 * [useStderr](./settings/other.md#usestderr)
 * [updateNotifier](./settings/other.md#updatenotifier)
-* [globalShims](./settings/other.md#globalshims)
 * [preferSymlinkedExecutables](./settings/other.md#prefersymlinkedexecutables)
 * [ignoreCompatibilityDb](./settings/other.md#ignorecompatibilitydb)
 * [resolutionMode](./settings/other.md#resolutionmode)
@@ -352,17 +358,21 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
   * [Why this is needed](./settings/other.md#why-this-is-needed)
   * [When to disable](./settings/other.md#when-to-disable)
 * [deployAllFiles](./settings/other.md#deployallfiles)
+* [embedReadme](./settings/other.md#embedreadme)
 * [dedupeDirectDeps](./settings/other.md#dedupedirectdeps)
 * [optimisticRepeatInstall](./settings/other.md#optimisticrepeatinstall)
 * [requiredScripts](./settings/other.md#requiredscripts)
 * [enablePrePostScripts](./settings/other.md#enableprepostscripts)
 * [scriptShell](./settings/other.md#scriptshell)
 * [shellEmulator](./settings/other.md#shellemulator)
+* [scriptsPrependNodePath](./settings/other.md#scriptsprependnodepath)
 * [catalogMode](./settings/other.md#catalogmode)
 * [ci](./settings/other.md#ci)
 * [catalogPrune](./settings/other.md#catalogprune)
+* [macosBackup.excludeModulesDir](./settings/other.md#macosbackupexcludemodulesdir)
+* [macosBackup.excludeStoreDir](./settings/other.md#macosbackupexcludestoredir)
 
-### Workspace Settings
+### Workspace settings
 
 These settings are configured in `pnpm-workspace.yaml` as well, but are documented together with the workspace feature they belong to.
 
@@ -388,11 +398,11 @@ These settings are configured in `pnpm-workspace.yaml` as well, but are document
 * [patchedDependencies](./cli/patch.md#patcheddependencies)
 * [pnpmfile](./pnpmfile.md#pnpmfile), [globalPnpmfile](./pnpmfile.md#globalpnpmfile) and [ignorePnpmfile](./pnpmfile.md#ignorepnpmfile)
 * [audit.level](./cli/audit.md#auditlevel), [audit.ignore](./cli/audit.md#auditignore) and [audit.ignorePrune](./cli/audit.md#auditignoreprune)
-* [initVersion](./cli/init.md#initversion), [initLicense](./cli/init.md#initlicense) and [initAuthorName / initAuthorEmail / initAuthorUrl](./cli/init.md#initauthorname-initauthoremail-initauthorurl)
+* [initPackageManager](./cli/init.md#initpackagemanager), [initType](./cli/init.md#inittype), [initVersion](./cli/init.md#initversion), [initLicense](./cli/init.md#initlicense) and [initAuthorName / initAuthorEmail / initAuthorUrl](./cli/init.md#initauthorname-initauthoremail-initauthorurl)
 * [legacyDirFiltering](./filtering.md#legacydirfiltering)
 * [concurrencyGroups](./workspace-task-orchestration.md#concurrencygroups)
 * [tasks](./workspace-task-orchestration.md#configure-task-dependencies), [pipelines](./cli/pipeline.md#pipelines) and [pipelineBase](./cli/pipeline.md#pipelinebase)
-* [cargo.enabled](./cargo.md#cargoenabled) and [Cargo index](./cargo.md#cargo-index)
+* [cargo.enabled](./cargo.md#cargoenabled) and [Cargo registries](./cargo.md#registries)
 * [python.enabled](./python.md#pythonenabled), [python.executable](./python.md#pythonexecutable), [Python indexes](./python.md#python-indexes), [python.extras](./python.md#pythonextras) and [python.groups](./python.md#pythongroups)
 * [python.versions](./python.md#pythonversions), [python.overrides](./python.md#pythonoverrides) and [python.constraints](./python.md#pythonconstraints)
 * Authorization settings, which are read from [`.npmrc`](./npmrc.md)

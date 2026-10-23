@@ -10,8 +10,8 @@ Manage the configuration files.
 pnpm settings are split across two kinds of configuration files:
 
 * **Legacy and npm-compatible registry/authentication settings** live in INI
-  files — the global `rc` file, `auth.ini`, and local `.npmrc` files.
-* **pnpm settings** live in YAML files — the global `config.yaml` and the
+  files: the global `rc` file, `auth.ini`, and local `.npmrc` files.
+* **pnpm settings** live in YAML files: the global `config.yaml` and the
   per-project `pnpm-workspace.yaml`. The global file may also hold the
   structured [`_auth`](../npmrc.md#_auth) and [`registries`](../registries.md)
   values that pnpm 12.1 and newer writes during `pnpm login`.
@@ -30,7 +30,7 @@ The global `rc` file (registry/auth settings only) is at:
 * On macOS: **~/Library/Preferences/pnpm/rc**
 * On Linux: **~/.config/pnpm/rc**
 
-You can also retrieve the path to your global config file by running (added in v10.21.0):
+You can also retrieve the path to your global config file by running:
 
 ```sh
 pnpm config get globalconfig
@@ -63,11 +63,11 @@ pnpm config set --location=project --json catalog '{ "react": "19" }'
 
 The `set` command does not accept a property path.
 
-`pnpm config set` refuses to write a setting to a project's `pnpm-workspace.yaml` that pnpm does not read from there — `configDir`, `pnpmHomeDir`, `stateDir`, and the other settings that name machine-level state. Since v12.1.0, this includes `scope`, which controls the machine-wide default for `pnpm login`. The command fails with `ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING`, naming where the setting belongs when it belongs somewhere. `pnpm config delete` still clears such a key from a file that already carries it.
+`pnpm config set` refuses to write a setting to a project's `pnpm-workspace.yaml` that pnpm does not read from there, such as `configDir`, `pnpmHomeDir`, `stateDir`, and the other settings that name machine-level state. Since v12.1.0, this includes `scope`, which controls the machine-wide default for `pnpm login`. The command fails with `ERR_PNPM_CONFIG_SET_NOT_A_PROJECT_SETTING`, naming where the setting belongs when it belongs somewhere. `pnpm config delete` still clears such a key from a file that already carries it.
 
 ### get &lt;key>
 
-Print the config value for the provided key.
+Print the config value for the provided key. Strings, numbers, and booleans are printed as plain text, objects and arrays as JSON, and an unset key as `undefined`. With `--json`, every value is printed as JSON.
 
 The `key` can be a simple key:
 
@@ -102,12 +102,6 @@ Show all the config settings. Output is a JSON object.
 
 Auth-related settings are hidden from the output; use `pnpm config get <key>` to read them explicitly.
 
-:::note
-
-Since v11, `pnpm config get` (without `--json`) no longer prints INI-formatted text. It prints JSON for objects and arrays, and raw strings for strings, numbers, booleans, and nulls. `pnpm config get --json` prints all values as JSON. `pnpm config list` always prints a JSON object.
-
-:::
-
 ## Options
 
 ### --global, -g
@@ -117,6 +111,8 @@ Set the configuration in the global config file.
 With `get` and `list`, show the global configuration without the settings from the project's `pnpm-workspace.yaml` and `.npmrc`.
 
 ### --location
+
+* Type: **project**, **global**
 
 By default, `--location` is set to `global`.
 

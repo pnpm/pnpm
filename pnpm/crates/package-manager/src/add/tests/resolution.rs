@@ -1,4 +1,7 @@
-use super::{super::normalized_save_specifier, add_jsr_selector, add_npm_selector};
+use super::{
+    super::{install::same_build, normalized_save_specifier},
+    add_jsr_selector, add_npm_selector,
+};
 
 #[tokio::test]
 async fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
@@ -138,4 +141,13 @@ fn test_collect_dependency_warnings() {
     // No source warning when source is same
     let warnings_same = collect_dependency_warnings(None, Some("^1.0.0"), "^2.0.0", "foo", "/root");
     assert_eq!(warnings_same.len(), 0);
+}
+
+#[test]
+fn a_locked_build_matches_only_the_same_build() {
+    let version = |text: &str| text.parse::<node_semver::Version>().unwrap();
+    assert!(same_build(&version("1.0.0"), &version("1.0.0")));
+    assert!(same_build(&version("1.0.0+foo"), &version("1.0.0+foo")));
+    assert!(!same_build(&version("1.0.0+bar"), &version("1.0.0+foo")));
+    assert!(!same_build(&version("1.0.0"), &version("1.0.0+foo")));
 }

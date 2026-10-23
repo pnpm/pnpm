@@ -18,16 +18,18 @@ Fronting pnpr with a reverse proxy or load balancer provides:
 - **TLS termination**: Automates certificate issuance and renewal via Let's Encrypt or your organization's PKI, and negotiates modern HTTP protocols (HTTP/2 and HTTP/3).
 - **Connection buffering**: Buffers slow client connections and streams large package tarballs and container image layers without exhausting application worker threads.
 - **DDoS and edge protection**: Applies connection limits, request filtering, and web application firewall (WAF) policies before traffic reaches the registry.
-- **Zero-downtime rolling updates**: Cooperates with pnpr's graceful shutdown signals and readiness probes to route traffic seamlessly between instances during restarts or version upgrades.
+- **Zero-downtime rolling updates**: Cooperates with pnpr's graceful shutdown signals and readiness probes to route traffic between instances during restarts or version upgrades.
 
 ## Configuring pnpr for reverse proxies
 
-When running behind a reverse proxy, set these options in your `pnpr.yaml`:
+When running behind a reverse proxy, start pnpr with the public URL and set
+the trusted proxies in your `pnpr.yaml`:
+
+```sh
+pnpr -c ./pnpr.yaml --public-url https://registry.example.com
+```
 
 ```yaml title="pnpr.yaml"
-# Canonical public URL used when rewriting dist.tarball URLs in packuments
-publicUrl: https://registry.example.com
-
 # Reverse proxy IPs or CIDR blocks trusted to forward client IPs
 trustedProxies:
   - loopback
@@ -38,9 +40,9 @@ trustedProxies:
 trustedProxyHeader: x-forwarded-for
 ```
 
-### publicUrl
+### Public URL
 
-`publicUrl` (or `--public-url`) tells pnpr how clients reach the registry from the outside. When clients fetch packuments, pnpr rewrites tarball and attestation URLs to use this base URL instead of its internal listen address (`http://127.0.0.1:7677`).
+`--public-url` (or `PNPR_PUBLIC_URL`) tells pnpr how clients reach the registry from the outside. When clients fetch packuments, pnpr rewrites tarball and attestation URLs to use this base URL instead of its internal listen address (`http://127.0.0.1:7677`).
 
 ### trustedProxies
 
@@ -51,7 +53,7 @@ When `trustedProxies` is set with `trustedProxyHeader: x-forwarded-for` (the def
 The local reverse-proxy recipes (such as Nginx and Caddy) connect over `loopback`. The AWS ALB recipe uses the VPC CIDR block for direct ALB-to-pnpr traffic. If your architecture routes traffic through multiple proxy layers (such as a CDN or edge load balancer followed by an internal ingress controller), include all intermediate proxy networks in `trustedProxies`.
 
 The client IP determined by this traversal is used for:
-- Per-IP rate limiting (`rate_limiting`)
+- [Login rate limiting](configuration.md#security-limits-and-protections)
 - Structured audit logs (`pnpr::audit`) and access logs (`pnpr::access`)
 - CIDR-restricted bearer tokens
 
@@ -63,11 +65,9 @@ Do not set `trustedProxies` to trust all addresses (`0.0.0.0/0`). An overly perm
 
 ## Health and readiness checks
 
-Reverse proxies and load balancers should be configured with health probes:
-
-- **Liveness probe (`GET /-/live`)**: Returns `200 OK` (`{"status":"ok"}`) when the server process is alive and handling requests.
-- **Readiness probe (`GET /-/ready`)**: Returns `200 OK` (`{"status":"ok","storage":"ok","auth":"ok"}`) when storage and auth backends are healthy, or `503 Service Unavailable` (`{"status":"unhealthy",...}`) if a backend is unreachable.
-- **Health ping (`GET /-/ping`)**: Minimal health check returning `200 OK` (`{}`) on success or `503` on failure.
+Point the proxy's health probes at `GET /-/ready` for readiness and
+`GET /-/live` for liveness. The responses are described in
+[HTTP endpoints](endpoints.md#always-available).
 
 ## Configuration recipes
 
@@ -174,10 +174,6 @@ When deploying behind an AWS Application Load Balancer:
 
 ## Process lifecycle and configuration reload
 
-pnpr configurations are immutable during a process lifecycle. pnpr does not implement in-process configuration reloads (such as SIGHUP).
-
-To apply configuration changes without downtime:
-
-1. **Deploy with an orchestrator**: In container orchestrators like Kubernetes, Docker Swarm, or AWS ECS, trigger a rolling deployment.
-2. **Readiness probe shifts traffic**: The orchestrator launches a new pnpr container. Once its `/-/ready` check passes, the load balancer begins routing new requests to the new instance.
-3. **Graceful shutdown**: The orchestrator sends `SIGTERM` to the old container. pnpr ceases accepting new connections on its listener and drains active in-flight requests before exiting cleanly.
+pnpr applies configuration changes only on restart. See
+[Signals and graceful shutdown](cli.md#signals-and-graceful-shutdown) for how to
+roll them out without downtime.

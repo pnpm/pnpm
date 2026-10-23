@@ -33,7 +33,7 @@ node_modules.
 
 Use and cache the results of (pre/post)install hooks.
 
-When a pre/post install script modify the contents of a package (e.g. build output), pnpm saves the modified package in the global store. On future installs on the same machine, pnpm reuses this cached, prebuilt version—making installs significantly faster.
+When a pre/post install script modify the contents of a package (e.g. build output), pnpm saves the modified package in the global store. On future installs on the same machine, pnpm reuses this cached, prebuilt version, which makes installs faster.
 
 :::note
 
@@ -57,9 +57,9 @@ sideEffectsCache:
       - native-addon
 ```
 
-* `read` — restore a build from the cache when one is present. Default **true**.
-* `write` — save a package's build output to the cache. Default **true**.
-* `remote` — reuse builds across machines; see below.
+* `read`: restore a build from the cache when one is present. Default **true**.
+* `write`: save a package's build output to the cache. Default **true**.
+* `remote`: reuse builds across machines; see below.
 
 `sideEffectsCache: true` is the shorthand for reading and writing, and is what
 the setting meant before it grew a remote tier. Writing without reading
@@ -113,22 +113,22 @@ local cache keeps working as it did.
 `packages` is an eligibility list, not a permission: a package is only a
 candidate when it also passes [`allowBuilds`](#allowbuilds), has
 `requiresBuild: true`, and has a verified source integrity. Listing a package
-here does not review its build scripts for you — under the default
+here does not review its build scripts for you. Under the default
 [`strictDepBuilds`](#strictdepbuilds) an install still fails with
 `ERR_PNPM_IGNORED_BUILDS` when it reaches a build nobody has ruled on, and a
 package denied with `allowBuilds: false` is never built, from the cache or
 otherwise.
 
-Everything describing the *act of signing* — `publish`, `keyId`, `builderId`,
+Everything describing the *act of signing* (`publish`, `keyId`, `builderId`,
 `imageDigest`, `architectureBaseline`, `buildEnv`, `trustedKeys` and
-`privateKey` — is refused in `pnpm-workspace.yaml` with
+`privateKey`) is refused in `pnpm-workspace.yaml` with
 `ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST`, and is read from the [global
 configuration file](../cli/config.md) or the environment instead. A cloned
 repository is not a trust root, and must not be able to turn the machine's
 signing key into a signing oracle.
 
-Any cache failure — an unreachable server, an unverifiable signature, an
-incompatible platform, a bad blob — falls back to the ordinary local build. See
+Any cache failure (an unreachable server, an unverifiable signature, an
+incompatible platform, a bad blob) falls back to the ordinary local build. See
 [Shared side-effects cache](/pnpr/shared-side-effects-cache) for the full setup,
 including the server flag, the trust material, and how an artifact is published.
 
@@ -156,8 +156,8 @@ config under whichever spelling it already used.
 * Default: **false** IF running as root, ELSE **true**
 * Type: **Boolean**
 
-Set to true to enable UID/GID switching when running package scripts.
-If set explicitly to false, then installing as a non-root user will fail.
+When set to `false`, lifecycle scripts run with `TMPDIR` set to the
+package's `node_modules/.tmp` directory.
 
 ### nodeOptions
 
@@ -210,7 +210,7 @@ allowBuilds:
   nx@21.6.0: false
 ```
 
-**Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency — the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or, since v11.11.0, by its repository URL:
+**Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency, because the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or, since v11.11.0, by its repository URL:
 
 ```yaml title="pnpm-workspace.yaml"
 allowBuilds:
@@ -222,7 +222,7 @@ allowBuilds:
 
 The repository form lets a trusted git dependency keep running its build scripts across branch updates without re-approving each new commit. The key is the package name, followed by `@` and the git URL, with no `#<ref>` suffix. Matching is exact, so `git+ssh://` and `git+https://` URLs for the same repository are separate keys.
 
-Since v11.19.0, the repository form also approves git-hosted packages that pnpm downloads as a tarball rather than clones — such as `github:` dependencies, which are fetched from `codeload.github.com`. A `foo@git+https://github.com/org/foo.git` entry approves `foo` whether pnpm clones the repository or downloads a tarball. GitLab and Bitbucket tarball downloads are matched the same way. Approving or denying a specific resolved commit by its full tarball dep path continues to work.
+Since v11.19.0, the repository form also approves git-hosted packages that pnpm downloads as a tarball rather than clones, such as `github:` dependencies, which are fetched from `codeload.github.com`. A `foo@git+https://github.com/org/foo.git` entry approves `foo` whether pnpm clones the repository or downloads a tarball. GitLab and Bitbucket tarball downloads are matched the same way. Approving or denying a specific resolved commit by its full tarball dep path continues to work.
 
 Denials by package name are not restricted this way: `foo: false` blocks `foo` whether it comes from the registry or from git.
 
@@ -269,13 +269,13 @@ If set to `true`, all build scripts (e.g. `preinstall`, `install`, `postinstall`
 
 :::warning
 
-This setting allows all dependencies—including transitive ones—to run install scripts, both now and in the future.
+This setting allows all dependencies, including transitive ones, to run install scripts, both now and in the future.
 Even if your current dependency graph appears safe:
 
 * Future updates may introduce new, untrusted dependencies.
 * Existing packages may add scripts in later versions.
 * Packages can be hijacked or compromised and begin executing malicious code.
 
-For maximum safety, only enable this if you’re fully aware of the risks and trust the entire ecosystem you’re pulling from. It’s recommended to review and allow builds explicitly.
+For maximum safety, only enable this if you're fully aware of the risks and trust the entire ecosystem you're pulling from. It's recommended to review and allow builds explicitly.
 
 :::

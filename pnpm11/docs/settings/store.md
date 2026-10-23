@@ -4,7 +4,7 @@ title: "Store & Lockfile Settings"
 sidebar_label: "Store & lockfile"
 ---
 
-## Store Settings
+## Store settings
 
 ### storeDir
 
@@ -30,9 +30,9 @@ It is possible to set a store from a different disk but in that case pnpm will
 copy packages from the store instead of hard-linking them, as hard links are
 only possible on the same filesystem.
 
-If no directory above the project accepts a hard link at all — an agent sandbox
+If no directory above the project accepts a hard link at all (an agent sandbox
 that grants write access only to the project, or a container with just the
-project bind-mounted writable — the store is created at `.pnpm-store` inside the
+project bind-mounted writable), the store is created at `.pnpm-store` inside the
 project. Putting it in the home directory there would either fail on a read-only
 home or land on another volume, which copies every package instead of hard-linking
 it ([#13525](https://github.com/pnpm/pnpm/issues/13525)).
@@ -52,20 +52,6 @@ By default, if a file in the store has been modified, the content of this file i
 
 This setting helps detect accidental store corruption. It does not make a store that is writable by untrusted users safe, because an attacker who can write to the store can alter both cached package contents and the metadata used to verify them.
 
-### useRunningStoreServer
-
-:::danger
-
-Deprecated feature
-
-:::
-
-* Default: **false**
-* Type: **Boolean**
-
-Only allows installation with a store server. If no store server is running,
-installation will fail.
-
 ### strictStorePkgContentCheck
 
 * Default: **true**
@@ -80,7 +66,7 @@ Added in: v11.7.0
 * Default: **false**
 * Type: **Boolean**
 
-Lets `pnpm install` run against a package store that lives on a read-only filesystem — for example a [Nix](https://nixos.org/) store, a read-only bind mount, or an OCI image layer. When enabled, pnpm opens the store's SQLite `index.db` in immutable mode (bypassing the WAL/`-shm` sidecar files that otherwise can't be created on a read-only directory) and suppresses every code path that would write to the store.
+Lets `pnpm install` run against a package store that lives on a read-only filesystem, for example a [Nix](https://nixos.org/) store, a read-only bind mount, or an OCI image layer. When enabled, pnpm opens the store's SQLite `index.db` in immutable mode (bypassing the WAL/`-shm` sidecar files that otherwise can't be created on a read-only directory) and suppresses every code path that would write to the store.
 
 Ordinary installs can run in parallel and populate the same store on a local filesystem on the same machine. Leave `frozenStore` disabled for that use case.
 
@@ -92,7 +78,7 @@ Pair it with `--offline` and `--frozen-lockfile` against a fully-populated store
 pnpm install --frozen-store --offline --frozen-lockfile
 ```
 
-The store must already contain everything the install needs, including the build output of any package whose lifecycle scripts are approved (or that has a patch applied). Under the [global virtual store](./node-modules.md#enableglobalvirtualstore), those package directories live inside the store, so if a required build is missing the install fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` — seed the store with those builds first. If the store is missing its content directory entirely, the install fails fast with `ERR_PNPM_FROZEN_STORE_INCOMPLETE` rather than trying to initialize it.
+The store must already contain everything the install needs, including the build output of any package whose lifecycle scripts are approved (or that has a patch applied). Under the [global virtual store](./node-modules.md#enableglobalvirtualstore), those package directories live inside the store, so if a required build is missing the install fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`. Seed the store with those builds first. If the store is missing its content directory entirely, the install fails fast with `ERR_PNPM_FROZEN_STORE_INCOMPLETE` rather than trying to initialize it.
 
 `frozenStore` is incompatible with `--force` and with a configured pnpr server, since both write into the store. The [side effects cache](./build.md#sideeffectscache) is not written either.
 
@@ -102,7 +88,7 @@ The read-only store open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0. On 
 
 :::
 
-## Lockfile Settings
+## Lockfile settings
 
 ### lockfile
 

@@ -7,7 +7,7 @@ title: Catalogs
 
 <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/PuRUk4mV2jc" title="pnpm Catalogs — A New Tool to Manage Dependencies in monorepos" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
 
-## The Catalog Protocol (`catalog:`)
+## The catalog protocol (`catalog:`)
 
 Once a catalog is defined in `pnpm-workspace.yaml`,
 
@@ -63,11 +63,11 @@ Depending on the scenario, the `catalog:` protocol offers a few [advantages](#ad
 
 In a workspace (i.e. monorepo or multi-package repo) it's common for the same dependency to be used by many packages. Catalogs reduce duplication when authoring `package.json` files and provide a few benefits in doing so:
 
-- **Maintain unique versions** — It's usually desirable to have only one version of a dependency in a workspace. Catalogs make this easier to maintain. Duplicated dependencies can conflict at runtime and cause bugs. Duplicates also increase size when using a bundler.
-- **Easier upgrades** — When upgrading a dependency, only the catalog entry in `pnpm-workspace.yaml` needs to be edited rather than all `package.json` files using that dependency. This saves time — only one line needs to be changed instead of many.
-- **Fewer merge conflicts** — Since `package.json` files do not need to be edited when upgrading a dependency, git merge conflicts no longer happen in these files.
+- **Maintain unique versions**: It's usually desirable to have only one version of a dependency in a workspace. Catalogs make this easier to maintain. Duplicated dependencies can conflict at runtime and cause bugs. Duplicates also increase size when using a bundler.
+- **Easier upgrades**: When upgrading a dependency, only the catalog entry in `pnpm-workspace.yaml` needs to be edited rather than all `package.json` files using that dependency. This saves time. Only one line needs to be changed instead of many.
+- **Fewer merge conflicts**: Since `package.json` files do not need to be edited when upgrading a dependency, git merge conflicts no longer happen in these files.
 
-## Defining Catalogs
+## Defining catalogs
 
 Catalogs are defined in the `pnpm-workspace.yaml` file. There are two ways to define catalogs.
 
@@ -84,7 +84,7 @@ pnpx codemod pnpm/catalog
 
 :::
 
-### Default Catalog
+### Default catalog
 
 The top-level `catalog` field allows users to define a catalog named `default`.
 
@@ -96,7 +96,7 @@ catalog:
 
 These version ranges can be referenced through `catalog:default`. For the default catalog only, a special `catalog:` shorthand can also be used. Think of `catalog:` as a shorthand that expands to `catalog:default`.
 
-### Named Catalogs
+### Named catalogs
 
 Multiple catalogs with arbitrarily chosen names can be configured under the `catalogs` key.
 

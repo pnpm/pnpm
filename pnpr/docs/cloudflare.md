@@ -73,7 +73,6 @@ secret: ${PNPR_SECRET}
 
 auth:
   htpasswd:
-    file: /pnpr/cache/htpasswd
     max_users: 3
 
 registries:

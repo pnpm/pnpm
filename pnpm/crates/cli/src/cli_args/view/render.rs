@@ -186,7 +186,7 @@ fn dist_tags_lines(info: &Value) -> Vec<String> {
     lines
 }
 
-/// Render the `bin:` summary line(s). A string `bin` derives its single
+/// Render the `bin:` summary lines. A string `bin` derives its single
 /// command from the (scope-stripped) package name; an object `bin` lists
 /// its keys.
 pub(super) fn bin_summary(info: &Value) -> Vec<String> {
@@ -279,7 +279,7 @@ pub(super) fn format_bytes(bytes: u64) -> String {
     format!("{value} {}", SIZES[index])
 }
 
-/// The age of `date` relative to `now`, bucketed into a coarse "N unit(s)
+/// The age of `date` relative to `now`, bucketed into a coarse "N units
 /// ago" label. `None` for a future date (clock skew). Split from
 /// [`format_time_ago`] so the `now` reference is injectable in tests.
 pub(super) fn format_time_ago_since(date: DateTime<Utc>, now: DateTime<Utc>) -> Option<String> {

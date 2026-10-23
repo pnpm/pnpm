@@ -5,7 +5,7 @@ title: Pipeline run records
 
 Added in: v0.1.0-alpha.11
 
-pnpr can store the reports [`pnpm pipeline`](/cli/pipeline) produces, so a
+pnpr can store the reports [`pnpm pipeline`](https://pnpm.io/cli/pipeline) produces, so a
 team's CI runs are listed and served from one place instead of living in the
 scrollback of whichever machine ran them.
 
@@ -20,7 +20,7 @@ artifacts:
 ```
 
 A run is recorded under the organization the client's
-[`remoteCache.org`](/settings/build#remotecache) names, which must be one the
+[`remoteCache.org`](https://pnpm.io/settings/build#remotecache) names, which must be one the
 server declares under
 [`artifacts.orgs`](configuration.md#registry-resolver-and-artifact-surfaces).
 `access` decides who may list and read the organization's runs, `publish` who

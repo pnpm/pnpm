@@ -40,7 +40,7 @@ export function reportLifecycleScripts (
   }
 ): Rx.Observable<Rx.Observable<{ msg: string }>> {
   // When the reporter is not append-only, the length of output is limited
-  // in order to reduce flickering
+  // to reduce flickering
   if (opts.appendOnly) {
     return streamLifecycleScripts(log$.lifecycle, opts)
   }

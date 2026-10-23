@@ -68,6 +68,7 @@ impl WorkspaceSettings {
         // same holds for the pipelines built from them.
         self.tasks = None;
         self.pipelines = None;
+        self.required_scripts = None;
         self.pipeline_base = None;
         // A pnpmfile belongs to the project that ships it, and pnpm reads
         // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but

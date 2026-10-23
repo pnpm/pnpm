@@ -247,8 +247,8 @@ fn adopt(descriptor: libc::c_int) -> io::Result<File> {
 
 /// The flags for a directory that can be traversed but not read. `O_PATH`
 /// and `O_SEARCH` are the respective platforms' spelling of it; elsewhere
-/// `O_RDONLY` is the only form, and the open simply fails where it would
-/// have needed the weaker access.
+/// `O_RDONLY` is the only form, and the open fails where it would have
+/// needed the weaker access.
 fn search_only_flags() -> libc::c_int {
     #[cfg(target_os = "linux")]
     let access = libc::O_PATH;

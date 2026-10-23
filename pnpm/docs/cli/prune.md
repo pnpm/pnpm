@@ -3,17 +3,29 @@ id: prune
 title: pnpm prune
 ---
 
-Removes unnecessary packages.
+Removes extraneous packages from `node_modules`: packages that are no longer in the lockfile.
+
+```sh
+pnpm prune
+```
 
 ## Options
 
-### --prod
+### --prod, -P, --production
 
 Remove the packages specified in `devDependencies`.
+
+### --dev, -D
+
+Keep only the packages specified in `devDependencies`.
 
 ### --no-optional
 
 Remove the packages specified in `optionalDependencies`.
+
+### --ignore-scripts
+
+Don't run lifecycle scripts. `--no-ignore-scripts` runs them even when the `ignoreScripts` setting is `true`.
 
 ### --trust-lockfile
 

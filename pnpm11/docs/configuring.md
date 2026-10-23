@@ -8,7 +8,7 @@ pnpm settings are divided into two categories:
 - **Authentication and certificate settings** are stored in INI files. These contain sensitive credentials and should not be committed to your repository. See [Authentication Settings](./npmrc.md#auth-file-locations) for details.
 - **All other settings** are stored in YAML files: the project `pnpm-workspace.yaml` and the global `config.yaml`. Some settings are project-only and are ignored in the global `config.yaml` (see [Global configuration](#global-configuration)).
 
-pnpm also no longer reads settings from the `pnpm` field of `package.json`. Settings should be defined in `pnpm-workspace.yaml`.
+pnpm does not read settings from the `pnpm` field of `package.json`. A setting found there is ignored with a warning. Define it in `pnpm-workspace.yaml`.
 
 ## Local project configuration
 
@@ -24,7 +24,7 @@ saveExact: true
 The global YAML config file (`config.yaml`) is located at one of the following paths:
 
 * If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/config.yaml**
-* On Windows: **~/AppData/Local/pnpm/config/config.yaml**
+* On Windows: **%LOCALAPPDATA%\pnpm\config\config.yaml**
 * On macOS: **~/Library/Preferences/pnpm/config.yaml**
 * On Linux: **~/.config/pnpm/config.yaml**
 
@@ -34,12 +34,7 @@ Not every setting may be set in the global `config.yaml`. Settings that apply to
 
 To share project-only settings across several projects, publish them as a [config dependency](./config-dependencies.md) and add it to each project.
 
-The global `rc` file (for registry and auth settings only) is at:
-
-* If the **$XDG_CONFIG_HOME** env variable is set, then **$XDG_CONFIG_HOME/pnpm/rc**
-* On Windows: **~/AppData/Local/pnpm/config/rc**
-* On macOS: **~/Library/Preferences/pnpm/rc**
-* On Linux: **~/.config/pnpm/rc**
+Global registry credentials go in `auth.ini` in the same directory. See [Auth file locations](./npmrc.md#auth-file-locations).
 
 ## Environment variables
 
@@ -47,7 +42,11 @@ Environment variables whose names start with `pnpm_config_` (or `PNPM_CONFIG_`) 
 
 :::warning
 
-pnpm no longer reads `npm_config_*` environment variables. Use `pnpm_config_*` environment variables instead (e.g., `pnpm_config_registry` instead of `npm_config_registry`).
+pnpm does not read `npm_config_*` environment variables. Use `pnpm_config_*` environment variables instead (e.g., `pnpm_config_registry` instead of `npm_config_registry`). The exceptions are:
+
+* `NPM_CONFIG_WORKSPACE_DIR`, which sets the workspace directory.
+* `npm_config_userconfig`, which points to a user `.npmrc` for auth settings.
+* URL-scoped credentials such as `npm_config_//registry.example.com/:_authToken`.
 
 :::
 
@@ -58,7 +57,7 @@ pnpm_config_save_exact=true pnpm add foo
 ```
 
 If you need pnpm to work across multiple hard drives or filesystems,
-please read [the FAQ].
+read [the FAQ].
 
 See the [`config` command] for more information on managing configuration.
 

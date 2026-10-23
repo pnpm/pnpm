@@ -36,7 +36,7 @@ pnpm add -g typescript
 pnpm add -g prettier
 ```
 
-creates two separate isolated installations — `typescript` and `prettier` each get their own `node_modules` tree and cannot affect each other's dependency resolution.
+creates two separate isolated installations. `typescript` and `prettier` each get their own `node_modules` tree and cannot affect each other's dependency resolution.
 
 Installing multiple **space-separated** packages in a single command also creates a separate isolated install for each one:
 
@@ -44,15 +44,17 @@ Installing multiple **space-separated** packages in a single command also create
 pnpm add -g eslint prettier
 ```
 
-`eslint` and `prettier` each get their own `node_modules` tree and lockfile and can be removed independently — `pnpm remove -g eslint` leaves `prettier` untouched.
+`eslint` and `prettier` each get their own `node_modules` tree and lockfile and can be removed independently. `pnpm remove -g eslint` leaves `prettier` untouched.
 
-To bundle multiple packages into the *same* isolated install — so they share a `node_modules` tree and lockfile, resolve peer dependencies against each other, and are removed together — pass them as a **comma-separated** list:
+To bundle multiple packages into the *same* isolated install (so they share a `node_modules` tree and lockfile, resolve peer dependencies against each other, and are removed together), pass them as a **comma-separated** list:
 
 ```sh
 pnpm add -g eslint,prettier
 ```
 
 Here `eslint` and `prettier` form a single install group. Removing either with `pnpm remove -g` removes the whole group.
+
+`pnpm add -g <pkg>` replaces every existing group that contains `<pkg>`. After `pnpm add -g eslint`, the `eslint,prettier` group is gone, and so are `prettier` and its bins. To keep the group, add it again as a whole (`pnpm add -g eslint,prettier`), or use `pnpm update -g`.
 
 The two forms can be mixed. For example:
 
@@ -82,11 +84,11 @@ The contents of `{pnpmHomeDir}/global/v11/` look like:
 ```
 
 - The `{hash}` entries are symlinks; pnpm scans for them to enumerate active installs.
-- The targets are real directories that act as ordinary pnpm projects — each has its own `package.json` and lockfile.
-- The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies — the entries at the root of its `node_modules/` — are symlinks into that store, so the actual package contents are shared rather than copied per group.
+- The targets are real directories that act as ordinary pnpm projects. Each has its own `package.json` and lockfile.
+- The shared `store/` directory holds the [global virtual store](./global-virtual-store.md). Each install group's direct dependencies (the entries at the root of its `node_modules/`) are symlinks into that store, so the actual package contents are shared rather than copied per group.
 - Bin shims live in `{pnpmHomeDir}/bin/` and point through the appropriate install group's `node_modules`.
 
-When a package is removed or its install group is replaced, the hash symlink is updated and orphaned target directories are eventually cleaned up by `pnpm store prune`.
+When a package is removed or its install group is replaced, the hash symlink is updated. Orphaned target directories older than five minutes are removed at the start of the next `pnpm add -g`, `pnpm update -g`, or `pnpm self-update`.
 
 ## Listing global packages
 
@@ -96,7 +98,7 @@ pnpm list -g --json        # machine-readable
 pnpm list -g --parseable   # paths only
 ```
 
-Because each install group has its own lockfile, listing across multiple groups can only reliably aggregate the top-level packages they were installed with — transitive dependency trees from different groups can't be coherently merged. As a result:
+Because each install group has its own lockfile, listing across multiple groups can only reliably aggregate the top-level packages they were installed with. Transitive dependency trees from different groups can't be coherently merged. As a result:
 
 - `pnpm list -g` (default `--depth=0`) always works and shows every globally installed package.
 - `pnpm list -g --depth=<n>` (with `n > 0`) shows the full dependency tree only when:
@@ -122,7 +124,7 @@ If `--depth>0` is requested but the request can't be narrowed to a single instal
 
 ## Binaries location
 
-Globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` (i.e., `$PNPM_HOME/bin/`). This keeps the `PNPM_HOME` directory clean — internal directories like `global/` and `store/` don't pollute shell autocompletion when `PNPM_HOME` is on PATH.
+Globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` (i.e., `$PNPM_HOME/bin/`). This keeps the `PNPM_HOME` directory clean. Internal directories like `global/` and `store/` don't pollute shell autocompletion when `PNPM_HOME` is on PATH.
 
 After upgrading to pnpm v11, run [`pnpm setup`](./cli/setup.md) to update your shell configuration so that `$PNPM_HOME/bin` is on your PATH.
 
@@ -160,7 +162,7 @@ pnpm add -g --allow-build=esbuild esbuild
 Since v11.24.0, [`pnpm approve-builds --global`](./cli/approve-builds.md#--global--g)
 lets you decide after the fact instead. It collects the packages awaiting approval from every
 install group, asks about them once, and writes one `allowBuilds` policy into the
-`pnpm-workspace.yaml` of the global packages directory — then rebuilds only the
+`pnpm-workspace.yaml` of the global packages directory, then rebuilds only the
 groups that contain something you approved:
 
 ```sh

@@ -5,7 +5,7 @@ title: Scripts
 
 How pnpm handles the `scripts` field of `package.json`.
 
-## Hidden Scripts
+## Hidden scripts
 
 Added in: v11.0.0
 
@@ -22,13 +22,13 @@ Scripts with names starting with `.` are hidden. They cannot be run directly via
 
 In this example, `pnpm run .helper` would fail, but `pnpm run build` would succeed because `.helper` is called from another script.
 
-## Environment Variables
+## Environment variables
 
 pnpm sets the following environment variables during lifecycle script execution:
 
-- `npm_package_name` — the package name
-- `npm_package_version` — the package version
-- `npm_lifecycle_event` — the name of the running script (e.g., `postinstall`)
+- `npm_package_name`: the package name
+- `npm_package_version`: the package version
+- `npm_lifecycle_event`: the name of the running script (e.g., `postinstall`)
 
 :::note
 
@@ -36,7 +36,7 @@ Since v11, pnpm no longer populates `npm_config_*` environment variables from th
 
 :::
 
-## Built-in Command and Script Name Conflicts
+## Built-in command and script name conflicts
 
 Added in: v11.0.0
 
@@ -44,7 +44,7 @@ The following built-in commands prefer user scripts: `clean`, `setup`, `deploy`,
 
 To force the built-in command, use [`pnpm pm <name>`](./cli/pm.md).
 
-## Lifecycle Scripts
+## Lifecycle scripts
 
 ### `pnpm:devPreinstall`
 

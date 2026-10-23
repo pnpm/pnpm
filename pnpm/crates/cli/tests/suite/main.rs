@@ -73,6 +73,7 @@ mod git_hosted_install;
 mod global;
 mod global_shims;
 mod global_virtual_store;
+mod help;
 mod hoist;
 mod hoisted_node_linker;
 mod hooks;

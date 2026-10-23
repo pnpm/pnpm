@@ -22,7 +22,7 @@ additional disk space. This allows you to share dependencies of the same version
 across projects.
 
 As a result, you save a lot of space on your disk proportional to the number of
-projects and dependencies, and you have a lot faster installations!
+projects and dependencies, and you have a lot faster installations.
 
 ## Boosting installation speed
 
@@ -34,7 +34,7 @@ pnpm performs installation in three stages:
 
 ![An illustration of the pnpm install process. Packages are resolved, fetched, and hard linked as soon as possible.](/img/installation-stages-of-pnpm.svg)
 
-This approach is significantly faster than the traditional three-stage installation process of resolving, fetching, and writing all dependencies to `node_modules`.
+This approach is faster than the traditional three-stage installation process of resolving, fetching, and writing all dependencies to `node_modules`.
 
 ![An illustration of how package managers like Yarn Classic or npm install dependencies.](/img/installation-stages-of-other-pms.svg)
 

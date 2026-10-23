@@ -53,7 +53,10 @@ pnpm add lodash2@npm:lodash@2
 Now you can require the first version of lodash via `require('lodash1')` and the
 second via `require('lodash2')`.
 
-This gets even more powerful when combined with hooks. Maybe you want to replace
+To replace a package everywhere in the dependency graph without code, use
+[`overrides`](./settings/dependency-resolution.md#overrides).
+
+This gets even more useful when combined with hooks. Maybe you want to replace
 `lodash` with `awesome-lodash` in all the packages in `node_modules`. You can
 easily achieve that with the following `.pnpmfile.mjs`:
 

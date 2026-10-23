@@ -7,6 +7,7 @@ use super::{
 };
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_fs::DirLock;
+use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
     process::{Child, Stdio},
     thread,
@@ -918,6 +919,57 @@ fn gvs_dependency_build_scripts_see_the_workspace_root_and_hoisted_bins() {
     let dep_dir = pkg_in_slot(&slot, "dep");
     assert!(dep_dir.join("root-tool-ran").exists(), "the workspace root's bin did not run");
     assert!(dep_dir.join("hoisted-tool-ran").exists(), "the hoisted bin did not run");
+
+    drop((root, mock_instance));
+}
+
+/// A git dependency's build runs in every global-virtual-store slot of its
+/// commit, not only in the first one. The override moves its dependency, so
+/// the second install links the same commit into a new slot, which reads the
+/// store-index row the first install wrote
+/// ([pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224)).
+#[test]
+fn gvs_builds_each_slot_of_a_git_dependency() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    let repo = GitRepoFixture::init(root.path(), "native-addon");
+    repo.write_file(
+        "package.json",
+        &serde_json::json!({
+            "name": "native-addon",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/dep-of-pkg-with-1-dep": "^100.0.0" },
+            "scripts": { "install": r#"node -e "require('fs').writeFileSync('built', '')""# },
+        })
+        .to_string(),
+    );
+    let spec = repo.git_url_at(&repo.commit("init"));
+    write_manifest(&workspace, &serde_json::json!({ "native-addon": spec }));
+    let allow_builds = allow_builds_yaml(&[(&format!("native-addon@{spec}"), true)]);
+
+    for dependency_version in ["100.0.0", "100.1.0"] {
+        set_gvs_workspace_yaml(
+            &workspace,
+            &format!(
+                "{allow_builds}overrides:\n  '@pnpm.e2e/dep-of-pkg-with-1-dep': {dependency_version}\n",
+            ),
+        );
+        pacquet(&workspace)
+            .with_arg("install")
+            .assert()
+            .success();
+    }
+
+    let version_dir = pkg_version_dir(&store_dir, "native-addon", "1.0.0");
+    let slots = hash_dirs(&version_dir);
+    assert_eq!(slots.len(), 2, "each dependency version must give the git dependency its own slot");
+    for slot in slots {
+        let pkg = pkg_in_slot(&version_dir.join(&slot), "native-addon");
+        assert!(pkg.join("built").exists(), "the slot {slot} was not built");
+        assert!(!pkg.join(".pnpm-needs-build").exists(), "the slot {slot} is still marked unbuilt");
+    }
 
     drop((root, mock_instance));
 }

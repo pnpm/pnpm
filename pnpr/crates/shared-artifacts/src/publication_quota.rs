@@ -33,7 +33,7 @@ pub(super) fn register_publication(usage: &mut ArtifactUsage, publication: &str)
     Ok(true)
 }
 
-/// The quota one publication reserved, and how much of it it has kept so far.
+/// The quota one publication reserved, and how much of that quota it has kept so far.
 pub(super) struct PublicationQuota<'a> {
     pub(super) owner: &'a str,
     /// What the reservation charged up front.

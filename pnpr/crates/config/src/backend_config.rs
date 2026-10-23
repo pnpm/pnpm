@@ -41,10 +41,14 @@ pub struct LibsqlSettings {
     /// How often (seconds) the embedded replica pulls from the primary.
     /// Only meaningful with `replicaPath`; bounds how stale a read can
     /// be — most importantly, token-revocation lag. `0` disables
-    /// background sync (the replica then only reflects its own writes
-    /// plus the initial sync at startup). Defaults to
+    /// background sync (the replica then reflects the initial sync at
+    /// startup and its own account and token changes; a token's last-used
+    /// time waits for the next sync). Defaults to
     /// [`LibsqlSettings::DEFAULT_SYNC_INTERVAL_SECS`].
     pub sync_interval_secs: Option<u64>,
+    /// Most auth database operations running at once, each on its own
+    /// connection. Defaults to [`LibsqlSettings::DEFAULT_MAX_CONNECTIONS`].
+    pub max_connections: Option<u32>,
 }
 
 impl std::fmt::Debug for LibsqlSettings {
@@ -54,6 +58,7 @@ impl std::fmt::Debug for LibsqlSettings {
             .field("auth_token", &self.auth_token.as_ref().map(|_| "[redacted]"))
             .field("replica_path", &self.replica_path)
             .field("sync_interval_secs", &self.sync_interval_secs)
+            .field("max_connections", &self.max_connections)
             .finish()
     }
 }
@@ -61,6 +66,8 @@ impl std::fmt::Debug for LibsqlSettings {
 impl LibsqlSettings {
     /// Default embedded-replica background sync cadence.
     pub const DEFAULT_SYNC_INTERVAL_SECS: u64 = 60;
+    /// Default pool size, the one sqlx gives the other SQL backends.
+    pub const DEFAULT_MAX_CONNECTIONS: u32 = 10;
 }
 
 /// The YAML `backend.postgres:` and `backend.mysql:` blocks. Whole-file
@@ -398,10 +405,16 @@ pub(super) fn build_libsql_settings(
         }
         None => None,
     };
+    if file.max_connections == Some(0) {
+        return Err(RegistryError::InvalidConfig {
+            reason: "backend.libsql.maxConnections must be greater than 0".to_string(),
+        });
+    }
     Ok(LibsqlSettings {
         url: file.url,
         auth_token: file.auth_token,
         replica_path,
         sync_interval_secs,
+        max_connections: file.max_connections,
     })
 }

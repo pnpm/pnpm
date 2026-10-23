@@ -3,8 +3,6 @@ id: pack-app
 title: pnpm pack-app
 ---
 
-Added in: v11.0.0
-
 :::warning Experimental
 
 `pnpm pack-app` is experimental. Its flags, `pnpm.app` configuration schema, and output layout may change in future releases.
@@ -21,7 +19,7 @@ Each target produces an executable under `<output-dir>/<target>/` (default `dist
 
 ## Requirements
 
-* The host must run Node.js v25.5+ to perform the SEA injection. If the running Node.js is older (or does not match the embedded runtime version — SEA blobs are not compatible across minor releases), pnpm downloads a matching builder automatically.
+* The host needs no Node.js. To perform the SEA injection, pnpm downloads a Node.js of the target runtime version for the host platform, because SEA blobs are not compatible across minor releases.
 * Cross-compiling macOS targets from Linux requires [`ldid`](https://github.com/ProcursusTeam/ldid) on `$PATH`. Windows hosts cannot ad-hoc sign macOS outputs; build macOS targets on macOS or Linux.
 
 ## Supported targets
@@ -40,15 +38,15 @@ The `-musl` suffix is only valid for `linux` targets. The `<os>` segment matches
 
 `darwin-x64` outputs segfault at startup on Intel Macs because of an upstream Node.js bug in the `--build-sea` injection step. LIEF's Mach-O surgery for x64 leaves `LC_DYLD_CHAINED_FIXUPS` chain entries pointing at stale targets after the SEA segment is inserted; dyld then dereferences a raw chain-encoded value as a pointer and the binary crashes in `__cxx_global_var_init` before any user code runs. This is reproducible with the canonical `node --build-sea` + `codesign --sign -` flow with no pnpm involvement.
 
-The Node.js team has opted not to fix this on the grounds that x64 macOS is being phased out. Signature-related workarounds do not help — the corruption happens in the injection step, *before* signing, so swapping `ldid` for `codesign` (or vice versa) makes no difference. Re-signing produces a valid signature over already-broken bytes.
+The Node.js team has opted not to fix this on the grounds that x64 macOS is being phased out. Signature-related workarounds do not help. The corruption happens in the injection step, *before* signing, so swapping `ldid` for `codesign` (or vice versa) makes no difference. Re-signing produces a valid signature over already-broken bytes.
 
 Tracking:
 
-* [nodejs/node#62893](https://github.com/nodejs/node/issues/62893) — minimal `node --build-sea` repro
-* [nodejs/node#59553](https://github.com/nodejs/node/issues/59553) — long-running SEA test failures on macOS x64 with the same root cause
-* [nodejs/node#60250](https://github.com/nodejs/node/pull/60250) — Node.js skipping the SEA tests on x64 macOS rather than fixing them
+* [nodejs/node#62893](https://github.com/nodejs/node/issues/62893): minimal `node --build-sea` repro
+* [nodejs/node#59553](https://github.com/nodejs/node/issues/59553): long-running SEA test failures on macOS x64 with the same root cause
+* [nodejs/node#60250](https://github.com/nodejs/node/pull/60250): Node.js skipping the SEA tests on x64 macOS rather than fixing them
 
-If you need to ship a CLI that runs on Intel Macs, build the `darwin-x64` artifact with a non-SEA tool such as [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) (which appends to the binary tail rather than mutating Mach-O sections). Note that Rosetta is *not* an escape hatch — it only translates x64 → arm64 (for Apple Silicon Macs running Intel binaries), not the other direction, so Intel Macs cannot run a `darwin-arm64` build.
+If you need to ship a CLI that runs on Intel Macs, build the `darwin-x64` artifact with a non-SEA tool such as [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) (which appends to the binary tail rather than mutating Mach-O sections). Rosetta is *not* an escape hatch. It only translates x64 → arm64 (for Apple Silicon Macs running Intel binaries), not the other direction, so Intel Macs cannot run a `darwin-arm64` build.
 
 ## Examples
 
@@ -68,7 +66,7 @@ pnpm pack-app --entry dist/index.cjs --target linux-x64-musl --runtime node@25.5
 
 ### --entry &lt;path\>
 
-Path to the CJS entry file to embed in the executable. Required unless [`pnpm.app.entry`](#configuration) is set in `package.json`. A bare positional argument is also accepted (e.g. `pnpm pack-app dist/index.cjs`).
+Path to the CJS entry file to embed in the executable. It must be inside the project: absolute paths and `..` are rejected. Required unless [`pnpm.app.entry`](#configuration) is set in `package.json`. A bare positional argument is also accepted (e.g. `pnpm pack-app dist/index.cjs`).
 
 ### --target, -t &lt;triplet\>
 
@@ -76,11 +74,11 @@ Target to build for. May be specified multiple times. See [Supported targets](#s
 
 ### --runtime &lt;spec\>
 
-Runtime to embed in the output executables, as a `<name>@<version>` spec (e.g. `node@25`, `node@25.5.0`). Only `node` is supported today; the `<name>@` prefix leaves room for future runtimes (`bun`, `deno`). The version must be >= v25.5 (the minimum that supports `--build-sea`). Defaults to the running Node.js version.
+Runtime to embed in the output executables, as a `<name>@<version>` spec (e.g. `node@25`, `node@25.5.0`). Only `node` is supported today; the `<name>@` prefix leaves room for future runtimes (`bun`, `deno`). The version must be >= v25.5 (the minimum that supports `--build-sea`). Defaults to `node@25.5.0`.
 
 ### --output-dir, -o &lt;dir\>
 
-Output directory for the built executables. Defaults to `dist-app`.
+Output directory for the built executables. Defaults to `dist-app`. It must be inside the project: absolute paths, `..`, and a symlinked directory that points outside the project are rejected.
 
 ### --output-name &lt;name\>
 

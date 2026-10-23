@@ -27,8 +27,9 @@ be `pnpm-lock.feature-1.yaml`. You can commit it to the Git, and merge all git b
 
 :::note
 
-`feature/1` is special in that the `/` is automatically converted to `!`, so the corresponding
-lockfile name would be `pnpm-lock.feature!1.yaml`.
+Every character in the branch name other than ASCII letters, digits, `_`, `.`, and `-` is converted to `!`,
+and the name is lowercased. So the lockfile of the `Feature/1` branch is `pnpm-lock.feature!1.yaml`.
+A character outside the Basic Multilingual Plane, such as an emoji, becomes `!!`.
 
 :::
 
@@ -38,18 +39,20 @@ lockfile name would be `pnpm-lock.feature!1.yaml`.
 
 To merge all git branch lockfiles, just specify `--merge-git-branch-lockfiles` to `pnpm install` command.
 
-After that, all git branch lockfiles will be merged into one `pnpm-lock.yaml`
+After that, all git branch lockfiles will be merged into one `pnpm-lock.yaml`, and the branch lockfiles are deleted.
 
 
-### Branch Matching
+### Branch matching
 
 pnpm allows you to specify `--merge-git-branch-lockfiles` by matching the current branch name.
 
 For instance, by the following setting in `pnpm-workspace.yaml` file, `pnpm install` will merge all git branch lockfiles when
-running in the `main` branch and the branch name starts with `release`.
+running in the `main` branch or in a branch whose name starts with `release`.
 
 ```yaml title="pnpm-workspace.yaml"
 mergeGitBranchLockfilesBranchPattern:
 - main
 - release*
 ```
+
+See [`gitBranchLockfile`](./settings/store.md#gitbranchlockfile) and [`mergeGitBranchLockfilesBranchPattern`](./settings/store.md#mergegitbranchlockfilesbranchpattern) for the setting reference.

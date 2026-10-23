@@ -43,20 +43,7 @@ dependencies.
 
 ### --link-workspace-packages
 
-* Default: **false**
-* Type: **true, false, deep**
-
-Link locally available packages in workspaces of a monorepo into `node_modules`
-instead of re-downloading them from the registry. This emulates functionality
-similar to `yarn workspaces`.
-
-When this is set to deep, local packages can also be linked to subdependencies.
-
-Be advised that it is encouraged instead to use [`pnpm-workspace.yaml`] for this setting, to
-enforce the same behaviour in all environments. This option exists solely so you
-may override that if necessary.
-
-[`pnpm-workspace.yaml`]: ../workspaces.md#linkworkspacepackages
+Overrides the [`linkWorkspacePackages`](../workspaces.md#linkworkspacepackages) setting for this install.
 
 ### --workspace-concurrency
 
@@ -66,7 +53,7 @@ may override that if necessary.
 Set the maximum number of tasks to run simultaneously. For unlimited concurrency
 use `Infinity`.
 
-You can set the `workspace-concurrency` as `<= 0` and it will use amount of cores of the host as: `max(1, (number of cores) - abs(workspace-concurrency))`
+A value of `0` or less means the number of CPU cores minus its absolute value, and at least `1`. The matching setting is `workspaceConcurrency`.
 
 ### --[no-]bail
 
@@ -74,6 +61,8 @@ You can set the `workspace-concurrency` as `<= 0` and it will use amount of core
 * Type: **Boolean**
 
 If true, stops when a task throws an error.
+
+`--no-bail` is accepted only by `run`, `exec`, `test`, `start`, `stop`, `rebuild`, `install-test`, and the `pnpm <script>` shorthand. Other commands reject it.
 
 This config does not affect the exit code.
 Even if `--no-bail` is used, all tasks will finish but if any of the tasks fail,
@@ -111,9 +100,37 @@ the resolved task graph, including relationships declared with `dependsOn`.
 pnpm -r --reverse run clean
 ```
 
+### --parallel
+
+See [`pnpm run --parallel`](./run.md#--parallel).
+
+### --resume-from &lt;package_name\>
+
+See [`pnpm run --resume-from`](./run.md#--resume-from-package_name).
+
+### --stream
+
+See [`pnpm run --stream`](./run.md#--stream).
+
+### --aggregate-output
+
+See [`pnpm run --aggregate-output`](./run.md#--aggregate-output).
+
+### --report-summary
+
+See [`pnpm run --report-summary`](./run.md#--report-summary).
+
+### -w, --workspace-root
+
+See [`--workspace-root`](../pnpm-cli.md#-w---workspace-root).
+
 ### --filter &lt;package_selector\>
 
 [Read more about filtering.](../filtering.md)
+
+### --filter-prod &lt;package_selector\>
+
+See [`--filter-prod`](../filtering.md#--filter-prod-filtering_pattern).
 
 [includeWorkspaceRoot]: ../workspaces.md#includeworkspaceroot
 [`tasks` setting]: ../workspace-task-orchestration.md

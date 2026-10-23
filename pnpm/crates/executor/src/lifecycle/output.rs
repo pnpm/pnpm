@@ -68,7 +68,7 @@ impl StreamedScript<'_> {
     /// later is dropped.
     ///
     /// The child must have been spawned with both streams piped;
-    /// whichever is absent is simply not pumped.
+    /// whichever is absent is not pumped.
     pub fn pump(&self, child: &mut SpawnedChild<'_>) -> io::Result<ExitStatus> {
         let (link, pumps_done) = PumpLink::new();
         if let Some(stream) = child.child_mut().stdout.take() {

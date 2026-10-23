@@ -6,7 +6,7 @@ title: Registry Revisions
 Added in: v12.0.0
 
 Some registries can serve a **replacement artifact** for a version that is
-already published — a rebuild with a vulnerability patched out, for example —
+already published (a rebuild with a vulnerability patched out, for example)
 without changing the version number and without rewriting the bytes the original
 `name@version` URL has always served. pnpm calls each such artifact a *revision*
 of that version.
@@ -22,7 +22,7 @@ without a major release.
 
 Revisions are a registry capability, not something pnpm can add to a registry
 that does not implement them. [pnpr](/pnpr) serves them, both for the packages it
-hosts and — as a proxy — for an upstream registry that advertises them.
+hosts and, as a proxy, for an upstream registry that advertises them.
 `registry.npmjs.org` does not.
 
 :::
@@ -121,7 +121,7 @@ overrides:
 
 It works as an override target and as a directly declared dependency, across
 npm, JSR, aliases, and [named registries](./registries.md#prefix). The version
-half resolves normally — build metadata is ignored for version matching — and
+half resolves normally (build metadata is ignored for version matching), and
 then the named revision is selected out of `dist.revisions`, with **that
 entry's own manifest** driving subtree resolution. Revisions may legitimately
 differ in their dependencies, peer dependencies, `bin`, `engines`, and
@@ -133,7 +133,7 @@ The rules around it:
 * A revision the registry does not advertise is a hard error
   (`ERR_PNPM_NO_MATCHING_REVISION`); pnpm never falls forward to the selected
   one.
-* On a version that is not revision-aware, `+r0` is trivially satisfied by the
+* On a version that is not revision-aware, `+r0` is satisfied by the
   only artifact, which stays an ordinary entry, and a positive number is an
   error.
 * Version-changing targets compose: `"ejs@2.7.4": "2.7.5+r1"` rewrites the spec
@@ -164,8 +164,8 @@ pnpm update --patches
 
 For every locked registry package, pnpm resolves current metadata for the same
 exact `name@version`. When the selected artifact changed, it updates the
-integrity, the `revision` field, and the whole package snapshot together —
-dependency metadata may differ between revisions, so changing only the checksum
+integrity, the `revision` field, and the whole package snapshot together.
+Dependency metadata may differ between revisions, so changing only the checksum
 would be wrong.
 
 A package whose revision is pinned explicitly is skipped, and the pin holds: that
@@ -179,5 +179,5 @@ The refresh can be resolved server-side by a pnpr server, either from
 [`pnprServer`](/pnpr/install-acceleration) or from `--pnpr-server <url>` on the
 command line. An explicit refresh bypasses frozen reuse and pnpr's
 whole-resolution cache, and the registry resolver revalidates metadata even when
-its caches are warm — otherwise the command could hand back exactly the
+its caches are warm. Otherwise the command could hand back exactly the
 revisions it was asked to look past.

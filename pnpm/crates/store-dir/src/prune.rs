@@ -77,24 +77,43 @@ pub enum PruneError {
         error: io::Error,
     },
 
+    #[display("Failed to read cache directory {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_READ_CACHE_DIR))]
+    ReadCacheDir {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to remove cached metadata at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_STORE_DIR_PRUNE_REMOVE_CACHED_METADATA))]
+    RemoveCachedMetadata {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[diagnostic(transparent)]
     PruneCas(#[error(source)] PruneCasError),
 }
 
 impl StoreDir {
-    /// Remove unreferenced packages from the global virtual store and
-    /// content-addressable files that have no hard links outside the store.
+    /// Remove unreferenced packages from the global virtual store, the
+    /// registry metadata cached under `cache_dir`, and content-addressable
+    /// files that have no hard links outside the store. A metadata directory
+    /// that is or holds one of `protected_dirs` is kept.
     ///
     /// Pacquet doesn't yet thread the install-time reporter into
     /// store-dir, so the informational messages go to stderr via
     /// `eprintln!` until [#344] lands the proper reporter wiring.
     ///
     /// [#344]: https://github.com/pnpm/pacquet/issues/344
-    pub fn prune(&self) -> Result<(), PruneError> {
+    pub fn prune(&self, cache_dir: &Path, protected_dirs: &[&Path]) -> Result<(), PruneError> {
         let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
         let references = crate::loader_references::loader_references(self)
             .map_err(PruneError::LoaderReferences)?;
         self.prune_global_virtual_store(&references.package_roots)?;
+        self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
             .map_err(PruneError::PruneCas)?;
         pnpm_diagnostics::eprintln!(

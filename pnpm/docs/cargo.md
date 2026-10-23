@@ -37,10 +37,12 @@ pnpm add crate:serde@^1.0.200
 
 pnpm writes the dependency into `Cargo.toml` without reformatting anything else in the file, and regenerates `Cargo.lock`. With no version requirement, the latest stable release is selected. A repository that has only a `Cargo.toml` needs no `package.json`: `pnpm add crate:` does not scaffold one.
 
+`pnpm add crate:` and `pnpm add rust@` fail with `--recursive` or `--filter`. Run them in the project instead.
+
 ## What an install does
 
 1. Reads the workspace's `Cargo.toml`, including its members.
-2. Resolves the graph against the sparse index and writes a deterministic `Cargo.lock`. When `Cargo.lock` is already there, it is used as-is.
+2. Resolves the graph against the sparse index, or with Cargo (see [Source overrides](#source-overrides)), and writes a deterministic `Cargo.lock`. When `Cargo.lock` is already there, it is used as-is.
 3. Verifies each locked `.crate` archive against its checksum and unpacks it into pnpm's store.
 4. Links the store slots into a Cargo [directory source](https://doc.rust-lang.org/cargo/reference/source-replacement.html) under `.pnpm/crates/crates-io`, generating the `.cargo-checksum.json` files Cargo expects.
 5. Writes the source replacement for those crates into `.pnpm/crates/config.toml`.
@@ -66,7 +68,7 @@ registries:
     ecosystem: cargo
 ```
 
-Declare the sparse index through [`registries`](./registries.md#ecosystem) with `ecosystem: cargo`. Without a declaration, pnpm uses crates.io. The registry a crate came from is recorded in `Cargo.lock`, and pnpm points Cargo's source replacement at that registry, so a local resolve and a [pnpr-accelerated](/pnpr/install-acceleration) one record the same source.
+Declare the sparse index through [`registries`](./registries.md#ecosystem) with `ecosystem: cargo`. Without a declaration, pnpm uses `https://index.crates.io`. Only one Cargo index may be declared. pnpm fails on a `cargo.indexUrl` setting. Move the index to `registries`. The registry a crate came from is recorded in `Cargo.lock`, and pnpm points Cargo's source replacement at that registry, so a local resolve and a [pnpr-accelerated](/pnpr/install-acceleration) one record the same source.
 
 A dependency that names a third-party registry of its own (`registry = "..."` in `Cargo.toml`) is rejected: pnpm resolves one index per workspace.
 
@@ -83,23 +85,27 @@ The store slot is keyed by the commit, so a second install links it without clon
 ## Source overrides
 
 pnpm honors root Cargo.toml `[patch]` and `[replace]` overrides when generating
-`Cargo.lock` or adding, removing, and updating crates. Path overrides stay local.
+`Cargo.lock` or adding crates. Path overrides stay local.
 Git overrides are pinned to the commit Cargo resolves and vendored for offline
 builds.
 
 Workspaces with source overrides or direct Git dependencies use Cargo for
-resolution. This requires the default crates.io sparse index. With a custom index,
+resolution. pnpm runs the `cargo` of the workspace's [Rust toolchain](#rust-toolchain), so this path needs the toolchain. It also requires the default crates.io sparse index. With a custom index,
 generate and commit `Cargo.lock` using Cargo before installing with pnpm.
 
-Cargo resolution reads only settings for artifact dependencies and Rust version
-resolution from checkout `.cargo` configuration. User Cargo home configuration
-still applies. `--offline` requires the index and Git repositories needed for
+Cargo resolution reads only `unstable.bindeps` and
+`resolver.incompatible-rust-versions` from the checkout's `.cargo/config.toml`. It
+ignores every other setting there. User Cargo home configuration still applies. `--offline` requires the index and Git repositories needed for
 resolution to be cached. `--frozen-lockfile` does not generate a missing
 `Cargo.lock` or change an existing revision.
 
 Git resolution permits the `file`, `git`, `http`, `https`, and `ssh` protocols.
 When Cargo uses command-line Git fetching, pnpm preserves stricter protocol
-settings from the workspace Git configuration and `GIT_ALLOW_PROTOCOL`. Unsupported transport helpers cannot run during lockfile resolution.
+settings from the workspace Git configuration and `GIT_ALLOW_PROTOCOL`. pnpm refuses Git remote helpers for other protocols, such as `ext::`, during lockfile resolution.
+
+## Building the standard library
+
+When `.cargo/config.toml` sets `unstable.build-std` to a non-empty list, pnpm also vendors the dependencies of the standard library. It reads them from the toolchain's `rust-src` component, so the toolchain needs that component. With a toolchain file that pnpm installs, list `rust-src` in `components`.
 
 ## Faster resolution through pnpr
 
@@ -142,15 +148,3 @@ A channel that moves, such as `stable`, is checked once a day, so a new release 
 * Type: **Boolean**
 
 Whether `pnpm install` resolves and installs the workspace's Cargo dependencies.
-
-### Cargo index
-
-Since v12.5.0, declare a custom sparse index through [`registries`](./registries.md#ecosystem) with `ecosystem: cargo`. Without a declaration, pnpm uses `https://index.crates.io`. Only one Cargo index may be declared. `cargo.indexUrl` is no longer supported.
-
-```yaml title="pnpm-workspace.yaml"
-cargo:
-  enabled: true
-registries:
-  https://crates.example.org/index/:
-    ecosystem: cargo
-```

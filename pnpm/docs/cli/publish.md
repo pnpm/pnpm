@@ -10,17 +10,13 @@ pnpm [-r] publish [<tarball|folder>] [--tag <tag>]
      [--access <public|restricted>] [options]
 ```
 
-:::note
-
-Since v11, `pnpm publish` is implemented natively and no longer delegates to the `npm` CLI. If you rely on a feature that is now gone, please open an issue at [pnpm/pnpm](https://github.com/pnpm/pnpm/issues). As a workaround, you can still run `pnpm pack && npm publish *.tgz`.
-
-:::
-
 When publishing a folder or a tarball, pnpm includes a package-root README in
 the registry metadata if the manifest has no `readme` value. It recognizes
 `README.md`, other README files with npm-compatible Markdown extensions (such
 as `README.markdown` and `README.mdown`), and `README`. It prefers `README.md`,
-then another Markdown README, then `README`.
+then another Markdown README, then `README`. This is separate from
+[`--embed-readme`](#--embed-readme), which embeds the README in the published
+manifest.
 
 When publishing a pre-built tarball, pnpm rejects manifests, README files, and
 archive metadata larger than 64 MiB.
@@ -68,15 +64,28 @@ Tells the registry whether the published package should be public or restricted.
 
 ### --no-git-checks
 
-Don't check if current branch is your publish branch, clean, and up-to-date with remote.
+Skip the git checks. By default, pnpm checks that the working tree is clean, that the current branch is the publish branch, and that the branch is up to date with the remote.
 
 ### --publish-branch &lt;branch\>
 
-* Default: **master** and **main**
+* Default: **master** or **main**
 * Types: **String**
 
-The primary branch of the repository which is used for publishing the latest
-changes.
+The branch that publishing is allowed from. Without this option, the current
+branch must be `master` or `main`. In CI, a detached `HEAD` skips the branch
+check.
+
+### --ignore-scripts
+
+Don't run the publish lifecycle scripts.
+
+### --embed-readme
+
+* Default: **false**
+* Type: **Boolean**
+
+Embed the README contents in the published manifest. The `embedReadme` setting
+sets the default.
 
 ### --force
 
@@ -85,22 +94,18 @@ registry.
 
 ### --batch
 
-Added in: v11.7.0
-
 When publishing recursively (`pnpm -r publish`), send all selected packages to the registry in a single `PUT /-/pnpm/v1/publish` request instead of one request per package.
 
 The target registry has to implement the batch publish endpoint ([pnpr](https://github.com/pnpm/pnpm/tree/main/pnpr) does); registries that don't are reported with an `ERR_PNPM_BATCH_PUBLISH_UNSUPPORTED` error. The batch is processed all-or-nothing: if any package in the batch fails validation, none of the packages are published.
 
-Since v11.24.0, the selected packages are grouped by the registry each one
+The selected packages are grouped by the registry each one
 publishes to, and one request is sent per group. Every package in a group must
-authenticate with the same credential — a scope-specific token shared across the
+authenticate with the same credential. A scope-specific token shared across the
 group is fine, and mismatched credentials for one registry are rejected *before*
 anything is published, rather than after part of the release went out. The
 `publish` and `postpublish` scripts run after each completed group.
 
 ### --skip-manifest-obfuscation
-
-Added in: v11.3.0
 
 Keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
 
@@ -250,7 +255,7 @@ provenance: false
 The `PNPM_CONFIG_PROVENANCE` environment variable overrides the
 configuration files. The command-line option takes precedence over both.
 
-## Life Cycle Scripts
+## Life cycle scripts
 
 * `prepublishOnly`
 * `prepublish`

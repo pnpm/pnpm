@@ -55,7 +55,7 @@ Rust is now the primary language in this repository, so most contributions need 
 
    `just init` installs `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov` (via `cargo binstall`), plus `cargo-fixit` (pinned to `0.1.15` via `cargo install cargo-fixit@0.1.15 --locked`, since `cargo-fixit` has no prebuilt binaries). `cargo-fixit` backs the `just fix` task. It also builds the pinned pnpm rustfmt fork described below.
 
-   Because `cargo-fixit` is built from source, it needs a complete OpenSSL development installation — headers and libraries — which its `openssl-sys` dependency looks for at build time. Without one, `just init` fails while installing `cargo-fixit`, before it reaches the rustfmt step, with `failed to run custom build command for openssl-sys`. Install it first: `sudo dnf install openssl-devel` on Fedora, `sudo apt install libssl-dev pkg-config` on Debian and Ubuntu. If OpenSSL is installed somewhere `openssl-sys` does not look — under a Homebrew prefix, for instance — point it at that existing installation with `OPENSSL_DIR`, for example `export OPENSSL_DIR=$(brew --prefix openssl@3)`. Note that `OPENSSL_DIR` only locates an installation; it is not a substitute for one.
+   Because `cargo-fixit` is built from source, it needs a complete OpenSSL development installation — headers and libraries — which its `openssl-sys` dependency looks for at build time. Without one, `just init` fails while installing `cargo-fixit`, before it reaches the rustfmt step, with `failed to run custom build command for openssl-sys`. Install it first: `sudo dnf install openssl-devel` on Fedora, `sudo apt install libssl-dev pkg-config` on Debian and Ubuntu. If OpenSSL is installed somewhere `openssl-sys` does not look — under a Homebrew prefix, for instance — point it at that existing installation with `OPENSSL_DIR`, for example `export OPENSSL_DIR=$(brew --prefix openssl@3)`. `OPENSSL_DIR` only locates an installation; it is not a substitute for one.
 
 3. Install the dylint tools, which `just init` does not cover, **from source**:
 
@@ -90,7 +90,7 @@ The wrapper uses the [pnpm rustfmt fork](https://github.com/pnpm/rustfmt), pinne
 
 With `chain_complexity_layout = true`, a chain of at most `chain_width = 40` columns of expression text stays inline when it fits the available line and head-width limits. Beyond that allowance, up to two method calls with simple arguments can stay inline if the expression fits the line. Zero-argument methods on simple receivers and short expression closures count as simple arguments. Longer chains and chains with complex arguments wrap vertically. These rules also apply in conditions.
 
-In a vertical chain, keep the first method attached when the first line would otherwise end at or before the next indentation level, following the [Rust style guide](https://doc.rust-lang.org/style-guide/expressions.html#chains-of-fields-and-method-calls). The allowance is `tab_spaces` (normally 4 columns), counting the receiver and any preceding code such as `let value =` or `if`, but excluding the enclosing block indentation. Moving an assignment’s right-hand side to a new line does not create a new allowance. This does not attach a second method or apply to a receiver that is already a function call. A single method stays attached to a simple receiver, including when its arguments span multiple lines. After a function-call receiver, the method moves to its own line if attaching it would split its arguments.
+In a vertical chain, keep the first method attached when the first line would otherwise end at or before the next indentation level, following the [Rust style guide](https://doc.rust-lang.org/style-guide/expressions.html#chains-of-fields-and-method-calls). The allowance is `tab_spaces` (normally 4 columns), counting the receiver and any preceding code such as `let value =` or `if`, but excluding the enclosing block indentation. Moving an assignment's right-hand side to a new line does not create a new allowance. This does not attach a second method or apply to a receiver that is already a function call. A single method stays attached to a simple receiver, including when its arguments span multiple lines. After a function-call receiver, the method moves to its own line if attaching it would split its arguments.
 
 Leading field accesses stay with their receiver while the prefix fits within `chain_head_width = 80` columns, including indentation and preceding code such as `let value =`. An intermediate access that exceeds that limit starts a new line. A final access uses the normal 100-column limit. Fields after a vertically wrapped method each start a new line. `.await` follows the same layout rules as ordinary fields. `?` stays attached to the preceding expression.
 
@@ -123,7 +123,7 @@ Replace the two paths with your checkout paths. On Windows, use forward slashes 
 
 Worktrees let you check out multiple branches simultaneously in separate directories,
 which is useful for working on several issues in parallel without stashing or switching branches.
-This is particularly powerful when running multiple AI coding agents (e.g. Claude Code) at the
+This helps when running multiple AI coding agents (e.g. Claude Code) at the
 same time — each agent gets its own isolated worktree, so they can work concurrently without
 interfering with each other.
 
@@ -320,7 +320,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
     git push -f
     ```
 
-That's it! Thank you for your contribution!
+That's it. Thank you for your contribution.
 
 ### AI-assisted contributions
 
@@ -388,7 +388,7 @@ readable messages** that are easy to follow when looking through the **project h
 
 ### Commit Message Format
 
-Each commit message consists of a **header**, a **body** and a **footer**.  The header has a special
+Each commit message consists of a **header**, a **body** and a **footer**. The header has a special
 format that includes a **type**, a **scope** and a **subject**:
 
     <type>(<scope>): <subject>
@@ -399,7 +399,7 @@ format that includes a **type**, a **scope** and a **subject**:
 
 The **header** is mandatory and the **scope** of the header is optional.
 
-Any line of the commit message cannot be longer than 100 characters! This allows the message to be easier
+Any line of the commit message cannot be longer than 100 characters. This allows the message to be easier
 to read on GitHub as well as in various git tools.
 
 #### Revert

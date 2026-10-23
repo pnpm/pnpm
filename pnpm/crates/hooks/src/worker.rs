@@ -15,7 +15,7 @@
 //! - failure:  `{"id": N, "err": "message"}`
 
 use crate::{
-    FetcherCallback, FetcherCallbackSender, HookError,
+    FetcherCallback, FetcherCallbackSender, HookError, IgnoredHook,
     async_process::{Child, ChildStdin, ChildStdout, Command},
     process::Stdio,
 };
@@ -211,18 +211,16 @@ impl NodeWorker {
             .unwrap_or(false)
     }
 
-    /// Whether the loaded pnpmfile exports a callable `filterLog` hook.
-    pub async fn has_filter_log(&self) -> bool {
-        self.request(
-            "hasFilterLog",
-            serde_json::json!({ "query": "hasFilterLog" }),
-            Arc::new(|_| {}),
-        )
-        .await
-        .ok()
-        .as_ref()
-        .and_then(Value::as_bool)
-        .unwrap_or(false)
+    /// The [`IgnoredHook`]s the loaded pnpmfile exports as callables. A
+    /// pnpmfile that fails to load defines none.
+    pub async fn ignored_hooks(&self) -> Vec<IgnoredHook> {
+        let names = IgnoredHook::ALL.map(IgnoredHook::export_name);
+        let query = serde_json::json!({ "query": "definedHooks", "names": names });
+        let Ok(Value::Array(defined)) = self.request("definedHooks", query, Arc::new(|_| {})).await
+        else {
+            return Vec::new();
+        };
+        IgnoredHook::named_in(&defined)
     }
 
     /// Whether the loaded pnpmfile exports a callable `readPackage` hook.

@@ -153,7 +153,7 @@ pub struct UpdateSaveArgs {
     #[clap(long = "no-save")]
     pub no_save: bool,
     /// Generate a changeset file declaring a patch bump for every workspace
-    /// package whose production dependencies were changed by the update.
+    /// package whose production dependencies the update changed.
     #[clap(long, overrides_with = "no_changeset")]
     pub changeset: bool,
     /// Do not generate a changeset, even when `updateConfig.changeset` enables

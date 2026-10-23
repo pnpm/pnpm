@@ -11,7 +11,7 @@ plus four surfaces:
   Served exactly when at least one registry is declared under
   [`registries:`](configuration.md#registries-and-defaultregistry);
   `--disable-registry` turns it off for one process. On a resolver-only server
-  these routes aren't mounted at all — they answer `404`, not `403`.
+  these routes aren't mounted at all. They answer `404`, not `403`.
 - **Resolver surface** (`resolver.enabled`) - pnpr install-accelerator
   endpoints under `/-/pnpr`.
 - **Shared-artifact surface** (`artifacts.enabled`) - signed artifact publish,
@@ -62,19 +62,19 @@ Every request routes through the registry graph:
 
 - A request to a **router** is answered by the first listed source whose
   declared [`packages:`](configuration.md#the-packages-map) claim the name. A
-  name that no source claims is a definitive `404` — there is no fall-through
+  name that no source claims is a definitive `404`. There is no fall-through
   to another origin. A matched source that is unavailable is an error, never a
   `404`.
 - A registry's declared namespace is enforced **on every path to it**: a read
   of a name outside the namespace is a definitive `404` answered before
-  storage or the upstream is consulted — through a router, on the default
-  base, and at the registry's own `/~<name>/` URL alike — and an off-namespace
+  storage or the upstream is consulted (through a router, on the default
+  base, and at the registry's own `/~<name>/` URL alike), and an off-namespace
   publish is rejected.
 - **Writes** (publish, dist-tags, unpublish) must resolve to a hosted
   registry; a write that routes to an upstream is rejected.
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
-- Served `dist.tarball` URLs are rewritten onto the configured `public_url`
+- Served `dist.tarball` URLs are rewritten onto `--public-url` (`PNPR_PUBLIC_URL`)
   and stay canonical for the base the client addressed (`/npm/` or
   `/npm/~<name>/`), so lockfiles don't bake in a registry name.
 
@@ -97,15 +97,14 @@ artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
 `ignoreManifestCheck`, `trustLockfile`, `minimumReleaseAge`,
 `minimumReleaseAgeExclude`, `minimumReleaseAgeIgnoreMissingTime`,
 `trustPolicy`, `trustPolicyExclude`, `trustPolicyIgnoreAfter`, and
-`fixLockfile`. Since v0.1.0-alpha.9, a repair request regenerates broken
+`fixLockfile`. A repair request regenerates broken
 lockfile metadata while retaining compatible locked versions, including for a
 filtered install.
 
-Every registry the request would make pnpr fetch from — the `registry` and
+Every registry the request would make pnpr fetch from (the `registry` and
 `registries` origins, plus any direct `http(s)`/`git` URL in a dependency
-spec, an override, or an input-lockfile tarball — must be on the server's fetch
-allowlist (the configured registries, declared public routes, the built-in npm
-registry, and pnpr's own origin). An off-allowlist origin is rejected up front,
+spec, an override, or an input-lockfile tarball) must be on the server's
+[fetch allowlist](install-acceleration.md#allowlist). An off-allowlist origin is rejected up front,
 before any server-side fetch. Upstream credentials are never taken from the
 client: pnpr selects its own server-owned credential per route (see
 [Install acceleration](install-acceleration.md#private-registries)), and a URL
@@ -183,9 +182,9 @@ are checked against the serving registry's matching
 | `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
 | `GET` | `/@scope/{name}@{version}` | Scoped tarball by exact version. |
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
-| `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and, since v0.1.0-alpha.11, the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
+| `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](/registry-revisions). |
+| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](https://pnpm.io/registry-revisions). |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
@@ -201,8 +200,8 @@ When OSV checks are enabled, vulnerable versions are removed from packuments
 and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.
 
-Since v0.1.0-alpha.8, the digest route answers integrity-addressed
-[registry revisions](/registry-revisions). The digest is the SHA-512 of the
+The digest route answers integrity-addressed
+[registry revisions](https://pnpm.io/registry-revisions). The digest is the SHA-512 of the
 uncompressed tar, on every registry, `.tgz` and tar registries alike. The
 response is the tar with `Content-Type: application/x-tar`, sent with the
 `gzip` or `zstd` content coding the client's `Accept-Encoding` allows, or with
@@ -237,8 +236,8 @@ manifest include `dist.fileCount`, `dist.unpackedSize`,
 `package.json` declares `preinstall`, `install`, or `postinstall` under
 `scripts`, when the tarball contains a root `binding.gyp` and `package.json`
 does not set `gypfile: false`, or when it contains a `.hooks/` entry; `false`
-otherwise), and — when `requiresBuild` is `false` and the package declares
-executables via `bin` or `directories.bin` — `dist.pnpr.bins` mapping each
+otherwise). When `requiresBuild` is `false` and the package declares
+executables via `bin` or `directories.bin`, they also include `dist.pnpr.bins`, mapping each
 command name to its normalized package-relative `path` and optional `prog` /
 `args` runtime. Any `dist.pnpr` field supplied by a publisher or an upstream
 packument is stripped and never trusted.
@@ -274,12 +273,12 @@ way no writer's update is silently discarded. See
 
 ## Staged publishing endpoints
 
-These implement the server half of [`pnpm stage`](/cli/stage) — npm's
+These implement the server half of [`pnpm stage`](https://pnpm.io/cli/stage), npm's
 [staged publishing](https://docs.npmjs.com/staged-publishing) workflow, where a
 version is uploaded first and promoted later. A staged version is held back
 rather than made visible: it isn't installable, and nothing is written under
 the package's name until it is approved. That lets an unattended CI job upload
-a release for a human to promote, and it doubles as a review gate — the held
+a release for a human to promote, and it doubles as a review gate: the held
 tarball can be downloaded and audited before it goes live.
 
 The two phases check different things. **Staging** validates the publish
@@ -287,19 +286,19 @@ document and requires the `publish` right on the package, exactly as a direct
 publish does, but does not check whether the version already exists.
 **Approval** re-checks the `publish` right against the rules as they stand
 then, and is where a version conflict is caught. pnpr raises no
-one-time-password challenge of its own at either point — the `--otp` flag on
+one-time-password challenge of its own at either point. The `--otp` flag on
 `pnpm stage approve` is for registries that do.
 
 A stage id is a v4 UUID drawn from the OS CSPRNG, so the id itself acts as an
 unguessable handle. Held records live under a reserved `.staged/` namespace in
 the hosted store (both the filesystem and S3 backends), and a record is only
-visible through the same base it was created with — one staged through
+visible through the same base it was created with. One staged through
 `/npm/~<name>/` is not addressable on the npm base, and vice versa.
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `POST` | `/-/stage/package/{name}` | Stage a publish. Body is the same npm publish document a `PUT /{name}` publish carries, `_attachments` included. Use a percent-encoded scoped name, for example `@scope%2Fname`. Returns `201` with `{"ok":true,"stageId":"<uuid>"}`. Requires `publish`. |
-| `GET` | `/-/stage` | List held records, oldest first. Accepts `page` (zero-based, defaults to `0`), `perPage` (defaults to `100`, clamped to `1`–`100`), and `package` (exact name filter). Returns `{"items":[...],"page":...,"perPage":...,"total":...}`. |
+| `GET` | `/-/stage` | List held records, oldest first. Accepts `page` (zero-based, defaults to `0`), `perPage` (defaults to `100`, clamped to `1` to `100`), and `package` (exact name filter). Returns `{"items":[...],"page":...,"perPage":...,"total":...}`. |
 | `GET` | `/-/stage/{id}` | One held record. Requires `publish` on the record's package. |
 | `GET` | `/-/stage/{id}/tarball` | The held tarball as `application/octet-stream`, for inspection before approval. Requires `publish`. |
 | `POST` | `/-/stage/{id}/approve` | Publish the held document and drop the record. Empty body; returns `201` with `{"ok":true}`. Requires `publish`. |
@@ -313,13 +312,13 @@ in place**, so it can still be inspected or rejected.
 
 `GET /-/stage` filters rather than refuses: it always answers `200`, listing
 only the records the caller could publish, so an anonymous caller sees an empty
-list instead of a `401`. Every other stage endpoint denies loudly — `401` for
-anonymous callers, `403` for authenticated ones — matching the publish
+list instead of a `401`. Every other stage endpoint denies loudly (`401` for
+anonymous callers, `403` for authenticated ones), matching the publish
 endpoint rather than masking as a `404`.
 
 ## Team endpoints
 
-pnpr serves npm's team endpoints in the shape [`pnpm team`](/cli/team)
+pnpr serves npm's team endpoints in the shape [`pnpm team`](https://pnpm.io/cli/team)
 consumes. Teams are [registry-scoped](configuration.md#teams).
 
 | Method | Path | Description |
@@ -343,7 +342,7 @@ Changes are accepted only on a registry with
 
 Reads resolve `@{scope}` to a hosted registry the same way a package read in
 that scope would, then check that registry's default `access:` list. Unlike
-the stage endpoints, a denial here is **masked as `404`** — team and member
+the stage endpoints, a denial here is **masked as `404`**. Team and member
 names must not become an existence probe for a private registry. A registry
 that declares no teams returns an empty array.
 

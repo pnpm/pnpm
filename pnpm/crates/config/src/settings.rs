@@ -1244,7 +1244,7 @@ pub struct Config {
     #[default = true]
     pub enable_pre_post_scripts: bool,
 
-    /// `scriptShell` from `pnpm-workspace.yaml`. The shell used to run
+    /// `scriptShell` from `pnpm-workspace.yaml`. The shell that runs
     /// scripts and `pnpm exec`. `None` selects the platform default
     /// (`sh` on POSIX, `cmd.exe` on Windows).
     pub script_shell: Option<String>,
@@ -1403,6 +1403,11 @@ pub struct Config {
     /// after which every injected copy of the package that ran them is
     /// re-synced from its source.
     pub sync_injected_deps_after_scripts: Vec<String>,
+
+    /// `requiredScripts` from `pnpm-workspace.yaml`. A recursive run of a
+    /// script named here fails with `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT`
+    /// when a selected project lacks it.
+    pub required_scripts: Vec<String>,
 
     /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` /
     /// `PNPM_CONFIG_CHANGED_FILES_IGNORE_PATTERN`, overridable by the

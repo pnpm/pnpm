@@ -15,9 +15,9 @@ A config dependency can also supply settings declaratively, without a pnpmfile. 
 
 Removing a package from `configDependencies` removes its installed link and unused lockfile entries on the next `pnpm install`. This also applies when you remove the entire setting. Run without `--frozen-lockfile` to update the lockfile after changing the declarations.
 
-## How to Add a Config Dependency
+## How to add a config dependency
 
-Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [boot document](./lockfile.md)).
+Config dependencies are defined in your `pnpm-workspace.yaml`. Their integrity checksums are stored in `pnpm-lock.yaml` (in a dedicated [boot document](./lockfile.md)). pnpm installs each config dependency to `node_modules/.pnpm-config/<name>`.
 
 For example, running `pnpm add --config my-configs` will add this entry to your `pnpm-workspace.yaml`:
 
@@ -28,7 +28,7 @@ configDependencies:
 
 Since v12.12.0, the saved range follows the same rules as `pnpm add`. It uses [`savePrefix`](./settings/other.md#saveprefix), and `--save-exact` saves the exact version. A dist-tag such as `my-configs@latest` is saved as a range on the version it resolved to.
 
-## How to Update Config Dependencies
+## How to update config dependencies
 
 Since v12.12.0, [`pnpm update`](./cli/update.md) updates config dependencies the way it updates the dependencies in `package.json`:
 
@@ -41,7 +41,7 @@ Config dependencies are left alone by `--interactive`, `--patches`, `--no-save`,
 
 **Important:**
 
-* Config dependencies **cannot** have their own regular `dependencies`. They **can** declare `optionalDependencies`, but only one level deep — `optionalDependencies` of `optionalDependencies` are ignored.
+* Config dependencies **cannot** have their own regular `dependencies`. They **can** declare `optionalDependencies`, but only one level deep. `optionalDependencies` of `optionalDependencies` are ignored.
 * Config dependencies **cannot** define lifecycle scripts (like `preinstall`, `postinstall`, etc.).
 
 ### Platform-specific binaries via `optionalDependencies`
@@ -50,18 +50,18 @@ A config dependency may ship platform-specific binaries via `optionalDependencie
 
 The boot document records all platform variants regardless of host platform, so the lockfile stays portable across machines.
 
-Each entry in `optionalDependencies` must be declared with an **exact** version (e.g. `"1.2.3"`) — ranges (`"^1.0.0"`, `"~1.0.0"`) and tags (`"latest"`) are rejected. This keeps config-dep installs reproducible: the resolved subdep can't drift between machines for a parent that's pinned by integrity.
+Each entry in `optionalDependencies` must be declared with an **exact** version (e.g. `"1.2.3"`). Ranges (`"^1.0.0"`, `"~1.0.0"`) and tags (`"latest"`) fail with `ERR_PNPM_CONFIG_DEP_OPTIONAL_NOT_EXACT`. This keeps config-dep installs reproducible: the resolved subdep can't drift between machines for a parent that's pinned by integrity.
 
 ## Usage
 
-### Installing Dependencies Used in Hooks
+### Installing dependencies used in hooks
 
 Config dependencies are installed **before** hooks from your [`.pnpmfile.mjs`] are loaded, allowing you to import logic from config packages.
 
 Example:
 
 ```js title=".pnpmfile.mjs"
-import { readPackage } from '.pnpm-config/my-hooks'
+import { readPackage } from './node_modules/.pnpm-config/my-hooks/index.mjs'
 
 export const hooks = {
   readPackage
@@ -70,9 +70,9 @@ export const hooks = {
 
 [`.pnpmfile.mjs`]: ./pnpmfile.md
 
-### Updating pnpm Settings Dynamically
+### Updating pnpm settings dynamically
 
-Using the [`updateConfig`] hook, you can dynamically update pnpm’s settings using config dependencies.
+Using the [`updateConfig`] hook, you can dynamically update pnpm's settings using config dependencies.
 
 For example, the following `pnpmfile` adds a new [catalog] entry to pnpm's configuration:
 
@@ -113,7 +113,7 @@ This makes it easy to maintain and share centralized configuration and dependenc
 [`updateConfig`]: ./pnpmfile.md#hooksupdateconfigconfig-config--promiseconfig
 [catalog]: ./catalogs.md
 
-### Loading Patch Files
+### Loading patch files
 
 You can reference [patch files] stored inside config dependencies.
 

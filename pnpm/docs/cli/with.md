@@ -3,19 +3,21 @@ id: with
 title: pnpm with
 ---
 
-Added in: v11.0.0
-
 Run pnpm at a specific version (or the currently running one) for a single invocation, ignoring the `packageManager` and `devEngines.packageManager` fields of the project's manifest.
 
 ```sh
 pnpm with <version|current> <args...>
 ```
 
+The version can be an exact version, a range, or a dist-tag.
+
+`pnpm with` does not work under Corepack. It fails with `ERR_PNPM_CANT_USE_WITH_IN_COREPACK`.
+
 The downloaded pnpm is installed using the same mechanism as [`pnpm self-update`](./self-update.md) and cached in the global virtual store for reuse on subsequent runs.
 
 ## Examples
 
-Run the globally installed pnpm, ignoring the version pinned in the manifest:
+Run the pnpm you invoked, ignoring the version pinned in the manifest:
 
 ```sh
 pnpm with current install

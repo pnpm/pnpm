@@ -36,7 +36,7 @@ export function createConfigDepsVerifier (configDeps: ConfigDependencies, opts: 
 
 /**
  * Config dependencies install only from an npm registry: a registry
- * resolution, or an http(s) tarball that is not a git-hosted archive.
+ * resolution, or an HTTP or HTTPS tarball that is not a git-hosted archive.
  */
 function assertRegistryResolution (key: string, resolution: EnvLockfile['packages'][string]['resolution']): void {
   if (!('type' in resolution && resolution.type != null) && isRegistryTarball(resolution)) return

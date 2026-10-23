@@ -121,7 +121,7 @@ fn reject_lockfile_only_without_lockfile(
 /// `--lockfile-only` takes, entered from config, except that the packages
 /// are still fetched into the store (`RunMode::fetches_into_store`). It stays
 /// outside the `lockfile: false` conflict (pnpm accepts that combination and
-/// simply writes nothing), and never turns a rebuild — which runs against an
+/// writes nothing), and never turns a rebuild — which runs against an
 /// already-materialized `node_modules` — into a silent no-op.
 fn effective_lockfile_only(
     config: &Config,

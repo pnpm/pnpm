@@ -19,7 +19,7 @@ A pnpr instance stores two categories of data:
    - Upstream proxy packument and tarball cache.
    - Resolver query cache.
    - Local artifact staging scratch.
-   - **Do not back this up routinely**: The upstream proxy cache is self-healing and repopulates automatically on demand. However, for the S3 backend, in-progress publish journal data and local staging scratch live in the cache directory (`cache_dir`). Ensure pnpr has completed startup journal recovery and drained in-flight publishes before wiping cache scratch or decommissioning an instance.
+   - **Do not back this up routinely**: The upstream proxy cache is self-healing and repopulates automatically on demand. However, for the S3 backend, in-progress publish journal data and local staging scratch live in the cache directory (`cache`, or `--cache`). Ensure pnpr has completed startup journal recovery and drained in-flight publishes before wiping cache scratch or decommissioning an instance.
 
 ## Local filesystem storage
 
@@ -46,7 +46,7 @@ To restore:
    ```
 3. Run `pnpr verify` to confirm all package documents and tarballs match:
    ```sh
-   pnpr verify --check-hashes
+   pnpr verify
    ```
 4. Start pnpr.
 
@@ -63,7 +63,7 @@ When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs a
 ### S3 journal caveats
 
 pnpr uses a commit journal for hosted publishes. For the S3 backend:
-- The local publish journal lives beside staged blobs in the local cache scratch directory (`cache_dir`), coordinating write-ahead publication before promotion to S3. Ensure instances stop cleanly and startup recovery completes before discarding local cache state.
+- The local publish journal lives beside staged blobs in the local cache directory (`cache`, or `--cache`), coordinating write-ahead publication before promotion to S3. Ensure instances stop cleanly and startup recovery completes before discarding local cache state.
 - Revision digest records (`.revisions/`) live in the S3 bucket itself. When restoring an S3 bucket from a point-in-time snapshot, restore the namespaces' `.revisions/` prefixes alongside their `packages/` to keep revision digest references intact.
 - After a restore, run `pnpr verify` to audit whether any references point to missing blobs:
   ```sh
@@ -75,11 +75,11 @@ pnpr uses a commit journal for hosted publishes. For the S3 backend:
 Use the `pnpr verify` subcommand to audit hosted documents against physical storage blobs.
 
 ```sh
-# Fast presence check (verifies all packument versions point to existing blobs)
+# Full checksum verification (verifies SHA-1 and sha512 integrity hashes)
 pnpr verify
 
-# Full checksum verification (verifies SHA-1 and sha512 integrity hashes)
-pnpr verify --check-hashes
+# Check that every packument version points to an existing blob, without comparing hashes
+pnpr verify --skip-hashes
 
 # Prune unreferenced/orphaned blobs left behind by interrupted uploads
 pnpr verify --prune-orphans
@@ -98,7 +98,7 @@ To migrate hosted packages from a local directory to an S3 bucket:
 # Dry run: check what would be transferred
 pnpr migrate-storage --to-bucket my-registry-bucket --dry-run
 
-# Execute migration with post-upload size verification
+# Execute migration and compare each uploaded blob with its source
 pnpr migrate-storage --to-bucket my-registry-bucket --verify
 ```
 

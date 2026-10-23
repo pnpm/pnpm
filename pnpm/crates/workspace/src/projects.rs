@@ -68,7 +68,7 @@ pub struct FindWorkspaceProjectsOpts {
     /// `packages:` pattern would otherwise match them. Mirrors the
     /// `ignored_directories` of [`crate::find_workspace_inventory`]:
     /// entries may be absolute or relative to the workspace root, and
-    /// entries that do not exist simply never match anything.
+    /// entries that do not exist never match anything.
     pub ignored_directories: Vec<PathBuf>,
 }
 
@@ -324,7 +324,7 @@ fn collect_pattern_manifests(
 
 /// Read `root_dir`'s project from the first readable candidate.
 /// `Ok(None)` when every candidate is gone or names no importer
-/// manifest — the root then simply isn't a project.
+/// manifest — the root then isn't a project.
 fn read_first_project_manifest(
     root_dir: PathBuf,
     candidates: Vec<PathBuf>,

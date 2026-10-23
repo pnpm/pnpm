@@ -5,11 +5,11 @@ title: Storage backends (S3 / R2)
 
 pnpr keeps two kinds of data:
 
-- **Hosted** — the source of truth: packages published to this server plus
+- **Hosted**: the source of truth. It holds packages published to this server plus
   anything served in static mode. Lives under `storage`. Packages awaiting
   approval through [staged publishing](endpoints.md#staged-publishing-endpoints)
   are held here too, under a reserved `.staged/` namespace.
-- **Cache** — the disposable mirror of upstream registries plus the resolver
+- **Cache**: the disposable mirror of upstream registries plus the resolver
   cache, lockfile-verdict cache, local shared-artifact store, and S3 upload
   staging scratch. Lives under `cache` (defaults to
   `<storage>/.pnpr-cache`).
@@ -26,6 +26,11 @@ The hosted store has the same layout on disk and in a bucket:
 <namespace>/packages/<name>/document.json
 <namespace>/packages/<name>/blobs/<file>
 ```
+
+A hosted registry declared under an
+[ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems) without an
+`org` uses the org `<ecosystem>~<name>`, stored as `orgs/<ecosystem>!7e<name>/`,
+for example `orgs/npm!7einternal/`.
 
 Every package name, org and file name is one path segment. Lowercase
 letters, digits, `.`, `_` and `-` are kept, and every other byte is written
@@ -50,7 +55,7 @@ cache data rather than authoritative packages, but publication slots are
 immutable while they exist.
 
 Because any S3-compatible endpoint works, this also covers **Cloudflare R2**,
-**MinIO**, **Backblaze B2**, **Wasabi**, etc. — point `endpoint` at the right
+**MinIO**, **Backblaze B2**, **Wasabi**, and so on. Point `endpoint` at the right
 host.
 
 ```yaml title="pnpr.yaml"
@@ -80,8 +85,8 @@ s3:
 | `prefix` | no | Key prefix every object is stored under. |
 | `accessKeyId` | no | Access key. Falls back to `AWS_ACCESS_KEY_ID` when unset. |
 | `secretAccessKey` | no | Secret key. Falls back to `AWS_SECRET_ACCESS_KEY` when unset. |
-| `forcePathStyle` | no | Use path-style addressing (`endpoint/bucket/key`) instead of virtual-hosted (`bucket.endpoint/key`). MinIO typically needs `true`; AWS and R2 work with the default. |
-| `allowHttp` | no | Allow plain-HTTP endpoints — needed for a local MinIO over `http://`. Defaults to HTTPS-only. |
+| `forcePathStyle` | no | Boolean. `true` uses path-style addressing (`endpoint/bucket/key`), and `false` uses virtual-hosted addressing (`bucket.endpoint/key`). When omitted, `AWS_VIRTUAL_HOSTED_STYLE_REQUEST=true` selects virtual-hosted addressing, and otherwise pnpr uses path-style addressing, which AWS, R2, and MinIO accept. |
+| `allowHttp` | no | Boolean. Allow plain-HTTP endpoints, needed for a local MinIO over `http://`. Defaults to `false` (HTTPS only). |
 
 ## Concurrent writers {#concurrent-writers}
 
@@ -90,18 +95,18 @@ in-process package lock only serializes that replica, writes to the hosted
 store are made safe across replicas at the object-store level rather than by
 locking:
 
-- **Packument updates** — publish, partial unpublish, and dist-tag writes read
+- **Packument updates**: publish, partial unpublish, and dist-tag writes read
   the packument together with its object-store version and write back
   conditionally, so an update computed from a stale copy is rejected instead of
   overwriting a newer one. Dist-tag writes retry on conflict, since their
-  mutation can simply be replayed against the fresh packument. A write that
+  mutation can be replayed against the fresh packument. A write that
   keeps losing surfaces as an HTTP `409` rather than silently discarding
   another writer's update.
-- **Tarballs** — finalizing a tarball is compare-and-swap. A byte-identical
+- **Tarballs**: finalizing a tarball is compare-and-swap. A byte-identical
   object is tolerated, but an object with different bytes left by a concurrent
   publisher of the same `name@version` is never overwritten; the losing publish
   gets a `409` before it writes any packument.
-- **Shared artifacts** — envelopes and blobs up to 8 MiB use create-only
+- **Shared artifacts**: envelopes and blobs up to 8 MiB use create-only
   writes, and the quota counter uses conditional updates across replicas. A
   larger blob is uploaded in parts and committed only once its bytes match its
   integrity, so a concurrent upload of it can only store the same bytes. A
@@ -126,6 +131,10 @@ s3:
   bucket: my-pnpr-packages
   region: auto
   endpoint: https://abc123def456.r2.cloudflarestorage.com
+
+auth:
+  htpasswd:
+    file: ./htpasswd
 
 registries:
   local:
@@ -160,7 +169,7 @@ fetch tarballs back through this server rather than the upstream.
 
 ## A local MinIO over plain HTTP
 
-MinIO over `http://` needs `forcePathStyle` and `allowHttp`:
+MinIO over `http://` needs `allowHttp`:
 
 ```yaml title="pnpr.yaml"
 s3:

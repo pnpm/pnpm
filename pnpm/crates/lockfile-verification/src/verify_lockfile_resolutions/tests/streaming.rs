@@ -44,7 +44,7 @@ snapshots:
 #[tokio::test]
 async fn rejects_semver_key_backed_by_non_http_tarball() {
     // A file: tarball under a semver key is not registry-backed and the npm
-    // verifier skips non-http(s) tarballs, so the shape pass must reject it.
+    // verifier skips non-HTTP and non-HTTPS tarballs, so the shape pass must reject it.
     let lockfile = parse(
         "lockfileVersion: '9.0'
 

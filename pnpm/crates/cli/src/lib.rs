@@ -37,6 +37,7 @@ mod executable_link;
 mod fatal_error;
 mod flag_relocation;
 mod github_actions;
+mod help_all;
 mod install_as_add;
 mod leading_separator;
 mod package_specifier;
@@ -439,6 +440,7 @@ fn prepare_cli_argv(argv: Vec<OsString>) -> (clap::Command, Vec<OsString>) {
     let argv = renamed_options::drop_shadowed_aliases(&command, argv);
     let argv = relocate_pre_subcommand_flags(&command, argv);
     let argv = install_as_add::rewrite(&command, argv);
+    let argv = help_all::drop_all_flag(&command, argv);
     let argv = leading_separator::preserve_leading_separator(argv);
     (command, argv)
 }

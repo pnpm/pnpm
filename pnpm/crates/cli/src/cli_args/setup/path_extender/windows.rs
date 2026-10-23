@@ -39,7 +39,7 @@ pub(super) fn add_dir_to_windows_env_path(
         Ok(report)
     })();
 
-    // Restore the original code page even when the body failed.
+    // Restore the saved code page even when the body failed.
     let _ = run_capture_chcp(&[&cp_bak.to_string()]);
     result
 }

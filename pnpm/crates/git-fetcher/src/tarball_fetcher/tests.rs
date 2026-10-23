@@ -383,7 +383,7 @@ async fn writes_index_row_when_writer_provided() {
     );
 
     let key = "x@1.0.0\tbuilt";
-    let received = GitHostedTarballFetcher {
+    let _received = GitHostedTarballFetcher {
         scripts: crate::PrepareScriptOptions {
             ignore: false,
             unsafe_perm: true,
@@ -422,7 +422,7 @@ async fn writes_index_row_when_writer_provided() {
         .unwrap()
         .expect("row must exist at the git-hosted key");
     assert_eq!(row.algo, "sha512");
-    assert_eq!(row.requires_build, Some(received.built));
+    assert_eq!(row.requires_build, Some(false));
     let keys: Vec<&str> = row.files
         .keys()
         .map(String::as_str)
@@ -514,9 +514,9 @@ async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
 
 /// When the fast path triggers and a writer is provided, the
 /// synthesized row must be queued at the final key with the same
-/// shape the slow path would have produced — same digests, same
-/// `requires_build: false`, same file set. A warm prefetch reading
-/// the row from `index.db` can't tell which path produced it.
+/// shape the slow path would have produced — same digests, same file
+/// set. A warm prefetch reading the row from `index.db` can't tell
+/// which path produced it.
 #[tokio::test(flavor = "multi_thread")]
 async fn fast_path_queues_synthesized_index_row() {
     let store_root = tempdir().unwrap();
@@ -571,7 +571,7 @@ async fn fast_path_queues_synthesized_index_row() {
         .get(key)
         .unwrap()
         .expect("fast path must still queue a row at the final key");
-    assert_eq!(row.requires_build, Some(false), "fast path implies no build needed");
+    assert_eq!(row.requires_build, Some(false), "the package has no install scripts");
     assert_eq!(row.algo, "sha512");
     let row_keys: Vec<&str> = row.files
         .keys()
@@ -869,5 +869,65 @@ async fn tarball_path_to_missing_subdir_is_rejected() {
             assert_eq!(path, "does/not/exist");
         }
         other => panic!("expected Prepare::InvalidPath, got {other:?}"),
+    }
+}
+
+/// A row's `requiresBuild` says whether the stored files ask for a build in
+/// the slot they are imported into, whether or not the fetch ran `prepare`.
+/// A warm install reads it to decide whether a new slot of the same package
+/// is built ([pnpm/pnpm#17224](https://github.com/pnpm/pnpm/issues/17224)).
+/// The extra file, which `files` leaves out, sends the second case down the
+/// slow path.
+#[tokio::test(flavor = "multi_thread")]
+async fn row_requires_build_for_install_scripts_without_prepare() {
+    let manifest: &[u8] =
+        br#"{"name":"x","version":"1.0.0","files":["index.js"],"scripts":{"install":"node -e 0"}}"#;
+    for extra_files in [&[][..], &[("test.js", &b"test"[..], false)][..]] {
+        let store_root = tempdir().unwrap();
+        let store_dir = StoreDir::from(store_root.path().to_path_buf());
+        let (writer, writer_task) = StoreIndexWriter::spawn(&store_dir);
+        let mut files = vec![("package.json", manifest, false), ("index.js", &b"x"[..], false)];
+        files.extend_from_slice(extra_files);
+        let cas_paths = write_to_cas(&store_dir, &files);
+
+        let key = "x@1.0.0\tbuilt";
+        let received = GitHostedTarballFetcher {
+            scripts: crate::PrepareScriptOptions {
+                ignore: false,
+                unsafe_perm: true,
+                user_agent: None,
+                prepend_node_path: ScriptsPrependNodePath::Never,
+                shell: None,
+                node_execpath: None,
+                npm_execpath: None,
+                running_pnpm: crate::RunningPnpm::default(),
+            },
+            store: crate::GitStoreContext {
+                dir: &store_dir,
+                index_writer: Some(&Arc::clone(&writer)),
+                files_index_file: key,
+            },
+            cas_paths,
+            path: None,
+            allow_build: allow_all_builds(),
+
+            package_id: "x@1.0.0",
+            requester: "/test",
+        }
+        .run::<SilentReporter>()
+        .await
+        .unwrap();
+        drop(writer);
+        writer_task.await.unwrap().unwrap();
+
+        assert!(!received.built, "no `prepare` script, so the fetch builds nothing");
+        assert!(!received.cas_paths.contains_key("test.js"));
+        let row = StoreIndex::open_in(&store_dir)
+            .unwrap()
+            .get(key)
+            .unwrap()
+            .expect("the fetch queues a row");
+        assert_eq!(row.requires_build, Some(true), "extra files: {extra_files:?}");
+        assert_eq!(row.requires_prepare, Some(false), "extra files: {extra_files:?}");
     }
 }

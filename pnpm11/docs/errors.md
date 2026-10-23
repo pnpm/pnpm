@@ -44,7 +44,7 @@ To fix this error, all dependencies that use the [workspace protocol] should be 
 
 ## ERR_PNPM_PEER_DEP_ISSUES
 
-`pnpm install` will fail if the project has unresolved peer dependencies or the peer dependencies are not matching the wanted ranges. To fix this, install the missing peer dependencies.
+With [`strictPeerDependencies`](./settings/peer-dependencies.md#strictpeerdependencies) enabled, `pnpm install` fails if the project has unresolved peer dependencies or the peer dependencies are not matching the wanted ranges. To fix this, install the missing peer dependencies.
 
 You may also selectively ignore these errors using the [peerDependencyRules.ignoreMissing] and [peerDependencyRules.allowedVersions] settings.
 
@@ -55,13 +55,13 @@ You may also selectively ignore these errors using the [peerDependencyRules.igno
 
 This error happens when installation cannot be performed without changes to the lockfile. This might happen in a CI environment if someone has changed a `package.json` file in the repository without running `pnpm install` afterwards. Or someone forgot to commit the changes to the lockfile.
 
-To fix this error, just run `pnpm install` and commit the changes to the lockfile.
+To fix this error, run `pnpm install` and commit the changes to the lockfile.
 
 ## ERR\_PNPM\_TARBALL\_INTEGRITY
 
 This error indicates that the downloaded package's tarball did not match the expected integrity checksum.
 
-If you use the npm registry (`registry.npmjs.org`), then this probably means that the integrity in your lockfile is incorrect.
+If you use the npm registry (`registry.npmjs.org`), then this usually means that the integrity in your lockfile is incorrect.
 This might happen if a lockfile had badly resolved merge conflicts.
 
 If you use a registry that allows to override existing versions of a package, then it might mean that in your local metadata cache you have the integrity checksum of an older version of the package. In this case, you should run `pnpm store prune`. This command will remove your local metadata cache. Then you can retry the command that failed.
@@ -74,27 +74,6 @@ The registry answered a request for one package with the metadata of a different
 
 Check that the registry configured for the package, or for its scope, is correct. A misconfigured proxy or a registry that serves the wrong document can cause this error.
 
-## ERR_PNPM_MISMATCHED_RELEASE_CHANNEL
-
-The config field `use-node-version` defines a release channel different from version suffix.
-
-For example:
-* `rc/20.0.0` defines an `rc` channel but the version is that of a stable release.
-* `release/20.0.0-rc.0` defines a `release` channel but the version is that of an RC release.
-
-To fix this error, either remove the release channel prefix or correct the version suffix.
-
-Note that it is not allowed to specify node versions like `lts/Jod`.
-The correct syntax for stable release is strictly X.Y.Z or release/X.Y.Z.
-
 ## ERR_PNPM_INVALID_NODE_VERSION
 
-The value of config field `use-node-version` has an invalid syntax.
-
-Below are the valid forms of `use-node-version`:
-* Stable release:
-  * `X.Y.Z` (`X`, `Y`, `Z` are integers)
-  * `release/X.Y.Z` (`X`, `Y`, `Z` are integers)
-* RC release:
-  * `X.Y.Z-rc.W` (`X`, `Y`, `Z`, `W` are integers)
-  * `rc/X.Y.Z-rc.W` (`X`, `Y`, `Z`, `W` are integers)
+The [`nodeVersion`](./settings/cli.md#nodeversion) setting is not an exact semver version, such as `22.22.3`.

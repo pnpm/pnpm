@@ -86,7 +86,7 @@ impl StoreIndex {
     /// Look up many keys in one trip across the `SQLite` mutex.
     ///
     /// Returns a `key → PackageFilesIndex` map for every row that exists
-    /// and decodes cleanly. Missing keys are simply absent from the map;
+    /// and decodes cleanly. Missing keys are absent from the map;
     /// rows whose msgpack payload fails to decode are logged at `debug!`
     /// and dropped, matching `load_cached_cas_paths`'s `.ok()?` stance on
     /// the per-key path — a malformed row is treated as a cache miss so

@@ -18,6 +18,8 @@ pub mod known_failure;
 pub mod privileges;
 pub mod registry;
 #[cfg(unix)]
+pub mod signal_delivery;
+#[cfg(unix)]
 pub mod spawn;
 #[cfg(unix)]
 pub mod terminal;

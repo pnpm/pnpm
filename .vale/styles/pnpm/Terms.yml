@@ -1,0 +1,19 @@
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: false
+action:
+  name: replace
+swap:
+  '(?:Pnpm|PNPM)': pnpm
+  '(?:NPM|Npm)': npm
+  '(?:NodeJS|NodeJs|Nodejs|Node\.JS|node\.js|(?<![\w./@-])nodejs(?![\w./-]))': Node.js
+  '(?:Github|(?<![\w./@-])github(?![\w./-]))': GitHub
+  'Gitlab': GitLab
+  '(?:MacOS|Macos|OSX|OS X|(?<![\w./@-])macos(?![\w./-]))': macOS
+  '(?:Typescript|typescript(?=\s))': TypeScript
+  '(?:Javascript|javascript(?=\s))': JavaScript
+  '(?:yarn(?= [a-z]+ing| is| does| v\d))': Yarn
+  'Yaml': YAML
+  'Json(?!\w)': JSON
+  'lock file|lock-file': lockfile

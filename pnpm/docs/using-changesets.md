@@ -106,5 +106,5 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
-More info and documentation regarding the changesets action can be found
-[here](https://github.com/changesets/action).
+More info and documentation regarding the changesets action can be found in
+[the changesets/action repository](https://github.com/changesets/action).

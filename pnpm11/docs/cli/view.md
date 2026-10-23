@@ -10,9 +10,8 @@ Aliases: `info`, `show`
 View package metadata from the registry.
 
 ```sh
-pnpm view <pkg>
-pnpm view <pkg> [field]
-pnpm view [field]
+pnpm view [<pkg>]
+pnpm view <pkg> [field...]
 ```
 
 ## Usage
@@ -37,7 +36,7 @@ Show metadata for a specific version:
 pnpm view express@4.18.0
 ```
 
-When no package name is provided, `pnpm view` searches upward for the nearest project manifest (`package.json`, `package.yaml`, or `package.json5`) and uses its `name` field. If the manifest exists but has no `name`, the command fails.
+When no package name is provided, `pnpm view` searches upward for the nearest project manifest (`package.json`, `package.yaml`, or `package.json5`) and uses its `name` field. If the manifest exists but has no `name`, the command fails. To select fields, name the package: the first argument is always the package, so `pnpm view version` looks up a package named `version`.
 
 ## Options
 

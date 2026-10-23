@@ -8,28 +8,25 @@ Aliases: `ln`
 Links a local package to the current project's `node_modules`.
 
 ```sh
-pnpm link <dir>
+pnpm link <dir>...
 ```
 
-## Options
+## Usage
 
-### `pnpm link <dir>`
+### `pnpm link <dir>...`
 
-Links package from `<dir>` directory to `node_modules` of package from where you're executing this command. `<dir>` must be a relative or absolute path.
+Links the package from each `<dir>` directory to `node_modules` of the package from where you're executing this command. `<dir>` must be a relative or absolute path. Passing a package name, or no argument, fails with `ERR_PNPM_LINK_BAD_PARAMS`.
 
 > For example, if you are inside `~/projects/foo` and you execute `pnpm link ../bar`, then a link to `bar` will be created in `foo/node_modules/bar`.
 
-:::note Breaking changes in v11
+`pnpm link` writes two entries:
 
-`pnpm link` no longer resolves packages from the global store. Only relative or absolute paths are accepted (use `pnpm link ./foo` instead of `pnpm link foo`).
+* a `link:` dependency in `package.json`, if the package is not declared there yet;
+* an [`overrides`](../settings/dependency-resolution.md#overrides) entry `<name>: link:<path>` in the root `pnpm-workspace.yaml`, so the link applies throughout the workspace.
 
-`pnpm link --global` has been removed. To register a local package's bins globally, use `pnpm add -g .` instead.
+pnpm warns about peer dependencies of the linked package. [`pnpm unlink`](./unlink.md) removes the overrides.
 
-`pnpm link` with no arguments has been removed. Always pass an explicit path.
-
-:::
-
-## Use Cases
+## Use cases
 
 ### Replace an installed package with a local version of it
 

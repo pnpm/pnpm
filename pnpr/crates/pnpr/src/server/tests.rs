@@ -394,7 +394,7 @@ async fn readonly_token_still_reads() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // A GET is not a write, so the read-only gate lets it through; the
-    // package simply isn't published, so it 404s rather than 403s.
+    // package isn't published, so it 404s rather than 403s.
     assert_eq!(
         status(app.clone(), signed(Method::GET, "/npm/foo", "ro")).await,
         StatusCode::NOT_FOUND,

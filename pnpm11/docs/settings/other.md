@@ -81,8 +81,7 @@ This setting cannot be set in `pnpm-workspace.yaml` at the project level; set it
 * Default:
   * If the **$XDG_STATE_HOME** env variable is set, then **$XDG_STATE_HOME/pnpm**
   * On Windows: **~/AppData/Local/pnpm-state**
-  * On macOS: **~/.pnpm-state**
-  * On Linux: **~/.local/state/pnpm**
+  * On macOS and Linux: **~/.local/state/pnpm**
 * Type: **path**
 
 The directory where pnpm creates the `pnpm-state.json` file that is currently used only by the update checker.
@@ -173,16 +172,16 @@ pnpm's [isolated `node_modules` layout] means that a package can only access its
 own declared dependencies. However, when a CLI tool runs via a command shim, some
 libraries (notably [`import-local`], used by jest, eslint, and others) resolve
 modules from the **current working directory** rather than from the binary's own
-location. Since the working directory is the project root — not the package inside
-the virtual store — the standard `node_modules` resolution from the CWD won't
+location. Since the working directory is the project root, not the package inside
+the virtual store, the standard `node_modules` resolution from the CWD won't
 find the binary's transitive dependencies.
 
 To bridge this gap, pnpm includes two types of paths in `NODE_PATH`:
 
 1. **The package's own dependencies directory** (e.g.,
-   `.pnpm/pkg@version/node_modules`) — this allows CWD-based resolution to find
+   `.pnpm/pkg@version/node_modules`). This allows CWD-based resolution to find
    the correct versions of the package's sibling dependencies.
-2. **The hoisted `node_modules` directory** (e.g., `.pnpm/node_modules`) — this
+2. **The hoisted `node_modules` directory** (e.g., `.pnpm/node_modules`). This
    is the directory where hoisted packages are placed when [`hoistPattern`] is
    set. Node.js cannot discover this directory through its standard resolution
    algorithm, so it must be provided via `NODE_PATH`.
@@ -247,7 +246,7 @@ When the check finds that nothing changed, pnpm skips the install, including the
 
 ### requiredScripts
 
-Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail.
+Scripts listed in this array are required in each project selected by `pnpm -r run <script name>`. Otherwise, the run fails.
 
 ```yaml title="pnpm-workspace.yaml"
 requiredScripts:

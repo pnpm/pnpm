@@ -9,15 +9,20 @@ Managing the package store.
 
 ### status
 
-Checks for modified packages in the store.
+Checks the packages listed in the current project's lockfile for modifications in the store.
 
 Returns exit code 0 if the content of the package is the same as it was at the
-time of unpacking.
+time of unpacking. Otherwise it fails with `ERR_PNPM_MODIFIED_DEPENDENCY` and
+lists the modified packages.
 
 ### add
 
 Functionally equivalent to [`pnpm add`], except this adds new packages to the
 store directly without modifying any projects or files outside of the store.
+
+```sh
+pnpm store add express@4
+```
 
 [`pnpm add`]: ./add.md
 
@@ -45,6 +50,15 @@ again. This could occur when switching branches and installing older
 dependencies, in which case pnpm would need to re-download all removed packages,
 briefly slowing down the installation process.
 
+Before pruning the store, pnpm deletes the expired entries of the `pnx` cache
+(see [`dlxCacheMaxAge`](../settings/node-modules.md#dlxcachemaxage)), because
+they hold hard links into the store.
+
+`pnpm store prune` also removes the package metadata cache: the `metadata*`
+directories in the cache directory and in its versioned subdirectories, such as
+`v12/metadata`. Other caches in the cache directory are kept. The next install
+downloads the metadata again.
+
 After pruning, pnpm displays the total size of removed files.
 
 If pnpm cannot decode a package index entry, it keeps the entry and reports the
@@ -56,7 +70,9 @@ Since v12.7.0, `pnpm store prune` also removes private copies of pnpm or a
 runtime that a killed pnpm process left behind. pnpm makes such a copy when a
 project pins a version that another pnpm process is installing at that moment.
 
-`pnpm install` registers the project in `{storeDir}/v11/projects/`, with or without the global virtual store. Each entry is a symlink to the project directory, so `ls -l "$(pnpm store path)/projects"` lists the projects that use a store. Without the global virtual store, an install with `--frozen-store` or `enableModulesDir: false` does not write the registry. Neither do `--lockfile-only` and `--dry-run` installs.
+`pnpm install` registers the project in the `projects` directory of the store, `"$(pnpm store path)/projects"`, with or without the global virtual store. Each entry is a symlink to the project directory, so `ls -l "$(pnpm store path)/projects"` lists the projects that use a store.
+
+Without the global virtual store, an install with `--frozen-store` or `enableModulesDir: false` does not write the registry. Neither do `--lockfile-only` and `--dry-run` installs.
 
 When the [global virtual store] is enabled, `pnpm store prune` also performs mark-and-sweep garbage collection on the global virtual store's `links/` directory. It walks the registered projects to find the packages still in use and removes the rest. If no registered project links into `links/`, prune leaves it unchanged.
 

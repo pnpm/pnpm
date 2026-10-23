@@ -143,7 +143,7 @@ where
         Err(error) => return Err(FetchTokenAndProvenanceError::IdToken(error)),
     };
     let Some(id_token) = id_token else {
-        // OIDC is simply not applicable (local publish / non-OIDC CI). Stay
+        // OIDC is not applicable (local publish / non-OIDC CI). Stay
         // silent — only configuration errors in a supported CI warn.
         return Ok(None);
     };

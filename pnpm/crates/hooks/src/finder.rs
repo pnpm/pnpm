@@ -91,7 +91,7 @@ pub fn find_pnpmfiles(root: &Path, selection: PnpmfileSelection<'_>) -> Vec<Path
 
 /// A pnpmfile named by the `pnpmfile` setting that is not on disk. Discovery of
 /// the default `.pnpmfile.mjs` / `.pnpmfile.cjs` cannot produce this: an absent
-/// default simply means the project has no pnpmfile, while a configured path
+/// default means the project has no pnpmfile, while a configured path
 /// that resolves to nothing is a misconfiguration the install has to report.
 #[derive(Debug, Display, Error)]
 #[display("pnpmfile at \"{}\" is not found", path.display())]

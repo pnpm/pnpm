@@ -83,7 +83,7 @@ impl<'de> serde::Deserialize<'de> for JsonAuthEntries {
     }
 }
 
-/// A registry URL `_auth` key. Validated to be an http(s) URL with no
+/// A registry URL `_auth` key. Validated to be an HTTP or HTTPS URL with no
 /// userinfo, query, or fragment (those can carry secrets), then stored
 /// normalized (trailing slash) and nerf-darted for the credential key.
 /// Parsed with the `url` crate.

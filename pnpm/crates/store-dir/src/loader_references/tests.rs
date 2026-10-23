@@ -18,10 +18,14 @@ fn prune_keeps_loader_blobs_until_the_manifest_is_removed() {
         "packages": { "example@1": { "files": { "index.js": hash } } }
     });
     fs::write(project.join(CAS_MANIFEST_FILENAME), manifest.to_string()).unwrap();
-    store.prune().unwrap();
+    store
+        .prune(&store.root().join("cache"), &[])
+        .unwrap();
     assert!(blob.is_file());
     fs::remove_file(project.join(CAS_MANIFEST_FILENAME)).unwrap();
-    store.prune().unwrap();
+    store
+        .prune(&store.root().join("cache"), &[])
+        .unwrap();
     assert!(!blob.exists());
 }
 
@@ -45,7 +49,11 @@ fn invalid_loader_manifest_aborts_prune_before_deleting_files() {
         .to_string(),
     ] {
         fs::write(project.join(CAS_MANIFEST_FILENAME), contents).unwrap();
-        assert!(store.prune().is_err());
+        assert!(
+            store
+                .prune(&store.root().join("cache"), &[])
+                .is_err(),
+        );
         assert!(blob.is_file());
     }
 }

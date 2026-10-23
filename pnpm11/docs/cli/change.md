@@ -75,19 +75,19 @@ Private packages (`"private": true`) are never checked against the registry for 
 
 Added in: v11.26.0
 
-Validate the versions committed in the workspace against the [epic](../versioning.md#epics) bands and [fixed group](../versioning.md#fixed-groups) lockstep declared in `pnpm-workspace.yaml`.
+Validate the pending change intents, and check the versions committed in the workspace against the [epic](../versioning.md#epics) bands and [fixed group](../versioning.md#fixed-groups) lockstep declared in `pnpm-workspace.yaml`.
 
 ```sh
 pnpm change check
 ```
 
-Unlike `pnpm change status`, which reports the release the pending intents produce, `check` looks only at the versions already in the manifests. It reads no intents, so it is the step to run on every pull request: a package whose version drifted out of its epic's band, or out of step with its fixed group, fails the command. Every violation is listed, including ones in packages the current release does not touch.
+Unlike `pnpm change status`, which reports the release the pending intents produce, `check` plans the release from the pending intents without reporting it, and checks only the versions already in the manifests. An intent that would fail at release time, such as one naming a package outside the workspace, fails the command. Run it on every pull request: a package whose version drifted out of its epic's band, or out of step with its fixed group, fails the command. Every violation is listed, including ones in packages the current release does not touch.
 
 ## Options
 
 ### --bump &lt;type&gt;
 
-The bump type for the named packages: `none`, `patch`, `minor`, or `major`. `none` records an explicit decline — the change needs no release.
+The bump type for the named packages: `none`, `patch`, `minor`, or `major`. `none` records an explicit decline: the change needs no release.
 
 ### --summary &lt;text&gt;
 

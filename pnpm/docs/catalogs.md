@@ -7,7 +7,7 @@ title: Catalogs
 
 <iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/PuRUk4mV2jc" title="pnpm Catalogs — A New Tool to Manage Dependencies in monorepos" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
 
-## The Catalog Protocol (`catalog:`)
+## The catalog protocol (`catalog:`)
 
 Once a catalog is defined in `pnpm-workspace.yaml`,
 
@@ -54,6 +54,7 @@ You may use the `catalog:` protocol in the next fields:
   * `optionalDependencies`
 * `pnpm-workspace.yaml`
     * `overrides`
+* [`pnx`](./cli/pnx.md) specifiers, such as `pnx shx@catalog:`
 
 The `catalog:` protocol allows an optional name after the colon (ex: `catalog:name`) to specify which catalog should be used. When a name is omitted, the default catalog is used.
 
@@ -63,11 +64,11 @@ Depending on the scenario, the `catalog:` protocol offers a few [advantages](#ad
 
 In a workspace (i.e. monorepo or multi-package repo) it's common for the same dependency to be used by many packages. Catalogs reduce duplication when authoring `package.json` files and provide a few benefits in doing so:
 
-- **Maintain unique versions** — It's usually desirable to have only one version of a dependency in a workspace. Catalogs make this easier to maintain. Duplicated dependencies can conflict at runtime and cause bugs. Duplicates also increase size when using a bundler.
-- **Easier upgrades** — When upgrading a dependency, only the catalog entry in `pnpm-workspace.yaml` needs to be edited rather than all `package.json` files using that dependency. This saves time — only one line needs to be changed instead of many.
-- **Fewer merge conflicts** — Since `package.json` files do not need to be edited when upgrading a dependency, git merge conflicts no longer happen in these files.
+- **Maintain unique versions**: It's usually desirable to have only one version of a dependency in a workspace. Catalogs make this easier to maintain. Duplicated dependencies can conflict at runtime and cause bugs. Duplicates also increase size when using a bundler.
+- **Easier upgrades**: When upgrading a dependency, only the catalog entry in `pnpm-workspace.yaml` needs to be edited rather than all `package.json` files using that dependency. This saves time. Only one line needs to be changed instead of many.
+- **Fewer merge conflicts**: Since `package.json` files do not need to be edited when upgrading a dependency, git merge conflicts no longer happen in these files.
 
-## Defining Catalogs
+## Defining catalogs
 
 Catalogs are defined in the `pnpm-workspace.yaml` file. There are two ways to define catalogs.
 
@@ -79,12 +80,12 @@ Catalogs are defined in the `pnpm-workspace.yaml` file. There are two ways to de
 If you have an existing workspace that you want to migrate to using catalogs, you can use the following [codemod](https://go.codemod.com/pnpm-catalog):
 
 ```sh
-pnpx codemod pnpm/catalog
+pnx codemod pnpm/catalog
 ```
 
 :::
 
-### Default Catalog
+### Default catalog
 
 The top-level `catalog` field allows users to define a catalog named `default`.
 
@@ -96,7 +97,9 @@ catalog:
 
 These version ranges can be referenced through `catalog:default`. For the default catalog only, a special `catalog:` shorthand can also be used. Think of `catalog:` as a shorthand that expands to `catalog:default`.
 
-### Named Catalogs
+The default catalog can also be written as `catalogs.default`. Defining both `catalog` and `catalogs.default` fails with "The 'default' catalog was defined multiple times".
+
+### Named catalogs
 
 Multiple catalogs with arbitrarily chosen names can be configured under the `catalogs` key.
 
@@ -158,7 +161,7 @@ pnpm expands the `catalog:` reference to `workspace:^` and then links the worksp
 
 Added in: v12.6.0
 
-Catalog entries can use the `file:` and `link:` protocols ([#8642](https://github.com/pnpm/pnpm/issues/8642)). A relative path or bare path in an entry is measured from the directory holding `pnpm-workspace.yaml`:
+Catalog entries can use the `file:` and `link:` protocols ([#8642](https://github.com/pnpm/pnpm/issues/8642)). A relative path in an entry, such as `file:./tarballs/foo.tgz` or a bare `./tarballs/foo.tgz`, is measured from the directory holding `pnpm-workspace.yaml`:
 
 ```yaml title="pnpm-workspace.yaml"
 catalog:
@@ -175,6 +178,15 @@ catalog:
   }
 }
 ```
+
+## Adding dependencies to a catalog
+
+[`pnpm add --save-catalog`](./cli/add.md#--save-catalog) writes the new dependency's range to the default catalog and `catalog:` to `package.json`. [`--save-catalog-name`](./cli/add.md#--save-catalog-name-catalog_name) picks a named catalog. [`catalogMode`](#catalogmode) controls whether `pnpm add` adds to the default catalog without the flag.
+
+## Errors
+
+* `ERR_PNPM_CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`: the catalog has no entry for the dependency.
+* `ERR_PNPM_CATALOG_ENTRY_INVALID_RECURSIVE_DEFINITION`: a catalog entry is itself a `catalog:` reference.
 
 ## Publishing
 

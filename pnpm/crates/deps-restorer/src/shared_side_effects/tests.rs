@@ -29,7 +29,7 @@ fn package_identity_uses_the_manifest_version_for_non_registry_sources() {
 /// The skip that keeps a restore from re-fetching content the store already
 /// has depends on the artifact's digest and mode naming the same CAS path the
 /// store wrote. Nothing else would notice them drifting apart: the lookup
-/// would simply always miss and every install would download again.
+/// would always miss and every install would download again.
 ///
 /// `0o744` is here even though a manifest carrying it is refused before
 /// hydration ever sees it. The two sides must agree on their own terms rather

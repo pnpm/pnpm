@@ -16,9 +16,8 @@ and production will be exactly the same as when you developed your project
 ### Merge conflicts
 
 pnpm can automatically resolve merge conflicts in `pnpm-lock.yaml`.
-If you have conflicts, just run `pnpm install` and commit the changes.
+If you have conflicts, run `pnpm install` and commit the changes.
 
-Be warned, however. It is advised that you review the changes prior to
-staging a commit, because we cannot guarantee that pnpm will choose the correct
-head - it instead builds with the most updated of lockfiles, which is ideal in
-most cases.
+If both sides of the conflict are valid lockfiles, pnpm merges them. Otherwise it fails with the parse error. Review the result before committing.
+
+To avoid lockfile merge conflicts, use [Git branch lockfiles](./git_branch_lockfiles.md).

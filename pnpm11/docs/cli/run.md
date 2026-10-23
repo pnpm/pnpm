@@ -37,7 +37,7 @@ Run all scripts that start with `watch:`:
 pnpm run "/^watch:/"
 ```
 
-The selector must be written as a regular expression literal — that is, wrapped in slashes — and quoted, so the shell does not mangle it. A plain string is always treated as a literal script name, and a script whose name matches the argument exactly takes precedence over regex matching.
+The selector must be written as a regular expression literal (that is, wrapped in slashes) and quoted, so the shell does not mangle it. A plain string is always treated as a literal script name, and a script whose name matches the argument exactly takes precedence over regex matching.
 
 Matching is not anchored, so `"/build:.*/"` also matches `prebuild:web`. Anchor the pattern with `^` and `$` when you need an exact prefix.
 
@@ -47,7 +47,7 @@ Regular expression flags are not supported: `pnpm run "/^build:.*/i"` fails with
 
 ## Details
 
-In addition to the shell’s pre-existing `PATH`, `pnpm run` includes
+In addition to the shell's pre-existing `PATH`, `pnpm run` includes
 `node_modules/.bin` in the `PATH` provided to `scripts`. This means that so
 long as you have a package installed, you can use it in a script like a regular
 command. For example, if you have `eslint` installed, you can write up a script
@@ -131,7 +131,7 @@ lengthy build process.
 
 Added in: v11.14.0
 
-Run the selected scripts one by one. This forces [`--workspace-concurrency`](./recursive.md#--workspace-concurrency) to `1`, so scripts matched by a [regex selector](#running-multiple-scripts) never overlap — neither across workspace packages nor within a single package.
+Run the selected scripts one by one. This forces [`--workspace-concurrency`](./recursive.md#--workspace-concurrency) to `1`, so scripts matched by a [regex selector](#running-multiple-scripts) never overlap, neither across workspace packages nor within a single package.
 
 ```sh
 pnpm run --sequential "/^build:.*/"

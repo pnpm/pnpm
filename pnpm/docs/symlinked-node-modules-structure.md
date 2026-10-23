@@ -106,7 +106,7 @@ As you may see, even though the graph is deeper now (`foo > bar > qar`), the
 directory depth in the file system is still the same.
 
 This layout might look weird at first glance, but it is completely compatible
-with Node's module resolution algorithm! When resolving modules, Node ignores
+with Node's module resolution algorithm. When resolving modules, Node ignores
 symlinks, so when `bar` is required from `foo@1.0.0/node_modules/foo/index.js`,
 Node does not use `bar` at `foo@1.0.0/node_modules/bar`, but instead, `bar` is
 resolved to its real location (`bar@1.0.0/node_modules/bar`). As a consequence,
@@ -117,7 +117,7 @@ dependencies are accessible. With a flattened `node_modules` structure, all
 hoisted packages are accessible. To read more about why this is an advantage,
 see "[pnpm's strictness helps to avoid silly bugs][bugs]"
 
-Unfortunately, many packages in the ecosystem are broken — they use dependencies that are not listed in their `package.json`. To minimize the number of issues new users encounter, pnpm hoists all dependencies by default into `node_modules/.pnpm/node_modules`. To disable this hoisting, set [hoist] to `false`.
+Unfortunately, many packages in the ecosystem are broken. They use dependencies that are not listed in their `package.json`. To minimize the number of issues new users encounter, pnpm hoists all dependencies by default into `node_modules/.pnpm/node_modules`. To disable this hoisting, set [hoist] to `false`.
 
 [hoist]: settings/node-modules.md#hoist
 

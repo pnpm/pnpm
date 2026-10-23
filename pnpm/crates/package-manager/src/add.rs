@@ -1,10 +1,14 @@
 mod install;
 use install::{
-    AddSeed, add_install, merged_catalogs_override, project_seed_policy, selected_add_seed,
+    AddSeed, LockedVersions, add_install, merged_catalogs_override, project_seed_policy,
+    seed_picked_versions, selected_add_seed,
 };
 
 mod specifier;
-use specifier::{normalized_save_specifier, resolve_added_dependency, workspace_packages_for_add};
+use specifier::{normalized_save_specifier, resolve_added_dependency};
+
+mod workspace_specifier;
+use workspace_specifier::workspace_packages_for_add;
 
 mod registry;
 
@@ -206,15 +210,26 @@ where
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), AddError> {
         let (add, owned, manifest) = self.split();
         begin::<Reporter>(add, &owned);
-        let (catalog_ctx, updated_catalogs) =
-            prepare_single_add::<Reporter>(add, &owned, manifest).await?;
-        let (dropped_pins, preferred_versions_override) = catalog_version_requests(
+        let (catalog_ctx, prepared) = prepare_single_add::<Reporter>(add, &owned, manifest).await?;
+        let (mut dropped_pins, mut preferred_versions_override) = catalog_version_requests(
             add.package_names,
             manifest,
             &catalog_ctx.catalogs,
             add.lockfile.document,
             add.config,
             owned.save_catalog_name.as_deref(),
+        );
+        seed_picked_versions(
+            &prepared.picked_versions,
+            &LockedVersions::of(
+                add.lockfile.document,
+                add.config,
+                manifest
+                    .path()
+                    .parent()
+                    .expect("manifest path always has a parent dir"),
+            ),
+            (&mut dropped_pins, &mut preferred_versions_override),
         );
         let install_result = add_install(
             add,
@@ -225,7 +240,7 @@ where
                 preferred_versions_override,
                 catalogs_override: merged_catalogs_override(
                     catalog_ctx.catalogs,
-                    &updated_catalogs,
+                    &prepared.updated_catalogs,
                 ),
             },
         )
@@ -258,6 +273,7 @@ where
             &owned,
             manifest,
             (selected.projects, &selected_indices),
+            &prepared.picked_versions,
             prepared.catalogs_override,
             &prepared.catalogs,
         );
@@ -305,7 +321,7 @@ pub struct AddOptions<'a> {
 pub struct AddResources<DependencyGroupList> {
     pub tarball_mem_cache: std::sync::Arc<MemCache>,
     pub http_client_arc: std::sync::Arc<ThrottledClient>,
-    /// The manifest group(s) the added packages are saved into. `None`
+    /// The manifest groups the added packages are saved into. `None`
     /// means pnpm's default: an already-declared package is updated in
     /// the group it occupies (`guessDependencyType` — checked in
     /// `optionalDependencies`, `dependencies`, `devDependencies`,

@@ -3,10 +3,12 @@ id: cache
 title: pnpm cache
 ---
 
+Manages the registry metadata cache: the package metadata that pnpm downloads from registries and keeps in the [`cacheDir`](../settings/other.md#cachedir) directory.
+
 Commands:
-* [cache list](/cli/cache-list.md)
-* [cache list-registries](/cli/cache-list-registries.md)
-* [cache delete](/cli/cache-delete.md)
-* [cache view](/cli/cache-view.md)
-* [cache path](/cli/cache-path.md)
-* [cache prune](/cli/cache-prune.md)
+* [cache list](./cache-list.md)
+* [cache list-registries](./cache-list-registries.md)
+* [cache delete](./cache-delete.md)
+* [cache view](./cache-view.md)
+* [cache path](./cache-path.md)
+* [cache prune](./cache-prune.md)

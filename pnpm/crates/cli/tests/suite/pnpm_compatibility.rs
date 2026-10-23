@@ -720,7 +720,7 @@ fn check_differential_row(row: DifferentialRow) {
 
     assert_eq!(pacquet_snapshot, pnpm_snapshot, "v12 and v11 snapshots diverged for {row:?}");
 
-    // Cross-CLI frozen handoff: v12 materializes from v11's wanted lockfile(s).
+    // Cross-CLI frozen handoff: v12 materializes from v11's wanted lockfiles.
     wipe_workspace_install_outputs(&workspace, &store_dir, &cache_dir, true);
     pacquet_in(&workspace)
         .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
@@ -732,7 +732,7 @@ fn check_differential_row(row: DifferentialRow) {
         "v12 frozen install over v11 lockfile diverged for {row:?}",
     );
 
-    // Cross-CLI frozen handoff: v11 materializes from v12's wanted lockfile(s).
+    // Cross-CLI frozen handoff: v11 materializes from v12's wanted lockfiles.
     wipe_workspace_install_outputs(&workspace, &store_dir, &cache_dir, false);
     pacquet_in(&workspace)
         .with_args(args)

@@ -311,7 +311,7 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
         "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
         Some(true),
     )));
-    // A URL that strict parsing would reject is still scanned when it is http(s).
+    // A URL that strict parsing would reject is still scanned when it is HTTP or HTTPS.
     assert!(super::super::wire::is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
         None,

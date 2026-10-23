@@ -4,7 +4,7 @@ title: "Node-Modules & Hoisting Settings"
 sidebar_label: "node_modules & hoisting"
 ---
 
-## Node-Modules Settings
+## `node_modules` settings {#node-modules-settings}
 
 ### modulesDir
 
@@ -185,7 +185,7 @@ Added in: v11.23.0
 * Default: **project**
 * Type: **project**, **global**
 
-Names where the virtual store lives — one store per project, or one store per machine.
+Names where the virtual store lives: one store per project, or one store per machine.
 
 ```yaml title="pnpm-workspace.yaml"
 virtualStoreType: global
@@ -220,15 +220,15 @@ When enabled, `node_modules` contains only symlinks to a central virtual store, 
 
 In the central virtual store, each package is hard linked into a directory whose name is the hash of its dependency graph. As a result, all projects on the system can symlink their dependencies from this shared location on disk. This approach is conceptually similar to how [NixOS manages packages], using dependency graph hashes to create isolated and shareable package directories in the Nix store.
 
-> This should not be confused with the global content-addressable store. The actual package files are still hard linked from the content-addressable store—but instead of being linked directly into `node_modules/.pnpm`, they are linked into the global virtual store.
+> This should not be confused with the global content-addressable store. The actual package files are still hard linked from the content-addressable store, but instead of being linked directly into `node_modules/.pnpm`, they are linked into the global virtual store.
 
-Using a global virtual store can significantly speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI, this setting is automatically disabled.
+Using a global virtual store can speed up installations when a warm cache is available. However, in CI environments (where caches are typically absent), it may slow down installation. If pnpm detects that it is running in CI and this setting is not set, the global virtual store is off.
 
 :::important
 
 To support hoisted dependencies when using a global virtual store, pnpm relies on the `NODE_PATH` environment variable. This allows Node.js to resolve packages from the hoisted `node_modules` directory. Node.js does not respect `NODE_PATH` for ESM imports, though, so before v11.23.0 a dependency that imports a package **not declared in its own `package.json`** (which is considered bad practice) failed to resolve under ESM.
 
-Since v11.23.0, every process pnpm spawns for the project — `pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs — receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. Such imports now resolve for CommonJS and ESM alike, without the `@pnpm/plugin-esm-node-path` config dependency that used to be needed ([#9618](https://github.com/pnpm/pnpm/issues/9618)).
+Since v11.23.0, every process pnpm spawns for the project (`pnpm run`, `pnpm exec`, lifecycle scripts, and the tools `pnpm dlx` runs) receives both `NODE_PATH` and a `NODE_OPTIONS` `--import` flag that registers a resolve hook restoring `NODE_PATH` lookups for ESM. Such imports now resolve for CommonJS and ESM alike, without the `@pnpm/plugin-esm-node-path` config dependency that used to be needed ([#9618](https://github.com/pnpm/pnpm/issues/9618)).
 
 Two things fall outside that: a `node` process you start yourself rather than through pnpm, and a project that sets [`extendNodePath`](./other.md#extendnodepath) to `false`, which turns the whole `NODE_PATH` mechanism off and takes the resolve hook with it. Use [packageExtensions] to declare the missing dependencies if you need them to resolve in either case.
 
@@ -237,7 +237,7 @@ Two things fall outside that: a `node` process you start yourself rather than th
 [packageExtensions]: ./dependency-resolution.md#packageextensions
 [NixOS manages packages]: https://nixos.org/guides/how-nix-works/
 
-## Dependency Hoisting Settings
+## Dependency hoisting settings
 
 ### hoist
 

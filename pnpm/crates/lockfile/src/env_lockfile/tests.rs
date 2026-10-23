@@ -218,7 +218,7 @@ fn saving_main_lockfile_preserves_env_document() {
 
     // Write the env document (leaving an empty main doc), then append a
     // real main lockfile under it. Appending — rather than constructing
-    // a `Lockfile` literal — keeps the test robust as the `Lockfile`
+    // a `Lockfile` literal — keeps the test compiling as the `Lockfile`
     // struct gains fields.
     let env = sample_env_lockfile();
     env.write(dir.path()).unwrap();

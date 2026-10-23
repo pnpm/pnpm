@@ -29,11 +29,9 @@ Log output in JSON format.
 
 ### --long
 
-Show extended information.
+Show extended information. `pnpm ll` and `pnpm la` are shorthands for `pnpm list --long`.
 
 ### --lockfile-only
-
-Added in: v10.23.0
 
 Read package information from the lockfile instead of checking the actual `node_modules` directory. This is useful for quickly inspecting what would be installed without requiring a full installation.
 
@@ -66,6 +64,10 @@ Display only the dependency graph for packages in `devDependencies`.
 ### --no-optional
 
 Don't display packages from `optionalDependencies`.
+
+### --optional
+
+Include packages from `optionalDependencies`.
 
 ### --only-projects
 

@@ -5,14 +5,11 @@ title: "pnpm env <cmd>"
 
 :::warning Deprecated
 
-`pnpm env` is deprecated. Use [`pnpm runtime`](./runtime.md) instead. For example, `pnpm env use --global lts` becomes `pnpm runtime set node lts -g`.
+`pnpm env` is deprecated. Use [`pnpm runtime`](./runtime.md) instead. For example, `pnpm env use --global lts` becomes `pnpm runtime set node lts -g`, and `pnpm env remove --global <version>` becomes `pnpm remove -g node`.
 
 :::
 
 Manages the Node.js environment.
-
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/84-MzN_0Cng" title="The pnpm patch command demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"></iframe>
-
 
 ## Commands
 
@@ -55,19 +52,9 @@ pnpm env use --global argon
 
 [codename]: https://github.com/nodejs/Release/blob/main/CODENAMES.md
 
-### add
-
-Installs the specified version(s) of Node.js without activating them as the current version.
-
-Example:
-
-```sh
-pnpm env add --global lts 18 20.0.1
-```
-
 ### remove, rm
 
-Removes the specified version(s) of Node.js.
+Removes the specified versions of Node.js.
 
 Usage example:
 
@@ -78,28 +65,20 @@ pnpm env remove --global 14.0.0 16.2.3
 
 ### list, ls
 
-List Node.js versions available locally or remotely.
-
-Print locally installed versions:
+Print the Node.js versions available from the Node.js mirror that match a version range. Without a range, only the newest version is printed.
 
 ```sh
 pnpm env list
 ```
 
-Print remotely available Node.js versions:
+Print the available Node.js v16 versions:
 
 ```sh
-pnpm env list --remote
-```
-
-Print remotely available Node.js v16 versions:
-
-```sh
-pnpm env list --remote 16
+pnpm env list 16
 ```
 
 ## Options
 
 ### --global, -g
 
-The changes are made systemwide.
+The changes are made systemwide. `use` and `remove` require this option. Without it, they fail with `ERR_PNPM_NOT_IMPLEMENTED_YET`.

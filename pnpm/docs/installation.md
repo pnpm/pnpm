@@ -5,9 +5,9 @@ title: Installation
 
 ## Prerequisites
 
-pnpm 12 is a native executable and does not require Node.js after it is installed. Installing it through npm requires Node.js 22.13 or newer.
+pnpm 12 is a native executable and does not require Node.js after it is installed. The `pnpm` npm package installs on Node.js 18 or newer. The `npx get-pnpm` installer requires Node.js 22.13 or newer.
 
-pnpm 12 is the current release line — the `latest` tag on npm points at it, so the commands below install pnpm 12 without naming a version.
+pnpm 12 is the current release line. The `latest` tag on npm points at it, so the commands below install pnpm 12 without naming a version.
 
 ### Supported platforms
 
@@ -56,7 +56,7 @@ Using PowerShell:
 Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression
 ```
 
-On Windows, Microsoft Defender can significantly slow down installation of packages. You can add pnpm to Microsoft Defender's list
+On Windows, Microsoft Defender can slow down installation of packages. You can add pnpm to Microsoft Defender's list
 of excluded folders in a PowerShell window with administrator rights by executing:
 
 ```powershell
@@ -94,7 +94,7 @@ wget -qO- https://get.pnpm.io/install.sh | env ENV="$HOME/.dashrc" SHELL="$(whic
 
 ### Installing a specific version
 
-Prior to running the install script, you may optionally set an env variable `PNPM_VERSION` to install a specific version of pnpm:
+Before running the install script, you may optionally set an env variable `PNPM_VERSION` to install a specific version of pnpm:
 
 ```sh
 curl -fsSL https://get.pnpm.io/install.sh | env PNPM_VERSION=<version> sh -
@@ -108,6 +108,12 @@ npx get-pnpm
 
 Node.js 22.13 or newer is needed to run this installer, but not to run pnpm afterwards.
 
+You can also install the `pnpm` package globally with npm, which needs Node.js 18 or newer:
+
+```sh
+npm install -g pnpm@latest
+```
+
 :::tip
 
 Do you wanna use pnpm on CI servers? See: [Continuous Integration](./continuous-integration.md).
@@ -116,17 +122,15 @@ Do you wanna use pnpm on CI servers? See: [Continuous Integration](./continuous-
 
 ## Compatibility
 
-Here is a list of past pnpm versions with respective Node.js version support.
+Here is a list of the supported pnpm versions with respective Node.js version support.
 
-| Node.js    | pnpm 8 | pnpm 9 | pnpm 10 | pnpm 11 | pnpm 12 |
-|------------|--------|--------|---------|---------|---------|
-| Node.js 14 | ❌     | ❌     | ❌      | ❌      | ❌      |
-| Node.js 16 | ✔️      | ❌     | ❌      | ❌      | ❌      |
-| Node.js 18 | ✔️      | ✔️      | ✔️       | ❌      | ✔️       |
-| Node.js 20 | ✔️      | ✔️      | ✔️       | ❌      | ✔️       |
-| Node.js 22 | ✔️      | ✔️      | ✔️       | ✔️       | ✔️       |
-| Node.js 24 | ✔️      | ✔️      | ✔️       | ✔️       | ✔️       |
-| Node.js 26 | ✔️      | ✔️      | ✔️       | ✔️       | ✔️       |
+| Node.js    | pnpm 10 | pnpm 11 | pnpm 12 |
+|------------|---------|---------|---------|
+| Node.js 18 | ✔️       | ❌      | ✔️       |
+| Node.js 20 | ✔️       | ❌      | ✔️       |
+| Node.js 22 | ✔️       | ✔️       | ✔️       |
+| Node.js 24 | ✔️       | ✔️       | ✔️       |
+| Node.js 26 | ✔️       | ✔️       | ✔️       |
 
 pnpm 12 only needs Node.js when it is installed from npm; the version installed by the standalone script runs without Node.js.
 
@@ -134,7 +138,7 @@ pnpm 12 only needs Node.js when it is installed from npm; the version installed 
 
 If pnpm is broken and you cannot fix it by reinstalling, you might need to remove it manually from the PATH.
 
-Let's assume you have the following error when running `pnpm install`:
+For example, a leftover install of an older, JavaScript-based pnpm earlier on PATH can shadow pnpm 12 and fail like this when running `pnpm install`:
 
 ```text
 C:\src>pnpm install

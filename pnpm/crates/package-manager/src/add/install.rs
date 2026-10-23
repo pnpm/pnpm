@@ -1,13 +1,15 @@
 use super::{
     AddOptions, AddOwned,
-    manifest::{catalog_version_requests, merge_catalogs},
+    manifest::{PickedVersion, catalog_version_requests, merge_catalogs},
 };
 use crate::{
     ImporterUpdateSeedPolicy, Install, PolicyExcludes, ProjectMutation, UpdateSeedPolicy,
     included_direct_groups,
 };
+use node_semver::Version;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
+use pnpm_lockfile::{Lockfile, PkgName, PkgVerPeer, ProjectSnapshot};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets};
 use pnpm_resolving_resolver_base::PreferredVersions;
@@ -54,6 +56,7 @@ pub(super) fn selected_add_seed(
     owned: &AddOwned,
     manifest: &PackageManifest,
     selected: (&[pnpm_workspace::Project], &[usize]),
+    picked_versions: &[Vec<PickedVersion>],
     catalogs_override: Option<Catalogs>,
     catalogs: &Catalogs,
 ) -> AddSeed {
@@ -65,8 +68,8 @@ pub(super) fn selected_add_seed(
     let importer_root = add.config.lockfile_dir_for(manifest_dir);
     let mut seed_policies = BTreeMap::new();
     let mut preferred_versions_override = PreferredVersions::new();
-    for &index in selected_indices {
-        let (names, preferred) = catalog_version_requests(
+    for (&index, picked) in selected_indices.iter().zip(picked_versions) {
+        let (mut names, mut preferred) = catalog_version_requests(
             add.package_names,
             &projects[index].manifest,
             catalogs,
@@ -74,13 +77,17 @@ pub(super) fn selected_add_seed(
             add.config,
             owned.save_catalog_name.as_deref(),
         );
-        if names.is_empty() {
-            continue;
-        }
-        seed_policies.insert(
-            pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
-            ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
+        seed_picked_versions(
+            picked,
+            &LockedVersions::of(add.lockfile.document, add.config, &projects[index].root_dir),
+            (&mut names, &mut preferred),
         );
+        if !names.is_empty() {
+            seed_policies.insert(
+                pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir),
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
+            );
+        }
         for (name, selectors) in preferred {
             preferred_versions_override
                 .entry(name)
@@ -89,6 +96,88 @@ pub(super) fn selected_add_seed(
         }
     }
     AddSeed { seed_policies, preferred_versions_override, catalogs_override }
+}
+/// Prefer the version an explicit specifier picked, since the saved range can
+/// admit newer ones, and withhold the pin the importer holds at another
+/// version. A pick the fast lockfile update cannot move off needs no seed, so
+/// the install can keep that fast path: the importer keeps its pin and its
+/// specifier, or the lockfile holds no other version to retarget to.
+pub(super) fn seed_picked_versions(
+    picked_versions: &[PickedVersion],
+    locked: &LockedVersions<'_>,
+    seed: (&mut HashSet<String>, &mut PreferredVersions),
+) {
+    let (dropped_pins, preferred) = seed;
+    for PickedVersion { name, version, specifier } in picked_versions {
+        let (Ok(package), Ok(semver)) = (name.parse::<PkgName>(), version.parse::<Version>())
+        else {
+            continue;
+        };
+        let direct = locked.direct(&package);
+        let pinned_elsewhere = direct.is_some_and(|(locked, _)| {
+            !locked.is_some_and(|locked| same_build(locked, &semver))
+        });
+        let settled = match direct {
+            Some(_) if pinned_elsewhere => false,
+            Some((_, locked_specifier)) if locked_specifier == specifier => true,
+            _ => locked.only_version_of(&package, &semver),
+        };
+        if settled {
+            continue;
+        }
+        crate::install_with_fresh_lockfile::prefer_requested_version(preferred, name, version);
+        if pinned_elsewhere {
+            dropped_pins.insert(name.clone());
+        }
+    }
+}
+/// What the wanted lockfile holds for the importer an add rewrites.
+pub(super) struct LockedVersions<'l> {
+    lockfile: Option<&'l Lockfile>,
+    importer: Option<&'l ProjectSnapshot>,
+}
+impl<'l> LockedVersions<'l> {
+    pub(super) fn of(
+        lockfile: Option<&'l Lockfile>,
+        config: &Config,
+        manifest_dir: &std::path::Path,
+    ) -> Self {
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(
+            config.lockfile_dir_for(manifest_dir),
+            manifest_dir,
+        );
+        let importer = lockfile.and_then(|lockfile| lockfile.importers.get(&importer_id));
+        Self { lockfile, importer }
+    }
+
+    /// The version and specifier the importer locks `name` at as a direct
+    /// dependency.
+    fn direct(&self, name: &PkgName) -> Option<(Option<&'l Version>, &'l str)> {
+        let (_, dependency) = self.importer?
+            .dependencies_by_groups(crate::DIRECT_GROUPS)
+            .find(|(alias, _)| *alias == name)?;
+        let version = dependency.version.as_regular().and_then(PkgVerPeer::version_semver);
+        Some((version, dependency.specifier.as_str()))
+    }
+
+    /// Whether `version` is the one version of `name` the lockfile holds, which
+    /// is then what the fast path links a new direct dependency to.
+    fn only_version_of(&self, name: &PkgName, version: &Version) -> bool {
+        let mut versions = self.lockfile
+            .and_then(|lockfile| lockfile.packages.as_ref())
+            .into_iter()
+            .flatten()
+            .filter(|(key, _)| key.name == *name)
+            .map(|(key, _)| key.suffix.version_semver())
+            .peekable();
+        versions.peek().is_some()
+            && versions.all(|locked| locked.is_some_and(|locked| same_build(locked, version)))
+    }
+}
+/// `Version`'s own equality ignores build metadata, which names a different
+/// package here.
+pub(super) fn same_build(locked: &Version, picked: &Version) -> bool {
+    locked == picked && locked.build == picked.build
 }
 /// What the install resolves from: the importers whose catalog pins are
 /// withheld, the versions the add named, and the catalogs as it rewrote
@@ -111,7 +200,8 @@ pub(super) struct AddSeed {
 /// fails the freshness gate and reaches the resolver.
 /// A `catalog:` dependency's manifest specifier doesn't change when the version
 /// behind it does, so the freshness gate would hold and the install would never
-/// reach the resolver.
+/// reach the resolver. Nor would it absorb a version an explicit specifier
+/// picked below one the lockfile already holds.
 pub(super) fn add_install<'i>(
     add: AddOptions<'i>,
     owned: AddOwned,
@@ -119,6 +209,7 @@ pub(super) fn add_install<'i>(
     seed: AddSeed,
 ) -> Install<'i, Vec<DependencyGroup>> {
     let named_a_version = !seed.seed_policies.is_empty();
+    let reresolves = named_a_version || !seed.preferred_versions_override.is_empty();
     let included_groups = owned.included_groups.unwrap_or_else(|| {
         included_direct_groups(add.config.optional).collect()
     });
@@ -131,7 +222,7 @@ pub(super) fn add_install<'i>(
         add.lockfile.source,
         included_groups,
     );
-    install.lockfile_policy.prefer_frozen = named_a_version.then_some(false);
+    install.lockfile_policy.prefer_frozen = reresolves.then_some(false);
     install.lockfile_policy.excludes = PolicyExcludes::Persist;
     install.execution.mutation = ProjectMutation::InstallSome;
     install.execution.installs_only = false;

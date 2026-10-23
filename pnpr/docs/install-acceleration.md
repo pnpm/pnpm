@@ -15,7 +15,7 @@ dependencies) is **resolution**, not downloading tarballs. To resolve a
 dependency graph, pnpm has to walk it: fetch a package's metadata (its
 "packument"), read its dependency ranges, fetch the packuments for those, and so
 on, level by level. Each level depends on the answers from the previous one, so
-the requests can't all be parallelized — the total time is roughly the
+the requests can't all be parallelized. The total time is roughly the
 **depth of the graph × the round-trip latency** to the registry. From a laptop
 or a CI runner that sits far from the registry, that round-trip depth dominates
 the install.
@@ -32,20 +32,20 @@ pnpr collapses that depth:
   pays one round-trip for resolution instead of one per graph level.
 
 Crucially, pnpr only does the resolution. The tarballs are still fetched by the
-client, **directly from the registries in parallel** — exactly like a normal
+client, **directly from the registries in parallel**, like a normal
 install, which a single connection through the server could never match. The
 accelerated path removes the latency-bound resolution waterfall without turning
 tarball downloads into a single server-mediated stream.
 
 When the project already has an up-to-date lockfile, there's nothing to resolve,
-so this path doesn't apply — the speedup is for cold installs and dependency
+so this path doesn't apply. The speedup is for cold installs and dependency
 changes.
 
 ## How it works
 
 1. pnpm sends `POST /-/pnpr/v0/resolve` with the project's dependencies,
    registry settings, policy settings, and the existing lockfile when one is
-   available. Client upstream credentials are never sent — private registries
+   available. Client upstream credentials are never sent. Private registries
    are reached through the server's own credentials (see
    [below](#private-registries)). A lockfile-repair request first reads
    `GET /-/pnpr` to check that the server supports repair. An ordinary resolve
@@ -80,7 +80,7 @@ A `cargo.enabled` or `python.enabled` workspace with `pnprServer` set offloads
 those resolutions automatically. When the server does not serve an ecosystem's
 resolution, pnpm resolves it locally instead of failing.
 
-Since pnpr v0.1.0-alpha.9, `pnpm install --fix-lockfile` is forwarded as a
+`pnpm install --fix-lockfile` is forwarded as a
 repair request, including during filtered installs. The server regenerates
 broken lockfile metadata while retaining locked versions that remain
 compatible. The `fixLockfile` list in `GET /-/pnpr` tells the client which
@@ -88,9 +88,9 @@ resolver protocol versions support that request.
 
 ## What a configured server does not cost
 
-Since pnpm v12.0.0-rc.6, an install skips the exchanges it doesn't need, so a
-configured `pnprServer` no longer makes an up-to-date project pay a round trip
-that a direct install would have answered locally:
+An install skips the exchanges it doesn't need, so a configured `pnprServer`
+does not make an up-to-date project pay a round trip that a direct install
+would have answered locally:
 
 - The repeat-install "Already up to date" fast path runs with a pnpr server
   configured. Changing the `trustPolicy*`, `minimumReleaseAgeStrict`, or
@@ -102,20 +102,20 @@ that a direct install would have answered locally:
   policy. Server-verified and server-resolved lockfiles are recorded into that
   cache, so the next install can use it.
 
-See [pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230) and
-[pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234) for background.
-
 ## Which registries the server will touch {#allowlist}
 
-The resolver only fetches from origins the operator has configured — a
+The resolver only fetches from origins the operator has configured: a
 **default-deny allowlist** made of the configured
 [registries](configuration.md#registries-and-defaultregistry), the declared
-[public routes](configuration.md#routes), the built-in official npm registry,
-and pnpr's own origin. A request whose `registry`/`registries` — or whose
-direct `http(s)`/`git` URL dependencies, overrides, or lockfile tarball URLs —
+[public routes](configuration.md#routes), the built-in official npm registry
+and `npm.jsr.io`, and pnpr's own origin. A request whose `registry`/`registries` (or whose
+direct `http(s)`/`git` URL dependencies, overrides, or lockfile tarball URLs)
 point anywhere else is rejected before any server-side fetch, and every
 redirect hop is re-checked against the same allowlist. A caller can't use the
-resolver to make the server fetch from an arbitrary internal address.
+resolver to make the server fetch from an arbitrary internal address. An
+allowlisted host that resolves to a loopback, private, or link-local address is
+refused too, unless it is the `--public-url` host or
+[`routes.allowedPrivateNetworks`](configuration.md#routes) lists it.
 
 ## Private registries {#private-registries}
 
@@ -129,7 +129,7 @@ the server, serves a whole team.
 
 Tarball URLs in the resolved lockfile follow the same split:
 
-- A **public** package keeps its upstream URL — the client fetches it directly
+- A **public** package keeps its upstream URL. The client fetches it directly
   from the registry or its CDN, never through pnpr.
 - A **private** package resolved through an access-bearing upstream registry
   is emitted as that registry's `/~<name>/` endpoint URL, so the client
@@ -137,8 +137,8 @@ Tarball URLs in the resolved lockfile follow the same split:
   and serves it from a per-registry private cache).
 
 Because a registry endpoint URL is canonical for a client whose registry
-configuration points at it, lockfile entries stay integrity-only — the
-registry host lives in the client's `.npmrc`, not in the lockfile — and a
+configuration points at it, lockfile entries stay integrity-only (the
+registry host lives in the client's `.npmrc`, not in the lockfile), and a
 project resolves to the same lockfile whether it installs through `/resolve`
 or directly against the registry endpoint.
 

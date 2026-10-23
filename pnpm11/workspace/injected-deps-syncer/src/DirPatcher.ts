@@ -75,7 +75,7 @@ const comparePaths = (left: string, right: string): number => (left.split(/\\|\/
  *
  * The arrays in the resulting object are sorted in such a way that every directory paths are placed before
  * the files it contains.
- * Note that when performing removal of removed files according to this diff, the `removed` array should be reversed first.
+ * When performing removal of removed files according to this diff, the `removed` array should be reversed first.
  */
 export function diffDir (oldIndex: InodeMap, newIndex: InodeMap): DirDiff {
   const oldPaths = Object.keys(oldIndex).sort(comparePaths)

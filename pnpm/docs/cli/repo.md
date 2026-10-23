@@ -3,19 +3,17 @@ id: repo
 title: pnpm repo
 ---
 
-Added in: v11.3.0
-
 Opens the URL of a package's repository in the browser.
 
 ```sh
-pnpm repo [<pkg> ...]
+pnpm repo [<pkg>[@<version>] ...]
 ```
 
 With no arguments, opens the repository of the current project (read from the `repository` field of `package.json`).
 
-With one or more package names, fetches each package's metadata from the registry and opens its repository URL.
+With one or more package names, fetches each package's metadata from the registry and opens its repository URL. With `<pkg>@<version>`, the repository is read from that version's metadata.
 
-The repository URL is normalized to its web equivalent — e.g. `git+ssh://git@github.com/foo/bar.git` opens as `https://github.com/foo/bar`. When the `repository` field includes a `directory`, the URL points at that subdirectory inside the repo.
+The repository URL is normalized to its web equivalent, e.g. `git+ssh://git@github.com/foo/bar.git` opens as `https://github.com/foo/bar`. When the `repository` field includes a `directory`, the URL points at that subdirectory inside the repo.
 
 ## Examples
 

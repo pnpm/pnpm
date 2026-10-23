@@ -43,9 +43,9 @@ Since v11.18.0, `pnpm self-update` takes no instruction from the project it is r
 
 When `self-update` refuses a version that is younger than the `minimumReleaseAge` cutoff, an interactive run offers to update anyway; non-interactive runs still fail. CI never prompts, even on a runner that attaches a TTY.
 
-## Installing pnpm v12 (the Rust port)
+## Installing pnpm v12 {#installing-pnpm-v12-the-rust-port}
 
-Since v11.10.0, `pnpm self-update` (and `packageManager` version-switching) can install and link **pnpm v12**, the Rust port. It is published under both the `pnpm` and `@pnpm/exe` names on the `latest-12` dist-tag:
+Since v11.10.0, `pnpm self-update` (and `packageManager` version-switching) can install and link **pnpm v12**. It is published under both the `pnpm` and `@pnpm/exe` names on the `latest-12` dist-tag:
 
 ```sh
 pnpm self-update latest-12

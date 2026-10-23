@@ -425,7 +425,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     // Look snapshots up by package name + version rather than by an
     // exact key parse: `@pnpm/xyz` declares peer deps, so the resolver
     // emits a peer-suffixed depPath that won't parse cleanly out of a
-    // literal here. Membership-by-name keeps the test robust to the
+    // literal here. Membership-by-name keeps the test independent of the
     // fixture's exact peer-suffix shape.
     let find_optional = |scope: &str, bare: &str| -> Option<bool> {
         snapshots

@@ -71,7 +71,7 @@ pnpm version patch --message "chore: release v%s"
 
 ### --tag-version-prefix &lt;prefix\>
 
-Prefix used when creating the git tag. Defaults to `v` (e.g. `v1.2.3`). Set to an empty string to drop the prefix entirely.
+Prefix used when creating the git tag. Defaults to the `tagVersionPrefix` setting, or `v` (e.g. `v1.2.3`) when the setting is unset. Set to an empty string to drop the prefix entirely.
 
 ### --no-git-tag-version
 

@@ -5,9 +5,9 @@ title: "pnpm patch <pkg>"
 
 Prepare a package for patching (inspired by a similar command in Yarn).
 
-This command will cause a package to be extracted in a temporary directory intended to be editable at will.
+This command extracts the package to `node_modules/.pnpm_patches/<pkg>`, where `<pkg>` is the argument as given, such as `foo` or `foo@1.0.0` (or the [`--edit-dir`](#--edit-dir-dir)), a directory you can edit at will.
 
-Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>` being the temporary directory you received) to generate a patchfile and register it into your top-level manifest via the [`patchedDependencies`] field.
+Once you're done with your changes, run `pnpm patch-commit <path>` (with `<path>` being the directory you received) to generate a patchfile and register it into your top-level manifest via the [`patchedDependencies`] field.
 
 Usage:
 
@@ -62,8 +62,6 @@ Dependencies can be patched by version range. The priority order is:
 2. Version ranges
 3. Name-only patches (applies to all versions unless overridden)
 
-A special case: the version range `*` behaves like a name-only patch but does not ignore patch failures.
-
 Example:
 
 ```yaml title="pnpm-workspace.yaml"
@@ -108,6 +106,6 @@ allowUnusedPatches: true
 
 :::note
 
-In v11, patch application failures always throw an error — the `ignorePatchFailures` setting has been removed. When multiple patches in a group are applied, a failure in one does not prevent the rest from being attempted; all patch errors are reported together at the end.
+In v11, patch application failures always throw an error. The `ignorePatchFailures` setting has been removed. When multiple patches in a group are applied, a failure in one does not prevent the rest from being attempted; all patch errors are reported together at the end.
 
 :::

@@ -29,8 +29,6 @@ Negated ignore patterns can re-include default exclusions such as `*.orig` and
 
 ### --recursive, -r
 
-Added in: v10.11.0
-
 Pack all packages from the workspace.
 
 ### --out &lt;path\>
@@ -43,7 +41,7 @@ Directory in which `pnpm pack` will save tarballs. The default is the current wo
 
 ### --pack-gzip-level &lt;level\>
 
-Specifying custom compression level.
+The gzip compression level of the tarball, from `0` to `9`. Values outside that range are rejected.
 
 ### --json
 
@@ -51,23 +49,17 @@ Log output in JSON format.
 
 ### --filter &lt;package_selector\>
 
-Added in: v10.11.0
-
 [Read more about filtering.](../filtering.md)
 
 ### --dry-run
-
-Added in: v10.26.0
 
 Does everything a normal run does, except actually packing the tarball. Useful for verifying the contents of the tarball.
 
 ### --skip-manifest-obfuscation
 
-Added in: v11.3.0
-
 Keep the original `packageManager` field and publish lifecycle scripts in the packed manifest instead of stripping them. The `pnpm` field is still omitted, except for `pnpm.config`.
 
-## Life Cycle Scripts
+## Life cycle scripts
 
 * `prepack`
 * `prepare`

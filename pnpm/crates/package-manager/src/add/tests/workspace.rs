@@ -4,7 +4,7 @@ use super::{
 };
 use crate::add::{
     finish::persist_selected_manifests, manifest::prepare_selected_manifests,
-    specifier::workspace_save_specifier,
+    workspace_specifier::workspace_save_specifier,
 };
 use pnpm_config::{Config, LinkWorkspacePackages, SaveWorkspaceProtocol};
 use pnpm_network::ThrottledClient;

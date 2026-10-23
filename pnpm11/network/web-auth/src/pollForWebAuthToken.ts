@@ -239,7 +239,7 @@ function discardBody (response: WebAuthFetchResponse): void {
   try {
     response.body?.cancel().catch(() => {})
   } catch {
-    // Cancellation is best-effort: a body that cannot be cancelled is simply
+    // Cancellation is best-effort: a body that cannot be cancelled is
     // left unread.
   }
 }

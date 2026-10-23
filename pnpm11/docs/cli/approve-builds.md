@@ -50,9 +50,9 @@ rebuilt.
 Isolated global installs gave every install group its own manifest, and
 `pnpm approve-builds -g` was removed rather than made to guess which one to
 write to. Since v11.24.0 it writes one policy for all of them, so it works
-again. In between — and still, if you would rather decide at install time — use
-`--allow-build` when installing globally (e.g.
-`pnpm add -g --allow-build=esbuild esbuild`), or answer the prompt pnpm shows
-during a global install.
+again. From v11.0.0 until v11.24.0, use `--allow-build` when
+installing globally (e.g. `pnpm add -g --allow-build=esbuild esbuild`), or
+answer the prompt pnpm shows during a global install. Both options remain
+available if you prefer to decide at install time.
 
 :::

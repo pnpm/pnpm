@@ -67,7 +67,7 @@ export interface CatalogLookupMetadata {
    * The catalog protocol bareSpecifier the user wrote in package.json files or as a
    * parameter to pnpm add. Ex: pnpm add foo@catalog:
    *
-   * This will usually be 'catalog:<name>', but can simply be 'catalog:' if
+   * This will usually be 'catalog:<name>', but can be 'catalog:' if
    * users wrote the default catalog shorthand. This is different than the
    * catalogName field, which would be 'default' regardless of whether users
    * originally requested 'catalog:' or 'catalog:default'.
@@ -378,7 +378,7 @@ function getResolvedImporter (ctx: ResolutionContext, directDeps: PkgAddressOrLi
   * There may be cases where multiple dependencies have the same alias in the directDeps array.
   * E.g., when there is "is-negative: github:kevva/is-negative#1.0.0" in the package.json dependencies,
   * and then re-execute `pnpm add github:kevva/is-negative#1.0.1`.
-  * In order to make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
+  * To make sure that the latest 1.0.1 version is installed, we need to remove the duplicate dependency.
   * fix https://github.com/pnpm/pnpm/issues/6966
   */
 function dedupeSameAliasDirectDeps (directDeps: PkgAddressOrLink[], wantedDependencies: WantedDependency[]): PkgAddressOrLink[] {

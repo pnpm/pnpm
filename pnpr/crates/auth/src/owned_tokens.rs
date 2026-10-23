@@ -67,6 +67,10 @@ impl TokenBackend for OwnedTokens {
         self.tokens.revoke_by_key(key).await
     }
 
+    async fn revoke_all_for_user(&self, username: &str) -> Result<usize> {
+        self.tokens.revoke_all_for_user(username).await
+    }
+
     async fn check_readiness(&self) -> Result<()> {
         self.tokens.check_readiness().await
     }

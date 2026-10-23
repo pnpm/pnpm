@@ -247,7 +247,7 @@ impl IniDocument {
     ///
     /// - If `values` is empty, all entries matching `key` are removed.
     /// - If `key` already exists, the first occurrence is replaced in-place
-    ///   with the new value(s), and any subsequent occurrences of `key` are removed.
+    ///   with the new values, and any subsequent occurrences of `key` are removed.
     /// - If `key` does not exist, the new entry (or entries) are appended at the end.
     pub fn set(&mut self, key: &str, values: &[String]) {
         let is_array = values.len() > 1 || key.ends_with("[]");

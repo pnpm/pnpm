@@ -1,6 +1,7 @@
 use crate::token_store::unix_seconds;
 use pnpr_error::{RegistryError, Result};
 use rusqlite::OptionalExtension as _;
+use std::future::Future;
 
 /// Current version of the auth database schema.
 pub const CURRENT_SCHEMA_VERSION: i64 = 2;
@@ -75,10 +76,19 @@ fn add_column_if_missing_sqlite(conn: &rusqlite::Connection, sql: &str) -> Resul
     }
 }
 
-/// Run schema migrations on a `LibSQL` database.
+/// Run schema migrations on a libsql database. `sync` runs after each
+/// batch of writes, before a read that depends on them, for a connection
+/// whose writes land elsewhere than its reads, such as an embedded replica.
 #[cfg(feature = "backend-libsql")]
-pub(crate) async fn migrate_libsql(conn: &libsql::Connection) -> Result<()> {
+pub(crate) async fn migrate_libsql<SyncFuture>(
+    conn: &libsql::Connection,
+    sync: impl Fn() -> SyncFuture + Send + Sync,
+) -> Result<()>
+where
+    SyncFuture: Future<Output = Result<()>> + Send,
+{
     conn.execute(SCHEMA_MIGRATIONS_TABLE_SQL, ()).await?;
+    sync().await?;
     let mut rows = conn.query("SELECT MAX(version) FROM auth_schema_migrations", ()).await?;
     let max_version: Option<i64> =
         if let Some(row) = rows.next().await? { row.get(0)? } else { None };
@@ -90,7 +100,7 @@ pub(crate) async fn migrate_libsql(conn: &libsql::Connection) -> Result<()> {
     if current < 2 {
         apply_libsql_v2(conn).await?;
     }
-    Ok(())
+    sync().await
 }
 
 #[cfg(feature = "backend-libsql")]

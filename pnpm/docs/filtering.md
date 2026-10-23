@@ -140,13 +140,9 @@ legacyDirFiltering: true
 ```
 
 The setting only applies to the selectors you write. The workspace-root
-selectors pnpm generates for itself — the `!{<workspace-root>}` a recursive
+selectors pnpm generates for itself (the `!{<workspace-root>}` a recursive
 `run` / `exec` / `add` / `test` appends, and the `{<workspace-root>}` that
-`--workspace-root` appends — are always matched as globs, since v11.24.0. Read
-as subtree matches they named every project below the root, so a recursive
-command under this setting selected nothing at all, and `--workspace-root`
-pulled in the whole workspace instead of the root alone
-([#14101](https://github.com/pnpm/pnpm/issues/14101)).
+`--workspace-root` appends) are always matched as globs.
 
 ### --filter "[&lt;since>]"
 
@@ -179,6 +175,7 @@ A project also counts as changed when:
 Use this flag if you want the CLI to fail if no packages have matched the filters.
 
 You may also set this permanently with a [`failIfNoMatch` setting].
+`--no-fail-if-no-match` overrides `failIfNoMatch: true` for one command.
 
 [`failIfNoMatch` setting]: workspaces.md#failifnomatch
 
@@ -193,11 +190,11 @@ For instance, this will run a command in all projects except for `foo`:
 pnpm --filter=!foo <cmd>
 ```
 
-And this will run a command in all projects that are not under the `lib`
-directory:
+And this will run a command in all projects that are not in the `lib`
+directory or below it:
 
 ```sh
-pnpm --filter=!./lib <cmd>
+pnpm --filter='!./lib/**' <cmd>
 ```
 
 Since v12.7.0, selectors are evaluated in the order they are given, so a later
@@ -236,6 +233,12 @@ source code of the package, tests will run in the dependent packages as well:
 pnpm --filter="...[origin/master]" --test-pattern="test/*" test
 ```
 
+To set it for every command, use the `testPattern` setting in
+`pnpm-workspace.yaml`:
+
+* Default: **[]**
+* Type: **string[]**
+
 ## --changed-files-ignore-pattern &lt;glob>
 
 Allows to ignore changed files by glob patterns when filtering for changed projects since the specified commit/branch.
@@ -245,3 +248,9 @@ Usage example:
 ```sh
 pnpm --filter="...[origin/master]" --changed-files-ignore-pattern="**/README.md" run build
 ```
+
+To set it for every command, use the `changedFilesIgnorePattern` setting in
+`pnpm-workspace.yaml`:
+
+* Default: **[]**
+* Type: **string[]**

@@ -17,13 +17,21 @@ For example, if a package has version `1.2.3`, by default its version is set to
 `pnpm config set save-prefix='~'` it would be set to `~1.2.3` which only allows
 patch upgrades.
 
-Since v11.19.0, `=` is also accepted: newly added dependencies are saved with an
+With `=`, newly added dependencies are saved with an
 explicit `=` operator (`=1.2.3`), which pins the exact version. `pnpm update`
 keeps the `=` operator when it updates such a pin.
 
 This setting is ignored when the added package has a range specified. For
 instance, `pnpm add foo@2` will set the version of `foo` in `package.json` to
 `2`, regardless of the value of `savePrefix`.
+
+### saveExact
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, `pnpm add` saves the resolved version without a range
+operator, as the `--save-exact` CLI option does.
 
 ### saveTypes
 
@@ -57,17 +65,20 @@ This also sets the tag that is added to the `package@version` specified by the
 ### globalDir
 
 * Default:
+  * If the **$PNPM_HOME** env variable is set, then **$PNPM_HOME/global**
   * If the **$XDG_DATA_HOME** env variable is set, then **$XDG_DATA_HOME/pnpm/global**
   * On Windows: **~/AppData/Local/pnpm/global**
   * On macOS: **~/Library/pnpm/global**
   * On Linux: **~/.local/share/pnpm/global**
 * Type: **path**
 
-Specify a custom directory to store global packages.
+Specify a custom directory to store global packages. pnpm stores the packages
+in a `v11` subdirectory of this directory.
 
 ### globalBinDir
 
 * Default:
+  * If the **$PNPM_HOME** env variable is set, then **$PNPM_HOME/bin**
   * If the **$XDG_DATA_HOME** env variable is set, then **$XDG_DATA_HOME/pnpm/bin**
   * On Windows: **~/AppData/Local/pnpm/bin**
   * On macOS: **~/Library/pnpm/bin**
@@ -76,12 +87,6 @@ Specify a custom directory to store global packages.
 
 Allows to set the target directory for the bin files of globally installed packages.
 
-:::tip
-
-In pnpm v11, globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` instead of directly in `PNPM_HOME`. This prevents internal directories like `global/` and `store/` from polluting shell autocompletion when `PNPM_HOME` is on PATH. After upgrading, run `pnpm setup` to update your shell configuration.
-
-:::
-
 ### globalShims
 
 Added in: v12.0.0-rc.2
@@ -89,7 +94,7 @@ Added in: v12.0.0-rc.2
 * Default: **\{ node: auto, deno: auto, bun: auto \}**
 * Type: **Boolean**, **Object**
 
-Controls which globally installed packages get [project-aware shims](../global-packages.md#project-aware-global-bins) — global commands that run the version the current project asks for instead of the globally installed one.
+Controls which globally installed packages get [project-aware shims](../global-packages.md#project-aware-global-bins): global commands that run the version the current project asks for instead of the globally installed one.
 
 The setting is a map from **package name** to policy. The key is the name of the package that *provides* the command, not the command itself, so an entry for `typescript` covers its `tsc` bin.
 
@@ -109,19 +114,19 @@ The supported policies are:
 | `always` | Always switch, never ask. Usable in CI, where a prompt would fall back to the global version. |
 | `false` | Disable the project-aware shim for this package. |
 
-Since v12.0.0-rc.6, two commands write entries here for you: [`pnpm shim add <pkg>`](../cli/shim.md) records the package it links a shim for, and installing a [package manager](../package-managers.md) globally (`pnpm add -g yarn`) records that package manager so it follows a project's pin. Neither overwrites an entry you set yourself — including `false`, and including a `globalShims: false` that turns every shim off.
+Since v12.0.0-rc.6, two commands write entries here for you: [`pnpm shim add <pkg>`](../cli/shim.md) records the package it links a shim for, and installing a [package manager](../package-managers.md) globally (`pnpm add -g yarn`) records that package manager so it follows a project's pin. Neither overwrites an entry you set yourself, including `false`, and including a `globalShims: false` that turns every shim off.
 
-Layers merge key by key over the built-in defaults, so a single entry can change one package without restating the rest — `globalShims: { bun: false }` leaves `node` and `deno` at `auto`.
+Layers merge key by key over the built-in defaults, so a single entry can change one package without restating the rest. `globalShims: { bun: false }` leaves `node` and `deno` at `auto`.
 
 The scalar shorthands replace the whole map instead of merging: `globalShims: false` disables every project-aware shim, and `globalShims: true` resets to the defaults.
 
 :::warning
 
-This setting is only read from locations a project cannot write to: the [global configuration file](../cli/config.md), a `pnpm-workspace.yaml` in the pnpm home directory itself, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment variable (a JSON value), applied in that order. A project's own `pnpm-workspace.yaml` is ignored — otherwise a repository could grant itself the right to run its own binaries in place of your global ones.
+This setting is only read from locations a project cannot write to: the [global configuration file](../cli/config.md), a `pnpm-workspace.yaml` in the pnpm home directory itself, and the `PNPM_CONFIG_GLOBAL_SHIMS` environment variable (a JSON value), applied in that order. A project's own `pnpm-workspace.yaml` is ignored. Otherwise a repository could grant itself the right to run its own binaries in place of your global ones.
 
 :::
 
-Disabling a package, or changing its policy, takes effect on the very next command — the setting is re-read on each dispatch, so no reinstall is needed.
+Disabling a package, or changing its policy, takes effect on the very next command. The setting is re-read on each dispatch, so no reinstall is needed.
 
 Newly *enabling* a package is the exception. pnpm decides at install time which bins to write dispatching shims for, so a package that was already installed globally while it was disabled needs to be reinstalled to pick up the change:
 
@@ -143,8 +148,6 @@ Project-aware shims are a pnpm v12 feature and are not available in v11.
 
 ### npmrcAuthFile
 
-Added in: v11.0.0
-
 * Default: **~/.npmrc**
 * Type: **path**
 
@@ -157,8 +160,7 @@ This setting cannot be set in `pnpm-workspace.yaml` at the project level; set it
 * Default:
   * If the **$XDG_STATE_HOME** env variable is set, then **$XDG_STATE_HOME/pnpm**
   * On Windows: **~/AppData/Local/pnpm-state**
-  * On macOS: **~/.pnpm-state**
-  * On Linux: **~/.local/state/pnpm**
+  * On macOS and Linux: **~/.local/state/pnpm**
 * Type: **path**
 
 The directory where pnpm stores machine-level state, including the update checker's `pnpm-state.json` file.
@@ -195,8 +197,8 @@ When true, all the output is written to stderr.
 Set to `false` to suppress the update notification when using an older version of pnpm than the latest.
 
 `pnpm install` and `pnpm add` check at most once a day, and print how to get the
-newer version. pnpm 12 recognized but ignored this setting until v12.0.0, where
-it started checking too.
+newer version. The check is skipped in CI and with `--offline` or
+`--prefer-offline`.
 
 ### preferSymlinkedExecutables
 
@@ -225,7 +227,7 @@ of undefined (reading 'Intrinsic')`.
 
 ### resolutionMode
 
-* Default: **highest** (was **lowest-direct** from v8.0.0 to v8.6.12)
+* Default: **highest**
 * Type: **highest**, **time-based**, **lowest-direct**
 
 When `resolutionMode` is set to `time-based`, dependencies will be resolved the following way:
@@ -250,7 +252,7 @@ Only the dependencies declared in `package.json` count as direct here. A peer de
 
 Set this to `true` if the registry that you are using returns the "time" field in the abbreviated metadata. [Verdaccio] supports this from v5.15.1, as do some registry proxies.
 
-Since v11.23.0, this can also be declared per registry, through the `supportsTimeField` field of a [registry declaration](../registries.md#supportstimefield). A registry's own declaration wins; this setting is the answer for every registry the project does not describe.
+This can also be declared per registry, through the `supportsTimeField` field of a [registry declaration](../registries.md#supportstimefield). A registry's own declaration wins; this setting is the answer for every registry the project does not describe.
 
 ### extendNodePath
 
@@ -267,16 +269,16 @@ pnpm's [isolated `node_modules` layout] means that a package can only access its
 own declared dependencies. However, when a CLI tool runs via a command shim, some
 libraries (notably [`import-local`], used by jest, eslint, and others) resolve
 modules from the **current working directory** rather than from the binary's own
-location. Since the working directory is the project root — not the package inside
-the virtual store — the standard `node_modules` resolution from the CWD won't
+location. Since the working directory is the project root, not the package inside
+the virtual store, the standard `node_modules` resolution from the CWD won't
 find the binary's transitive dependencies.
 
 To bridge this gap, pnpm includes two types of paths in `NODE_PATH`:
 
 1. **The package's own dependencies directory** (e.g.,
-   `.pnpm/pkg@version/node_modules`) — this allows CWD-based resolution to find
+   `.pnpm/pkg@version/node_modules`). This allows CWD-based resolution to find
    the correct versions of the package's sibling dependencies.
-2. **The hoisted `node_modules` directory** (e.g., `.pnpm/node_modules`) — this
+2. **The hoisted `node_modules` directory** (e.g., `.pnpm/node_modules`). This
    is the directory where hoisted packages are placed when [`hoistPattern`] is
    set. Node.js cannot discover this directory through its standard resolution
    algorithm, so it must be provided via `NODE_PATH`.
@@ -311,6 +313,16 @@ virtual store. Disabling it produces slightly simpler command shims.
 
 When deploying a package or installing a local package, all files of the package are copied. By default, if the package has a `"files"` field in the `package.json`, then only the listed files and directories are copied.
 
+### embedReadme
+
+* Default: **false**
+* Type: **Boolean**
+
+When set to `true`, `pnpm pack` and `pnpm publish` add the content of the
+package's README file to the `readme` field of the packed `package.json`, unless
+that field is already set. `pnpm publish --embed-readme` sets it for a single
+command.
+
 ### dedupeDirectDeps
 
 * Default: **false**
@@ -319,8 +331,6 @@ When deploying a package or installing a local package, all files of the package
 When set to `true`, dependencies that are already symlinked to the root `node_modules` directory of the workspace will not be symlinked to subproject `node_modules` directories.
 
 ### optimisticRepeatInstall
-
-Added in: v10.1.0
 
 * Default: **true**
 * Type: **Boolean**
@@ -333,7 +343,7 @@ When the check finds that nothing changed, pnpm skips the install, including the
 
 ### requiredScripts
 
-Scripts listed in this array will be required in each project of the workspace. Otherwise, `pnpm -r run <script name>` will fail.
+Scripts listed in this array are required in each project selected by `pnpm -r run <script name>`. Otherwise, the run fails.
 
 ```yaml title="pnpm-workspace.yaml"
 requiredScripts:
@@ -352,18 +362,29 @@ import ShellEmulator from './_shellEmulator.mdx'
 
 <ShellEmulator />
 
+### scriptsPrependNodePath
+
+* Default: **false**
+* Type: **true**, **false**, **warn-only**
+
+When set to `true`, pnpm adds the directory of the `node` executable that runs
+scripts to the `PATH` of lifecycle scripts and `pnpm run`. `false` and
+`warn-only` leave `PATH` unchanged.
+
 import CatalogMode from './_catalogMode.mdx'
 
 <CatalogMode />
 
 ### ci
 
-Added in: v10.12.1
-
 * Default: **true** (when the environment is detected as CI)
 * Type: **Boolean**
 
 This setting explicitly tells pnpm whether the current environment is a CI (Continuous Integration) environment.
+
+In CI, [`frozenLockfile`](./store.md#frozenlockfile) defaults to `true` when a lockfile is present, the default reporter is `append-only`, and the [update check](#updatenotifier) is skipped.
+
+This setting is ignored in project `pnpm-workspace.yaml` files.
 
 import CatalogPrune from './_catalogPrune.mdx'
 

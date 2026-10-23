@@ -10,7 +10,7 @@ use super::{Result, TokenBackend};
 /// all parse the same.
 /// `Ok(None)` covers every "no usable credentials" case — a missing or
 /// malformed header, a non-`Bearer` scheme (including legacy `Basic`), or a
-/// token that simply doesn't match. `Err` is reserved for a failure of the
+/// token that doesn't match. `Err` is reserved for a failure of the
 /// backing store (e.g. the networked auth DB is unreachable) so the caller
 /// can return a 5xx instead of a misleading 401.
 pub async fn identify(

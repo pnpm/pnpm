@@ -33,7 +33,7 @@ title: Feature Comparison
 [Config dependencies]: ./config-dependencies.md
 [Dynamic package execution]: ./cli/pnx.md
 [Hoisted `node_modules`]: ./settings/node-modules.md#nodelinker
-[JSR registry support]: ./cli/add.md#install-from-the-jsr-registry
+[JSR registry support]: ./package-sources.md#jsr-registry
 [Listing licenses]: ./cli/licenses.md
 [Build script security]: ./settings/build.md#allowbuilds
 [Managing runtimes]: ./cli/runtime.md

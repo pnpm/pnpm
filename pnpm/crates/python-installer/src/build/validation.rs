@@ -38,7 +38,7 @@ pub(super) fn identify_identity(
         );
     }
     // A project may leave its version to the backend, and then what the
-    // backend says it is is the only answer there is.
+    // backend reports is the only answer there is.
     let Some(version) =
         manifest.project.as_ref().and_then(|project| project.version.as_ref())
     else {
