@@ -21,8 +21,7 @@ capabilities, abstractions, compatibility, and releases.
 [UNSAFE_POLICY.md](./UNSAFE_POLICY.md) governs every `unsafe` in pacquet and
 pnpr: which crates may hold one, what a `// SAFETY:` comment has to
 discharge, and the workspace `unsafe_code` lint every other crate takes.
-`cargo test -p pnpm-unsafe-audit` enforces the parts a test can check, and
-names what to do about each departure.
+`cargo test -p pnpm-unsafe-audit` enforces the parts a test can check.
 
 Read it before adding a foreign call. The short version: a crate either
 abstracts a foreign or raw-pointer API, or holds no `unsafe` at all. A new
