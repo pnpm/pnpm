@@ -190,9 +190,10 @@ fn format_auth_summary(config: &Config) -> String {
     let (backend, location) = match &config.identity.backend {
         BackendConfig::Local => (
             "htpasswd",
-            ht.file
-                .as_ref()
-                .map_or_else(|| "in-memory".to_string(), |path| path.display().to_string()),
+            match &ht.file {
+                Some(path) => path.display().to_string(),
+                None => "in-memory".to_string(),
+            },
         ),
         BackendConfig::Libsql(settings) => {
             let url = sanitize_diagnostic_url(&settings.url);
