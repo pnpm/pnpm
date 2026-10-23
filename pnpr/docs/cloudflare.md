@@ -301,10 +301,11 @@ the bucket and the database, which the
 [S3 backend supports](storage.md#concurrent-writers), but each one has its own
 upstream cache.
 
-**The Worker caches nothing.** If you add a cache, store only responses
-without `private` or `no-store` in `Cache-Control`. Responses on a named base
-such as `/npm/~<name>/` are always `private, no-store`, so only the default
-base is cacheable. With [CORS](configuration.md#cors) on, pnpr's answer
+**The Worker caches nothing.** If you add a cache, store only `GET`
+responses without `private`, `no-store`, or `no-cache` in `Cache-Control`.
+A login answers with a new token and is marked only `no-cache`. Responses on
+a named base such as `/npm/~<name>/` are always `private, no-store`, so only
+the default base is cacheable. With [CORS](configuration.md#cors) on, pnpr's answer
 depends on the request's `Origin`, so keep requests with an `Origin` header
 out of a cache that does not key on it. A cache also outlives
 [rule changes](configuration.md#changing-rules-through-the-api).
