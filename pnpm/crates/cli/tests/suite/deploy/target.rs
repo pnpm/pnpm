@@ -604,7 +604,7 @@ fn deploy_preserves_links_to_dependencies_and_unselected_targets() {
     }
     assert_eq!(
         fs::read_to_string(workspace.join(".next/node_modules/alias/index.cjs")).unwrap(),
-        "module.exports = 42"
+        "module.exports = 42",
     );
     for (mode, flags) in [("default", &[][..]), ("legacy", &["--legacy"][..])] {
         let destination = root.path().join(mode);
@@ -618,14 +618,16 @@ fn deploy_preserves_links_to_dependencies_and_unselected_targets() {
         for (name, target) in links {
             assert_eq!(
                 fs::read_link(destination.join(".next").join(name)).unwrap(),
-                Path::new(target)
+                Path::new(target),
             );
         }
         let dependency = destination.join(".next/node_modules/alias/index.cjs");
         assert_eq!(fs::read_to_string(&dependency).unwrap(), "module.exports = 42");
         assert!(
-            fs::canonicalize(&dependency).unwrap().starts_with(&destination),
-            "{dependency:?} must resolve inside {destination:?}"
+            fs::canonicalize(&dependency)
+                .unwrap()
+                .starts_with(fs::canonicalize(&destination).unwrap()),
+            "{dependency:?} must resolve inside {destination:?}",
         );
         assert!(!destination.join("omitted.txt").exists(), "unselected target must stay omitted");
     }
