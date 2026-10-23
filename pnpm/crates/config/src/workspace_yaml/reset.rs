@@ -92,6 +92,12 @@ fn reset_proxy_setting(config: &mut Config, defaults: &Config, key: &str) {
     config.proxy = config.proxy_keys.resolve();
 }
 
+fn reset_audit_settings(config: &mut Config, defaults: &Config) {
+    config.audit_level = defaults.audit_level;
+    config.audit_config.clone_from(&defaults.audit_config);
+    config.audit_ignore_prune = defaults.audit_ignore_prune;
+}
+
 fn reset_tls_setting(config: &mut Config, defaults: &Config, key: &str) {
     match key {
         "strictSsl" => config.tls.strict_ssl = defaults.tls.strict_ssl,
@@ -276,11 +282,7 @@ impl WorkspaceSettings {
                 reset_proxy_setting(config, defaults, key);
             }
             "strictSsl" | "localAddress" => reset_tls_setting(config, defaults, key),
-            "audit" | "auditLevel" | "auditConfig" => {
-                config.audit_level = defaults.audit_level;
-                config.audit_config.clone_from(&defaults.audit_config);
-                config.audit_ignore_prune = defaults.audit_ignore_prune;
-            }
+            "audit" | "auditLevel" | "auditConfig" => reset_audit_settings(config, defaults),
             "update" | "updateConfig" => config.update_config.clone_from(&defaults.update_config),
             "cleanupUnusedCatalogs" => config.catalog_prune = defaults.catalog_prune,
             "virtualStoreType" => {
