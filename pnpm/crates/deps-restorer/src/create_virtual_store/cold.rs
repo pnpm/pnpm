@@ -19,7 +19,10 @@ use std::{
     collections::{HashMap, HashSet},
     ops::ControlFlow,
     path::Path,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 pub(super) struct ColdInputs<'i, 'a> {
@@ -179,9 +182,10 @@ pub(super) async fn run_cold_batch<'a, Reporter: self::Reporter>(
 /// tasks elsewhere, and `block_on` keeps the downloads running. Nothing
 /// else in this task is polled until the drain ends, which is why the
 /// pipeline spawns the work it wants running meanwhile. A download that
-/// fails closes the channel, which ends the link thread after its
-/// current pass; a pass that fails drops the receiver, which stops the
-/// drain.
+/// fails, or an aborting `check`, stops the drain and raises `stop`, so
+/// the link thread finishes its current pass and leaves the queued
+/// captures unlinked. A pass that fails drops the receiver, which stops
+/// the drain.
 fn link_while_downloading<'a, Reporter: self::Reporter, Download>(
     downloads: &mut FuturesUnordered<Download>,
     (state, shared_packages): (&mut ColdBatchState<'_>, Option<&HashSet<&str>>),
@@ -194,17 +198,21 @@ where
     >,
 {
     let runtime = tokio::runtime::Handle::current();
+    let stop = &AtomicBool::new(false);
     tokio::task::block_in_place(|| {
         std::thread::scope(|scope| {
             let (sender, receiver) = std::sync::mpsc::channel::<ColdCapture<'a>>();
             let link_thread = std::thread::Builder::new()
                 .name("pnpm-cold-link".to_string())
-                .spawn_scoped(scope, move || linker.link_as_delivered::<Reporter>(&receiver))
+                .spawn_scoped(scope, move || linker.link_as_delivered::<Reporter>(&receiver, stop))
                 .expect("spawn the cold link thread");
             let drain = drain_cold_downloads(downloads, state, shared_packages, |captured| {
                 linker.deliver(&sender, captured)
             });
             let drained = runtime.block_on(run_checked(check, drain));
+            if drained.is_err() {
+                stop.store(true, Ordering::Release);
+            }
             drop(sender);
             let linked =
                 link_thread.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
@@ -241,7 +249,8 @@ impl ColdLinker<'_> {
         ControlFlow::Continue(())
     }
 
-    /// Link the captures as `receiver` delivers them, one pass per batch.
+    /// Link the captures as `receiver` delivers them, one pass per batch,
+    /// until the channel closes or `stop` is raised.
     ///
     /// A pass takes every capture that completed while the previous pass
     /// ran, so a slow volume links larger batches and a fast one links
@@ -251,8 +260,12 @@ impl ColdLinker<'_> {
     fn link_as_delivered<Reporter: self::Reporter>(
         &self,
         receiver: &std::sync::mpsc::Receiver<ColdCapture<'_>>,
+        stop: &AtomicBool,
     ) -> Result<(), CreateVirtualStoreError> {
         while let Ok(first) = receiver.recv() {
+            if stop.load(Ordering::Acquire) {
+                return Ok(());
+            }
             #[cfg(test)]
             if let Some(probe) = self.template.link_concurrency_probe {
                 probe.before_cold_link_pass();

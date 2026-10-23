@@ -2,7 +2,8 @@
 //! lacks, with the remote side-effects resolution alongside.
 
 use super::{
-    CasIndexes, ColdInputs, ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError, partition,
+    CasIndexes, ColdInputs, ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError,
+    partition, run_checked,
 };
 use crate::{
     InstallPackageBySnapshot,
@@ -15,6 +16,7 @@ use crate::{
         PreparedSharedSideEffects, ResolvedSharedSideEffects, resolve_prepared_side_effects,
     },
 };
+use futures_util::FutureExt;
 use pnpm_lockfile::{PackageKey, PlatformSelector};
 use pnpm_reporter::Reporter;
 use std::collections::HashSet;
@@ -35,13 +37,7 @@ impl<'a> CreateVirtualStore<'a> {
         (partition, indexes): (&mut partition::Partition<'a>, &mut CasIndexes),
         check: &mut Option<ConcurrentCheck<'_>>,
     ) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
-        let side_effects_ctx = partition::PartitionSideEffectsContext {
-            config: self.ctx.config,
-            wanted: inputs.wanted,
-            allow_build_policy: self.ctx.allow_build_policy,
-            store_index_writer: self.fetching.store_index_writer,
-            importers: self.importers,
-        };
+        let side_effects_ctx = self.side_effects_context(&inputs);
         if !crate::shared_side_effects::cold_shared_packages_have_known_requires_build(
             &partition.cold,
             inputs.links.shared_packages.as_ref(),
@@ -49,22 +45,38 @@ impl<'a> CreateVirtualStore<'a> {
         ) {
             let fetch_failed =
                 self.download_cold::<Reporter>(inputs, partition, indexes, check).await?;
-            partition.apply_side_effects(side_effects_ctx, &indexes.shared_base).await;
+            let apply = partition.apply_side_effects(side_effects_ctx, &indexes.shared_base);
+            run_checked(check, apply.map(Ok)).await?;
             return Ok(fetch_failed);
         }
-        let prepared = partition.prepare_side_effects(side_effects_ctx, &indexes.shared_base).await;
-        let resolve_task =
+        let prepare = partition.prepare_side_effects(side_effects_ctx, &indexes.shared_base);
+        let prepared = run_checked(check, prepare.map(Ok)).await?;
+        let mut resolve_task =
             spawn_side_effects_resolution(prepared, &partition.side_effects.quarantine);
         let fetch_failed = self
             .download_cold::<Reporter>(inputs, partition, indexes, check)
             .await
             .inspect_err(|_| resolve_task.abort())?;
-        let resolved =
-            resolve_task.await.unwrap_or_else(
-                |error| std::panic::resume_unwind(error.into_panic()),
-            );
-        partition.finish_side_effects(resolved, side_effects_ctx, &indexes.shared_base).await;
+        let resolved = run_checked(check, (&mut resolve_task).map(joined_resolution))
+            .await
+            .inspect_err(|_| resolve_task.abort())?;
+        let finish =
+            partition.finish_side_effects(resolved, side_effects_ctx, &indexes.shared_base);
+        run_checked(check, finish.map(Ok)).await?;
         Ok(fetch_failed)
+    }
+
+    fn side_effects_context<'i>(
+        &'i self,
+        inputs: &ColdInputs<'_, 'a>,
+    ) -> partition::PartitionSideEffectsContext<'i> {
+        partition::PartitionSideEffectsContext {
+            config: self.ctx.config,
+            wanted: inputs.wanted,
+            allow_build_policy: self.ctx.allow_build_policy,
+            store_index_writer: self.fetching.store_index_writer,
+            importers: self.importers,
+        }
     }
 
     async fn download_cold<Reporter: self::Reporter>(
@@ -135,6 +147,13 @@ impl<'a> CreateVirtualStore<'a> {
             link_concurrency_probe: self.link_concurrency_probe,
         }
     }
+}
+
+/// The resolution task is never cancelled, so a join error is its panic.
+fn joined_resolution(
+    joined: Result<Option<ResolvedSharedSideEffects>, tokio::task::JoinError>,
+) -> Result<Option<ResolvedSharedSideEffects>, CreateVirtualStoreError> {
+    Ok(joined.unwrap_or_else(|error| std::panic::resume_unwind(error.into_panic())))
 }
 
 /// Spawned rather than joined with the downloads: the cold drain blocks
