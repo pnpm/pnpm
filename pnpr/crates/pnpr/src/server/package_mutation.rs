@@ -189,9 +189,7 @@ async fn rewrite_packument(
                 rollback_hosted_packument(storage, name, &bytes, &hosted_packument.bytes).await;
                 return err.into_response();
             }
-            if let Err(err) = remove_unpublished_blobs(storage, name, &removed).await {
-                return err.into_response();
-            }
+            remove_unpublished_blobs(storage, name, &removed).await;
             log_packument_update(identity, name, source);
             ok_created()
         }
@@ -254,17 +252,22 @@ async fn record_removed_versions_in_tombstone(
 
 /// A rewrite that drops versions deletes their tarballs too: a client that
 /// read the packument from a tar registry has no `dist.tarball` to send the
-/// follow-up tarball DELETE for.
+/// follow-up tarball DELETE for. The versions are already unpublished, so a
+/// blob that fails to go is logged and left for `pnpr verify --prune-orphans`.
 async fn remove_unpublished_blobs(
     storage: &pnpr_storage::Storage,
     name: &CanonicalPackageName,
     removed_versions: &[String],
-) -> Result<(), RegistryError> {
+) {
     for version in removed_versions {
-        storage.remove_blob(name, &name.tarball_name_for_version(version)).await?;
-        storage.remove_blob(name, &name.sigstore_name_for_version(version)).await?;
+        for blob in
+            [name.tarball_name_for_version(version), name.sigstore_name_for_version(version)]
+        {
+            if let Err(err) = storage.remove_blob(name, &blob).await {
+                tracing::warn!(package = %name.as_str(), %blob, %err, "unpublished blob not removed");
+            }
+        }
     }
-    Ok(())
 }
 
 fn new_tombstone_from_hosted(
