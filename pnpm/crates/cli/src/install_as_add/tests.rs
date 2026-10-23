@@ -197,3 +197,20 @@ fn the_short_spellings_stay_with_the_save_target() {
     assert!(!add.include.dev, "-D is --save-dev on add, not --dev");
     assert_eq!(add.dependency_options.save_target(), Some(vec![DependencyGroup::Dev]));
 }
+
+#[test]
+fn an_add_option_before_install_moves_after_the_rewritten_add() {
+    for spelling in ["-D", "-d"] {
+        let args = prepare(&["pnpm", spelling, "install", "vitest"]);
+
+        let CliCommand::Add(add) = args.command else {
+            panic!("expected add for {spelling}");
+        };
+        assert_eq!(selectors(&add), ["vitest"], "{spelling}");
+        assert_eq!(
+            add.dependency_options.save_target(),
+            Some(vec![DependencyGroup::Dev]),
+            "{spelling}",
+        );
+    }
+}

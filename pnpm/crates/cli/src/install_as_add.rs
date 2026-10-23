@@ -9,14 +9,18 @@
 //! Renaming the subcommand token in argv hands the whole command line to
 //! `add`'s grammar, which is the same thing pnpm's own parser does with
 //! it. The scan runs after [`relocate_pre_subcommand_flags`], so an option
-//! written before the subcommand already sits after it and cannot be
-//! mistaken for the package name. The settings extraction ahead of both
-//! resolves the command the same way — see [`subcommand_option_names`].
+//! `install` declares already sits after the subcommand and cannot be
+//! mistaken for the package name. One only `add` declares, such as `-D`
+//! in `pnpm -D install foo`, is relocated once the token names `add`. The
+//! settings extraction ahead of both resolves the command the same way —
+//! see [`subcommand_option_names`].
 //!
 //! [`relocate_pre_subcommand_flags`]: crate::flag_relocation::relocate_pre_subcommand_flags
 //! [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
 
-use crate::flag_relocation::{ArgTable, PositionalScan, find_positional, scan_for_positional};
+use crate::flag_relocation::{
+    ArgTable, PositionalScan, find_positional, relocate_pre_subcommand_flags, scan_for_positional,
+};
 use clap::Command;
 use std::ffi::OsString;
 
@@ -47,7 +51,7 @@ pub(crate) fn rewrite(cmd: &Command, mut argv: Vec<OsString>) -> Vec<OsString> {
         return argv;
     }
     argv[subcommand_index] = OsString::from("add");
-    argv
+    relocate_pre_subcommand_flags(cmd, argv)
 }
 
 #[cfg(test)]
