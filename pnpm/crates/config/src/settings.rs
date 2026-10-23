@@ -651,6 +651,11 @@ pub struct Config {
     /// `namedRegistries` setting.
     pub registries_by_prefix: BTreeMap<String, String>,
 
+    /// The keys of [`Self::registries_by_prefix`] that the project's
+    /// `pnpm-workspace.yaml` declares. A prefix from the global `config.yaml`,
+    /// the environment, or the command line is machine-local.
+    pub workspace_registry_prefixes: BTreeSet<String>,
+
     /// Non-secret per-registry settings from
     /// `pnpm-workspace.yaml#registries`, keyed by registry URL with a
     /// trailing slash. Deliberately separate from the auth config: that one

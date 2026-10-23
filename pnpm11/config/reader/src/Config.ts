@@ -305,6 +305,12 @@ export interface Config extends OptionsFromRootManifest {
    */
   registriesByPrefix?: Record<string, string>
   /**
+   * The keys of {@link registriesByPrefix} that the project's
+   * `pnpm-workspace.yaml` declares. A prefix from the global `config.yaml` or
+   * the command line is machine-local.
+   */
+  workspaceRegistryPrefixes?: string[]
+  /**
    * Non-secret per-registry settings from `pnpm-workspace.yaml`, keyed by
    * normalized registry URL. Deliberately not folded into `configByUri`: that
    * one carries credentials, and the install and lockfile layers that need a

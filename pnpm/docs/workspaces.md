@@ -138,7 +138,7 @@ Will be transformed into:
 }
 ```
 
-If the target package publishes to a registry that a [`prefix`](./registries.md#prefix) is declared for, the replaced specifier carries that prefix. With `foo` publishing to the registry declared as `prefix: work`, `"foo": "workspace:^"` becomes `"foo": "work:^1.5.0"`, and an aliased `"bar": "workspace:foo@*"` becomes `"bar": "work:foo@1.5.0"`. A consumer that installs `foo` through `work:` and through this package then records one lockfile entry for `foo`.
+If the target package publishes to a registry that `pnpm-workspace.yaml` declares a [`prefix`](./registries.md#prefix) for, the replaced specifier carries that prefix. A prefix declared only in the global `config.yaml` is not used. With `foo` publishing to the registry declared as `prefix: work`, `"foo": "workspace:^"` becomes `"foo": "work:^1.5.0"`, and an aliased `"bar": "workspace:foo@*"` becomes `"bar": "work:foo@1.5.0"`. A consumer that installs `foo` through `work:` and through this package then records one lockfile entry for `foo`.
 
 The registry is the one `pnpm publish` would publish the target package to: `publishConfig["@scope:registry"]`, then `publishConfig.registry`, then the registry of the package's scope, then the default registry. Peer dependency ranges stay plain semver ranges. When several prefixes declare the same registry URL, the first in alphabetical order is used.
 
