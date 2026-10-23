@@ -650,7 +650,7 @@ test.each([false, true])('importIndexedDir() keeps unselected internal link targ
   ]), { resolvedFrom: 'local-dir', symlinkTargets: 'internal' })
   expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'directory-link')))).toBe(path.join(dest, 'omitted'))
   if (process.platform !== 'win32' || fs.lstatSync(path.join(dest, 'file-link')).isSymbolicLink()) {
-    expect(fs.readlinkSync(path.join(dest, 'file-link'))).toBe('omitted/file.txt')
+    expect(fs.readlinkSync(path.join(dest, 'file-link'))).toBe(path.join('omitted', 'file.txt'))
   } else {
     expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
   }
