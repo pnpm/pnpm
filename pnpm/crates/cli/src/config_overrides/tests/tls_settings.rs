@@ -60,4 +60,5 @@ fn dotted_tls_settings_override_the_workspace_yaml() {
 
     assert_eq!(config.tls.strict_ssl, Some(false));
     assert_eq!(config.tls.local_address, Some([127, 0, 0, 2].into()));
+    assert_eq!(config.package_manager_bootstrap.tls.strict_ssl, Some(false));
 }
