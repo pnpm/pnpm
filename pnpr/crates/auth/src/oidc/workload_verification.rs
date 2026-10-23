@@ -40,10 +40,10 @@ impl OidcState {
         raw: &str,
     ) -> Result<bool> {
         let metadata = self.metadata(provider, MetadataFreshness::Cached).await?;
-        if verify_workload(&provider.config, &metadata, raw).is_ok() {
+        if verify_workload(&provider.config, &metadata.jwks, raw).is_ok() {
             return Ok(true);
         }
         let refreshed = self.metadata(provider, MetadataFreshness::Refetched).await?;
-        Ok(verify_workload(&provider.config, &refreshed, raw).is_ok())
+        Ok(verify_workload(&provider.config, &refreshed.jwks, raw).is_ok())
     }
 }

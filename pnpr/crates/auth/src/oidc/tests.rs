@@ -11,7 +11,7 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
 use chrono::Utc;
-use openidconnect::core::CoreProviderMetadata;
+use openidconnect::core::CoreJsonWebKeySet;
 use p256::ecdsa::{Signature, SigningKey, signature::Signer as _};
 use pnpr_config::oidc::{
     OidcBinding, OidcGroups, OidcLogin, OidcProvider, OidcTeamGrant, OidcWorkload,
@@ -77,13 +77,21 @@ fn metadata(issuer: &str) -> Value {
         "token_endpoint_auth_methods_supported": ["client_secret_basic"]})
 }
 
+/// The keys GitHub Actions' discovery document publishes: no
+/// `authorization_endpoint` or `token_endpoint`.
+fn workload_only_metadata(issuer: &str) -> Value {
+    json!({"issuer": issuer, "jwks_uri": format!("{issuer}/jwks"),
+        "response_types_supported": ["id_token"], "subject_types_supported": ["public", "pairwise"],
+        "id_token_signing_alg_values_supported": ["RS256"], "scopes_supported": ["openid"],
+        "claims_supported": ["sub", "aud", "exp", "iat", "iss", "repository_id"]})
+}
+
 #[test]
 fn verifies_signature_issuer_audience_and_times() {
     let issuer = "https://issuer.example";
     let config = config(issuer);
-    let metadata: CoreProviderMetadata = serde_json::from_value(metadata(issuer)).unwrap();
-    let metadata = metadata.set_jwks(serde_json::from_value(jwks(&signing_key())).unwrap());
-    verify_workload(&config, &metadata, &sign(&payload(issuer), &signing_key())).unwrap();
+    let keys: CoreJsonWebKeySet = serde_json::from_value(jwks(&signing_key())).unwrap();
+    verify_workload(&config, &keys, &sign(&payload(issuer), &signing_key())).unwrap();
     for (claim, value) in [
         ("iss", json!("https://attacker.example")),
         ("aud", json!("other")),
@@ -96,18 +104,18 @@ fn verifies_signature_issuer_audience_and_times() {
         let mut claims = payload(issuer);
         claims[claim] = value;
         assert!(
-            verify_workload(&config, &metadata, &sign(&claims, &signing_key())).is_err(),
+            verify_workload(&config, &keys, &sign(&claims, &signing_key())).is_err(),
             "accepted {claim}: {claims}",
         );
     }
     let other_key = SigningKey::from_bytes((&[43u8; 32]).into()).unwrap();
-    assert!(verify_workload(&config, &metadata, &sign(&payload(issuer), &other_key)).is_err());
+    assert!(verify_workload(&config, &keys, &sign(&payload(issuer), &other_key)).is_err());
     let unsigned = format!(
         "{}.{}.",
         BASE64_URL_SAFE_NO_PAD.encode(br#"{"alg":"none"}"#),
         BASE64_URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload(issuer)).unwrap()),
     );
-    assert!(verify_workload(&config, &metadata, &unsigned).is_err());
+    assert!(verify_workload(&config, &keys, &unsigned).is_err());
     for missing in ["iss", "aud", "sub", "exp", "iat"] {
         let mut claims = payload(issuer);
         claims
@@ -115,7 +123,7 @@ fn verifies_signature_issuer_audience_and_times() {
             .unwrap()
             .remove(missing);
         assert!(
-            verify_workload(&config, &metadata, &sign(&claims, &signing_key())).is_err(),
+            verify_workload(&config, &keys, &sign(&claims, &signing_key())).is_err(),
             "accepted missing {missing}",
         );
     }
@@ -144,6 +152,7 @@ struct MockProvider {
     key_requests: Mutex<usize>,
     token_requests: Mutex<usize>,
     auth_method: Mutex<String>,
+    workload_only: std::sync::atomic::AtomicBool,
     discovery: DiscoveryGate,
 }
 #[derive(Default)]
@@ -163,11 +172,15 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
         key_requests: Mutex::new(0),
         token_requests: Mutex::new(0),
         auth_method: Mutex::new("client_secret_basic".to_string()),
+        workload_only: std::sync::atomic::AtomicBool::new(false),
         discovery: DiscoveryGate::default(),
     });
     let router = Router::new()
         .route("/.well-known/openid-configuration", get(async |State(state): State<Arc<MockProvider>>| {
                 state.discovery.wait().await;
+                if state.workload_only.load(std::sync::atomic::Ordering::Relaxed) {
+                    return Json(workload_only_metadata(&state.issuer));
+                }
                 let mut document = metadata(&state.issuer);
                 document["token_endpoint_auth_methods_supported"] = json!([*state.auth_method.lock().unwrap()]);
                 Json(document)
@@ -346,6 +359,29 @@ fn sessions_expire_and_configuration_fails_closed() {
 }
 
 #[tokio::test]
+async fn workloads_verify_against_issuers_without_an_authorization_endpoint() {
+    let (provider, task) = mock_provider().await;
+    provider.workload_only.store(true, std::sync::atomic::Ordering::Relaxed);
+    let state = OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap();
+    let token = sign(&payload(&provider.issuer), &provider.key);
+    let workload = state
+        .workload(&token)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(workload.identity.username, "ci");
+    let mut login = config(&provider.issuer);
+    login.login = Some(OidcLogin {
+        client_secret: None,
+        users: vec![login.workloads.remove(0).identity],
+        groups: None,
+    });
+    let state = OidcState::new(&[login], "https://registry.example").unwrap();
+    assert!(state.start("example", LoginReturn::Token).await.is_err());
+    task.abort();
+}
+
+#[tokio::test]
 async fn refresh_is_bounded_and_recovers_after_expiration() {
     let (provider, task) = mock_provider().await;
     let state = OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap();
@@ -369,7 +405,7 @@ async fn refresh_is_bounded_and_recovers_after_expiration() {
 fn verifies_rs256_workload_tokens() {
     use openidconnect::{
         PrivateSigningKey as _,
-        core::{CoreJsonWebKeySet, CoreJwsSigningAlgorithm, CoreRsaPrivateSigningKey},
+        core::{CoreJwsSigningAlgorithm, CoreRsaPrivateSigningKey},
     };
     let key = CoreRsaPrivateSigningKey::from_pem(
         include_str!("../../tests/fixtures/oidc-test-key.pem"),
@@ -377,15 +413,14 @@ fn verifies_rs256_workload_tokens() {
     )
     .unwrap();
     let issuer = "https://token.actions.githubusercontent.com";
-    let metadata: CoreProviderMetadata = serde_json::from_value(metadata(issuer)).unwrap();
-    let metadata = metadata.set_jwks(CoreJsonWebKeySet::new(vec![key.as_verification_key()]));
+    let keys = CoreJsonWebKeySet::new(vec![key.as_verification_key()]);
     let header = BASE64_URL_SAFE_NO_PAD.encode(br#"{"alg":"RS256"}"#);
     let payload = BASE64_URL_SAFE_NO_PAD.encode(serde_json::to_vec(&payload(issuer)).unwrap());
     let message = format!("{header}.{payload}");
     let signature =
         key.sign(&CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256, message.as_bytes()).unwrap();
     let token = format!("{message}.{}", BASE64_URL_SAFE_NO_PAD.encode(signature));
-    verify_workload(&config(issuer), &metadata, &token).unwrap();
+    verify_workload(&config(issuer), &keys, &token).unwrap();
 }
 
 #[tokio::test]

@@ -3,8 +3,12 @@
 //! how often a failed discovery is retried.
 
 use super::{
-    CoreProviderMetadata, Duration, Instant, IssuerUrl, OidcState, Provider, Result, rejected,
-    secure_url, unavailable,
+    CoreJsonWebKeySet, CoreProviderMetadata, Deserialize, Duration, Instant, IssuerUrl,
+    JsonWebKeySetUrl, OidcState, Provider, Result, rejected, secure_url, unavailable,
+};
+use openidconnect::{
+    AsyncHttpClient as _,
+    http::{Method, Request, StatusCode, header::ACCEPT},
 };
 
 const METADATA_TTL: Duration = Duration::from_mins(5);
@@ -19,9 +23,26 @@ pub(super) enum MetadataFreshness {
     Refetched,
 }
 
+/// A provider's discovered metadata. Workload verification needs only the
+/// signing keys, so issuers without an interactive flow, such as GitHub
+/// Actions, need not publish an `authorization_endpoint`.
+#[derive(Clone)]
+pub(super) struct ProviderMetadata {
+    pub(super) jwks: CoreJsonWebKeySet,
+    /// The full metadata, present only for a provider with `login` configured.
+    pub(super) login: Option<CoreProviderMetadata>,
+}
+
+/// The discovery document fields every provider must publish.
+#[derive(Deserialize)]
+struct SigningKeysDocument {
+    issuer: IssuerUrl,
+    jwks_uri: JsonWebKeySetUrl,
+}
+
 #[derive(Default)]
 pub(super) struct MetadataCache {
-    pub(super) value: Option<(Instant, CoreProviderMetadata)>,
+    pub(super) value: Option<(Instant, ProviderMetadata)>,
     pub(super) attempted_at: Option<Instant>,
 }
 
@@ -30,7 +51,7 @@ impl OidcState {
         &self,
         provider: &Provider,
         freshness: MetadataFreshness,
-    ) -> Result<CoreProviderMetadata> {
+    ) -> Result<ProviderMetadata> {
         let cached = cached_metadata(&*provider.metadata.lock().await, freshness);
         if let Some(metadata) = cached {
             return Ok(metadata);
@@ -46,22 +67,54 @@ impl OidcState {
             }
             cache.attempted_at = Some(Instant::now());
         }
-        let issuer = IssuerUrl::new(provider.config.issuer.clone()).map_err(|_| rejected())?;
-        let metadata =
-            CoreProviderMetadata::discover_async(issuer, self).await.map_err(|_| unavailable())?;
-        secure_url(metadata.authorization_endpoint().as_str())?;
-        if let Some(endpoint) = metadata.token_endpoint() {
-            secure_url(endpoint.as_str())?;
-        }
+        let metadata = self.discover(provider).await?;
         provider.metadata.lock().await.value = Some((Instant::now(), metadata.clone()));
         Ok(metadata)
     }
+
+    async fn discover(&self, provider: &Provider) -> Result<ProviderMetadata> {
+        let issuer = IssuerUrl::new(provider.config.issuer.clone()).map_err(|_| rejected())?;
+        let url = issuer.join(".well-known/openid-configuration").map_err(|_| rejected())?;
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(url.as_str())
+            .header(ACCEPT, "application/json")
+            .body(Vec::new())
+            .map_err(|_| unavailable())?;
+        let response = self.call(request).await?;
+        if response.status() != StatusCode::OK {
+            return Err(unavailable());
+        }
+        let document: SigningKeysDocument =
+            serde_json::from_slice(response.body()).map_err(|_| unavailable())?;
+        if document.issuer != issuer {
+            return Err(unavailable());
+        }
+        let jwks = CoreJsonWebKeySet::fetch_async(&document.jwks_uri, self)
+            .await
+            .map_err(|_| unavailable())?;
+        let login = match provider.config.login {
+            Some(_) => Some(login_metadata(response.body(), jwks.clone())?),
+            None => None,
+        };
+        Ok(ProviderMetadata { jwks, login })
+    }
+}
+
+fn login_metadata(document: &[u8], jwks: CoreJsonWebKeySet) -> Result<CoreProviderMetadata> {
+    let metadata: CoreProviderMetadata =
+        serde_json::from_slice(document).map_err(|_| unavailable())?;
+    secure_url(metadata.authorization_endpoint().as_str())?;
+    if let Some(endpoint) = metadata.token_endpoint() {
+        secure_url(endpoint.as_str())?;
+    }
+    Ok(metadata.set_jwks(jwks))
 }
 
 fn cached_metadata(
     cache: &MetadataCache,
     freshness: MetadataFreshness,
-) -> Option<CoreProviderMetadata> {
+) -> Option<ProviderMetadata> {
     let unexpired = cache.value
         .as_ref()
         .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL);
