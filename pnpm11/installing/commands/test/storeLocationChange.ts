@@ -69,3 +69,22 @@ test('a recursive install records the configured storeDir, not the default store
 function readRecordedStoreDir (): string | undefined {
   return loadJsonFileSync<{ settings: { storeDir?: string } }>(path.resolve('node_modules/.pnpm-workspace-state-v1.json')).settings.storeDir
 }
+
+test('a project with its own lockfile records a relative storeDir as the store it was linked from', async () => {
+  preparePackages([
+    { name: 'project-1', version: '1.0.0' },
+  ])
+  const workspaceDir = process.cwd()
+  process.chdir('project-1')
+  await add.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    storeDir: 'store',
+    workspaceDir,
+  }, ['is-positive@1.0.0'])
+
+  const modules = loadJsonFileSync<{ storeDir: string }>(path.resolve('node_modules/.modules.yaml'))
+  expect(modules.storeDir).toBe(path.join(workspaceDir, 'store', STORE_VERSION))
+  expect(readRecordedStoreDir()).toBe(modules.storeDir)
+})

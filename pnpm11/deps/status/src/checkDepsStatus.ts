@@ -11,6 +11,7 @@ import { checkRootProjectDepsStatus } from './checkRootProjectDepsStatus.js'
 import { checkWorkspaceDepsStatus } from './checkWorkspaceDepsStatus.js'
 import { findLocalFileDepsIssue } from './findLocalFileDepsIssue.js'
 import { outdatedResult } from './outdatedResult.js'
+import { storeBaseDir } from './storeBaseDir.js'
 import type { CheckDepsStatusOptions, CheckDepsStatusResult } from './types.js'
 import { getWantedLockfileDirs, scanWantedLockfiles } from './wantedLockfiles.js'
 
@@ -149,7 +150,11 @@ function findSettingsIssue (opts: CheckDepsStatusOptions, workspaceState: Worksp
 }
 
 function findChangedSetting (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
-  const storeLocation: Partial<WorkspaceStateSettings> = resolveStoreLocationSettings(opts, workspaceStateDir(opts))
+  const stateDir = workspaceStateDir(opts)
+  const storeLocation: Partial<WorkspaceStateSettings> = resolveStoreLocationSettings(opts, {
+    stateDir,
+    storeBaseDir: storeBaseDir(opts, stateDir),
+  })
   const ignoredSettings = new Set<keyof WorkspaceStateSettings>(opts.ignoredWorkspaceStateSettings)
   ignoredSettings.add('catalogs')
   for (const settingName of WORKSPACE_STATE_SETTING_KEYS) {

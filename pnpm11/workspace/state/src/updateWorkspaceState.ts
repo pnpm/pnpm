@@ -19,6 +19,8 @@ export interface UpdateWorkspaceStateOptions {
   allProjects: ProjectsList
   settings: WorkspaceStateSettings
   workspaceDir: string
+  /** The directory a relative `storeDir` resolves against. Defaults to `workspaceDir`. */
+  storeBaseDir?: string
   pnpmfiles: string[]
   filteredInstall: boolean
   configDependencies?: ConfigDependencies
@@ -57,7 +59,10 @@ export async function updateWorkspaceState (opts: UpdateWorkspaceStateOptions): 
   logger.debug({ msg: 'updating workspace state' })
   const workspaceState = createWorkspaceState({
     ...opts,
-    settings: { ...opts.settings, ...resolveStoreLocationSettings(opts.settings, opts.workspaceDir) },
+    settings: { ...opts.settings, ...resolveStoreLocationSettings(opts.settings, {
+      stateDir: opts.workspaceDir,
+      storeBaseDir: opts.storeBaseDir ?? opts.workspaceDir,
+    }) },
   })
   const cacheFile = getFilePath(opts.workspaceDir)
   const cacheDir = path.dirname(cacheFile)
