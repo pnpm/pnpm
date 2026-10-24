@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+
+import { isError } from '@pnpm/error'
 import type { ProjectManifest } from '@pnpm/types'
 
 /** One workspace project, as the lookup records it. */
@@ -29,9 +32,11 @@ export type WorkspacePackageLookup =
  * when none is at that version; several projects of the name and no match
  * answer nothing, since a guess would send a consumer to another project's
  * registry. Without `version`, the first project of the name with a version,
- * else the first, so that a missing version can be reported.
+ * else the first, so that a missing version can be reported. With
+ * `dependencyDir`, the project that directory resolves to comes first when
+ * several projects carry the name, since they may share a version.
  */
-export type WorkspacePackageGetter = (depName: string, version?: string) => WorkspacePackageEntry | undefined
+export type WorkspacePackageGetter = (depName: string, version?: string, dependencyDir?: string) => WorkspacePackageEntry | undefined
 
 export function buildWorkspaceManifestGetter (
   workspacePackages?: WorkspacePackageLookup
@@ -45,19 +50,44 @@ export function buildWorkspaceManifestGetter (
   }
   const byName = new Map<string, WorkspacePackageEntry[]>()
   collectWorkspaceEntries(workspacePackages, byName)
-  return (depName: string, version?: string) => selectWorkspacePackage(byName.get(depName), version)
+  return (depName: string, version?: string, dependencyDir?: string) =>
+    selectWorkspacePackage(byName.get(depName), version, dependencyDir)
 }
 
 function selectWorkspacePackage (
   projects: WorkspacePackageEntry[] | undefined,
-  version: string | undefined
+  version: string | undefined,
+  dependencyDir: string | undefined
 ): WorkspacePackageEntry | undefined {
   if (projects == null) return undefined
+  if (dependencyDir != null && projects.length > 1) {
+    const projectInDir = findProjectInDirectory(projects, dependencyDir)
+    if (projectInDir != null) return projectInDir
+  }
   if (version == null) {
     return projects.find((project) => project.manifest.name && project.manifest.version) ?? projects[0]
   }
   return projects.find((project) => project.manifest.version === version) ??
     (projects.length === 1 ? projects[0] : undefined)
+}
+
+/** The project whose directory `dependencyDir` resolves to, through a `node_modules` symlink or a relative path. */
+function findProjectInDirectory (
+  projects: WorkspacePackageEntry[],
+  dependencyDir: string
+): WorkspacePackageEntry | undefined {
+  const target = realpathIfExists(dependencyDir)
+  if (target == null) return undefined
+  return projects.find((project) => project.rootDir != null && realpathIfExists(project.rootDir) === target)
+}
+
+function realpathIfExists (dir: string): string | undefined {
+  try {
+    return fs.realpathSync(dir)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return undefined
+    throw err
+  }
 }
 
 function collectWorkspaceEntries (
