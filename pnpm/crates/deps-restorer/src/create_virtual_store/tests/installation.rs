@@ -166,7 +166,10 @@ async fn shared_store_context_materializes_a_warm_package() {
     writer_task.await.expect("join store-index writer").expect("flush store-index writer");
 
     assert_eq!(output.requires_build_by_snapshot.get(&package_key), Some(&false));
-    assert_eq!(output.materialized_snapshots.as_slice(), std::slice::from_ref(&package_key));
+    assert_eq!(
+        output.snapshot_selection.materialized.as_slice(),
+        std::slice::from_ref(&package_key),
+    );
     let installed_body = layout
         .slot_dir(&package_key)
         .join("node_modules")

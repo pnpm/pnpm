@@ -16,9 +16,42 @@ mod downloads;
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{LockfileEntries, PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
-use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache};
 use pnpm_tarball::PrefetchResult;
 use std::{collections::HashMap, path::Path};
+
+struct CasHandoffTemplate {
+    store_index: Option<pnpm_store_dir::SharedReadonlyStoreIndex>,
+    verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache,
+    cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+}
+
+impl CasHandoffTemplate {
+    fn new(prefetch: &CasPrefetch, snapshots: &HashMap<PackageKey, SnapshotEntry>) -> Self {
+        Self {
+            store_index: prefetch.store_index.clone(),
+            verified_files_cache: pnpm_store_dir::SharedVerifiedFilesCache::clone(
+                &prefetch.verified_files_cache,
+            ),
+            cache_keys: retained_cache_keys(&prefetch.cache_keys, snapshots),
+        }
+    }
+
+    fn into_prefetch(
+        self,
+        retained: &HashMap<PackageKey, SnapshotEntry>,
+        mut rows: PrefetchResult,
+        output: &CreateVirtualStoreOutput,
+    ) -> CasPrefetch {
+        let cache_keys = retained_cache_keys(&self.cache_keys, retained);
+        retain_fetch_pass_rows(&mut rows, &cache_keys, output);
+        CasPrefetch {
+            store_index: self.store_index,
+            verified_files_cache: self.verified_files_cache,
+            cache_keys,
+            task: PrefetchTask::Settled(Box::new(rows)),
+        }
+    }
+}
 
 impl<'a> CreateVirtualStore<'a> {
     /// Execute the subroutine. Returns the set of bundled manifests
@@ -45,8 +78,8 @@ impl<'a> CreateVirtualStore<'a> {
             return Ok((nothing_to_materialize(self.is_hoisted()), None));
         };
         let (prefetch, marker_source) = self.prefetch_and_prepare_store(wanted, check).await?;
-        let retained_keys =
-            retained.map(|snapshots| retained_cache_keys(&prefetch.cache_keys, snapshots));
+        let handoff_template =
+            retained.map(|_| CasHandoffTemplate::new(&prefetch, wanted.snapshots));
         let mut plan = self.plan::<Reporter>(wanted, prefetch.cache_keys)?;
         let planned = plan.survivors.len();
         let prefetched = run_checked(
@@ -72,13 +105,10 @@ impl<'a> CreateVirtualStore<'a> {
         )
         .await?;
         self.report_added::<Reporter>(planned.saturating_sub(output.fetch_failed.len()));
-        let handoff = retained_keys.map(|cache_keys| {
-            retained_handoff(
-                (prefetch.store_index, prefetch.verified_files_cache),
-                prefetched,
-                cache_keys,
-                &output,
-            )
+        let handoff = retained.map(|retained| {
+            handoff_template
+                .expect("retained prefetch template")
+                .into_prefetch(retained, prefetched, &output)
         });
         Ok((output, handoff))
     }
@@ -192,12 +222,12 @@ impl<'a> CreateVirtualStore<'a> {
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
             package_bins: partition.package_bins,
-            side_effects_maps_by_snapshot: partition.side_effects.maps,
-            side_effects_by_snapshot: partition.side_effects.diffs,
+            side_effects: partition.side_effects.into(),
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
-            materialized_snapshots: plan.materialized_keys(),
+            snapshot_selection: super::SnapshotSelection::materialized(plan.materialized_keys()),
             fetch_failed,
             cas_paths_by_pkg_id: indexes.by_pkg_id,
+            cas_paths_by_snapshot: None,
         })
     }
 
@@ -340,24 +370,5 @@ impl<'a> CreateVirtualStore<'a> {
                 template: &links.template,
             },
         )
-    }
-}
-
-/// The settled prefetch of the retained snapshots, for a later pass.
-fn retained_handoff(
-    (store_index, verified_files_cache): (
-        Option<SharedReadonlyStoreIndex>,
-        SharedVerifiedFilesCache,
-    ),
-    mut rows: PrefetchResult,
-    cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
-    output: &CreateVirtualStoreOutput,
-) -> CasPrefetch {
-    retain_fetch_pass_rows(&mut rows, &cache_keys, output);
-    CasPrefetch {
-        store_index,
-        verified_files_cache,
-        cache_keys,
-        task: PrefetchTask::Settled(Box::new(rows)),
     }
 }

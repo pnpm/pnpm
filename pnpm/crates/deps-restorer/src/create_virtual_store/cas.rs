@@ -1,3 +1,7 @@
+mod cached_builds;
+mod capabilities;
+mod temporary_builds;
+
 use super::{
     ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
     SnapshotCacheKey, cas_paths_key, settle_check,
@@ -39,31 +43,139 @@ impl CreateVirtualStore<'_> {
         check: &mut Option<ConcurrentCheck<'_>>,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         validate_config(self.ctx.config)?;
-        let selected = self.ctx
+        let mut selected = self.ctx
             .select_loaded_snapshots(self.entries.snapshots)
-            .expect("loaded linker selection");
+            .expect("loaded linker selection")
+            .clone();
         let fetch_context = crate::InstallContext {
             linker: crate::ModuleLinkerContext { kind: NodeLinker::Hoisted, ..self.ctx.linker },
             ..self.ctx.clone()
         };
-        let materialize_context = crate::InstallContext {
-            linker: crate::ModuleLinkerContext { kind: NodeLinker::Isolated, ..self.ctx.linker },
-            ..self.ctx.clone()
-        };
+        let materialize_context = self.ctx;
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
-        let materialized_snapshots = (!selected.is_empty()).then_some(selected);
-        let (fetched, prefetch) =
-            installer.run_retaining::<Report>(materialized_snapshots, check).await?;
-        validate_cas_builds(&fetched, selected, installer.ctx.config)?;
-        installer.ctx = &materialize_context;
-        installer.entries.snapshots = materialized_snapshots;
+        let (mut fetched, prefetch) =
+            installer.run_retaining::<Report>(installer.entries.snapshots, check).await?;
+        let physical = prepare_loaded_packages(
+            &mut selected,
+            installer.entries.snapshots,
+            installer.entries.packages,
+            &mut fetched,
+            installer.ctx,
+        )?;
         installer.fetching.cas_prefetch = prefetch;
-        let mut materialized = installer.run_inner::<Report>(check).await?;
-        materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
-        materialized.package_manifests.extend(fetched.package_manifests);
-        materialized.package_bins.extend(fetched.package_bins);
-        materialized.fetch_failed.extend(fetched.fetch_failed);
-        Ok(materialized)
+        let promoted = temporary_builds::build::<Report>(
+            &mut installer,
+            &mut selected,
+            &mut fetched,
+            &physical,
+            check,
+        )
+        .await?;
+        materialize_loaded::<Report>(
+            installer,
+            materialize_context,
+            &selected,
+            promoted,
+            fetched,
+            check,
+        )
+        .await
+    }
+}
+
+pub(super) fn retain_native_addon_packages(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    fetched: &CreateVirtualStoreOutput,
+) {
+    let Some(snapshots) = snapshots else { return };
+    let Some(cas_paths) = fetched.cas_paths_by_pkg_id.as_ref() else { return };
+    let roots = snapshots
+        .keys()
+        .filter(|key| {
+            cas_paths
+                .get(&cas_paths_key(key))
+                .is_some_and(|files| {
+                    files.cas_paths
+                        .keys()
+                        .any(|path| path.ends_with(".node"))
+                })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    retain_dependency_closure(selected, snapshots, roots);
+}
+
+fn prepare_loaded_packages(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, pnpm_lockfile::PackageMetadata>>,
+    fetched: &mut CreateVirtualStoreOutput,
+    context: &crate::InstallContext<'_>,
+) -> Result<HashSet<PackageKey>, CreateVirtualStoreError> {
+    let mut cached_builds = cached_builds::retain(selected, snapshots, packages, fetched, context);
+    fetched.cas_paths_by_snapshot = cached_build_maps(fetched, &cached_builds);
+    retain_native_addon_packages(selected, snapshots, fetched);
+    capabilities::retain_filesystem_packages(selected, snapshots, fetched)?;
+    let physical = selected.keys().cloned().collect();
+    retain_build_misses(selected, snapshots, fetched, &cached_builds);
+    cached_builds.retain(|key, _| !selected.contains_key(key));
+    fetched.cas_paths_by_snapshot = cached_build_maps(fetched, &cached_builds);
+    validate_cas_builds(fetched, selected, &cached_builds, context.config)?;
+    Ok(physical)
+}
+
+fn retain_build_misses(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    fetched: &CreateVirtualStoreOutput,
+    cached: &HashMap<PackageKey, String>,
+) {
+    let Some(snapshots) = snapshots else { return };
+    let roots = fetched.requires_build_by_snapshot
+        .iter()
+        .filter(|(key, requires_build)| **requires_build && !cached.contains_key(*key))
+        .map(|(key, _)| key.clone())
+        .collect();
+    retain_dependency_closure(selected, snapshots, roots);
+}
+
+fn cached_build_maps(
+    fetched: &CreateVirtualStoreOutput,
+    cached: &HashMap<PackageKey, String>,
+) -> Option<crate::CasPathsBySnapshot> {
+    let mut maps = HashMap::new();
+    for (key, cache_key) in cached {
+        let Some(overlay) = fetched.side_effects.maps
+            .get(key)
+            .and_then(|overlays| overlays.get(cache_key))
+        else {
+            continue;
+        };
+        maps.insert(key.clone(), Arc::new(overlay.files.clone()));
+    }
+    (!maps.is_empty()).then_some(maps)
+}
+
+fn retain_dependency_closure(
+    selected: &mut HashMap<PackageKey, SnapshotEntry>,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+    roots: Vec<PackageKey>,
+) {
+    let mut pending = roots;
+    while let Some(key) = pending.pop() {
+        if selected.contains_key(&key) {
+            continue;
+        }
+        let Some(snapshot) = snapshots.get(&key) else { continue };
+        pending.extend(
+            snapshot.dependencies
+                .iter()
+                .flatten()
+                .chain(snapshot.optional_dependencies.iter().flatten())
+                .filter_map(|(alias, reference)| reference.resolve(alias)),
+        );
+        selected.insert(key, snapshot.clone());
     }
 }
 
@@ -163,7 +275,7 @@ pub(crate) fn materialized_snapshots(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
 ) -> HashMap<PackageKey, SnapshotEntry> {
     let Some(snapshots) = snapshots else { return HashMap::new() };
-    let mut pending: Vec<_> = snapshots
+    let pending: Vec<_> = snapshots
         .keys()
         .filter(|key| {
             config.node_linker_excluded.contains(&key.name.to_string())
@@ -173,37 +285,22 @@ pub(crate) fn materialized_snapshots(
         })
         .cloned()
         .collect();
-    let mut selected = HashSet::new();
-    while let Some(key) = pending.pop() {
-        if !selected.insert(key.clone()) {
-            continue;
-        }
-        let Some(snapshot) = snapshots.get(&key) else { continue };
-        pending.extend(
-            snapshot.dependencies
-                .iter()
-                .flatten()
-                .chain(snapshot.optional_dependencies.iter().flatten())
-                .filter_map(|(alias, reference)| reference.resolve(alias)),
-        );
-    }
-    snapshots
-        .iter()
-        .filter(|(key, _)| selected.contains(*key))
-        .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
-        .collect()
+    let mut selected = HashMap::new();
+    retain_dependency_closure(&mut selected, snapshots, pending);
+    selected
 }
 
 fn validate_cas_builds(
     fetched: &CreateVirtualStoreOutput,
     selected: &HashMap<PackageKey, SnapshotEntry>,
+    cached: &HashMap<PackageKey, String>,
     config: &pnpm_config::Config,
 ) -> Result<(), CreateVirtualStoreError> {
     if config.ignore_scripts {
         return Ok(());
     }
     for (key, requires_build) in &fetched.requires_build_by_snapshot {
-        if *requires_build && !selected.contains_key(key) {
+        if *requires_build && !selected.contains_key(key) && !cached.contains_key(key) {
             return Err(CreateVirtualStoreError::CasRequiresMaterialization {
                 package: key.name.to_string(),
             });
@@ -226,4 +323,40 @@ fn validate_config(config: &pnpm_config::Config) -> Result<(), CreateVirtualStor
         Some(message) => Err(CreateVirtualStoreError::CasConfiguration { message }),
         None => Ok(()),
     }
+}
+
+async fn materialize_loaded<Report: Reporter>(
+    installer: CreateVirtualStore<'_>,
+    context: &crate::InstallContext<'_>,
+    selected: &HashMap<PackageKey, SnapshotEntry>,
+    promoted: HashSet<PackageKey>,
+    fetched: CreateVirtualStoreOutput,
+    check: &mut Option<ConcurrentCheck<'_>>,
+) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
+    let context = crate::InstallContext {
+        linker: crate::ModuleLinkerContext { kind: NodeLinker::Isolated, ..context.linker },
+        ..context.clone()
+    };
+    let pending = selected
+        .iter()
+        .filter(|(key, _)| !promoted.contains(*key))
+        .map(|(key, snapshot)| (key.clone(), snapshot.clone()))
+        .collect::<HashMap<_, _>>();
+    let mut installer = CreateVirtualStore {
+        ctx: &context,
+        entries: pnpm_lockfile::LockfileEntries {
+            snapshots: (!pending.is_empty()).then_some(&pending),
+            ..installer.entries
+        },
+        ..installer
+    };
+    let mut materialized = installer.run_inner::<Report>(check).await?;
+    materialized.snapshot_selection.materialized.extend(promoted);
+    materialized.snapshot_selection.loaded = Some(selected.keys().cloned().collect());
+    materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
+    materialized.cas_paths_by_snapshot = fetched.cas_paths_by_snapshot;
+    materialized.package_manifests.extend(fetched.package_manifests);
+    materialized.package_bins.extend(fetched.package_bins);
+    materialized.fetch_failed.extend(fetched.fetch_failed);
+    Ok(materialized)
 }

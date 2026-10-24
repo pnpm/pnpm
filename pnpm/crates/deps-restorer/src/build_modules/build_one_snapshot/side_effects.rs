@@ -274,12 +274,12 @@ pub(super) fn upload_side_effects_cache(
     if (!upload.is_patched && !upload.has_side_effects) || context.cache.frozen_store {
         return;
     }
-    let (Some(writer), Some(store), Some(cache_key), Some(packages)) = (
-        context.cache.store_index_writer,
-        context.cache.store_dir,
-        upload.cache_key,
-        context.graph.packages,
-    ) else {
+    let (
+        Some(crate::BuildCacheStore { directory: store, writer }),
+        Some(cache_key),
+        Some(packages),
+    ) = (context.cache.store, upload.cache_key, context.graph.packages)
+    else {
         return;
     };
     let Some(metadata) = packages.get(upload.metadata_key) else { return };
@@ -324,9 +324,9 @@ pub(super) fn upload_and_publish(
 ) -> Result<(), pnpm_store_dir::UploadError> {
     let (store, writer, files_index_file, cache_key) = store;
     let (upload, metadata) = uploaded;
-    let Some(publisher) = context.cache.publisher else {
+    if context.cache.publisher.is_none() && context.cache.captured.is_none() {
         return pnpm_store_dir::upload(store, upload.pkg_dir, files_index_file, cache_key, writer);
-    };
+    }
     let diff = pnpm_store_dir::upload_with_diff(
         store,
         upload.pkg_dir,
@@ -334,9 +334,11 @@ pub(super) fn upload_and_publish(
         cache_key,
         writer,
     )?;
+    capture(context.cache.captured, snapshot_key, cache_key, diff.as_ref());
     if upload.has_side_effects
         && let Some(diff) = diff
         && let Some(graph) = context.progress.dep_graph
+        && let Some(publisher) = context.cache.publisher
         && let Err(error) = publisher.publish(
             snapshot_key,
             metadata,
@@ -354,4 +356,24 @@ pub(super) fn upload_and_publish(
         );
     }
     Ok(())
+}
+
+fn capture(
+    captured: Option<&crate::CapturedBuildSideEffects>,
+    snapshot_key: &PackageKey,
+    cache_key: &str,
+    diff: Option<&pnpm_store_dir::SideEffectsDiff>,
+) {
+    if let Some(captured) = captured {
+        captured
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(
+                snapshot_key.clone(),
+                crate::build_options::BuiltSideEffects {
+                    cache_key: cache_key.to_string(),
+                    diff: diff.cloned(),
+                },
+            );
+    }
 }
