@@ -174,7 +174,7 @@ fn cached_skills(
     match probe_package(dir) {
         Probe::Absent => None,
         Probe::Found(found) => {
-            if found.is_some() {
+            if found.is_some() && fs::canonicalize(dir).is_ok_and(|resolved| resolved.is_dir()) {
                 cache.insert(key, found.clone());
             }
             found
