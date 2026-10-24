@@ -4,6 +4,7 @@
 //! no hard link to the store, so `store prune` needs this list to keep it.
 
 use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
+use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pnpm_modules_yaml::{Host, read_modules_layout};
 use pnpm_store_dir::{
@@ -17,8 +18,9 @@ use std::{
 
 /// Every file of the store index rows of the packages in each registered
 /// project's current lockfile, including the files of every side-effects
-/// entry. A project without a current lockfile and a package without a row
-/// add nothing. A registry error keeps its own code, and any other
+/// entry. A project without a current lockfile, a project whose lockfile
+/// version this pnpm does not support, and a package without a row add
+/// nothing. A registry error keeps its own code, and any other
 /// failure is [`PruneError::InUseFiles`].
 pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, PruneError> {
     if !StoreIndex::exists(store_dir.root()) {
@@ -26,6 +28,8 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
     }
     let mut keys = HashSet::new();
     for project in get_registered_projects(store_dir).map_err(PruneError::ListProjects)? {
+        // The registry joins a relative link target without normalizing it.
+        let project = lexical_normalize(&project);
         for lockfile in load_installed_lockfiles(&project).map_err(PruneError::InUseFiles)? {
             keys.extend(package_index_keys(&lockfile).map_err(PruneError::InUseFiles)?);
         }
@@ -63,13 +67,33 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
         .filter(|dir| *dir != default_dir);
     let mut lockfiles = Vec::new();
     for install_state_dir in iter::once(default_dir).chain(virtual_store_dir) {
-        let lockfile = Lockfile::load_current_from_install_state_dir(&install_state_dir)
-            .map_err(|error| {
-                io::Error::other(format!("{}: {error}", install_state_dir.display()))
-            })?;
-        lockfiles.extend(lockfile);
+        lockfiles.extend(load_installed_lockfile(project, &install_state_dir)?);
     }
     Ok(lockfiles)
+}
+
+/// A lockfile of a version this pnpm cannot read adds nothing, like a
+/// missing one, so one project installed by another pnpm does not stop the
+/// prune. A pnpm with another lockfile format keeps its files in another
+/// store directory.
+fn load_installed_lockfile(
+    project: &Path,
+    install_state_dir: &Path,
+) -> io::Result<Option<Lockfile>> {
+    let error = match Lockfile::load_current_from_install_state_dir(install_state_dir) {
+        Ok(lockfile) => return Ok(lockfile),
+        Err(error) => error,
+    };
+    let lockfile_path = install_state_dir.join(Lockfile::CURRENT_FILE_NAME);
+    if let Ok(Some(version)) = Lockfile::unsupported_version_at(&lockfile_path) {
+        pnpm_diagnostics::eprintln!(
+            "Skipped {} because it was installed with lockfileVersion {version}, \
+             which this version of pnpm does not support",
+            project.display(),
+        );
+        return Ok(None);
+    }
+    Err(io::Error::other(format!("{}: {error}", install_state_dir.display())))
 }
 
 fn package_index_keys(lockfile: &Lockfile) -> io::Result<Vec<String>> {

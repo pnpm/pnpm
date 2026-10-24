@@ -285,6 +285,57 @@ fn store_prune_keeps_a_runtime_installed_by_copy() {
     assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed the runtime's files");
 }
 
+/// A lockfile written by a pnpm that uses another lockfile format, such as
+/// pnpm 8.
+const LOCKFILE_V6: &str = "lockfileVersion: '6.0'
+
+dependencies:
+  is-positive:
+    specifier: 1.0.0
+    version: 1.0.0
+
+packages:
+
+  /is-positive@1.0.0:
+    resolution: {integrity: sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==}
+    dev: false
+";
+
+#[test]
+fn store_prune_skips_an_installed_lockfile_of_an_unsupported_version_with_a_warning() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance: _mock_instance, .. } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    fs::write(workspace.join("node_modules/.pnpm/lock.yaml"), LOCKFILE_V6)
+        .expect("write the old lockfile");
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(output.status.success(), "store prune failed: {stderr}");
+    let expected = format!(
+        "Skipped {} because it was installed with lockfileVersion 6.0, \
+         which this version of pnpm does not support",
+        dunce::canonicalize(&workspace).expect("canonicalize the workspace").display(),
+    );
+    let warnings: Vec<_> = stderr
+        .lines()
+        .filter(|line| line.contains("lockfileVersion"))
+        .collect();
+    assert_eq!(warnings, [expected.as_str()]);
+}
+
 #[test]
 fn store_prune_fails_on_a_broken_installed_lockfile_and_removes_nothing() {
     assert_prune_fails_on_a_broken_file_and_removes_nothing(
