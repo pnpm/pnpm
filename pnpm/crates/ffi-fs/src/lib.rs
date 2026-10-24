@@ -18,13 +18,15 @@
 #[cfg(target_os = "android")]
 pub use advisory_lock::{AdvisoryLock, Blocking, lock_file};
 pub use confined_open::open_directory_beneath;
+#[cfg(unix)]
+pub use dir_entries::directory_entry_names;
 #[cfg(all(unix, not(target_os = "linux")))]
 pub use dir_handle::set_mode_at;
 #[cfg(unix)]
 pub use dir_handle::{
     DirectoryAccess, create_directory_at, create_file_at, open_directory_at,
     open_directory_for_traversal, open_file_at, open_file_at_without_blocking,
-    open_search_directory, read_link_at, rename_at, symlink_at, unlink_at,
+    open_search_directory, read_link_at, remove_directory_at, rename_at, symlink_at, unlink_at,
 };
 pub use exchange::exchange_dirents;
 #[cfg(unix)]
@@ -48,6 +50,8 @@ pub use windows_file::{
 #[cfg(target_os = "android")]
 mod advisory_lock;
 mod confined_open;
+#[cfg(unix)]
+mod dir_entries;
 #[cfg(unix)]
 mod dir_handle;
 mod exchange;

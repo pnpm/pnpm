@@ -140,6 +140,19 @@ pub fn unlink_at(parent: &File, name: &OsStr) -> io::Result<()> {
     if unlinked == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
 }
 
+/// Remove the directory `name` inside `parent`, which has to be empty.
+///
+/// The counterpart of [`unlink_at`], which removes everything else: the two
+/// flag words `unlinkat` takes are the only difference between them.
+pub fn remove_directory_at(parent: &File, name: &OsStr) -> io::Result<()> {
+    let name = entry_name(name)?;
+    // SAFETY: `name` is NUL-terminated and borrowed for the whole call, and
+    // the `&File` keeps the parent descriptor open across it. `AT_REMOVEDIR`
+    // is the directory-removal form, which refuses anything else.
+    let removed = unsafe { libc::unlinkat(parent.as_raw_fd(), name.as_ptr(), libc::AT_REMOVEDIR) };
+    if removed == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+}
+
 /// Create a symlink at `name` inside `parent`, pointing at `target`.
 ///
 /// `target` is stored as given, so a relative one resolves against
