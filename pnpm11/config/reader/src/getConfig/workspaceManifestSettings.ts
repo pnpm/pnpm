@@ -23,6 +23,11 @@ export interface WorkspaceManifestSettingsOptions {
   workspaceManifest: WorkspaceManifest
 }
 
+/**
+ * Applies the manifest's settings and answers the registry prefixes it
+ * declares, read after an entry the manifest may not contribute, such as one
+ * whose URL holds an env placeholder, is dropped.
+ */
 export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
   trustedSource,
   configFromCliOpts,
@@ -31,9 +36,10 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
   skipSettings,
   workspaceManifest,
   workspaceDir,
-}: WorkspaceManifestSettingsOptions): void {
+}: WorkspaceManifestSettingsOptions): string[] {
   const skipped: ReadonlySet<string> | undefined = skipSettings
   const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  const declaredRegistryPrefixes = Object.keys(settingsFromManifest.registriesByPrefix ?? {})
   resolveLockfileDir(settingsFromManifest as { lockfileDir?: unknown }, workspaceDir)
   const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
   const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
@@ -53,6 +59,7 @@ export function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & C
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+  return declaredRegistryPrefixes
 }
 
 interface WorkspaceSetting {
