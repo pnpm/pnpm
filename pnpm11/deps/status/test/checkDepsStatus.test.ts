@@ -456,6 +456,33 @@ describe('checkDepsStatus - settings change detection', () => {
 
     expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
   })
+  it('does not report a registryPrefixes change the caller ignores', async () => {
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix: { work: 'https://npm.example.test/' },
+      ignoredWorkspaceStateSettings: ['registryPrefixes'],
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
+  })
 })
 
 describe('checkDepsStatus - pnpmfile modification', () => {

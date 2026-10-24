@@ -177,6 +177,7 @@ function workspaceStateDir (opts: CheckDepsStatusOptions): string {
  * the lockfile.
  */
 function findChangedRegistryPrefixes (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
+  if (opts.ignoredWorkspaceStateSettings?.includes('registryPrefixes')) return undefined
   return equals(storedSettings.registryPrefixes, recordedRegistryPrefixes(opts.registriesByPrefix)) ? undefined : 'registryPrefixes'
 }
 

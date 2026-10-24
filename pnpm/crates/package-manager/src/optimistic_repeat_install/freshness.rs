@@ -165,6 +165,7 @@ pub(super) fn check_freshness(
         Ok(false) => {}
         Err(reason) => return Err(Stale::Content(reason)),
     }
+    check_changed_lockfile_registry_keys(check, state, &drift)?;
     let held = drift.held(check, scope);
     if held.is_empty() && !drift.patches_modified {
         return settle_proven_tree(check, state, &drift, policy, scope);
@@ -182,6 +183,27 @@ pub(super) fn check_freshness(
     if drift.lockfile_unchanged() {
         let vouched = drift.proven_dirs(&held);
         record_state_at(check, state, &vouched, policy, filesystem_now);
+    }
+    Ok(())
+}
+
+/// A recorded registry-key verification covers the lockfile it was made for,
+/// and a passing check carries it forward.
+fn check_changed_lockfile_registry_keys(
+    check: &OptimisticRepeatInstallCheck<'_>,
+    state: &WorkspaceState,
+    drift: &InputDrift<'_>,
+) -> Result<(), Stale> {
+    if !drift.lockfile_changed || state.settings.registry_prefixes.is_none() {
+        return Ok(());
+    }
+    let lockfile = check.lockfile
+        .get()
+        .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
+    if lockfile.is_some_and(|lockfile| {
+        !crate::install::registry_keys_current(check.config, Some(lockfile))
+    }) {
+        return Err(Stale::Content("the changed lockfile records outdated registry keys"));
     }
     Ok(())
 }
@@ -492,8 +514,10 @@ fn refreshed_state(
         filesystem_now_ms: filesystem_now,
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: state.settings.auto_dedupe,
-            // The check passed, so a recorded verification still holds.
-            registry_keys_verified: state.settings.registry_prefixes.is_some(),
+            // A gate that ignores `registryPrefixes` passes on a recorded
+            // verification of other prefixes, which proves nothing about these.
+            registry_keys_verified: state.settings.registry_prefixes
+                == super::recorded_registry_prefixes(check.config),
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),
