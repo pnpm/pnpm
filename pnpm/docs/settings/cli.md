@@ -146,6 +146,17 @@ engineStrict: true
 
 This way, even if someone is using Node.js v22, they will not be able to install a new dependency that doesn't support Node.js v12.22.0.
 
+### runtime
+
+* Default: **true**
+* Type: **Boolean**
+
+When `false`, installing commands such as `pnpm install`, `pnpm add`, and `pnpm dedupe` skip the runtimes declared in [`devEngines.runtime`](../package_json.md#devenginesruntime) and `engines.runtime`. This works like [`--no-runtime`](../cli/install.md#--no-runtime). pnpm reads this setting from `pnpm-workspace.yaml`, `pnpm_config_runtime`, and `--config.runtime`, not from the global configuration file.
+
+```yaml title="pnpm-workspace.yaml"
+runtime: false
+```
+
 ### runtimeOnFail
 
 * Default: **undefined**
