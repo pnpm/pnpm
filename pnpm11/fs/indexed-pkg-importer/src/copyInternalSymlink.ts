@@ -4,6 +4,7 @@ import path from 'node:path'
 import { isError } from '@pnpm/error'
 
 export interface SymlinkDirs {
+  symlinkTargets?: 'imported' | 'internal'
   writtenDir: string
   finalDir: string
   imported: Set<string>
@@ -25,7 +26,8 @@ export function copyInternalSymlink (src: string, dest: string, links: SymlinkDi
   const resolved = path.resolve(path.dirname(dest), target)
   if (escapesDir(links.writtenDir, resolved)) return false
   if (!links.imported.has(path.relative(links.writtenDir, resolved).split(path.sep).join('/'))) {
-    return isDirectory(src)
+    const isDir = isDirectory(src)
+    if (links.symlinkTargets !== 'internal' || !isDir) return isDir
   }
   if (process.platform !== 'win32') {
     fs.symlinkSync(target, dest)

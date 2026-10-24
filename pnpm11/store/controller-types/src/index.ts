@@ -254,6 +254,7 @@ export interface PackageResponse {
 }
 
 export interface ImportOptions {
+  symlinkTargets?: 'imported' | 'internal'
   disableRelinkLocalDirDeps?: boolean
   filesMap: FilesMap
   force: boolean

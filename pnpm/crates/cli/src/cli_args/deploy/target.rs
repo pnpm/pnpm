@@ -256,7 +256,7 @@ pub(super) fn copy_project(
         &output.files_map,
         ImportIndexedDirOpts {
             force: true,
-            preserve_symlinks: true,
+            symlink_targets: Some(pnpm_deps_restorer::SymlinkTargets::Internal),
             ..ImportIndexedDirOpts::default()
         },
     )
