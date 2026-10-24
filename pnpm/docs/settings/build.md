@@ -332,10 +332,10 @@ allowBuilds:
   nx@21.6.0: false
 ```
 
-Package-name entries support `*` wildcards. For example,
-`'@parcel/*': false` blocks build scripts for every package in that scope.
-An entry ending in `@.*`, such as `'core-js@.*': false`, applies to every
-version of that exact package. Other version patterns are not supported.
+Entries of the form `@scope/*` match every package in that exact scope.
+For example, `'@parcel/*': false` blocks build scripts for the `@parcel` scope.
+Other package-name wildcards and wildcard versions are not supported.
+Explicit denials take precedence over allowances.
 
 **Git-hosted packages:** a package name on its own never approves builds for a git or tarball dependency, because the name alone does not identify the artifact. Approve one either by its exact resolved path (including the commit) or by its repository URL:
 

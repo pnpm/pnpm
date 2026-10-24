@@ -106,13 +106,13 @@ impl AllowBuildPolicy {
                 allowed.specs
                     .iter()
                     .copied()
-                    .filter(|spec| !spec.contains('*')),
+                    .filter(|spec| !is_scope_build_pattern(spec)),
             )?,
             expand_package_version_specs(
                 disallowed.specs
                     .iter()
                     .copied()
-                    .filter(|spec| !spec.contains('*')),
+                    .filter(|spec| !is_scope_build_pattern(spec)),
             )?,
             allowed.dep_paths,
             disallowed.dep_paths,
@@ -315,7 +315,7 @@ impl<'c> BuildKeys<'c> {
     fn add(&mut self, spec: &'c str) {
         if is_git_repo_allow_build_key(spec) {
             self.git_repos.insert(spec.to_owned());
-        } else if !spec.contains('*') && is_dep_path_allow_build_key(spec) {
+        } else if !is_scope_build_pattern(spec) && is_dep_path_allow_build_key(spec) {
             self.dep_paths.insert(normalize_build_dep_path(spec));
         } else {
             self.specs.push(spec);
@@ -343,14 +343,18 @@ fn compile_name_patterns(
 ) -> Result<Option<PackageVersionPolicy>, VersionPolicyError> {
     let patterns: Vec<_> = specs
         .iter()
-        .filter(|spec| spec.contains('*'))
-        .map(|&spec| {
-            spec.strip_suffix("@.*")
-                .unwrap_or(spec)
-                .to_string()
-        })
+        .filter(|spec| is_scope_build_pattern(spec))
+        .map(ToString::to_string)
         .collect();
     if patterns.is_empty() { Ok(None) } else { create_package_version_policy(patterns).map(Some) }
+}
+
+fn is_scope_build_pattern(spec: &str) -> bool {
+    spec.strip_prefix('@')
+        .and_then(|spec| spec.strip_suffix("/*"))
+        .is_some_and(|scope| {
+            !scope.is_empty() && !scope.contains(['*', '/', '@', ':', '#', '!', ' '])
+        })
 }
 
 #[derive(Debug, Default)]
