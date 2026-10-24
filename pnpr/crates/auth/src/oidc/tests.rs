@@ -30,7 +30,7 @@ fn signing_key() -> SigningKey {
 }
 
 fn jwks(key: &SigningKey) -> Value {
-    let point = key.verifying_key().to_encoded_point(false);
+    let point = key.verifying_key().to_sec1_point(false);
     json!({"keys": [{"kty": "EC", "crv": "P-256", "alg": "ES256", "use": "sig", "kid": "test",
         "x": BASE64_URL_SAFE_NO_PAD.encode(point.x().unwrap()),
         "y": BASE64_URL_SAFE_NO_PAD.encode(point.y().unwrap())}]})

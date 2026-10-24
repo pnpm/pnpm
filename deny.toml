@@ -42,6 +42,13 @@ ignore = [
   # entry would also silence the advisory on the 0.4 line. The `h2` bans below
   # hold that line instead.
   { id = "RUSTSEC-2026-0258", reason = "Temporary risk acceptance: the unpatched h2 0.3 copy is reached only by libsql's outbound gRPC client to the operator-configured backend; pnpr's own server is on the patched h2 0.4.16, and no stable libsql release moves off tonic 0.11." },
+  # Secret-dependent branches in `crypto-bigint` 0.5 arithmetic. pnpm and pnpr
+  # sign with `p256` 0.14, which is on the fixed `crypto-bigint` 0.7 line. The
+  # 0.5 copy is reached only through `pgp` (Node.js release signatures) and
+  # `openidconnect` (pnpr OIDC ID tokens), which pnpm and pnpr call only to
+  # verify signatures with public keys. Neither crate has a release off the
+  # `elliptic-curve` 0.13 stack. The bans below keep every other crate off it.
+  { id = "RUSTSEC-2026-0387", reason = "The unpatched crypto-bigint 0.5 copy is reached only through pgp and openidconnect, which pnpm and pnpr use for public-key signature verification; every signing path is on p256 0.14 and crypto-bigint 0.7." },
   # `zip` 8.6.0 has advisories for `ZipArchive::extract()` and
   # `ZipStreamReader::extract()` preserving SUID/SGID bits and allowing symlink
   # traversal. pnpm and pnpr do not call `extract()`; extraction iterates entries
@@ -218,6 +225,17 @@ deny = [
   # dependents. Drop both once libsql moves off tonic 0.11 and the ignore goes.
   { name = "h2", version = ">=0.4, <0.4.16" },
   { name = "h2", version = "<0.4", wrappers = ["hyper", "tonic"] },
+  # RUSTSEC-2026-0387 is ignored above. These bans confine the vulnerable
+  # `crypto-bigint` 0.5 and the `elliptic-curve` 0.13 stack above it to `pgp`
+  # and `openidconnect`, so a signing path cannot reach them. Drop them with
+  # the ignore once both crates move to `elliptic-curve` 0.14.
+  { name = "crypto-bigint", version = "<0.7.6", wrappers = ["cx448", "elliptic-curve"] },
+  { name = "elliptic-curve", version = "<0.14", wrappers = ["cx448", "ecdsa", "k256", "p256", "p384", "p521", "pgp", "primeorder"] },
+  { name = "ecdsa", version = "<0.17", wrappers = ["k256", "p256", "p384", "p521", "pgp"] },
+  { name = "p256", version = "<0.14", wrappers = ["openidconnect", "pgp"] },
+  { name = "p384", version = "<0.14", wrappers = ["openidconnect", "pgp"] },
+  { name = "k256", version = "<0.14", wrappers = ["pgp"] },
+  { name = "p521", version = "<0.14", wrappers = ["pgp"] },
 ]
 skip = []
 skip-tree = []
@@ -228,7 +246,7 @@ skip-tree = []
 unknown-registry = "warn"
 unknown-git = "warn"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/pnpm/node-semver-rs", "https://github.com/pnpm/dashmap"]
+allow-git = ["https://github.com/pnpm/node-semver-rs", "https://github.com/pnpm/dashmap", "https://github.com/pnpm/libsql"]
 
 [sources.allow-org]
 github = []
