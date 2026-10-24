@@ -195,12 +195,17 @@ fn package_list(sources: &[SkillSource]) -> String {
         .join(", ")
 }
 
+/// The skill directory an entry links to.
 #[derive(Clone)]
 struct SkillTarget {
     preferred: PathBuf,
+    /// The same skill in other peer variants of the package version. An
+    /// existing link to one of them is pnpm's own even when unrecorded.
     equivalent: BTreeSet<PathBuf>,
 }
 
+/// The entry name of every approved skill, mapped to the skill directory
+/// it links to.
 fn link_entries(
     approved: &[SkillSource],
 ) -> Result<BTreeMap<String, SkillTarget>, AgentSkillsError> {
@@ -313,6 +318,9 @@ fn materialize(
     Ok(())
 }
 
+/// Whether `path` holds something pnpm must not replace. pnpm replaces only
+/// a link: one it recorded, one that already resolves to a `target` path, or one
+/// that resolves to nothing, as a link into a removed `node_modules` does.
 fn is_occupied(path: &Path, target: &SkillTarget, recorded: bool) -> bool {
     if fs::symlink_metadata(path).is_err() {
         return false;

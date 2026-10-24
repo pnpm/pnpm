@@ -24,6 +24,8 @@ pub(super) struct SkillSource {
     pub(super) package_dir: PathBuf,
     /// The names of the skill directories, sorted.
     pub(super) skills: Vec<String>,
+    /// For each skill, its directories in the other installed peer
+    /// variants of the same version.
     pub(super) equivalent_skills: BTreeMap<String, BTreeSet<PathBuf>>,
 }
 
@@ -138,6 +140,9 @@ fn is_package_name(alias: &str) -> bool {
     }
 }
 
+/// A registry package is one directory per peer variant however many
+/// importers depend on it. Any other key, such as `link:../lib`, can be
+/// relative to its importer.
 fn probe_key(importer_id: &str, resolved: &str) -> String {
     let dep_path = normalize_build_dep_path(resolved);
     if node_semver::Version::parse(parse_name_version_from_key(&dep_path).1).is_ok() {
@@ -160,22 +165,21 @@ enum Probe {
     Found(ShippedSkills),
 }
 
+/// [`probe_package`], probing a package once however many importers depend
+/// on it. An absent directory is not cached, and its version takes no part
+/// in choosing the highest: what it ships is unknown.
 fn cached_skills(
     cache: &mut HashMap<String, ShippedSkills>,
     key: String,
     dir: &Path,
 ) -> ShippedSkills {
-    if let Some(Some((skills, package_dir))) = cache.get(&key)
-        && fs::canonicalize(dir).is_ok_and(|resolved| resolved == *package_dir)
-    {
-        return Some((skills.clone(), package_dir.clone()));
+    if let Some(found) = cache.get(&key) {
+        return found.clone();
     }
     match probe_package(dir) {
         Probe::Absent => None,
         Probe::Found(found) => {
-            if found.is_some() && fs::canonicalize(dir).is_ok_and(|resolved| resolved.is_dir()) {
-                cache.insert(key, found.clone());
-            }
+            cache.insert(key, found.clone());
             found
         }
     }
@@ -187,9 +191,8 @@ fn cached_skills(
 fn probe_package(dir: &Path) -> Probe {
     let candidates = skill_names(dir);
     if candidates.is_empty() {
-        let Ok(package_dir) = fs::canonicalize(dir) else { return Probe::Absent };
-        return if package_dir.is_dir() {
-            Probe::Found(Some((candidates, package_dir)))
+        return if dir.is_dir() {
+            Probe::Found(Some((candidates, dir.to_path_buf())))
         } else {
             Probe::Absent
         };
@@ -244,6 +247,9 @@ fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource)
     }
 }
 
+/// Keep one of two peer variants of the same version, preferring the one
+/// that ships skills, and record the other's skill directories as
+/// equivalent targets.
 fn merge_peer_variant(kept: &mut SkillSource, mut source: SkillSource) {
     let source_has_skills = !source.skills.is_empty();
     let kept_has_skills = !kept.skills.is_empty();
@@ -268,6 +274,10 @@ fn registry_version(source: &SkillSource) -> Option<node_semver::Version> {
     node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
 }
 
+/// Whether `candidate` replaces `kept` for the same approval key. Only
+/// registry versions compare: any other key names one source already. Of
+/// two equal versions, the lower package directory wins, so the choice does
+/// not depend on importer order.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
     match (registry_version(candidate), registry_version(kept)) {
         (Some(candidate_version), Some(kept_version)) => candidate_version
