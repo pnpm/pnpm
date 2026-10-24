@@ -87,8 +87,9 @@ fn scoped_wildcard_name_in_allow_builds_matches_and_denials_win() {
             ("@parcel/*", true),
             ("@parcel/blocked", false),
             ("@other/*", false),
-            ("core-js@.*", false),
-            ("@parcel/watcher@.*", false),
+            ("@other/allowed", true),
+            ("core-js", false),
+            ("@parcel/watcher", false),
         ],
         false,
     );
@@ -102,9 +103,37 @@ fn scoped_wildcard_name_in_allow_builds_matches_and_denials_win() {
 }
 
 #[test]
-fn unscoped_slash_wildcard_name_in_allow_builds_matches() {
-    let policy = policy_from_specs([("*/foo", true)], false);
-    assert_eq!(policy.check("@parcel/foo@1.0.0"), Some(true));
+fn broad_name_patterns_do_not_approve_builds() {
+    for pattern in ["*", "esbuild*", "@*/*", "@parcel*/watcher", "*/foo", "@parcel/watch*"] {
+        let policy = policy_from_specs([(pattern, true)], false);
+        assert_eq!(policy.check("@parcel/watcher@1.0.0"), None, "{pattern}");
+        assert_eq!(policy.check("esbuild@1.0.0"), None, "{pattern}");
+    }
+}
+
+#[test]
+fn wildcard_versions_are_not_accepted() {
+    for pattern in ["core-js@.*", "@parcel/watcher@.*", "@parcel/*@1.0.0"] {
+        let approvals = HashMap::from([(pattern.to_string(), true)]);
+        assert!(AllowBuildPolicy::from_approvals(&approvals, false).is_err(), "{pattern}");
+    }
+}
+
+#[test]
+fn scope_pattern_preserves_identity_and_denial_boundaries() {
+    let policy = policy_from_specs([("@parcel/*", true)], false);
+    assert_eq!(policy.check("@parcel/watcher@1.0.0(peer@2.0.0)"), Some(true));
+    for path in [
+        "@parcel-other/watcher@1.0.0",
+        "watcher@1.0.0",
+        "@parcel/watcher@git+https://example.com/repo.git#abc",
+        "@parcel/watcher@https://example.com/watcher.tgz",
+    ] {
+        assert_eq!(policy.check(path), None, "{path}");
+    }
+    let policy = policy_from_specs([("@parcel/*", false)], true);
+    assert_eq!(policy.check("@parcel/watcher@1.0.0"), Some(false));
+    assert_eq!(policy.check("@other/watcher@1.0.0"), Some(true));
 }
 
 #[test]
