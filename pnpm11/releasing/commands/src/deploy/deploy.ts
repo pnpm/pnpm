@@ -219,7 +219,7 @@ async function deployWithoutSharedLockfile (
 async function copyProject (src: string, dest: string, opts: { includeOnlyPackageFiles: boolean }): Promise<void> {
   const { filesMap } = await fetchFromDir(src, opts)
   const importPkg = createIndexedPkgImporter('clone-or-copy', { disableLogging: true })
-  importPkg(dest, { filesMap, force: true, resolvedFrom: 'local-dir' })
+  importPkg(dest, { filesMap, force: true, resolvedFrom: 'local-dir', symlinkTargets: 'internal' })
 }
 
 

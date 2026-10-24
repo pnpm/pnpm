@@ -51,6 +51,8 @@ COPY --from=pruned /app/pruned .
 ENTRYPOINT ["node", "index.js"]
 ```
 
+A deployed symlink to a directory inside the project is kept even if the directory is not deployed. A link into `node_modules` resolves to the dependency installed in the output directory. A symlink to a file that is not deployed is replaced by a copy of the file.
+
 ## Options
 
 ### --force

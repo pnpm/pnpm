@@ -363,6 +363,7 @@ fn final_link_target_points_into_the_final_directory() {
         written_dir: Path::new("/stage"),
         final_dir: Path::new("/pkg"),
         imported: &imported,
+        policy: crate::import_indexed_dir::SymlinkTargets::Imported,
     };
     assert_eq!(
         final_link_target(Path::new("/stage/lib/link"), Path::new("../sub"), roots),

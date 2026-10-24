@@ -54,14 +54,26 @@ pub struct ImportIndexedDirOpts<'a> {
     ///
     /// Callers must ensure that the target path uniquely identifies its contents.
     pub safe_to_skip: bool,
-    /// When `true`, preserve safe symlinks in the imported package instead of
-    /// assuming all entries are regular files.
-    pub preserve_symlinks: bool,
+    /// Which source symlinks are recreated as symlinks. `None` imports
+    /// every entry as a file.
+    pub symlink_targets: Option<SymlinkTargets>,
     /// The install's [`ModulesSwapLock`], which serializes this install's
     /// forced replacements of private targets with those of the other
     /// installs under the same modules directory. `None` replaces
     /// unserialized.
     pub swap_lock: Option<&'a ModulesSwapLock>,
+}
+
+/// The source symlinks an import recreates. Either way, a link whose
+/// target leads out of the package is refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymlinkTargets {
+    /// Only links whose target is imported too. A file link to a target
+    /// left out is imported as a file, and a directory link is left out.
+    Imported,
+    /// Also a directory link whose target is left out. A file link to a
+    /// target left out is still imported as a file.
+    Internal,
 }
 
 /// Error type for [`import_indexed_dir`].
@@ -251,7 +263,7 @@ fn import_indexed_dir_once<Reporter: self::Reporter>(
             import_method,
             dir_path,
             cas_paths,
-            opts.preserve_symlinks,
+            opts.symlink_targets,
         )
         .inspect(|()| unquarantine()),
         // Short-circuit only when the completion marker is present
@@ -313,7 +325,7 @@ fn force_import_existing_dir<Reporter: self::Reporter>(
             import_method,
             dir_path,
             cas_paths,
-            opts.preserve_symlinks,
+            opts.symlink_targets,
         );
     }
     let swap_target =
@@ -355,7 +367,7 @@ pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
-    preserve_symlinks: bool,
+    symlink_targets: Option<SymlinkTargets>,
 ) -> Result<(), ImportIndexedDirError> {
     if claim_dir(dir_path)? {
         return populate_dir::<Reporter>(
@@ -364,7 +376,7 @@ pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
             dir_path,
             cas_paths,
             Placement::Fresh,
-            preserve_symlinks.then_some(dir_path),
+            symlink_targets.map(|policy| (dir_path, policy)),
         );
     }
     if all_files_match(dir_path, cas_paths) {
@@ -376,7 +388,7 @@ pub(super) fn import_into_shared_dir<Reporter: self::Reporter>(
         dir_path,
         cas_paths,
         Placement::Repair,
-        preserve_symlinks.then_some(dir_path),
+        symlink_targets.map(|policy| (dir_path, policy)),
     )
 }
 
@@ -426,7 +438,7 @@ fn repair_existing_dir<Reporter: self::Reporter>(
         dir_path,
         cas_paths,
         Placement::for_target(opts.safe_to_skip || repair_sanitized),
-        opts.preserve_symlinks.then_some(dir_path),
+        opts.symlink_targets.map(|policy| (dir_path, policy)),
     )
     .inspect(|()| remove_quarantine_from_native_binaries(dir_path, cas_paths))
 }

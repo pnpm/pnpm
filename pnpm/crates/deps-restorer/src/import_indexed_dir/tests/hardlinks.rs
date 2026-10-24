@@ -9,7 +9,7 @@ const REUSE: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     reuse_hardlinks: true,
     keep_modules_dir: true,
     safe_to_skip: false,
-    preserve_symlinks: true,
+    symlink_targets: Some(crate::import_indexed_dir::SymlinkTargets::Imported),
     swap_lock: None,
 };
 

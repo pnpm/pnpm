@@ -1,7 +1,9 @@
 pub(super) mod exact;
 pub(super) mod symlinks;
 
-use super::{ImportIndexedDirError, Placement, remove_non_dir_dirent, staging::import_atomic};
+use super::{
+    ImportIndexedDirError, Placement, SymlinkTargets, remove_non_dir_dirent, staging::import_atomic,
+};
 use crate::{import_into_fresh_target, link_pool::in_link_pool};
 use pnpm_config::PackageImportMethod;
 use pnpm_fs::Host;
@@ -26,16 +28,17 @@ use symlinks::{
 /// up.
 ///
 /// `symlinks_final_dir` is `None` to import every entry as a file. With
-/// `Some`, an entry whose source is a symlink is recreated as one, and
-/// the value names the directory `dir_path` is finally moved to, which a
-/// staged import writes elsewhere first.
+/// `Some`, an entry whose source is a symlink is recreated as one when
+/// the [`SymlinkTargets`] policy selects it, and the path names the
+/// directory `dir_path` is finally moved to, which a staged import
+/// writes elsewhere first.
 pub(super) fn populate_dir<Reporter: self::Reporter>(
     logged_methods: &AtomicU8,
     import_method: PackageImportMethod,
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     placement: Placement,
-    symlinks_final_dir: Option<&Path>,
+    symlinks_final_dir: Option<(&Path, SymlinkTargets)>,
 ) -> Result<(), ImportIndexedDirError> {
     // Creating the directories and placing the marker are metadata writes
     // like the entries, so the whole import runs on the link pool.
@@ -57,13 +60,18 @@ fn populate_dir_on_current_pool<Reporter: self::Reporter>(
     dir_path: &Path,
     cas_paths: &HashMap<String, PathBuf>,
     placement: Placement,
-    symlinks_final_dir: Option<&Path>,
+    symlinks_final_dir: Option<(&Path, SymlinkTargets)>,
 ) -> Result<(), ImportIndexedDirError> {
     create_indexed_dirs(dir_path, cas_paths, placement)?;
     let imported = symlinks_final_dir.map(|_| imported_paths(cas_paths));
     let symlinks = symlinks_final_dir
         .zip(imported.as_ref())
-        .map(|(final_dir, imported)| SymlinkRoots { written_dir: dir_path, final_dir, imported });
+        .map(|((final_dir, policy), imported)| SymlinkRoots {
+            written_dir: dir_path,
+            final_dir,
+            imported,
+            policy,
+        });
 
     // Link every other file first, then place the marker last, so an
     // interrupted import leaves a directory the next install recognises
