@@ -22,7 +22,10 @@ import { getRegisteredProjects } from './projectRegistry.js'
 export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): Promise<Set<string>> {
   const projects = await getRegisteredProjects(storeDir)
   const lockfiles = (await Promise.all(projects.map(readInstalledLockfiles))).flat()
-  const keys = new Set(lockfiles.flatMap(lockfileIndexKeys))
+  const indexKeys = lockfiles.flatMap(lockfileIndexKeys)
+  const keys = new Set(indexKeys.map(({ key }) => key))
+  const binaryKeys = new Set(indexKeys.filter(({ binary }) => binary).map(({ key }) => key))
+  for (const key of manifestIndexKeys(storeIndex, storeDir, binaryKeys)) keys.add(key)
   const files = new Set<string>()
   for (const key of keys) {
     const row = readIndexRow(storeIndex, storeDir, key)
@@ -34,10 +37,37 @@ export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): 
   return files
 }
 
-function lockfileIndexKeys (lockfile: LockfileObject): string[] {
+interface IndexKey {
+  key: string
+  binary: boolean
+}
+
+function lockfileIndexKeys (lockfile: LockfileObject): IndexKey[] {
   return Object.entries(lockfile.packages ?? {}).flatMap(([depPath, snapshot]) =>
     packageIndexKeys(snapshot.resolution, packageIdFromSnapshot(depPath as DepPath, snapshot))
   )
+}
+
+/**
+ * pnpm 12 shares this store and keys the row of a runtime as
+ * `package-manifest\t<manifest integrity>\t<binary key>`. The lockfile has
+ * no manifest integrity, so this scans the keys, but only when the
+ * lockfiles name a binary.
+ */
+function manifestIndexKeys (storeIndex: StoreIndex, storeDir: string, binaryKeys: Set<string>): string[] {
+  if (binaryKeys.size === 0) return []
+  const prefix = 'package-manifest\t'
+  const keys: string[] = []
+  try {
+    for (const key of storeIndex.keys()) {
+      if (!key.startsWith(prefix)) continue
+      const separator = key.indexOf('\t', prefix.length)
+      if (separator !== -1 && binaryKeys.has(key.slice(separator + 1))) keys.push(key)
+    }
+  } catch (err: unknown) {
+    throw inUseFilesError(storeDir, err)
+  }
+  return keys
 }
 
 function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): PackageFilesIndex | undefined {
@@ -96,18 +126,18 @@ function inUseFilesError (location: string, err: unknown): PnpmError {
  * a variations resolution, whose variant depends on the installing host
  * and its `supportedArchitectures`.
  */
-function packageIndexKeys (resolution: LockfileResolution, pkgId: string): string[] {
+function packageIndexKeys (resolution: LockfileResolution, pkgId: string): IndexKey[] {
   if (!('type' in resolution) || resolution.type == null) {
     if ('tarball' in resolution) {
-      return [true, false].map((built) => pickStoreIndexKey(resolution, pkgId, { built }))
+      return [true, false].map((built) => packageKey(pickStoreIndexKey(resolution, pkgId, { built })))
     }
-    return [storeIndexKey(resolution.integrity, pkgId)]
+    return [packageKey(storeIndexKey(resolution.integrity, pkgId))]
   }
   switch (resolution.type) {
     case 'git':
-      return [true, false].map((built) => gitHostedStoreIndexKey(pkgId, { built }))
+      return [true, false].map((built) => packageKey(gitHostedStoreIndexKey(pkgId, { built })))
     case 'binary':
-      return [storeIndexKey(resolution.integrity, pkgId)]
+      return [{ key: storeIndexKey(resolution.integrity, pkgId), binary: true }]
     case 'variations':
       return resolution.variants.flatMap((variant) => packageIndexKeys(variant.resolution, pkgId))
     default:
@@ -115,6 +145,10 @@ function packageIndexKeys (resolution: LockfileResolution, pkgId: string): strin
       // known here.
       return []
   }
+}
+
+function packageKey (key: string): IndexKey {
+  return { key, binary: false }
 }
 
 function * rowFiles (row: PackageFilesIndex): Iterable<PackageFileInfo> {
