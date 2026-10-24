@@ -188,8 +188,9 @@ fn cached_skills(
 fn probe_package(dir: &Path) -> Probe {
     let candidates = skill_names(dir);
     if candidates.is_empty() {
-        return if fs::symlink_metadata(dir).is_ok() {
-            Probe::Found(Some((candidates, dir.to_path_buf())))
+        let Ok(package_dir) = fs::canonicalize(dir) else { return Probe::Absent };
+        return if package_dir.is_dir() {
+            Probe::Found(Some((candidates, package_dir)))
         } else {
             Probe::Absent
         };

@@ -63,10 +63,7 @@ fn unresolved_package_locations_do_not_hide_skills_from_installed_variants() {
 
     for unresolved in [dangling, file] {
         let mut cache = std::collections::HashMap::new();
-        let (empty_skills, unresolved_dir) =
-            super::cached_skills(&mut cache, "foo@1.0.0".to_string(), &unresolved).unwrap();
-        assert!(empty_skills.is_empty());
-        assert_eq!(unresolved_dir, unresolved);
+        assert!(super::cached_skills(&mut cache, "foo@1.0.0".to_string(), &unresolved).is_none());
 
         let (skills, package_dir) =
             super::cached_skills(&mut cache, "foo@1.0.0".to_string(), &package).unwrap();
