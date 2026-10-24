@@ -10,7 +10,7 @@ use super::prompt::{PromptInput, PromptPassword};
 use crate::logout::{FsReadToString, FsWrite};
 
 /// Production provider for `pnpm login`. The credential prompts and
-/// `config.yaml` I/O are real; every OTP / web-authentication capability
+/// `auth.ini` / `config.yaml` I/O are real; every OTP / web-authentication capability
 /// delegates to [`pnpm_network_web_auth::Host`], the shared production
 /// provider for that flow.
 pub struct Host;

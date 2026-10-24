@@ -207,9 +207,9 @@ The server descriptions (`serverType` and `supportsTimeField`) are read only fro
 The [global configuration file](./cli/config.md) (`config.yaml`) may declare ecosystem indexes, the *routes* (`scopes` and `prefix`) so that a scope or an alias like `work:` applies to every project on the machine, and `networkConcurrency`, which does not affect the lockfile.
 
 Since v12.1.0, [`pnpm login --scope <scope>`](./cli/login.md#--scope-scope)
-adds that machine-wide scope route to the global `registries` setting while it
-records the credential under `_auth`. A later login for the same scope moves the
-route rather than declaring it at two registries.
+adds that machine-wide scope route to the global `registries` setting. A later
+login for the same scope moves the route rather than declaring it at two
+registries.
 
 Since v12.4.0, a registry configured in `.npmrc` outranks a route `pnpm login`
 saved in the global `config.yaml`, so logging in cannot redirect a project that

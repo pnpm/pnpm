@@ -11,15 +11,40 @@ struct ParseOptions {
     expand_request_destination_env: bool,
 }
 
-/// One `key=value` line, with comments and blanks skipped and the value
-/// decoded.
-fn split_ini_line(line: &str) -> Option<(&str, std::borrow::Cow<'_, str>)> {
+/// One `key=value` line, with comments and blanks skipped and the key and
+/// value decoded.
+///
+/// A key holding `=` is written as a JSON string, as the `ini` package and
+/// `pnpm login` write it, so its separator is the first `=` after the closing
+/// quote.
+fn split_ini_line(line: &str) -> Option<(Cow<'_, str>, Cow<'_, str>)> {
     let line = line.trim();
     if line.is_empty() || line.starts_with([';', '#']) {
         return None;
     }
-    let (raw_key, raw_value) = line.split_once('=')?;
-    Some((raw_key.trim(), decode_ini_value(raw_value.trim())))
+    let (raw_key, raw_value) = match json_string_end(line) {
+        Some(end) => (&line[..end], line[end..].trim_start().strip_prefix('=')?),
+        None => line.split_once('=')?,
+    };
+    Some((decode_ini_value(raw_key.trim()), decode_ini_value(raw_value.trim())))
+}
+
+/// The byte index just past the JSON string `line` starts with, or `None`
+/// when it starts with none.
+fn json_string_end(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    if bytes.first() != Some(&b'"') {
+        return None;
+    }
+    let mut index = 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => index += 2,
+            b'"' => return Some(index + 1),
+            _ => index += 1,
+        }
+    }
+    None
 }
 
 fn decode_ini_value(value: &str) -> Cow<'_, str> {
@@ -133,7 +158,8 @@ impl NpmrcAuth {
             let Some((raw_key, raw_value)) = split_ini_line(line) else {
                 continue;
             };
-            let Some((key, value)) = auth.expand_ini_entry::<Sys>(raw_key, &raw_value, opts) else {
+            let Some((key, value)) = auth.expand_ini_entry::<Sys>(&raw_key, &raw_value, opts)
+            else {
                 continue;
             };
 
