@@ -90,7 +90,7 @@ fn global_add_links_packages_from_the_global_virtual_store() {
         linked.starts_with(fs::canonicalize(&pkg_slots[0]).expect("resolve the slot")),
         "the group's {PKG} must resolve into the global virtual store, got {linked:?}",
     );
-    assert!(!has_local_slot(&install_dir, PKG), "the group must not keep its own copy of {PKG}",);
+    assert!(!has_local_slot(&install_dir, PKG), "the group must not keep its own copy of {PKG}");
 
     drop((root, npmrc_info));
 }
@@ -123,7 +123,7 @@ fn global_groups_share_the_slots_of_a_common_dependency() {
 }
 
 /// Where a user can set `virtualStoreType: project` for global installs.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 enum OptOut {
     PnpmHomeYaml,
     Env,
