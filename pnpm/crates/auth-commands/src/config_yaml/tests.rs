@@ -1,5 +1,6 @@
-use super::{ConfigYamlFields, Value, json, login_fields, logout_fields};
+use super::{ConfigYamlFields, Value, login_fields, logout_fields};
 use pretty_assertions::assert_eq;
+use serde_json::json;
 
 /// The value `login_fields` assigns to `key`, or `None` when the login does
 /// not touch that field.
@@ -11,48 +12,39 @@ fn field(fields: &ConfigYamlFields, key: &str) -> Option<Value> {
 }
 
 fn login(document: Option<&str>, scope: Option<&str>) -> ConfigYamlFields {
-    login_fields(document, "https://registry.example/", scope, "granted-token")
-        .expect("the document parses")
+    login_fields(document, "https://registry.example/", scope).expect("the document parses")
 }
 
 #[test]
-fn a_scoped_login_records_the_token_and_its_route() {
+fn a_scoped_login_records_its_route() {
     let fields = login(None, Some("@acme"));
 
-    assert_eq!(
-        field(&fields, "_auth"),
-        Some(json!({
-            "https://registry.example/": { "@acme": { "authToken": "granted-token" } },
-        })),
-    );
+    assert_eq!(field(&fields, "_auth"), None);
     assert_eq!(
         field(&fields, "registries"),
         Some(json!({ "https://registry.example/": { "scopes": ["@acme"] } })),
     );
 }
 
-/// An unscoped login's token covers the registry itself, and declaring the
-/// registry's `scopes` would claim it as the default for resolution.
+/// Declaring the registry's `scopes` would claim it as the default for
+/// resolution.
 #[test]
 fn an_unscoped_login_records_no_route() {
-    let fields = login(None, None);
-
-    assert_eq!(
-        field(&fields, "_auth"),
-        Some(json!({
-            "https://registry.example/": { "@": { "authToken": "granted-token" } },
-        })),
-    );
-    assert_eq!(field(&fields, "registries"), None);
+    assert_eq!(login(None, None), vec![]);
 }
 
+/// `_auth` outranks `auth.ini`, so a credential the new token replaces must
+/// not stay behind to shadow it. Other grants stay.
 #[test]
-fn a_login_keeps_the_credentials_of_other_registries_and_scopes() {
+fn a_scoped_login_drops_the_scope_s_old_tokens_and_keeps_the_rest() {
     let document = "\
 _auth:
   https://other.example/:
     '@': { authToken: other-token }
+    '@acme': { authToken: moved-token }
   https://registry.example/:
+    '@': { authToken: own-token }
+    '@acme': { authToken: stale-token }
     '@kept': { authToken: kept-token }
 ";
 
@@ -61,26 +53,65 @@ _auth:
         Some(json!({
             "https://other.example/": { "@": { "authToken": "other-token" } },
             "https://registry.example/": {
+                "@": { "authToken": "own-token" },
                 "@kept": { "authToken": "kept-token" },
-                "@acme": { "authToken": "granted-token" },
             },
         })),
     );
 }
 
+/// The bare `@` is each registry's own credential rather than a scope, so an
+/// unscoped login to one registry must not forget another's.
 #[test]
-fn logging_in_again_replaces_that_scope_s_token() {
+fn an_unscoped_login_drops_only_its_registry_s_own_token() {
     let document = "\
 _auth:
+  https://other.example/:
+    '@': { authToken: other-token }
   https://registry.example/:
-    '@acme': { authToken: stale-token }
+    '@': { authToken: stale-token }
+    '@acme': { authToken: scoped-token }
 ";
 
     assert_eq!(
-        field(&login(Some(document), Some("@acme")), "_auth"),
+        field(&login(Some(document), None), "_auth"),
         Some(json!({
-            "https://registry.example/": { "@acme": { "authToken": "granted-token" } },
+            "https://other.example/": { "@": { "authToken": "other-token" } },
+            "https://registry.example/": { "@acme": { "authToken": "scoped-token" } },
         })),
+    );
+}
+
+/// A registry left holding nothing goes with its last credential, rather than
+/// staying as an empty entry the reader would still read a route from.
+#[test]
+fn a_login_that_empties_the_setting_deletes_it() {
+    let document = "\
+_auth:
+  https://zzz-old.example/:
+    '@acme': { authToken: old-token }
+";
+
+    assert_eq!(field(&login(Some(document), Some("@acme")), "_auth"), Some(Value::Null));
+}
+
+/// The reader matches a credential to a host by the normalized URL, so every
+/// spelling of the registry names the credential the login replaces.
+#[test]
+fn a_login_drops_every_spelling_of_its_registry() {
+    let document = "\
+_auth:
+  https://registry.example:
+    '@': { authToken: shadowed-token }
+  HTTPS://Registry.Example:443/:
+    '@': { authToken: winning-token }
+  https://other.example/:
+    '@': { authToken: other-token }
+";
+
+    assert_eq!(
+        field(&login(Some(document), None), "_auth"),
+        Some(json!({ "https://other.example/": { "@": { "authToken": "other-token" } } })),
     );
 }
 
@@ -230,7 +261,7 @@ registries:
 
 #[test]
 fn a_document_that_is_not_yaml_is_an_error() {
-    let error = login_fields(Some("_auth: [unclosed\n"), "https://registry.example/", None, "t");
+    let error = login_fields(Some("_auth: [unclosed\n"), "https://registry.example/", None);
 
     assert!(error.is_err(), "a malformed document must not be silently replaced");
 }
@@ -257,85 +288,7 @@ registries:
     );
 }
 
-/// The reader infers a route from every `_auth` entry and lets the last win,
-/// so a scope left recorded at its old registry keeps resolving there — with
-/// that registry's token — however plainly `registries` names the new one.
-#[test]
-fn a_login_takes_its_scope_off_the_registry_that_used_to_hold_it() {
-    let document = "\
-_auth:
-  https://zzz-old.example/:
-    '@acme': { authToken: old-token }
-    '@kept': { authToken: kept-token }
-";
-
-    assert_eq!(
-        field(&login(Some(document), Some("@acme")), "_auth"),
-        Some(json!({
-            "https://zzz-old.example/": { "@kept": { "authToken": "kept-token" } },
-            "https://registry.example/": { "@acme": { "authToken": "granted-token" } },
-        })),
-    );
-}
-
-/// A registry left holding nothing goes with its last credential, rather than
-/// staying as an empty entry the reader would still read a route from.
-#[test]
-fn a_registry_emptied_by_a_login_is_dropped() {
-    let document = "\
-_auth:
-  https://zzz-old.example/:
-    '@acme': { authToken: old-token }
-";
-
-    assert_eq!(
-        field(&login(Some(document), Some("@acme")), "_auth"),
-        Some(json!({
-            "https://registry.example/": { "@acme": { "authToken": "granted-token" } },
-        })),
-    );
-}
-
-/// The bare `@` is each registry's own credential rather than a scope, so an
-/// unscoped login to one registry must not forget another's.
-#[test]
-fn an_unscoped_login_keeps_other_registries_own_tokens() {
-    let document = "\
-_auth:
-  https://other.example/:
-    '@': { authToken: other-token }
-";
-
-    assert_eq!(
-        field(&login(Some(document), None), "_auth"),
-        Some(json!({
-            "https://other.example/": { "@": { "authToken": "other-token" } },
-            "https://registry.example/": { "@": { "authToken": "granted-token" } },
-        })),
-    );
-}
-
-/// The reader matches a credential to a host by the normalized URL, so two
-/// spellings of one registry are one entry to it and the later wins. A login
-/// must therefore replace the entry it found rather than write a second one
-/// beside it.
-#[test]
-fn a_login_replaces_a_differently_spelled_entry_for_its_registry() {
-    let document = "\
-_auth:
-  https://registry.example:
-    '@acme': { authToken: stale-token }
-";
-
-    assert_eq!(
-        field(&login(Some(document), Some("@acme")), "_auth"),
-        Some(json!({
-            "https://registry.example": { "@acme": { "authToken": "granted-token" } },
-        })),
-    );
-}
-
-/// And a logout must find it, or it would revoke a token on the registry and
+/// A logout must find a differently spelled entry, or it would revoke a token on the registry and
 /// leave a usable copy of it in the file.
 #[test]
 fn a_logout_finds_a_differently_spelled_entry_for_its_registry() {
@@ -348,45 +301,5 @@ _auth:
     assert_eq!(
         logout_fields(Some(document), "https://registry.example/").expect("the document parses"),
         vec![("_auth", Value::Null)],
-    );
-}
-
-/// Scheme case, host case and a default port make no difference to the reader
-/// either, so a login must replace such an entry rather than write beside it.
-#[test]
-fn a_login_replaces_an_entry_spelled_with_a_different_case_or_port() {
-    let document = "\
-_auth:
-  HTTPS://Registry.Example:443/:
-    '@acme': { authToken: stale-token }
-";
-
-    assert_eq!(
-        field(&login(Some(document), Some("@acme")), "_auth"),
-        Some(json!({
-            "HTTPS://Registry.Example:443/": { "@acme": { "authToken": "granted-token" } },
-        })),
-    );
-}
-
-/// When several spellings of one registry are present the reader applies them
-/// in order and the last wins, so that is the one a login must replace.
-#[test]
-fn a_login_replaces_the_entry_the_reader_would_have_picked() {
-    let document = "\
-_auth:
-  https://registry.example:
-    '@acme': { authToken: shadowed-token }
-  HTTPS://Registry.Example/:
-    '@acme': { authToken: winning-token }
-";
-
-    // The shadowed spelling goes with it: to the reader it named the same
-    // registry, so leaving it would leave a second credential for one host.
-    assert_eq!(
-        field(&login(Some(document), Some("@acme")), "_auth"),
-        Some(json!({
-            "HTTPS://Registry.Example/": { "@acme": { "authToken": "granted-token" } },
-        })),
     );
 }

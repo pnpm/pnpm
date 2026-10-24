@@ -112,13 +112,12 @@ fn login_completes_the_web_flow_without_a_terminal() {
     drop(root);
 }
 
-/// A scoped login records the token under `_auth` and routes the scope to the
-/// registry under `registries`, both in the global `config.yaml` — the two
-/// settings the reader accepts from a file no repository can write. Spawns the
-/// real binary because the production writer, not the `Sys` fake, is what has
-/// to produce a document the reader accepts back.
+/// A scoped login records the token in `auth.ini` and routes the scope to the
+/// registry under `registries` in the global `config.yaml`. Spawns the real
+/// binary because the production writer, not the `Sys` fake, is what has to
+/// produce files the reader accepts back.
 #[test]
-fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
+fn a_scoped_login_records_the_token_in_auth_ini_and_the_route_in_config_yaml() {
     let mut server = mockito::Server::new();
     let registry = server.url();
     let done = server
@@ -151,6 +150,13 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
 
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
     assert!(output.status.success(), "`pacquet login` must succeed; stderr:\n{stderr}");
+    let auth_ini_path = root
+        .path()
+        .join("pnpm")
+        .join("auth.ini");
+    let auth_ini = fs::read_to_string(&auth_ini_path).expect("login writes auth.ini");
+    let host = registry.trim_start_matches("http://");
+    assert_eq!(auth_ini, format!("//{host}/:@acme:_authToken=cli-scoped-token\n"));
     let document: serde_json::Value = root
         .path()
         .join("pnpm")
@@ -160,24 +166,17 @@ fn a_scoped_login_records_the_token_and_route_in_config_yaml() {
         .pipe_as_ref(serde_saphyr::from_str)
         .expect("login writes valid YAML");
     let normalized = format!("{registry}/");
-    assert_eq!(
-        document["_auth"][&normalized],
-        serde_json::json!({ "@acme": { "authToken": "cli-scoped-token" } }),
-    );
+    assert_eq!(document.get("_auth"), None);
     assert_eq!(document["registries"][&normalized], serde_json::json!({ "scopes": ["@acme"] }));
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt as _;
-        let mode = fs::metadata(
-            root.path()
-                .join("pnpm")
-                .join("config.yaml"),
-        )
-        .expect("stat config.yaml")
-        .permissions()
-        .mode()
+        let mode = fs::metadata(&auth_ini_path)
+            .expect("stat auth.ini")
+            .permissions()
+            .mode()
             & 0o777;
-        assert_eq!(mode, 0o600, "the file now holds a token; got {mode:o}");
+        assert_eq!(mode, 0o600, "auth.ini holds a token; got {mode:o}");
     }
     login.assert();
     done.assert();
@@ -243,6 +242,77 @@ fn a_login_writes_a_config_the_reader_reads_back() {
     drop(root);
 }
 
+/// Holding a token for a registry is not a statement that packages come from
+/// it, so an unscoped login leaves the default registry where it was. The
+/// token is still the one pnpm reads for that registry.
+#[test]
+fn an_unscoped_login_keeps_the_default_registry() {
+    const TOKEN: &str = "unscoped-token";
+    let mut server = mockito::Server::new();
+    let registry = server.url();
+    server
+        .mock("GET", "/-/v1/done")
+        .with_status(200)
+        .with_body(serde_json::json!({ "token": TOKEN }).to_string())
+        .create();
+    server
+        .mock("POST", "/-/v1/login")
+        .with_status(200)
+        .with_body(
+            serde_json::json!({
+                "loginUrl": format!("{registry}/auth/login"),
+                "doneUrl": format!("{registry}/-/v1/done"),
+            })
+            .to_string(),
+        )
+        .create();
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let login = pacquet
+        .with_env("XDG_CONFIG_HOME", root.path())
+        .with_arg("login")
+        .with_arg("--registry")
+        .with_arg(format!("{registry}/"))
+        .output()
+        .expect("spawn pacquet login");
+    assert!(
+        login.status.success(),
+        "`pacquet login` must succeed; stderr:\n{}",
+        String::from_utf8_lossy(&login.stderr),
+    );
+
+    let get = |key: &str| {
+        let output = CommandTempCwd::init().pacquet
+            .with_env("XDG_CONFIG_HOME", root.path())
+            .with_args(["config", "get", key])
+            .output()
+            .expect("spawn pacquet config get");
+        assert!(
+            output.status.success(),
+            "`pacquet config get {key}` must succeed; stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    };
+    assert_eq!(get("registry"), "https://registry.npmjs.org/");
+
+    let revoke = server
+        .mock("DELETE", format!("/-/user/token/{TOKEN}").as_str())
+        .create();
+    let logout = CommandTempCwd::init().pacquet
+        .with_env("XDG_CONFIG_HOME", root.path())
+        .with_args(["logout", "--registry", &format!("{registry}/")])
+        .output()
+        .expect("spawn pacquet logout");
+    assert!(
+        logout.status.success(),
+        "the recorded token must be found again; stderr:\n{}",
+        String::from_utf8_lossy(&logout.stderr),
+    );
+    revoke.assert();
+    drop(root);
+}
+
 /// A project `pnpm-workspace.yaml` cannot choose the scope `pnpm login`
 /// persists, and the user is told the setting was dropped rather than left to
 /// wonder why their token came back unscoped. Spawns the real binary because
@@ -291,15 +361,23 @@ fn a_workspace_yaml_scope_is_ignored_and_reported_on_stderr() {
         1,
         "stderr must name the dropped scope and where it belongs, exactly once; got:\n{stderr}",
     );
-    let document = root
+    let auth_ini = root
         .path()
         .join("pnpm")
-        .join("config.yaml")
+        .join("auth.ini")
         .pipe(fs::read_to_string)
-        .expect("login writes config.yaml");
+        .expect("login writes auth.ini");
     assert!(
-        !document.contains("@acme"),
-        "the repo scope must not reach the recorded login; got:\n{document}",
+        !auth_ini.contains("@acme"),
+        "the repo scope must not reach the recorded login; got:\n{auth_ini}",
+    );
+    assert!(
+        !root
+            .path()
+            .join("pnpm")
+            .join("config.yaml")
+            .exists(),
+        "an unscoped login records no route",
     );
     login.assert();
     done.assert();

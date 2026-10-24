@@ -55,8 +55,8 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("config.yaml was written");
-    assert_eq!(path, &config_dir.join("config.yaml"));
+    let (path, _) = writes.first().expect("auth.ini was written");
+    assert_eq!(path, &config_dir.join("auth.ini"));
     assert_eq!(
         written_registry_token(&writes, &format!("{registry}/")),
         Some("classic-token-456".to_owned()),

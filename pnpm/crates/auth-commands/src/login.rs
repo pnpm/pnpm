@@ -1,5 +1,5 @@
 //! `pnpm login` / `pnpm adduser` authenticates with an npm registry and
-//! records the granted token in the global `config.yaml`.
+//! records the granted token in `auth.ini`.
 //!
 //! The command first tries the registry's web-based login (`POST -/v1/login`)
 //! and, when the registry doesn't support it (HTTP 404 / 405), falls back to
@@ -27,7 +27,7 @@ pub use prompt::{PromptInput, PromptPassword};
 use std::{io, path::Path};
 
 use pnpm_config::{is_json_auth_scope, validate_json_auth_registry};
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_network::{ThrottledClient, nerf_dart, redact_and_sanitize};
 use pnpm_network_web_auth::{
     Clock, EnterKeyListener, OpenUrl, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch,
     WebAuthFetchOptions, WebAuthRetryOptions,
@@ -37,6 +37,7 @@ use pnpm_workspace_manifest_writer::{ManifestEdit, edit_manifest_field};
 
 use crate::{
     config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME},
+    ini::IniSettings,
     logout::{DEFAULT_REGISTRY, FsReadToString, FsWrite},
     registry_url::normalize_registry_url,
 };
@@ -58,8 +59,7 @@ pub struct LoginOptions<'a> {
     /// The scope to key the token to; a scope-to-registry mapping is
     /// recorded alongside it. `None` records an unscoped token.
     pub scope: Option<&'a str>,
-    /// pnpm's `configDir`; the global config lives at
-    /// `<config_dir>/config.yaml`.
+    /// pnpm's `configDir`, holding `auth.ini` and the global `config.yaml`.
     pub config_dir: &'a Path,
     pub fetch_retries: u32,
     pub fetch_retry_factor: u32,
@@ -107,8 +107,7 @@ impl<Sys> LoginHost for Sys where
 {
 }
 
-/// Log in to `registry`, persist the granted token in the global
-/// `config.yaml`, and return the `Logged in on <registry>` success line.
+/// Log in to `registry`, persist the granted token in `auth.ini`, and return the `Logged in on <registry>` success line.
 ///
 /// Tries web-based login first, falling back to classic
 /// username / password / email login when the registry answers the web-login
@@ -128,8 +127,8 @@ where
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
     // Before the network, not after: a value the reader would refuse must not
-    // cost the user a round-trip, and must never be written — a `config.yaml`
-    // holding one fails to load for every later command.
+    // cost the user a round-trip, and must never be written. A `registries`
+    // route holding one fails to load for every later command.
     let registry = validate_json_auth_registry(&registry)
         .map_err(|reason| LoginError::UnrecordableLogin { reason })?;
     if let Some(scope) = normalize_scope(opts.scope)
@@ -180,22 +179,70 @@ fn normalize_scope(scope: Option<&str>) -> Option<String> {
     Some(if trimmed.starts_with('@') { trimmed.to_owned() } else { format!("@{trimmed}") })
 }
 
-/// Record the granted `token` in the global `config.yaml`: the credential
-/// under `_auth`, and the route to it under `registries`.
+/// Record the granted `token` in `auth.ini`, and bring the global
+/// `config.yaml` in line with it (see [`config_yaml::login_fields`]).
 ///
-/// The fields are folded into the document one after another and written
-/// once. A credential and the route that reaches it are one fact, so a
-/// failure part-way through has to leave the file as it was rather than a
-/// token the command is about to report it failed to record.
+/// Both files are read and edited before either is written, and `auth.ini` is
+/// restored when the `config.yaml` write fails, so a failed login leaves no
+/// token behind.
 fn record_login<Sys: FsReadToString + FsWrite>(
     opts: &LoginOptions<'_>,
     registry: &str,
     token: &str,
 ) -> Result<(), LoginError> {
-    let config_path = opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
-    let original = read_config_yaml::<Sys>(&config_path)?;
     let scope = normalize_scope(opts.scope);
-    let fields = config_yaml::login_fields(original.as_deref(), registry, scope.as_deref(), token)
+    let auth_ini_path = opts.config_dir.join("auth.ini");
+    let (original_auth_ini, auth_ini) =
+        auth_ini_with_token::<Sys>(&auth_ini_path, registry, scope.as_deref(), token)?;
+    let config_path = opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
+    let config_yaml = config_yaml_after_login::<Sys>(&config_path, registry, scope.as_deref())?;
+
+    Sys::write(&auth_ini_path, auth_ini.as_bytes())
+        .map_err(|error| LoginError::WriteAuthIni { path: auth_ini_path.clone(), error })?;
+    let Some(text) = config_yaml else {
+        return Ok(());
+    };
+    Sys::write(&config_path, text.as_bytes())
+        .map_err(|error| {
+            // Best effort: the error the user needs is the `config.yaml` one.
+            let _ = Sys::write(&auth_ini_path, original_auth_ini.as_bytes());
+            LoginError::WriteConfigYaml { path: config_path, error }
+        })
+}
+
+/// `auth.ini` as read (empty when missing), and with the `//host/:_authToken` key, or `//host/:<scope>:_authToken`
+/// for a scoped login, set to `token`.
+fn auth_ini_with_token<Sys: FsReadToString>(
+    path: &Path,
+    registry: &str,
+    scope: Option<&str>,
+    token: &str,
+) -> Result<(String, String), LoginError> {
+    let original = match Sys::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(LoginError::ReadAuthIni { path: path.to_path_buf(), error }),
+    };
+    let mut settings = IniSettings::parse(&original);
+    let registry_key = nerf_dart(registry);
+    let token_key = match scope {
+        Some(scope) => format!("{registry_key}:{scope}:_authToken"),
+        None => format!("{registry_key}:_authToken"),
+    };
+    settings.set(&token_key, token);
+    let updated = settings.serialize();
+    Ok((original, updated))
+}
+
+/// The global `config.yaml` after a login, or `None` when the login leaves it
+/// as it is.
+fn config_yaml_after_login<Sys: FsReadToString>(
+    path: &Path,
+    registry: &str,
+    scope: Option<&str>,
+) -> Result<Option<String>, LoginError> {
+    let original = read_config_yaml::<Sys>(path)?;
+    let fields = config_yaml::login_fields(original.as_deref(), registry, scope)
         .map_err(LoginError::ParseConfigYaml)?;
 
     let mut document = original.clone();
@@ -205,18 +252,11 @@ fn record_login<Sys: FsReadToString + FsWrite>(
         {
             ManifestEdit::Write(text) => document = Some(text),
             ManifestEdit::Unchanged => {}
-            // Only a deletion empties a document, and a login sets.
-            ManifestEdit::Remove => {
-                unreachable!("recording a login cannot empty {}", config_path.display())
-            }
+            // Blank rather than delete, as `pnpm logout` does.
+            ManifestEdit::Remove => document = Some(String::new()),
         }
     }
-
-    let Some(text) = document.filter(|text| Some(text) != original.as_ref()) else {
-        return Ok(());
-    };
-    Sys::write(&config_path, text.as_bytes())
-        .map_err(|error| LoginError::WriteConfigYaml { path: config_path, error })
+    Ok(document.filter(|text| Some(text) != original.as_ref()))
 }
 
 /// Read the global `config.yaml`, treating a missing file as absent. Any

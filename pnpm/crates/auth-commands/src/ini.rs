@@ -1,12 +1,10 @@
 //! A flat `key=value` INI reader/writer for `auth.ini`.
 //!
-//! `pnpm login` writes to the global `config.yaml`, but versions before it
-//! kept their tokens in `auth.ini`, a file that only ever holds top-level
-//! `//host/path/:_authToken=<token>` lines (no sections, no arrays). This
-//! reader/writer is what lets `pnpm logout` take a token out of one without
-//! disturbing the entries around it. Upstream pnpm round-trips the file
-//! through `read-ini-file` / `write-ini-file`; pacquet has no INI crate, and
-//! the `.npmrc` parser in `pnpm-config` is likewise hand-rolled.
+//! `pnpm login` / `pnpm logout` keep their tokens in `auth.ini`, a file
+//! that only ever holds top-level `//host/path/:_authToken=<token>` lines
+//! (no sections, no arrays). Upstream pnpm round-trips it through
+//! `read-ini-file` / `write-ini-file`; pacquet has no INI crate, and the
+//! `.npmrc` parser in `pnpm-config` is likewise hand-rolled.
 //!
 //! Entries keep their on-disk order so removing one token rewrites the
 //! file without churning the rest. Section headers (`[name]`), bare keys
@@ -14,12 +12,16 @@
 //! shape and are skipped on read.
 //!
 //! A key or value that would be misread on the way back is written as a JSON
-//! string and decoded on read, so that removing one entry leaves every other
-//! entry saying what it said.
+//! string and decoded on read. Without this a registry-controlled auth token
+//! with an embedded newline could plant extra entries in `auth.ini`, and a
+//! registry whose path contains `=` would key its token under a truncated
+//! name.
+//!
+//! A single-quoted value is unwrapped on read, as the config reader does, so
+//! rewriting the file leaves such a token meaning what it meant.
 //!
 //! The `ini` package additionally backslash-escapes inline `;` / `#` (which
-//! it reads as comment starts) and unwraps single-quoted values. That is
-//! deliberately omitted here: the opaque bearer tokens this file holds are
+//! it reads as comment starts). That is deliberately omitted here: the opaque bearer tokens this file holds are
 //! `[A-Za-z0-9+/=._-]` and never contain `;`, `#`, or quotes, and pacquet
 //! only skips comments at line start, so such values round-trip regardless.
 
@@ -47,6 +49,27 @@ impl IniSettings {
             })
             .collect();
         IniSettings { entries }
+    }
+
+    /// Set `key` to `value`, updating the first existing entry in place
+    /// (preserving its position) and dropping any later duplicates so the
+    /// key resolves to a single value, or appending when the key is absent.
+    pub fn set(&mut self, key: &str, value: &str) {
+        let mut updated = false;
+        self.entries.retain_mut(|(entry_key, entry_value)| {
+            if entry_key.as_str() != key {
+                return true;
+            }
+            if updated {
+                return false;
+            }
+            *entry_value = value.to_string();
+            updated = true;
+            true
+        });
+        if !updated {
+            self.entries.push((key.to_string(), value.to_string()));
+        }
     }
 
     /// Remove every entry whose key equals `key`. Returns `true` when at
@@ -88,14 +111,15 @@ impl IniSettings {
 ///
 /// - contains `=`, CR, or LF (a registry-controlled token with an embedded
 ///   newline would otherwise plant extra `auth.ini` entries);
-/// - is already `"`-wrapped, so [`decode_value`] would strip its quotes;
+/// - is already `"`- or `'`-wrapped, so [`decode_value`] would strip its quotes;
 /// - has leading/trailing whitespace, which [`parse`](IniSettings::parse) trims;
 /// - starts with `[`, which reads as a section header.
 fn encode_value(value: &str) -> Cow<'_, str> {
     let needs_quoting = value.contains(['=', '\r', '\n'])
         || value.starts_with('[')
         || value != value.trim()
-        || (value.len() > 1 && value.starts_with('"') && value.ends_with('"'));
+        || is_wrapped_in(value, '"')
+        || is_wrapped_in(value, '\'');
     if needs_quoting {
         serde_json::to_string(value).expect("serializing a string never fails").into()
     } else {
@@ -104,14 +128,20 @@ fn encode_value(value: &str) -> Cow<'_, str> {
 }
 
 /// Reverse of [`encode_value`]: a JSON-quoted value is decoded to its literal
-/// contents; anything else is taken verbatim. Mirrors the `ini` package's
-/// quoted-value handling on read.
+/// contents, a single-quoted one is unwrapped, and anything else is taken
+/// verbatim. Mirrors the config reader.
 fn decode_value(value: &str) -> String {
-    if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+    if is_wrapped_in(value, '"') {
         serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned())
+    } else if is_wrapped_in(value, '\'') {
+        value[1..value.len() - 1].to_owned()
     } else {
         value.to_owned()
     }
+}
+
+fn is_wrapped_in(value: &str, quote: char) -> bool {
+    value.len() > 1 && value.starts_with(quote) && value.ends_with(quote)
 }
 
 /// Split a stored line into its still-encoded key and value halves. A
