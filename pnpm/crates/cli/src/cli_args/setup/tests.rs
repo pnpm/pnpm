@@ -5,7 +5,8 @@
 use super::{
     ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
     PathExtenderError, PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims,
-    render_env_path_outcome, render_setup_output, standalone_manifest, write_windows_alias_wrapper,
+    render_env_path_outcome, render_setup_output, render_unmodified_path_output,
+    standalone_manifest, write_windows_alias_wrapper,
 };
 use pretty_assertions::assert_eq;
 use std::path::{Path, PathBuf};
@@ -81,6 +82,22 @@ fn manual_setup_lines_quote_pnpm_home_as_a_literal() {
     )
     .expect("an unknown shell leaves the install in place");
     assert!(output.contains("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n"), "{output}");
+}
+
+#[test]
+fn no_modify_path_prints_the_lines_to_add_by_hand() {
+    assert_eq!(
+        render_unmodified_path_output(Path::new("/root/.pnpm"), false),
+        "pnpm is installed. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME='/root/.pnpm'\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+    );
+}
+
+#[test]
+fn no_modify_path_prints_powershell_instructions_on_windows() {
+    assert_eq!(
+        render_unmodified_path_output(Path::new("C:\\Users\\o'neil\\pnpm"), true),
+        "pnpm is installed. The environment was left unchanged.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = 'C:\\Users\\o''neil\\pnpm'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+    );
 }
 
 #[test]

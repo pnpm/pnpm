@@ -3,7 +3,8 @@
 //! The CLI is installed into the global packages directory, the `pn` /
 //! `pnpx` / `pnx` alias scripts are written into `$PNPM_HOME/bin`, and
 //! `PNPM_HOME` plus `$PNPM_HOME/bin` are added to the user's environment
-//! (the shell rc file on POSIX, the registry on Windows).
+//! (the shell rc file on POSIX, the registry on Windows), unless
+//! `--no-modify-path` is passed.
 
 mod gh_actions_env;
 mod path_extender;
@@ -31,17 +32,29 @@ pub struct SetupArgs {
         help = "Override the PNPM_HOME env variable in case it already exists"
     )]
     pub force: bool,
+
+    /// Install pnpm without adding it to `PATH`: leave the shell config file,
+    /// the Windows registry, and the GitHub Actions environment files unchanged.
+    #[clap(
+        long,
+        help = "Install pnpm without adding it to PATH: leave the shell config file, the Windows registry, and the GitHub Actions environment files unchanged"
+    )]
+    pub no_modify_path: bool,
 }
 
 impl SetupArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, dir: &Path) -> miette::Result<()> {
-        let output = handler::<Reporter>(self.force, dir)?;
+        let output = handler::<Reporter>(self.force, self.no_modify_path, dir)?;
         pnpm_diagnostics::println!("{output}");
         Ok(())
     }
 }
 
-fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miette::Result<String> {
+fn handler<Reporter: self::Reporter + 'static>(
+    force: bool,
+    no_modify_path: bool,
+    dir: &Path,
+) -> miette::Result<String> {
     if cfg!(target_family = "wasm") {
         return Err(miette::miette!(
             code = "ERR_PNPM_UNSUPPORTED_RUNTIME",
@@ -58,7 +71,9 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
     // the self-install subprocess's `PATH` or the alias-script writes.
     path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
     let bin_dir = pnpm_home_dir.join("bin");
-    gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
+    if !no_modify_path {
+        gh_actions_env::validate_gh_actions_env_file_values::<Host>(&pnpm_home_dir, &bin_dir)?;
+    }
 
     let exec_path = pnpm_executor::current_executable()
         .into_diagnostic()
@@ -74,18 +89,23 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             .wrap_err("create the pnpm alias scripts")?;
     }
 
-    let env_path_result = path_extender::add_dir_to_env_path(
-        &pnpm_home_dir,
-        &AddDirToEnvPathOpts {
-            config_section_name: "pnpm",
-            proxy_var_name: Some("PNPM_HOME"),
-            proxy_var_sub_dir: Some("bin"),
-            overwrite: force,
-            position: AddingPosition::Start,
-        },
-    );
-    let output = render_env_path_outcome(env_path_result, &pnpm_home_dir)?;
-    gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
+    let output = if no_modify_path {
+        render_unmodified_path_output(&pnpm_home_dir, cfg!(windows))
+    } else {
+        let env_path_result = path_extender::add_dir_to_env_path(
+            &pnpm_home_dir,
+            &AddDirToEnvPathOpts {
+                config_section_name: "pnpm",
+                proxy_var_name: Some("PNPM_HOME"),
+                proxy_var_sub_dir: Some("bin"),
+                overwrite: force,
+                position: AddingPosition::Start,
+            },
+        );
+        let output = render_env_path_outcome(env_path_result, &pnpm_home_dir)?;
+        gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
+        output
+    };
     remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(output)
 }
@@ -111,6 +131,42 @@ fn render_env_path_outcome(
 }
 
 fn render_windows_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
+    format!(
+        "{reason}\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n{}\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+        powershell_env_lines(pnpm_home_dir),
+    )
+}
+
+fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
+    format!(
+        "{reason} No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\n{}",
+        posix_env_lines(pnpm_home_dir),
+    )
+}
+
+/// The output of `pnpm setup --no-modify-path`.
+fn render_unmodified_path_output(pnpm_home_dir: &Path, windows: bool) -> String {
+    if windows {
+        format!(
+            "pnpm is installed. The environment was left unchanged.\nTo start using pnpm in this PowerShell session, run:\n{}\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
+            powershell_env_lines(pnpm_home_dir),
+        )
+    } else {
+        format!(
+            "pnpm is installed. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\n{}",
+            posix_env_lines(pnpm_home_dir),
+        )
+    }
+}
+
+fn posix_env_lines(pnpm_home_dir: &Path) -> String {
+    format!(
+        "export PNPM_HOME={}\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+        sh_quote(&pnpm_home_dir.to_string_lossy()),
+    )
+}
+
+fn powershell_env_lines(pnpm_home_dir: &Path) -> String {
     let mut quoted_home = String::new();
     for character in pnpm_home_dir.to_string_lossy().chars() {
         quoted_home.push(character);
@@ -119,16 +175,7 @@ fn render_windows_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir:
             quoted_home.push(character);
         }
     }
-    format!(
-        "{reason}\n\npnpm is installed, but its environment could not be saved in the registry.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = '{quoted_home}'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
-    )
-}
-
-fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) -> String {
-    format!(
-        "{reason} No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME={}\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
-        sh_quote(&pnpm_home_dir.to_string_lossy()),
-    )
+    format!("$env:PNPM_HOME = '{quoted_home}'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"")
 }
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
