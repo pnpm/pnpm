@@ -29,32 +29,74 @@ fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
 }
 
+fn no_prefixes() -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext::default()
+}
+
+/// `work` declared for the default registry.
+fn work_default_registry() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://registry.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            registry.to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            registry.to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", registry)]),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn matches_the_re_keyed_id_of_the_recorded_entry() {
+    let registries = work_default_registry();
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@work:1.0.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@work:1.1.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@work:1.0.0", &no_prefixes()));
+}
+
 #[test]
 fn matches_a_plain_registry_id() {
-    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0"));
-    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.1.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0", &no_prefixes()));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.1.0", &no_prefixes()));
 }
 
 #[test]
 fn strips_the_recorded_key_peer_and_patch_suffixes() {
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0"));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0"));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"), "foo@1.0.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(
+        &key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"),
+        "foo@1.0.0",
+        &no_prefixes()
+    ));
 }
 
 #[test]
 fn strips_the_resolved_id_patch_suffix() {
     assert!(landed_on_prior_entry(
         &key("foo@1.0.0(patch_hash=0000)"),
-        "foo@1.0.0(patch_hash=0000)"
+        "foo@1.0.0(patch_hash=0000)",
+        &no_prefixes()
     ),);
-    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)", &no_prefixes()));
 }
 
 #[test]
 fn matches_a_name_prefixed_file_id() {
-    assert!(landed_on_prior_entry(&key("foo@file:packages/foo"), "foo@file:packages/foo"));
-    assert!(!landed_on_prior_entry(&key("foo@file:packages/foo"), "file:packages/foo"));
+    assert!(landed_on_prior_entry(
+        &key("foo@file:packages/foo"),
+        "foo@file:packages/foo",
+        &no_prefixes()
+    ));
+    assert!(!landed_on_prior_entry(
+        &key("foo@file:packages/foo"),
+        "file:packages/foo",
+        &no_prefixes()
+    ));
 }
 
 fn revision_resolution(revision: u64, integrity: &str) -> LockfileResolution {
@@ -300,4 +342,23 @@ mod overlay_view {
         );
         assert_ne!(direct_view, descendant_view);
     }
+}
+
+/// A transitive edge keeps the version its registry-qualified key locks, as
+/// it keeps a plain key's.
+#[test]
+fn a_registry_qualified_locked_version_pins_a_transitive_range() {
+    let ctx = crate::resolve_dependency_tree::TreeCtx::with_workspace(
+        std::sync::Arc::new(
+            crate::resolve_dependency_tree::workspace_ctx::WorkspaceTreeCtx::default(),
+        ),
+        pnpm_resolving_resolver_base::ResolveOptions::default(),
+    );
+    let mut wanted = pnpm_resolving_resolver_base::WantedDependency {
+        alias: Some("foo".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..Default::default()
+    };
+    super::locked_versions::pin_locked_version(&ctx, &mut wanted, Some(&key("foo@work:1.0.0")), 1);
+    assert_eq!(wanted.bare_specifier.as_deref(), Some("1.0.0"));
 }

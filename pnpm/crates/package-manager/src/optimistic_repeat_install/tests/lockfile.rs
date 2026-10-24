@@ -487,6 +487,43 @@ fn returns_up_to_date_when_the_newer_wanted_lockfile_differs_only_in_unmateriali
 /// same tree.
 #[test]
 fn returns_skipped_when_the_changed_lockfile_records_outdated_registry_keys() {
+    let (dir, config, manifest) = setup_changed_lockfile_with_outdated_registry_keys();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("registry keys")),
+        "expected Skipped(outdated registry keys), got {decision:?}",
+    );
+}
+
+/// A script runs the same whatever keys the lockfile records, so the run
+/// gate passes, but the state it records leaves the re-keying to the next
+/// install.
+#[test]
+fn run_gate_passes_on_a_changed_lockfile_with_outdated_registry_keys() {
+    let (dir, config, manifest) = setup_changed_lockfile_with_outdated_registry_keys();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(
+        single_project_deps_status(&dir, config, &project_manifests),
+        RunDepsStatus::UpToDate,
+    );
+    let state = load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state");
+    assert_eq!(state.settings.registry_prefixes, None);
+    assert!(matches!(
+        content_check_decision(&dir, config, false, &project_manifests),
+        Decision::Skipped { reason } if reason.contains("settings"),
+    ));
+}
+
+/// A project installed from [`WORK_FOO_LOCKFILE`] with its registry keys
+/// verified, whose lockfile then gained a `bar@1.0.0` entry no importer
+/// reaches, keyed without the declared prefix.
+fn setup_changed_lockfile_with_outdated_registry_keys()
+-> (tempfile::TempDir, &'static Config, PackageManifest) {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
@@ -501,12 +538,11 @@ fn returns_skipped_when_the_changed_lockfile_records_outdated_registry_keys() {
     fs::write(config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME), WORK_FOO_LOCKFILE)
         .unwrap();
     let config = config.leak();
-    let project_manifests = [(workspace_root.to_path_buf(), &manifest)];
     super::record_test_workspace_state(
         workspace_root,
         config,
         pnpm_config::NodeLinker::Isolated,
-        &project_manifests,
+        &[(workspace_root.to_path_buf(), &manifest)],
     );
 
     fs::write(
@@ -518,12 +554,7 @@ fn returns_skipped_when_the_changed_lockfile_records_outdated_registry_keys() {
         ),
     )
     .unwrap();
-
-    let decision = content_check_decision(&dir, config, false, &project_manifests);
-    assert!(
-        matches!(decision, Decision::Skipped { reason } if reason.contains("registry keys")),
-        "expected Skipped(outdated registry keys), got {decision:?}",
-    );
+    (dir, config, manifest)
 }
 
 /// [`FOO_LOCKFILE`] keyed by a `work` prefix declared for the default

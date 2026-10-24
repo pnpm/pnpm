@@ -107,7 +107,7 @@ pub(super) fn pin_locked_version(
     if depth > 0
         && let Some(key) = prior_key
         && keeps_locked_version(ctx, wanted, key, depth)
-        && let Some(version) = key.suffix.version_semver()
+        && let Some(version) = key.suffix.registry_version()
         && wanted.bare_specifier
             .as_deref()
             .is_some_and(|spec| spec.parse::<node_semver::Range>().is_ok())
@@ -125,7 +125,7 @@ pub(super) fn keeps_locked_version(
     prior_key: &PkgNameVerPeer,
     depth: i32,
 ) -> bool {
-    let locked_version = prior_key.suffix.version_semver();
+    let locked_version = prior_key.suffix.registry_version();
     !ctx.workspace.reuse.dedupe.covers(&prior_key.name.to_string(), locked_version)
         && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
 }

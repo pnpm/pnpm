@@ -5,6 +5,7 @@
 //! the gate covers against the lockfile, and records a passing check.
 
 pub(crate) use drift::{InputDrift, ProjectStatus};
+use registry_keys::state_unverified_by_changed_lockfile;
 
 use super::{
     LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
@@ -25,6 +26,7 @@ use super::{
 use std::collections::HashSet;
 
 mod drift;
+mod registry_keys;
 
 /// What a gate does differently in [`check_freshness`].
 pub(super) struct GatePolicy<'a> {
@@ -165,7 +167,8 @@ pub(super) fn check_freshness(
         Ok(false) => {}
         Err(reason) => return Err(Stale::Content(reason)),
     }
-    check_changed_lockfile_registry_keys(check, state, &drift)?;
+    let unverified = state_unverified_by_changed_lockfile(check, state, &drift, policy)?;
+    let state = unverified.as_ref().unwrap_or(state);
     let held = drift.held(check, scope);
     if held.is_empty() && !drift.patches_modified {
         return settle_proven_tree(check, state, &drift, policy, scope);
@@ -183,27 +186,6 @@ pub(super) fn check_freshness(
     if drift.lockfile_unchanged() {
         let vouched = drift.proven_dirs(&held);
         record_state_at(check, state, &vouched, policy, filesystem_now);
-    }
-    Ok(())
-}
-
-/// A recorded registry-key verification covers the lockfile it was made for,
-/// and a passing check carries it forward.
-fn check_changed_lockfile_registry_keys(
-    check: &OptimisticRepeatInstallCheck<'_>,
-    state: &WorkspaceState,
-    drift: &InputDrift<'_>,
-) -> Result<(), Stale> {
-    if !drift.lockfile_changed || state.settings.registry_prefixes.is_none() {
-        return Ok(());
-    }
-    let lockfile = check.lockfile
-        .get()
-        .map_err(|_| Stale::Content("the wanted lockfile cannot be read or parsed"))?;
-    if lockfile.is_some_and(|lockfile| {
-        !crate::install::registry_keys_current(check.config, Some(lockfile))
-    }) {
-        return Err(Stale::Content("the changed lockfile records outdated registry keys"));
     }
     Ok(())
 }

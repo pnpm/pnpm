@@ -17,8 +17,13 @@ fn ctx(dedupe: crate::UpdateTargets) -> TreeCtx {
 /// A parent whose lockfile snapshot pins `react@17.0.2`, in an importer
 /// whose direct dependencies resolved `react` to both 17.0.2 and 18.2.0.
 fn child_wanted_for_react(ctx: &TreeCtx) -> (Option<String>, Option<String>) {
+    child_wanted_for_locked_react(ctx, "17.0.2")
+}
+
+/// [`child_wanted_for_react`] with the snapshot pinning `react` as `locked`.
+fn child_wanted_for_locked_react(ctx: &TreeCtx, locked: &str) -> (Option<String>, Option<String>) {
     let snapshot: SnapshotEntry =
-        serde_json::from_value(serde_json::json!({ "dependencies": { "react": "17.0.2" } }))
+        serde_json::from_value(serde_json::json!({ "dependencies": { "react": locked } }))
             .expect("parse snapshot entry");
     let mut direct_versions = DirectDepVersions::default();
     direct_versions.insert(
@@ -56,5 +61,30 @@ fn a_dedupe_target_is_left_to_the_preferred_versions() {
     assert_eq!(
         child_wanted_for_react(&ctx(dedupe)),
         (Some("^17.0.0 || ^18.0.0".to_string()), Some("react@17.0.2".to_string())),
+    );
+}
+
+/// A plain range whose registry declares a prefix is locked under a
+/// registry-qualified key, which the refresh reads the same way.
+#[test]
+fn a_kept_registry_qualified_pin_is_refreshed_onto_the_higher_direct_dependency_version() {
+    let registry = "https://registry.example.test/";
+    let registries = pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            registry.to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            registry.to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", registry)]),
+        ..Default::default()
+    };
+    let workspace = WorkspaceTreeCtx::default().with_registry_context(registries);
+    let ctx = TreeCtx::with_workspace(Arc::new(workspace), ResolveOptions::default());
+    assert_eq!(
+        child_wanted_for_locked_react(&ctx, "work:17.0.2"),
+        (Some("18.2.0".to_string()), None),
     );
 }

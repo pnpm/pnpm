@@ -121,7 +121,13 @@ impl<'s> ChildSeedScope<'s> {
     pub(super) fn of(ctx: &'s TreeCtx, pending: &PendingNode) -> Self {
         let landed_prior = pending.prior_key
             .as_ref()
-            .filter(|key| landed_on_prior_entry(key, &pending.identity.id));
+            .filter(|key| {
+                landed_on_prior_entry(
+                    key,
+                    &pending.identity.id,
+                    &ctx.workspace.cache.registry_context,
+                )
+            });
         Self::for_result(ctx, &pending.result, landed_prior)
     }
 
@@ -210,7 +216,7 @@ pub(super) fn child_wanted(
     });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix
-            .version_semver()
+            .registry_version()
             .zip(bare_specifier.parse::<node_semver::Range>().ok())
             .and_then(|(pinned, parsed)| {
                 higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
@@ -253,9 +259,18 @@ pub(crate) fn parent_ids_contain_sequence(
 
 /// Whether a freshly resolved node landed back on its previously
 /// recorded lockfile entry — the non-`updated` arm, which keeps the
-/// prior child refs alive.
-pub(super) fn landed_on_prior_entry(prior_key: &PkgNameVerPeer, resolved_pkg_id: &str) -> bool {
-    prior_key.without_peer().to_string() == pnpm_deps_path::remove_suffix(resolved_pkg_id)
+/// prior child refs alive. An entry the registry configuration re-keys
+/// still names the same package from the same registry.
+pub(super) fn landed_on_prior_entry(
+    prior_key: &PkgNameVerPeer,
+    resolved_pkg_id: &str,
+    registries: &pnpm_lockfile::RegistryContext,
+) -> bool {
+    let resolved = pnpm_deps_path::remove_suffix(resolved_pkg_id);
+    prior_key.without_peer().to_string() == resolved
+        || registries
+            .rekeyed(prior_key)
+            .is_some_and(|current| current.without_peer().to_string() == resolved)
 }
 
 /// The package names the npm picker may consult the preferred-versions

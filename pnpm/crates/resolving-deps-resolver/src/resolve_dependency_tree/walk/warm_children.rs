@@ -224,7 +224,9 @@ pub(super) async fn warm_child<Chain>(
     if child_id.starts_with("link:") {
         return;
     }
-    let landed_prior = prior.as_ref().filter(|key| landed_on_prior_entry(key, child_id));
+    let landed_prior = prior
+        .as_ref()
+        .filter(|key| landed_on_prior_entry(key, child_id, &ctx.workspace.cache.registry_context));
     warm_grandchildren(ctx, resolver, &child, landed_prior, parent_depth + 1).await;
 }
 
