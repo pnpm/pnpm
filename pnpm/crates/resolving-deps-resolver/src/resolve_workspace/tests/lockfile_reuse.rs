@@ -132,6 +132,33 @@ async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfyi
     );
 }
 
+/// A plain range whose registry declares a prefix is locked under a
+/// registry-qualified key.
+#[tokio::test]
+async fn fails_on_an_unresolvable_optional_dependency_locked_under_a_registry_qualified_key() {
+    let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
+    let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let mut opts = workspace_opts(false, false);
+    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@work:1.2.0")));
+    opts.reuse.scope = crate::UpdateReuseScope::None;
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod, DependencyGroup::Optional],
+        opts,
+        |_| importer_opts(std::path::PathBuf::from("/repo"), None),
+    )
+    .await;
+
+    let Err(crate::ResolveImporterError::Resolve(err)) = result else {
+        panic!("a locked optional dependency must fail loudly");
+    };
+    assert!(
+        matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+        "unexpected error: {err}",
+    );
+}
+
 #[tokio::test]
 async fn skips_an_optional_dependency_when_the_locked_entry_does_not_satisfy_the_wanted_range() {
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);

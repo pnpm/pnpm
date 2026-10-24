@@ -214,6 +214,7 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
             key.name == pkg_name
                 && key.suffix
                     .version_semver()
+                    .or_else(|| key.suffix.registry_qualified().map(|(_, version)| version))
                     .is_some_and(|version| range.satisfies(version))
         })
 }

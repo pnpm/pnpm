@@ -277,6 +277,19 @@ test('the workspace state records the registry prefixes only for a lockfile whos
   expect(readRecordedRegistryPrefixes()).toStrictEqual({ other: OTHER_REGISTRY, work: REGISTRY })
 })
 
+test('the workspace state records the registry prefixes of an install that keeps no lockfile', async () => {
+  setup({ [CHILD]: '^100.0.0' }, {
+    lockfile: false,
+    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: REGISTRY },
+  })
+
+  await execPnpm(['install'])
+
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(false)
+  expect(readRecordedRegistryPrefixes()).toStrictEqual({ work: REGISTRY })
+})
+
 test('jsr: specifiers share the key of the registry prefix', async () => {
   setup({ '@pnpm-e2e/bar': 'jsr:@pnpm-e2e/bar@2.0.0', 'bar-work': 'work:@jsr/pnpm-e2e__bar@2.0.0' }, {
     namedRegistries: { work: REGISTRY },
