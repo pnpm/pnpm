@@ -10,10 +10,9 @@
 use crate::{CafsFileInfo, SYMLINK_MODE, StoreDir, WriteCasFileError, normalize_symlink_target};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_fs::{
-    FileMode,
-    file_mode::{file_mode_of, is_executable},
-};
+#[cfg(not(target_os = "wasi"))]
+use pnpm_fs::file_mode::file_mode_of;
+use pnpm_fs::{FileMode, file_mode::is_executable};
 use std::{
     collections::{HashMap, HashSet},
     fs, io,

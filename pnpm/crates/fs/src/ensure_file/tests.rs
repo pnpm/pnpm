@@ -2,12 +2,13 @@ use super::{
     EnsureFileError, create_exclusive_temp_file, ensure_file, ensure_file_atomically,
     file_equals_bytes, strip_dash_suffix, temp_path_in,
 };
-use pnpm_ffi_fs::FileMode;
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
 
 #[cfg(unix)]
 use super::{EMFILE, ENFILE, ensure_cas_file, retry_on_fd_pressure};
+#[cfg(unix)]
+use pnpm_ffi_fs::FileMode;
 
 #[test]
 fn writes_a_new_file() {
