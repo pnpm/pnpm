@@ -128,7 +128,7 @@ pub(super) fn collect_components(
             ctx: &ctx,
         },
         &mut stores,
-    );
+    )?;
 
     Ok(assemble_sbom_result(root, sbom_type, stores))
 }

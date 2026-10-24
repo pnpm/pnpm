@@ -103,7 +103,7 @@ fn collect_importer_components(
     importer_id: &str,
     importer: &pnpm_lockfile::ProjectSnapshot,
     walk: &mut ImporterWalk<'_>,
-) {
+) -> miette::Result<()> {
     let parent_purl = walk.ws_purl_by_importer
         .get(importer_id)
         .cloned()
@@ -127,7 +127,7 @@ fn collect_importer_components(
             &parent_purl,
             dev_only,
             walk,
-        );
+        )?;
         if linked {
             continue;
         }
@@ -142,6 +142,7 @@ fn collect_importer_components(
             );
         }
     }
+    Ok(())
 }
 
 /// The peer dependency names the importer's own manifest declares, when
@@ -159,6 +160,10 @@ fn importer_peer_names(inputs: &ImporterComponents<'_>, importer_id: &str) -> Ha
 /// Record a `link:` dependency that resolves to another workspace
 /// importer as a component of its own, and queue that importer so its
 /// dependencies hang off it. `false` when the dependency is not one.
+///
+/// A workspace project without a manifest is not one. A manifest that
+/// exists but cannot be read is an error, so the project and everything
+/// below it is not dropped from the SBOM.
 fn collect_linked_workspace_component(
     inputs: &ImporterComponents<'_>,
     importer_id: &str,
@@ -167,17 +172,19 @@ fn collect_linked_workspace_component(
     parent_purl: &str,
     dev_only: bool,
     walk: &mut ImporterWalk<'_>,
-) -> bool {
-    let Some(link_target) = spec.version.as_link_target() else { return false };
-    let Some(target_id) = normalize_link_path(importer_id, link_target) else { return false };
+) -> miette::Result<bool> {
+    let Some(link_target) = spec.version.as_link_target() else { return Ok(false) };
+    let Some(target_id) = normalize_link_path(importer_id, link_target) else { return Ok(false) };
     if !inputs.lockfile.importers.contains_key(target_id.as_str()) {
-        return false;
+        return Ok(false);
     }
     let Some(ws_dir) = confined_importer_dir(inputs.lockfile_dir, &target_id) else {
-        return false;
+        return Ok(false);
     };
-    let Ok(Some(ws_manifest)) = safe_read_project_manifest_from_dir(&ws_dir) else {
-        return false;
+    let Some(ws_manifest) =
+        safe_read_project_manifest_from_dir(&ws_dir).map_err(miette::Report::new)?
+    else {
+        return Ok(false);
     };
     let ws_name = ws_manifest
         .get("name")
@@ -204,7 +211,7 @@ fn collect_linked_workspace_component(
     }
     walk.ws_purl_by_importer.insert(target_id.clone(), ws_purl);
     walk.queue.push(target_id);
-    true
+    Ok(true)
 }
 
 /// The SBOM component describing a linked workspace project.
@@ -331,7 +338,10 @@ fn snapshot_component(
     }
 }
 
-pub(super) fn walk_importer_components(inputs: &ImporterComponents<'_>, stores: &mut WalkStores) {
+pub(super) fn walk_importer_components(
+    inputs: &ImporterComponents<'_>,
+    stores: &mut WalkStores,
+) -> miette::Result<()> {
     let mut walk = ImporterWalk {
         components_map: &mut stores.components_map,
         relationships: &mut stores.relationships,
@@ -346,8 +356,9 @@ pub(super) fn walk_importer_components(inputs: &ImporterComponents<'_>, stores: 
         let Some(importer) = inputs.lockfile.importers.get(importer_id.as_str()) else {
             continue;
         };
-        collect_importer_components(inputs, &importer_id, importer, &mut walk);
+        collect_importer_components(inputs, &importer_id, importer, &mut walk)?;
     }
+    Ok(())
 }
 
 pub(super) fn component_walk_context<'a>(
