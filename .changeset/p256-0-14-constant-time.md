@@ -3,4 +3,4 @@
 "@pnpm/pnpr": patch
 ---
 
-pnpm and pnpr now sign shared artifacts, OCI registry tokens, and OIDC login state with a P-256 release that fixes a timing side channel. See [the advisory](https://rustsec.org/advisories/RUSTSEC-2026-0387).
+Signing in pnpm and pnpr no longer uses arithmetic that may leak the private key through timing. This covers shared artifacts, OCI registry tokens, and OIDC login state [advisory](https://rustsec.org/advisories/RUSTSEC-2026-0387).
