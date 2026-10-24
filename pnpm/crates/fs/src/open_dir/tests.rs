@@ -2,7 +2,7 @@
 
 use super::OpenDir;
 use crate::symlink_dir;
-use std::{fs, io, path::Path};
+use std::{ffi::OsString, fs, io, path::Path};
 use tempfile::tempdir;
 
 fn create_tree(root: &Path) {
@@ -10,6 +10,15 @@ fn create_tree(root: &Path) {
     fs::write(root.join("real/metadata/registry/pkg.json"), "{}").unwrap();
     fs::write(root.join("real/file"), "").unwrap();
     symlink_dir(&root.join("real"), &root.join("link")).unwrap();
+}
+
+fn sorted(names: Vec<OsString>) -> Vec<String> {
+    let mut names: Vec<String> = names
+        .into_iter()
+        .map(|name| name.into_string().unwrap())
+        .collect();
+    names.sort();
+    names
 }
 
 fn names(dir: &Path) -> Vec<String> {
@@ -82,6 +91,31 @@ fn open_child_dir_opens_only_a_real_directory() {
 }
 
 #[test]
+fn entry_names_lists_the_children_without_the_dot_entries() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    assert_eq!(sorted(dir.entry_names().unwrap()), ["file", "metadata"]);
+}
+
+/// A listing reads through a duplicate of the held descriptor, which
+/// shares the offset the directory was read to, so each one has to rewind
+/// before it reads.
+#[test]
+fn entry_names_lists_the_same_names_when_called_again() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    let first = sorted(dir.entry_names().unwrap());
+    let second = sorted(dir.entry_names().unwrap());
+
+    assert_eq!(first, ["file", "metadata"]);
+    assert_eq!(second, first);
+}
+
+#[test]
 fn remove_child_dir_removes_a_directory_with_its_contents() {
     let root = tempdir().unwrap();
     create_tree(root.path());
@@ -150,6 +184,21 @@ fn remove_child_dir_ignores_a_link_substituted_after_the_open() {
             .exists(),
     );
     assert_eq!(names(&root.path().join("moved")), ["file"]);
+}
+
+/// Same race for the listing: the directory is replaced after the open,
+/// and the names read must be the opened directory's own.
+#[cfg(unix)]
+#[test]
+fn entry_names_ignores_a_link_substituted_after_the_open() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::create_dir_all(root.path().join("elsewhere/metadata")).unwrap();
+    fs::write(root.path().join("elsewhere/decoy"), "").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+    substitute_real(root.path());
+
+    assert_eq!(sorted(dir.entry_names().unwrap()), ["file", "metadata"]);
 }
 
 /// Same race one level up: the parent is replaced after the open, and a
