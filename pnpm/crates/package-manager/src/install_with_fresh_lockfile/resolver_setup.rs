@@ -496,7 +496,7 @@ async fn load_pnpmfile(
         hook: Some(hook),
         custom_resolvers,
         custom_fetcher_session: (!fetchers.is_empty()).then(|| {
-            Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(fetchers))
+            Arc::new(pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config))
         }),
     })
 }
