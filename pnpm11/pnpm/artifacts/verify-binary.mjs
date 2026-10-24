@@ -6,7 +6,13 @@
 //
 // Existence alone is not sufficient — @pnpm/exe@11.0.0-rc.4 shipped a binary
 // that was present but crashed with a native SEA deserialization assertion on
-// any invocation. Executing -v would have caught it on the Linux CI host.
+// any invocation.
+//
+// Every published executable is executed on a host that can run it (via the
+// release verification runners). When packaging from a host that cannot execute
+// the target (e.g. musl or Windows on a macOS publish runner), skipping local
+// execution is permitted only when the target is declared as covered by release
+// verification (via PNPM_RELEASE_VERIFIED_TARGETS).
 //
 // Each platform package ships only the SEA binary (no dist/ or node_modules),
 // but the SEA's CJS entry (pnpm.cjs) loads dist/pnpm.mjs from
@@ -20,12 +26,6 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-
-// Resolves via the pnpm CLI's own node_modules (which always contains
-// symlink-dir — the CLI depends on it directly). symlink-dir handles Windows
-// junctions internally, so the verifier doesn't need its own elevation /
-// link-type branching.
-import { symlinkDirSync } from 'symlink-dir'
 
 const [targetOs, targetArch, targetLibc] = process.argv.slice(2)
 if (!targetOs || !targetArch) {
@@ -49,17 +49,33 @@ function detectHostLibc () {
 const hostLibc = detectHostLibc()
 
 // Cross-platform or cross-libc targets can't be executed from the publish
-// host. Existence is the best we can verify — skip the -v check instead of
-// failing, so a musl artifact published from a glibc CI still goes through.
+// host. Check if the target is declared covered by the release verification runners;
+// otherwise fail immediately.
 const osMatches = process.platform === targetOs
 const archMatches = process.arch === targetArch
 const libcMatches = targetOs !== 'linux' || !targetLibc || targetLibc === hostLibc
 
 if (!osMatches || !archMatches || !libcMatches) {
   const targetLabel = [targetOs, targetArch, targetLibc].filter(Boolean).join('/')
+  const targetKey = [targetOs, targetArch, targetLibc].filter(Boolean).join('-')
   const hostLabel = [process.platform, process.arch, hostLibc].filter(Boolean).join('/')
-  console.log(`Skipping ${binName} -v: host ${hostLabel} cannot execute target ${targetLabel}`)
-  process.exit(0)
+
+  const coveredTargets = (process.env.PNPM_RELEASE_VERIFIED_TARGETS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const isCovered =
+    coveredTargets.includes(targetKey) ||
+    coveredTargets.includes(targetLabel)
+
+  if (isCovered) {
+    console.log(`Skipping ${binName} -v: host ${hostLabel} cannot execute target ${targetLabel} (covered by release verification)`)
+    process.exit(0)
+  }
+
+  console.error(`Error: host ${hostLabel} cannot execute target ${targetLabel}, and ${targetLabel} is not declared in PNPM_RELEASE_VERIFIED_TARGETS. Every published executable target must either execute on the current host or be covered by release verification runners.`)
+  process.exit(1)
 }
 
 const distLinkPath = path.resolve('dist')
@@ -91,10 +107,11 @@ process.on('exit', () => {
 // Skipped when a real dist/ is already present (developer layout); in that
 // case we can't distinguish a correctly-resolved dist from a hardcoded one.
 if (!distPreexists) {
+  const binPath = path.resolve(binName)
   const expectedRuntimeDist = path.join(fs.realpathSync(process.cwd()), 'dist', 'pnpm.mjs')
   let sansDistStdout
   try {
-    sansDistStdout = execFileSync(`./${binName}`, ['-v'], {
+    sansDistStdout = execFileSync(binPath, ['-v'], {
       encoding: 'utf8',
       timeout: 30_000,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -121,12 +138,12 @@ if (!distPreexists) {
   }
 }
 
-// Only stage the symlink when nothing's there already — symlink-dir will
-// atomically rename away any existing dir/file, which would silently drop a
-// developer's staged dist/ directory.
+// Only stage the symlink when nothing's there already. A junction is used on
+// Windows so directory symlinks work without elevation / Developer Mode.
 if (!distPreexists) {
   try {
-    symlinkDirSync(distLinkTarget, distLinkPath)
+    const resolvedTarget = path.resolve(distLinkTarget)
+    fs.symlinkSync(resolvedTarget, distLinkPath, process.platform === 'win32' ? 'junction' : 'dir')
     distLinkCreated = true
   } catch (err) {
     console.error(`Error: could not stage dist/ symlink: ${String(err)}`)
@@ -136,7 +153,8 @@ if (!distPreexists) {
 
 let stdout
 try {
-  stdout = execFileSync(`./${binName}`, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
+  const binPath = path.resolve(binName)
+  stdout = execFileSync(binPath, ['-v'], { encoding: 'utf8', timeout: 30_000 }).trim()
 } catch (err) {
   console.error(`Error: ${binName} -v failed: ${String(err)}`)
   process.exit(1)
