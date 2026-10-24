@@ -222,10 +222,7 @@ impl<'a> CreateVirtualStore<'a> {
         Ok(CreateVirtualStoreOutput {
             package_manifests: partition.package_manifests,
             package_bins: partition.package_bins,
-            side_effects: super::output::SideEffectsOutput {
-                maps: partition.side_effects.maps,
-                diffs: partition.side_effects.diffs,
-            },
+            side_effects: partition.side_effects.into(),
             requires_build_by_snapshot: partition.requires_build_by_snapshot,
             snapshot_selection: super::SnapshotSelection::materialized(plan.materialized_keys()),
             fetch_failed,
