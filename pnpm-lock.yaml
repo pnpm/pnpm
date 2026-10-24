@@ -889,8 +889,8 @@ catalogs:
       specifier: 0.0.6
       version: 0.0.6
     undici:
-      specifier: ^7.29.1
-      version: 7.29.1
+      specifier: ^7.30.1
+      version: 7.30.1
     unified:
       specifier: ^11.0.5
       version: 11.0.5
@@ -5076,7 +5076,7 @@ importers:
         version: 3.0.0
       undici:
         specifier: 'catalog:'
-        version: 7.29.1
+        version: 7.30.1
 
   pnpm11/fetching/tarball-fetcher:
     dependencies:
@@ -5167,7 +5167,7 @@ importers:
         version: 3.0.0
       undici:
         specifier: 'catalog:'
-        version: 7.29.1
+        version: 7.30.1
 
   pnpm11/fetching/types:
     dependencies:
@@ -8028,7 +8028,7 @@ importers:
         version: 2.8.10
       undici:
         specifier: 'catalog:'
-        version: 7.29.1
+        version: 7.30.1
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -9322,7 +9322,7 @@ importers:
         version: 7.5.22
       undici:
         specifier: 'catalog:'
-        version: 7.29.1
+        version: 7.30.1
 
   pnpm11/releasing/exportable-manifest:
     dependencies:
@@ -10388,7 +10388,7 @@ importers:
         version: link:../../network/fetch
       undici:
         specifier: 'catalog:'
-        version: 7.29.1
+        version: 7.30.1
     devDependencies:
       '@pnpm/testing.mock-agent':
         specifier: workspace:*
@@ -17922,8 +17922,8 @@ packages:
     resolution: {integrity: sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==}
     engines: {node: '>=18.17'}
 
-  undici@7.29.1:
-    resolution: {integrity: sha512-RYONW2MeafgYlkVOKYKkA/Ag7BmXqgIWCa8t1m0JcxrQg9pI9lEqRhAOruOBCbAohOa/gkCF+iPi9hrgvTzu6Q==}
+  undici@7.30.1:
+    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
     engines: {node: '>=20.18.1'}
 
   unicorn-magic@0.1.0:
@@ -25850,7 +25850,7 @@ snapshots:
 
   undici@6.29.1: {}
 
-  undici@7.29.1: {}
+  undici@7.30.1: {}
 
   unicorn-magic@0.1.0: {}
 

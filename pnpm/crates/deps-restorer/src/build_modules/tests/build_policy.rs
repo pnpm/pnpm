@@ -80,17 +80,87 @@ fn explicit_deny_outranks_dangerously_allow_all_builds() {
     assert_eq!(policy.check("pinned@2.0.0"), Some(true));
     assert_eq!(policy.check("other-package@1.0.0"), Some(true));
 }
-/// Wildcards in `allowBuilds` keys are accepted by the parser
-/// (they land as literal strings in the expanded set) but the
-/// `HashSet::contains` lookup means they never match a real
-/// package name. Use `dangerouslyAllowAllBuilds` for blanket
-/// allow.
 #[test]
-fn wildcard_name_in_allow_builds_does_not_match_real_package() {
-    let policy = policy_from_specs([("is-*", true)], false);
-    assert_eq!(policy.check("is-odd@1.0.0"), None);
-    assert_eq!(policy.check("is-positive@1.0.0"), None);
+fn scoped_wildcard_name_in_allow_builds_matches_and_denials_win() {
+    let policy = policy_from_specs(
+        [
+            ("@parcel/*", true),
+            ("@parcel/blocked", false),
+            ("@other/*", false),
+            ("@other/allowed", true),
+            ("core-js", false),
+            ("@parcel/watcher", false),
+        ],
+        false,
+    );
+    assert_eq!(policy.check("@parcel/other@2.0.0"), Some(true));
+    assert_eq!(policy.check("@parcel/blocked@1.0.0"), Some(false));
+    assert_eq!(policy.check("@other/blocked@1.0.0"), Some(false));
+    assert_eq!(policy.check("@other/allowed@1.0.0"), Some(false));
+    assert_eq!(policy.check("core-js@3.0.0"), Some(false));
+    assert_eq!(policy.check("@parcel/watcher@3.0.0"), Some(false));
+    assert_eq!(policy.check("core-js-pure@3.0.0"), None);
 }
+
+#[test]
+fn broad_name_patterns_do_not_approve_builds() {
+    for pattern in ["*", "esbuild*", "@*/*", "@parcel*/watcher", "*/foo", "@parcel/watch*"] {
+        let policy = policy_from_specs([(pattern, true)], false);
+        assert_eq!(policy.check("@parcel/watcher@1.0.0"), None, "{pattern}");
+        assert_eq!(policy.check("esbuild@1.0.0"), None, "{pattern}");
+    }
+}
+
+#[test]
+fn source_urls_with_at_signs_keep_their_package_identity() {
+    for source in [
+        "@parcel/watcher@https://example.com/@1.0.0",
+        "@parcel/watcher@https://user@example.com/@1.0.0",
+        "@parcel/watcher@git+https://example.com/repo.git#@1.0.0",
+    ] {
+        let policy = policy_from_specs([("@parcel/*", true)], false);
+        assert_eq!(policy.check(source), None, "{source}");
+        let policy = policy_from_specs([("@parcel/watcher", false)], true);
+        assert_eq!(policy.check(source), Some(false), "{source}");
+        let policy = policy_from_specs([("@parcel/*", false)], true);
+        assert_eq!(policy.check(source), Some(false), "{source}");
+        let policy = policy_from_specs([(source, true)], false);
+        assert_eq!(policy.check(source), Some(true), "{source}");
+    }
+}
+
+#[test]
+fn question_mark_in_scope_does_not_approve_other_scopes() {
+    let policy = policy_from_specs([("@par?el/*", true)], false);
+    assert_eq!(policy.check("@parcel/watcher@1.0.0"), None);
+    assert_eq!(policy.check("@parxel/watcher@1.0.0"), None);
+}
+
+#[test]
+fn wildcard_versions_are_not_accepted() {
+    for pattern in ["core-js@.*", "@parcel/watcher@.*", "@parcel/*@1.0.0"] {
+        let approvals = HashMap::from([(pattern.to_string(), true)]);
+        assert!(AllowBuildPolicy::from_approvals(&approvals, false).is_err(), "{pattern}");
+    }
+}
+
+#[test]
+fn scope_pattern_preserves_identity_and_denial_boundaries() {
+    let policy = policy_from_specs([("@parcel/*", true)], false);
+    assert_eq!(policy.check("@parcel/watcher@1.0.0(peer@2.0.0)"), Some(true));
+    for path in [
+        "@parcel-other/watcher@1.0.0",
+        "watcher@1.0.0",
+        "@parcel/watcher@git+https://example.com/repo.git#abc",
+        "@parcel/watcher@https://example.com/watcher.tgz",
+    ] {
+        assert_eq!(policy.check(path), None, "{path}");
+    }
+    let policy = policy_from_specs([("@parcel/*", false)], true);
+    assert_eq!(policy.check("@parcel/watcher@1.0.0"), Some(false));
+    assert_eq!(policy.check("@other/watcher@1.0.0"), Some(true));
+}
+
 #[test]
 fn from_config_consumes_allow_builds_and_dangerously_allow_all_builds() {
     let mut config = Config::new();
