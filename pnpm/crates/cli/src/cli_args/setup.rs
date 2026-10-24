@@ -256,7 +256,7 @@ fn create_shell_script(target_dir: &Path, name: &str, subcommand: &str) -> std::
     // of the running pnpm executable, and Linux refuses that open with ETXTBSY.
     write_atomic(&script_path, posix_alias_script(name, subcommand).as_bytes())?;
     #[cfg(target_os = "wasi")]
-    pnpm_fs::file_mode::set_path_permissions(&script_path, 0o755)?;
+    pnpm_fs::file_mode::set_path_permissions(&script_path, pnpm_fs::FileMode::from_mode(0o755))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

@@ -10,7 +10,9 @@
 use crate::{CafsFileInfo, SYMLINK_MODE, StoreDir, WriteCasFileError, normalize_symlink_target};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_fs::file_mode::is_executable;
+#[cfg(not(target_os = "wasi"))]
+use pnpm_fs::file_mode::file_mode_of;
+use pnpm_fs::{FileMode, file_mode::is_executable};
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
@@ -260,6 +262,31 @@ fn walk_subdirectory(
     Ok(())
 }
 
+/// The permission bits to record for the file at `read_path`.
+///
+/// WASI reports a file's mode through the host rather than through its
+/// metadata, so the two platforms read it from different places.
+fn ingested_file_mode(
+    meta: &fs::Metadata,
+    read_path: &Path,
+) -> Result<FileMode, AddFilesFromDirError> {
+    #[cfg(not(target_os = "wasi"))]
+    return {
+        let _ = read_path;
+        Ok(file_mode_of(meta))
+    };
+    #[cfg(target_os = "wasi")]
+    {
+        let _ = meta;
+        let mode = pnpm_fs::copy_permissions(read_path)
+            .map_err(|source| AddFilesFromDirError::Stat {
+                path: read_path.to_path_buf(),
+                source,
+            })?;
+        Ok(FileMode::from_mode(mode & 0o777))
+    }
+}
+
 fn ingest_file(
     ctx: &mut WalkCtx<'_>,
     read_path: &Path,
@@ -285,12 +312,7 @@ fn ingest_file(
             path: read_path.to_path_buf(),
             source,
         })?;
-    #[cfg(not(target_os = "wasi"))]
-    let mode = file_mode_from(meta);
-    #[cfg(target_os = "wasi")]
-    let mode = pnpm_fs::copy_permissions(read_path)
-        .map_err(|source| AddFilesFromDirError::Stat { path: read_path.to_path_buf(), source })?
-        & 0o777;
+    let mode = ingested_file_mode(meta, read_path)?;
     let (_path, hash) = ctx.store_dir
         .write_cas_file(&buffer, is_executable(mode))
         .map_err(AddFilesFromDirError::WriteCas)?;
@@ -298,27 +320,12 @@ fn ingest_file(
         relative_subpath,
         CafsFileInfo {
             digest: format!("{hash:x}"),
-            mode,
+            mode: mode.mode(),
             size: buffer.len() as u64,
             checked_at: None,
         },
     );
     Ok(())
-}
-
-/// Return the file mode bits in pnpm's canonical form.
-/// On Unix this is `metadata.mode() & 0o777`. Off Unix there is no
-/// analog, so a fixed `0o644` is reported, and [`crate::calculate_diff`]
-/// ignores mode differences on those hosts.
-#[cfg(unix)]
-fn file_mode_from(meta: &fs::Metadata) -> u32 {
-    use std::os::unix::fs::PermissionsExt;
-    meta.permissions().mode() & 0o777
-}
-
-#[cfg(not(any(unix, target_os = "wasi")))]
-fn file_mode_from(_meta: &fs::Metadata) -> u32 {
-    0o644
 }
 
 #[cfg(test)]

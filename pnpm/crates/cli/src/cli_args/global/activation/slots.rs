@@ -270,7 +270,7 @@ fn backup_regular_file(
     }
     #[cfg(target_os = "wasi")]
     {
-        pnpm_fs::file_mode::set_path_permissions(backup, permissions)
+        pnpm_fs::file_mode::set_path_permissions(backup, pnpm_fs::FileMode::from_mode(permissions))
     }
 }
 

@@ -17,7 +17,10 @@ impl FsSetPermissions for Host {
         #[cfg(unix)]
         return fs::set_permissions(path, permissions);
         #[cfg(target_os = "wasi")]
-        return pnpm_fs::file_mode::set_path_permissions(path, permissions);
+        return pnpm_fs::file_mode::set_path_permissions(
+            path,
+            pnpm_fs::FileMode::from_mode(permissions),
+        );
     }
 }
 

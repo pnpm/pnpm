@@ -62,7 +62,8 @@ fn copy_restores_executable_mode_from_cas_suffix() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect("copy should land the executable store-entry mode");
 
-    let expected = pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask());
+    let expected =
+        pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask()).mode();
     let dst_mode = fs::metadata(&dst)
         .unwrap()
         .permissions()
@@ -84,7 +85,8 @@ fn copy_does_not_widen_non_exec_mode() {
     link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
         .expect("copy should succeed");
 
-    let expected = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let expected =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let dst_mode = fs::metadata(&dst)
         .unwrap()
         .permissions()
@@ -100,7 +102,8 @@ fn hardlink_mode_mismatch_copies_at_the_store_entry_mode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
     let dst = tmp.path().join("dst.txt");
@@ -129,7 +132,8 @@ fn hardlink_mode_match_shares_the_store_inode() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
     let dst = tmp.path().join("dst.txt");
@@ -153,7 +157,8 @@ fn hardlink_shares_a_store_inode_that_differs_only_in_group_write() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o020)).unwrap();
     let dst = tmp.path().join("dst.txt");
@@ -216,7 +221,8 @@ fn auto_keeps_the_hardlink_tier_across_a_mode_mismatch() {
 
     let state = AtomicU8::new(LINK_STATE_HARDLINK);
     let tmp = tempdir().unwrap();
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(desired ^ 0o001)).unwrap();
     let dst = tmp.path().join("dst.txt");
@@ -243,7 +249,8 @@ fn clone_tier_aligns_modes_to_the_current_umask() {
         let expected = pnpm_fs::file_mode::store_entry_mode(
             pnpm_fs::file_mode::cas_path_is_executable(name.as_ref()),
             pnpm_fs::file_mode::current_umask(),
-        );
+        )
+        .mode();
         for stored in [expected ^ 0o001, 0o600] {
             let src = write_source(tmp.path(), name, contents);
             fs::set_permissions(&src, fs::Permissions::from_mode(stored)).unwrap();
@@ -281,7 +288,8 @@ fn recover_from_concurrent_import_preserves_hardlink_with_desired_mode() {
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let dst = tmp.path().join("dst");
 
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     fs::set_permissions(&src, fs::Permissions::from_mode(desired)).unwrap();
     fs::hard_link(&src, &dst).unwrap();
 
@@ -310,7 +318,8 @@ fn recover_from_concurrent_import_replaces_hardlink_with_mismatched_mode() {
     let src = write_source(tmp.path(), STORE_ENTRY, b"data\n");
     let dst = tmp.path().join("dst");
 
-    let desired = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let desired =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let mismatched = desired ^ 0o001;
 
     fs::hard_link(&src, &dst).unwrap();
@@ -360,7 +369,8 @@ fn eexist_restores_executable_mode_from_cas_suffix() {
     )
     .expect("EEXIST import should align the exec mode");
 
-    let expected = pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask());
+    let expected =
+        pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask()).mode();
     let dst_mode = fs::metadata(&dst)
         .unwrap()
         .permissions()
@@ -380,7 +390,8 @@ fn eexist_aligns_a_non_exec_target_without_adding_exec_bits() {
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
-    let expected = pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask());
+    let expected =
+        pnpm_fs::file_mode::store_entry_mode(false, pnpm_fs::file_mode::current_umask()).mode();
     let src = write_source(tmp.path(), STORE_ENTRY, b"private data\n");
     fs::set_permissions(&src, fs::Permissions::from_mode(expected | 0o004)).unwrap();
     let dst = write_source(tmp.path(), "dst", b"private data\n");
@@ -433,7 +444,8 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
     recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
         .expect("a NotFound against an existing target is a concurrent import");
 
-    let expected = pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask());
+    let expected =
+        pnpm_fs::file_mode::store_entry_mode(true, pnpm_fs::file_mode::current_umask()).mode();
     let dst_mode = fs::metadata(&dst)
         .unwrap()
         .permissions()

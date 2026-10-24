@@ -302,8 +302,9 @@ fn artifact_file(entry_dir: &Path, path: String) -> io::Result<(ArtifactFile, Ar
 fn is_executable(path: &Path) -> io::Result<bool> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt as _;
-        Ok(pnpm_fs::file_mode::is_executable(fs::metadata(path)?.permissions().mode()))
+        Ok(pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from(
+            fs::metadata(path)?.permissions(),
+        )))
     }
     #[cfg(not(unix))]
     {

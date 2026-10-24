@@ -249,10 +249,12 @@ impl FileImport {
         if method != pnpm_reporter::PackageImportMethod::Hardlink
             && (self.executable || pnpm_fs::file_mode::cas_path_is_executable(&self.source))
         {
-            pnpm_fs::file_mode::set_path_permissions(
-                &self.destination,
-                if self.executable { 0o755 } else { 0o644 },
-            )?;
+            let mode = if self.executable {
+                pnpm_fs::file_mode::EXEC_MODE
+            } else {
+                pnpm_fs::FileMode::from_mode(0o644)
+            };
+            pnpm_fs::file_mode::set_path_permissions(&self.destination, mode)?;
         }
         Ok(())
     }

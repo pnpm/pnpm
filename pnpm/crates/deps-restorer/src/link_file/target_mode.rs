@@ -9,12 +9,11 @@ use std::{io, path::Path};
 pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::CopyPermissions> {
     #[cfg(unix)]
     if let Some(mode) = desired_mode(source_file) {
-        use std::os::unix::fs::PermissionsExt;
-        return Ok(fs::Permissions::from_mode(mode));
+        return Ok(mode.into());
     }
     #[cfg(target_os = "wasi")]
     if let Some(mode) = desired_mode(source_file) {
-        return Ok(mode);
+        return Ok(mode.mode());
     }
     pnpm_fs::copy_permissions(source_file)
 }
@@ -26,7 +25,7 @@ pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::Cop
 /// `None` for a file of a local-directory dependency, which keeps the
 /// mode its project gives it (see [`pnpm_fs::file_mode::is_cas_file_path`]).
 #[cfg(any(unix, target_os = "wasi"))]
-fn desired_mode(source_file: &Path) -> Option<u32> {
+fn desired_mode(source_file: &Path) -> Option<pnpm_fs::FileMode> {
     pnpm_fs::file_mode::is_cas_file_path(source_file)
         .then(|| {
             pnpm_fs::file_mode::store_entry_mode(
@@ -43,9 +42,8 @@ fn desired_mode(source_file: &Path) -> Option<u32> {
 /// aligned instead.
 #[cfg(unix)]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
-    use std::os::unix::fs::MetadataExt;
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = fs::metadata(source_file)?.mode();
+    let mode = pnpm_fs::FileMode::from(fs::metadata(source_file)?.permissions());
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 
@@ -76,6 +74,6 @@ pub(super) fn align_target_mode(_source_file: &Path, _target_link: &Path) -> io:
 #[cfg(target_os = "wasi")]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = pnpm_fs::copy_permissions(source_file)?;
+    let mode = pnpm_fs::FileMode::from_mode(pnpm_fs::copy_permissions(source_file)?);
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }

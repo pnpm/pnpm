@@ -185,7 +185,7 @@ fn command_line_safe(version_spec: &str) -> Option<&str> {
 fn write_executable(path: &Path, contents: &str) -> io::Result<()> {
     write_atomic(path, contents.as_bytes())?;
     #[cfg(target_os = "wasi")]
-    pnpm_fs::file_mode::set_path_permissions(path, 0o755)?;
+    pnpm_fs::file_mode::set_path_permissions(path, pnpm_fs::FileMode::from_mode(0o755))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
