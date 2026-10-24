@@ -15,8 +15,9 @@
 //! [`WorkspacePackageManifest::registry_prefix`]; a peer range stays a plain
 //! semver range.
 
+pub use workspace_packages::{WorkspacePackageManifest, WorkspacePackageManifests};
+
 use std::{
-    collections::HashMap,
     fmt,
     path::{Path, PathBuf},
 };
@@ -26,6 +27,10 @@ use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
 use pnpm_workspace_spec::WorkspaceSpec;
 use serde_json::Value;
+
+use workspace_packages::{workspace_package_at, workspace_package_named};
+
+mod workspace_packages;
 
 /// Error returned when the lookup against the dependency's installed
 /// `package.json` fails. Carries the
@@ -255,42 +260,6 @@ fn parsed_peer_spec(dep_spec: &str) -> Option<ParsedPeer> {
     relative.then_some(ParsedPeer::Relative)
 }
 
-/// The workspace package `name` at `version`, or the one project of that name
-/// when `version` is none of them. Several projects of the name and no match
-/// select nothing: a guess would send a consumer to another project's
-/// registry.
-fn workspace_package_at<'a>(
-    workspace_packages: Option<&'a WorkspacePackageManifests>,
-    name: &str,
-    version: &str,
-) -> Option<&'a WorkspacePackageManifest> {
-    let projects = workspace_packages?.get(name)?;
-    if let Some(project) = projects
-        .iter()
-        .find(|project| project.version == version)
-    {
-        return Some(project);
-    }
-    match projects.as_slice() {
-        [only] => Some(only),
-        _ => None,
-    }
-}
-
-/// The workspace package a `workspace:` specifier falls back on when the
-/// dependency is not installed: the first project of the name with a version,
-/// else the first, so that a missing version can be reported.
-fn workspace_package_named<'a>(
-    workspace_packages: Option<&'a WorkspacePackageManifests>,
-    name: &str,
-) -> Option<&'a WorkspacePackageManifest> {
-    let projects = workspace_packages?.get(name)?;
-    projects
-        .iter()
-        .find(|project| project.is_complete())
-        .or_else(|| projects.first())
-}
-
 /// The directory a workspace dependency is installed under: the caller's, or
 /// the project's own `node_modules`.
 fn installed_modules_dir(dir: &Path, modules_dir: Option<&Path>) -> PathBuf {
@@ -310,6 +279,7 @@ fn published_spec(
         name,
         version,
         registry_prefix: prefix,
+        ..
     } = manifest;
     let prefix = match registry_prefix {
         RegistryPrefix::Carry => prefix.as_deref(),
@@ -346,7 +316,7 @@ fn read_and_check_manifest(
     if let Some(manifest) = &manifest_from_dir
         && manifest.is_complete()
     {
-        return Ok(manifest.clone().with_registry_prefix_of(workspace_packages));
+        return Ok(manifest.clone().with_registry_prefix_of(dependency_dir, workspace_packages));
     }
 
     let workspace_manifest = workspace_package_named(workspace_packages, target_pkg_name);
@@ -382,6 +352,7 @@ fn read_manifest_fields(
     Ok(value.map(|value| WorkspacePackageManifest {
         name: field(&value, "name"),
         version: field(&value, "version"),
+        root_dir: None,
         registry_prefix: None,
     }))
 }
@@ -400,45 +371,6 @@ fn cannot_resolve_error(
         None => (dep_name.to_string(), CannotResolveReason::NotInstalled),
     };
     CannotResolveWorkspaceProtocolError { dep_name: dep_name.to_string(), package_name, reason }
-}
-
-/// The workspace's packages by name. A name holds one entry per project that
-/// carries it: a workspace may hold several versions of one package.
-pub type WorkspacePackageManifests = HashMap<String, Vec<WorkspacePackageManifest>>;
-
-/// The fields the rewriters consult on the dependency's manifest, and the
-/// registry prefix the dependency publishes under. `version` is empty when a
-/// workspace package was found but its `package.json` has no `version` field,
-/// so the caller can report that instead of claiming the dependency is not
-/// installed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkspacePackageManifest {
-    pub name: String,
-    pub version: String,
-    /// The named-registry prefix of the registry the package publishes to,
-    /// when the workspace declares one for that registry. A published
-    /// specifier for the package carries it (`work:1.0.0`), so a consumer
-    /// records one lockfile key for the package whether it addresses the
-    /// package through the prefix or through this manifest. `None` leaves the
-    /// specifier plain.
-    pub registry_prefix: Option<String>,
-}
-
-impl WorkspacePackageManifest {
-    fn is_complete(&self) -> bool {
-        !self.name.is_empty() && !self.version.is_empty()
-    }
-
-    /// A manifest read from `node_modules` says nothing about registries; the
-    /// prefix is that of the workspace project of the same name and version.
-    fn with_registry_prefix_of(
-        mut self,
-        workspace_packages: Option<&WorkspacePackageManifests>,
-    ) -> Self {
-        self.registry_prefix = workspace_package_at(workspace_packages, &self.name, &self.version)
-            .and_then(|project| project.registry_prefix.clone());
-        self
-    }
 }
 
 /// Output of [`parse_version_alias_spec`]: the optional sentinel

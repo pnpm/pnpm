@@ -4,6 +4,7 @@ use super::{
     overlay_some, registries, resolve, resolve_child_concurrency, warn_deprecated_pairing,
 };
 use pnpm_network::normalize_registry_url;
+use std::collections::BTreeSet;
 
 impl WorkspaceSettings {
     /// Apply every set field onto `config`, leaving unset ones untouched.
@@ -183,14 +184,13 @@ impl WorkspaceSettings {
             config.remote_cache.get_or_insert_default().overlay(remote);
         }
         self.apply_side_effects_cache(config);
-        self.apply_named_registries(config, declared_prefixes);
+        self.apply_named_registries(config, &declared_prefixes);
     }
 
-    /// The `registries` declarations, reporting whether any of them declared
-    /// a prefix.
-    pub(super) fn apply_registry_declarations(&mut self, config: &mut Config) -> bool {
+    /// The `registries` declarations, answering the prefixes they declared.
+    pub(super) fn apply_registry_declarations(&mut self, config: &mut Config) -> BTreeSet<String> {
         let Some(entries) = self.registries.take() else {
-            return false;
+            return BTreeSet::new();
         };
         let lookups = registries::into_lookups(entries);
         registries::take_roles_from_earlier_layers(
@@ -203,7 +203,10 @@ impl WorkspaceSettings {
         if let Some(registry) = lookups.default_registry {
             config.registry = registry;
         }
-        let declared_prefixes = !lookups.registries_by_prefix.is_empty();
+        let declared_prefixes = lookups.registries_by_prefix
+            .keys()
+            .cloned()
+            .collect();
         config.registries_by_scope.extend(lookups.registries_by_scope);
         config.registries_by_prefix.extend(lookups.registries_by_prefix);
         config.registry_options_by_url.extend(lookups.registry_options_by_url);
@@ -249,13 +252,18 @@ impl WorkspaceSettings {
         }
     }
 
-    /// A prefix a `registries` entry declares wins: `namedRegistries` is the
-    /// deprecated spelling of the same thing.
-    pub(super) fn apply_named_registries(&mut self, config: &mut Config, declared_prefixes: bool) {
+    /// A prefix a `registries` entry of the same layer declares wins:
+    /// `namedRegistries` is the deprecated spelling of the same thing. A prefix
+    /// from an earlier layer is overridden, as any later setting is.
+    pub(super) fn apply_named_registries(
+        &mut self,
+        config: &mut Config,
+        declared_prefixes: &BTreeSet<String>,
+    ) {
         let Some(named) = self.named_registries.take() else {
             return;
         };
-        if declared_prefixes {
+        if !declared_prefixes.is_empty() {
             tracing::warn!(
                 target: "pacquet::config",
                 r#"Both the "registries" and "namedRegistries" settings declare registry prefixes. The deprecated "namedRegistries" setting is only read for prefixes "registries" does not declare."#,
@@ -273,7 +281,9 @@ impl WorkspaceSettings {
                 );
                 continue;
             }
-            config.registries_by_prefix.entry(name).or_insert(registry);
+            if !declared_prefixes.contains(&name) {
+                config.registries_by_prefix.insert(name, registry);
+            }
         }
     }
 

@@ -29,6 +29,7 @@ pub fn build_workspace_package_manifest_map(
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
+                root_dir: Some(project.root_dir.clone()),
                 registry_prefix: publish_registry_prefix(project, name, config)?.map(str::to_owned),
             });
     }
