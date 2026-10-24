@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Fixed agent skill links changing targets between peer variants of the same package version. Existing links to an installed variant are recognized even when their ownership record is missing [pnpm/pnpm#17319](https://github.com/pnpm/pnpm/issues/17319).
+Agent skill links now keep the same target across installs when a package version is installed with several sets of peer dependencies. An install no longer fails with `ERR_PNPM_AGENT_SKILL_PATH_OCCUPIED` on a skill link that pnpm created for another of those copies [pnpm/pnpm#17319](https://github.com/pnpm/pnpm/issues/17319).
