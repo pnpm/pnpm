@@ -902,3 +902,33 @@ test('an uninstalled workspace dependency falls back on the first project with a
 
   expect(exported.dependencies).toStrictEqual({ dup: 'old:1.0.0' })
 })
+
+test('a relative path takes the prefix of the project in that directory', async () => {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-prefixed-dup-'))
+  const projectDir = path.join(workspaceDir, 'consumer')
+  const workspacePackages = ['first', 'second'].map((dir, index) => {
+    const rootDir = path.join(workspaceDir, dir)
+    fs.mkdirSync(rootDir, { recursive: true })
+    const manifest = { name: 'dup', version: '1.0.0' }
+    fs.writeFileSync(path.join(rootDir, 'package.json'), JSON.stringify(manifest))
+    return { manifest, rootDir, registryPrefix: index === 0 ? 'old' : 'work' }
+  })
+  fs.mkdirSync(projectDir)
+
+  const exported = await createExportableManifest(projectDir, {
+    name: 'pkg-main',
+    version: '1.0.0',
+    dependencies: {
+      dup: 'workspace:../second',
+      'dup-first': 'workspace:../first',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages,
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    dup: 'work:1.0.0',
+    'dup-first': 'old:dup@1.0.0',
+  })
+})

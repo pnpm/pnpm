@@ -188,6 +188,7 @@ fn scoped_peer_workspace_spec_resolves_from_workspace_packages() {
         vec![WorkspacePackageManifest {
             name: "@scope/prettier-config".to_string(),
             version: "2.0.0".to_string(),
+            root_dir: None,
             registry_prefix: None,
         }],
     );
@@ -212,6 +213,7 @@ fn workspace_package_without_version_reports_missing_version() {
         vec![WorkspacePackageManifest {
             name: "@scope/eslint-config".to_string(),
             version: String::new(),
+            root_dir: None,
             registry_prefix: None,
         }],
     );
@@ -257,6 +259,7 @@ fn missing_version_help_uses_the_workspace_package_name() {
         vec![WorkspacePackageManifest {
             name: "pkg-b".to_string(),
             version: String::new(),
+            root_dir: None,
             registry_prefix: None,
         }],
     );
@@ -288,6 +291,7 @@ fn installed_manifest_without_name_keeps_the_missing_name_reason() {
         vec![WorkspacePackageManifest {
             name: "pkg-b".to_string(),
             version: String::new(),
+            root_dir: None,
             registry_prefix: None,
         }],
     );
@@ -373,6 +377,7 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         vec![WorkspacePackageManifest {
             name: "dep-a".to_string(),
             version: "1.2.3".to_string(),
+            root_dir: None,
             registry_prefix: None,
         }],
     );
@@ -381,6 +386,7 @@ fn resolves_workspace_protocol_from_workspace_packages_when_node_modules_is_abse
         vec![WorkspacePackageManifest {
             name: "dep-b".to_string(),
             version: "2.3.4".to_string(),
+            root_dir: None,
             registry_prefix: None,
         }],
     );
@@ -424,6 +430,7 @@ fn prefixed(name: &str, version: &str) -> WorkspacePackageManifest {
     WorkspacePackageManifest {
         name: name.to_string(),
         version: version.to_string(),
+        root_dir: None,
         registry_prefix: Some("work".to_string()),
     }
 }
@@ -440,6 +447,7 @@ fn two_versions_of_dup() -> WorkspacePackageManifests {
     let project = |version: &str, prefix: &str| WorkspacePackageManifest {
         name: "dup".to_string(),
         version: version.to_string(),
+        root_dir: None,
         registry_prefix: Some(prefix.to_string()),
     };
     HashMap::from([("dup".to_string(), vec![project("1.0.0", "old"), project("2.0.0", "work")])])
@@ -545,4 +553,33 @@ fn uninstalled_dep_falls_back_on_the_first_project_with_a_version() {
         .expect("replace succeeds");
 
     assert_eq!(spec, "old:1.0.0");
+}
+
+#[test]
+fn relative_path_takes_the_prefix_of_the_project_in_that_directory() {
+    let workspace = TempDir::new().unwrap();
+    let first = workspace.path().join("first");
+    let second = workspace.path().join("second");
+    write_dep(&first, "dup", "1.0.0");
+    write_dep(&second, "dup", "1.0.0");
+    let project = |root_dir: &Path, prefix: &str| WorkspacePackageManifest {
+        name: "dup".to_string(),
+        version: "1.0.0".to_string(),
+        root_dir: Some(root_dir.to_path_buf()),
+        registry_prefix: Some(prefix.to_string()),
+    };
+    let ws_pkgs = HashMap::from([(
+        "dup".to_string(),
+        vec![project(&first, "old"), project(&second, "work")],
+    )]);
+    let consumer = workspace.path().join("consumer");
+    fs::create_dir_all(&consumer).unwrap();
+
+    let rewrite = |spec: &str| {
+        replace_workspace_protocol("dup", spec, &consumer, None, Some(&ws_pkgs))
+            .expect("replace succeeds")
+    };
+
+    assert_eq!(rewrite("workspace:../second"), "work:1.0.0");
+    assert_eq!(rewrite("workspace:../first"), "old:1.0.0");
 }

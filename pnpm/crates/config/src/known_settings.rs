@@ -100,6 +100,7 @@ const CONFIG_ONLY_SETTING_KEYS: &[&str] = &[
     "workspaceDir",
     "workspacePackagePatterns",
     "workspacePrefix",
+    "workspaceRegistryPrefixes",
 ];
 
 /// Mirror of the same-named list in `unknownSettings.ts`.
