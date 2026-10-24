@@ -143,6 +143,22 @@ test('several prefixes of one registry key its packages by the smallest one', as
   expect(fs.readFileSync(WANTED_LOCKFILE, 'utf8')).toBe(written)
 })
 
+test('entries keyed by another prefix of the registry are re-keyed', async () => {
+  setup({ [PARENT]: 'zeta:100.0.0' }, { namedRegistries: { zeta: REGISTRY } })
+  await execPnpm(['install'])
+  expect(packageKeys(readLockfile(), PARENT)).toStrictEqual(['@pnpm.e2e/foobar@zeta:100.0.0'])
+  expect(packageKeys(readLockfile(), CHILD)).toStrictEqual(['@pnpm.e2e/foo@zeta:100.1.0'])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { namedRegistries: { zeta: REGISTRY, work: REGISTRY } })
+  await execPnpm(['install'])
+
+  const lockfile = readLockfile()
+  expect(packageKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
+  expect(snapshotKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
+  expect(packageKeys(lockfile, CHILD)).toStrictEqual(['@pnpm.e2e/foo@work:100.1.0'])
+  expect(importerEntry(lockfile, PARENT)).toStrictEqual({ specifier: 'zeta:100.0.0', version: 'work:100.0.0' })
+})
+
 /**
  * Rewrites the lockfile to the shape written before plain ranges were keyed
  * by their registry: the child duplicated under a plain key, which the

@@ -206,6 +206,46 @@ fn same_version_from_two_registries_keeps_separate_keys() {
     drop((root, anchor, other));
 }
 
+/// Declaring a smaller prefix for a registry re-keys the entries an earlier
+/// install keyed by another of its prefixes, at the locked versions.
+#[test]
+fn entries_keyed_by_another_prefix_of_the_registry_are_re_keyed() {
+    let (root, workspace, anchor) = setup();
+    let registry = anchor.mock_instance.url();
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ zeta: '{registry}' }}"));
+    write_manifest(&workspace, r#"{ "@pnpm.e2e/foobar": "zeta:100.0.0" }"#);
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(package_keys(&lockfile(&workspace), PARENT), ["@pnpm.e2e/foobar@zeta:100.0.0"]);
+    assert_eq!(package_keys(&lockfile(&workspace), CHILD), ["@pnpm.e2e/foo@zeta:100.1.0"]);
+
+    let declared = fs::read_to_string(&workspace_yaml)
+        .expect("read pnpm-workspace.yaml")
+        .replace(
+            &format!("zeta: '{registry}'"),
+            &format!("zeta: '{registry}', work: '{registry}'"),
+        );
+    fs::write(&workspace_yaml, declared).expect("write pnpm-workspace.yaml");
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = lockfile(&workspace);
+    assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@work:100.0.0"]);
+    assert_eq!(snapshot_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@work:100.0.0"]);
+    assert_eq!(package_keys(&lockfile, CHILD), ["@pnpm.e2e/foo@work:100.1.0"]);
+    assert_eq!(
+        importer_entry(&lockfile, PARENT),
+        ("zeta:100.0.0".to_string(), "work:100.0.0".to_string()),
+    );
+
+    drop((root, anchor));
+}
+
 /// Several declared prefixes for one registry key its packages by the
 /// lexicographically smallest one, whichever prefix a dependency spells.
 #[test]
