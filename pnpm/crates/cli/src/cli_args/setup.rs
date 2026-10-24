@@ -92,21 +92,32 @@ fn handler<Reporter: self::Reporter + 'static>(
     let output = if no_modify_path {
         render_unmodified_path_output(&pnpm_home_dir, cfg!(windows))
     } else {
-        let env_path_result = path_extender::add_dir_to_env_path(
-            &pnpm_home_dir,
-            &AddDirToEnvPathOpts {
-                config_section_name: "pnpm",
-                proxy_var_name: Some("PNPM_HOME"),
-                proxy_var_sub_dir: Some("bin"),
-                overwrite: force,
-                position: AddingPosition::Start,
-            },
-        );
-        let output = render_env_path_outcome(env_path_result, &pnpm_home_dir)?;
-        gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, &pnpm_home_dir, &bin_dir);
-        output
+        add_pnpm_home_to_env::<Reporter>(force, &pnpm_home_dir, &bin_dir, dir)?
     };
     remove_legacy_homedir_shims(&pnpm_home_dir);
+    Ok(output)
+}
+
+/// Add `PNPM_HOME` and its `bin` directory to the user's environment and, on
+/// GitHub Actions, to the rest of the job.
+fn add_pnpm_home_to_env<Reporter: self::Reporter + 'static>(
+    force: bool,
+    pnpm_home_dir: &Path,
+    bin_dir: &Path,
+    dir: &Path,
+) -> miette::Result<String> {
+    let env_path_result = path_extender::add_dir_to_env_path(
+        pnpm_home_dir,
+        &AddDirToEnvPathOpts {
+            config_section_name: "pnpm",
+            proxy_var_name: Some("PNPM_HOME"),
+            proxy_var_sub_dir: Some("bin"),
+            overwrite: force,
+            position: AddingPosition::Start,
+        },
+    );
+    let output = render_env_path_outcome(env_path_result, pnpm_home_dir)?;
+    gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, pnpm_home_dir, bin_dir);
     Ok(output)
 }
 

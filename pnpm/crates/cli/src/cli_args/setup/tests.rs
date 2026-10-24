@@ -95,7 +95,7 @@ fn no_modify_path_prints_the_lines_to_add_by_hand() {
 #[test]
 fn no_modify_path_prints_powershell_instructions_on_windows() {
     assert_eq!(
-        render_unmodified_path_output(Path::new("C:\\Users\\o'neil\\pnpm"), true),
+        render_unmodified_path_output(Path::new(r"C:\Users\o'neil\pnpm"), true),
         "pnpm is installed. The environment was left unchanged.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = 'C:\\Users\\o''neil\\pnpm'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
     );
 }
