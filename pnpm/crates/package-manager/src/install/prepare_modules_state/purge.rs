@@ -1,6 +1,6 @@
 use super::super::{
-    Config, HashSet, IncludedDependencies, InstallError, Lockfile, Path, PathBuf,
-    check_modules_settings_diff,
+    Config, HashSet, IncludedDependencies, InstallError, Lockfile, NodeLinker, Path, PathBuf,
+    refuse_drifted_modules_dir,
 };
 
 pub(super) fn is_safe_modules_purge_target(modules_dir: &Path, workspace_root: &Path) -> bool {
@@ -11,19 +11,21 @@ pub(super) struct InconsistentModulesDir<'a> {
     pub(super) config: &'static Config,
     pub(super) workspace_root: &'a Path,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
+    pub(super) node_linker: NodeLinker,
     pub(super) installs_only: bool,
     pub(super) filtered_install: bool,
 }
 pub(super) fn purge_inconsistent_modules_dir(
     context: &InconsistentModulesDir<'_>,
 ) -> Result<(), InstallError> {
-    // A plain install may recreate the drifted modules dir; `add` / `remove`
-    // must surface the drift instead (upstream `validateModules` with
-    // `forceNewModules = installsOnly`).
-    if !context.installs_only
-        && let Some(modules) = context.modules_manifest
-    {
-        check_modules_settings_diff(modules, context.config)?;
+    // Upstream `validateModules` purges only for a plain install
+    // (`forceNewModules = installsOnly`).
+    if !context.installs_only {
+        return refuse_drifted_modules_dir(
+            context.modules_manifest,
+            context.config,
+            context.node_linker,
+        );
     }
     let (is_safe, target_dir) = purge_target(context.config, context.workspace_root);
     if !is_safe {

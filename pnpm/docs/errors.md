@@ -20,6 +20,12 @@ A modules directory is present and is linked to a different store directory.
 
 If you changed the store directory intentionally, run `pnpm install` and pnpm will reinstall the dependencies using the new store.
 
+## ERR_PNPM_NODE_LINKER_DIFF
+
+`pnpm add`, `pnpm remove`, or `pnpm update` found a modules directory that was installed with a different `nodeLinker`.
+
+Run `pnpm install` to recreate the modules directory with the new `nodeLinker`.
+
 ## ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE
 
 A project has a workspace dependency that does not exist in the workspace.

@@ -44,6 +44,7 @@ export async function updateSingleProjectWorkspaceState (
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
     settings: withUpdatedCatalogs(opts, updatedCatalogs),
     workspaceDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
+    storeBaseDir: opts.workspaceDir ?? opts.dir,
     pnpmfiles: opts.pnpmfile,
     filteredInstall,
     configDependencies: opts.configDependencies,
@@ -58,13 +59,20 @@ export async function recursiveInstallThenUpdateWorkspaceState (
   cmdFullName: CommandFullName,
   updatedCatalogs?: Catalogs
 ): Promise<DryRunInstallResult | undefined> {
+  // The install replaces `storeDir` in `opts` with the resolved store, and
+  // the state must record the configured value that the next check reads.
+  const configuredStoreDir = opts.storeDir
   const recursiveResult = await recursive(allProjects, params, opts, cmdFullName)
   if (recursiveResult.installedProjectDirs.length > 0 && shouldSaveWorkspaceState(opts)) {
     const filteredInstall = isFilteredInstall(allProjects, recursiveResult.installedProjectDirs)
     await updateWorkspaceState({
       allProjects,
-      settings: withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
+      settings: {
+        ...withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
+        storeDir: configuredStoreDir,
+      },
       workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
+      storeBaseDir: opts.workspaceDir ?? opts.dir,
       pnpmfiles: opts.pnpmfile,
       filteredInstall,
       configDependencies: opts.configDependencies,

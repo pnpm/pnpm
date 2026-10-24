@@ -119,7 +119,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         )),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
-            kept_groups: None,
+            kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
     });
@@ -254,7 +254,7 @@ fn sync_fast_path_matches_optimistic_short_circuit() {
         filesystem_now_ms: Some(last_validated_timestamp),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
-            kept_groups: None,
+            kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
     });
@@ -400,7 +400,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         )),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: None,
-            kept_groups: None,
+            kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
     });

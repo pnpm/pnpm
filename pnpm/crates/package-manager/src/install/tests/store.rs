@@ -194,7 +194,7 @@ async fn fresh_partial_install_preserves_optional_link_in_warm_gvs_slot() {
 /// path pacquet keeps in [`Config::install_state_dir`]. If
 /// they diverge, the next `pnpm install` reads the manifest, recomputes
 /// `ctx.virtualStoreDir` from the GVS-on path, and trips its
-/// `checkCompatibility` with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR`
+/// `checkCompatibility` with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE`
 /// for every project, forcing the "modules directories will be
 /// reinstalled from scratch" prompt on every invocation. The same
 /// value is also emitted on the `pnpm:context` channel that
