@@ -1,9 +1,9 @@
 use super::{
-    Arc, BTreeMap, BTreeSet, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir,
-    LinkProbe, LoadWorkspaceYamlError, MachineSettings, Path, PathBuf, TrustedSettings,
-    WorkspaceSettings, collect_explicit_settings, collect_explicit_trusted_settings,
-    default_pnpm_home_dir, naming_cases::to_camel_case, note_declared_registries,
-    resolve_configured_state_dir,
+    Arc, Config, EnvVar, EnvVarOs, ExplicitPaths, GetCurrentDir, GetHomeDir, LinkProbe,
+    LoadWorkspaceYamlError, MachineSettings, Path, PathBuf, TrustedSettings, WorkspaceSettings,
+    collect_explicit_settings, collect_explicit_trusted_settings, default_pnpm_home_dir,
+    naming_cases::to_camel_case,
+    note_declared_registries, resolve_configured_state_dir,
     workspace_yaml::{parse_settings, read_workspace_document},
 };
 
@@ -104,10 +104,9 @@ impl Config {
         self.workspace_key_issues = settings.key_issues.clone();
         self.workspace_includes = settings.includes.take().map(Arc::new);
         note_declared_registries(declared_registries, &settings);
-        self.workspace_registry_prefixes = workspace_registry_prefixes(&settings);
         collect_explicit_settings(&mut self.explicit_settings, &settings);
         settings.resolve_script_shell(base_dir);
-        settings.apply_to(self, base_dir);
+        self.workspace_registry_prefixes = settings.apply_to(self, base_dir);
         if default_pnpm_home_dir::<Sys>().as_deref() == Some(base_dir) {
             self.apply_pnpm_home_global_shims::<Sys>(base_dir)?;
         }
@@ -264,16 +263,4 @@ fn workspace_includes_start_dir(
 ) -> bool {
     let patterns = settings.and_then(|settings| settings.packages.as_deref());
     pnpm_workspace::belongs_to_workspace(base_dir, start_dir, patterns).unwrap_or(true)
-}
-
-/// The prefixes `settings` declares, through `registries` or the deprecated
-/// `namedRegistries`.
-fn workspace_registry_prefixes(settings: &WorkspaceSettings) -> BTreeSet<String> {
-    let registries =
-        settings.registries.iter().flat_map(crate::workspace_yaml::registries::declared_prefixes);
-    let named = settings.named_registries.iter().flat_map(BTreeMap::keys);
-    registries
-        .chain(named.map(String::as_str))
-        .map(str::to_owned)
-        .collect()
 }
