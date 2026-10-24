@@ -352,8 +352,10 @@ fn global_add_installs_the_npm_package_a_purl_names() {
     assert!(manifest.contains(r#""node": "22.0.0""#), "{manifest}");
     let installed = fs::canonicalize(install_dir.join("node_modules/node"))
         .expect("resolve the installed node package");
+    let slots = fs::canonicalize(npmrc_info.store_dir.join("v11/links/@/node/22.0.0"))
+        .expect("resolve the node slots");
     assert!(
-        installed.starts_with(npmrc_info.store_dir.join("v11/links/@/node/22.0.0")),
+        installed.starts_with(slots),
         "the npm package the purl names must be the one installed: {installed:?}",
     );
 
