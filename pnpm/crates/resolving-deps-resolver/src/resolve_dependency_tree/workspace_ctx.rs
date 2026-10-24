@@ -243,7 +243,6 @@ pub(super) struct WorkspaceResolutionCache {
     /// same snapshot key recover its bound providers at most once per
     /// workspace pass.
     pub(super) bound_providers: Mutex<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
-    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
     /// tarball URL for the `currentPkg` payload. Empty when the entry
@@ -296,6 +295,7 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Per importer: the auto-installed peers whose lockfile pin is not
     /// reused. See `find_stale_peer_pins`.
     stale_peer_pins: HashMap<String, HashSet<String>>,
+    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
 }
 
 #[derive(Default)]
@@ -524,7 +524,7 @@ impl WorkspaceTreeCtx {
     pub(crate) fn unlisted_importer_locked_peers(
         &self,
     ) -> &OnceLock<Arc<HashMap<String, HashSet<String>>>> {
-        &self.cache.unlisted_importer_locked_peers
+        &self.versions.unlisted_importer_locked_peers
     }
 
     /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
