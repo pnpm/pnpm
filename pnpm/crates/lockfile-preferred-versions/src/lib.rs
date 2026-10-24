@@ -8,10 +8,7 @@
 
 pub use version_selector_type::get_version_selector_type;
 
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-};
+use std::{borrow::Cow, collections::HashMap};
 
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_catalogs_resolver::{
@@ -35,23 +32,6 @@ mod version_selector_type;
 pub struct DirectSpecs<'a> {
     pub manifests: &'a [&'a PackageManifest],
     pub catalogs: &'a Catalogs,
-    pub names: SeededNames<'a>,
-}
-
-/// The dependency names whose manifest specs seed the preferences.
-#[derive(Clone, Copy)]
-pub enum SeededNames<'a> {
-    All,
-    Only(&'a HashSet<String>),
-}
-
-impl SeededNames<'_> {
-    fn includes(self, name: &str) -> bool {
-        match self {
-            SeededNames::All => true,
-            SeededNames::Only(names) => names.contains(name),
-        }
-    }
 }
 
 impl<'a> DirectSpecs<'a> {
@@ -60,7 +40,7 @@ impl<'a> DirectSpecs<'a> {
     #[must_use]
     pub fn without_catalogs(manifests: &'a [&'a PackageManifest]) -> Self {
         static NO_CATALOGS: Catalogs = Catalogs::new();
-        DirectSpecs { manifests, catalogs: &NO_CATALOGS, names: SeededNames::All }
+        DirectSpecs { manifests, catalogs: &NO_CATALOGS }
     }
 
     /// `None` for a `catalog:` spec without a usable entry.
@@ -113,9 +93,6 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
                 DependencyGroup::Prod,
                 DependencyGroup::Optional,
             ]) {
-                if !direct.names.includes(name) {
-                    continue;
-                }
                 let Some(spec) = direct.effective_spec(name, spec) else { continue };
                 let Some(selector_type) = get_version_selector_type(&spec) else { continue };
                 preferred

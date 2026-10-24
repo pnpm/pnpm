@@ -22,16 +22,16 @@ pub(crate) struct WorkspaceLifecycleHooks {
     pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
 }
 
-/// Each importer's root preference layer of the exact versions its manifest
+/// Each importer's root preference layer of the specifiers its manifest
 /// declares, keyed by importer id.
-pub(crate) type OwnExactVersions = BTreeMap<String, Arc<PreferredVersionsOverlay>>;
+pub(crate) type OwnManifestSpecifiers = BTreeMap<String, Arc<PreferredVersionsOverlay>>;
 
 pub(crate) struct ImporterVersionSeeds<'a> {
     pub shared: &'a Arc<PreferredVersions>,
     pub by_importer: &'a BTreeMap<String, Arc<PreferredVersions>>,
-    /// Each importer's own exact specifiers, when the seeds leave out other
+    /// Each importer's own manifest specifiers, when the seeds leave out other
     /// projects' specifiers. `None` when those steer every project.
-    pub own_exact_versions: Option<&'a OwnExactVersions>,
+    pub own_manifest_specifiers: Option<&'a OwnManifestSpecifiers>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest: bool,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
@@ -111,8 +111,11 @@ impl<'a> ImporterVersionSeeds<'a> {
         self.by_importer.get(id).unwrap_or(self.shared)
     }
 
-    pub(super) fn own_exact_versions_of(&self, id: &str) -> Option<Arc<PreferredVersionsOverlay>> {
-        self.own_exact_versions?.get(id).map(Arc::clone)
+    pub(super) fn own_manifest_specifiers_of(
+        &self,
+        id: &str,
+    ) -> Option<Arc<PreferredVersionsOverlay>> {
+        self.own_manifest_specifiers?.get(id).map(Arc::clone)
     }
 }
 

@@ -224,7 +224,7 @@ impl ImporterInputs<'_> {
         let mut base_opts =
             self.shared_resolve_options.build(project_dir, Arc::clone(preferred_versions));
         base_opts.version.preferred_versions_overlay =
-            self.versions.own_exact_versions_of(importer_id);
+            self.versions.own_manifest_specifiers_of(importer_id);
         base_opts
     }
 

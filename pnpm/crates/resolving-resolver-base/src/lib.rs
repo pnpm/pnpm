@@ -20,19 +20,21 @@ pub use errors::{
 };
 pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_peer_range};
 pub use pnpm_config::LinkWorkspacePackages;
+pub use preferred_versions::{
+    DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
+    PreferredVersionsOverlay, REQUESTED_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT,
+    VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight, VersionSelectors,
+    pinned_by_lockfile,
+};
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
-    CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
-    GuardExhaustionPolicy, LatestInfo, LatestQuery, NonDeprecatedAlternative, PackageVersionGuard,
-    PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
-    PkgResolutionId, PreferredVersions, PreferredVersionsOverlay,
-    REQUESTED_VERSION_SELECTOR_WEIGHT, RESOLVED_VERSION_SELECTOR_WEIGHT, ResolutionPolicyOptions,
+    CurrentPkg, DependencyManifest, GuardExhaustionPolicy, LatestInfo, LatestQuery,
+    NonDeprecatedAlternative, PackageVersionGuard, PackageVersionGuardDecision,
+    PackageVersionGuardError, PackageVersionGuardFuture, PkgResolutionId, ResolutionPolicyOptions,
     ResolutionRefreshOptions, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, ResolvedPackageInfo, Resolver, ResolverProjectOptions, ResolverSpecifierOptions,
-    SharedDependencyManifest, UpdateBehavior, VersionSelectionOptions, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, pinned_by_lockfile,
-    resolve_package_version,
+    SharedDependencyManifest, UpdateBehavior, VersionSelectionOptions, WantedDependency,
+    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion, resolve_package_version,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use unsupported_protocol::UnsupportedProtocolError;
@@ -43,6 +45,7 @@ pub use verifier::{
 
 mod errors;
 mod peer_range;
+mod preferred_versions;
 mod publish_time;
 mod resolve;
 mod semver_range;
