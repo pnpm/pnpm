@@ -5,6 +5,7 @@ pub(super) use early_materializer::{
 mod automatic_dedupe;
 mod completion;
 mod early_materializer;
+mod preferred_seeds;
 use completion::collect_resolution;
 
 use super::{
@@ -243,30 +244,6 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
         .await)
     }
 
-    fn preferred_versions_seeds(
-        &self,
-        importer_manifests: &BTreeMap<String, &PackageManifest>,
-        stale_override_targets: &UpdateTargets,
-    ) -> (
-        Arc<pnpm_resolving_resolver_base::PreferredVersions>,
-        BTreeMap<String, Arc<pnpm_resolving_resolver_base::PreferredVersions>>,
-    ) {
-        let manifests: Vec<&PackageManifest> = importer_manifests
-            .values()
-            .copied()
-            .collect();
-        resolve::preferred_versions_seeds(
-            &self.owned.resolution.update_seed_policy,
-            self.wanted_lockfile(),
-            pnpm_lockfile_preferred_versions::DirectSpecs {
-                manifests: &manifests,
-                catalogs: &self.owned.projects.catalogs,
-            },
-            self.owned.resolution.preferred_versions_override.as_ref(),
-            stale_override_targets,
-        )
-    }
-
     /// The override targets the resolution reopens. A reuse seed means the
     /// lockfile rewrite already absorbed the overrides drift, leaving none.
     fn stale_override_targets(&self, has_reuse_seed: bool) -> UpdateTargets {
@@ -350,6 +327,9 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             String,
             Arc<pnpm_resolving_resolver_base::PreferredVersions>,
         >,
+        own_manifest_specifiers: Option<
+            &'b crate::install_with_fresh_lockfile::resolution_inputs::OwnManifestSpecifiers,
+        >,
     ) -> resolve::ImporterInputs<'b> {
         resolve::ImporterInputs {
             hooks: pnpm_resolving_deps_resolver::ManifestTransformHooks {
@@ -360,6 +340,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
             versions: crate::install_with_fresh_lockfile::resolution_inputs::ImporterVersionSeeds {
                 shared: preferred_versions_seed,
                 by_importer: preferred_versions_seeds_by_importer,
+                own_manifest_specifiers,
                 pick_lowest: self.setup.policy.pick_lowest_direct,
                 published_by: self.setup.policy.published_by,
             },

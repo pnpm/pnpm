@@ -185,48 +185,51 @@ fn dedupe_does_not_refresh_a_pin_onto_an_aliased_direct_dependency() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let lockfile_path = workspace.join("pnpm-lock.yaml");
-    fs::write(
-        workspace.join("package.json"),
-        serde_json::json!({
-            "dependencies": {
-                "@pnpm.e2e/dep-of-pkg-with-1-dep": "100.0.0",
-                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
-                "latest": "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
-            }
-        })
-        .to_string(),
-    )
-    .expect("write package.json");
+    for direct_spec in ["100.0.0", "~100.0.0"] {
+        let _ = fs::remove_file(&lockfile_path);
+        fs::write(
+            workspace.join("package.json"),
+            serde_json::json!({
+                "dependencies": {
+                    "@pnpm.e2e/dep-of-pkg-with-1-dep": direct_spec,
+                    "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                    "latest": "npm:@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0",
+                }
+            })
+            .to_string(),
+        )
+        .expect("write package.json");
 
-    pacquet_at(&workspace)
-        .with_args(["install", "--lockfile-only"])
-        .assert()
-        .success();
-    let parent: pnpm_lockfile::PkgNameVerPeer =
-        "@pnpm.e2e/pkg-with-1-dep@100.0.0".parse().expect("parse the parent key");
-    let transitive_pin = read_lockfile(&lockfile_path).snapshots
-        .expect("the lockfile has snapshots")[&parent]
-        .dependencies
-        .as_ref()
-        .expect("the parent has dependencies")
-        .get(&"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("parse the dependency name"))
-        .expect("the parent pins dep-of-pkg-with-1-dep")
-        .to_string();
-    assert_eq!(transitive_pin, "100.0.0");
-    let installed = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-
-    for _ in 0..2 {
         pacquet_at(&workspace)
-            .with_args(["dedupe", "--lockfile-only"])
+            .with_args(["install", "--lockfile-only"])
             .assert()
             .success();
-        let deduped = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
-        assert_eq!(deduped, installed);
+        let parent: pnpm_lockfile::PkgNameVerPeer =
+            "@pnpm.e2e/pkg-with-1-dep@100.0.0".parse().expect("parse the parent key");
+        let transitive_pin = read_lockfile(&lockfile_path).snapshots
+            .expect("the lockfile has snapshots")[&parent]
+            .dependencies
+            .as_ref()
+            .expect("the parent has dependencies")
+            .get(&"@pnpm.e2e/dep-of-pkg-with-1-dep".parse().expect("parse the dependency name"))
+            .expect("the parent pins dep-of-pkg-with-1-dep")
+            .to_string();
+        assert_eq!(transitive_pin, "100.0.0", "direct_spec = {direct_spec}");
+        let installed = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+
+        for _ in 0..2 {
+            pacquet_at(&workspace)
+                .with_args(["dedupe", "--lockfile-only"])
+                .assert()
+                .success();
+            let deduped = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+            assert_eq!(deduped, installed, "direct_spec = {direct_spec}");
+        }
+        pacquet_at(&workspace)
+            .with_args(["dedupe", "--check", "--lockfile-only"])
+            .assert()
+            .success();
     }
-    pacquet_at(&workspace)
-        .with_args(["dedupe", "--check", "--lockfile-only"])
-        .assert()
-        .success();
 
     drop((root, mock_instance));
 }
@@ -276,9 +279,15 @@ fn direct_dep_bump_in_one_importer_converges_another_importers_transitive_pin() 
 
     write_b("100.0.0");
     pacquet_at(&workspace)
-        .with_arg("install")
+        .with_args(["install", "--auto-dedupe"])
         .assert()
         .success();
+    let first_lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        !first_lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
+        "the first install must pin project a's transitive dependency to 100.0.0:\n{first_lockfile}",
+    );
 
     write_b("100.1.0");
     bump_mtime(&b_manifest);

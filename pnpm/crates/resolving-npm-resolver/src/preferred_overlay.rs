@@ -4,8 +4,8 @@ use crate::pick_package_from_meta::{
 };
 use pnpm_registry::Package;
 use pnpm_resolving_resolver_base::{
-    RESOLVED_VERSION_SELECTOR_WEIGHT, ResolveOptions, VersionSelectorEntry, VersionSelectorType,
-    VersionSelectorWithWeight, VersionSelectors,
+    ResolveOptions, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    VersionSelectors,
 };
 use std::{borrow::Cow, sync::Mutex};
 
@@ -41,30 +41,27 @@ pub(crate) fn overlay_merged_selectors(
     opts: &ResolveOptions,
     name: &str,
 ) -> Option<VersionSelectors> {
-    let weighted_versions =
-        opts.version.preferred_versions_overlay.as_ref()?.weighted_versions_for(name);
-    if weighted_versions.is_empty() {
+    let weighted_selectors =
+        opts.version.preferred_versions_overlay.as_ref()?.weighted_selectors_for(name);
+    if weighted_selectors.is_empty() {
         return None;
     }
     let mut selectors = opts.version.preferred_versions
         .get(name)
         .cloned()
         .unwrap_or_default();
-    for (version, weight) in weighted_versions {
+    for (selector, selector_type, weight) in weighted_selectors {
         let entry = selectors
-            .entry(version.to_string())
+            .entry(selector.to_string())
             .or_insert_with(|| {
                 VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                    selector_type: VersionSelectorType::Version,
+                    selector_type,
                     weight: 0,
                 })
             });
-        let existing_weight = match entry {
-            VersionSelectorEntry::Plain(_) => RESOLVED_VERSION_SELECTOR_WEIGHT,
-            VersionSelectorEntry::Weighted(w) => w.weight,
-        };
+        let existing_weight = entry.weight();
         *entry = VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-            selector_type: VersionSelectorType::Version,
+            selector_type,
             weight: existing_weight + weight,
         });
     }
