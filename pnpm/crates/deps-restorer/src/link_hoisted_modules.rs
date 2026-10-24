@@ -32,7 +32,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_fs::{read_modules_dir, rename_to_free_name};
-use pnpm_lockfile::PkgIdWithPatchHash;
+use pnpm_lockfile::{PackageKey, PkgIdWithPatchHash};
 use pnpm_reporter::{
     LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
 };
@@ -56,6 +56,7 @@ use std::{
 /// and the CAS contents are the same regardless of where they're
 /// extracted to.
 pub type CasPathsByPkgId = HashMap<PkgIdWithPatchHash, HoistedPackageFiles>;
+pub type CasPathsBySnapshot = HashMap<PackageKey, Arc<HashMap<String, PathBuf>>>;
 
 /// One package's entry in [`CasPathsByPkgId`].
 #[derive(Debug, Clone)]
