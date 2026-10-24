@@ -1,3 +1,5 @@
+mod docs_reference;
+
 use super::{
     CONFIG_ONLY_SETTING_KEYS, SETTINGS_OF_OTHER_PNPM_VERSIONS, TYPED_WORKSPACE_MANIFEST_KEYS,
     UNTYPED_WORKSPACE_SETTING_KEYS, annotate_unknown_setting, is_known_setting_key,
