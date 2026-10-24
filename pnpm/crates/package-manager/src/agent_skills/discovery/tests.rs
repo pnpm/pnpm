@@ -50,6 +50,29 @@ fn probing_the_same_version_preserves_each_installed_directory() {
 }
 
 #[test]
+fn empty_probe_does_not_hide_skills_from_another_installed_directory() {
+    let root = tempfile::tempdir().unwrap();
+    let empty_package = root.path().join("empty");
+    std::fs::create_dir(&empty_package).unwrap();
+    let package = root.path().join("with-skills");
+    let skill = package.join("skills/guide");
+    std::fs::create_dir_all(&skill).unwrap();
+    std::fs::write(skill.join("SKILL.md"), "guide").unwrap();
+    let mut cache = std::collections::HashMap::new();
+
+    assert!(
+        super::cached_skills(&mut cache, "foo@1.0.0".to_string(), &empty_package)
+            .unwrap()
+            .0
+            .is_empty(),
+    );
+    let (skills, package_dir) =
+        super::cached_skills(&mut cache, "foo@1.0.0".to_string(), &package).unwrap();
+    assert_eq!(skills, ["guide"]);
+    assert_eq!(package_dir, std::fs::canonicalize(&package).unwrap());
+}
+
+#[test]
 fn unresolved_package_locations_do_not_hide_skills_from_installed_variants() {
     let root = tempfile::tempdir().unwrap();
     let dangling = root.path().join("dangling");

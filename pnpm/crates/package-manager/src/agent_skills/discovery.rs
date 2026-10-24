@@ -166,8 +166,7 @@ fn cached_skills(
     dir: &Path,
 ) -> ShippedSkills {
     if let Some(Some((skills, package_dir))) = cache.get(&key)
-        && (skills.is_empty()
-            || fs::canonicalize(dir).is_ok_and(|resolved| resolved == *package_dir))
+        && fs::canonicalize(dir).is_ok_and(|resolved| resolved == *package_dir)
     {
         return Some((skills.clone(), package_dir.clone()));
     }
