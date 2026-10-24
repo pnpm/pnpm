@@ -932,3 +932,30 @@ test('a relative path takes the prefix of the project in that directory', async 
     'dup-first': 'old:dup@1.0.0',
   })
 })
+
+test('several projects at one version select no prefix', async () => {
+  const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-ambiguous-dup-'))
+  const depDir = path.join(projectDir, 'node_modules', 'dup')
+  fs.mkdirSync(depDir, { recursive: true })
+  fs.writeFileSync(path.join(depDir, 'package.json'), JSON.stringify({ name: 'dup', version: '1.0.0' }))
+
+  const exported = await createExportableManifest(projectDir, {
+    name: 'pkg-main',
+    version: '1.0.0',
+    dependencies: {
+      dup: 'workspace:^',
+      'dup-exact': 'workspace:dup@1.0.0',
+    },
+  }, {
+    catalogs: {},
+    workspacePackages: [
+      { manifest: { name: 'dup', version: '1.0.0' }, rootDir: '/root/dup-old', registryPrefix: 'old' },
+      { manifest: { name: 'dup', version: '1.0.0' }, rootDir: '/root/dup-work', registryPrefix: 'work' },
+    ],
+  })
+
+  expect(exported.dependencies).toStrictEqual({
+    dup: '^1.0.0',
+    'dup-exact': 'npm:dup@1.0.0',
+  })
+})

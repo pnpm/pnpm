@@ -28,10 +28,10 @@ export type WorkspacePackageLookup =
 
 /**
  * The workspace package a `workspace:` specifier addresses. With `version`,
- * the project of that name at that version, or the only project of the name
- * when none is at that version; several projects of the name and no match
- * answer nothing, since a guess would send a consumer to another project's
- * registry. Without `version`, the first project of the name with a version,
+ * the one project of that name at that version, or the only project of the
+ * name when none is at that version; several projects at that version, or
+ * several projects of the name and no match, answer nothing, since a guess
+ * would send a consumer to another project's registry. Without `version`, the first project of the name with a version,
  * else the first, so that a missing version can be reported. With
  * `dependencyDir`, the project that directory resolves to comes first when
  * several projects carry the name, since they may share a version.
@@ -67,8 +67,9 @@ function selectWorkspacePackage (
   if (version == null) {
     return projects.find((project) => project.manifest.name && project.manifest.version) ?? projects[0]
   }
-  return projects.find((project) => project.manifest.version === version) ??
-    (projects.length === 1 ? projects[0] : undefined)
+  const atVersion = projects.filter((project) => project.manifest.version === version)
+  if (atVersion.length === 1) return atVersion[0]
+  return atVersion.length === 0 && projects.length === 1 ? projects[0] : undefined
 }
 
 /** The project whose directory `dependencyDir` resolves to, through a `node_modules` symlink or a relative path. */
@@ -78,7 +79,20 @@ function findProjectInDirectory (
 ): WorkspacePackageEntry | undefined {
   const target = realpathIfExists(dependencyDir)
   if (target == null) return undefined
-  return projects.find((project) => project.rootDir != null && realpathIfExists(project.rootDir) === target)
+  return projects.find((project) => project.rootDir != null && resolveProjectDir(project.rootDir) === target)
+}
+
+/**
+ * A project directory that cannot be resolved, for any filesystem reason, is
+ * not the directory the dependency was just read from.
+ */
+function resolveProjectDir (rootDir: string): string | undefined {
+  try {
+    return fs.realpathSync(rootDir)
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err) return undefined
+    throw err
+  }
 }
 
 function realpathIfExists (dir: string): string | undefined {
