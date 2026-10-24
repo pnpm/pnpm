@@ -140,7 +140,7 @@ function inUseFilesError (location: string, err: unknown): PnpmError {
 
 /**
  * The lockfile does not say which key the install used for a git-hosted
- * package, which has a key for its built and its unbuilt contents, or for
+ * package, which has a key for its contents with and without a build, or for
  * a variations resolution, whose variant depends on the installing host
  * and its `supportedArchitectures`.
  */
