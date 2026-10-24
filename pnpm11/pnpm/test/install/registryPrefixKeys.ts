@@ -325,6 +325,30 @@ test('a frozen reinstall accepts a registry-qualified child of a local directory
   expect(virtualStoreCopies(CHILD)).toHaveLength(1)
 })
 
+test('an install re-keys an outdated key that a changed lockfile adds after a filtered install', async () => {
+  preparePackages([
+    { name: 'project-1', version: '1.0.0', dependencies: { [CHILD]: '^100.0.0' } },
+    { name: 'project-2', version: '1.0.0' },
+  ])
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['project-*'],
+    registries: { '@pnpm.e2e': REGISTRY },
+    namedRegistries: { work: REGISTRY },
+  })
+  await execPnpm(['install', '--filter', 'project-1'])
+  const lockfile = readLockfile()
+  const qualified = '@pnpm.e2e/foo@work:100.1.0'
+  writeLockfile({
+    ...lockfile,
+    packages: { ...lockfile.packages, '@pnpm.e2e/foo@100.0.0': lockfile.packages![qualified] },
+    snapshots: { ...lockfile.snapshots, '@pnpm.e2e/foo@100.0.0': {} },
+  })
+
+  await execPnpm(['install', '--filter', 'project-1'])
+
+  expect(packageKeys(readLockfile(), CHILD)).toStrictEqual([qualified])
+})
+
 test('jsr: specifiers share the key of the registry prefix', async () => {
   setup({ '@pnpm-e2e/bar': 'jsr:@pnpm-e2e/bar@2.0.0', 'bar-work': 'work:@jsr/pnpm-e2e__bar@2.0.0' }, {
     namedRegistries: { work: REGISTRY },

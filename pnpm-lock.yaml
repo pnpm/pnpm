@@ -4100,6 +4100,9 @@ importers:
       '@pnpm/lockfile.settings-checker':
         specifier: workspace:*
         version: link:../../lockfile/settings-checker
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/lockfile.verification':
         specifier: workspace:*
         version: link:../../lockfile/verification

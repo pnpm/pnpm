@@ -1,9 +1,11 @@
 import type fs from 'node:fs'
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { getLockfileImporterId, type LockfileObject, readCurrentLockfile } from '@pnpm/lockfile.fs'
+import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectId } from '@pnpm/types'
 import type { WorkspaceState } from '@pnpm/workspace.state'
@@ -173,10 +175,36 @@ async function validateModifiedWorkspace (
     return outdatedResult(errorMessageOf(err), workspaceState)
   }
 
+  if (await recordedKeyVerificationIsStale(ctx, projectsToCheck, readWantedLockfileAndDir)) {
+    // A gate that ignores `registryPrefixes` passes without recording the
+    // lockfile, so the next install checks its keys again.
+    if (ctx.opts.ignoredWorkspaceStateSettings?.includes('registryPrefixes')) {
+      return { upToDate: true, workspaceState, wantedLockfileToRestore }
+    }
+    return outdatedResult('The lockfile records registry keys that the registries setting no longer writes', workspaceState)
+  }
+
   // update lastValidatedTimestamp to prevent pointless repeat
   await recordVouchedWorkspaceState(ctx, vouched.vouchedProjects)
 
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
+}
+
+/**
+ * A recorded registry-key verification covers the lockfiles it was made for,
+ * and recording a passing check carries it forward. A lockfile changed since
+ * may record keys the registries setting no longer writes.
+ */
+async function recordedKeyVerificationIsStale (
+  { opts, workspaceState }: WorkspaceDepsStatusContext,
+  projectsToCheck: ProjectStats[],
+  readWantedLockfileAndDir: ReadWantedLockfileAndDir
+): Promise<boolean> {
+  const { registriesByScope } = opts
+  if (workspaceState.settings.registryPrefixes == null || registriesByScope == null) return false
+  const registries = pickRegistryContext({ ...opts, registriesByScope })
+  const lockfiles = await Promise.all(projectsToCheck.map(async ({ project }) => (await readWantedLockfileAndDir(project.rootDir)).wantedLockfile))
+  return [...new Set(lockfiles)].some((lockfile) => findOutdatedRegistryKey(lockfile, registries) != null)
 }
 
 async function recordVouchedWorkspaceState (

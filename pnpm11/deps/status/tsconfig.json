@@ -52,6 +52,9 @@
       "path": "../../lockfile/settings-checker"
     },
     {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../lockfile/verification"
     },
     {
