@@ -81,8 +81,13 @@ pub struct LocalResolveResult {
     pub manifest: Option<std::sync::Arc<serde_json::Value>>,
     pub normalized_bare_specifier: Option<String>,
     pub resolution: LockfileResolution,
-    /// `local-filesystem` — the `resolvedVia` tag this resolver stamps
-    /// on every shape it produces.
+    /// The `resolvedVia` tag: `workspace` for a `workspace:` specifier,
+    /// `local-filesystem` for every other shape. A `workspace:` specifier
+    /// gets the tag the name and range form gets in
+    /// `resolving-npm-resolver`, so the deps resolver treats the directory
+    /// as a workspace project whichever of the two claimed it: its
+    /// `catalog:` children resolve through the catalogs, and
+    /// `blockExoticSubdeps` leaves its children alone.
     pub resolved_via: &'static str,
 }
 
@@ -254,7 +259,7 @@ async fn resolve_spec(
             manifest: None,
             normalized_bare_specifier: Some(spec.normalized_bare_specifier),
             resolution: current.resolution.clone(),
-            resolved_via: "local-filesystem",
+            resolved_via: spec.resolved_via,
         }));
     }
 
@@ -271,7 +276,7 @@ async fn resolve_spec(
         resolution: LockfileResolution::Directory(DirectoryResolution {
             directory: spec.dependency_path,
         }),
-        resolved_via: "local-filesystem",
+        resolved_via: spec.resolved_via,
     }))
 }
 
@@ -302,7 +307,7 @@ async fn resolve_file_spec(
                 manifest: current.manifest.as_ref().map(Arc::clone),
                 normalized_bare_specifier: Some(spec.normalized_bare_specifier.clone()),
                 resolution: current.resolution.clone(),
-                resolved_via: "local-filesystem",
+                resolved_via: spec.resolved_via,
             })
         }
         Err(err) => Err(err),
@@ -344,7 +349,7 @@ async fn resolve_local_tarball(
             git_hosted: None,
             path: None,
         }),
-        resolved_via: "local-filesystem",
+        resolved_via: spec.resolved_via,
     })
 }
 

@@ -5,7 +5,7 @@ title: pnpm vs npm
 
 ## npm's flat tree
 
-npm maintains a [flattened dependency tree] as of version 3. This leads to less
+npm maintains a [flattened dependency tree]. This leads to less
 disk space bloat, with a messy `node_modules` directory as a side effect.
 
 On the other hand, pnpm manages `node_modules` by using hard linking and
@@ -37,13 +37,17 @@ packages to prune - it ALWAYS removes all extraneous and orphaned packages.
 
 ## Directory dependencies
 
-Directory dependencies start with the `file:` prefix and point to a directory in
-the filesystem. Like npm, pnpm symlinks those dependencies. Unlike npm, pnpm
-does not perform installation for the file dependencies.
+A directory dependency points to a directory in the filesystem. pnpm handles
+it according to its protocol:
 
-This means that if you have a package called `foo` (`<root>/foo`) that has
-`bar@file:../bar` as a dependency, pnpm won't perform installation for
-`<root>/bar` when you run `pnpm install` on `foo`.
+* `link:` (also recorded by `pnpm add ./dir`) symlinks the directory into
+  `node_modules`. pnpm does not install the directory's own dependencies.
+* `file:` copies the directory into the virtual store as a package
+  and installs its dependencies like any other package.
+
+For example, if a package called `foo` (`<root>/foo`) has `bar@link:../bar` as a
+dependency, pnpm does not install the dependencies of `<root>/bar` when you run
+`pnpm install` on `foo`.
 
 If you need to run installations in several packages at the same time, for
 instance in the case of a monorepo, you should look at the documentation for

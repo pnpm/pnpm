@@ -262,7 +262,7 @@ Like the token settings, these go in `.npmrc` or `auth.ini`.
 
 ### ca
 
-* Default: **The npm CA certificate**
+* Default: **null** (the CA certificates bundled with Node.js)
 * Type: **String, Array or null**
 
 The certificate authority (CA) certificate to trust for TLS connections to the

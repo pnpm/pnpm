@@ -30,7 +30,11 @@ impl DedupePipeline {
             self.args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
-        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Always)).await?;
+        prepare_root_config::<Reporter>(
+            root_config,
+            (false, RuntimePolicy::Config(self.args.no_runtime)),
+        )
+        .await?;
         let plan = select_install_family_plan::<Reporter>(
             self.cfg,
             &self.prefix,
@@ -127,7 +131,7 @@ pub(crate) struct PrunePipeline {
 impl PrunePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
         let root_config = (&*self.manifest_path, &mut *self.cfg, &*self.config_root);
-        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Always)).await?;
+        prepare_root_config::<Reporter>(root_config, (false, RuntimePolicy::Config(false))).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
         // modules_dir / install_state_dir via WorkspaceSettings::apply_to,
         // so the check must use the final (post-hook) config values.

@@ -134,6 +134,10 @@
         {
           "type": "category",
           "label": "Manage cache",
+          "link": {
+            "type": "doc",
+            "id": "cli/cache"
+          },
           "items": [
             "cli/cache-list",
             "cli/cache-list-registries",
@@ -232,13 +236,16 @@
         "git",
         "git-worktrees",
         "docker",
-        "podman"
+        "podman",
+        "production",
+        "only-allow-pnpm"
       ]
     },
     {
       "type": "category",
       "label": "Advanced",
       "items": [
+        "migration-v11",
         "migration",
         "errors",
         "logos",

@@ -1,13 +1,14 @@
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
+    sync::Arc,
 };
 
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode, header},
 };
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{AuthState, Config, MaxUsers, router, router_with_auth};
 use pnpr_fixtures::MockConfigPresets;
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -284,7 +285,9 @@ async fn expired_token_cannot_authenticate() {
 #[tokio::test]
 async fn token_authentication_updates_last_used_at() {
     let tmp = TempDir::new().unwrap();
-    let app = router(static_config(tmp.path().to_path_buf()));
+    let auth = AuthState::in_memory();
+    let tokens = Arc::clone(&auth.tokens);
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
     let login_token = add_user_and_get_token(&app, "alice", "secret123").await;
 
     let payload = json!({
@@ -300,6 +303,7 @@ async fn token_authentication_updates_last_used_at() {
     let new_token = body["token"].as_str().unwrap();
 
     assert_eq!(body["updated"], body["created"]);
+    let aged = crate::tokens::age_last_use(&tokens, new_token).await;
 
     let whoami = app
         .clone()
@@ -307,6 +311,7 @@ async fn token_authentication_updates_last_used_at() {
         .await
         .unwrap();
     assert_eq!(whoami.status(), StatusCode::OK);
+    crate::tokens::wait_for_last_use_after(&tokens, new_token, aged).await;
 
     let list_res = app
         .clone()
@@ -320,7 +325,7 @@ async fn token_authentication_updates_last_used_at() {
         .iter()
         .find(|token| token["name"] == "touch-test")
         .unwrap();
-    assert!(entry["updated"].is_string());
+    assert!(entry["updated"].as_str().unwrap() >= entry["created"].as_str().unwrap());
 }
 
 #[tokio::test]

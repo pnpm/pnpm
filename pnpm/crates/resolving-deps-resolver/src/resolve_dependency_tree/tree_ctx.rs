@@ -1,7 +1,8 @@
 //! The per-importer half of the walk: [`TreeCtx`], its builders, and
 //! the per-edge [`ResolveOptions`] derivations — the depth-specific
-//! pick, the project-relative cache scope, and the `file:` specifier
-//! resolved against its declaring manifest's directory.
+//! pick, the project-relative cache scope, and the `file:` and
+//! `workspace:` path specifiers resolved against their declaring
+//! manifest's directory.
 
 use chrono::{DateTime, Utc};
 use pnpm_catalogs_types::Catalogs;
@@ -80,9 +81,10 @@ pub(super) fn declaring_manifest_dir(
     Some(Arc::from(absolute))
 }
 
-/// Point a `file:` specifier at the directory of the manifest that
-/// declares it ([`declaring_manifest_dir`]) instead of the consuming
-/// importer's. Every other specifier keeps the caller's options.
+/// Point a `file:` or `workspace:` path specifier at the directory of
+/// the manifest that declares it ([`declaring_manifest_dir`]) instead
+/// of the consuming importer's. Every other specifier keeps the
+/// caller's options.
 pub(super) fn opts_relative_to_declaring_manifest<'a>(
     opts: &'a ResolveOptions,
     wanted: &WantedDependency,
@@ -92,7 +94,9 @@ pub(super) fn opts_relative_to_declaring_manifest<'a>(
         Some(parent_dir)
             if wanted.bare_specifier
                 .as_deref()
-                .is_some_and(|spec| spec.starts_with("file:")) =>
+                .is_some_and(|spec| {
+                    spec.starts_with("file:") || spec.starts_with("workspace:.")
+                }) =>
         {
             Cow::Owned(ResolveOptions {
                 project: pnpm_resolving_resolver_base::ResolverProjectOptions {

@@ -35,8 +35,8 @@ use pnpr_storage::{
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
     authorize_package, authorized_upstream, default_registry_target, documents::RegistryDocuments,
-    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target, tar_integrity_of,
-    tgz_integrity_key,
+    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
+    restore_tgz_integrities, tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.

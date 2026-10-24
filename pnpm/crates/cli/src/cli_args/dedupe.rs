@@ -48,6 +48,10 @@ pub struct DedupeArgs {
     /// `node_modules`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    /// Don't install runtime dependencies (`node`, `deno`, `bun`). Their
+    /// archives aren't fetched and their bins aren't linked.
+    #[clap(long = "no-runtime")]
+    pub no_runtime: bool,
     #[clap(flatten)]
     pub scripts: crate::cli_args::install_options::ScriptExecutionArgs,
     #[clap(flatten)]
@@ -83,7 +87,6 @@ impl DedupeArgs {
             base_install.lockfile_policy.prefer_frozen = Some(false);
             base_install.lockfile_policy.excludes =
                 if self.check { PolicyExcludes::Skip } else { PolicyExcludes::Persist };
-            base_install.execution.skip_runtimes = false;
             base_install.execution.lockfile_only = self.lockfile_only || self.check;
             base_install.resolution.update_seed_policy =
                 pnpm_package_manager::UpdateSeedPolicy::KeepAllResolveAll;

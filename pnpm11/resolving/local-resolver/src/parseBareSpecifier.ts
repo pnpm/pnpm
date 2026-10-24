@@ -18,7 +18,18 @@ export interface LocalPackageSpec {
   id: PkgResolutionId
   type: 'directory' | 'file'
   normalizedBareSpecifier: string
+  resolvedVia: LocalResolvedVia
 }
+
+/**
+ * The `resolvedVia` tag: `workspace` for a `workspace:` specifier,
+ * `local-filesystem` for every other shape. A `workspace:` specifier gets the
+ * tag the name and range form gets in the npm resolver, so the dependencies
+ * resolver treats the directory as a workspace project whichever of the two
+ * claimed it: its `catalog:` dependencies resolve through the catalogs, and
+ * `blockExoticSubdeps` leaves its dependencies alone.
+ */
+export type LocalResolvedVia = 'local-filesystem' | 'workspace'
 
 export interface WantedLocalDependency {
   bareSpecifier: string
@@ -207,6 +218,7 @@ function fromLocal (
     fetchSpec,
     id,
     normalizedBareSpecifier,
+    resolvedVia: bareSpecifier.startsWith('workspace:') ? 'workspace' : 'local-filesystem',
     type,
   }
 }

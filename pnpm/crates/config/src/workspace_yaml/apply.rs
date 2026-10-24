@@ -132,6 +132,7 @@ impl WorkspaceSettings {
             self.prefer_symlinked_executables.take(),
         );
         overlay_some(&mut config.save_catalog_name, self.save_catalog_name.take());
+        overlay_some(&mut config.tag, self.tag.take());
         overlay_some(&mut config.init_author_name, self.init_author_name.take());
         overlay_some(&mut config.init_author_email, self.init_author_email.take());
         overlay_some(&mut config.init_author_url, self.init_author_url.take());
@@ -185,6 +186,7 @@ impl WorkspaceSettings {
 
     /// Registry endpoints, their credentials, and the caches keyed by them.
     pub(super) fn apply_registry_settings(&mut self, config: &mut Config) {
+        self.apply_tls_to(&mut config.tls);
         let declared_prefixes = self.apply_registry_declarations(config);
         if let Some(v) = self.registry.take() {
             config.registry = normalize_registry_url(&v).into_owned();
@@ -326,6 +328,9 @@ impl WorkspaceSettings {
         overlay(&mut config.engine_strict, self.engine_strict.take());
         overlay(&mut config.force_ignores_platform, self.force_ignores_platform.take());
         overlay_some(&mut config.node_version, self.node_version.take());
+        if let Some(runtime) = self.runtime.take() {
+            config.skip_runtimes = !runtime;
+        }
         overlay_some(&mut config.runtime_on_fail, self.runtime_on_fail.take());
         overlay(&mut config.node_download_mirrors, self.node_download_mirrors.take());
     }
@@ -432,6 +437,15 @@ impl WorkspaceSettings {
             config.audit_config.ignore_ghsas = ignore;
         }
         overlay_some(&mut config.audit_ignore_prune, audit.ignore_prune);
+    }
+
+    /// An invalid `localAddress` clears the one a lower source set, as
+    /// it does between `.npmrc` layers.
+    fn apply_tls_to(&mut self, tls: &mut pnpm_network::TlsConfig) {
+        overlay_some(&mut tls.strict_ssl, self.strict_ssl.take());
+        if let Some(local_address) = self.local_address.take() {
+            tls.local_address = local_address.parse().ok();
+        }
     }
 
     /// Overlay this file's proxy keys onto the merged view and re-resolve.

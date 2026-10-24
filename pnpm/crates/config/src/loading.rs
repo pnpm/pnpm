@@ -261,8 +261,7 @@ impl Config {
         // is found — because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
         npmrc_auth.proxy.apply_proxy_cascade::<Sys>(self);
-        // TLS + local-address are sourced from `.npmrc` only — pnpm
-        // does not honor env vars (`NODE_EXTRA_CA_CERTS`,
+        // pnpm does not honor Node's TLS env vars (`NODE_EXTRA_CA_CERTS`,
         // `NODE_TLS_REJECT_UNAUTHORIZED`, etc.) for these keys
         // (Node's runtime does, but pnpm's reader does not).
         npmrc_auth.tls.apply_tls_and_local_address(self);

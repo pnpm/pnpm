@@ -55,10 +55,10 @@ node_modules
 └── .pnpm
     ├── bar@1.0.0
     │   └── node_modules
-    │       └── bar -> <store>
+    │       └── bar/  (files linked from <store>)
     └── foo@1.0.0
         └── node_modules
-            ├── foo -> <store>
+            ├── foo/  (files linked from <store>)
             └── bar -> ../../bar@1.0.0/node_modules/bar
 ```
 
@@ -71,10 +71,10 @@ node_modules
 └── .pnpm
     ├── bar@1.0.0
     │   └── node_modules
-    │       └── bar -> <store>
+    │       └── bar/  (files linked from <store>)
     └── foo@1.0.0
         └── node_modules
-            ├── foo -> <store>
+            ├── foo/  (files linked from <store>)
             └── bar -> ../../bar@1.0.0/node_modules/bar
 ```
 
@@ -90,26 +90,27 @@ node_modules
 └── .pnpm
     ├── bar@1.0.0
     │   └── node_modules
-    │       ├── bar -> <store>
+    │       ├── bar/  (files linked from <store>)
     │       └── qar -> ../../qar@2.0.0/node_modules/qar
     ├── foo@1.0.0
     │   └── node_modules
-    │       ├── foo -> <store>
+    │       ├── foo/  (files linked from <store>)
     │       ├── bar -> ../../bar@1.0.0/node_modules/bar
     │       └── qar -> ../../qar@2.0.0/node_modules/qar
     └── qar@2.0.0
         └── node_modules
-            └── qar -> <store>
+            └── qar/  (files linked from <store>)
 ```
 
 As you may see, even though the graph is deeper now (`foo > bar > qar`), the
 directory depth in the file system is still the same.
 
 This layout might look weird at first glance, but it is completely compatible
-with Node's module resolution algorithm. When resolving modules, Node ignores
-symlinks, so when `bar` is required from `foo@1.0.0/node_modules/foo/index.js`,
-Node does not use `bar` at `foo@1.0.0/node_modules/bar`, but instead, `bar` is
-resolved to its real location (`bar@1.0.0/node_modules/bar`). As a consequence,
+with Node's module resolution algorithm. When resolving modules, Node resolves
+a symlink to its real path. So when `bar` is required from
+`foo@1.0.0/node_modules/foo/index.js`, Node finds the symlink at
+`foo@1.0.0/node_modules/bar` and loads `bar` from its real location
+(`bar@1.0.0/node_modules/bar`). As a consequence,
 `bar` can also resolve its dependencies which are in `bar@1.0.0/node_modules`.
 
 A great bonus of this layout is that only packages that are really in the

@@ -10,7 +10,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::Path,
     sync::{
-        Condvar, Mutex,
+        Condvar, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
     },
     time::Duration,
@@ -28,6 +28,19 @@ pub struct LinkConcurrencyProbe {
     wait_started: AtomicBool,
     mutex: Mutex<()>,
     condvar: Condvar,
+    cold_pass_gate: ColdPassGate,
+}
+
+/// Holds the first cold link pass until the drain delivered `required`
+/// captures. The pass waits for them, so a drain that a link pass stalls
+/// fails to reach the gate.
+#[derive(Default)]
+pub struct ColdPassGate {
+    /// Cold captures handed to the link thread so far.
+    delivered: AtomicUsize,
+    required: usize,
+    /// `delivered` when the first cold link pass started.
+    first_pass_delivered: OnceLock<usize>,
 }
 
 /// How long the first linker waits for a second one to join it. Only has
@@ -37,8 +50,44 @@ pub struct LinkConcurrencyProbe {
 const OVERLAP_TIMEOUT: Duration = Duration::from_secs(15);
 
 impl LinkConcurrencyProbe {
-    pub(crate) fn waiting_for_overlap() -> Self {
-        Self { wait_for_overlap: true, ..Self::default() }
+    /// A probe whose first cold link pass waits for `required` delivered
+    /// captures.
+    pub(crate) fn gating_first_cold_pass(required: usize) -> Self {
+        Self {
+            cold_pass_gate: ColdPassGate { required, ..ColdPassGate::default() },
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn and_waiting_for_overlap(self) -> Self {
+        Self { wait_for_overlap: true, ..self }
+    }
+
+    /// How many cold captures the drain had delivered when the first
+    /// cold link pass started, after waiting for the gate.
+    pub(crate) fn first_cold_pass_delivered(&self) -> Option<usize> {
+        self.cold_pass_gate.first_pass_delivered.get().copied()
+    }
+
+    pub(crate) fn cold_capture_delivered(&self) {
+        self.cold_pass_gate.delivered.fetch_add(1, Ordering::SeqCst);
+        self.condvar.notify_all();
+    }
+
+    /// Holds the first cold link pass at the [`ColdPassGate`] for up to
+    /// [`OVERLAP_TIMEOUT`].
+    pub(crate) fn before_cold_link_pass(&self) {
+        let gate = &self.cold_pass_gate;
+        if gate.first_pass_delivered.get().is_some() {
+            return;
+        }
+        let guard = self.mutex.lock().expect("lock link-concurrency probe");
+        let _ = self.condvar
+            .wait_timeout_while(guard, OVERLAP_TIMEOUT, |()| {
+                gate.delivered.load(Ordering::SeqCst) < gate.required
+            })
+            .expect("wait for the cold pass gate");
+        let _ = gate.first_pass_delivered.set(gate.delivered.load(Ordering::SeqCst));
     }
 
     pub(crate) fn max_concurrent(&self) -> usize {
@@ -87,6 +136,7 @@ impl Default for LinkConcurrencyProbe {
             wait_started: AtomicBool::new(false),
             mutex: Mutex::new(()),
             condvar: Condvar::new(),
+            cold_pass_gate: ColdPassGate::default(),
         }
     }
 }

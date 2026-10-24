@@ -222,9 +222,11 @@ pub(super) struct PreparedManifest {
     pub(super) updated_catalogs: Catalogs,
     pub(super) picked_versions: Vec<PickedVersion>,
 }
-/// The version an explicit registry specifier for `name` resolved to, and
+/// The version an explicit registry specifier for `alias` resolved to, and
 /// the specifier the manifest saves for it.
 pub(super) struct PickedVersion {
+    pub(super) alias: String,
+    /// The registry name the version belongs to.
     pub(super) name: String,
     pub(super) version: String,
     pub(super) specifier: String,
@@ -290,12 +292,13 @@ impl PreparedManifest {
         let mut picked_versions = Vec::new();
         for dependency in dependencies {
             merge_catalogs(&mut updated_catalogs, &dependency.updated_catalogs);
-            if let Some(version) = dependency.picked_version
-                && dependency.manifest_specifier != version
+            if let Some(picked) = dependency.picked
+                && dependency.manifest_specifier != picked.version
             {
                 picked_versions.push(PickedVersion {
-                    name: dependency.package_name,
-                    version,
+                    alias: dependency.package_name,
+                    name: picked.name,
+                    version: picked.version,
                     specifier: dependency.manifest_specifier,
                 });
             }

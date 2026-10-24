@@ -1,6 +1,6 @@
 use super::{
-    CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput, SnapshotCacheKey,
-    cas_paths_key,
+    ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreError, CreateVirtualStoreOutput,
+    SnapshotCacheKey, cas_paths_key, settle_check,
 };
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{PackageKey, Prefix, SnapshotEntry};
@@ -13,16 +13,30 @@ use std::{
 
 impl CreateVirtualStore<'_> {
     pub async fn run<Report: Reporter>(
-        mut self,
+        self,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
-        if self.ctx.linker.kind == NodeLinker::Loaded {
-            return Box::pin(self.run_cas::<Report>()).await;
-        }
-        self.run_inner::<Report>().await
+        self.run_with_check::<Report>(None).await
+    }
+
+    /// [`Self::run`] with `check` polled alongside the fetch: through
+    /// the planning awaits and the cold downloads, and to its verdict
+    /// before this returns. A link pass blocks the task and does not
+    /// poll it.
+    pub async fn run_with_check<Report: Reporter>(
+        mut self,
+        mut check: Option<ConcurrentCheck<'_>>,
+    ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
+        let result = if self.ctx.linker.kind == NodeLinker::Loaded {
+            Box::pin(self.run_cas::<Report>(&mut check)).await
+        } else {
+            self.run_inner::<Report>(&mut check).await
+        };
+        settle_check(check, result).await
     }
 
     pub(super) async fn run_cas<Report: Reporter>(
         self,
+        check: &mut Option<ConcurrentCheck<'_>>,
     ) -> Result<CreateVirtualStoreOutput, CreateVirtualStoreError> {
         validate_config(self.ctx.config)?;
         let selected = self.ctx
@@ -38,12 +52,13 @@ impl CreateVirtualStore<'_> {
         };
         let mut installer = CreateVirtualStore { ctx: &fetch_context, ..self };
         let materialized_snapshots = (!selected.is_empty()).then_some(selected);
-        let (fetched, prefetch) = installer.run_retaining::<Report>(materialized_snapshots).await?;
+        let (fetched, prefetch) =
+            installer.run_retaining::<Report>(materialized_snapshots, check).await?;
         validate_cas_builds(&fetched, selected, installer.ctx.config)?;
         installer.ctx = &materialize_context;
         installer.entries.snapshots = materialized_snapshots;
         installer.fetching.cas_prefetch = prefetch;
-        let mut materialized = installer.run_inner::<Report>().await?;
+        let mut materialized = installer.run_inner::<Report>(check).await?;
         materialized.cas_paths_by_pkg_id = fetched.cas_paths_by_pkg_id;
         materialized.package_manifests.extend(fetched.package_manifests);
         materialized.package_bins.extend(fetched.package_bins);

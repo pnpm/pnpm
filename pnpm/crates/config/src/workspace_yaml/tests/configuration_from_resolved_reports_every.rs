@@ -33,6 +33,7 @@ fn from_resolved_reports_every_setting() {
         save_prefix: Some("~".to_string()),
         tag_version_prefix: "release-".to_string(),
         save_catalog_name: Some("default".to_string()),
+        tag: Some("next".to_string()),
         pipeline_base: Some("origin/main".to_string()),
         remote_cache: Some(Box::default()),
         init_author_name: Some("Example".to_string()),
@@ -78,6 +79,11 @@ fn from_resolved_reports_every_setting() {
             http_proxy: Some("http://proxy.example".to_string()),
             no_proxy: Some(pnpm_network::NoProxySetting::List(vec!["example.com".to_string()])),
         },
+        tls: pnpm_network::TlsConfig {
+            strict_ssl: Some(false),
+            local_address: Some([127, 0, 0, 2].into()),
+            ..pnpm_network::TlsConfig::default()
+        },
         update_config: UpdateConfig { changeset: Some(true), ..UpdateConfig::default() },
         // The settings that report as written, rather than as resolved.
         explicit_settings: [
@@ -99,6 +105,7 @@ fn from_resolved_reports_every_setting() {
                 "mergeGitBranchLockfiles",
                 "optimisticRepeatInstall",
                 "preferSymlinkedExecutables",
+                "runtime",
             ]
             .into_iter()
             .map(|key| (key.to_string(), serde_json::Value::Bool(true))),

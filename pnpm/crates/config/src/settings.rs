@@ -508,8 +508,8 @@ pub struct Config {
     /// `deno@runtime:`, `bun@runtime:`) are skipped at install
     /// time — their archives aren't fetched, their slots aren't
     /// materialized, and their bins aren't linked. The rest of
-    /// the install proceeds normally. The `skipRuntimes` option,
-    /// exposed via the `--no-runtime` CLI flag.
+    /// the install proceeds normally. Set by `runtime: false` and the
+    /// `--no-runtime` CLI flag.
     ///
     /// Defaults to `false`. CI scenarios that
     /// pre-provision the runtime (or want to install one runtime
@@ -687,7 +687,9 @@ pub struct Config {
     pub proxy_keys: crate::proxy_keys::ProxyKeys,
 
     /// Resolved TLS + `local-address` configuration — `ca`, `cafile`,
-    /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`. The
+    /// `cert`, `key`, `strict-ssl`, `local-address` from `.npmrc`, with
+    /// `strictSsl` and `localAddress` also read from the yaml settings,
+    /// the environment, and the command line. The
     /// type lives in `pnpm-network` for the same reason as
     /// [`Self::proxy`]. `strict_ssl: None` here means "unset"; the
     /// `true` default is applied at client-build time by
@@ -1714,6 +1716,11 @@ pub struct Config {
     /// `undefined`).
     pub save_catalog_name: Option<String>,
 
+    /// The dist-tag a dependency with no version resolves to, as in
+    /// `pnpm add foo` or an `npm:foo` alias. The `tag` setting. Unset means
+    /// `latest`; read it through [`Config::default_tag`].
+    pub tag: Option<String>,
+
     /// The range operator `pnpm add` prepends to a resolved version
     /// when saving it: `^` (the default), `~`, or `""` for an exact
     /// pin. The `savePrefix` setting, overridden per-invocation by
@@ -1864,6 +1871,15 @@ impl Config {
     /// required package warns instead of failing the install.
     pub fn effective_engine_strict(&self) -> bool {
         self.engine_strict && !self.force
+    }
+
+    /// [`tag`](Self::tag), or `latest` when it is unset or empty.
+    #[must_use]
+    pub fn default_tag(&self) -> &str {
+        self.tag
+            .as_deref()
+            .filter(|tag| !tag.is_empty())
+            .unwrap_or("latest")
     }
 
     #[must_use]

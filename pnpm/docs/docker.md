@@ -33,13 +33,13 @@ Supported platforms: `linux/amd64`, `linux/arm64`.
 
 ### Adding pnpm to your own image
 
-Copy `/opt/pnpm` from the image whose C library matches your base image, and link the binary onto `PATH`.
+Copy `/opt/pnpm` from the image whose C library matches your base image, and link the binary and its `pn`, `pnpx`, and `pnx` aliases onto `PATH`.
 Copy the whole directory, because it also contains the `node-gyp` that pnpm uses to build native dependencies.
 
 ```dockerfile title="Dockerfile"
 FROM node:24-alpine
 COPY --from=ghcr.io/pnpm/pnpm:12-alpine /opt/pnpm /opt/pnpm
-RUN ln -s /opt/pnpm/pnpm /usr/local/bin/pnpm
+RUN for bin in pnpm pn pnpx pnx; do ln -s "/opt/pnpm/$bin" "/usr/local/bin/$bin"; done
 ```
 
 For a Debian- or Ubuntu-based image, such as `node:24-slim`, copy from `ghcr.io/pnpm/pnpm:12` instead.

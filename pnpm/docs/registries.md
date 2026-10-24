@@ -3,8 +3,6 @@ id: registries
 title: Registries
 ---
 
-Added in: v11.23.0
-
 The [`registries`](./settings/dependency-resolution.md#registries) setting in `pnpm-workspace.yaml` declares each registry a project installs from, once, keyed by the registry's URL. Everything pnpm knows about a registry lives in its entry: the scopes routed to it, the bare-specifier prefix it answers to, and what the server behind it is like.
 
 ```yaml title="pnpm-workspace.yaml"
@@ -182,7 +180,7 @@ registries:
     ecosystem: cargo
 ```
 
-Since v12.5.1, a Python package resolves exclusively from the index claiming its name through [`packages`](#packages). Declaration order has no effect, and a missing package or registry failure never falls back to another index. (v12.5.0 instead searched the indexes in declaration order.) Cargo accepts one sparse index. With no declaration for an ecosystem, pnpm uses PyPI or crates.io. This replaces `python.indexUrl`, `python.extraIndexUrls`, and `cargo.indexUrl` in v12.5.0.
+Since v12.5.1, a Python package resolves exclusively from the index claiming its name through [`packages`](#packages). Declaration order has no effect, and a missing package or registry failure never falls back to another index. (v12.5.0 instead searched the indexes in declaration order.) Cargo accepts one sparse index. With no declaration for an ecosystem, pnpm uses PyPI or crates.io. Since v12.5.0, this replaces the removed `python.indexUrl`, `python.extraIndexUrls`, and `cargo.indexUrl` settings.
 
 Credentials cannot appear in the URL key. Configure them in [`.npmrc`](./npmrc.md); they are matched by origin for all ecosystems. The npm-specific fields `scopes`, `prefix`, `serverType`, and `supportsTimeField` are refused for Cargo and PyPI entries.
 
@@ -204,9 +202,9 @@ See [Python indexes](./python.md#python-indexes) for an example with private pac
 
 ## Where the setting may live
 
-The server descriptions (`serverType` and `supportsTimeField`) belong in `pnpm-workspace.yaml` because the lockfile depends on them: one developer omitting tarball URLs that another reconstructs differently would break a frozen install.
+The server descriptions (`serverType` and `supportsTimeField`) are read only from `pnpm-workspace.yaml`, because the lockfile depends on them: one developer omitting tarball URLs that another reconstructs differently would break a frozen install.
 
-The [global configuration file](./cli/config.md) (`config.yaml`) may declare ecosystem indexes, the *routes* (`scopes` and `prefix`) so that a scope or an alias like `work:` applies to every project on the machine, and `networkConcurrency`, which does not affect the lockfile. The server descriptions (`serverType` and `supportsTimeField`) are read only from `pnpm-workspace.yaml`, for the reason above.
+The [global configuration file](./cli/config.md) (`config.yaml`) may declare ecosystem indexes, the *routes* (`scopes` and `prefix`) so that a scope or an alias like `work:` applies to every project on the machine, and `networkConcurrency`, which does not affect the lockfile.
 
 Since v12.1.0, [`pnpm login --scope <scope>`](./cli/login.md#--scope-scope)
 adds that machine-wide scope route to the global `registries` setting while it
@@ -223,7 +221,7 @@ Environment variables are **not** expanded in the URL keys of this setting, for 
 
 ## The older shapes
 
-Before v11.23.0, `registries` mapped scopes to URLs, with the `default` key naming the main registry:
+The older shape of `registries` maps scopes to URLs, with the `default` key naming the main registry:
 
 ```yaml title="pnpm-workspace.yaml"
 registries:

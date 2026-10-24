@@ -116,7 +116,7 @@ Added in: v12.6.0
 * Default: **0**
 * Type: **Integer**
 
-Waiting tasks take available slots in order of descending `priority`, with higher values running first. When `priority` is not specified, it defaults to `0`. A task with `priority: 10` therefore has higher priority than an unconfigured task and runs before it, while negative priorities run after. When two tasks have the same priority, arrival order breaks the tie.
+Tasks waiting for a slot of their [concurrency group](#concurrencygroups) take free slots in order of descending `priority`, with higher values running first. When `priority` is not specified, it defaults to `0`. A task with `priority: 10` therefore has higher priority than an unconfigured task and runs before it, while negative priorities run after. When two tasks have the same priority, arrival order breaks the tie.
 
 ```yaml title="pnpm-workspace.yaml"
 tasks:

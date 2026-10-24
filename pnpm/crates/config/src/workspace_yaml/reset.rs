@@ -92,6 +92,19 @@ fn reset_proxy_setting(config: &mut Config, defaults: &Config, key: &str) {
     config.proxy = config.proxy_keys.resolve();
 }
 
+fn reset_audit_settings(config: &mut Config, defaults: &Config) {
+    config.audit_level = defaults.audit_level;
+    config.audit_config.clone_from(&defaults.audit_config);
+    config.audit_ignore_prune = defaults.audit_ignore_prune;
+}
+
+fn reset_tls_setting(config: &mut Config, defaults: &Config, key: &str) {
+    match key {
+        "strictSsl" => config.tls.strict_ssl = defaults.tls.strict_ssl,
+        _ => config.tls.local_address = defaults.tls.local_address,
+    }
+}
+
 /// Leave `virtualStoreOnly` mode with the hoist patterns the mode
 /// snapshotted, a pattern a source explicitly disabled included, unless a
 /// source still sets a pattern, and with the derivations that read the
@@ -157,7 +170,7 @@ impl WorkspaceSettings {
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,
             trust_lockfile, trust_policy, trust_policy_exclude, trust_policy_exclude_prune,
             trust_policy_ignore_after, init_author_name, init_author_email, init_author_url,
-            init_license, init_version, pm_on_fail, versioning, save_catalog_name,
+            init_license, init_version, pm_on_fail, versioning, save_catalog_name, tag,
             save_prefix, tag_version_prefix, pipeline_base, child_concurrency, workspace_concurrency, catalogs,
             allow_builds, concurrency_groups, boot_config,
         });
@@ -268,17 +281,15 @@ impl WorkspaceSettings {
             "httpsProxy" | "httpProxy" | "proxy" | "noProxy" | "noproxy" => {
                 reset_proxy_setting(config, defaults, key);
             }
-            "audit" | "auditLevel" | "auditConfig" => {
-                config.audit_level = defaults.audit_level;
-                config.audit_config.clone_from(&defaults.audit_config);
-                config.audit_ignore_prune = defaults.audit_ignore_prune;
-            }
+            "strictSsl" | "localAddress" => reset_tls_setting(config, defaults, key),
+            "audit" | "auditLevel" | "auditConfig" => reset_audit_settings(config, defaults),
             "update" | "updateConfig" => config.update_config.clone_from(&defaults.update_config),
             "cleanupUnusedCatalogs" => config.catalog_prune = defaults.catalog_prune,
             "virtualStoreType" => {
                 config.enable_global_virtual_store = defaults.enable_global_virtual_store;
             }
             "maxsockets" => config.max_sockets = defaults.max_sockets,
+            "runtime" => config.skip_runtimes = defaults.skip_runtimes,
             // Shapes only a file has, whose resolved form lives under the
             // keys above, or one nothing resolves from: nothing to restore.
             "registries"

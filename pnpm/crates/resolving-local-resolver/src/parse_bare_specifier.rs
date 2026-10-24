@@ -40,6 +40,8 @@ pub(crate) struct LocalPackageSpec {
     /// protocol prefix). The dispatcher writes this back to the
     /// manifest spec when `add` / `update` runs.
     pub normalized_bare_specifier: String,
+    /// See [`crate::LocalResolveResult::resolved_via`].
+    pub resolved_via: &'static str,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -159,7 +161,12 @@ fn from_local(
         id: PkgResolutionId::from(id_value),
         kind,
         normalized_bare_specifier,
+        resolved_via: resolved_via(bare),
     }
+}
+
+fn resolved_via(bare: &str) -> &'static str {
+    if bare.starts_with("workspace:") { "workspace" } else { "local-filesystem" }
 }
 
 /// The protocol a local specifier resolves under. A `link:` directory is

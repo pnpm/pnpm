@@ -101,7 +101,10 @@ pub(super) fn wanted_spec(
     default_tag: &str,
     registry: &str,
 ) -> Option<RegistryPackageSpec> {
-    if let Some(bare) = wanted_dependency.bare_specifier.as_deref() {
+    if let Some(bare) = wanted_dependency.bare_specifier
+        .as_deref()
+        .filter(|bare| !bare.is_empty())
+    {
         return parse_bare_specifier(
             bare,
             wanted_dependency.alias.as_deref(),

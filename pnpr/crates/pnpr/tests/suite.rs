@@ -15,6 +15,7 @@ mod storage;
 #[path = "common/tokens.rs"]
 mod tokens;
 
+mod access_log;
 mod admin_audit_log;
 mod auth_persistence;
 mod auth_publish;

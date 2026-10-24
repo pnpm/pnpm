@@ -67,6 +67,7 @@ pub(super) struct MutationLocks {
 
 pub(super) struct IdentityServices {
     pub(super) auth: AuthState,
+    pub(super) last_used: pnpr_auth::LastUsedWriter,
     pub(super) oidc: pnpr_auth::oidc::OidcState,
     pub(super) managed: super::managed_state::ManagedState,
     pub(super) login_rate_limiter: LoginRateLimiter,
@@ -143,6 +144,7 @@ impl IdentityServices {
         let oidc =
             pnpr_auth::oidc::OidcState::new(&config.identity.auth.oidc, &config.http.public_url)?;
         Ok(Self {
+            last_used: pnpr_auth::LastUsedWriter::new(Arc::clone(&auth.tokens)),
             auth,
             oidc,
             managed: super::managed_state::ManagedState::new(config),

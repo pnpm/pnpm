@@ -7,38 +7,40 @@ title: Logos
 
 **SVG:**
 
-![](/img/logos/pnpm-standard.svg)
+![pnpm logo](/img/logos/pnpm-standard.svg)
 
 **PNG:**
 
-![](/img/logos/pnpm-standard.png)
+![pnpm logo](/img/logos/pnpm-standard.png)
 
 ## Standard logo with no text
 
 **SVG:**
 
-![](/img/logos/pnpm-standard-no-text.svg)
+![pnpm logo without text](/img/logos/pnpm-standard-no-text.svg)
 
 **PNG:**
 
-![](/img/logos/pnpm-standard-no-text.png)
+![pnpm logo without text](/img/logos/pnpm-standard-no-text.png)
 
 ## Standard light logo
 
+The light logos are for dark backgrounds.
+
 **SVG:**
 
-> ![](/img/logos/pnpm-light.svg)
+> ![pnpm light logo](/img/logos/pnpm-light.svg)
 
 **PNG:**
 
-> ![](/img/logos/pnpm-light.png)
+> ![pnpm light logo](/img/logos/pnpm-light.png)
 
 ## Standard light logo with no text
 
 **SVG:**
 
-> ![](/img/logos/pnpm-light-no-text.svg)
+> ![pnpm light logo without text](/img/logos/pnpm-light-no-text.svg)
 
 **PNG:**
 
-> ![](/img/logos/pnpm-light-no-text.png)
+> ![pnpm light logo without text](/img/logos/pnpm-light-no-text.png)

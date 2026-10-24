@@ -317,6 +317,8 @@ pub struct WorkspaceSettings {
     pub no_proxy: Option<serde_json::Value>,
     pub proxy: Option<String>,
     pub noproxy: Option<serde_json::Value>,
+    pub strict_ssl: Option<bool>,
+    pub local_address: Option<String>,
 
     /// User-defined named-registry aliases. Outer key is the alias
     /// name (`gh`, `work`, ...); inner string is the registry URL the
@@ -556,6 +558,10 @@ pub struct WorkspaceSettings {
     /// `nodeVersion` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::node_version`](crate::settings::Config::node_version).
     pub node_version: Option<String>,
+
+    /// `runtime` from `pnpm-workspace.yaml`. `false` sets
+    /// [`Config::skip_runtimes`](crate::settings::Config::skip_runtimes).
+    pub runtime: Option<bool>,
 
     /// `runtimeOnFail` from `pnpm-workspace.yaml` / global `config.yaml`.
     pub runtime_on_fail: Option<RuntimeOnFail>,
@@ -839,6 +845,11 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::save_catalog_name`]: crate::Config::save_catalog_name
     pub save_catalog_name: Option<String>,
+
+    /// `tag` from `pnpm-workspace.yaml`. See [`Config::tag`].
+    ///
+    /// [`Config::tag`]: crate::Config::tag
+    pub tag: Option<String>,
 
     /// `savePrefix` from `pnpm-workspace.yaml`. See
     /// [`Config::save_prefix`].

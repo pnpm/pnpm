@@ -58,6 +58,155 @@ fn hoisted_no_runtime_installs_can_be_repeated_and_restore_the_runtime() {
 }
 
 #[test]
+fn runtime_false_setting_skips_the_runtime() {
+    for (yaml, args) in [("runtime: false\n", &[][..]), ("", &["--config.runtime=false"][..])] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, yaml);
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+        write_devengines_manifest(&workspace, fixture.version, Some("download"));
+        write_runtime_lockfile_for_group(
+            &workspace,
+            std::slice::from_ref(&fixture),
+            "devDependencies",
+        );
+
+        command(&workspace)
+            .with_args(["install", "--frozen-lockfile"])
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{yaml:?} {args:?}");
+        assert!(!fixture.archive_mock.matched(), "{yaml:?} {args:?}");
+    }
+}
+
+#[test]
+fn command_line_runtime_setting_overrides_the_workspace_yaml() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = prepare_workspace(&root, "runtime: false\n");
+    let mut server = mockito::Server::new();
+    let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, fixture.version, Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+
+    command(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--config.runtime=true"])
+        .assert()
+        .success();
+    assert_installed(&workspace, std::slice::from_ref(&fixture));
+}
+
+/// An `updateConfig` hook reads `runtime` only when a source set it, as on
+/// pnpm 11, where `--no-runtime` is the `runtime: false` setting.
+#[test]
+fn update_config_sees_runtime_only_when_set() {
+    let dump_config = "const fs = require('fs');\nconst path = require('path');\nmodule.exports = { hooks: { updateConfig (config) {\n  fs.writeFileSync(path.join(__dirname, 'seen.json'), JSON.stringify(config));\n  return config;\n} } }";
+    for (yaml, args, expected) in [
+        ("", &[][..], None),
+        ("runtime: false\n", &[][..], Some(false)),
+        ("", &["--no-runtime"][..], Some(false)),
+        ("", &["--config.runtime=true"][..], Some(true)),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = prepare_workspace(&root, yaml);
+        let mut server = mockito::Server::new();
+        let fixture = runtime_fixture(&mut server, "node", "24.0.0", host_platform(), host_arch());
+        write_devengines_manifest(&workspace, fixture.version, Some("download"));
+        write_runtime_lockfile_for_group(
+            &workspace,
+            std::slice::from_ref(&fixture),
+            "devDependencies",
+        );
+        fs::write(workspace.join(".pnpmfile.cjs"), dump_config).unwrap();
+
+        command(&workspace)
+            .with_arg("install")
+            .with_args(args)
+            .assert()
+            .success();
+        let seen: Value =
+            serde_json::from_slice(&fs::read(workspace.join("seen.json")).unwrap()).unwrap();
+        assert_eq!(seen.get("runtime").and_then(Value::as_bool), expected, "{yaml:?} {args:?}");
+        assert_eq!(seen.get("runtime").is_some(), expected.is_some(), "{yaml:?} {args:?}");
+    }
+}
+
+#[test]
+fn dedupe_and_prune_follow_the_runtime_setting() {
+    let cases: [(&str, &[&str]); 3] = [
+        ("runtime: false\n", &["dedupe"]),
+        ("runtime: false\n", &["prune"]),
+        ("", &["dedupe", "--no-runtime"]),
+    ];
+    for (yaml, args) in cases {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) = locked_runtime_project(&root, &mut server, yaml);
+
+        command(&workspace)
+            .with_args(args)
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{args:?}");
+        assert!(!fixture.archive_mock.matched(), "{args:?}");
+    }
+}
+
+#[test]
+fn update_config_hook_cannot_undo_no_runtime() {
+    for command_name in ["install", "dedupe"] {
+        let root = tempfile::tempdir().unwrap();
+        let mut server = mockito::Server::new();
+        let (workspace, fixture) = locked_runtime_project(&root, &mut server, "");
+        fs::write(
+            workspace.join(".pnpmfile.cjs"),
+            "module.exports = { hooks: { updateConfig (config) { config.runtime = true; return config } } }",
+        )
+        .unwrap();
+
+        command(&workspace)
+            .with_args([command_name, "--no-runtime"])
+            .assert()
+            .success();
+        assert!(!workspace.join("node_modules/node").exists(), "{command_name}");
+        assert!(!fixture.archive_mock.matched(), "{command_name}");
+    }
+}
+
+#[test]
+fn update_config_hook_can_skip_the_runtime() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let (workspace, fixture) = locked_runtime_project(&root, &mut server, "");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.runtime = false; return config } } }",
+    )
+    .unwrap();
+
+    command(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert!(!workspace.join("node_modules/node").exists());
+    assert!(!fixture.archive_mock.matched());
+}
+
+/// A workspace whose `devEngines.runtime` is locked to a mocked Node.js 24.0.0.
+fn locked_runtime_project(
+    root: &tempfile::TempDir,
+    server: &mut mockito::Server,
+    extra_yaml: &str,
+) -> (std::path::PathBuf, RuntimeFixture) {
+    let workspace = prepare_workspace(root, extra_yaml);
+    let fixture = runtime_fixture(server, "node", "24.0.0", host_platform(), host_arch());
+    write_devengines_manifest(&workspace, fixture.version, Some("download"));
+    write_runtime_lockfile_for_group(&workspace, std::slice::from_ref(&fixture), "devDependencies");
+    (workspace, fixture)
+}
+
+#[test]
 fn fresh_install_with_no_runtime_resolves_but_does_not_fetch_the_runtime() {
     let root = tempfile::tempdir().unwrap();
     let mut server = mockito::Server::new();

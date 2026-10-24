@@ -1,17 +1,17 @@
 use super::{
-    BASE64_URL_SAFE_NO_PAD, ClientId, CoreIdToken, CoreIdTokenVerifier, CoreJwsSigningAlgorithm,
-    CoreProviderMetadata, IssuerUrl, Nonce, OidcBinding, OidcProvider, OidcWorkload, Provider,
+    BASE64_URL_SAFE_NO_PAD, ClientId, CoreIdToken, CoreIdTokenVerifier, CoreJsonWebKeySet,
+    CoreJwsSigningAlgorithm, IssuerUrl, Nonce, OidcBinding, OidcProvider, OidcWorkload, Provider,
     Result, SessionUser, Utc, Value, rejected,
 };
 use base64::Engine as _;
 
 pub(super) fn verify_workload(
     config: &OidcProvider,
-    metadata: &CoreProviderMetadata,
+    jwks: &CoreJsonWebKeySet,
     raw: &str,
 ) -> Result<()> {
     let token: CoreIdToken = raw.parse().map_err(|_| rejected())?;
-    let verifier = token_verifier(config, metadata)?;
+    let verifier = token_verifier(config, jwks)?;
     token
         .claims(&verifier, |_: Option<&Nonce>| Ok(()))
         .map_err(|_| rejected())?;
@@ -32,12 +32,12 @@ pub(super) fn bound_user(config: &OidcProvider, token: &CoreIdToken) -> Result<S
 
 pub(super) fn token_verifier(
     config: &OidcProvider,
-    metadata: &CoreProviderMetadata,
+    jwks: &CoreJsonWebKeySet,
 ) -> Result<CoreIdTokenVerifier<'static>> {
     Ok(CoreIdTokenVerifier::new_public_client(
         ClientId::new(config.audience.clone()),
         IssuerUrl::new(config.issuer.clone()).map_err(|_| rejected())?,
-        metadata.jwks().clone(),
+        jwks.clone(),
     )
     .set_allowed_algs([
         CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,

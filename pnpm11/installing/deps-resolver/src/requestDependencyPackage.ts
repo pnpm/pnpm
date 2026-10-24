@@ -100,7 +100,7 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
       getPatchInfo(ctx.patchedDependencies, manifest.name, manifest.version) != null,
     preferredVersions,
     preferWorkspacePackages: ctx.preferWorkspacePackages,
-    projectDir: (options.currentDepth > 0 && !wantedDependency.bareSpecifier.startsWith('file:'))
+    projectDir: (options.currentDepth > 0 && !isRelativeToDeclaringManifest(ctx, wantedDependency))
       ? ctx.lockfileDir
       : options.parentPkg.rootDir,
     skipFetch: ctx.dryRun,
@@ -115,6 +115,13 @@ function getRequestPackageOptions (request: DependencyRequest, preferredVersions
     rangeSpecStyle: options.rangeSpecStyle,
     readPackageHook: ctx.readPackageHook,
   }
+}
+
+function isRelativeToDeclaringManifest (ctx: ResolutionContext, wantedDependency: WantedDependency): boolean {
+  const { bareSpecifier } = wantedDependency
+  if (bareSpecifier.startsWith('file:')) return true
+  // A linked workspace: path keeps its lockfile-relative id, which the linked node is registered under.
+  return bareSpecifier.startsWith('workspace:.') && (wantedDependency.injected === true || ctx.injectWorkspacePackages === true)
 }
 
 type ReleasePolicyOptions = Pick<RequestPackageOptions,

@@ -13,18 +13,32 @@ use pnpm_network::is_url_secure_for_credentials;
 use rustls::{ClientConfig, pki_types::ServerName};
 use rustls_platform_verifier::BuilderVerifierExt;
 use std::{
+    error::Error as StdError,
     future::Future,
     io,
     pin::Pin,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     task::{Context, Poll},
+    time::Duration,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     net::TcpStream,
 };
 use tokio_rustls::{TlsConnector, client::TlsStream};
-use tower_0_4::Service;
+use tower_0_4::{Service, ServiceExt};
+
+/// How long one TCP dial may take. Without it a dropped SYN waits out the
+/// kernel's retransmissions, about two minutes on Linux.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// The wait before the first retry of a timed-out dial, doubled per retry.
+const FIRST_DIAL_RETRY_DELAY: Duration = Duration::from_millis(250);
+
+const MAX_DIAL_RETRY_DELAY: Duration = Duration::from_secs(5);
 
 /// Dials `https://` URLs over TLS and `http://` URLs in plain text.
 #[derive(Clone)]
@@ -35,6 +49,17 @@ pub(super) struct LibsqlConnector {
     /// Whether requests carry an auth token, which then must not cross a
     /// cleartext link to a host other than loopback.
     carries_token: bool,
+    /// Set while a [`DialRetryGuard`] is alive, shared by every clone.
+    retries_timed_out_dials: Arc<AtomicBool>,
+}
+
+/// Keeps its [`LibsqlConnector`] retrying timed-out dials until dropped.
+pub(super) struct DialRetryGuard(Arc<AtomicBool>);
+
+impl Drop for DialRetryGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Relaxed);
+    }
 }
 
 impl LibsqlConnector {
@@ -65,7 +90,16 @@ impl LibsqlConnector {
         let mut tcp = HttpConnector::new();
         tcp.enforce_http(false);
         tcp.set_nodelay(true);
-        Self { tcp, tls, carries_token: false }
+        tcp.set_connect_timeout(Some(CONNECT_TIMEOUT));
+        Self { tcp, tls, carries_token: false, retries_timed_out_dials: Arc::default() }
+    }
+
+    /// Retry every dial that times out, with backoff, until the guard drops.
+    /// A timed-out dial sent nothing, so the retry is safe for any request.
+    /// The caller bounds the wait with its own deadline.
+    pub(super) fn retry_timed_out_dials(&self) -> DialRetryGuard {
+        self.retries_timed_out_dials.store(true, Ordering::Relaxed);
+        DialRetryGuard(Arc::clone(&self.retries_timed_out_dials))
     }
 
     /// Why `uri` must not be dialed, if it must not.
@@ -110,9 +144,10 @@ impl Service<Uri> for LibsqlConnector {
             return Box::pin(async move { Err(reason.into()) });
         }
         let tls = self.tls.clone();
-        let tcp = self.tcp.call(uri.clone());
+        let tcp = self.tcp.clone();
+        let retries_timed_out_dials = Arc::clone(&self.retries_timed_out_dials);
         Box::pin(async move {
-            let stream = tcp.await?;
+            let stream = dial(tcp, &uri, &retries_timed_out_dials).await?;
             let Some(tls) = tls else {
                 return Ok(MaybeTlsStream::Plain(stream));
             };
@@ -124,6 +159,46 @@ impl Service<Uri> for LibsqlConnector {
             Ok(MaybeTlsStream::Tls(Box::new(stream)))
         })
     }
+}
+
+/// Dial `uri` with `dialer`, retrying a timed-out dial while
+/// `retries_timed_out_dials` is set.
+async fn dial<Dialer>(
+    dialer: Dialer,
+    uri: &Uri,
+    retries_timed_out_dials: &AtomicBool,
+) -> Result<Dialer::Response, BoxError>
+where
+    Dialer: Service<Uri> + Clone,
+    Dialer::Error: Into<BoxError>,
+{
+    let mut delay = FIRST_DIAL_RETRY_DELAY;
+    loop {
+        let error: BoxError = match dialer.clone().oneshot(uri.clone()).await {
+            Ok(stream) => return Ok(stream),
+            Err(error) => error.into(),
+        };
+        if !retries_timed_out_dials.load(Ordering::Relaxed) || !is_timeout(&*error) {
+            return Err(error);
+        }
+        tracing::warn!(host = uri.host(), %error, ?delay, "auth database dial timed out, retrying");
+        tokio::time::sleep(delay).await;
+        delay = (delay * 2).min(MAX_DIAL_RETRY_DELAY);
+    }
+}
+
+fn is_timeout(error: &(dyn StdError + 'static)) -> bool {
+    let mut cause = Some(error);
+    while let Some(error) = cause {
+        if error
+            .downcast_ref::<io::Error>()
+            .is_some_and(|error| error.kind() == io::ErrorKind::TimedOut)
+        {
+            return true;
+        }
+        cause = error.source();
+    }
+    false
 }
 
 pub(super) enum MaybeTlsStream {

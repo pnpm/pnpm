@@ -65,15 +65,7 @@ async fn access_and_metrics_middleware(
     let user = authenticated_username(&response);
     let bytes = response_bytes_count(&response);
 
-    record_span_and_metrics(
-        &prep.span,
-        &state,
-        prep.method.as_str(),
-        status.as_u16(),
-        latency,
-        bytes,
-        user.as_deref(),
-    );
+    state.inner.metrics.record_request(prep.method.as_str(), status.as_u16(), latency, bytes);
     let entry = AccessLogEntry {
         request_id: &prep.req_id_str,
         method: &prep.method,
@@ -83,7 +75,7 @@ async fn access_and_metrics_middleware(
         bytes,
         user: user.as_deref(),
     };
-    emit_access_log(&prep.span, prep.client_ip.or(prep.peer), prep.user_agent.as_deref(), &entry);
+    emit_access_log(prep.client_ip.or(prep.peer), prep.user_agent.as_deref(), &entry);
     response
 }
 
@@ -138,8 +130,11 @@ struct AccessLogEntry<'a> {
     user: Option<&'a str>,
 }
 
+/// Emits the access record outside the request span. The record carries every
+/// field itself, and a formatter that appends the current span's fields to an
+/// event (the pretty format, and the JSON format's `span` object) would print
+/// each of them a second time.
 fn emit_access_log(
-    span: &tracing::Span,
     client_ip: Option<IpAddr>,
     user_agent: Option<&str>,
     entry: &AccessLogEntry<'_>,
@@ -148,7 +143,6 @@ fn emit_access_log(
     let user_display = entry.user.unwrap_or("-");
     let user_agent_display = user_agent.unwrap_or("-");
 
-    let _entered = span.enter();
     tracing::info!(
         target: "pnpr::access",
         request_id = %entry.request_id,
@@ -206,9 +200,6 @@ fn create_access_span(
         client_ip = tracing::field::Empty,
         user = tracing::field::Empty,
         user_agent = tracing::field::Empty,
-        status = tracing::field::Empty,
-        latency_ms = tracing::field::Empty,
-        bytes = tracing::field::Empty,
     );
     if let Some(ip) = client_ip {
         span.record("client_ip", tracing::field::display(ip));
@@ -229,22 +220,4 @@ fn response_bytes_count(response: &Response) -> u64 {
         .and_then(|val| val.to_str().ok())
         .and_then(|len_str| len_str.parse::<u64>().ok())
         .unwrap_or(0)
-}
-
-fn record_span_and_metrics(
-    span: &tracing::Span,
-    state: &AppState,
-    method: &str,
-    status: u16,
-    latency: std::time::Duration,
-    bytes: u64,
-    user: Option<&str>,
-) {
-    span.record("status", status);
-    span.record("latency_ms", latency.as_millis() as u64);
-    span.record("bytes", bytes);
-    if let Some(u) = user {
-        span.record("user", tracing::field::display(u));
-    }
-    state.inner.metrics.record_request(method, status, latency, bytes);
 }

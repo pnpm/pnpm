@@ -1,4 +1,4 @@
-use super::LibsqlConnector;
+use super::{LibsqlConnector, dial};
 use crate::libsql_backend::{LibsqlAuth, RegistryError};
 use http_0_2::Uri;
 use libsql::Builder;
@@ -13,11 +13,12 @@ use std::{
     net::{TcpListener, TcpStream},
     sync::{
         Arc,
+        atomic::{AtomicUsize, Ordering},
         mpsc::{self, Receiver},
     },
     time::Duration,
 };
-use tower_0_4::ServiceExt;
+use tower_0_4::{ServiceExt, service_fn};
 
 /// The Hrana pipeline response to libsql's request for one statement:
 /// a batch with an empty step result, the autocommit state, and the close.
@@ -155,6 +156,47 @@ async fn reports_an_unreachable_database_as_an_error() {
         .port();
     let url = format!("http://127.0.0.1:{port}");
     assert!(LibsqlAuth::connect(&settings(url), MaxUsers::Unlimited).await.is_err());
+}
+
+/// Dial through a stub that fails with `kind` `failures` times, then
+/// connects, and return the result with the number of attempts.
+async fn dial_failing(
+    connector: &LibsqlConnector,
+    kind: std::io::ErrorKind,
+    failures: usize,
+) -> (bool, usize) {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let dialer = service_fn(|_: Uri| {
+        let attempt = attempts.fetch_add(1, Ordering::Relaxed);
+        async move { if attempt < failures { Err(std::io::Error::from(kind)) } else { Ok(()) } }
+    });
+    let uri = "http://127.0.0.1:8080".parse().unwrap();
+    let result = dial(dialer, &uri, &connector.retries_timed_out_dials).await;
+    (result.is_ok(), attempts.load(Ordering::Relaxed))
+}
+
+#[tokio::test]
+async fn retries_a_timed_out_dial_while_the_guard_is_alive() {
+    let connector = LibsqlConnector::for_url("http://127.0.0.1:8080", false).unwrap();
+    let _guard = connector.retry_timed_out_dials();
+    let outcome = dial_failing(&connector, std::io::ErrorKind::TimedOut, 2).await;
+    assert_eq!(outcome, (true, 3));
+}
+
+#[tokio::test]
+async fn fails_a_timed_out_dial_once_the_guard_drops() {
+    let connector = LibsqlConnector::for_url("http://127.0.0.1:8080", false).unwrap();
+    drop(connector.retry_timed_out_dials());
+    let outcome = dial_failing(&connector, std::io::ErrorKind::TimedOut, 1).await;
+    assert_eq!(outcome, (false, 1));
+}
+
+#[tokio::test]
+async fn fails_a_refused_dial_without_retrying() {
+    let connector = LibsqlConnector::for_url("http://127.0.0.1:8080", false).unwrap();
+    let _guard = connector.retry_timed_out_dials();
+    let outcome = dial_failing(&connector, std::io::ErrorKind::ConnectionRefused, 1).await;
+    assert_eq!(outcome, (false, 1));
 }
 
 // Only these platforms load the trust store from SSL_CERT_FILE and SSL_CERT_DIR.

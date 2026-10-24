@@ -99,14 +99,12 @@ pub(crate) enum InstallFamilyPlan {
 
 #[derive(Clone, Copy)]
 enum RuntimePolicy {
-    Always,
     Config(bool),
 }
 
 impl RuntimePolicy {
     fn use_manifest(self, config: &Config) -> bool {
         match self {
-            Self::Always => true,
             Self::Config(no_runtime) => !(config.skip_runtimes || no_runtime),
         }
     }
@@ -119,6 +117,9 @@ async fn prepare_root_config<Reporter>(
 where
     Reporter: self::Reporter,
 {
+    if matches!(runtime_policy, RuntimePolicy::Config(true)) {
+        configuration::record_no_runtime_flag(config);
+    }
     if !config_deps::may_update_config(config, config_root) {
         check_root_project_engine(manifest_path, config, runtime_policy.use_manifest(config))?;
     }

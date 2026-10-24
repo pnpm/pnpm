@@ -86,10 +86,13 @@ impl LibsqlAuth {
     /// the background (every `syncIntervalSecs`), so reads hit the local
     /// file. libsql probes the primary for its newer sync protocol, the
     /// only one Turso Cloud serves, and falls back to the replication
-    /// protocol of a self-hosted `sqld`. The initial sync is awaited
-    /// under [`DEFAULT_STARTUP_TIMEOUT`] on either protocol. Opening a
-    /// connection over the newer one blocks in place, so the caller must
-    /// run on tokio's multi-thread runtime. Without `replicaPath`, every
+    /// protocol of a self-hosted `sqld`. Opening a connection over the
+    /// newer one blocks in place, so the caller must run on tokio's
+    /// multi-thread runtime.
+    ///
+    /// The whole startup, the initial sync included, runs under one
+    /// [`DEFAULT_STARTUP_TIMEOUT`], within which a dial that times out is
+    /// retried. Without `replicaPath`, every
     /// read is a remote query against the primary — always fresh, but a
     /// network round-trip on the auth hot path.
     pub async fn connect(settings: &LibsqlSettings, max_users: MaxUsers) -> Result<Self> {
@@ -104,17 +107,25 @@ impl LibsqlAuth {
             });
         }
         let connector = LibsqlConnector::for_url(&settings.url, settings.auth_token.is_some())?;
+        let _startup_dials = connector.retry_timed_out_dials();
+        with_auth_timeout(
+            DEFAULT_STARTUP_TIMEOUT,
+            Box::pin(Self::open(settings, max_users, connector)),
+        )
+        .await
+    }
+
+    async fn open(
+        settings: &LibsqlSettings,
+        max_users: MaxUsers,
+        connector: LibsqlConnector,
+    ) -> Result<Self> {
         let db = if let Some(path) = &settings.replica_path {
             Self::open_replica(path, settings, connector).await?
         } else {
             let auth_token = settings.auth_token.clone().unwrap_or_default();
-            with_auth_timeout(
-                DEFAULT_STARTUP_TIMEOUT,
-                Box::pin(
-                    Builder::new_remote(settings.url.clone(), auth_token)
-                        .connector(connector)
-                        .build(),
-                ),
+            Box::pin(
+                Builder::new_remote(settings.url.clone(), auth_token).connector(connector).build(),
             )
             .await?
         };
@@ -147,12 +158,12 @@ impl LibsqlAuth {
         if interval > 0 {
             builder = builder.sync_interval(Duration::from_secs(interval));
         }
-        let db = with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?;
+        let db = Box::pin(builder.build()).await?;
         if interval == 0 {
             // libsql bootstraps the replica during the build only alongside a
-            // sync interval; otherwise it would do so inside `Database::connect`,
-            // outside the startup deadline.
-            with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(db.sync())).await?;
+            // sync interval; otherwise it would do so inside the blocking
+            // `Database::connect`, which the startup deadline cannot cancel.
+            Box::pin(db.sync()).await?;
         }
         Ok(db)
     }

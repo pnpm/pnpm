@@ -37,6 +37,7 @@ pub use htpasswd::{
     is_bcrypt_hash, is_sha_hash, parse_htpasswd, parse_htpasswd_line, verify_bcrypt, write_atomic,
 };
 pub use identify::identify;
+pub use last_used::{LAST_USED_GRANULARITY_SECS, LastUsedWriter};
 pub use owned_tokens::OwnedTokens;
 pub use schema::CURRENT_SCHEMA_VERSION;
 pub use token_store::{NewToken, TokenRecord, TokenStore};
@@ -50,6 +51,7 @@ mod token_store;
 use token_store::{fresh_secret, sha256_hex, unix_seconds};
 
 mod identify;
+mod last_used;
 mod owned_tokens;
 mod user_store;
 

@@ -106,6 +106,7 @@ impl WorkspaceSettings {
             optimistic_repeat_install: as_set(config, "optimisticRepeatInstall"),
             minimum_release_age: as_set(config, "minimumReleaseAge"),
             prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
+            runtime: as_set(config, "runtime"),
 
             macos_backup: Some(MacosBackupSettings {
                 exclude_modules_dir: Some(config.macos_backup.exclude_modules_dir),
@@ -185,6 +186,7 @@ impl WorkspaceSettings {
             pm_on_fail: config.pm_on_fail,
             versioning: Some(config.versioning.clone()),
             save_catalog_name: config.save_catalog_name.clone(),
+            tag: config.tag.clone(),
             save_prefix: config.save_prefix.clone(),
             tag_version_prefix: Some(config.tag_version_prefix.clone()),
             pipeline_base: config.pipeline_base.clone(),
@@ -260,6 +262,8 @@ impl WorkspaceSettings {
                         serde_json::Value::String(hosts.join(","))
                     }
                 }),
+            strict_ssl: config.tls.strict_ssl,
+            local_address: config.tls.local_address.map(|address| address.to_string()),
 
             // `audit` and `update` are the canonical spellings, so the
             // deprecated `auditLevel`, `auditConfig`, and `updateConfig`

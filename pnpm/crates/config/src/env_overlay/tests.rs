@@ -418,3 +418,14 @@ fn publish_wait_timeout_reads_from_environment() {
     }
     assert_eq!(WorkspaceSettings::from_pnpm_config_env::<Env>().publish_wait_timeout, Some(600000));
 }
+
+#[test]
+fn tag_parses_from_env() {
+    struct EnvTag;
+    impl EnvVar for EnvTag {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_TAG").then(|| "next".to_owned())
+        }
+    }
+    assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvTag>().tag.as_deref(), Some("next"));
+}

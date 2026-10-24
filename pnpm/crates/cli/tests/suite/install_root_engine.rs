@@ -144,7 +144,7 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
             "name": "compatible-root",
             "version": "1.0.0",
             "devEngines": {
-                "runtime": { "name": "node", "version": ">=1.0.0" },
+                "runtime": { "name": "node", "version": "1.0.0" },
             },
         })
         .to_string(),
@@ -158,7 +158,7 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
             "version": "1.0.0",
             "engines": { "node": node_version },
             "devEngines": {
-                "runtime": { "name": "node", "version": ">=1.0.0" },
+                "runtime": { "name": "node", "version": "1.0.0" },
             },
         })
         .to_string(),
@@ -175,6 +175,48 @@ fn no_runtime_checks_the_active_node_instead_of_the_manifest_runtime() {
         .success();
 
     drop(root);
+}
+
+/// `dedupe` and `prune` check the root engine against the Node.js that runs
+/// once they skip the runtime, as `install --no-runtime` does.
+#[test]
+fn skipped_runtime_maintenance_commands_check_the_active_node() {
+    let cases: [(&str, &[&str]); 3] = [
+        ("runtime: false\n", &["dedupe"]),
+        ("runtime: false\n", &["prune"]),
+        ("", &["dedupe", "--no-runtime"]),
+    ];
+    for (yaml, args) in cases {
+        let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+        let manifest = |engines: serde_json::Value| {
+            serde_json::json!({
+                "name": "compatible-root",
+                "version": "1.0.0",
+                "engines": engines,
+                "devEngines": { "runtime": { "name": "node", "version": "1.0.0" } },
+            })
+            .to_string()
+        };
+        fs::write(workspace.join("package.json"), manifest(serde_json::json!({})))
+            .expect("write initial package.json");
+        let node_version = node_version_at(&workspace);
+        fs::write(
+            workspace.join("package.json"),
+            manifest(serde_json::json!({ "node": node_version })),
+        )
+        .expect("write package.json");
+        fs::write(workspace.join("pnpm-workspace.yaml"), format!("engineStrict: true\n{yaml}"))
+            .expect("write workspace settings");
+
+        pacquet
+            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"node":false}"#)
+            .with_env("PNPM_SHIM_BYPASS", "1")
+            .with_args(args)
+            .assert()
+            .success();
+
+        drop(root);
+    }
 }
 
 fn node_version_at(dir: &Path) -> String {

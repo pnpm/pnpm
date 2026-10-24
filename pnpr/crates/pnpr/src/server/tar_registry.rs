@@ -177,6 +177,46 @@ fn apply_derived_tar_stats(dist: &mut serde_json::Map<String, Value>, derived: &
     }
 }
 
+/// Put the stored `dist.integrity` back on every submitted version whose
+/// `dist.integrity` is the tar integrity of the same hosted version, or drop it
+/// when the stored version has none. A client that read the packument through
+/// a tar registry sends that form back on a deprecate or a partial unpublish.
+pub(super) fn restore_tgz_integrities(
+    hosted: &Value,
+    table: &BTreeMap<String, DerivedTar>,
+    incoming: &mut Value,
+) {
+    let Some(hosted_versions) = hosted.get("versions").and_then(Value::as_object) else {
+        return;
+    };
+    let Some(incoming_versions) = incoming.get_mut("versions").and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    for (version, manifest) in incoming_versions {
+        let Some(stored_dist) = hosted_versions
+            .get(version)
+            .and_then(|stored| stored.get("dist"))
+            .and_then(Value::as_object)
+        else {
+            continue;
+        };
+        let Some(derived) = tgz_integrity_key(stored_dist).and_then(|key| table.get(&key)) else {
+            continue;
+        };
+        let Some(dist) = manifest.get_mut("dist").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        if dist.get("integrity").and_then(Value::as_str) != Some(derived.tar_integrity.as_str()) {
+            continue;
+        }
+        match stored_dist.get("integrity") {
+            Some(stored) => dist.insert("integrity".to_string(), stored.clone()),
+            None => dist.remove("integrity"),
+        };
+    }
+}
+
 /// The key a version's tar integrity is recorded under: its `.tgz`
 /// integrity, preferring SRI and falling back to the legacy SHA-1.
 pub(super) fn tgz_integrity_key(dist: &serde_json::Map<String, Value>) -> Option<String> {
@@ -199,3 +239,6 @@ pub(super) fn split_package_identifier(identifier: &str) -> Option<(&str, &str)>
     let (name, version) = (&identifier[..at], &identifier[at + 1..]);
     (!version.is_empty() && !name.ends_with('/')).then_some((name, version))
 }
+
+#[cfg(test)]
+mod tests;

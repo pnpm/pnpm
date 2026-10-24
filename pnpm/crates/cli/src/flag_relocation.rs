@@ -23,12 +23,15 @@
 //! subcommand has no command to consult, so it steps over options using
 //! the union of every subcommand's arg table; on an arity conflict
 //! between subcommands the option is treated as boolean so a subcommand
-//! name is never swallowed as a value. Tokens move only when the first
-//! positional token names a real subcommand — external commands
-//! (`pnpm <script>`) keep their argv untouched, as does everything after
-//! a `--` terminator.
+//! name is never swallowed as a value. When the token that reading finds
+//! is no command that declares the options before it, the scan is retried
+//! with each subcommand's own arities, so `pnpm -o <dir> pack-app` still
+//! finds `pack-app` although `add -o` takes no value. Tokens move only when the scan finds a real subcommand:
+//! external commands (`pnpm <script>`) keep their argv untouched, as does
+//! everything after a `--` terminator.
 
 use clap::{Arg, Command};
+use invoked_subcommand::find_invoked_subcommand;
 use std::{
     collections::{HashMap, HashSet},
     ffi::{OsStr, OsString},
@@ -170,11 +173,9 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
 
     expand_recursive_alias(&mut argv, &top_level, &subcommand_union);
 
-    let subcommand_index = find_positional(&argv, 1, &top_level, &subcommand_union);
-    let Some(subcommand_index) = subcommand_index else {
-        return argv;
-    };
-    let Some(subcommand) = cmd.find_subcommand(&argv[subcommand_index]) else {
+    let Some((subcommand_index, subcommand)) =
+        find_invoked_subcommand(cmd, &argv, &top_level, &subcommand_union)
+    else {
         return argv;
     };
     let subcommand_table = ArgTable::subcommand(subcommand);
@@ -224,7 +225,7 @@ fn moved_option_indexes(
             break;
         };
         if scanned.moves {
-            for offset in 0..scanned.width.min(argv.len() - index) {
+            for offset in 0..scanned.width.min(subcommand_index - index) {
                 moved_indexes.insert(index + offset);
             }
         }
@@ -304,7 +305,7 @@ fn scan_long_option_parts(
 }
 
 /// A cluster is judged by every short it stacks, not by its first one:
-/// `-ro dist` mixes the global `-r` with `pack-app`'s `-o`, and the whole
+/// `-rt linux-x64` mixes the global `-r` with `pack-app`'s `-t`, and the whole
 /// token has to travel for clap to see the option `pack-app` owns. One
 /// short the command does not declare pins the whole cluster, since moving
 /// it would hand that short to the command too.
@@ -484,6 +485,8 @@ fn merge_arity<Key>(entry: std::collections::hash_map::Entry<'_, Key, bool>, con
         .and_modify(|existing| *existing = *existing && consumes_value)
         .or_insert(consumes_value);
 }
+
+mod invoked_subcommand;
 
 #[cfg(test)]
 mod tests;

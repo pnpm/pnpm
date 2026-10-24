@@ -6,11 +6,14 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{
-    HostedDocumentForUpdate, HostedDocumentVersion,
+    HostedDocumentForUpdate, HostedDocumentVersion, Storage,
     publish::{extract_predicate_type, merge_manifest},
 };
 
-use super::attachments::{AttachmentKind, PreparedAttachment, PublishedTar};
+use super::{
+    attachments::{AttachmentKind, PreparedAttachment, PublishedTar},
+    restore_tgz_integrities,
+};
 
 pub(super) fn record_publisher(incoming: &mut Value, identity: &Identity) {
     if let Identity::User { username, .. } = identity {
@@ -113,6 +116,39 @@ pub(super) fn check_publishable_versions(
         }
     }
     Ok(())
+}
+
+/// Apply [`restore_tgz_integrities`] to a publish body. The tar-integrity
+/// table is read only when the body changes the integrity of a hosted version.
+pub(super) async fn restore_submitted_tgz_integrities(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    hosted: Option<&Value>,
+    incoming: &mut Value,
+) -> Result<(), RegistryError> {
+    if let Some(hosted) = hosted
+        && submits_other_integrity(incoming, hosted)
+    {
+        let tar_integrities = storage.read_tar_integrities(name).await?;
+        restore_tgz_integrities(hosted, &tar_integrities, incoming);
+    }
+    Ok(())
+}
+
+fn submits_other_integrity(incoming: &Value, hosted: &Value) -> bool {
+    let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) else {
+        return false;
+    };
+    incoming_versions
+        .iter()
+        .any(|(version, incoming_manifest)| {
+            hosted
+                .pointer("/versions")
+                .and_then(|versions| versions.get(version))
+                .is_some_and(|hosted_manifest| {
+                    integrity_changed(incoming_manifest, hosted_manifest)
+                })
+        })
 }
 
 /// Whether the incoming manifest declares an integrity other than the one

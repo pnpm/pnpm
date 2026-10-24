@@ -72,7 +72,7 @@ Skip installing runtime entries (e.g. Node.js downloaded via [`devEngines.runtim
 
 This is useful in CI matrices where the runtime is provisioned externally (e.g. via `pnpm runtime -g set node <version>`) before `pnpm install` runs.
 
-This can also be set via the `runtime=false` config in `pnpm-workspace.yaml`.
+This can also be set with `runtime: false` in `pnpm-workspace.yaml`.
 
 ## Options
 

@@ -103,7 +103,7 @@ impl SharedResolveOptions<'_> {
             },
             version: pnpm_resolving_resolver_base::VersionSelectionOptions {
                 preferred_versions,
-                default_tag: Some("latest".to_string()),
+                default_tag: Some(self.config.default_tag().to_string()),
                 ..Default::default()
             },
             refresh: pnpm_resolving_resolver_base::ResolutionRefreshOptions {

@@ -298,6 +298,8 @@ impl WorkspaceSettings {
         json_field!(settings, reader, fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         json_field!(settings, reader, max_tarball_unpacked_size, "MAX_TARBALL_UNPACKED_SIZE");
         string_field!(settings, reader, user_agent, "USER_AGENT");
+        json_field!(settings, reader, strict_ssl, "STRICT_SSL");
+        string_field!(settings, reader, local_address, "LOCAL_ADDRESS");
     }
 
     fn read_scripts_env(&mut self, reader: &StringReader<'_>) {
@@ -318,6 +320,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, engine_strict, "ENGINE_STRICT");
         json_field!(settings, reader, force_ignores_platform, "FORCE_IGNORES_PLATFORM");
         string_field!(settings, reader, node_version, "NODE_VERSION");
+        json_field!(settings, reader, runtime, "RUNTIME");
         enum_field!(settings, reader, runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
         json_field!(settings, reader, node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");
         enum_field!(
@@ -415,6 +418,7 @@ impl WorkspaceSettings {
         enum_field!(settings, reader, resolution_mode, "RESOLUTION_MODE", ResolutionMode);
         enum_field!(settings, reader, catalog_mode, "CATALOG_MODE", CatalogMode);
         string_field!(settings, reader, save_catalog_name, "SAVE_CATALOG_NAME");
+        string_field!(settings, reader, tag, "TAG");
         if let Some(save_prefix) = reader.value_allow_empty("SAVE_PREFIX") {
             settings.save_prefix = Some(save_prefix);
         }
