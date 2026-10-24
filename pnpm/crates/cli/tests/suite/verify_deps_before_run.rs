@@ -2036,7 +2036,7 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
         .expect("the root importer has dependencies")
         .remove(&orphaned);
     wanted
-        .save_to_path(&workspace.join("pnpm-lock.yaml"))
+        .save_to_path(&workspace.join("pnpm-lock.yaml"), pnpm_lockfile::SymlinkedLockfile::Refuse)
         .expect("save the wanted lockfile");
     bump_mtime(&workspace.join("package.json"));
 

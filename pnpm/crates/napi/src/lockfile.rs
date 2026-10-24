@@ -24,6 +24,7 @@ use std::{
 use napi_derive::napi;
 use pnpm_lockfile::{
     FilterByImportersOptions, IncludedDependencies, Lockfile, PackageKey, PeerEdgeOptions,
+    SymlinkedLockfile,
 };
 
 use crate::error::to_napi_error;
@@ -133,7 +134,8 @@ pub async fn write_lockfile(options: WriteLockfileOptions) -> napi::Result<()> {
         .map_err(|err| {
             napi::Error::from_reason(format!("the lockfile argument is not a lockfile: {err}"))
         })?;
-    tokio::task::spawn_blocking(move || lockfile.save_to_path(&path)).await
+    tokio::task::spawn_blocking(move || lockfile.save_to_path(&path, SymlinkedLockfile::Refuse))
+        .await
         .map_err(|join_error| {
             napi::Error::from_reason(format!("writeLockfile task panicked: {join_error}"))
         })?

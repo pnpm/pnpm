@@ -555,6 +555,42 @@ fn import_replaces_existing_lockfile() {
     drop((root, npmrc_info));
 }
 
+/// <https://github.com/pnpm/pnpm/issues/17222>
+#[cfg(unix)]
+#[test]
+fn import_writes_through_a_symlinked_lockfile_when_allowed() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    npmrc_info.set_dist_tag(DEP_OF_PKG_WITH_1_DEP, "100.1.0", "latest");
+
+    write_file(&workspace, "package.json", NPM_FIXTURE_MANIFEST);
+    write_file(&workspace, "package-lock.json", NPM_LOCKFILE_V1);
+    let source = root.path().join("source");
+    write_file(&source, "pnpm-lock.yaml", "# stale placeholder lockfile\n");
+    std::os::unix::fs::symlink("../source/pnpm-lock.yaml", workspace.join("pnpm-lock.yaml"))
+        .expect("symlink pnpm-lock.yaml");
+
+    pacquet
+        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", "true")
+        .with_arg("import")
+        .assert()
+        .success();
+
+    let link = workspace.join("pnpm-lock.yaml");
+    assert!(fs::symlink_metadata(&link).expect("stat pnpm-lock.yaml").is_symlink());
+    let lockfile = fs::read_to_string(source.join("pnpm-lock.yaml")).expect("read the target");
+    eprintln!("LOCKFILE:\n{lockfile}");
+    assert!(lockfile.contains("dep-of-pkg-with-1-dep@100.0.0"), "the target must be imported");
+    assert_no_import_backups(&source);
+
+    drop((root, npmrc_info));
+}
+
 #[test]
 fn import_preserves_project_lockfile_with_external_lockfile_dir() {
     let CommandTempCwd {
@@ -620,7 +656,9 @@ fn import_replaces_external_lockfile_and_preserves_its_env_document() {
                 version: "1.0.0".to_string(),
             },
         );
-    env_lockfile.write(root.path()).expect("write external env document");
+    env_lockfile
+        .write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("write external env document");
     append_workspace_yaml_key(&workspace, "lockfileDir", "..");
 
     pacquet
@@ -683,7 +721,9 @@ fn import_preserves_shared_lockfile_when_writing_a_branch_lockfile() {
                 version: "1.0.0".to_string(),
             },
         );
-    env_lockfile.write(root.path()).expect("write shared env document");
+    env_lockfile
+        .write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("write shared env document");
     let shared_lockfile =
         fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read shared lockfile");
     write_file(root.path(), "pnpm-lock.feature!import.yaml", "# stale branch lockfile\n");

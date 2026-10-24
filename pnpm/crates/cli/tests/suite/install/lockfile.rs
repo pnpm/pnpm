@@ -323,7 +323,9 @@ fn record_lockfile_only_deprecation(lockfile_path: &std::path::Path, package_key
         .get_mut(&package_key.parse().expect("parse package key"))
         .unwrap_or_else(|| panic!("missing package {package_key}"));
     metadata.deprecated = Some("locked deprecation".to_string());
-    lockfile.save_to_path(lockfile_path).expect("write lockfile");
+    lockfile
+        .save_to_path(lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("write lockfile");
 }
 
 #[test]
@@ -1037,5 +1039,96 @@ fn frozen_install_accepts_a_lockfile_with_only_the_env_document() {
         lockfile.starts_with(&format!("---\n{env_document}---\n")),
         "the env document must lead the lockfile",
     );
+    drop((root, mock_instance));
+}
+
+/// Stage `pnpm-lock.yaml` as a relative symlink to a lockfile outside the
+/// project, then add a local dependency so the next install must change it.
+/// Returns the symlink's target.
+#[cfg(unix)]
+fn stage_symlinked_lockfile_needing_update(
+    pacquet: std::process::Command,
+    root: &std::path::Path,
+    workspace: &std::path::Path,
+) -> std::path::PathBuf {
+    fs::write(workspace.join("package.json"), r#"{"name":"app","version":"1.0.0"}"#).unwrap();
+    pacquet
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+    let source = root.join("source");
+    fs::create_dir(&source).unwrap();
+    let source_lockfile = source.join("pnpm-lock.yaml");
+    fs::rename(workspace.join("pnpm-lock.yaml"), &source_lockfile).unwrap();
+    std::os::unix::fs::symlink("../source/pnpm-lock.yaml", workspace.join("pnpm-lock.yaml"))
+        .unwrap();
+    fs::create_dir(workspace.join("dep")).unwrap();
+    fs::write(workspace.join("dep/package.json"), r#"{"name":"dep","version":"1.0.0"}"#).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"name":"app","version":"1.0.0","dependencies":{"dep":"file:./dep"}}"#,
+    )
+    .unwrap();
+    source_lockfile
+}
+
+/// <https://github.com/pnpm/pnpm/issues/17222>
+#[cfg(unix)]
+#[test]
+fn allow_symlinked_lockfile_writes_through_the_symlink() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
+
+    new_pacquet_command(&workspace)
+        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", "true")
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert!(fs::symlink_metadata(workspace.join("pnpm-lock.yaml")).unwrap().is_symlink());
+    let lockfile = fs::read_to_string(&source_lockfile).unwrap();
+    eprintln!("LOCKFILE:\n{lockfile}");
+    assert!(lockfile.contains("file:dep"), "the symlink target must receive the update");
+
+    drop((root, mock_instance));
+}
+
+/// The repository that commits the symlink must not be the one that allows
+/// writing through it.
+#[cfg(unix)]
+#[test]
+fn changed_symlinked_lockfile_is_refused_even_if_the_workspace_yaml_allows_it() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("\nallowSymlinkedLockfile: true\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
+    let before = fs::read_to_string(&source_lockfile).unwrap();
+
+    let output = new_pacquet_command(&workspace)
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(stderr.contains("Refusing to write symlinked lockfile"));
+    assert!(fs::symlink_metadata(workspace.join("pnpm-lock.yaml")).unwrap().is_symlink());
+    assert_eq!(fs::read_to_string(&source_lockfile).unwrap(), before);
+
     drop((root, mock_instance));
 }

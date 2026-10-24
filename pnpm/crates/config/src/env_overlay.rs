@@ -266,6 +266,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, offline, "OFFLINE");
         json_field!(settings, reader, prefer_offline, "PREFER_OFFLINE");
         json_field!(settings, reader, lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
+        json_field!(settings, reader, allow_symlinked_lockfile, "ALLOW_SYMLINKED_LOCKFILE");
         string_field!(settings, reader, registry, "REGISTRY");
         // Unlike its `string_field!` neighbors, `scope` keeps an empty value;
         // see [`read_env_allow_empty`] for why.

@@ -118,6 +118,10 @@ impl WorkspaceSettings {
         // clones it. `tools` therefore comes from the global `config.yaml`
         // and `PNPM_CONFIG_TOOLS` only.
         self.tools = None;
+        // A repository commits the lockfile, so it decides where a symlinked
+        // one points. Letting it also allow the write would let it overwrite
+        // any file the user can write, even with scripts disabled.
+        self.allow_symlinked_lockfile = None;
     }
 
     /// The settings of a config dependency's config entry at `path`, read and

@@ -256,7 +256,8 @@ fn preserves_config_dependency_excludes_in_all_lockfile_layouts() {
         .expect("parse config dependency resolutions");
         env.snapshots = serde_saphyr::from_str("'@example/plugin@2.0.0':\n  dependencies:\n    foo: 2.0.0\nfoo@2.0.0: {}\nunused-plugin@1.0.0: {}\n")
             .expect("parse env snapshots");
-        env.write(lockfile_dir).expect("write env lockfile");
+        env.write(lockfile_dir, pnpm_lockfile::SymlinkedLockfile::Refuse)
+            .expect("write env lockfile");
         let manifest =
             PackageManifest::from_path(workspace_dir.join("package.json")).expect("read manifest");
 

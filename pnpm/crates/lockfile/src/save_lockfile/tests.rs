@@ -1,5 +1,5 @@
 use super::SaveLockfileError;
-use crate::Lockfile;
+use crate::{Lockfile, SymlinkedLockfile};
 use pretty_assertions::assert_eq;
 use std::path::Path;
 use tempfile::tempdir;
@@ -67,7 +67,7 @@ fn round_trip_parse_save_parse_preserves_lockfile() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    original.save_to_path(&path).expect("save lockfile");
+    original.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
 
     let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
 
@@ -100,7 +100,7 @@ fn save_reproduces_pnpm_authored_bytes() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    original.save_to_path(&path).expect("save lockfile");
+    original.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
 
     let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
     // `text_block!` omits the trailing newline; the writer appends one.
@@ -114,7 +114,7 @@ fn time_survives_a_save_round_trip() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    lockfile.save_to_path(&path).expect("save lockfile");
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
 
     let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
@@ -137,7 +137,7 @@ fn time_is_pruned_to_the_importers_direct_dependencies() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    lockfile.save_to_path(&path).expect("save lockfile");
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
 
     let saved_bytes = std::fs::read_to_string(&path).expect("read saved lockfile");
     assert_eq!(saved_bytes, format!("{LOCKFILE_YAML}\n{DIRECT_TIME}\n"));
@@ -206,7 +206,7 @@ fn workspace_lockfile_with_link_dep_round_trips() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    original.save_to_path(&path).expect("save lockfile");
+    original.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
     let saved = std::fs::read_to_string(&path).expect("read saved");
     assert!(
         saved.contains("version: link:../shared"),
@@ -250,7 +250,7 @@ fn patched_dependencies_block_round_trips_and_renders_in_order() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    original.save_to_path(&path).expect("save lockfile");
+    original.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
     let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
     assert_eq!(saved, format!("{PATCHED_YAML}\n"));
 }
@@ -287,7 +287,7 @@ fn peers_suffix_max_length_omitted_from_settings_when_unset() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    lockfile.save_to_path(&path).expect("save lockfile");
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
     let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
 
     assert!(
@@ -328,7 +328,7 @@ fn peers_suffix_max_length_serialized_when_set() {
 
     let tmp = tempdir().expect("create tempdir");
     let path = tmp.path().join("pnpm-lock.yaml");
-    lockfile.save_to_path(&path).expect("save lockfile");
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).expect("save lockfile");
     let saved = std::fs::read_to_string(&path).expect("read saved lockfile");
 
     assert!(
@@ -351,7 +351,8 @@ fn save_fails_with_wrapped_io_error_when_path_is_invalid() {
         .path()
         .join("missing-dir")
         .join("pnpm-lock.yaml");
-    let err = empty_lockfile.save_to_path(&bad_path).expect_err("should fail");
+    let err =
+        empty_lockfile.save_to_path(&bad_path, SymlinkedLockfile::Refuse).expect_err("should fail");
     assert!(
         matches!(err, SaveLockfileError::WriteFile(_)),
         "expected SaveLockfileError::WriteFile(_), got: {err:?}",
@@ -523,13 +524,13 @@ fn save_leaves_an_unchanged_lockfile_untouched() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
     let mtime_before = std::fs::metadata(&path)
         .unwrap()
         .modified()
         .unwrap();
 
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
 
     let mtime_after = std::fs::metadata(&path)
         .unwrap()
@@ -543,7 +544,7 @@ fn save_leaves_an_unchanged_crlf_lockfile_untouched() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
     let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
     std::fs::write(&path, &crlf_content).unwrap();
     let mtime_before = std::fs::metadata(&path)
@@ -551,7 +552,7 @@ fn save_leaves_an_unchanged_crlf_lockfile_untouched() {
         .modified()
         .unwrap();
 
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), crlf_content);
     assert_eq!(
@@ -568,7 +569,7 @@ fn save_leaves_an_unchanged_lockfile_with_env_document_untouched() {
     let dir = tempdir().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
     let main_doc = std::fs::read_to_string(&path).unwrap();
     let env_doc = "---\nlockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n---\n";
     std::fs::write(&path, format!("{env_doc}{main_doc}")).unwrap();
@@ -577,7 +578,7 @@ fn save_leaves_an_unchanged_lockfile_with_env_document_untouched() {
         .modified()
         .unwrap();
 
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
 
     let mtime_after = std::fs::metadata(&path)
         .unwrap()
@@ -596,7 +597,9 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
     std::os::unix::fs::symlink(&victim, &path).unwrap();
 
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    let error = lockfile.save_to_path(&path).expect_err("a symlinked lockfile must not be written");
+    let error = lockfile
+        .save_to_path(&path, SymlinkedLockfile::Refuse)
+        .expect_err("a symlinked lockfile must not be written");
 
     assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
     assert!(
@@ -612,13 +615,96 @@ fn save_refuses_symlinked_lockfile_without_touching_target() {
     );
 }
 
+/// Saves through `work/pnpm-lock.yaml` -> `staging/pnpm-lock.yaml` ->
+/// `source/pnpm-lock.yaml`, the first link relative, and returns the target.
+fn save_through_a_symlink_chain(
+    symlink: impl Fn(&Path, &Path) -> std::io::Result<()>,
+    prepare_target: impl FnOnce(&Path),
+) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("source");
+    let staging = dir.path().join("staging");
+    let work = dir.path().join("work");
+    for dir in [&source, &staging, &work] {
+        std::fs::create_dir(dir).unwrap();
+    }
+    let target = source.join(Lockfile::FILE_NAME);
+    std::fs::write(&target, "lockfileVersion: '9.0'\n").unwrap();
+    prepare_target(&target);
+    symlink(&target, &staging.join(Lockfile::FILE_NAME)).unwrap();
+    let path = work.join(Lockfile::FILE_NAME);
+    symlink(&Path::new("..").join("staging").join(Lockfile::FILE_NAME), &path).unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    lockfile.save_to_path(&path, SymlinkedLockfile::WriteThrough).unwrap();
+
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), lockfile.to_yaml_string().unwrap());
+    for link in [&path, &staging.join(Lockfile::FILE_NAME)] {
+        assert!(std::fs::symlink_metadata(link).unwrap().is_symlink(), "{link:?}");
+    }
+    for dir in [&source, &staging, &work] {
+        assert_eq!(std::fs::read_dir(dir).unwrap().count(), 1, "stray temp file in {dir:?}");
+    }
+    (dir, target)
+}
+
+#[cfg(unix)]
+#[test]
+fn save_writes_through_a_symlink_chain_when_allowed() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let (_dir, target) = save_through_a_symlink_chain(
+        |original, link| std::os::unix::fs::symlink(original, link),
+        |target| {
+            std::fs::set_permissions(target, std::fs::Permissions::from_mode(0o640)).unwrap();
+        },
+    );
+
+    assert_eq!(
+        std::fs::metadata(&target)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o640,
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn save_writes_through_a_symlink_chain_when_allowed() {
+    save_through_a_symlink_chain(
+        |original, link| std::os::windows::fs::symlink_file(original, link),
+        |_| {},
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn save_through_a_symlink_cycle_fails() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let other = dir.path().join("other.yaml");
+    std::os::unix::fs::symlink(&other, &path).unwrap();
+    std::os::unix::fs::symlink(&path, &other).unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let error = lockfile
+        .save_to_path(&path, SymlinkedLockfile::WriteThrough)
+        .expect_err("a symlink cycle has no target to write");
+
+    dbg!(&error);
+    assert!(matches!(error, SaveLockfileError::WriteFile(_)));
+    assert!(std::fs::symlink_metadata(&path).unwrap().is_symlink());
+}
+
 #[cfg(unix)]
 #[test]
 fn save_accepts_symlinked_lockfile_when_nothing_changes() {
     let dir = tempdir().unwrap();
     let staged = dir.path().join("staged-lockfile.yaml");
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&staged).unwrap();
+    lockfile.save_to_path(&staged, SymlinkedLockfile::Refuse).unwrap();
     let target_before = std::fs::read(&staged).unwrap();
     let mtime_before = std::fs::metadata(&staged)
         .unwrap()
@@ -627,7 +713,9 @@ fn save_accepts_symlinked_lockfile_when_nothing_changes() {
     let path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&staged, &path).unwrap();
 
-    lockfile.save_to_path(&path).expect("an unchanged lockfile must not trip the symlink guard");
+    lockfile
+        .save_to_path(&path, SymlinkedLockfile::Refuse)
+        .expect("an unchanged lockfile must not trip the symlink guard");
 
     assert!(
         std::fs::symlink_metadata(&path)
@@ -651,7 +739,7 @@ fn save_accepts_unchanged_crlf_symlinked_lockfile() {
     let dir = tempdir().unwrap();
     let staged = dir.path().join("staged-lockfile.yaml");
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&staged).unwrap();
+    lockfile.save_to_path(&staged, SymlinkedLockfile::Refuse).unwrap();
     let crlf_content = std::fs::read_to_string(&staged).unwrap().replace('\n', "\r\n");
     std::fs::write(&staged, &crlf_content).unwrap();
     let mtime_before = std::fs::metadata(&staged)
@@ -662,7 +750,7 @@ fn save_accepts_unchanged_crlf_symlinked_lockfile() {
     std::os::unix::fs::symlink(&staged, &path).unwrap();
 
     lockfile
-        .save_to_path(&path)
+        .save_to_path(&path, SymlinkedLockfile::Refuse)
         .expect("an unchanged CRLF lockfile must not trip the symlink guard");
 
     assert_eq!(std::fs::read_to_string(&staged).unwrap(), crlf_content);
@@ -684,12 +772,12 @@ fn save_preserves_the_lockfile_permission_mode() {
     let path = dir.path().join(Lockfile::FILE_NAME);
     let mut lockfile: Lockfile =
         serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
 
     // Re-save changed content so the write actually happens.
     lockfile.packages = None;
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
 
     let mode = std::fs::metadata(&path)
         .unwrap()
@@ -705,7 +793,7 @@ fn save_leaves_no_temp_file_behind() {
     let path = dir.path().join(Lockfile::FILE_NAME);
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
 
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
 
     let leftovers: Vec<_> = std::fs::read_dir(dir.path())
         .unwrap()

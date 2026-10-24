@@ -1,5 +1,6 @@
 use crate::{
     Lockfile, LockfileSettings, ResolutionSetting, ResolutionSettingDifference, ResolutionSettings,
+    SymlinkedLockfile,
 };
 use pretty_assertions::assert_eq;
 use serde_json::Value;
@@ -42,7 +43,7 @@ importers:
     );
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("pnpm-lock.yaml");
-    lockfile.save_to_path(&path).unwrap();
+    lockfile.save_to_path(&path, SymlinkedLockfile::Refuse).unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), yaml);
 }
 
