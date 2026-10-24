@@ -218,9 +218,10 @@ impl HttpConfig {
     /// The checks config loading applies to `metrics`, for a config built in
     /// code.
     pub fn ensure_valid_metrics(&self) -> Result<(), RegistryError> {
-        self.metrics
-            .as_ref()
-            .map_or(Ok(()), |metrics| metrics.validate(self.listen))
+        match &self.metrics {
+            Some(metrics) => metrics.validate(self.listen),
+            None => Ok(()),
+        }
     }
 }
 

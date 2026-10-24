@@ -25,10 +25,14 @@ impl MetricsConfig {
             (None, None) => Err(RegistryError::InvalidConfig {
                 reason: "metrics needs a token, a listen address, or both".to_string(),
             }),
-            (_, Some(listen)) if listen == server_listen => Err(RegistryError::InvalidConfig {
-                reason: format!("metrics.listen {listen} is the server's own listen address"),
-            }),
-            (Some(token), _) if token.trim().len() < Self::MIN_TOKEN_LEN => {
+            (_, Some(listen)) if binds_overlap(listen, server_listen) => {
+                Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "metrics.listen {listen} takes the port of the server's listen address {server_listen}",
+                    ),
+                })
+            }
+            (Some(token), _) if token.trim().chars().count() < Self::MIN_TOKEN_LEN => {
                 Err(RegistryError::InvalidConfig {
                     reason: format!(
                         "metrics.token must be at least {} characters long",
@@ -39,6 +43,14 @@ impl MetricsConfig {
             _ => Ok(()),
         }
     }
+}
+
+/// Whether binding both addresses would collide: the same port, unless it is
+/// the OS-assigned port 0, on the same address or with either one a wildcard.
+fn binds_overlap(left: SocketAddr, right: SocketAddr) -> bool {
+    left.port() != 0
+        && left.port() == right.port()
+        && (left.ip() == right.ip() || left.ip().is_unspecified() || right.ip().is_unspecified())
 }
 
 impl fmt::Debug for MetricsConfig {

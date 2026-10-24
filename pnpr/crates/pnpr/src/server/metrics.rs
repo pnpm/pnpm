@@ -227,7 +227,8 @@ impl ServerMetrics {
 pub(crate) async fn serve_metrics(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let token = state.inner.config.http.metrics
         .as_ref()
-        .and_then(|metrics| metrics.token.as_deref());
+        .and_then(|metrics| metrics.token.as_deref())
+        .map(str::trim);
     if let Some(token) = token
         && !carries_bearer_secret(&headers, token)
     {

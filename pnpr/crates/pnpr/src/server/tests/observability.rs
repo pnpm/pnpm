@@ -151,6 +151,17 @@ async fn a_metrics_token_matches_without_its_surrounding_whitespace() {
 }
 
 #[test]
+fn a_configured_bearer_secret_is_compared_exactly() {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer x"));
+    // A SCIM token padded to its minimum length must not authenticate its
+    // short unpadded value.
+    let padded = format!("x{}", " ".repeat(31));
+    assert!(!crate::server::authentication::carries_bearer_secret(&headers, &padded));
+    assert!(crate::server::authentication::carries_bearer_secret(&headers, "x"));
+}
+
+#[test]
 fn a_router_built_in_code_refuses_a_short_metrics_token() {
     let tmp = TempDir::new().unwrap();
     let config = config_with_metrics(

@@ -31,7 +31,7 @@ pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .is_some_and(|sent| {
-            super::ecosystem::sha256_hex(expected.trim().as_bytes())
+            super::ecosystem::sha256_hex(expected.as_bytes())
                 == super::ecosystem::sha256_hex(sent.trim().as_bytes())
         })
 }

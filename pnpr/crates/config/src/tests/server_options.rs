@@ -294,6 +294,8 @@ fn metrics_are_off_by_default_and_need_a_long_token_or_a_listener() {
         ("metrics:\n  token: short\n", "metrics.token"),
         (format!("metrics:\n  token: '{}x'\n", " ".repeat(40)).as_str(), "metrics.token"),
         (format!("metrics:\n  listen: {}\n", listen()).as_str(), "metrics.listen"),
+        (format!("metrics:\n  listen: 0.0.0.0:{}\n", listen().port()).as_str(), "metrics.listen"),
+        (format!("metrics:\n  token: {}\n", "é".repeat(16)).as_str(), "metrics.token"),
     ] {
         let err = load(yaml).expect_err(yaml);
         assert!(
