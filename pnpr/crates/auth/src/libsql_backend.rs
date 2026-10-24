@@ -24,7 +24,7 @@ mod schema;
 mod tokens;
 mod user_admin;
 use connector::{LibsqlConnector, is_plain_http};
-use pool::ConnectionPool;
+use pool::{ConnectionPool, first_row};
 use schema::{
     claim_user_counter_slot, init_schema, is_unique_violation, missing_count_row,
     reconcile_user_counter_overcount, retry_database_conflicts,
@@ -207,13 +207,10 @@ impl LibsqlAuth {
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
         self.pool.read(|conn| async move {
-            let mut rows =
+            let rows =
                 conn.query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
                     .await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row.get::<String>(0)?)),
-                None => Ok(None),
-            }
+            first_row(rows, |row| Ok(row.get::<String>(0)?)).await
         })
         .await
     }
@@ -222,11 +219,10 @@ impl LibsqlAuth {
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
         self.pool.read(|conn| async move {
-            let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
-            let Some(row) = rows.next().await? else {
+            let rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
                 return Err(missing_count_row());
             };
-            let count: i64 = row.get(0)?;
             Ok(count.max(0) as u64)
         })
         .await
@@ -234,7 +230,7 @@ impl LibsqlAuth {
 
     async fn check_db_readiness(&self) -> Result<()> {
         self.pool.read(|conn| async move {
-            conn.query("SELECT 1;", ()).await?;
+            first_row(conn.query("SELECT 1;", ()).await?, |_| Ok(())).await?;
             Ok(())
         })
         .await

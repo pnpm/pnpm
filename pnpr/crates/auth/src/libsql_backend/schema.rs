@@ -1,5 +1,6 @@
 use super::{
-    Connection, Duration, LibsqlError, RegistryError, Result, TransactionBehavior, params,
+    Connection, Duration, LibsqlError, RegistryError, Result, TransactionBehavior, first_row,
+    params,
 };
 
 /// Take one slot of the capped user counter, reporting whether the cap left
@@ -33,11 +34,10 @@ where
 }
 
 pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
-    let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
-    let Some(row) = rows.next().await? else {
+    let rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+    let Some(count) = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         return Err(missing_count_row());
     };
-    let count: i64 = row.get(0)?;
     let tx = conn.transaction().await?;
     let inserted = tx.execute(
         "INSERT INTO auth_counters (name, value) VALUES (?1, ?2)",
@@ -65,21 +65,16 @@ pub(super) async fn ensure_user_counter(conn: &Connection) -> Result<()> {
 
 pub(super) async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-    let mut counter_rows =
+    let counter_rows =
         tx.query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"]).await?;
-    let Some(counter_row) = counter_rows.next().await? else {
-        drop(counter_rows);
+    let Some(counter) = first_row(counter_rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         tx.commit().await?;
         return Ok(false);
     };
-    let counter: i64 = counter_row.get(0)?;
-    drop(counter_rows);
-    let mut count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
-    let Some(count_row) = count_rows.next().await? else {
+    let count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
+    let Some(count) = first_row(count_rows, |row| Ok(row.get::<i64>(0)?)).await? else {
         return Err(missing_count_row());
     };
-    let count: i64 = count_row.get(0)?;
-    drop(count_rows);
     if counter <= count {
         tx.commit().await?;
         return Ok(false);

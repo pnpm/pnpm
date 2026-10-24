@@ -3294,8 +3294,7 @@ dependencies = [
 [[package]]
 name = "libsql"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30fe980ac5693ed1f3db490559fb578885e913a018df64af8a1a46e1959a78df"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3333,8 +3332,7 @@ dependencies = [
 [[package]]
 name = "libsql-ffi"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0be1da6f123ceb2cd23f469883415cab9ee963286a85d61e22afb8b12e15e681"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "bindgen",
  "cc",
@@ -3345,8 +3343,7 @@ dependencies = [
 [[package]]
 name = "libsql-hrana"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3358538b52cfcf9af4fe7aeb57d6843aafed2e8af80807bd636fd1448e94ea7"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "base64 0.21.7",
  "bytes",
@@ -3357,8 +3354,7 @@ dependencies = [
 [[package]]
 name = "libsql-rusqlite"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b646f94fc1d266e481c38a2d44d6d9d1be3ad04b56b90457acfb310dc450030e"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "bitflags 2.11.1",
  "fallible-iterator 0.2.0",
@@ -3371,8 +3367,7 @@ dependencies = [
 [[package]]
 name = "libsql-sqlite3-parser"
 version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15a90128c708356af8f7d767c9ac2946692c9112b4f74f07b99a01a60680e413"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "bitflags 2.11.1",
  "cc",
@@ -3389,8 +3384,7 @@ dependencies = [
 [[package]]
 name = "libsql-sys"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90725458cc4461bc82f8f7983e80b002ea4f64b5184e1462f252d0dd74b122f5"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "bytes",
  "libsql-ffi",
@@ -3403,8 +3397,7 @@ dependencies = [
 [[package]]
 name = "libsql_replication"
 version = "0.9.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bba5c9b3a26aca06d70f6a3646ba341cf574a548355353fe135af524b1b77cc"
+source = "git+https://github.com/pnpm/libsql?rev=4943f79046d6d6ff7617d6a573f1d51e8709e2b2#4943f79046d6d6ff7617d6a573f1d51e8709e2b2"
 dependencies = [
  "aes",
  "async-stream",
@@ -6767,6 +6760,7 @@ dependencies = [
  "base64 0.23.1",
  "bcrypt",
  "chrono",
+ "futures-util",
  "getrandom 0.4.3",
  "http 0.2.12",
  "hyper 0.14.32",
