@@ -112,6 +112,24 @@ fn broad_name_patterns_do_not_approve_builds() {
 }
 
 #[test]
+fn source_urls_with_at_signs_keep_their_package_identity() {
+    for source in [
+        "@parcel/watcher@https://example.com/@1.0.0",
+        "@parcel/watcher@https://user@example.com/@1.0.0",
+        "@parcel/watcher@git+https://example.com/repo.git#@1.0.0",
+    ] {
+        let policy = policy_from_specs([("@parcel/*", true)], false);
+        assert_eq!(policy.check(source), None, "{source}");
+        let policy = policy_from_specs([("@parcel/watcher", false)], true);
+        assert_eq!(policy.check(source), Some(false), "{source}");
+        let policy = policy_from_specs([("@parcel/*", false)], true);
+        assert_eq!(policy.check(source), Some(false), "{source}");
+        let policy = policy_from_specs([(source, true)], false);
+        assert_eq!(policy.check(source), Some(true), "{source}");
+    }
+}
+
+#[test]
 fn question_mark_in_scope_does_not_approve_other_scopes() {
     let policy = policy_from_specs([("@par?el/*", true)], false);
     assert_eq!(policy.check("@parcel/watcher@1.0.0"), None);
