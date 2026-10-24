@@ -602,3 +602,27 @@ fn a_group_config_carries_the_persisted_minimum_release_age_excludes() {
         Some(vec!["bar@1.0.0".to_string(), "foo@2.0.0".to_string()]),
     );
 }
+
+#[test]
+fn a_group_config_resolves_hoisted_dependencies_from_its_own_install_dir() {
+    let dir = TempDir::new().expect("temp dir");
+    let mut base = Config::new();
+    base.extra_env.insert("NODE_PATH".to_string(), "/caller/node_modules".to_string());
+
+    let config =
+        global_group_config(&base, dir.path(), dir.path(), None).expect("build the group config");
+
+    assert!(config.enable_global_virtual_store);
+    assert_eq!(config.global_virtual_store_dir, base.store_dir.links());
+    let node_path = config.extra_env.get("NODE_PATH").expect("NODE_PATH is set");
+    assert!(!node_path.contains("/caller/"), "{node_path}");
+    assert!(
+        node_path.contains(
+            &dir.path()
+                .join("node_modules")
+                .display()
+                .to_string()
+        ),
+        "{node_path}",
+    );
+}
