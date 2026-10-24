@@ -560,7 +560,7 @@ diff --git a/package.json b/package.json
 
 #[cfg(unix)]
 #[test]
-fn deploy_preserves_links_to_dependencies_and_unselected_targets() {
+fn deploy_preserves_links_to_dependencies_and_copies_file_links_to_unselected_targets() {
     use std::{os::unix::fs::symlink, path::Path};
 
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -595,13 +595,13 @@ fn deploy_preserves_links_to_dependencies_and_unselected_targets() {
     let links = [
         ("node_modules/alias", "../../node_modules/local-dep"),
         ("node_modules/@scope/alias", "../../../node_modules/local-dep"),
-        ("file-link", "../omitted.txt"),
         ("control-link", "control.txt"),
         ("chain", "node_modules/alias"),
     ];
     for (name, target) in links {
         symlink(target, workspace.join(".next").join(name)).unwrap();
     }
+    symlink("../omitted.txt", workspace.join(".next/file-link")).unwrap();
     assert_eq!(
         fs::read_to_string(workspace.join(".next/node_modules/alias/index.cjs")).unwrap(),
         "module.exports = 42",
@@ -621,6 +621,9 @@ fn deploy_preserves_links_to_dependencies_and_unselected_targets() {
                 Path::new(target),
             );
         }
+        let file_link = destination.join(".next/file-link");
+        assert!(fs::symlink_metadata(&file_link).unwrap().is_file());
+        assert_eq!(fs::read_to_string(&file_link).unwrap(), "omitted");
         let dependency = destination.join(".next/node_modules/alias/index.cjs");
         assert_eq!(fs::read_to_string(&dependency).unwrap(), "module.exports = 42");
         assert!(

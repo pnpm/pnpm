@@ -99,8 +99,8 @@ pub(super) fn place_symlink_entry(
 ) -> Result<bool, ImportIndexedDirError> {
     let link_target = validate_symlink_target(store_path, target, roots.written_dir)?;
     let is_dir = fs::metadata(store_path).is_ok_and(|meta| meta.is_dir());
-    if roots.policy == SymlinkTargets::Imported && !imports_link_target(target, &link_target, roots)
-    {
+    let keeps_left_out_target = roots.policy == SymlinkTargets::Internal && is_dir;
+    if !keeps_left_out_target && !imports_link_target(target, &link_target, roots) {
         return Ok(is_dir);
     }
     if placement == Placement::Repair && file_matches_store_entry(target, store_path) {

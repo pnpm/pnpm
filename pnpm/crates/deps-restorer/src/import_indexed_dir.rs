@@ -71,7 +71,8 @@ pub enum SymlinkTargets {
     /// Only links whose target is imported too. A file link to a target
     /// left out is imported as a file, and a directory link is left out.
     Imported,
-    /// Every link, whether or not its target is imported.
+    /// Also a directory link whose target is left out. A file link to a
+    /// target left out is still imported as a file.
     Internal,
 }
 

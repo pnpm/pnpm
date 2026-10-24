@@ -2175,7 +2175,7 @@ function deployedPeerVersion (dependent: string): string {
   return loadJsonFileSync<{ version: string }>(path.join(path.dirname(dependentDir), '@pnpm.e2e/peer-a/package.json')).version
 }
 
-testOnNonWindows.each([false, true])('deploy preserves links to dependencies and unselected targets (legacy=%s)', async (forceLegacyDeploy) => {
+testOnNonWindows.each([false, true])('deploy preserves links to dependencies and copies file links to unselected targets (legacy=%s)', async (forceLegacyDeploy) => {
   preparePackages([{ location: '.', package: {
     name: 'app', version: '1.0.0', files: ['.next'],
     dependencies: { 'local-dep': 'file:vendor/local-dep' },
@@ -2197,14 +2197,16 @@ testOnNonWindows.each([false, true])('deploy preserves links to dependencies and
   const links = [
     ['node_modules/alias', '../../node_modules/local-dep'],
     ['node_modules/@scope/alias', '../../../node_modules/local-dep'],
-    ['file-link', '../omitted.txt'],
     ['control-link', 'control.txt'],
     ['chain', 'node_modules/alias'],
   ]
   for (const [name, target] of links) fs.symlinkSync(target, path.join('.next', name))
+  fs.symlinkSync('../omitted.txt', '.next/file-link')
   expect(fs.readFileSync('.next/node_modules/alias/index.cjs', 'utf8')).toBe('module.exports = 42')
   await deploy.handler({ ...opts, forceLegacyDeploy, production: true, dev: false }, ['dist'])
   for (const [name, target] of links) expect(fs.readlinkSync(path.join('dist/.next', name))).toBe(target)
+  expect(fs.lstatSync('dist/.next/file-link').isFile()).toBe(true)
+  expect(fs.readFileSync('dist/.next/file-link', 'utf8')).toBe('omitted')
   const dependency = 'dist/.next/node_modules/alias/index.cjs'
   expect(fs.readFileSync(dependency, 'utf8')).toBe('module.exports = 42')
   expect(fs.realpathSync(dependency).startsWith(path.resolve('dist') + path.sep)).toBe(true)

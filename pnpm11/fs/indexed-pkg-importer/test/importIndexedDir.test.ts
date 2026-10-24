@@ -632,7 +632,7 @@ test('overwriteDirSync() keeps the displaced directory on disk if both swap and 
   expect(fs.readFileSync(path.join(movedAsidePath!, 'package.json'), 'utf8')).toBe('{"name":"old"}')
 })
 
-test.each([false, true])('importIndexedDir() keeps unselected internal link targets (occupied=%s)', (occupied) => {
+test.each([false, true])('importIndexedDir() keeps internal directory links to unselected targets and copies file links (occupied=%s)', (occupied) => {
   const tmp = tempDir()
   const src = path.join(tmp, 'src')
   const dest = path.join(tmp, 'dest')
@@ -649,10 +649,7 @@ test.each([false, true])('importIndexedDir() keeps unselected internal link targ
     ['file-link', path.join(src, 'file-link')],
   ]), { resolvedFrom: 'local-dir', symlinkTargets: 'internal' })
   expect(path.resolve(dest, fs.readlinkSync(path.join(dest, 'directory-link')))).toBe(path.join(dest, 'omitted'))
-  if (process.platform !== 'win32' || fs.lstatSync(path.join(dest, 'file-link')).isSymbolicLink()) {
-    expect(fs.readlinkSync(path.join(dest, 'file-link'))).toBe(path.join('omitted', 'file.txt'))
-  } else {
-    expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
-  }
+  expect(fs.lstatSync(path.join(dest, 'file-link')).isFile()).toBe(true)
+  expect(fs.readFileSync(path.join(dest, 'file-link'), 'utf8')).toBe('content')
   expect(fs.existsSync(path.join(dest, 'omitted'))).toBe(false)
 })
