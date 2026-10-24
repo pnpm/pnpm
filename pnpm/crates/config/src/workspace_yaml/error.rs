@@ -8,6 +8,9 @@ use super::{Diagnostic, Display, Error, PathBuf, io};
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LoadWorkspaceYamlError {
+    #[display("The \"noProxy\" setting should be a boolean or string, but got {received_type}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidNoProxy { received_type: &'static str },
     #[display("Failed to read pnpm-workspace.yaml at {}: {source}", path.display())]
     ReadFile {
         path: PathBuf,
