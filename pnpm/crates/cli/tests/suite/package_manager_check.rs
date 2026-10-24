@@ -1,5 +1,7 @@
 //! Ports `pnpm11/pnpm/test/packageManagerCheck.test.ts`.
 
+mod legacy_switch;
+
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_lockfile::{EnvLockfile, PackageKey};
