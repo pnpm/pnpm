@@ -93,8 +93,6 @@ fn entry_names_lists_the_children_without_the_dot_entries() {
     assert_eq!(names, ["file", "metadata"]);
 }
 
-/// A listing that read the held descriptor itself would leave its offset
-/// at the end, and the next listing would read nothing.
 #[test]
 fn entry_names_lists_the_same_names_when_called_again() {
     let root = tempdir().unwrap();
@@ -181,7 +179,6 @@ fn remove_child_dir_ignores_a_link_substituted_after_the_open() {
     assert_eq!(names(&root.path().join("moved")), ["file"]);
 }
 
-/// List `dir` from several threads at once, so the listings overlap.
 fn list_from_several_threads(dir: &OpenDir) {
     std::thread::scope(|scope| {
         for _ in 0..8 {
@@ -190,7 +187,6 @@ fn list_from_several_threads(dir: &OpenDir) {
     });
 }
 
-/// Assert that each of many listings of `dir` is the whole directory.
 fn assert_every_listing_is_whole(dir: &OpenDir) {
     for _ in 0..200 {
         let mut names = dir.entry_names().unwrap();
@@ -199,9 +195,6 @@ fn assert_every_listing_is_whole(dir: &OpenDir) {
     }
 }
 
-/// A listing reads a descriptor opened through the held one rather than a
-/// duplicate of it, so listings that overlap do not share a file offset
-/// and consume each other's entries.
 #[test]
 fn entry_names_is_complete_when_listings_overlap() {
     let root = tempdir().unwrap();
@@ -211,8 +204,6 @@ fn entry_names_is_complete_when_listings_overlap() {
     list_from_several_threads(&dir);
 }
 
-/// Same race for the listing: the directory is replaced after the open,
-/// and the names read must be the opened directory's own.
 #[cfg(unix)]
 #[test]
 fn entry_names_ignores_a_link_substituted_after_the_open() {

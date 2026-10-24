@@ -75,12 +75,6 @@ impl OpenDir {
 
     /// The names of the entries directly inside this directory, `.` and
     /// `..` excluded.
-    ///
-    /// On Unix the entries are read through the open directory, so the
-    /// names are the opened directory's own even when a link was put in
-    /// its place after the open. On other platforms the directory's path
-    /// is resolved again, and nothing is listed once it no longer leads
-    /// anywhere.
     pub fn entry_names(&self) -> io::Result<Vec<OsString>> {
         #[cfg(unix)]
         return unix::entry_names(self.handle.as_fd());

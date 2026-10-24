@@ -66,13 +66,8 @@ fn unlink_at(parent: BorrowedFd<'_>, name: &CStr, flags: c_int) -> io::Result<()
     if error.kind() == ErrorKind::NotFound { Ok(()) } else { Err(error) }
 }
 
-/// The names of the entries of `dir`, `.` and `..` excluded.
-///
-/// The stream reads a descriptor opened through `dir` rather than a
-/// duplicate of it. A duplicate would share `dir`'s file offset, so two
-/// listings at once would consume each other's entries and each return
-/// only part of the directory.
 pub(super) fn entry_names(dir: BorrowedFd<'_>) -> io::Result<Vec<OsString>> {
+    // A duplicate of `dir` would share its offset with overlapping listings.
     let stream = open_stream(open_dir_at(dir, c".")?)?;
     let result = collect_entry_names(stream);
     close_stream(stream);
@@ -86,7 +81,6 @@ fn remove_entries(dir: OwnedFd) -> io::Result<()> {
     result
 }
 
-/// Open a directory stream reading `dir`, which the stream takes over.
 fn open_stream(dir: OwnedFd) -> io::Result<*mut libc::DIR> {
     // SAFETY: `dir` is an open directory descriptor. On success the stream
     // takes it over and `closedir` releases it; on failure `dir` is dropped.
@@ -119,8 +113,6 @@ fn remove_stream_entries(stream: *mut libc::DIR) -> io::Result<()> {
     for_each_entry(stream, |name| remove_dirent_at(dir, name))
 }
 
-/// Call `visit` with the name of each entry of `stream`, `.` and `..`
-/// excluded. A name is valid only until the next entry is read.
 fn for_each_entry(
     stream: *mut libc::DIR,
     mut visit: impl FnMut(&CStr) -> io::Result<()>,
