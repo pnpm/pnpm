@@ -34,7 +34,7 @@ fn resolve_package_manager_pin(
     } = *resolution;
     let on_fail = effective_on_fail(config, pm);
     if on_fail == PmOnFail::Ignore {
-        return Ok(PinOutcome::Sync(None));
+        return Ok(PinOutcome::Sync(legacy_switch_pin_sync(resolution, root_manifest, pm)?));
     }
     let switch_wanted = pm.name == "pnpm" && on_fail == PmOnFail::Download;
     // Turning `manage-package-manager-versions` off is the user taking over
@@ -74,6 +74,33 @@ fn resolve_package_manager_pin(
         on_fail,
         ReadEnvLockfile::NotYet,
     )?))
+}
+
+fn legacy_switch_pin_sync(
+    resolution: &PinResolution<'_>,
+    root_manifest: &Value,
+    pm: &WantedPackageManager,
+) -> miette::Result<Option<PackageManagerToSync>> {
+    let PinResolution {
+        input, config, roots, process_state, ..
+    } = *resolution;
+    if input.global
+        || !process_state.package_manager_switch_disabled
+        || process_state.executed_by_corepack
+    {
+        return Ok(None);
+    }
+    if pm.name != "pnpm"
+        || !should_persist_package_manager_lockfile(pm)
+        || pm.version
+            .as_deref()
+            .is_none_or(|wanted| !version_satisfies(PNPM_VERSION, wanted))
+    {
+        return Ok(None);
+    }
+    // Older pnpm versions pass `ignore` to prevent another switch, but the
+    // compatible pin still belongs in a fresh lockfile (pnpm/pnpm#17303).
+    env_lockfile_sync(config, root_manifest, roots, PmOnFail::Download, ReadEnvLockfile::NotYet)
 }
 
 /// A pin the running pnpm already satisfies has no check to skip.
