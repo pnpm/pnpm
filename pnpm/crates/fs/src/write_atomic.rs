@@ -17,7 +17,14 @@ use std::{
 /// redirected to an unintended path). New files keep the conservative 0600
 /// default — they may hold credentials.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    write_tmp_over(path, bytes, InheritMode::Yes)
+    create_parent_dir(path)?;
+    write_tmp_over(path, bytes, InheritMode::Yes, 0o600)
+}
+
+/// Like [`write_atomic`], but a new file gets mode 0666 less the umask, and a
+/// missing parent directory is an error. For project files other users read.
+pub fn write_atomic_with_umask(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    write_tmp_over(path, bytes, InheritMode::Yes, 0o666)
 }
 
 /// Like [`write_atomic`], but the result is only ever readable by its owner.
@@ -28,43 +35,49 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// The file `pnpm login` records a token in also holds ordinary settings, so
 /// it can already exist with the mode an editor gave it.
 pub fn write_atomic_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    write_tmp_over(path, bytes, InheritMode::No)
+    create_parent_dir(path)?;
+    write_tmp_over(path, bytes, InheritMode::No, 0o600)
 }
 
 /// Whether the target's existing mode survives the rename. [`InheritMode::No`]
-/// leaves the 0600 `NamedTempFile` creates.
+/// leaves the creation mode.
 #[derive(Clone, Copy)]
 enum InheritMode {
     Yes,
     No,
 }
 
-/// Create `path` exclusively, readable only by its owner on Unix: the mode
-/// `NamedTempFile` would have given it.
+/// Create `path` exclusively with `mode`, less the umask.
 #[cfg(not(target_os = "wasi"))]
-fn create_private_file(path: &Path) -> io::Result<fs::File> {
+fn create_new_file(path: &Path, mode: u32) -> io::Result<fs::File> {
     let mut options = fs::OpenOptions::new();
     options
         .read(true)
         .write(true)
         .create_new(true);
     #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, mode);
+    #[cfg(not(unix))]
+    let _ = mode;
     options.open(path)
 }
 
 #[cfg(target_os = "wasi")]
-fn create_private_file(path: &Path) -> io::Result<fs::File> {
-    crate::wasi_fs::create_new(path, 0o600)
+fn create_new_file(path: &Path, mode: u32) -> io::Result<fs::File> {
+    crate::wasi_fs::create_new(path, mode)
 }
 
-fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result<()> {
+fn create_parent_dir(path: &Path) -> io::Result<()> {
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => fs::create_dir_all(parent),
+        _ => Ok(()),
+    }
+}
+
+fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode, mode: u32) -> io::Result<()> {
     let dir = path
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty());
-    if let Some(parent) = dir {
-        fs::create_dir_all(parent)?;
-    }
     // Registered before the create, so no interrupt finds the temp file
     // unregistered. A colliding random name is retried under a new one,
     // whose registration replaces the old.
@@ -72,7 +85,7 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
     let mut tmp = tempfile::Builder::new()
         .make_in(dir.unwrap_or_else(|| Path::new(".")), |path| {
             _pending_temp = Some(crate::pending_temp::track_temp_file(path));
-            create_private_file(path)
+            create_new_file(path, mode)
         })?;
     tmp.write_all(bytes)?;
     crate::sync_file(tmp.as_file())?;
@@ -92,14 +105,15 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
 }
 
 fn inherit_permissions(path: &Path, file: &fs::File, inherit: InheritMode) -> io::Result<()> {
-    // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
-    // existing regular file would silently tighten that file's permissions, so
+    // The temp file is created with the caller's mode; persisting it over an
+    // existing regular file would silently change that file's permissions, so
     // carry the target's mode across the rename to preserve it.
     //
     // `symlink_metadata` (not `metadata`) so a symlinked target is detected
     // rather than followed: the rename replaces the symlink with a fresh
     // regular file, and copying the link target's (possibly 0644) mode would
-    // loosen permissions on freshly written credentials. A symlink keeps 0600.
+    // loosen permissions on freshly written credentials. A symlinked target gets
+    // the creation mode.
     #[cfg(unix)]
     if matches!(inherit, InheritMode::Yes)
         && let Ok(metadata) = fs::symlink_metadata(path)
