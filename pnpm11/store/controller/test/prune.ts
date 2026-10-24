@@ -125,15 +125,45 @@ test('prune propagates unexpected spill directory errors', async () => {
   await expect(prune(options)).rejects.toBe(error)
 })
 
-test('prune fails before it removes anything when a registered project has a broken installed lockfile', async () => {
+test.each([
+  ['installed lockfile', path.join('node_modules', '.pnpm', 'lock.yaml'), 'packages: ['],
+  ['modules manifest', path.join('node_modules', '.modules.yaml'), '{'],
+])('prune fails before it removes anything when a registered project has a broken %s', async (_name, brokenFile, content) => {
   const options = createPruneOptions()
   const projectDir = path.join(options.cacheDir, '..', 'project')
   await fs.mkdir(path.join(projectDir, 'node_modules', '.pnpm'), { recursive: true })
-  await fs.writeFile(path.join(projectDir, 'node_modules', '.pnpm', 'lock.yaml'), 'packages: [')
+  await fs.writeFile(path.join(projectDir, brokenFile), content)
   await registerProject(options.storeDir, projectDir)
   const unusedFile = path.join(options.storeDir, 'files', '00', 'unused')
   await fs.mkdir(path.dirname(unusedFile), { recursive: true })
   await fs.writeFile(unusedFile, 'unused')
+
+  await expect(prune(options)).rejects.toMatchObject({ code: 'ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES' })
+  expect(await fs.readFile(unusedFile, 'utf8')).toBe('unused')
+})
+
+test('prune fails before it removes anything when the store index cannot be read', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  await fs.mkdir(path.join(projectDir, 'node_modules', '.pnpm'), { recursive: true })
+  await fs.writeFile(path.join(projectDir, 'node_modules', '.pnpm', 'lock.yaml'), [
+    "lockfileVersion: '9.0'",
+    'importers:',
+    "  '.': {}",
+    'packages:',
+    '  is-positive@1.0.0:',
+    '    resolution: {integrity: sha512-AAAA}',
+    'snapshots:',
+    '  is-positive@1.0.0: {}',
+    '',
+  ].join('\n'))
+  await registerProject(options.storeDir, projectDir)
+  const unusedFile = path.join(options.storeDir, 'files', '00', 'unused')
+  await fs.mkdir(path.dirname(unusedFile), { recursive: true })
+  await fs.writeFile(unusedFile, 'unused')
+  jest.spyOn(options.storeIndex, 'get').mockImplementation(() => {
+    throw new Error('database disk image is malformed')
+  })
 
   await expect(prune(options)).rejects.toMatchObject({ code: 'ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES' })
   expect(await fs.readFile(unusedFile, 'utf8')).toBe('unused')

@@ -884,6 +884,22 @@ describe('prune keeps the packages that a registered project still uses', () => 
     expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
   })
 
+  // Without a wanted lockfile, the install writes the installed lockfile into
+  // the custom virtual store directory.
+  test.each([
+    'virtualStoreDir: vs\n',
+    'virtualStoreDir: vs\nlockfile: false\n',
+  ])('every package installed with packageImportMethod: copy and %j', async (workspaceYaml) => {
+    prepareProject(`packageImportMethod: copy\n${workspaceYaml}`)
+    const storeDir = await install()
+    const keysBefore = sortedIndexKeys(storeDir)
+    expect(keysBefore.length).toBeGreaterThan(1)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+  })
+
   test('a runtime installed with packageImportMethod: copy', async () => {
     // A registry tarball stands in for the runtime archive, so the install
     // needs no network. The variant targets this host.

@@ -1,6 +1,7 @@
 import path from 'node:path'
 
 import { isError, PnpmError } from '@pnpm/error'
+import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
@@ -20,11 +21,11 @@ import { getRegisteredProjects } from './projectRegistry.js'
  */
 export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): Promise<Set<string>> {
   const projects = await getRegisteredProjects(storeDir)
-  const lockfiles = await Promise.all(projects.map(readInstalledLockfile))
-  const keys = new Set(lockfiles.flatMap((lockfile) => (lockfile == null ? [] : lockfileIndexKeys(lockfile))))
+  const lockfiles = (await Promise.all(projects.map(readInstalledLockfiles))).flat()
+  const keys = new Set(lockfiles.flatMap(lockfileIndexKeys))
   const files = new Set<string>()
   for (const key of keys) {
-    const row = storeIndex.get(key) as PackageFilesIndex | undefined
+    const row = readIndexRow(storeIndex, storeDir, key)
     if (row == null) continue
     for (const { digest, mode } of rowFiles(row)) {
       files.add(path.normalize(getFilePathByModeInCafs(storeDir, digest, mode)))
@@ -39,20 +40,54 @@ function lockfileIndexKeys (lockfile: LockfileObject): string[] {
   )
 }
 
+function readIndexRow (storeIndex: StoreIndex, storeDir: string, key: string): PackageFilesIndex | undefined {
+  try {
+    return storeIndex.get(key) as PackageFilesIndex | undefined
+  } catch (err: unknown) {
+    throw inUseFilesError(storeDir, err)
+  }
+}
+
 /**
- * The lockfile the last install wrote into the project's `node_modules`,
- * which records what is installed there.
+ * The lockfiles the last install wrote, which record what is installed in
+ * the project.
+ *
+ * The install writes the lockfile to `node_modules/.pnpm`, or to the
+ * `virtualStoreDir` that `node_modules/.modules.yaml` records when the
+ * project has no wanted lockfile. Under a global virtual store, that
+ * setting names the shared store. The manifest does not say which case
+ * applies, so the prune reads both.
  */
-async function readInstalledLockfile (projectDir: string): Promise<LockfileObject | null> {
-  // A project with a custom modules directory has no lockfile here, so only
-  // their hard links keep its packages.
-  const installStateDir = path.join(projectDir, 'node_modules', '.pnpm')
+async function readInstalledLockfiles (projectDir: string): Promise<LockfileObject[]> {
+  // A project with a custom modules directory has no manifest or lockfile
+  // here, so only their hard links keep its packages.
+  const modulesDir = path.join(projectDir, 'node_modules')
+  const defaultDir = path.join(modulesDir, '.pnpm')
+  const modules = await readModulesManifestOfProject(modulesDir)
+  const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])
+  const lockfiles = await Promise.all(Array.from(installStateDirs, readInstalledLockfile))
+  return lockfiles.filter((lockfile) => lockfile != null)
+}
+
+async function readModulesManifestOfProject (modulesDir: string): Promise<Modules | null> {
+  try {
+    return await readModulesManifest(modulesDir)
+  } catch (err: unknown) {
+    throw inUseFilesError(modulesDir, err)
+  }
+}
+
+async function readInstalledLockfile (installStateDir: string): Promise<LockfileObject | null> {
   try {
     return await readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
   } catch (err: unknown) {
-    throw new PnpmError('STORE_DIR_PRUNE_IN_USE_FILES',
-      `Failed to read the store files that registered projects use: ${installStateDir}: ${isError(err) ? err.message : String(err)}`)
+    throw inUseFilesError(installStateDir, err)
   }
+}
+
+function inUseFilesError (location: string, err: unknown): PnpmError {
+  return new PnpmError('STORE_DIR_PRUNE_IN_USE_FILES',
+    `Failed to read the store files that registered projects use: ${location}: ${isError(err) ? err.message : String(err)}`)
 }
 
 /**

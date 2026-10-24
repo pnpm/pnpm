@@ -10185,6 +10185,9 @@ importers:
       '@pnpm/hooks.types':
         specifier: workspace:*
         version: link:../../hooks/types
+      '@pnpm/installing.modules-yaml':
+        specifier: workspace:*
+        version: link:../../installing/modules-yaml
       '@pnpm/installing.package-requester':
         specifier: workspace:*
         version: link:../../installing/package-requester
