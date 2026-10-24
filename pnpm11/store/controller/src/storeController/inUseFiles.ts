@@ -44,8 +44,8 @@ function lockfileIndexKeys (lockfile: LockfileObject): string[] {
  * which records what is installed there.
  */
 async function readInstalledLockfile (projectDir: string): Promise<LockfileObject | null> {
-  // A project with a custom modules directory has no lockfile here, so its
-  // packages are kept only by their hard links.
+  // A project with a custom modules directory has no lockfile here, so only
+  // their hard links keep its packages.
   const installStateDir = path.join(projectDir, 'node_modules', '.pnpm')
   try {
     return await readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
@@ -56,8 +56,10 @@ async function readInstalledLockfile (projectDir: string): Promise<LockfileObjec
 }
 
 /**
- * A git-hosted package has a key for its built and its unbuilt contents,
- * and the lockfile does not say which one the install used.
+ * The lockfile does not say which key the install used for a git-hosted
+ * package, which has a key for its built and its unbuilt contents, or for
+ * a variations resolution, whose variant depends on the installing host
+ * and its `supportedArchitectures`.
  */
 function packageIndexKeys (resolution: LockfileResolution, pkgId: string): string[] {
   if (!('type' in resolution) || resolution.type == null) {
@@ -71,9 +73,11 @@ function packageIndexKeys (resolution: LockfileResolution, pkgId: string): strin
       return [true, false].map((built) => gitHostedStoreIndexKey(pkgId, { built }))
     case 'binary':
       return [storeIndexKey(resolution.integrity, pkgId)]
+    case 'variations':
+      return resolution.variants.flatMap((variant) => packageIndexKeys(variant.resolution, pkgId))
     default:
-      // A directory has no row, and the variant of a variations resolution
-      // or the content of a custom one is not known here.
+      // A directory has no row, and the content of a custom one is not
+      // known here.
       return []
   }
 }

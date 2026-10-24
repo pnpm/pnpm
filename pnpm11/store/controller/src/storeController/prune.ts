@@ -21,7 +21,7 @@ export interface PruneOptions {
 
 export async function prune ({ cacheDir, storeDir, storeIndex }: PruneOptions, removeAlienFiles?: boolean): Promise<void> {
   // 0. Collect the files that registered projects still use, before any
-  // removal, so a lockfile that cannot be read stops the prune untouched
+  // removal, so an unreadable lockfile stops the prune untouched
   const inUseFiles = await getInUseFiles(storeDir, storeIndex)
 
   // 1. First, prune the global virtual store

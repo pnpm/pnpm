@@ -9,7 +9,7 @@ import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { store } from '@pnpm/store.commands'
 import { StoreIndex } from '@pnpm/store.index'
-import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
 
@@ -791,7 +791,7 @@ test('prune keeps the lockfile verification log', async () => {
 })
 
 describe('prune keeps the packages that a registered project still uses', () => {
-  // The patch adds a file, so it is cached as a side-effects entry of the row.
+  // The patch adds a file, so pnpm caches it as a side-effects entry of the row.
   const MARKER_PATCH = [
     'diff --git a/patched-marker.txt b/patched-marker.txt',
     'new file mode 100644',
@@ -882,5 +882,50 @@ describe('prune keeps the packages that a registered project still uses', () => 
     await prune(storeDir)
 
     expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+  })
+
+  test('a runtime installed with packageImportMethod: copy', async () => {
+    // A registry tarball stands in for the runtime archive, so the install
+    // needs no network. The variant targets this host.
+    prepare({ dependencies: { node: 'runtime:22.0.0' } })
+    fs.writeFileSync('pnpm-workspace.yaml', 'packageImportMethod: copy\n')
+    const target = { os: process.platform, cpu: process.arch }
+    fs.writeFileSync('pnpm-lock.yaml', JSON.stringify({
+      lockfileVersion: '9.0',
+      settings: { autoInstallPeers: true, excludeLinksFromLockfile: false },
+      importers: { '.': { dependencies: { node: { specifier: 'runtime:22.0.0', version: 'runtime:22.0.0' } } } },
+      packages: {
+        'node@runtime:22.0.0': {
+          hasBin: true,
+          resolution: {
+            type: 'variations',
+            variants: [{
+              targets: [target],
+              resolution: {
+                type: 'binary',
+                archive: 'tarball',
+                url: `${REGISTRY}is-positive/-/is-positive-1.0.0.tgz`,
+                integrity: getIntegrity('is-positive', '1.0.0'),
+                bin: { node: 'index.js' },
+              },
+            }],
+          },
+          version: '22.0.0',
+        },
+      },
+      snapshots: { 'node@runtime:22.0.0': {} },
+    }))
+    const storeDir = await install()
+    const keysBefore = sortedIndexKeys(storeDir)
+    const blobPaths = withStoreIndex(storeDir, (storeIndex) => keysBefore
+      .filter((key) => key.endsWith('\tnode@runtime:22.0.0'))
+      .flatMap((key) => Array.from((storeIndex.get(key) as PackageFilesIndex).files.values()))
+      .map(({ digest, mode }) => getFilePathByModeInCafs(storeDir, digest, mode)))
+    expect(blobPaths.length).toBeGreaterThan(0)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
   })
 })
