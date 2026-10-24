@@ -248,7 +248,7 @@ fn fetch_pass_rows_keep_the_selection_and_its_downloads() {
     let fetched = CreateVirtualStoreOutput {
         package_manifests: HashMap::new(),
         package_bins: HashMap::new(),
-        side_effects: Default::default(),
+        side_effects: super::super::output::SideEffectsOutput::default(),
         requires_build_by_snapshot: HashMap::from([(key("downloaded", "1.0.0"), true)]),
         snapshot_selection: super::super::SnapshotSelection {
             materialized: Vec::new(),

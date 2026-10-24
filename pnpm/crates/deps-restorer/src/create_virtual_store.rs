@@ -2,10 +2,10 @@ pub(crate) mod cas;
 pub(crate) use cache_keys::{dir_clone_cacheable, package_content_changed};
 pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
-mod pipeline;
+pub use output::{CreateVirtualStoreOutput, SnapshotSelection};
 
 mod output;
-pub use output::{CreateVirtualStoreOutput, SnapshotSelection};
+mod pipeline;
 
 mod warm;
 use warm::{
