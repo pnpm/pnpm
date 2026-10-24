@@ -3,6 +3,7 @@
 //! into `node_modules`, which hold no hard link to the store.
 
 use crate::{
+    _utils::enable_gvs_in_workspace_yaml,
     install_runtimes::{
         prepare_workspace, runtime_fixture, write_runtime_lockfile, write_runtime_manifest,
     },
@@ -96,6 +97,20 @@ fn row_blob_paths(store_dir: &StoreDir, row: &PackageFilesIndex) -> Vec<PathBuf>
         .collect()
 }
 
+/// Every store file the rows under `keys` name.
+fn blob_paths_of_rows(store_dir: &StoreDir, keys: &[String]) -> Vec<PathBuf> {
+    let index = StoreIndex::open_readonly_in(store_dir).expect("open the store index");
+    keys.iter()
+        .flat_map(|key| {
+            let row = index
+                .get(key)
+                .expect("read the store index row")
+                .expect("the row is present");
+            row_blob_paths(store_dir, &row)
+        })
+        .collect()
+}
+
 fn prune(workspace: &Path) {
     let output = pacquet_at(workspace)
         .with_args(["store", "prune"])
@@ -164,25 +179,38 @@ fn store_prune_keeps_the_files_of_a_patched_dependency() {
 /// the store, so the hard-link count alone marks every package unused.
 #[test]
 fn store_prune_keeps_every_package_installed_by_copy() {
-    assert_prune_keeps_every_package_installed_by_copy("", "node_modules/.pnpm/lock.yaml");
+    assert_prune_keeps_every_package_installed_by_copy(|_| {}, "node_modules/.pnpm/lock.yaml");
 }
 
 #[test]
 fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_virtual_store_dir() {
-    assert_prune_keeps_every_package_installed_by_copy("virtualStoreDir: vs\n", "vs/lock.yaml");
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| append_workspace_yaml(workspace, "virtualStoreDir: vs\n"),
+        "vs/lock.yaml",
+    );
 }
 
 #[test]
 fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_virtual_store_dir_without_a_lockfile()
  {
     assert_prune_keeps_every_package_installed_by_copy(
-        "virtualStoreDir: vs\nlockfile: false\n",
+        |workspace| append_workspace_yaml(workspace, "virtualStoreDir: vs\nlockfile: false\n"),
         "vs/lock.yaml",
     );
 }
 
+/// The project records the shared store as its `virtualStoreDir`, and the
+/// install keeps the lockfile in `node_modules/.pnpm`.
+#[test]
+fn store_prune_keeps_every_package_installed_by_copy_in_the_global_virtual_store() {
+    assert_prune_keeps_every_package_installed_by_copy(
+        |workspace| enable_gvs_in_workspace_yaml(workspace, ""),
+        "node_modules/.pnpm/lock.yaml",
+    );
+}
+
 fn assert_prune_keeps_every_package_installed_by_copy(
-    workspace_yaml: &str,
+    configure: impl FnOnce(&Path),
     installed_lockfile: &str,
 ) {
     let CommandTempCwd {
@@ -195,7 +223,7 @@ fn assert_prune_keeps_every_package_installed_by_copy(
     } = npmrc_info;
     write_manifest(&workspace);
     append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
-    append_workspace_yaml(&workspace, workspace_yaml);
+    configure(&workspace);
     pacquet_at(&workspace)
         .with_args(["install", "--reporter=silent"])
         .assert()
@@ -209,10 +237,16 @@ fn assert_prune_keeps_every_package_installed_by_copy(
     let keys_before = sorted_index_keys(&store_dir);
     dbg!(&keys_before);
     assert!(keys_before.len() > 1, "the install must index every package it fetched");
+    let blob_paths = blob_paths_of_rows(&store_dir, &keys_before);
 
     prune(&workspace);
 
     assert_eq!(sorted_index_keys(&store_dir), keys_before);
+    let missing: Vec<_> = blob_paths
+        .iter()
+        .filter(|path| !path.exists())
+        .collect();
+    assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed files the project uses");
 }
 
 /// The install keys a runtime row by its synthesized manifest as well as
@@ -233,19 +267,12 @@ fn store_prune_keeps_a_runtime_installed_by_copy() {
     let store_dir = StoreDir::new(root.path().join("store"));
     let keys_before = sorted_index_keys(&store_dir);
     dbg!(&keys_before);
-    let index = StoreIndex::open_readonly_in(&store_dir).expect("open the store index");
-    let blob_paths: Vec<PathBuf> = keys_before
+    let runtime_keys: Vec<String> = keys_before
         .iter()
         .filter(|key| key.ends_with("\tnode@runtime:22.0.0"))
-        .flat_map(|key| {
-            let row = index
-                .get(key)
-                .expect("read the store index row")
-                .expect("the row is present");
-            row_blob_paths(&store_dir, &row)
-        })
+        .cloned()
         .collect();
-    drop(index);
+    let blob_paths = blob_paths_of_rows(&store_dir, &runtime_keys);
     assert!(!blob_paths.is_empty(), "the install must index the runtime");
 
     prune(&workspace);
