@@ -308,17 +308,7 @@ fn build_modules<'a>(
 ) -> BuildModules<'a> {
     let config = inputs.policy.config;
     BuildModules {
-        cache: crate::BuildCacheContext {
-            side_effects: inputs.cache.side_effects(),
-            engine_name: inputs.cache.engine_name,
-            read: config.side_effects_cache_read()
-                || config.remote_side_effects_cache.is_some(),
-            write: config.side_effects_cache_write(),
-            publisher: shared_side_effects_publisher,
-            store_dir: Some(&config.store_dir),
-            store_index_writer: Some(inputs.cache.store_index_writer),
-            frozen_store: config.frozen_store,
-        },
+        cache: build_cache(inputs, shared_side_effects_publisher),
         directories: crate::BuildLayout {
             link_options: inputs.directories.link_options,
             layout: inputs.directories.layout,
@@ -489,4 +479,27 @@ fn resolved_auto_installed_peers<'a>(
                 })
                 .and_then(|reference| reference.resolve(&alias))
         })
+}
+
+fn build_cache<'a>(
+    inputs: &'a BuildPhaseInputs<'a>,
+    shared_side_effects_publisher: Option<
+        &'a crate::shared_side_effects::SharedSideEffectsPublisher,
+    >,
+) -> crate::BuildCacheContext<'a> {
+    let config = inputs.policy.config;
+    crate::BuildCacheContext {
+        captured: None,
+        side_effects: inputs.cache.side_effects(),
+        engine_name: inputs.cache.engine_name,
+        read: config.side_effects_cache_read()
+            || config.remote_side_effects_cache.is_some(),
+        write: config.side_effects_cache_write(),
+        publisher: shared_side_effects_publisher,
+        store: Some(crate::BuildCacheStore {
+            directory: &config.store_dir,
+            writer: inputs.cache.store_index_writer,
+        }),
+        frozen_store: config.frozen_store,
+    }
 }

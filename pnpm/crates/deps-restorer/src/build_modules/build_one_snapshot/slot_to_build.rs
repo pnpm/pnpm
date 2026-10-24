@@ -77,12 +77,7 @@ fn built_by_an_earlier_install(
     {
         return Ok(false);
     }
-    let exists = |path: &Path| {
-        path.try_exists()
-            .map_err(|source| BuildModulesError::ReadBuildMarker {
-                path: path.to_path_buf(),
-                source,
-            })
-    };
-    Ok(exists(&marker.with_file_name("package.json"))? && !exists(marker)?)
+    crate::build_modules::slots::built_slot_is_complete(
+        marker.parent().expect("build marker has a package directory"),
+    )
 }

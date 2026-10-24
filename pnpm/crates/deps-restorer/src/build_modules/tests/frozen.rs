@@ -134,6 +134,7 @@ async fn frozen_store_skips_side_effects_upload() {
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             side_effects: crate::CachedSideEffects {
                 overlays: Some(&side_effects_maps),
                 rows: None,
@@ -142,8 +143,7 @@ async fn frozen_store_skips_side_effects_upload() {
             read: true,
             write: true,
             publisher: None,
-            store_dir: Some(&store_dir),
-            store_index_writer: Some(&writer),
+            store: Some(crate::BuildCacheStore { directory: &store_dir, writer: &writer }),
             frozen_store: true,
         },
         directories: crate::BuildLayout {

@@ -456,7 +456,9 @@ where
     Sys: FsReadFile,
 {
     if !crate::snapshot_has_patch(snapshot_key)
-        && let Some(manifest) = context.package_manifests.get(metadata_key)
+        && let Some(manifest) = context.package_manifests
+            .get(snapshot_key)
+            .or_else(|| context.package_manifests.get(metadata_key))
     {
         let precalculated_bins = context.package_bins
             .and_then(|bins| bins.get(metadata_key))

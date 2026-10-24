@@ -79,6 +79,7 @@ fn build_with_an_empty_row(
 
     BuildModules {
         cache: crate::BuildCacheContext {
+            captured: None,
             // The overlays leave the empty row out, as the store's read path does.
             side_effects: crate::CachedSideEffects {
                 overlays: Some(&HashMap::new()),
@@ -88,8 +89,7 @@ fn build_with_an_empty_row(
             read: true,
             write: false,
             publisher: None,
-            store_dir: None,
-            store_index_writer: None,
+            store: None,
             frozen_store: false,
         },
         directories: crate::BuildLayout {
