@@ -81,21 +81,20 @@ impl OpenDir {
     /// its place after the open. On other platforms the directory's path
     /// is resolved again, and nothing is listed once it no longer leads
     /// anywhere.
-    #[cfg(unix)]
     pub fn entry_names(&self) -> io::Result<Vec<OsString>> {
-        unix::entry_names(self.handle.as_fd())
-    }
-
-    #[cfg(not(unix))]
-    pub fn entry_names(&self) -> io::Result<Vec<OsString>> {
-        let entries = match fs::read_dir(&self.path) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(error),
-        };
-        entries
-            .map(|entry| entry.map(|entry| entry.file_name()))
-            .collect()
+        #[cfg(unix)]
+        return unix::entry_names(self.handle.as_fd());
+        #[cfg(not(unix))]
+        {
+            let entries = match fs::read_dir(&self.path) {
+                Ok(entries) => entries,
+                Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+                Err(error) => return Err(error),
+            };
+            entries
+                .map(|entry| entry.map(|entry| entry.file_name()))
+                .collect()
+        }
     }
 
     /// The path the directory was opened at.
