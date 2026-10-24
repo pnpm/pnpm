@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-Updated `undici` to 7.30.1 to fix denial-of-service vulnerabilities and a subresource integrity bypass.
+Fixed a denial-of-service vulnerability in HTTP requests triggered by excessive content encodings in a server response [GHSA-xjj6-f33q-929c](https://github.com/advisories/GHSA-xjj6-f33q-929c).
