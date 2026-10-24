@@ -90,12 +90,23 @@ fn handler<Reporter: self::Reporter + 'static>(
     }
 
     let output = if no_modify_path {
-        render_unmodified_path_output(&pnpm_home_dir, cfg!(windows))
+        render_unmodified_path_output(&pnpm_home_dir, &ManualSetupShell::current())
     } else {
         add_pnpm_home_to_env::<Reporter>(force, &pnpm_home_dir, &bin_dir, dir)?
     };
     remove_legacy_homedir_shims(&pnpm_home_dir);
     Ok(output)
+}
+
+/// How `PNPM_HOME` and its `bin` directory are added to the user's environment.
+fn env_path_opts(force: bool) -> AddDirToEnvPathOpts<'static> {
+    AddDirToEnvPathOpts {
+        config_section_name: "pnpm",
+        proxy_var_name: Some("PNPM_HOME"),
+        proxy_var_sub_dir: Some("bin"),
+        overwrite: force,
+        position: AddingPosition::Start,
+    }
 }
 
 /// Add `PNPM_HOME` and its `bin` directory to the user's environment and, on
@@ -106,16 +117,7 @@ fn add_pnpm_home_to_env<Reporter: self::Reporter + 'static>(
     bin_dir: &Path,
     dir: &Path,
 ) -> miette::Result<String> {
-    let env_path_result = path_extender::add_dir_to_env_path(
-        pnpm_home_dir,
-        &AddDirToEnvPathOpts {
-            config_section_name: "pnpm",
-            proxy_var_name: Some("PNPM_HOME"),
-            proxy_var_sub_dir: Some("bin"),
-            overwrite: force,
-            position: AddingPosition::Start,
-        },
-    );
+    let env_path_result = path_extender::add_dir_to_env_path(pnpm_home_dir, &env_path_opts(force));
     let output = render_env_path_outcome(env_path_result, pnpm_home_dir)?;
     gh_actions_env::write_gh_actions_env_files::<Reporter, Host>(dir, pnpm_home_dir, bin_dir);
     Ok(output)
@@ -155,18 +157,47 @@ fn render_manual_setup_output(reason: &PathExtenderError, pnpm_home_dir: &Path) 
     )
 }
 
-/// The output of `pnpm setup --no-modify-path`.
-fn render_unmodified_path_output(pnpm_home_dir: &Path, windows: bool) -> String {
-    if windows {
-        format!(
+/// The shell whose syntax `pnpm setup --no-modify-path` prints the settings in.
+#[derive(Debug)]
+enum ManualSetupShell {
+    PowerShell,
+    /// The POSIX shell [`path_extender::detect_current_shell`] found, if any.
+    Posix(Option<String>),
+}
+
+impl ManualSetupShell {
+    fn current() -> Self {
+        if cfg!(windows) {
+            ManualSetupShell::PowerShell
+        } else {
+            ManualSetupShell::Posix(path_extender::detect_current_shell())
+        }
+    }
+}
+
+/// The output of `pnpm setup --no-modify-path`: the block setup would have
+/// written for `shell`, or `export` lines for a shell it does not write to.
+fn render_unmodified_path_output(pnpm_home_dir: &Path, shell: &ManualSetupShell) -> String {
+    match shell {
+        ManualSetupShell::PowerShell => format!(
             "pnpm is installed. The environment was left unchanged.\nTo start using pnpm in this PowerShell session, run:\n{}\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
             powershell_env_lines(pnpm_home_dir),
-        )
-    } else {
-        format!(
-            "pnpm is installed. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\n{}",
-            posix_env_lines(pnpm_home_dir),
-        )
+        ),
+        ManualSetupShell::Posix(shell) => {
+            let settings = shell
+                .as_deref()
+                .and_then(|shell| {
+                    path_extender::render_shell_settings(
+                        shell,
+                        pnpm_home_dir,
+                        &env_path_opts(false),
+                    )
+                })
+                .unwrap_or_else(|| posix_env_lines(pnpm_home_dir));
+            format!(
+                "pnpm is installed. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\n{settings}",
+            )
+        }
     }
 }
 

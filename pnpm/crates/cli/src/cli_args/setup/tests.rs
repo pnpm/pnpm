@@ -3,7 +3,7 @@
 //! shell config, so it is exercised on a real host rather than here.
 
 use super::{
-    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, PNPM_VERSION,
+    ConfigFileChangeType, ConfigReport, LEGACY_HOME_DIR_SHIM_NAMES, ManualSetupShell, PNPM_VERSION,
     PathExtenderError, PathExtenderReport, create_alias_scripts, remove_legacy_homedir_shims,
     render_env_path_outcome, render_setup_output, render_unmodified_path_output,
     standalone_manifest, write_windows_alias_wrapper,
@@ -84,18 +84,53 @@ fn manual_setup_lines_quote_pnpm_home_as_a_literal() {
     assert!(output.contains("\nexport PNPM_HOME='/home/o'\\''neil/$(touch pwned)'\n"), "{output}");
 }
 
+fn unmodified_path_settings(shell: &ManualSetupShell) -> String {
+    let output = render_unmodified_path_output(Path::new("/root/.pnpm"), shell);
+    let prefix = "pnpm is installed. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\n";
+    output
+        .strip_prefix(prefix)
+        .unwrap_or_else(|| panic!("unexpected output: {output}"))
+        .to_string()
+}
+
 #[test]
-fn no_modify_path_prints_the_lines_to_add_by_hand() {
-    assert_eq!(
-        render_unmodified_path_output(Path::new("/root/.pnpm"), false),
-        "pnpm is installed. No shell config file was changed.\n\nTo start using pnpm, add these lines to your shell config file:\nexport PNPM_HOME='/root/.pnpm'\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+fn no_modify_path_prints_the_block_setup_writes_for_bash() {
+    let settings = unmodified_path_settings(&ManualSetupShell::Posix(Some("bash".to_string())));
+    assert!(
+        settings.starts_with("export PNPM_HOME='/root/.pnpm'\ncase \":$PATH:\" in"),
+        "{settings}"
     );
+}
+
+#[test]
+fn no_modify_path_prints_fish_syntax_for_fish() {
+    let settings = unmodified_path_settings(&ManualSetupShell::Posix(Some("fish".to_string())));
+    assert!(settings.starts_with("set -gx PNPM_HOME '/root/.pnpm'\n"), "{settings}");
+}
+
+#[test]
+fn no_modify_path_prints_nushell_syntax_for_nu() {
+    let settings = unmodified_path_settings(&ManualSetupShell::Posix(Some("nu".to_string())));
+    assert!(settings.starts_with("$env.PNPM_HOME = "), "{settings}");
+}
+
+#[test]
+fn no_modify_path_prints_export_lines_for_an_unknown_shell() {
+    for shell in [None, Some("tcsh".to_string())] {
+        assert_eq!(
+            unmodified_path_settings(&ManualSetupShell::Posix(shell)),
+            "export PNPM_HOME='/root/.pnpm'\nexport PATH=\"$PNPM_HOME/bin:$PATH\"",
+        );
+    }
 }
 
 #[test]
 fn no_modify_path_prints_powershell_instructions_on_windows() {
     assert_eq!(
-        render_unmodified_path_output(Path::new(r"C:\Users\o'neil\pnpm"), true),
+        render_unmodified_path_output(
+            Path::new(r"C:\Users\o'neil\pnpm"),
+            &ManualSetupShell::PowerShell
+        ),
         "pnpm is installed. The environment was left unchanged.\nTo start using pnpm in this PowerShell session, run:\n$env:PNPM_HOME = 'C:\\Users\\o''neil\\pnpm'\n$env:Path = \"$env:PNPM_HOME\\bin;$env:Path\"\n\nAdd these lines to your PowerShell profile to use pnpm in future sessions.",
     );
 }
