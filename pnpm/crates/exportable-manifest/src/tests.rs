@@ -583,3 +583,23 @@ fn relative_path_takes_the_prefix_of_the_project_in_that_directory() {
     assert_eq!(rewrite("workspace:../second"), "work:1.0.0");
     assert_eq!(rewrite("workspace:../first"), "old:1.0.0");
 }
+
+#[test]
+fn several_projects_at_one_version_select_no_prefix() {
+    let dir = TempDir::new().unwrap();
+    write_dep(&dir.path().join("node_modules/dup"), "dup", "1.0.0");
+    let project = |prefix: &str| WorkspacePackageManifest {
+        name: "dup".to_string(),
+        version: "1.0.0".to_string(),
+        root_dir: None,
+        registry_prefix: Some(prefix.to_string()),
+    };
+    let ws_pkgs = HashMap::from([("dup".to_string(), vec![project("old"), project("work")])]);
+    let rewrite = |dep_name: &str, spec: &str| {
+        replace_workspace_protocol(dep_name, spec, dir.path(), None, Some(&ws_pkgs))
+            .expect("replace succeeds")
+    };
+
+    assert_eq!(rewrite("dup", "workspace:1.0.0"), "1.0.0");
+    assert_eq!(rewrite("dup", "workspace:^"), "^1.0.0");
+}
