@@ -44,7 +44,7 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, RwLock},
+    sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock},
 };
 
 use crate::{
@@ -295,6 +295,7 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Per importer: the auto-installed peers whose lockfile pin is not
     /// reused. See `find_stale_peer_pins`.
     stale_peer_pins: HashMap<String, HashSet<String>>,
+    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
 }
 
 #[derive(Default)]
@@ -518,6 +519,12 @@ impl WorkspaceTreeCtx {
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
     pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.reuse.lockfile.as_ref()
+    }
+
+    pub(crate) fn unlisted_importer_locked_peers(
+        &self,
+    ) -> &OnceLock<Arc<HashMap<String, HashSet<String>>>> {
+        &self.versions.unlisted_importer_locked_peers
     }
 
     /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
