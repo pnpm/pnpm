@@ -134,7 +134,7 @@ async function applyProjectWorkspaceManifest (
   pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
   if (!workspaceManifest) return undefined
   warnAboutDroppedWorkspaceManifestKeys(state.warnings, workspaceManifest)
-  addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+  pnpmConfig.workspaceRegistryPrefixes = addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     projectManifest: pnpmConfig.rootProjectManifest,
     skipSettings: forSelfUpdate

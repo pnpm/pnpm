@@ -101,6 +101,7 @@ const CONFIG_ONLY_SETTING_KEYS = [
   'workspaceDir',
   'workspacePackagePatterns',
   'workspacePrefix',
+  'workspaceRegistryPrefixes',
 ] as const satisfies ReadonlyArray<keyof ConfigWithDeprecatedSettings>
 
 const UNTYPED_WORKSPACE_SETTING_KEYS = [

@@ -19,7 +19,7 @@ pub use options::{
     PackManifestOptions, PackOptions, PackOutputLocks, PackOutputOptions, PackScripts,
 };
 pub use output::{format_pack_output, pack_output_path, to_pack_result_json};
-pub use pnpm_exportable_manifest::WorkspacePackageManifest;
+pub use pnpm_exportable_manifest::{WorkspacePackageManifest, WorkspacePackageManifests};
 
 mod capabilities;
 mod collation;

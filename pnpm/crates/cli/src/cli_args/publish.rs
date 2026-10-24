@@ -23,7 +23,7 @@ use pnpm_config::Config;
 use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
-    Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
+    Host as PackHost, PackOptions, PackResult, WorkspacePackageManifests, api as pack_api,
 };
 use pnpm_publish::{
     Host, PackedPkg, PublishFailure, PublishNetwork, PublishPackedPkgOptions, PublishSummary,
@@ -245,7 +245,7 @@ impl PublishArgs {
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        workspace_packages: Option<&Arc<WorkspacePackageManifests>>,
     ) -> Result<PublishSummary, PublishFailure<miette::Report>> {
         let packed = self.pack_directory::<Reporter>(
             project_dir,
@@ -274,7 +274,7 @@ impl PublishArgs {
         project_dir: &Path,
         config: &Config,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        workspace_packages: Option<&Arc<WorkspacePackageManifests>>,
     ) -> miette::Result<PackedDirectory> {
         let manifest = pnpm_package_manifest::safe_read_project_manifest_from_dir(project_dir)
             .into_diagnostic()
@@ -353,16 +353,15 @@ impl PublishArgs {
         config: &Config,
         pack_destination: &Path,
         before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
-        workspace_packages: Option<&Arc<HashMap<String, WorkspacePackageManifest>>>,
+        workspace_packages: Option<&Arc<WorkspacePackageManifests>>,
     ) -> miette::Result<PackResult> {
-        let workspace_packages = workspace_packages
-            .cloned()
-            .or_else(|| {
-                crate::cli_args::workspace_packages::discover_workspace_package_manifests(
-                    config.workspace_dir.as_deref(),
-                    config,
-                )
-            });
+        let workspace_packages = match workspace_packages {
+            Some(workspace_packages) => Some(Arc::clone(workspace_packages)),
+            None => crate::cli_args::workspace_packages::discover_workspace_package_manifests(
+                config.workspace_dir.as_deref(),
+                config,
+            )?,
+        };
         let manifest = crate::cli_args::workspace_packages::create_publish_pack_manifest_options(
             &self.flags.manifest,
             config,
