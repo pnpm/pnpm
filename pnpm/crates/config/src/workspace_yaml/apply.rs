@@ -83,12 +83,11 @@ impl WorkspaceSettings {
         self.apply_optional_settings(config);
 
         self.apply_path_settings(config, base_dir);
-        let registry_prefixes = self.apply_registry_settings(config);
         self.apply_project_settings(config, base_dir);
         self.apply_process_settings(config);
         self.apply_resolution_settings(config, base_dir);
         self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
-        registry_prefixes
+        self.apply_registry_settings(config)
     }
 
     /// The `nodePackageMap` section is applied after its deprecated
