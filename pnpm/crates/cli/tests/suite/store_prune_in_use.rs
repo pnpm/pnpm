@@ -1,10 +1,16 @@
 //! `pnpm store prune` must keep the store files of every package a
-//! registered project installed, including the packages whose files were
-//! copied into `node_modules` and so hold no hard link to the store.
+//! registered project installed, including the packages that pnpm copied
+//! into `node_modules`, which hold no hard link to the store.
 
-use crate::patch::MARKER_PATCH;
+use crate::{
+    install_runtimes::{
+        prepare_workspace, runtime_fixture, write_runtime_lockfile, write_runtime_manifest,
+    },
+    patch::MARKER_PATCH,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_graph_hasher::{host_arch, host_platform};
 use pnpm_store_dir::{PackageFilesIndex, StoreDir, StoreIndex};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
@@ -180,5 +186,80 @@ fn store_prune_keeps_every_package_installed_by_copy() {
 
     prune(&workspace);
 
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
+}
+
+/// The install keys a runtime row by its synthesized manifest as well as
+/// its integrity, and the resolution lists one archive per platform.
+#[test]
+fn store_prune_keeps_a_runtime_installed_by_copy() {
+    let root = tempfile::tempdir().expect("create a temp dir");
+    let workspace = prepare_workspace(&root, "packageImportMethod: copy\n");
+    let mut server = mockito::Server::new();
+    let fixtures = [runtime_fixture(&mut server, "node", "22.0.0", host_platform(), host_arch())];
+    write_runtime_manifest(&workspace, &fixtures);
+    write_runtime_lockfile(&workspace, &fixtures);
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=silent"])
+        .assert()
+        .success();
+
+    let store_dir = StoreDir::new(root.path().join("store"));
+    let keys_before = sorted_index_keys(&store_dir);
+    dbg!(&keys_before);
+    let index = StoreIndex::open_readonly_in(&store_dir).expect("open the store index");
+    let blob_paths: Vec<PathBuf> = keys_before
+        .iter()
+        .filter(|key| key.ends_with("\tnode@runtime:22.0.0"))
+        .flat_map(|key| {
+            let row = index
+                .get(key)
+                .expect("read the store index row")
+                .expect("the row is present");
+            row_blob_paths(&store_dir, &row)
+        })
+        .collect();
+    drop(index);
+    assert!(!blob_paths.is_empty(), "the install must index the runtime");
+
+    prune(&workspace);
+
+    assert_eq!(sorted_index_keys(&store_dir), keys_before);
+    let missing: Vec<_> = blob_paths
+        .iter()
+        .filter(|path| !path.exists())
+        .collect();
+    assert_eq!(missing, Vec::<&PathBuf>::new(), "store prune removed the runtime's files");
+}
+
+#[test]
+fn store_prune_fails_on_a_broken_installed_lockfile_and_removes_nothing() {
+    let CommandTempCwd {
+        root: _root, workspace, npmrc_info, ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry {
+        mock_instance: _mock_instance,
+        store_dir,
+        ..
+    } = npmrc_info;
+    write_manifest(&workspace);
+    append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
+    pacquet_at(&workspace)
+        .with_args(["install", "--reporter=silent"])
+        .assert()
+        .success();
+    fs::write(workspace.join("node_modules/.pnpm/lock.yaml"), "packages: [")
+        .expect("break the installed lockfile");
+    let store_dir = StoreDir::new(store_dir);
+    let keys_before = sorted_index_keys(&store_dir);
+
+    let output = pacquet_at(&workspace)
+        .with_args(["store", "prune"])
+        .output()
+        .expect("run store prune");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "store prune must fail: {stderr}");
+    assert!(stderr.contains("ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES"), "stderr={stderr}");
     assert_eq!(sorted_index_keys(&store_dir), keys_before);
 }

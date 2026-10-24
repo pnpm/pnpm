@@ -117,17 +117,18 @@ impl StoreDir {
 
     /// [`Self::prune`], keeping every content-addressable file that
     /// `in_use_files` returns whatever its hard-link count. `in_use_files`
-    /// runs while the prune holds the store lock.
+    /// runs while the prune holds the store lock, and its error stops the
+    /// prune before it removes anything.
     pub fn prune_keeping(
         &self,
         cache_dir: &Path,
         protected_dirs: &[&Path],
-        in_use_files: impl FnOnce() -> io::Result<HashSet<PathBuf>>,
+        in_use_files: impl FnOnce() -> Result<HashSet<PathBuf>, PruneError>,
     ) -> Result<(), PruneError> {
         let _store_lock = self.lock_for_prune().map_err(PruneError::StoreLock)?;
         let mut references = crate::loader_references::loader_references(self)
             .map_err(PruneError::LoaderReferences)?;
-        references.files.extend(in_use_files().map_err(PruneError::InUseFiles)?);
+        references.files.extend(in_use_files()?);
         self.prune_global_virtual_store(&references.package_roots)?;
         self.remove_cached_metadata(cache_dir, protected_dirs)?;
         let stats = crate::prune_cas::prune_cas_with_references(self, &references.files)
