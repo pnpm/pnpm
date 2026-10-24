@@ -7,13 +7,189 @@ use axum::{
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-use super::{app_with_token, record};
+use super::{app_with_config_and_token, record};
 use crate::server::{
     RequestId, ServerMetrics, generate_request_id, is_valid_request_id, metrics::DURATION_BUCKETS,
+    metrics_listener_router, state_and_router,
 };
+use pnpr_auth::AuthState;
+use pnpr_config::{Config, MetricsConfig};
+use pnpr_fixtures::MockConfigPresets;
+
+const METRICS_TOKEN: &str = "metrics-token-0123456789abcdef0123";
 
 fn test_app(tmp: &TempDir) -> axum::Router {
-    app_with_token(tmp, "test-token", record(false, &[]))
+    app_with_metrics(tmp, Some(MetricsConfig { token: Some(METRICS_TOKEN.into()), listen: None }))
+}
+
+fn app_with_metrics(tmp: &TempDir, metrics: Option<MetricsConfig>) -> axum::Router {
+    app_with_config_and_token(config_with_metrics(tmp, metrics), "test-token", record(false, &[]))
+}
+
+fn config_with_metrics(tmp: &TempDir, metrics: Option<MetricsConfig>) -> Config {
+    let listen = "127.0.0.1:0".parse().unwrap();
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    config.http.metrics = metrics;
+    config
+}
+
+fn scrape(uri: &str, token: Option<&str>) -> Request<Body> {
+    let mut request = Request::builder().uri(uri);
+    if let Some(token) = token {
+        request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    request.body(Body::empty()).unwrap()
+}
+
+fn is_prometheus(response: &axum::response::Response) -> bool {
+    response.status() == StatusCode::OK
+        && response.headers()[header::CONTENT_TYPE] == "text/plain; version=0.0.4; charset=utf-8"
+}
+
+#[tokio::test]
+async fn metrics_are_not_served_without_a_metrics_block() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_metrics(&tmp, None);
+    for uri in ["/-/metrics", "/metrics"] {
+        let response = app
+            .clone()
+            .oneshot(scrape(uri, None))
+            .await
+            .unwrap();
+        assert!(!is_prometheus(&response), "{uri} served metrics");
+    }
+}
+
+#[tokio::test]
+async fn metrics_require_the_configured_bearer_token() {
+    let tmp = TempDir::new().unwrap();
+    let app = test_app(&tmp);
+    for uri in ["/-/metrics", "/metrics"] {
+        for token in [None, Some("test-token"), Some("metrics-token-0123456789abcdef012")] {
+            let response = app
+                .clone()
+                .oneshot(scrape(uri, token))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{uri} with {token:?}");
+            assert_eq!(response.headers()[header::WWW_AUTHENTICATE], "Bearer");
+        }
+        let response = app
+            .clone()
+            .oneshot(scrape(uri, Some(METRICS_TOKEN)))
+            .await
+            .unwrap();
+        assert!(is_prometheus(&response), "{uri} refused the metrics token");
+    }
+}
+
+#[tokio::test]
+async fn a_metrics_listener_takes_metrics_off_the_main_listener_and_shares_its_counters() {
+    let tmp = TempDir::new().unwrap();
+    let metrics = MetricsConfig {
+        token: Some(METRICS_TOKEN.into()),
+        listen: Some("127.0.0.1:0".parse().unwrap()),
+    };
+    let config = config_with_metrics(&tmp, Some(metrics));
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    let (state, app) = state_and_router(config, auth, None).unwrap();
+    let metrics_app = metrics_listener_router(state);
+
+    let response = app
+        .clone()
+        .oneshot(scrape("/-/metrics", Some(METRICS_TOKEN)))
+        .await
+        .unwrap();
+    assert!(!is_prometheus(&response), "the main listener served metrics");
+    let response = app
+        .oneshot(scrape("/-/live", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = metrics_app
+        .clone()
+        .oneshot(scrape("/metrics", None))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let response = metrics_app
+        .oneshot(scrape("/metrics", Some(METRICS_TOKEN)))
+        .await
+        .unwrap();
+    assert!(is_prometheus(&response));
+    let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    let text = String::from_utf8(body.to_vec()).unwrap();
+    assert!(text.contains(r#"pnpr_http_requests_total{method="GET",status="200"} 1"#), "{text}");
+}
+
+#[tokio::test]
+async fn a_metrics_token_is_never_resolved_as_a_user_token() {
+    // The authentication layer refuses an unknown `pnpr_oci_` bearer before
+    // any handler runs, so a scrape only succeeds if it bypasses that layer.
+    let token = "pnpr_oci_0123456789abcdef0123456789abcdef";
+    let tmp = TempDir::new().unwrap();
+    let app =
+        app_with_metrics(&tmp, Some(MetricsConfig { token: Some(token.into()), listen: None }));
+    let response = app
+        .oneshot(scrape("/-/metrics", Some(token)))
+        .await
+        .unwrap();
+    assert!(is_prometheus(&response), "status {}", response.status());
+}
+
+#[tokio::test]
+async fn a_metrics_token_matches_without_its_surrounding_whitespace() {
+    let tmp = TempDir::new().unwrap();
+    let padded = format!("{METRICS_TOKEN}\n");
+    let app = app_with_metrics(&tmp, Some(MetricsConfig { token: Some(padded), listen: None }));
+    let response = app
+        .oneshot(scrape("/-/metrics", Some(METRICS_TOKEN)))
+        .await
+        .unwrap();
+    assert!(is_prometheus(&response), "status {}", response.status());
+}
+
+#[test]
+fn a_configured_bearer_secret_is_compared_exactly() {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer x"));
+    // A SCIM token padded to its minimum length must not authenticate its
+    // short unpadded value.
+    let padded = format!("x{}", " ".repeat(31));
+    assert!(!crate::server::authentication::carries_bearer_secret(&headers, &padded));
+    assert!(crate::server::authentication::carries_bearer_secret(&headers, "x"));
+}
+
+#[test]
+fn a_router_built_in_code_refuses_a_short_metrics_token() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_metrics(
+        &tmp,
+        Some(MetricsConfig { token: Some("short".into()), listen: None }),
+    );
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    let err =
+        crate::server::try_router_with_auth(config, auth).expect_err("a short token must fail");
+    assert!(err.to_string().contains("metrics.token"), "{err}");
+}
+
+#[tokio::test]
+async fn a_metrics_listener_without_a_token_serves_any_scraper() {
+    let tmp = TempDir::new().unwrap();
+    let metrics = MetricsConfig { token: None, listen: Some("127.0.0.1:0".parse().unwrap()) };
+    let config = config_with_metrics(&tmp, Some(metrics));
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    let (state, _) = state_and_router(config, auth, None).unwrap();
+    let response = metrics_listener_router(state)
+        .oneshot(scrape("/metrics", None))
+        .await
+        .unwrap();
+    assert!(is_prometheus(&response));
+    assert!(
+        response.headers().contains_key("x-request-id"),
+        "no request ID on the metrics listener",
+    );
 }
 
 #[tokio::test]
@@ -21,12 +197,10 @@ async fn metrics_endpoint_exposes_prometheus_text_format() {
     let tmp = TempDir::new().unwrap();
     let app = test_app(&tmp);
 
-    let request = Request::builder()
-        .uri("/-/metrics")
-        .body(Body::empty())
+    let response = app
+        .oneshot(scrape("/-/metrics", Some(METRICS_TOKEN)))
+        .await
         .unwrap();
-
-    let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         response.headers()[header::CONTENT_TYPE],
@@ -128,11 +302,10 @@ async fn metrics_records_request_count_and_duration() {
     let res2 = app.clone().oneshot(req2).await.unwrap();
     assert_eq!(res2.status(), StatusCode::OK);
 
-    let req_metrics = Request::builder()
-        .uri("/-/metrics")
-        .body(Body::empty())
+    let res_metrics = app
+        .oneshot(scrape("/-/metrics", Some(METRICS_TOKEN)))
+        .await
         .unwrap();
-    let res_metrics = app.oneshot(req_metrics).await.unwrap();
     assert_eq!(res_metrics.status(), StatusCode::OK);
 
     let body = to_bytes(res_metrics.into_body(), 64 * 1024).await.unwrap();
@@ -154,6 +327,7 @@ async fn metrics_and_the_npm_package_named_metrics_have_separate_paths() {
     let scrape_req = Request::builder()
         .uri("/metrics")
         .header(header::ACCEPT, npm_accept.clone())
+        .header(header::AUTHORIZATION, format!("Bearer {METRICS_TOKEN}"))
         .body(Body::empty())
         .unwrap();
     let scrape_res = app

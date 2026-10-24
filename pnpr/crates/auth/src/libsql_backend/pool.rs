@@ -1,12 +1,28 @@
 //! The connections the libsql backend runs its operations on.
 
-use super::{Connection, Database, LibsqlError, RegistryError, Result, with_auth_timeout};
+use super::{Connection, Database, LibsqlError, RegistryError, Result, Row, with_auth_timeout};
 use std::{
     future::Future,
     sync::{Arc, Mutex},
     time::Duration,
 };
 use tokio::sync::{Semaphore, SemaphorePermit};
+
+/// `read` applied to the first of `rows`, which are then read to their end.
+/// A remote query's rows stream in one HTTP response, and a response left
+/// unread closes its connection, so the next query would open a new one. A
+/// local row reads the live statement, so `read` runs before the next step.
+pub(super) async fn first_row<Output>(
+    mut rows: libsql::Rows,
+    read: impl FnOnce(&Row) -> Result<Output>,
+) -> Result<Option<Output>> {
+    let first = match rows.next().await? {
+        Some(row) => Some(read(&row)?),
+        None => None,
+    };
+    while rows.next().await?.is_some() {}
+    Ok(first)
+}
 
 /// Connections to one database, each running one operation at a time.
 ///

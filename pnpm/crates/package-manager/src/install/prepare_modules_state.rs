@@ -129,6 +129,7 @@ fn prepare_modules_layout(
             config: inputs.tree.config,
             workspace_root: inputs.tree.workspace_root,
             modules_manifest,
+            node_linker: inputs.tree.node_linker,
             installs_only: inputs.installs_only,
             filtered_install: inputs.repeat.filtered,
         })?;

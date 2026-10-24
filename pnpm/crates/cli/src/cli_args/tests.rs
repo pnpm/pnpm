@@ -57,6 +57,14 @@ fn version_args(argv: &[&str]) -> VersionArgs {
 }
 
 #[test]
+fn setup_accepts_no_modify_path() {
+    match CliArgs::try_parse_from(["pnpm", "setup", "--no-modify-path"]).expect("parses").command {
+        CliCommand::Setup(setup) => assert!(setup.no_modify_path),
+        other => panic!("expected setup, got {other:?}"),
+    }
+}
+
+#[test]
 fn prefix_is_an_alias_of_dir() {
     for argv in [
         ["pacquet", "--prefix", "project", "run", "test"].as_slice(),

@@ -215,6 +215,19 @@ impl ImporterInputs<'_> {
         usize::try_from(self.config.peers_suffix_max_length).unwrap_or(usize::MAX)
     }
 
+    fn importer_base_opts(
+        &self,
+        importer_id: &str,
+        project_dir: std::path::PathBuf,
+        preferred_versions: &Arc<PreferredVersions>,
+    ) -> ResolveOptions {
+        let mut base_opts =
+            self.shared_resolve_options.build(project_dir, Arc::clone(preferred_versions));
+        base_opts.version.preferred_versions_overlay =
+            self.versions.own_manifest_specifiers_of(importer_id);
+        base_opts
+    }
+
     fn resolve_importer_options(
         &self,
         importer: &pnpm_resolving_deps_resolver::WorkspaceImporter<'_>,
@@ -228,10 +241,7 @@ impl ImporterInputs<'_> {
             .to_path_buf();
         let modules_dir = Some(project_dir.join(modules_basename));
         ResolveImporterOptions {
-            base_opts: self.shared_resolve_options.build(
-                project_dir,
-                Arc::clone(preferred_versions),
-            ),
+            base_opts: self.importer_base_opts(&importer.id, project_dir, preferred_versions),
             peers_suffix_max_length: self.peers_suffix_max_length(),
             peers: pnpm_resolving_deps_resolver::ImporterPeerOptions {
                 auto_install_peers: self.config.auto_install_peers,

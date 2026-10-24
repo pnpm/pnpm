@@ -19,7 +19,8 @@ mod resources;
 mod tests;
 
 use super::{
-    AppState, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode, ecosystem::sha256_hex,
+    AppState, MAX_LOGIN_BODY_BYTES, RegistryError, Response, StatusCode,
+    authentication::carries_bearer_secret,
 };
 use axum::{
     Router,
@@ -61,18 +62,8 @@ impl FromRequestParts<AppState> for ScimClient {
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Response> {
         let expected = state.inner.config.identity.auth.scim.as_ref().map(|scim| &scim.token);
-        let sent = parts.headers
-            .get(header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.strip_prefix("Bearer "));
-        // Comparing digests keeps the comparison time independent of how
-        // much of the secret a guess gets right.
-        match (expected, sent) {
-            (Some(expected), Some(sent))
-                if sha256_hex(expected.as_bytes()) == sha256_hex(sent.trim().as_bytes()) =>
-            {
-                Ok(Self)
-            }
+        match expected {
+            Some(expected) if carries_bearer_secret(&parts.headers, expected) => Ok(Self),
             _ => Err(scim_error(StatusCode::UNAUTHORIZED, "a valid SCIM bearer token is required")),
         }
     }

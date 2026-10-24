@@ -41,6 +41,17 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> io::Result<File> {
     adopt(open_at(parent, &name, DIRECTORY_FLAGS, None))
 }
 
+/// Open `directory` again through itself, for a handle whose read position
+/// is its own.
+///
+/// `openat` resolves `.` from the directory a descriptor refers to rather
+/// than by walking its path, so the new handle is on the same directory
+/// even once a link stands in that path.
+pub(crate) fn reopen_directory(directory: &File) -> io::Result<File> {
+    let name = path_argument(OsStr::new("."))?;
+    adopt(open_at(directory, &name, DIRECTORY_FLAGS, None))
+}
+
 /// Open the directory `name` inside `parent` for traversal, falling back to
 /// a search-only handle for a directory whose mode denies reading it, and
 /// report which of the two was opened.

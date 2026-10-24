@@ -6,7 +6,7 @@ title: pnpm setup
 Installs the running pnpm into `PNPM_HOME` and adds it to `PATH`. The standalone installation scripts of pnpm run this command, for instance [https://get.pnpm.io/install.sh].
 
 ```sh
-pnpm setup [--force]
+pnpm setup [--force] [--no-modify-path]
 ```
 
 Setup does the following actions:
@@ -34,5 +34,11 @@ When running on GitHub Actions, `pnpm setup` also appends `PNPM_HOME` and the gl
 ### --force, -f
 
 Override the `PNPM_HOME` environment variable if it already exists.
+
+### --no-modify-path
+
+Install pnpm without adding it to `PATH`. The shell configuration file, the Windows registry, and the GitHub Actions environment files are left unchanged. `pnpm setup` prints the `PNPM_HOME` and `PATH` lines to add yourself.
+
+Use this when you manage your shell configuration yourself, or when pnpm is installed for a user that has no login shell, as in a container image.
 
 [https://get.pnpm.io/install.sh]: https://get.pnpm.io/install.sh

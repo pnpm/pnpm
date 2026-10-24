@@ -19,6 +19,9 @@
       "path": "../../config/reader"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
       "path": "../../core/error"
     },
     {

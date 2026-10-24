@@ -1,6 +1,6 @@
 use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, UserCreation, UserRemoval, params, retry_database_conflicts,
+    UserBackend, UserCreation, UserRemoval, first_row, params, retry_database_conflicts,
     schema::{ensure_user_counter, is_transaction_conflict, is_unique_violation},
     with_auth_timeout,
 };
@@ -651,4 +651,66 @@ async fn libsql_schema_migrations_refuses_future_version() {
         err_str.contains("newer than supported version"),
         "expected error about newer version, got: {err_str}",
     );
+}
+
+#[tokio::test]
+async fn reading_a_remote_row_keeps_the_connection_for_the_next_query() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let app = axum::Router::new()
+        .route("/v3/cursor", axum::routing::post(one_row_cursor))
+        .route("/v3/pipeline", axum::routing::post(describe_one_column));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let dials = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&dials);
+    let db = Builder::new_remote(format!("http://{address}"), String::new())
+        .connector(tower::service_fn(move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            tokio::net::TcpStream::connect(address)
+        }))
+        .build()
+        .await
+        .unwrap();
+    let conn = db.connect().unwrap();
+    for _ in 0..3 {
+        let rows = conn
+            .query("SELECT 1", ())
+            .await
+            .unwrap();
+        let value = first_row(rows, |row| Ok(row.get::<i64>(0)?)).await.unwrap();
+        assert_eq!(value, Some(1));
+    }
+    server.abort();
+    assert_eq!(dials.load(Ordering::SeqCst), 1);
+}
+
+/// The answer to the `describe` libsql sends before a query.
+async fn describe_one_column() -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({
+        "baton": null,
+        "base_url": null,
+        "results": [{"type": "ok", "response": {"type": "describe", "result": {
+            "params": [], "cols": [{"name": "1", "decltype": null}],
+            "is_explain": false, "is_readonly": true,
+        }}}],
+    }))
+}
+
+/// A Hrana cursor response with one row, streamed in chunks as sqld does.
+async fn one_row_cursor() -> axum::body::Body {
+    let entries = [
+        serde_json::json!({"baton": null, "base_url": null}),
+        serde_json::json!({"type": "step_begin", "step": 0, "cols": [{"name": "1"}]}),
+        serde_json::json!({"type": "row", "row": [{"type": "integer", "value": "1"}]}),
+        serde_json::json!({"type": "step_end", "affected_row_count": 0, "last_insert_rowid": null}),
+    ];
+    let lines = entries.map(|entry| Ok::<_, std::convert::Infallible>(format!("{entry}\n")));
+    axum::body::Body::from_stream(futures_util::stream::iter(lines))
 }

@@ -390,6 +390,64 @@ fn overlay_duplicate_version_across_layers_retains_maximum_weight() {
 }
 
 #[test]
+fn overlay_manifest_specifiers_preserves_ranges_and_bumps_matching_direct_versions() {
+    let manifest_layer =
+        PreferredVersionsOverlay::manifest_specifiers(PreferredVersions::from([(
+            "foo".to_string(),
+            VersionSelectors::from([
+                (
+                    "100.0.0".to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Version,
+                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                    }),
+                ),
+                (
+                    "~100.0.0".to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type: VersionSelectorType::Range,
+                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                    }),
+                ),
+            ]),
+        )]));
+    let direct_layer = PreferredVersionsOverlay::layer_direct(
+        manifest_layer,
+        BTreeMap::from([("foo".to_string(), vec!["100.0.0".to_string(), "100.1.0".to_string()])]),
+    );
+    let opts = ResolveOptions {
+        version: pnpm_resolving_resolver_base::VersionSelectionOptions {
+            preferred_versions_overlay: direct_layer,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    let merged = overlay_merged_selectors(&opts, "foo").expect("overlay merged foo");
+    assert_eq!(
+        merged.get("100.0.0"),
+        Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: 2 * DIRECT_DEP_SELECTOR_WEIGHT,
+        })),
+    );
+    assert_eq!(
+        merged.get("100.1.0"),
+        Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        })),
+    );
+    assert_eq!(
+        merged.get("~100.0.0"),
+        Some(&VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Range,
+            weight: DIRECT_DEP_SELECTOR_WEIGHT,
+        })),
+    );
+}
+
+#[test]
 fn current_version_preference_overrules_workspace_selectors_but_respects_the_range() {
     let mut opts = current_version_opts("2.1.3");
     let meta = make_package();

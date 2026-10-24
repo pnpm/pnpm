@@ -193,7 +193,7 @@ fn update_execution(update: &UpdateOptions<'_>) -> crate::InstallExecution {
     crate::InstallExecution {
         skip_runtimes: update.config.skip_runtimes,
         mutation: update_mutation(update.selection.packages, update.version.latest),
-        installs_only: true,
+        installs_only: false,
         node_linker: update.config.node_linker,
         lockfile_only: update.lockfile_only,
         dry_run: false,

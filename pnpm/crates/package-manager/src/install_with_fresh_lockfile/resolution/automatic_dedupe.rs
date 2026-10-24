@@ -121,6 +121,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
             lockfile_reuse_seed.is_some(),
         );
         dedupe.merge(stale_override_targets);
+        let own_manifest_specifiers = self.own_manifest_specifiers(importer_manifests);
         loop {
             let walk = self.workspace_walk(lockfile_reuse_seed.as_ref(), dedupe.clone());
             let result = resolve::run_dependency_pass::<Reporter>(resolve::ResolvePassInputs {
@@ -132,6 +133,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> super::ResolutionContext<'_, R
                     &shared_resolve_options,
                     &preferred_versions_seed,
                     &preferred_versions_seeds_by_importer,
+                    own_manifest_specifiers.as_ref(),
                 ),
             })
             .await?;

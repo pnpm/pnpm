@@ -27,8 +27,24 @@ pub(super) fn add_dir_to_posix_env_path(
     update_shell(current_shell.as_deref(), dir, opts)
 }
 
+/// The block `setup` writes to the config file of `shell`, or `None` for a shell
+/// it does not write to.
+pub(in crate::cli_args::setup) fn render_shell_settings(
+    shell: &str,
+    dir: &Path,
+    opts: &AddDirToEnvPathOpts,
+) -> Option<String> {
+    let dir = dir.to_string_lossy();
+    match shell {
+        "bash" | "zsh" | "ksh" | "dash" | "sh" => Some(render_posix_settings(&dir, opts)),
+        "fish" => Some(render_fish_settings(&dir, opts)),
+        "nu" => Some(render_nu_settings(&dir, opts)),
+        _ => None,
+    }
+}
+
 /// A shell-specific version variable wins, then the basename of `$SHELL`.
-fn detect_current_shell() -> Option<String> {
+pub(in crate::cli_args::setup) fn detect_current_shell() -> Option<String> {
     if std::env::var_os("ZSH_VERSION").is_some() {
         return Some("zsh".to_string());
     }

@@ -286,6 +286,36 @@ fn a_scim_token_must_be_long_and_stays_out_of_debug_output() {
 }
 
 #[test]
+fn metrics_are_off_by_default_and_need_a_long_token_or_a_listener() {
+    let load = |yaml: &str| Config::from_yaml_str(yaml, Path::new("/x"), listen(), None);
+    assert!(load("storage: ./s\n").unwrap().http.metrics.is_none());
+    for (yaml, field) in [
+        ("metrics: {}\n", "metrics needs"),
+        ("metrics:\n  token: short\n", "metrics.token"),
+        (format!("metrics:\n  token: '{}x'\n", " ".repeat(40)).as_str(), "metrics.token"),
+        (format!("metrics:\n  listen: {}\n", listen()).as_str(), "metrics.listen"),
+        (format!("metrics:\n  listen: 0.0.0.0:{}\n", listen().port()).as_str(), "metrics.listen"),
+        (format!("metrics:\n  token: {}\n", "é".repeat(16)).as_str(), "metrics.token"),
+    ] {
+        let err = load(yaml).expect_err(yaml);
+        assert!(
+            matches!(&err, RegistryError::InvalidConfig { reason } if reason.contains(field)),
+            "{err}",
+        );
+    }
+    let config = load("metrics:\n  listen: 127.0.0.1:9464\n").unwrap();
+    let metrics = config.http.metrics.expect("metrics is set");
+    assert_eq!(metrics.listen, Some("127.0.0.1:9464".parse().unwrap()));
+    assert_eq!(metrics.token, None);
+
+    let token = "a".repeat(crate::MetricsConfig::MIN_TOKEN_LEN);
+    let config = load(&format!("metrics:\n  token: {token}\n")).unwrap();
+    let metrics = config.http.metrics.expect("metrics is set");
+    assert_eq!(metrics.token.as_deref(), Some(token.as_str()));
+    assert!(!format!("{metrics:?}").contains(&token));
+}
+
+#[test]
 fn the_retired_per_surface_policies_are_refused() {
     for yaml in [
         "artifacts:\n  compilerCaches:\n    acme: { access: ci, publish: ci }\n",

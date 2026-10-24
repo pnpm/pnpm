@@ -6,12 +6,12 @@ use std::{
 
 use axum::{
     extract::State,
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use dashmap::DashMap;
 
-use super::AppState;
+use super::{AppState, authentication::carries_bearer_secret};
 
 pub(crate) const DURATION_BUCKETS: [f64; 11] =
     [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
@@ -222,11 +222,23 @@ impl ServerMetrics {
     }
 }
 
-/// Serve Prometheus metrics in standard text format.
-///
-/// Unauthenticated access is intentional to allow telemetry scrapers (such as
-/// Prometheus) to collect server metrics without credentials.
-pub(crate) async fn serve_metrics(State(state): State<AppState>) -> Response {
+/// Serve Prometheus metrics in standard text format, to a caller that sends
+/// `metrics.token` when one is configured.
+pub(crate) async fn serve_metrics(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let token = state.inner.config.http.metrics
+        .as_ref()
+        .and_then(|metrics| metrics.token.as_deref())
+        .map(str::trim);
+    if let Some(token) = token
+        && !carries_bearer_secret(&headers, token)
+    {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "a valid metrics bearer token is required",
+        )
+            .into_response();
+    }
     let rendered = state.inner.metrics.render_prometheus();
     (StatusCode::OK, [(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")], rendered)
         .into_response()

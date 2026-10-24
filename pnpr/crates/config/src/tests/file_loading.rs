@@ -507,6 +507,7 @@ fn secret_bearing_fields_reject_unresolved_env_vars() {
             "s3:\n  bucket: b\n  secretAccessKey: ${PNPR_TEST_UNRESOLVED_VAR_123}\n",
         ),
         ("auth.scim.token", "auth:\n  scim:\n    token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
+        ("metrics.token", "metrics:\n  token: ${PNPR_TEST_UNRESOLVED_VAR_123}\n"),
         (
             "auth.oidc.clientSecret",
             "auth:\n  oidc:\n    - name: idp\n      issuer: https://idp.test\n      audience: aud\n      login:\n        clientSecret: ${PNPR_TEST_UNRESOLVED_VAR_123}\n        users: []\n",

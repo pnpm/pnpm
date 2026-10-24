@@ -21,23 +21,21 @@ use std::{
 /// directory afterwards. Reading and removing at the same time leaves it
 /// unspecified whether an entry removed after the read began is reported.
 ///
-/// Each read starts from the beginning, and leaves `directory` positioned
-/// there.
+/// The stream reads a descriptor opened through `directory` rather than a
+/// duplicate of it. A duplicate would share `directory`'s read position, so
+/// two listings at once would consume each other's entries and each return
+/// part of the directory.
 pub fn directory_entry_names(directory: &File) -> io::Result<Vec<OsString>> {
     // `fdopendir` takes the descriptor over and `closedir` releases it, so
-    // the stream gets a duplicate and the caller keeps its handle.
-    let duplicate = directory.try_clone()?;
+    // the stream gets its own and the caller keeps their handle.
+    let own = crate::dir_handle::reopen_directory(directory)?;
     // SAFETY: the descriptor is an open directory, and it is released below
-    // by `closedir` rather than by `duplicate`, whose ownership is given up.
-    let stream = unsafe { libc::fdopendir(duplicate.as_raw_fd()) };
+    // by `closedir` rather than by `own`, whose ownership is given up.
+    let stream = unsafe { libc::fdopendir(own.as_raw_fd()) };
     if stream.is_null() {
         return Err(io::Error::last_os_error());
     }
-    let _ = duplicate.into_raw_fd();
-    // A duplicate shares its read position with the handle it came from, so
-    // a directory read once would otherwise read as empty the next time.
-    // SAFETY: `stream` came from `fdopendir` above and is open.
-    unsafe { libc::rewinddir(stream) };
+    let _ = own.into_raw_fd();
     let names = read_names(stream);
     // SAFETY: `stream` came from `fdopendir` above and is closed once.
     unsafe { libc::closedir(stream) };

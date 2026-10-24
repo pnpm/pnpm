@@ -587,6 +587,8 @@ Added in: v12.6.0
 
 When set to `true`, `pnpm install` and `pnpm add` deduplicate compatible dependency versions during installation. If a dependency appears at multiple versions and one version satisfies every range in the workspace, pnpm picks that version for all of them.
 
+When set to `false`, each project's dependencies resolve from its own ranges. For example, a project with `ajv: "*"` gets the latest Ajv even if another project depends on `ajv@^6`. Packages that a project lists in `peerDependencies` still follow the versions other projects use. Run [`pnpm dedupe`](../cli/dedupe.md) to make both projects use one version. Set `autoDedupe: true` if you check the lockfile with `pnpm dedupe --check`.
+
 Deduplication covers the whole workspace. A filtered command such as `pnpm --filter <project> add` can also change the lockfile entries of projects outside the filter. Those projects get the deduplicated versions linked on the next `pnpm install`.
 
 ```yaml title="pnpm-workspace.yaml"

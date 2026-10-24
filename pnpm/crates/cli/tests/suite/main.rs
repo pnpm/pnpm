@@ -115,6 +115,7 @@ mod manifest_creation;
 mod metadata_request_log;
 mod minimum_release_age;
 mod modules_dir;
+mod modules_dir_compatibility;
 mod modules_dir_with_subdirectory;
 mod multiple_importers;
 mod named_registry_install;

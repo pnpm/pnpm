@@ -248,7 +248,11 @@ fn app_with_trusted_proxies_and_token(
     app_with_config_and_token(config, raw, record)
 }
 
-fn app_with_config_and_token(config: Config, raw: &str, record: TokenRecord) -> axum::Router {
+pub(super) fn app_with_config_and_token(
+    config: Config,
+    raw: &str,
+    record: TokenRecord,
+) -> axum::Router {
     let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
     let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
     router_with_auth(config, auth)

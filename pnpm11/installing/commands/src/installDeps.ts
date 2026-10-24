@@ -183,7 +183,9 @@ export async function installDeps (
   if (opts.workspace) {
     applyWorkspaceOption(opts)
   }
-  const store = await createStoreController(opts)
+  // A copy, because the store controller writes the resolved store into its
+  // options, and the workspace state must record the configured `storeDir`.
+  const store = await createStoreController({ ...opts })
   const runPacquet = await createPacquetRunner(opts)
   const includeDirect = opts.includeDirect ?? {
     dependencies: true,

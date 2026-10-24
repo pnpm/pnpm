@@ -55,6 +55,7 @@ ssri = { workspace = true }
 
 [dev-dependencies]
 axum = { workspace = true, features = ["form", "json"] }
+futures-util = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
