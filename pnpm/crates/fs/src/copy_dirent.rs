@@ -41,7 +41,10 @@ fn copy_entry(src: &Path, dst: &Path, metadata: &fs::Metadata) -> io::Result<()>
         #[cfg(not(target_os = "wasi"))]
         return fs::set_permissions(dst, metadata.permissions());
         #[cfg(target_os = "wasi")]
-        return crate::file_mode::set_path_permissions(dst, crate::copy_permissions(src)?);
+        return crate::file_mode::set_path_permissions(
+            dst,
+            crate::FileMode::from_mode(crate::copy_permissions(src)?),
+        );
     }
     if !file_type.is_file() {
         return Err(io::Error::new(
