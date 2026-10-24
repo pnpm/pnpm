@@ -3,8 +3,7 @@
 use super::{
     Config, Cow, HashMap, HashSet, PackageKey, PackageVersionPolicy, PolicyMatch,
     VersionPolicyError, create_package_version_policy, expand_package_version_specs,
-    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, parse_name_version_from_key,
-    remove_suffix,
+    get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix,
 };
 
 /// Build policy derived from `allowBuilds` and
@@ -184,9 +183,10 @@ impl AllowBuildPolicy {
         let normalized_dep_path = normalize_build_dep_path(dep_path);
         let git_repo_key = git_repo_allow_build_key_from_dep_path(&normalized_dep_path);
         let git_repo_key = git_repo_key.as_deref();
-        let (name, version) = parse_name_version_from_key(&normalized_dep_path);
+        let package_key = normalized_dep_path.strip_prefix('/').unwrap_or(&normalized_dep_path);
+        let (name, version) = parse_dep_path_name_version(package_key).unwrap_or((package_key, ""));
         let name_at_version = format!("{name}@{version}");
-        if self.denies(&normalized_dep_path, git_repo_key, (&name, &name_at_version)) {
+        if self.denies(&normalized_dep_path, git_repo_key, (name, &name_at_version)) {
             return Some(false);
         }
         if self.dangerously_allow_all {
@@ -202,14 +202,14 @@ impl AllowBuildPolicy {
         // lockfile verification gate rejects lockfiles where such a key is
         // backed by a non-registry resolution, so by the time scripts can
         // run, the shape proves the artifact came from a registry.
-        if node_semver::Version::parse(&version).is_err() {
+        if node_semver::Version::parse(version).is_err() {
             return None;
         }
-        if self.expanded_allowed.contains(&name)
+        if self.expanded_allowed.contains(name)
             || self.expanded_allowed.contains(&name_at_version)
             || self.name_patterns.allowed
                 .as_ref()
-                .is_some_and(|patterns| patterns.covers_every_version(&name))
+                .is_some_and(|patterns| patterns.covers_every_version(name))
         {
             return Some(true);
         }
@@ -473,11 +473,10 @@ pub(crate) fn is_dep_path_allow_build_key(spec: &str) -> bool {
     if spec.contains("||") {
         return false;
     }
-    let (_, version) = parse_name_version_from_key(spec);
-    if version.is_empty() {
+    let Some((_, version)) = parse_dep_path_name_version(spec) else {
         return !spec.starts_with('@') && (spec.contains('/') || spec.contains(':'));
-    }
-    node_semver::Version::parse(&version).is_err() && is_source_like_dep_path_version(&version)
+    };
+    node_semver::Version::parse(version).is_err() && is_source_like_dep_path_version(version)
 }
 
 pub(crate) fn is_source_like_dep_path_version(version: &str) -> bool {
