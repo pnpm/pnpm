@@ -6,7 +6,9 @@ import { assertStore } from '@pnpm/assert-store'
 import { STORE_VERSION } from '@pnpm/constants'
 import { dlx } from '@pnpm/exec.commands'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
+import { getFilePathByModeInCafs, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { store } from '@pnpm/store.commands'
+import { StoreIndex } from '@pnpm/store.index'
 import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { rimrafSync } from '@zkochan/rimraf'
 import { safeExeca as execa } from 'execa'
@@ -786,4 +788,99 @@ test('prune keeps the lockfile verification log', async () => {
   }, ['prune'])
 
   expect(fs.existsSync(verificationLog)).toBeTruthy()
+})
+
+describe('prune keeps the packages that a registered project still uses', () => {
+  // The patch adds a file, so it is cached as a side-effects entry of the row.
+  const MARKER_PATCH = [
+    'diff --git a/patched-marker.txt b/patched-marker.txt',
+    'new file mode 100644',
+    'index 0000000..3f2e1d4',
+    '--- /dev/null',
+    '+++ b/patched-marker.txt',
+    '@@ -0,0 +1 @@',
+    '+patched',
+    '',
+  ].join('\n')
+
+  function prepareProject (workspaceYaml: string): void {
+    prepare({
+      dependencies: {
+        '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        'is-positive': '1.0.0',
+      },
+    })
+    fs.writeFileSync('pnpm-workspace.yaml', workspaceYaml)
+  }
+
+  // The store is outside the project, so the install registers the project.
+  async function install (): Promise<string> {
+    const storeDir = path.resolve('..', 'store')
+    await execa('node', [pnpmBin, 'install', `--store-dir=${storeDir}`, `--cache-dir=${path.resolve('..', 'cache')}`, `--registry=${REGISTRY}`])
+    return path.join(storeDir, STORE_VERSION)
+  }
+
+  async function prune (storeDir: string): Promise<void> {
+    await store.handler({
+      cacheDir: path.resolve('..', 'cache'),
+      dir: process.cwd(),
+      pnpmHomeDir: '',
+      configByUri: {},
+      registriesByScope: { default: REGISTRY },
+      storeDir,
+      dlxCacheMaxAge: Infinity,
+      virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+    }, ['prune'])
+  }
+
+  function withStoreIndex<Result> (storeDir: string, read: (storeIndex: StoreIndex) => Result): Result {
+    const storeIndex = new StoreIndex(storeDir)
+    try {
+      return read(storeIndex)
+    } finally {
+      storeIndex.close()
+    }
+  }
+
+  function sortedIndexKeys (storeDir: string): string[] {
+    return withStoreIndex(storeDir, (storeIndex) => Array.from(storeIndex.keys()).sort())
+  }
+
+  test('a patched dependency installed with packageImportMethod: hardlink', async () => {
+    // A patched package gets its own copy of the files even under `hardlink`,
+    // so no store file of it has a hard link outside the store.
+    prepareProject('packageImportMethod: hardlink\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n')
+    fs.mkdirSync('patches')
+    fs.writeFileSync('patches/is-positive@1.0.0.patch', MARKER_PATCH)
+    const storeDir = await install()
+    const row = withStoreIndex(storeDir, (storeIndex) => {
+      const key = Array.from(storeIndex.keys()).find((key) => key.endsWith('\tis-positive@1.0.0'))!
+      return storeIndex.get(key) as PackageFilesIndex
+    })
+    const sideEffects = Array.from(row.sideEffects?.entries() ?? [])
+    expect(sideEffects.filter(([key]) => key.includes(';patch='))).toHaveLength(1)
+    const blobPaths = [
+      ...row.files.values(),
+      ...sideEffects.flatMap(([, diff]) => Array.from(diff.added?.values() ?? [])),
+    ].map(({ digest, mode }) => getFilePathByModeInCafs(storeDir, digest, mode))
+    const keysBefore = sortedIndexKeys(storeDir)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
+  })
+
+  test('every package installed with packageImportMethod: copy', async () => {
+    // No store file has a hard link outside the store, so the hard-link
+    // count alone marks every package unused.
+    prepareProject('packageImportMethod: copy\n')
+    const storeDir = await install()
+    const keysBefore = sortedIndexKeys(storeDir)
+    expect(keysBefore.length).toBeGreaterThan(1)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+  })
 })

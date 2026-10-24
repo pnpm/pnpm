@@ -37,6 +37,15 @@
       "path": "../../installing/package-requester"
     },
     {
+      "path": "../../lockfile/fs"
+    },
+    {
+      "path": "../../lockfile/types"
+    },
+    {
+      "path": "../../lockfile/utils"
+    },
+    {
       "path": "../../resolving/resolver-base"
     },
     {

@@ -5,6 +5,7 @@ import { afterEach, expect, jest, test } from '@jest/globals'
 import { StoreIndex } from '@pnpm/store.index'
 import { temporaryDirectory } from 'tempy'
 
+import { registerProject } from '../src/storeController/projectRegistry.js'
 import { prune } from '../src/storeController/prune.js'
 
 const temporaryDirectories: string[] = []
@@ -122,6 +123,20 @@ test('prune propagates unexpected spill directory errors', async () => {
   const error = Object.assign(new Error('access denied'), { code: 'EACCES' })
   jest.spyOn(fs, 'lstat').mockRejectedValueOnce(error)
   await expect(prune(options)).rejects.toBe(error)
+})
+
+test('prune fails before it removes anything when a registered project has a broken installed lockfile', async () => {
+  const options = createPruneOptions()
+  const projectDir = path.join(options.cacheDir, '..', 'project')
+  await fs.mkdir(path.join(projectDir, 'node_modules', '.pnpm'), { recursive: true })
+  await fs.writeFile(path.join(projectDir, 'node_modules', '.pnpm', 'lock.yaml'), 'packages: [')
+  await registerProject(options.storeDir, projectDir)
+  const unusedFile = path.join(options.storeDir, 'files', '00', 'unused')
+  await fs.mkdir(path.dirname(unusedFile), { recursive: true })
+  await fs.writeFile(unusedFile, 'unused')
+
+  await expect(prune(options)).rejects.toMatchObject({ code: 'ERR_PNPM_STORE_DIR_PRUNE_IN_USE_FILES' })
+  expect(await fs.readFile(unusedFile, 'utf8')).toBe('unused')
 })
 
 function createPruneOptions () {
