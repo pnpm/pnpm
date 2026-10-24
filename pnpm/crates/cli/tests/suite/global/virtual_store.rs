@@ -152,11 +152,16 @@ fn global_add_keeps_a_group_local_virtual_store_when_the_project_type_is_set() {
 
         command.assert().success();
 
-        assert!(
-            slots(&npmrc_info.store_dir, PKG).is_empty(),
-            "{opt_out:?}: no slot in the global virtual store",
-        );
         let install_dir = install_dir_of(&pnpm_home, PKG);
+        let linked = fs::canonicalize(pnpm_fs::join_slash_separated_path(
+            &install_dir.join("node_modules"),
+            PKG,
+        ))
+        .expect("resolve the group's direct dependency");
+        assert!(
+            linked.starts_with(&install_dir),
+            "{opt_out:?}: {PKG} must resolve inside the group, got {linked:?}",
+        );
         assert!(
             has_local_slot(&install_dir, PKG),
             "{opt_out:?}: the group must keep its own virtual store",
@@ -182,12 +187,17 @@ fn store_prune_after_global_remove_keeps_only_the_slots_other_groups_use() {
         .with_args(["remove", "-g", PARENT])
         .assert()
         .success();
-    global_command(&workspace, &pnpm_home)
+    let prune = global_command(&workspace, &pnpm_home)
         .with_args(["store", "prune"])
-        .assert()
-        .success();
+        .output()
+        .expect("run store prune");
+    let stderr = String::from_utf8_lossy(&prune.stderr);
+    assert!(prune.status.success(), "store prune failed: {stderr}");
 
-    assert!(slots(&npmrc_info.store_dir, PARENT).is_empty(), "prune must remove {PARENT}'s slot");
+    assert!(
+        slots(&npmrc_info.store_dir, PARENT).is_empty(),
+        "prune must remove {PARENT}'s slot: {stderr}",
+    );
     assert_eq!(slots(&npmrc_info.store_dir, PKG), pkg_slots, "prune must keep {PKG}'s slot");
     assert_eq!(slots(&npmrc_info.store_dir, DEP), dep_slots, "prune must keep {DEP}'s slot");
 
