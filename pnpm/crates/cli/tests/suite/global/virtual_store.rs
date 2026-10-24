@@ -1,7 +1,10 @@
 //! Global groups link their packages from the global virtual store at
 //! `<storeDir>/links` unless `virtualStoreType` says otherwise.
 
-use super::{CommandExtra, CommandTempCwd, Path, PathBuf, fs, global_command, prepare_global_home};
+use super::{
+    AddMockedRegistry, CommandExtra, CommandTempCwd, Path, PathBuf, fs, global_command,
+    prepare_global_home,
+};
 use assert_cmd::assert::OutputAssertExt;
 use pnpm_store_dir::STORE_VERSION;
 
@@ -47,6 +50,23 @@ fn has_local_slot(install_dir: &Path, name: &str) -> bool {
         })
 }
 
+/// [`prepare_global_home`] with the store spelled canonically, like the pnpm
+/// home [`global_command`] passes. The store's project registry links each
+/// group by a relative path, which only resolves when both ends use the same
+/// spelling of a symlinked ancestor such as macOS's `/var`.
+fn prepare_canonical_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
+    prepare_global_home(pnpm_home, npmrc_info);
+    fs::create_dir_all(&npmrc_info.store_dir).expect("create the store dir");
+    let store_dir = fs::canonicalize(&npmrc_info.store_dir).expect("resolve the store dir");
+    let workspace_yaml = pnpm_home.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&workspace_yaml).expect("read the pnpm-home workspace yaml");
+    let yaml = yaml.replace(
+        &format!("storeDir: {}", npmrc_info.store_dir.display()),
+        &format!("storeDir: {}", store_dir.display()),
+    );
+    fs::write(&workspace_yaml, yaml).expect("write the pnpm-home workspace yaml");
+}
+
 fn global_add(workspace: &Path, pnpm_home: &Path, package: &str) {
     global_command(workspace, pnpm_home)
         .with_args(["add", "-g", package])
@@ -73,7 +93,7 @@ fn global_add_links_packages_from_the_global_virtual_store() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
-    prepare_global_home(&pnpm_home, &npmrc_info);
+    prepare_canonical_global_home(&pnpm_home, &npmrc_info);
 
     global_add(&workspace, &pnpm_home, PKG);
 
@@ -100,7 +120,7 @@ fn global_groups_share_the_slots_of_a_common_dependency() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
-    prepare_global_home(&pnpm_home, &npmrc_info);
+    prepare_canonical_global_home(&pnpm_home, &npmrc_info);
 
     global_add(&workspace, &pnpm_home, PKG);
     let pkg_slots = slots(&npmrc_info.store_dir, PKG);
@@ -136,7 +156,7 @@ fn global_add_keeps_a_group_local_virtual_store_when_the_project_type_is_set() {
         let CommandTempCwd { root, workspace, npmrc_info, .. } =
             CommandTempCwd::init().add_mocked_registry();
         let pnpm_home = root.path().join("pnpm-home");
-        prepare_global_home(&pnpm_home, &npmrc_info);
+        prepare_canonical_global_home(&pnpm_home, &npmrc_info);
         let mut command = global_command(&workspace, &pnpm_home).with_args(["add", "-g", PKG]);
         match opt_out {
             OptOut::PnpmHomeYaml => {
@@ -176,7 +196,7 @@ fn store_prune_after_global_remove_keeps_only_the_slots_other_groups_use() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let pnpm_home = root.path().join("pnpm-home");
-    prepare_global_home(&pnpm_home, &npmrc_info);
+    prepare_canonical_global_home(&pnpm_home, &npmrc_info);
     global_add(&workspace, &pnpm_home, PKG);
     global_add(&workspace, &pnpm_home, PARENT);
     let pkg_slots = slots(&npmrc_info.store_dir, PKG);
