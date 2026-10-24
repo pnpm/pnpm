@@ -73,3 +73,30 @@ fn only_prefixes_from_the_workspace_yaml_are_declared() {
     assert_eq!(config.declared_registry_prefix("https://npm.mine.example.com/"), None);
     assert!(config.registries_by_prefix.contains_key("mine"), "global aliases still resolve");
 }
+
+#[test]
+fn a_workspace_alias_overrides_a_global_alias_of_the_same_name() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "namedRegistries:\n  work: https://registry.npmjs.org/\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        format!("namedRegistries:\n  work: {WORK}\n"),
+    )
+    .expect("write workspace yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registries_by_prefix.get("work").map(String::as_str), Some(WORK));
+    assert_eq!(config.declared_registry_prefix(WORK), Some("work"));
+    assert_eq!(config.declared_registry_prefix("https://registry.npmjs.org/"), None);
+}

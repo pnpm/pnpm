@@ -202,10 +202,11 @@ async function readAndCheckManifest (
   const { manifest: dirManifest } = await tryReadProjectManifest(dependencyDir)
   if (dirManifest?.name && dirManifest?.version) {
     // A manifest read from disk says nothing about registries; the prefix is
-    // that of the workspace project of the same name and version.
+    // that of the workspace project in that directory, else of the one of the
+    // same name and version.
     return {
       manifest: dirManifest,
-      registryPrefix: getWorkspacePackage?.(dirManifest.name, dirManifest.version)?.registryPrefix,
+      registryPrefix: getWorkspacePackage?.(dirManifest.name, dirManifest.version, dependencyDir)?.registryPrefix,
     }
   }
   const lookupName = targetPkgName ?? depName
