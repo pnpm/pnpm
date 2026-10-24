@@ -6,7 +6,7 @@ use std::{
 
 use axum::{
     extract::{ConnectInfo, FromRequestParts, Request, State},
-    http::{Method, request::Parts},
+    http::{HeaderMap, Method, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -20,6 +20,21 @@ use super::{
     AppState, PeerAddr, RegistrySource, restrictions::check_token_restrictions,
     single_authorization_header,
 };
+
+/// Whether `headers` carry `Authorization: Bearer <expected>`, for an
+/// endpoint authenticated by a configured secret instead of a user token.
+/// Comparing digests keeps the comparison time independent of how much of
+/// the secret a guess gets right.
+pub(super) fn carries_bearer_secret(headers: &HeaderMap, expected: &str) -> bool {
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .is_some_and(|sent| {
+            super::ecosystem::sha256_hex(expected.as_bytes())
+                == super::ecosystem::sha256_hex(sent.trim().as_bytes())
+        })
+}
 
 /// What the caller is trying to do with a package. Drives which
 /// rule from the access policy applies.

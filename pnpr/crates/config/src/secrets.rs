@@ -139,6 +139,9 @@ fn validate_auth_secrets<Sys: EnvVar>(val: &serde_json::Value) -> Result<(), Reg
     if let Some(token) = val.pointer("/auth/scim/token").and_then(serde_json::Value::as_str) {
         check_secret_env_field::<Sys>("auth.scim.token", token)?;
     }
+    if let Some(token) = val.pointer("/metrics/token").and_then(serde_json::Value::as_str) {
+        check_secret_env_field::<Sys>("metrics.token", token)?;
+    }
     let Some(oidc) = val.pointer("/auth/oidc").and_then(serde_json::Value::as_array) else {
         return Ok(());
     };
