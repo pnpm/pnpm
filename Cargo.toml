@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["pnpm/crates/*", "pnpm/tasks/*", "pnpr/crates/*"]
-exclude = ["vendor/libsql", "vendor/tar"]
+exclude = ["vendor/tar"]
 
 [workspace.package]
 authors = ["Yagiz Nizipli <yagiz@nizipli.com"]
@@ -291,7 +291,7 @@ mockito = { version = "1.7.2" }
 tar = { path = "vendor/tar" }
 # Reuses HTTP connections after a cursor query. Drop once a release carries
 # <https://github.com/tursodatabase/libsql/pull/2301>.
-libsql = { path = "vendor/libsql" }
+libsql = { git = "https://github.com/pnpm/libsql", rev = "4943f79046d6d6ff7617d6a573f1d51e8709e2b2" }
 node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "3d74d6b7f4de1de2006cf2f7663aac09de65b1f6" }
 # Adds the `nightly` feature. Drop once an upstream release carries it.
 # See <https://github.com/pnpm/pnpm/pull/16951>.
