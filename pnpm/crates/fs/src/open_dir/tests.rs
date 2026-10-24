@@ -2,7 +2,7 @@
 
 use super::OpenDir;
 use crate::symlink_dir;
-use std::{ffi::OsString, fs, io, path::Path};
+use std::{fs, io, path::Path};
 use tempfile::tempdir;
 
 fn create_tree(root: &Path) {
@@ -10,15 +10,6 @@ fn create_tree(root: &Path) {
     fs::write(root.join("real/metadata/registry/pkg.json"), "{}").unwrap();
     fs::write(root.join("real/file"), "").unwrap();
     symlink_dir(&root.join("real"), &root.join("link")).unwrap();
-}
-
-fn sorted(names: Vec<OsString>) -> Vec<String> {
-    let mut names: Vec<String> = names
-        .into_iter()
-        .map(|name| name.into_string().unwrap())
-        .collect();
-    names.sort();
-    names
 }
 
 fn names(dir: &Path) -> Vec<String> {
@@ -96,7 +87,10 @@ fn entry_names_lists_the_children_without_the_dot_entries() {
     create_tree(root.path());
     let dir = OpenDir::open(&root.path().join("real")).unwrap();
 
-    assert_eq!(sorted(dir.entry_names().unwrap()), ["file", "metadata"]);
+    let mut names = dir.entry_names().unwrap();
+    names.sort();
+
+    assert_eq!(names, ["file", "metadata"]);
 }
 
 /// A listing reads through a duplicate of the held descriptor, which
@@ -108,8 +102,10 @@ fn entry_names_lists_the_same_names_when_called_again() {
     create_tree(root.path());
     let dir = OpenDir::open(&root.path().join("real")).unwrap();
 
-    let first = sorted(dir.entry_names().unwrap());
-    let second = sorted(dir.entry_names().unwrap());
+    let mut first = dir.entry_names().unwrap();
+    let mut second = dir.entry_names().unwrap();
+    first.sort();
+    second.sort();
 
     assert_eq!(first, ["file", "metadata"]);
     assert_eq!(second, first);
@@ -198,7 +194,10 @@ fn entry_names_ignores_a_link_substituted_after_the_open() {
     let dir = OpenDir::open(&root.path().join("real")).unwrap();
     substitute_real(root.path());
 
-    assert_eq!(sorted(dir.entry_names().unwrap()), ["file", "metadata"]);
+    let mut names = dir.entry_names().unwrap();
+    names.sort();
+
+    assert_eq!(names, ["file", "metadata"]);
 }
 
 /// Same race one level up: the parent is replaced after the open, and a
