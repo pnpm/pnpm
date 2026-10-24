@@ -1,4 +1,5 @@
 use crate::{PruneError, StoreDir};
+use pipe_trait::Pipe;
 use pnpm_fs::OpenDir;
 use std::{
     io::{self, ErrorKind},
@@ -94,10 +95,11 @@ fn holds_any(dir: &Path, protected: &[PathBuf]) -> bool {
 /// are skipped.
 fn child_names(dir: &OpenDir) -> Result<Vec<String>, PruneError> {
     let names = dir.entry_names().map_err(|error| read_error(dir.path(), error))?;
-    Ok(names
+    names
         .into_iter()
         .filter_map(|name| name.into_string().ok())
-        .collect())
+        .collect::<Vec<_>>()
+        .pipe(Ok)
 }
 
 fn read_error(path: &Path, error: io::Error) -> PruneError {
