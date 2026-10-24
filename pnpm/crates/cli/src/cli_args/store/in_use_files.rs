@@ -5,12 +5,13 @@
 
 use pnpm_deps_restorer::{binary_store_index_key, store_index_key_for_resolution};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
+use pnpm_modules_yaml::{Host, read_modules_layout};
 use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, PruneError, StoreDir, StoreIndex, get_registered_projects,
 };
 use std::{
     collections::HashSet,
-    io,
+    io, iter,
     path::{Path, PathBuf},
 };
 
@@ -25,7 +26,7 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
     }
     let mut keys = HashSet::new();
     for project in get_registered_projects(store_dir).map_err(PruneError::ListProjects)? {
-        if let Some(lockfile) = load_installed_lockfile(&project).map_err(PruneError::InUseFiles)? {
+        for lockfile in load_installed_lockfiles(&project).map_err(PruneError::InUseFiles)? {
             keys.extend(package_index_keys(&lockfile).map_err(PruneError::InUseFiles)?);
         }
     }
@@ -43,14 +44,32 @@ pub(super) fn in_use_files(store_dir: &StoreDir) -> Result<HashSet<PathBuf>, Pru
         .collect())
 }
 
-/// The lockfile the last install wrote into the project's
-/// `node_modules`, which records what is installed there.
-fn load_installed_lockfile(project: &Path) -> io::Result<Option<Lockfile>> {
-    // A project with a custom modules directory has no lockfile here, so
-    // only their hard links keep its packages.
-    let install_state_dir = project.join("node_modules").join(".pnpm");
-    Lockfile::load_current_from_install_state_dir(&install_state_dir)
-        .map_err(|error| io::Error::other(format!("{}: {error}", install_state_dir.display())))
+/// The lockfiles the last install wrote, which record what is installed in
+/// the project.
+///
+/// The install writes the lockfile to `node_modules/.pnpm`, or to the
+/// `virtualStoreDir` that `node_modules/.modules.yaml` records when the
+/// project sets one. Under a global virtual store, that setting names the
+/// shared store and the lockfile stays in `node_modules/.pnpm`. The
+/// manifest does not say which case applies, so the prune reads both.
+fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
+    // A project with a custom modules directory has no manifest or lockfile
+    // here, so only their hard links keep its packages.
+    let modules_dir = project.join("node_modules");
+    let default_dir = modules_dir.join(".pnpm");
+    let virtual_store_dir = read_modules_layout::<Host>(&modules_dir)
+        .map_err(io::Error::other)?
+        .map(|layout| PathBuf::from(layout.virtual_store_dir))
+        .filter(|dir| *dir != default_dir);
+    let mut lockfiles = Vec::new();
+    for install_state_dir in iter::once(default_dir).chain(virtual_store_dir) {
+        let lockfile = Lockfile::load_current_from_install_state_dir(&install_state_dir)
+            .map_err(|error| {
+                io::Error::other(format!("{}: {error}", install_state_dir.display()))
+            })?;
+        lockfiles.extend(lockfile);
+    }
+    Ok(lockfiles)
 }
 
 fn package_index_keys(lockfile: &Lockfile) -> io::Result<Vec<String>> {

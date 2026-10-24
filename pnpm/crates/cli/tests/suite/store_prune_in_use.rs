@@ -164,6 +164,18 @@ fn store_prune_keeps_the_files_of_a_patched_dependency() {
 /// the store, so the hard-link count alone marks every package unused.
 #[test]
 fn store_prune_keeps_every_package_installed_by_copy() {
+    assert_prune_keeps_every_package_installed_by_copy("", "node_modules/.pnpm/lock.yaml");
+}
+
+#[test]
+fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_virtual_store_dir() {
+    assert_prune_keeps_every_package_installed_by_copy("virtualStoreDir: vs\n", "vs/lock.yaml");
+}
+
+fn assert_prune_keeps_every_package_installed_by_copy(
+    workspace_yaml: &str,
+    installed_lockfile: &str,
+) {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..
     } = CommandTempCwd::init().add_mocked_registry();
@@ -174,10 +186,15 @@ fn store_prune_keeps_every_package_installed_by_copy() {
     } = npmrc_info;
     write_manifest(&workspace);
     append_workspace_yaml(&workspace, "packageImportMethod: copy\n");
+    append_workspace_yaml(&workspace, workspace_yaml);
     pacquet_at(&workspace)
         .with_args(["install", "--reporter=silent"])
         .assert()
         .success();
+    assert!(
+        workspace.join(installed_lockfile).is_file(),
+        "the install must write {installed_lockfile}",
+    );
 
     let store_dir = StoreDir::new(store_dir);
     let keys_before = sorted_index_keys(&store_dir);
@@ -234,6 +251,18 @@ fn store_prune_keeps_a_runtime_installed_by_copy() {
 
 #[test]
 fn store_prune_fails_on_a_broken_installed_lockfile_and_removes_nothing() {
+    assert_prune_fails_on_a_broken_file_and_removes_nothing(
+        "node_modules/.pnpm/lock.yaml",
+        "packages: [",
+    );
+}
+
+#[test]
+fn store_prune_fails_on_a_broken_modules_manifest_and_removes_nothing() {
+    assert_prune_fails_on_a_broken_file_and_removes_nothing("node_modules/.modules.yaml", "{");
+}
+
+fn assert_prune_fails_on_a_broken_file_and_removes_nothing(file: &str, content: &str) {
     let CommandTempCwd {
         root: _root, workspace, npmrc_info, ..
     } = CommandTempCwd::init().add_mocked_registry();
@@ -248,8 +277,7 @@ fn store_prune_fails_on_a_broken_installed_lockfile_and_removes_nothing() {
         .with_args(["install", "--reporter=silent"])
         .assert()
         .success();
-    fs::write(workspace.join("node_modules/.pnpm/lock.yaml"), "packages: [")
-        .expect("break the installed lockfile");
+    fs::write(workspace.join(file), content).expect("break the file");
     let store_dir = StoreDir::new(store_dir);
     let keys_before = sorted_index_keys(&store_dir);
 
