@@ -19,6 +19,9 @@
       "path": "../../catalogs/types"
     },
     {
+      "path": "../../config/normalize-registries"
+    },
+    {
       "path": "../../config/parse-overrides"
     },
     {

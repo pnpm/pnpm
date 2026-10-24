@@ -389,6 +389,73 @@ describe('checkDepsStatus - settings change detection', () => {
 
     expect(result.issue).not.toBe('The value of the enableGlobalVirtualStore setting has changed')
   })
+
+  it.each([
+    ['nothing was recorded and a prefix is declared now', undefined, { work: 'https://npm.example.test/' }],
+    ['the recorded prefixes differ from the declared ones', { work: 'https://npm.example.test/' }, { zeta: 'https://npm.example.test/' }],
+    ['prefixes were recorded and none is declared now', { work: 'https://npm.example.test/' }, undefined],
+  ])('returns upToDate: false when %s', async (_label, registryPrefixes, registriesByPrefix) => {
+    // A state written without proof that the lockfile keys carry the declared
+    // prefixes cannot skip the install that re-keys them.
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        registryPrefixes,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the registryPrefixes setting has changed')
+  })
+
+  it.each([
+    ['no prefix is declared or recorded', undefined, undefined],
+    ['an empty prefix map is declared', undefined, {}],
+    ['the recorded prefixes are the declared ones', { work: 'https://npm.example.test/' }, { work: 'https://npm.example.test/' }],
+  ])('does not report a registryPrefixes change when %s', async (_label, registryPrefixes, registriesByPrefix) => {
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        registryPrefixes,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
+  })
 })
 
 describe('checkDepsStatus - pnpmfile modification', () => {

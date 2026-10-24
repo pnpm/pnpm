@@ -4,6 +4,8 @@ use super::{
     RegistryDeclaration, RegistryLookups, ResolutionMode, UpdateSettings, full_metadata_policy,
     registries,
 };
+use pnpm_lockfile::{DeclaredRegistryPrefixes, RegistryContext};
+use std::collections::HashMap;
 
 impl Config {
     /// The resolved retry policy for metadata and artifact requests.
@@ -320,6 +322,45 @@ impl Config {
                 server_type,
             )
         })
+    }
+
+    /// Every prefix a `<prefix>:` specifier may name: the declared ones over
+    /// the [`BUILTIN_REGISTRIES_BY_PREFIX`] aliases, unvalidated. The resolver
+    /// chain validates the declared URLs when it is built.
+    #[must_use]
+    pub fn merged_registries_by_prefix(&self) -> HashMap<String, String> {
+        BUILTIN_REGISTRIES_BY_PREFIX
+            .iter()
+            .map(|(prefix, registry)| ((*prefix).to_string(), (*registry).to_string()))
+            .chain(
+                self.registries_by_prefix
+                    .iter()
+                    .map(|(prefix, registry)| (prefix.clone(), registry.clone())),
+            )
+            .collect()
+    }
+
+    /// The prefixes the project declares, which qualify the lockfile keys of
+    /// the packages resolved from their registries. See
+    /// [`DeclaredRegistryPrefixes`].
+    #[must_use]
+    pub fn declared_registry_prefixes(&self) -> DeclaredRegistryPrefixes {
+        DeclaredRegistryPrefixes::new(&self.registries_by_prefix)
+    }
+
+    /// How a package's registry is decided and what it serves, for the
+    /// layers that read and write lockfile keys.
+    #[must_use]
+    pub fn registry_context(&self) -> RegistryContext {
+        RegistryContext {
+            registries: self
+                .resolved_registries()
+                .into_iter()
+                .collect(),
+            registries_by_prefix: self.merged_registries_by_prefix(),
+            declared_prefixes: self.declared_registry_prefixes(),
+            registry_options_by_url: self.registry_options_by_url.clone(),
+        }
     }
 
     /// Registry map in pnpm's `Registries` shape: `default` plus the

@@ -206,7 +206,7 @@ pub(super) fn child_wanted(
         ..WantedDependency::default()
     };
     let mut prior = scope.prior_children_snapshot.and_then(|snapshot| {
-        prior_child_key(snapshot, alias, bare_specifier)
+        prior_child_key(snapshot, alias, bare_specifier, &ctx.workspace.cache.registry_context)
     });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = key.suffix

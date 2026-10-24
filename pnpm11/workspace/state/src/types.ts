@@ -127,4 +127,13 @@ export type WorkspaceStateSettings = Pick<Config, typeof WORKSPACE_STATE_SETTING
    * a setting change.
    */
   autoDedupe?: boolean
+  /**
+   * The prefixes `registries` and `namedRegistries` declare, which decide the
+   * lockfile keys of the packages resolved from their registries. Recorded
+   * only when there are any, and only by an install that verified the keys of
+   * the lockfile it left behind, so a state written under other prefixes, by
+   * a frozen install of an older lockfile, or by an older pnpm proves nothing
+   * about the lockfile's keys.
+   */
+  registryPrefixes?: Record<string, string>
 }

@@ -337,6 +337,14 @@ pub(super) async fn check_lockfile_freshness(
 ) -> Result<Vec<UnresolvedOptionalDependency>, FreshnessCheckError> {
     let parsed_overrides_opt = settings::check_settings(lockfile, inputs).await?;
 
+    // A frozen install keeps the keys the lockfile records; a rebuild only
+    // builds them. Any other install writes the current keys, so it resolves
+    // when the recorded ones are not those.
+    if !inputs.scope.frozen_lockfile && !inputs.scope.patches_only {
+        pnpm_lockfile::check_lockfile_registry_keys(lockfile, &inputs.config.registry_context())
+            .map_err(FreshnessCheckError::Stale)?;
+    }
+
     if inputs.scope.ignore_manifest_check {
         return Ok(Vec::new());
     }
@@ -376,11 +384,13 @@ fn check_importer_freshness(
             .iter()
             .map(|(dir, manifest)| (dir.clone(), manifest)),
     );
+    let registries = inputs.config.registry_context();
     let workspace = WorkspaceProjects {
         packages: inputs.workspace_packages,
         manifests_by_dir: &project_manifests,
         catalogs: inputs.catalogs,
         canonical_paths: &pnpm_fs::CanonicalPaths::default(),
+        registries: &registries,
     };
     // Each importer's check reads only shared references, so a
     // workspace-scale importer list fans out across the rayon pool; the

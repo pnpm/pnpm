@@ -139,12 +139,19 @@ pub fn create_configured_registry_resolver(
     policy: &PickPolicy,
 ) -> Result<DefaultResolver, MergeNamedRegistriesError> {
     let npm = create_configured_npm_resolver(config, http_client, policy)?;
+    let registries_by_prefix = merge_named_registries(
+        &config.registries_by_prefix
+            .clone()
+            .into_iter()
+            .collect(),
+    )?;
     let named = NamedRegistryResolver {
-        registry_names: npm.registries_by_prefix
+        registry_names: registries_by_prefix
             .keys()
             .cloned()
             .collect(),
-        registries_by_prefix: npm.registries_by_prefix.clone(),
+        registries_by_prefix,
+        declared_prefixes: npm.declared_prefixes.clone(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(&npm.metadata.http_client),
             auth_headers: Arc::clone(&npm.metadata.auth_headers),
@@ -171,18 +178,12 @@ fn create_configured_npm_resolver(
     http_client: Arc<ThrottledClient>,
     policy: &PickPolicy,
 ) -> Result<NpmResolver<InMemoryPackageMetaCache>, MergeNamedRegistriesError> {
-    let registries_by_prefix = merge_named_registries(
-        &config.registries_by_prefix
-            .clone()
-            .into_iter()
-            .collect(),
-    )?;
     Ok(NpmResolver {
         registries: config
             .resolved_registries()
             .into_iter()
             .collect(),
-        registries_by_prefix,
+        declared_prefixes: config.declared_registry_prefixes(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client,
             auth_headers: Arc::clone(&config.auth_headers),

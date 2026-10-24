@@ -22,7 +22,9 @@ pub use recorded_settings::{
 };
 pub use spec_diff::SpecDiff;
 
-use crate::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
+use crate::{
+    Lockfile, ProjectSnapshot, RegistryContext, ResolvedDependencyMap, ResolvedDependencySpec,
+};
 use derive_more::{Display, Error};
 use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -151,6 +153,12 @@ pub enum StalenessReason {
         "the importer resolution is broken at dependency {name:?}: version {version:?} doesn't satisfy range {range:?}"
     )]
     ResolutionDoesNotSatisfy { name: String, version: String, range: String },
+
+    /// A `packages:` key is not the one the registry configuration writes
+    /// for its package: the registry it resolved from declares a prefix the
+    /// key does not carry. See [`RegistryContext::rekeyed`].
+    #[display("the lockfile records `{key}`, which the registries setting now keys as `{current}`")]
+    OutdatedRegistryKey { key: String, current: String },
 
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
@@ -351,6 +359,7 @@ impl StalenessReason {
             | StalenessReason::DependenciesMetaMismatch { .. }
             | StalenessReason::DepSpecifierMismatch { .. }
             | StalenessReason::ResolutionDoesNotSatisfy { .. }
+            | StalenessReason::OutdatedRegistryKey { .. }
             | StalenessReason::LocalDependencyOutdated { .. } => None,
         }
     }
@@ -384,6 +393,39 @@ pub fn check_lockfile_settings(
     // from the config is re-resolved either way, so running this first would
     // only risk naming the wrong reason.
     check_patched_dep_paths(lockfile)
+}
+
+/// Every `packages:` key must be the one the registry configuration writes
+/// for its package (see [`RegistryContext::rekeyed`]), so that a resolving
+/// install merges the entries an older pnpm, or an older registry
+/// configuration, keyed apart. A frozen install does not run this: it
+/// installs what the lockfile records, keys included.
+///
+/// Reports the smallest outdated key, so the reason is stable across runs.
+pub fn check_lockfile_registry_keys(
+    lockfile: &Lockfile,
+    registries: &RegistryContext,
+) -> Result<(), StalenessReason> {
+    if registries.declared_prefixes.is_empty() {
+        return Ok(());
+    }
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Ok(());
+    };
+    let outdated = packages
+        .keys()
+        .filter_map(|key| {
+            registries
+                .rekeyed(key)
+                .map(|current| (key.to_string(), current))
+        })
+        .min_by(|(left, _), (right, _)| left.cmp(right));
+    match outdated {
+        Some((key, current)) => {
+            Err(StalenessReason::OutdatedRegistryKey { key, current: current.to_string() })
+        }
+        None => Ok(()),
+    }
 }
 
 /// The part of [`check_lockfile_settings`] that decides what a build of the

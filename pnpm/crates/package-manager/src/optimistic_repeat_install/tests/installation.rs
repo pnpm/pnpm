@@ -438,6 +438,50 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
+/// A state written before a registry prefix was declared, or by a pnpm that
+/// did not key lockfile entries by it, proves nothing about the lockfile's
+/// keys, so the install resolves and re-keys them.
+#[test]
+fn returns_skipped_when_the_declared_registry_prefixes_drift() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.registries_by_prefix.insert("work".to_string(), "https://npm.example.test/".to_string());
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    let stale_settings = current_settings(
+        &stale_config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
+
+    let decision = check(
+        workspace_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
 /// Drift in `minimumReleaseAgeIgnoreMissingTime` invalidates the cached
 /// state. pnpm resolves it to a concrete `true` default and records it,
 /// so pacquet records and compares it too.

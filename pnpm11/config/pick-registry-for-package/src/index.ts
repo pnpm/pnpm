@@ -36,17 +36,8 @@ export function namedRegistryTarballPrefixes (registriesByPrefix: RegistriesByPr
   if (prefixes) return prefixes
 
   prefixes = Object.values(registriesByPrefix)
-    .map((url) => {
-      let parsed: URL
-      try {
-        parsed = new URL(url)
-      } catch {
-        return null
-      }
-      // Trailing slash so `https://npm.pkg.github.com-evil/` cannot match.
-      const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
-      return `${parsed.origin}${pathname}`
-    })
+    // The key ends in a slash, so `https://npm.pkg.github.com-evil/` cannot match.
+    .map((url) => normalizeRegistryKey(url))
     .filter((prefix): prefix is string => prefix != null)
     // Tie-break equal lengths so the order does not depend on key order.
     .sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0))
@@ -55,3 +46,72 @@ export function namedRegistryTarballPrefixes (registriesByPrefix: RegistriesByPr
 }
 
 const tarballPrefixesCache = new WeakMap<RegistriesByPrefix, readonly string[]>()
+
+/**
+ * A registry URL as the server sees it, for telling two spellings of one
+ * registry from two registries: the scheme and host case-insensitive, the
+ * path as written and ending in a slash. `undefined` for a URL that does not
+ * parse.
+ */
+export function normalizeRegistryKey (registry: string): string | undefined {
+  let parsed: URL
+  try {
+    parsed = new URL(registry)
+  } catch {
+    return undefined
+  }
+  const pathname = parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`
+  return `${parsed.origin}${pathname}`
+}
+
+/**
+ * Whether two registry URLs name one registry, compared by
+ * {@link normalizeRegistryKey}, or as written when either does not parse.
+ */
+export function isSameRegistry (left: string, right: string): boolean {
+  const leftKey = normalizeRegistryKey(left)
+  const rightKey = normalizeRegistryKey(right)
+  return leftKey != null && rightKey != null ? leftKey === rightKey : left === right
+}
+
+/**
+ * The prefix the lockfile key of a package resolved from `registry` carries,
+ * so the key names the registry the package resolved from rather than the way
+ * its dependency was written.
+ *
+ * Only a prefix the project declares qualifies keys, through
+ * `registries.<url>.prefix` or `namedRegistries`: `declaredRegistriesByPrefix`
+ * is that map as the user wrote it, without the built-in aliases, which
+ * qualify only the specifiers that spell them. When several declared prefixes
+ * name one registry, the lexicographically smallest one is picked. A prefix
+ * whose URL does not parse names no registry.
+ */
+export function pickDeclaredRegistryPrefix (
+  declaredRegistriesByPrefix: Record<string, string> | undefined,
+  registry: string
+): string | undefined {
+  // Asked once per resolved package, and most projects declare no prefix.
+  if (declaredRegistriesByPrefix == null || Object.keys(declaredRegistriesByPrefix).length === 0) return undefined
+  const registryKey = normalizeRegistryKey(registry)
+  if (registryKey == null) return undefined
+  return getDeclaredPrefixByRegistry(declaredRegistriesByPrefix).get(registryKey)
+}
+
+function getDeclaredPrefixByRegistry (declaredRegistriesByPrefix: Record<string, string>): ReadonlyMap<string, string> {
+  let prefixByRegistry = declaredPrefixByRegistryCache.get(declaredRegistriesByPrefix)
+  if (prefixByRegistry != null) return prefixByRegistry
+  const smallestPrefixByRegistry = new Map<string, string>()
+  for (const [prefix, registry] of Object.entries(declaredRegistriesByPrefix)) {
+    const registryKey = normalizeRegistryKey(registry)
+    if (registryKey == null) continue
+    const smallest = smallestPrefixByRegistry.get(registryKey)
+    if (smallest == null || prefix < smallest) {
+      smallestPrefixByRegistry.set(registryKey, prefix)
+    }
+  }
+  prefixByRegistry = smallestPrefixByRegistry
+  declaredPrefixByRegistryCache.set(declaredRegistriesByPrefix, prefixByRegistry)
+  return prefixByRegistry
+}
+
+const declaredPrefixByRegistryCache = new WeakMap<Record<string, string>, ReadonlyMap<string, string>>()
