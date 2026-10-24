@@ -14,6 +14,7 @@ import {
   type WorkspaceState,
 } from '@pnpm/workspace.state'
 
+import { storeBaseDir } from './storeBaseDir.js'
 import type { CheckDepsStatusOptions } from './types.js'
 
 /** Whether a project is still proven installed. */
@@ -163,6 +164,7 @@ export async function recordValidatedWorkspaceState (
   await updateWorkspaceState({
     allProjects,
     workspaceDir: lockfileDir,
+    storeBaseDir: storeBaseDir(opts, lockfileDir),
     pnpmfiles: workspaceState.pnpmfiles,
     settings: {
       ...opts,

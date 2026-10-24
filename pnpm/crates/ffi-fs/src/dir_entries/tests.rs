@@ -43,6 +43,29 @@ fn the_handle_survives_the_read() {
     assert_eq!(sorted(&directory), ["file"], "the second read sees the same names");
 }
 
+fn assert_every_listing_is_whole(directory: &fs::File) {
+    for _ in 0..200 {
+        assert_eq!(sorted(directory), ["file", "inside"]);
+    }
+}
+
+/// A duplicate of the handle would share its read position, so listings
+/// that overlap would consume each other's entries. The stream reads a
+/// descriptor opened through the handle instead.
+#[test]
+fn a_listing_is_whole_when_listings_overlap() {
+    let fixture = tempfile::tempdir().expect("a temporary directory");
+    fs::write(fixture.path().join("file"), b"x").expect("write the file");
+    fs::create_dir(fixture.path().join("inside")).expect("create inside");
+    let directory = fs::File::open(fixture.path()).expect("open the fixture");
+
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| assert_every_listing_is_whole(&directory));
+        }
+    });
+}
+
 /// A name `readdir` reports is one component, which is what
 /// `open_directory_at` and `unlink_at` accept.
 #[test]

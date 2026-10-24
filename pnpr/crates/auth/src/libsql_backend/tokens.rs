@@ -1,4 +1,4 @@
-use super::{LibsqlAuth, RegistryError, Result, Row, TokenBackend, TokenRecord, params};
+use super::{LibsqlAuth, RegistryError, Result, Row, TokenBackend, TokenRecord, first_row, params};
 use crate::{
     NewToken,
     token_store::{mint_token, sha256_hex, unix_seconds},
@@ -70,17 +70,14 @@ impl TokenBackend for LibsqlAuth {
         let token_hash = sha256_hex(raw.as_bytes());
         let now = unix_seconds();
         self.pool.read(|conn| async move {
-            let mut rows = conn
+            let rows = conn
                 .query(
                     "SELECT t.username, t.expires_at FROM tokens t JOIN users u ON u.username = t.username
                      WHERE t.token_hash = ?1",
                     params![token_hash],
                 )
                 .await?;
-            match rows.next().await? {
-                Some(row) => unexpired_owner(&row, now),
-                None => Ok(None),
-            }
+            Ok(first_row(rows, |row| unexpired_owner(row, now)).await?.flatten())
         })
         .await
     }
@@ -93,11 +90,9 @@ impl TokenBackend for LibsqlAuth {
         );
         let now = unix_seconds();
         self.pool.read(|conn| async move {
-            let mut rows = conn.query(&query, params![token_hash]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(unexpired(row_to_keyed_record(&row)?.1, now)),
-                None => Ok(None),
-            }
+            let rows = conn.query(&query, params![token_hash]).await?;
+            let record = first_row(rows, |row| Ok(row_to_keyed_record(row)?.1)).await?;
+            Ok(record.and_then(|record| unexpired(record, now)))
         })
         .await
     }
@@ -105,11 +100,8 @@ impl TokenBackend for LibsqlAuth {
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
         self.pool.read(|conn| async move {
-            let mut rows = conn.query(&query, params![key]).await?;
-            match rows.next().await? {
-                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-                None => Ok(None),
-            }
+            let rows = conn.query(&query, params![key]).await?;
+            first_row(rows, |row| Ok(row_to_keyed_record(row)?.1)).await
         })
         .await
     }
@@ -194,10 +186,10 @@ impl LibsqlAuth {
             return Ok(false);
         }
         self.pool.read(|conn| async move {
-            let mut rows =
+            let rows =
                 conn.query("SELECT 1 FROM tokens WHERE username = ?1 LIMIT 1", params![username])
                     .await?;
-            Ok(rows.next().await?.is_some())
+            Ok(first_row(rows, |_| Ok(())).await?.is_some())
         })
         .await
     }

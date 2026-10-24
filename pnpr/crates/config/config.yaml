@@ -21,6 +21,11 @@ storage: ./storage
 #  - 10.0.0.0/8
 #trustedProxyHeader: x-forwarded-for
 
+# Prometheus metrics (not served unless this block is present).
+#metrics:
+#  token: ${PNPR_METRICS_TOKEN}   # scrapers send it as a bearer token
+#  listen: 127.0.0.1:9464         # serve metrics only on this address
+
 # S3-compatible object store for hosted packages.
 #s3:
 #  bucket: my-pnpr-packages

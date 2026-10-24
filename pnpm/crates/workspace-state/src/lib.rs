@@ -278,6 +278,11 @@ pub struct WorkspaceStateSettings {
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,
+    /// The store directory a configured `storeDir` resolves to, recorded
+    /// only when set. The modules directory is linked from the store it was
+    /// installed with, so a change must reach the install that recreates it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_dir: Option<String>,
     /// The `supportedArchitectures` the install ran with, as pnpm's
     /// config JSON (`{ os, cpu, libc }`). A change must invalidate the
     /// repeat-install fast path so previously skipped platform packages
@@ -299,6 +304,10 @@ pub struct WorkspaceStateSettings {
     pub side_effects_cache_exclude: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust_policy_ignore_after: Option<u64>,
+    /// The directory a configured `virtualStoreDir` resolves to, recorded
+    /// only when set, for the reason given on [`Self::store_dir`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_store_dir: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_package_patterns: Option<Vec<String>>,
 }

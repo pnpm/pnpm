@@ -16,8 +16,9 @@
 //! above it accepts a hard link. The store then goes to
 //! `<pkg_root>/node_modules/.pnpm-store`, where the project's VCS
 //! ignores it — deliberately not the `<pkg_root>/.pnpm-store` pnpm 11
-//! uses, so a project installed with both CLIs reports
-//! `ERR_PNPM_UNEXPECTED_STORE` once and reinstalls.
+//! uses. A project switched between both CLIs fails `pnpm add`,
+//! `pnpm remove`, and `pnpm update` with `ERR_PNPM_UNEXPECTED_STORE` until
+//! `pnpm install` recreates its modules directory.
 //!
 //! Without this detection a developer with a separate
 //! case-sensitive workspace volume (for example

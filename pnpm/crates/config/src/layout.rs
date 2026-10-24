@@ -588,7 +588,7 @@ impl Config {
     /// [`Self::install_state_dir`]. This is the `virtualStoreDir` pnpm
     /// records in `.modules.yaml` and emits in the `pnpm:context` event, so
     /// reading the install state directory instead makes the next install
-    /// fail with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR`.
+    /// fail with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE`.
     pub fn virtual_store_dir(&self) -> &Path {
         if self.enable_global_virtual_store {
             &self.global_virtual_store_dir

@@ -163,7 +163,7 @@ use self::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
         resolve_publish_target_for, serve_batch_publish, stage_publish, validate_publish_doc,
     },
-    routing::router_with_auth_and_osv,
+    routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
 };
 
 use axum::{
@@ -298,6 +298,7 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
     // `serve`/`serve_listener`.
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
+    config.http.ensure_valid_metrics()?;
     let osv_index = load_active_osv_index(&config)?;
     router_with_auth_and_osv(config, auth, osv_index)
 }

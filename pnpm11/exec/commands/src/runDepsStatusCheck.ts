@@ -41,8 +41,9 @@ export async function runDepsStatusCheck (commandOpts: RunDepsStatusCheckOptions
   const opts: RunDepsStatusCheckOptions = {
     ...commandOpts,
     // the following flags are always the default values during `pnpm run` and `pnpm exec`,
-    // so they may not match the workspace state after `pnpm install --prod|--no-optional`
-    ignoredWorkspaceStateSettings: ['dev', 'optional', 'production'] satisfies Array<keyof WorkspaceStateSettings>,
+    // so they may not match the workspace state after `pnpm install --prod|--no-optional`.
+    // A script also runs the same from whichever store `node_modules` was linked from.
+    ignoredWorkspaceStateSettings: ['dev', 'optional', 'production', 'storeDir', 'virtualStoreDir'] satisfies Array<keyof WorkspaceStateSettings>,
     selectedProjectsGraph: await selectProjectsToVerify(commandOpts),
   }
 

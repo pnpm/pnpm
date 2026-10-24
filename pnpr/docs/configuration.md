@@ -881,7 +881,29 @@ Audit events record the `action`, the `actor` (the authenticated username, `"sci
 
 ### Prometheus metrics
 
-pnpr serves Prometheus metrics at `GET /-/metrics` (and `GET /metrics` for scrapers) in standard Prometheus text format (`text/plain; version=0.0.4`). Requests to `GET /metrics` carrying npm packument `Accept` headers receive the `metrics` package packument instead. Like health endpoints (`/-/ping`, `/-/ready`, `/-/live`), the metrics endpoints are intentionally unauthenticated to support telemetry scrapers:
+pnpr serves Prometheus metrics in the standard text format (`text/plain; version=0.0.4`) only when the config has a `metrics` block. The block needs a `token`, a `listen` address, or both:
+
+```yaml title="pnpr.yaml"
+metrics:
+  token: ${PNPR_METRICS_TOKEN}
+  listen: 127.0.0.1:9464
+```
+
+- `token`: the bearer token a scraper sends, at least 32 characters. Without `listen`, pnpr serves metrics at `GET /-/metrics` and `GET /metrics` on its main address, and refuses a request without the token with `401`.
+- `listen`: an address for a second listener that serves only `GET /metrics`. The main address then serves no metrics. Expose the main address and keep this one on a private network. With `token` set, the second listener requires it too.
+
+A Prometheus scrape job sends the token with `authorization`:
+
+```yaml title="prometheus.yml"
+scrape_configs:
+  - job_name: pnpr
+    authorization:
+      credentials_file: /etc/prometheus/pnpr-metrics-token
+    static_configs:
+      - targets: ["pnpr.internal:9464"]
+```
+
+The metrics are:
 
 - `pnpr_http_requests_in_flight` (gauge): number of requests currently being handled.
 - `pnpr_http_requests_total` (counter): requests served, labelled by `method` (normalized to standard HTTP methods or `OTHER`) and `status`.

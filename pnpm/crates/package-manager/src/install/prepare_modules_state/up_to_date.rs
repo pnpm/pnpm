@@ -268,7 +268,7 @@ pub(super) fn refresh_up_to_date_workspace<Reporter: self::Reporter>(
         ),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: context.carried_state.recorded_auto_dedupe,
-            kept_groups: None,
+            kept_settings: None,
         },
         vouched: &crate::optimistic_repeat_install::validation::Vouched::All,
     });

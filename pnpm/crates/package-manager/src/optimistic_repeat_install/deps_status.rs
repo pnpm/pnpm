@@ -67,7 +67,9 @@ pub fn check_deps_status_before_run(
     } else {
         Scope::Selected(selected_project_dirs)
     };
-    let mut ignored_settings = vec!["dev", "optional", "production"];
+    // A script runs the same from whichever store `node_modules` was linked
+    // from; only an install has to act on a store location change.
+    let mut ignored_settings = vec!["dev", "optional", "production", "storeDir", "virtualStoreDir"];
     if install_would_run_frozen(check) {
         ignored_settings.push("autoDedupe");
     }

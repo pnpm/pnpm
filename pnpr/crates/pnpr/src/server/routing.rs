@@ -56,6 +56,16 @@ pub(super) fn router_with_auth_and_osv(
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 ) -> pnpr_error::Result<Router> {
+    state_and_router(config, auth, osv_index).map(|(_, router)| router)
+}
+
+/// The main router and the state it serves, which [`metrics_listener_router`]
+/// shares.
+pub(super) fn state_and_router(
+    config: Config,
+    auth: AuthState,
+    osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
+) -> pnpr_error::Result<(AppState, Router)> {
     let cors_origins = cors_origins(&config)?;
     let surfaces = EnabledSurfaces {
         resolver: config.features.resolver.enabled,
@@ -65,7 +75,8 @@ pub(super) fn router_with_auth_and_osv(
     };
     let ui_dir = if surfaces.registry { super::web_ui::locate(&config.http.ui)? } else { None };
     let state = AppState { inner: Arc::new(AppInner::new(config, auth, osv_index)?) };
-    finish_router(state, surfaces, cors_origins, ui_dir.as_deref())
+    let router = finish_router(state.clone(), surfaces, cors_origins, ui_dir.as_deref())?;
+    Ok((state, router))
 }
 
 fn finish_router(
@@ -86,7 +97,8 @@ fn finish_router(
         // restricted token is rejected before a write handler buffers its
         // up-to-100-MiB body), and stash the identity for handlers to read.
         // Inside the trace layer below, so a rejection is still one record.
-        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate));
+        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
+        .merge(main_listener_metrics_routes(&state));
     let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout);
     if !cors_origins.is_empty() {
         router = router.layer(
@@ -110,6 +122,47 @@ fn finish_router(
         );
     }
     Ok(with_observability_layers(router, state.clone()).with_state(state))
+}
+
+/// Health probes, each with a `/~<name>/`-addressed twin.
+fn probe_routes() -> Router<AppState> {
+    let mut router: Router<AppState> = Router::new();
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        router = router
+            .route(&path("/-/ping"), get(serve_ping))
+            .route(&path("/-/ready"), get(serve_ready))
+            .route(&path("/-/live"), get(serve_live));
+    }
+    router
+}
+
+/// The main listener's metrics routes, each with a `/~<name>/`-addressed twin.
+/// It serves them only to a scraper that sends `metrics.token`, and never when
+/// `metrics.listen` gives them their own listener. They sit outside
+/// [`authenticate`], so a scrape never looks its token up as a user token and
+/// still answers while the auth backend is down.
+fn main_listener_metrics_routes(state: &AppState) -> Router<AppState> {
+    let served = state.inner.config.http.metrics
+        .as_ref()
+        .is_some_and(|metrics| metrics.token.is_some() && metrics.listen.is_none());
+    let mut router: Router<AppState> = Router::new();
+    if served {
+        for base in ["", "/~{registry}"] {
+            router = router
+                .route(&format!("{base}/-/metrics"), get(serve_metrics))
+                .route(&format!("{base}/metrics"), get(serve_metrics));
+        }
+    }
+    router
+}
+
+/// The router for `metrics.listen`, sharing `state` with the main router so
+/// both report the same counters, with the main router's access log and
+/// request IDs.
+pub(super) fn metrics_listener_router(state: AppState) -> Router {
+    let router = Router::new().route("/metrics", get(serve_metrics));
+    with_observability_layers(router, state.clone()).with_state(state)
 }
 
 fn apply_request_timeout(
@@ -167,16 +220,7 @@ fn surface_routes(
     // The configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router: Router<AppState> = Router::new();
-    for base in ["", "/~{registry}"] {
-        let path = |tail: &str| format!("{base}{tail}");
-        router = router
-            .route(&path("/-/ping"), get(serve_ping))
-            .route(&path("/-/ready"), get(serve_ready))
-            .route(&path("/-/live"), get(serve_live))
-            .route(&path("/-/metrics"), get(serve_metrics))
-            .route(&path("/metrics"), get(serve_metrics));
-    }
+    let mut router = probe_routes();
     router = router
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())

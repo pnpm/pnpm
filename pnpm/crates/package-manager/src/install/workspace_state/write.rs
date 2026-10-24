@@ -27,9 +27,9 @@ pub(crate) struct StateWrite<'a> {
 pub(crate) struct CarriedSettings<'a> {
     /// The dedupe baseline this write knows of, per [`recorded_auto_dedupe`].
     pub(crate) established_auto_dedupe: Option<bool>,
-    /// The recorded dependency groups to keep instead of the run's, for a
-    /// writer that ignored group drift.
-    pub(crate) kept_groups: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
+    /// The recorded dependency groups and store location to keep instead of
+    /// the run's, for a writer that ignored their drift.
+    pub(crate) kept_settings: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
 }
 
 /// The workspace state `write` records. Every writer goes through here, so a
@@ -47,10 +47,12 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
     );
     state.settings.auto_dedupe =
         recorded_auto_dedupe(write.config, write.carried.established_auto_dedupe);
-    if let Some(kept) = write.carried.kept_groups {
+    if let Some(kept) = write.carried.kept_settings {
         state.settings.dev = kept.dev;
         state.settings.optional = kept.optional;
         state.settings.production = kept.production;
+        state.settings.store_dir.clone_from(&kept.store_dir);
+        state.settings.virtual_store_dir.clone_from(&kept.virtual_store_dir);
     }
     crate::optimistic_repeat_install::validation::record_validation(
         &mut state,
