@@ -71,3 +71,9 @@ pub struct SideEffectsOutput {
     pub maps: SideEffectsMapsBySnapshot,
     pub diffs: SideEffectsBySnapshot,
 }
+
+impl From<super::partition::PartitionSideEffects> for SideEffectsOutput {
+    fn from(value: super::partition::PartitionSideEffects) -> Self {
+        Self { maps: value.maps, diffs: value.diffs }
+    }
+}
