@@ -13,7 +13,9 @@ impl WorkspaceSettings {
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
-    pub fn apply_to(mut self, config: &mut Config, base_dir: &Path) {
+    ///
+    /// Answers the registry prefixes this layer declared and `config` kept.
+    pub fn apply_to(mut self, config: &mut Config, base_dir: &Path) -> BTreeSet<String> {
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
@@ -81,11 +83,12 @@ impl WorkspaceSettings {
         self.apply_optional_settings(config);
 
         self.apply_path_settings(config, base_dir);
-        self.apply_registry_settings(config);
+        let registry_prefixes = self.apply_registry_settings(config);
         self.apply_project_settings(config, base_dir);
         self.apply_process_settings(config);
         self.apply_resolution_settings(config, base_dir);
         self.apply_policy_settings(config, audit_level_in_yaml, audit_config_in_yaml);
+        registry_prefixes
     }
 
     /// The `nodePackageMap` section is applied after its deprecated
@@ -186,7 +189,8 @@ impl WorkspaceSettings {
     }
 
     /// Registry endpoints, their credentials, and the caches keyed by them.
-    pub(super) fn apply_registry_settings(&mut self, config: &mut Config) {
+    /// Answers the prefixes this layer declared.
+    pub(super) fn apply_registry_settings(&mut self, config: &mut Config) -> BTreeSet<String> {
         self.apply_tls_to(&mut config.tls);
         let declared_prefixes = self.apply_registry_declarations(config);
         if let Some(v) = self.registry.take() {
@@ -204,7 +208,11 @@ impl WorkspaceSettings {
             config.remote_cache.get_or_insert_default().overlay(remote);
         }
         self.apply_side_effects_cache(config);
-        self.apply_named_registries(config, &declared_prefixes);
+        let named_prefixes = self.apply_named_registries(config, &declared_prefixes);
+        declared_prefixes
+            .into_iter()
+            .chain(named_prefixes)
+            .collect()
     }
 
     /// The `registries` declarations, answering the prefixes they declared.
@@ -274,15 +282,17 @@ impl WorkspaceSettings {
 
     /// A prefix a `registries` entry of the same layer declares wins:
     /// `namedRegistries` is the deprecated spelling of the same thing. A prefix
-    /// from an earlier layer is overridden, as any later setting is.
+    /// from an earlier layer is overridden, as any later setting is. Answers
+    /// the aliases applied.
     pub(super) fn apply_named_registries(
         &mut self,
         config: &mut Config,
         declared_prefixes: &BTreeSet<String>,
-    ) {
+    ) -> Vec<String> {
         let Some(named) = self.named_registries.take() else {
-            return;
+            return Vec::new();
         };
+        let mut applied = Vec::new();
         if !declared_prefixes.is_empty() {
             tracing::warn!(
                 target: "pacquet::config",
@@ -302,9 +312,11 @@ impl WorkspaceSettings {
                 continue;
             }
             if !declared_prefixes.contains(&name) {
-                config.registries_by_prefix.insert(name, registry);
+                config.registries_by_prefix.insert(name.clone(), registry);
+                applied.push(name);
             }
         }
+        applied
     }
 
     /// Settings describing the projects themselves: hooks, patches, build
