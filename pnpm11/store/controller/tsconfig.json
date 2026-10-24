@@ -13,6 +13,9 @@
       "path": "../../__utils__/prepare"
     },
     {
+      "path": "../../core/constants"
+    },
+    {
       "path": "../../core/error"
     },
     {

@@ -1,4 +1,5 @@
 ---
+"@pnpm/lockfile.fs": patch
 "@pnpm/store.controller": patch
 "pnpm": patch
 "pacquet": patch

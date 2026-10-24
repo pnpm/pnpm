@@ -820,13 +820,14 @@ describe('prune keeps the packages that a registered project still uses', () => 
     return path.join(storeDir, STORE_VERSION)
   }
 
-  async function prune (storeDir: string): Promise<void> {
+  async function prune (storeDir: string, reporter?: (logObj: unknown) => void): Promise<void> {
     await store.handler({
       cacheDir: path.resolve('..', 'cache'),
       dir: process.cwd(),
       pnpmHomeDir: '',
       configByUri: {},
       registriesByScope: { default: REGISTRY },
+      reporter,
       storeDir,
       dlxCacheMaxAge: Infinity,
       virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
@@ -961,5 +962,37 @@ describe('prune keeps the packages that a registered project still uses', () => 
 
     expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
     expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
+  })
+
+  test('a project installed with an unsupported lockfile version is skipped with a warning', async () => {
+    prepareProject('packageImportMethod: copy\n')
+    const storeDir = await install()
+    // A lockfile written by a pnpm that uses another lockfile format, such as pnpm 8.
+    fs.writeFileSync('node_modules/.pnpm/lock.yaml', [
+      "lockfileVersion: '6.0'",
+      '',
+      'dependencies:',
+      '  is-positive:',
+      '    specifier: 1.0.0',
+      '    version: 1.0.0',
+      '',
+      'packages:',
+      '',
+      '  /is-positive@1.0.0:',
+      `    resolution: {integrity: ${getIntegrity('is-positive', '1.0.0')}}`,
+      '    dev: false',
+      '',
+    ].join('\n'))
+    const reporter = jest.fn()
+
+    await prune(storeDir, reporter)
+
+    const warnings = reporter.mock.calls
+      .map(([logObj]) => logObj as { level?: string, message?: string })
+      .filter(({ level }) => level === 'warn')
+      .map(({ message }) => message)
+    expect(warnings).toStrictEqual([
+      `Skipped ${process.cwd()} because it was installed with lockfileVersion 6.0, which this version of pnpm does not support`,
+    ])
   })
 })

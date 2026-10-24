@@ -10173,6 +10173,9 @@ importers:
 
   pnpm11/store/controller:
     dependencies:
+      '@pnpm/constants':
+        specifier: workspace:*
+        version: link:../../core/constants
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash

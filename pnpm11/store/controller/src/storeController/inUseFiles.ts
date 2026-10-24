@@ -1,10 +1,12 @@
 import path from 'node:path'
 
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { isError, PnpmError } from '@pnpm/error'
 import { type Modules, readModulesManifest } from '@pnpm/installing.modules-yaml'
 import { readCurrentLockfile } from '@pnpm/lockfile.fs'
 import type { LockfileObject, LockfileResolution } from '@pnpm/lockfile.types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile.utils'
+import { globalWarn } from '@pnpm/logger'
 import { getFilePathByModeInCafs, type PackageFileInfo, type PackageFilesIndex } from '@pnpm/store.cafs'
 import { gitHostedStoreIndexKey, pickStoreIndexKey, type StoreIndex, storeIndexKey } from '@pnpm/store.index'
 import type { DepPath } from '@pnpm/types'
@@ -16,8 +18,9 @@ import { getRegisteredProjects } from './projectRegistry.js'
  * project's installed lockfile, including the files of every side-effects
  * entry. A package imported by copy or clone, such as a patched or built
  * one, has no hard link to the store, so the prune needs this list to keep
- * it. A project without an installed lockfile and a package without a row
- * add nothing.
+ * it. A project without an installed lockfile, a project whose lockfile
+ * version this pnpm does not support, and a package without a row add
+ * nothing.
  */
 export async function getInUseFiles (storeDir: string, storeIndex: StoreIndex): Promise<Set<string>> {
   const projects = await getRegisteredProjects(storeDir)
@@ -95,7 +98,7 @@ async function readInstalledLockfiles (projectDir: string): Promise<LockfileObje
   const defaultDir = path.join(modulesDir, '.pnpm')
   const modules = await readModulesManifestOfProject(modulesDir)
   const installStateDirs = new Set([defaultDir, modules?.virtualStoreDir ?? defaultDir])
-  const lockfiles = await Promise.all(Array.from(installStateDirs, readInstalledLockfile))
+  const lockfiles = await Promise.all(Array.from(installStateDirs, async (installStateDir) => readInstalledLockfile(projectDir, installStateDir)))
   return lockfiles.filter((lockfile) => lockfile != null)
 }
 
@@ -107,12 +110,28 @@ async function readModulesManifestOfProject (modulesDir: string): Promise<Module
   }
 }
 
-async function readInstalledLockfile (installStateDir: string): Promise<LockfileObject | null> {
+/**
+ * A lockfile of a version this pnpm cannot read adds nothing, like a
+ * missing one, so one project installed by another pnpm does not stop the
+ * prune. A pnpm with another lockfile format keeps its files in another
+ * store directory.
+ */
+async function readInstalledLockfile (projectDir: string, installStateDir: string): Promise<LockfileObject | null> {
   try {
-    return await readCurrentLockfile(installStateDir, { ignoreIncompatible: false })
+    return await readCurrentLockfile(installStateDir, { ignoreIncompatible: false, wantedVersions: [LOCKFILE_VERSION] })
   } catch (err: unknown) {
+    const lockfileVersion = unsupportedLockfileVersion(err)
+    if (lockfileVersion != null) {
+      globalWarn(`Skipped ${projectDir} because it was installed with lockfileVersion ${lockfileVersion}, which this version of pnpm does not support`)
+      return null
+    }
     throw inUseFilesError(installStateDir, err)
   }
+}
+
+function unsupportedLockfileVersion (err: unknown): string | undefined {
+  if (!isError(err) || !('code' in err) || err.code !== 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE') return undefined
+  return (err as { lockfileVersion?: string }).lockfileVersion
 }
 
 function inUseFilesError (location: string, err: unknown): PnpmError {
