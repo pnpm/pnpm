@@ -112,11 +112,19 @@ pub(in super::super) fn record_direct_dep_versions(
     }
 }
 
+/// `level` holds resolved key suffixes, so a package from a registry that
+/// declares a prefix arrives as `<prefix>:<version>`.
 fn extend_parsed_versions(by_name: &mut DirectDepVersions, level: &BTreeMap<String, Vec<String>>) {
     for (name, level_versions) in level {
         let bucket = by_name.entry(name.clone()).or_default();
         for version in level_versions {
-            let Ok(parsed) = version.parse::<node_semver::Version>() else { continue };
+            let Some(parsed) = version
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .ok()
+                .and_then(|ver_peer| ver_peer.registry_version().cloned())
+            else {
+                continue;
+            };
             if !bucket.contains(&parsed) {
                 bucket.push(parsed);
             }
