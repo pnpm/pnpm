@@ -14,14 +14,11 @@ impl ListArgs {
         let projects = self.discover_listed_projects(&workspace_root, config)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let project_dirs = ordered_project_dirs(&selection, config);
 
         let always_print_root_package = self.always_print_selected_projects();
 
         if config.shares_one_lockfile() {
-            let project_dirs: Vec<PathBuf> = selection.selected
-                .keys()
-                .cloned()
-                .collect();
             return self.render_projects(
                 config,
                 &project_dirs,
@@ -33,13 +30,14 @@ impl ListArgs {
         }
 
         if self.report_as() == ReportAs::Json {
-            return self.render_recursive_json(config, &selection).await;
+            return self.render_recursive_json(config, &selection, &project_dirs).await;
         }
 
         // Per-project lockfiles: each project renders independently
         // (with its own legend and summary).
         let mut outputs = Vec::new();
-        for (project_dir, project) in &selection.selected {
+        for project_dir in &project_dirs {
+            let project = &selection.selected[project_dir];
             let project_config =
                 dedicated_project_config(config, project_dir, project.package.manifest_name());
             let output = self.render_projects(
@@ -75,9 +73,11 @@ impl ListArgs {
         &self,
         config: &Config,
         selection: &RecursiveSelection<'_>,
+        project_dirs: &[PathBuf],
     ) -> miette::Result<String> {
         let mut projects = Vec::new();
-        for (project_dir, project) in &selection.selected {
+        for project_dir in project_dirs {
+            let project = &selection.selected[project_dir];
             let project_config =
                 dedicated_project_config(config, project_dir, project.package.manifest_name());
             projects.extend(
@@ -92,6 +92,21 @@ impl ListArgs {
         }
         Ok(render::render_json(&projects, self.output.long))
     }
+}
+
+fn ordered_project_dirs(selection: &RecursiveSelection<'_>, config: &Config) -> Vec<PathBuf> {
+    let mut project_dirs = if config.sort {
+        selection.sequenced_dirs()
+    } else {
+        selection.selected
+            .keys()
+            .cloned()
+            .collect()
+    };
+    if config.sort && config.reverse {
+        project_dirs.reverse();
+    }
+    project_dirs
 }
 
 /// `config` re-anchored on one project of a workspace whose projects keep
