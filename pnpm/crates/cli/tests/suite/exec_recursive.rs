@@ -911,13 +911,12 @@ fn a_relative_dir_selector_expands_brace_alternatives() {
     drop(root);
 }
 
-/// Under `legacyDirFiltering` the selector matches by subtree instead: it
-/// names the projects strictly below the directory, and not the project in
-/// the directory itself.
+/// Under `legacyDirFiltering` the selector includes the project in the
+/// named directory and the projects below it.
 #[test]
-fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
+fn legacy_dir_filtering_selects_the_dir_and_its_subtree() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(&workspace, &["nested", "nested/inner"]);
+    write_workspace(&workspace, &["nested", "nested/inner", "nested-other"]);
     let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
         .expect("read pnpm-workspace.yaml");
     fs::write(
@@ -940,8 +939,12 @@ fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
         "the project below {{nested}} should run under legacyDirFiltering",
     );
     assert!(
-        !workspace.join("nested/ran.txt").exists(),
-        "the subtree match excludes the directory it starts from",
+        workspace.join("nested/ran.txt").exists(),
+        "the subtree match includes the directory it starts from",
+    );
+    assert!(
+        !workspace.join("nested-other/ran.txt").exists(),
+        "a shared directory-name prefix does not select a sibling project",
     );
 
     drop(root);
@@ -949,8 +952,7 @@ fn legacy_dir_filtering_selects_the_subtree_below_the_dir() {
 
 /// The `!{<workspace-root>}` selector a recursive `run` / `exec` generates
 /// is pnpm's own, so `legacyDirFiltering` must not reach it: read as a
-/// subtree match it would name every project below the root and leave the
-/// root alone selected, which is the opposite of what it is for.
+/// subtree match it would exclude every project in the workspace.
 #[test]
 fn legacy_dir_filtering_leaves_the_generated_root_exclusion_alone() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -987,8 +989,8 @@ fn legacy_dir_filtering_leaves_the_generated_root_exclusion_alone() {
 }
 
 /// The `{<workspace-root>}` selector `--workspace-root` generates is pnpm's
-/// own as well: read as a subtree match it would name every project below
-/// the root and run the command everywhere but the root.
+/// own as well: read as a subtree match it would run the command throughout
+/// the workspace, instead of only at its root.
 #[test]
 fn legacy_dir_filtering_leaves_the_generated_root_inclusion_alone() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

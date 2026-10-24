@@ -401,14 +401,15 @@ fn match_projects_by_path<Pkg>(
     }
 }
 
-/// Whether `child` is strictly inside `parent`, matching the semantics of
+/// Whether `child` is `parent` or inside it, matching the semantics of
 /// the [`is-subdir`](https://github.com/jonschlinkert/is-subdir) package.
 fn is_subdir(parent: &Path, child: &Path) -> bool {
     let Some(relative) = pathdiff::diff_paths(child, parent) else {
         return false;
     };
     match relative.components().next() {
-        None | Some(Component::ParentDir | Component::CurDir) => false,
+        None => true,
+        Some(Component::ParentDir | Component::CurDir) => false,
         Some(_) => true,
     }
 }
