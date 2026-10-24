@@ -156,6 +156,7 @@ test('entries keyed by another prefix of the registry are re-keyed', async () =>
   expect(packageKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
   expect(snapshotKeys(lockfile, PARENT)).toStrictEqual(['@pnpm.e2e/foobar@work:100.0.0'])
   expect(packageKeys(lockfile, CHILD)).toStrictEqual(['@pnpm.e2e/foo@work:100.1.0'])
+  expect(snapshotKeys(lockfile, CHILD)).toStrictEqual(['@pnpm.e2e/foo@work:100.1.0'])
   expect(importerEntry(lockfile, PARENT)).toStrictEqual({ specifier: 'zeta:100.0.0', version: 'work:100.0.0' })
 })
 

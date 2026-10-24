@@ -238,6 +238,7 @@ fn entries_keyed_by_another_prefix_of_the_registry_are_re_keyed() {
     assert_eq!(package_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@work:100.0.0"]);
     assert_eq!(snapshot_keys(&lockfile, PARENT), ["@pnpm.e2e/foobar@work:100.0.0"]);
     assert_eq!(package_keys(&lockfile, CHILD), ["@pnpm.e2e/foo@work:100.1.0"]);
+    assert_eq!(snapshot_keys(&lockfile, CHILD), ["@pnpm.e2e/foo@work:100.1.0"]);
     assert_eq!(
         importer_entry(&lockfile, PARENT),
         ("zeta:100.0.0".to_string(), "work:100.0.0".to_string()),
