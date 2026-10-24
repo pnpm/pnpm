@@ -67,12 +67,13 @@ fn unlink_at(parent: BorrowedFd<'_>, name: &CStr, flags: c_int) -> io::Result<()
 }
 
 /// The names of the entries of `dir`, `.` and `..` excluded.
+///
+/// The stream reads a descriptor opened through `dir` rather than a
+/// duplicate of it. A duplicate would share `dir`'s file offset, so two
+/// listings at once would consume each other's entries and each return
+/// only part of the directory.
 pub(super) fn entry_names(dir: BorrowedFd<'_>) -> io::Result<Vec<OsString>> {
-    let stream = open_stream(dir.try_clone_to_owned()?)?;
-    // A duplicate shares the original's file offset, so the stream opens
-    // where the directory was last read to rather than at its first entry.
-    // SAFETY: `stream` is open.
-    unsafe { libc::rewinddir(stream) };
+    let stream = open_stream(open_dir_at(dir, c".")?)?;
     let result = collect_entry_names(stream);
     close_stream(stream);
     result
