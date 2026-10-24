@@ -175,7 +175,7 @@ fn cross_importer_changed_version(
         Some(_) => cross_changed.get(&target_name.to_string()),
     };
     candidates
-        .zip(ver_peer.version_semver())
+        .zip(ver_peer.registry_version())
         .is_some_and(|(versions, pinned)| {
             versions
                 .iter()
@@ -334,3 +334,6 @@ where
         .as_ref()
         .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string())))
 }
+
+#[cfg(test)]
+mod tests;
