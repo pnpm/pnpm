@@ -3,7 +3,6 @@ use super::{
     WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings, assert_eq, fs,
 };
 use pnpm_testing_utils::env_guard::EnvGuard;
-use std::env;
 
 #[test]
 fn parses_ignore_compatibility_db_from_yaml_and_applies() {
@@ -187,19 +186,14 @@ fn load_at_collects_issues_from_a_tab_indented_file() {
 
 #[test]
 fn load_at_expands_env_placeholders_in_typed_fields() {
-    let _guard = EnvGuard::snapshot([
+    const PLACEHOLDERS: [&str; 4] = [
         "PNPM_TEST_14914_COLOR",
         "PNPM_TEST_14914_GLOBAL_SHIMS",
         "PNPM_TEST_14914_LINKER",
         "PNPM_TEST_14914_SIDE_EFFECTS_CACHE",
-    ]);
-    // SAFETY: EnvGuard serializes the test and restores these variables on drop.
-    unsafe {
-        env::remove_var("PNPM_TEST_14914_COLOR");
-        env::remove_var("PNPM_TEST_14914_GLOBAL_SHIMS");
-        env::remove_var("PNPM_TEST_14914_LINKER");
-        env::remove_var("PNPM_TEST_14914_SIDE_EFFECTS_CACHE");
-    }
+    ];
+    let guard = EnvGuard::snapshot(PLACEHOLDERS);
+    guard.remove_all(PLACEHOLDERS);
     let dir = tempfile::tempdir().unwrap();
     fs::write(
         dir.path().join(WORKSPACE_MANIFEST_FILENAME),

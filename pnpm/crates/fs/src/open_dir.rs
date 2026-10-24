@@ -8,16 +8,7 @@ use std::{
 };
 
 #[cfg(unix)]
-use std::{
-    ffi::CString,
-    os::{
-        fd::AsFd,
-        unix::{
-            ffi::OsStrExt,
-            fs::{MetadataExt, OpenOptionsExt},
-        },
-    },
-};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 
 #[cfg(unix)]
 mod unix;
@@ -60,8 +51,8 @@ impl OpenDir {
     /// `name` is not a directory: a file, a symbolic link, or nothing.
     #[cfg(unix)]
     pub fn open_child_dir(&self, name: &OsStr) -> io::Result<Option<Self>> {
-        match unix::open_dir_at(self.handle.as_fd(), &c_name(name)?) {
-            Ok(handle) => Ok(Some(Self { path: self.path.join(name), handle: handle.into() })),
+        match pnpm_ffi_fs::open_directory_at(&self.handle, name) {
+            Ok(handle) => Ok(Some(Self { path: self.path.join(name), handle })),
             Err(error) if unix::is_not_a_real_dir(&error) => Ok(None),
             Err(error) => Err(error),
         }
@@ -106,10 +97,8 @@ impl OpenDir {
     /// `name` is not a directory: a file, a symbolic link, or nothing.
     #[cfg(unix)]
     pub fn remove_child_dir(&self, name: &OsStr) -> io::Result<bool> {
-        let name = c_name(name)?;
-        let parent = self.handle.as_fd();
-        match unix::open_dir_at(parent, &name) {
-            Ok(dir) => unix::remove_dir_all_at(parent, &name, dir).map(|()| true),
+        match pnpm_ffi_fs::open_directory_at(&self.handle, name) {
+            Ok(dir) => unix::remove_dir_all_at(&self.handle, name, &dir).map(|()| true),
             Err(error) if unix::is_not_a_real_dir(&error) => Ok(false),
             Err(error) => Err(error),
         }
@@ -136,11 +125,6 @@ fn canonicalize(path: &Path) -> io::Result<Option<PathBuf>> {
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
-}
-
-#[cfg(unix)]
-fn c_name(name: &OsStr) -> io::Result<CString> {
-    Ok(CString::new(name.as_bytes())?)
 }
 
 /// Whether a directory, and not a link to one, is at `path`.

@@ -12,6 +12,7 @@ repository.workspace = true
 
 [dependencies]
 pnpm-config = { workspace = true }
+pnpm-ffi-process = { workspace = true }
 pnpm-crypto-shasums-file = { workspace = true }
 pnpm-detect-libc = { workspace = true }
 pnpm-fs = { workspace = true }
@@ -39,9 +40,6 @@ tokio = { workspace = true, features = ["macros", "rt"] }
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 reqwest = { workspace = true }
 tokio = { workspace = true, features = ["net", "signal"] }
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_System_LibraryLoader", "Win32_System_SystemInformation"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 pnpm-http = { workspace = true }

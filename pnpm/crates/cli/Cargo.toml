@@ -15,6 +15,10 @@ name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
+pnpm-ffi-signal = { workspace = true }
+pnpm-ffi-terminal = { workspace = true }
+pnpm-ffi-fs = { workspace = true }
+pnpm-ffi-process = { workspace = true }
 pnpm-python-installer = { workspace = true }
 pnpm-rust-toolchain = { workspace = true }
 pnpm-package-name = { workspace = true }

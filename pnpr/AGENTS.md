@@ -123,6 +123,12 @@ for Rust-level conventions — imports, naming, ownership, error handling,
 test layout. They are written for pacquet but apply to any Rust code in
 this workspace.
 
+### `unsafe`
+
+[`../UNSAFE_POLICY.md`](../UNSAFE_POLICY.md) governs every `pnpr-*` crate:
+each takes the workspace's `unsafe_code` lint, and a foreign call goes into
+the `pnpm-ffi-*` crate that owns its surface.
+
 ### Comments
 
 Follow the repo-wide comment baseline in [`../AGENTS.md`](../AGENTS.md#comments) and the Rust-specific additions in [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md#comments).

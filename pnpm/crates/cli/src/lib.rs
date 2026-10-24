@@ -87,12 +87,15 @@ pub fn main() -> ExitCode {
     let argv: Vec<OsString> = std::env::args_os().collect();
     let launch = shim_dispatch::ShimLaunch::detect(&argv);
     let argv = if launch.is_shim() { argv } else { argv_with_alias_subcommand(argv) };
-    // Load `--env-file` variables here, on the main thread before the
-    // startup thread below exists: `std::env::set_var` must not run once
-    // another thread is alive (see `env_file`). A shim launch is exempt:
-    // its arguments belong to the shim target and travel there untouched.
+    // Claimed here, before anything spawns, because the startup path has
+    // to change the environment and only a single-threaded process may.
+    let single_threaded = pnpm_ffi_process::SingleThreaded::claim()
+        .expect("the CLI claims the single-threaded witness once, at startup");
+    // Load `--env-file` variables here, before the startup thread below
+    // exists (see `env_file`). A shim launch is exempt: its arguments
+    // belong to the shim target and travel there untouched.
     if !launch.is_shim()
-        && let Err(error) = env_file::load_from_argv(&argv)
+        && let Err(error) = env_file::load_from_argv(&argv, &single_threaded)
     {
         report_fatal_error(&error);
         return ExitCode::FAILURE;
@@ -100,7 +103,7 @@ pub fn main() -> ExitCode {
     // Tracing reads `TRACE`/`TRACE_FORMAT`, which the files above may
     // define, so it starts only after the load.
     enable_tracing_by_env();
-    let result = run_on_big_stack(|| run_cli(&launch, &argv));
+    let result = run_on_big_stack(|| run_cli(&launch, &argv, single_threaded));
     match result.and_then(|()| flush_stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
@@ -167,7 +170,11 @@ fn is_reported_error(error: &miette::Report) -> bool {
 }
 
 /// Parse and execute the CLI, including shim dispatch and startup fast paths.
-fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Result<()> {
+fn run_cli(
+    launch: &shim_dispatch::ShimLaunch,
+    argv: &[OsString],
+    single_threaded: pnpm_ffi_process::SingleThreaded,
+) -> miette::Result<()> {
     let argv = argv.to_vec();
     // A context-aware global shim is this executable launched under the
     // shim's name, so dispatch runs on the raw argv before any rewriting
@@ -197,7 +204,7 @@ fn run_cli(launch: &shim_dispatch::ShimLaunch, argv: &[OsString]) -> miette::Res
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // A version spec (`pnpm with 10 <cmd>`) is left for the `with`
     // subcommand to handle.
-    let argv = with_current::rewrite(argv)?;
+    let argv = with_current::rewrite(argv, single_threaded)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pnpm_default_reporter::set_package_version(pnpm_config::PNPM_VERSION);

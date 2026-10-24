@@ -14,7 +14,7 @@ use pnpm_testing_utils::{
 };
 use std::{
     fs,
-    os::unix::{fs::PermissionsExt, process::CommandExt},
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     process::Command,
 };
@@ -33,20 +33,12 @@ const PLAIN_FILE_REL: &str = concat!(
     "node_modules/@pnpm.e2e/bravo-dep/package.json",
 );
 
-fn install_with_umask(dir: &Path, umask: libc::mode_t, args: &[&str]) {
+fn install_with_umask(dir: &Path, umask: u32, args: &[&str]) {
     let mut command = Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
         .with_current_dir(dir)
         .without_ambient_pnpm_config();
-    // SAFETY: `umask` is always safe to call, and this closure runs in the
-    // forked child between `fork` and `exec`, where only async-signal-safe
-    // operations are allowed and a syscall is one.
-    unsafe {
-        command.pre_exec(move || {
-            libc::umask(umask);
-            Ok(())
-        });
-    }
+    pnpm_testing_utils::spawn::with_umask(&mut command, umask);
     let output = command
         .args(["install"])
         .args(args)

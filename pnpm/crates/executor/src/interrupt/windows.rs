@@ -3,25 +3,17 @@
 //! child that would sit on the interrupt forever is ended by pnpm.
 
 use super::{RELAYED_INTERRUPTS, RelayEntry, visit_targets};
+use pnpm_ffi_process::{ProcessHandle, Wait};
+use pnpm_ffi_signal::{Handled, Interrupt};
 use std::{
-    ptr,
     sync::{Once, atomic::Ordering},
     time::{Duration, Instant},
 };
-use windows_sys::Win32::System::Diagnostics::ToolHelp::PROCESSENTRY32W;
 
 pub(super) fn install_handler() {
-    use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
-
     pnpm_fs::install_temp_file_cleanup();
     static INSTALLED: Once = Once::new();
-    INSTALLED.call_once(|| {
-        // SAFETY: the handler is a plain `extern "system"` function whose
-        // only state is this module's atomics.
-        unsafe {
-            SetConsoleCtrlHandler(Some(relay_console_event), 1);
-        }
-    });
+    INSTALLED.call_once(|| pnpm_ffi_signal::on_console_event(relay_console_event));
 }
 
 /// Report a console interrupt as handled while children are still
@@ -29,20 +21,15 @@ pub(super) fn install_handler() {
 /// event to every process attached to it, so the children already have
 /// it and nothing needs relaying.
 ///
-/// Returning `FALSE` passes the event on to the default handler, which
+/// Reporting it unhandled passes the event to the default handler, which
 /// terminates pnpm.
-unsafe extern "system" fn relay_console_event(event: u32) -> windows_sys::core::BOOL {
-    use windows_sys::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
-
-    if !matches!(event, CTRL_C_EVENT | CTRL_BREAK_EVENT) {
-        return 0;
-    }
+fn relay_console_event(_interrupt: Interrupt) -> Handled {
     super::INTERRUPTS.fetch_add(1, Ordering::Relaxed);
     let mut still_listening = false;
     visit_targets(|entry, target| {
         still_listening |= interrupt_child(entry, target);
     });
-    windows_sys::core::BOOL::from(still_listening)
+    if still_listening { Handled::Yes } else { Handled::No }
 }
 
 /// Handle the console's interrupt for the child holding `entry` and report
@@ -76,12 +63,10 @@ fn interrupt_child(entry: &RelayEntry, target: i32) -> bool {
 /// takes to clear the target and a claim to reset the count, so a stale
 /// event never spends a newly registered child's first interrupt.
 fn count_interrupt(entry: &RelayEntry, target: i32) -> Option<usize> {
-    entry.lock_handle();
-    let step = (entry.target.load(Ordering::Relaxed) == target).then(|| {
+    let _handle = entry.handle.lock().expect("relay handle lock is not poisoned");
+    (entry.target.load(Ordering::Relaxed) == target).then(|| {
         entry.relays.fetch_add(1, Ordering::Relaxed)
-    });
-    entry.unlock_handle();
-    step
+    })
 }
 
 /// How long a child may sit without child processes of its own after the
@@ -92,7 +77,7 @@ fn count_interrupt(entry: &RelayEntry, target: i32) -> Option<usize> {
 const WINDOWS_INTERRUPT_GRACE: Duration = Duration::from_secs(1);
 
 /// How often the child's process tree is checked during the grace.
-const WINDOWS_INTERRUPT_POLL_MS: u32 = 100;
+const WINDOWS_INTERRUPT_POLL: Duration = Duration::from_millis(100);
 
 /// The exit code a process ended by `Ctrl+C` reports, so a child pnpm has
 /// to end reads the same as one the console event ended on its own.
@@ -110,93 +95,51 @@ const STATUS_CONTROL_C_EXIT: u32 = 0xC000_013A;
 /// console callback, and waiting out a stuck child is the one outcome to
 /// preclude.
 fn end_child_once_idle(entry: &RelayEntry, pid: i32) {
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
-
+    let Ok(pid) = u32::try_from(pid) else { return };
     let Some(handle) = duplicate_child_handle(entry, pid) else {
         return;
     };
     let watch = move || {
-        if is_cmd(pid as u32) {
-            watch_until_idle(handle as HANDLE, pid as u32);
-        }
-        // SAFETY: the handle is this thread's own, and nothing uses it
-        // after the watch.
-        unsafe {
-            CloseHandle(handle as HANDLE);
+        if is_cmd(pid) {
+            watch_until_idle(&handle, pid);
         }
     };
     if std::thread::Builder::new().spawn(watch).is_err() {
-        // SAFETY: the thread never started, so the handle is still ours.
-        unsafe {
-            CloseHandle(handle as HANDLE);
-        }
-        terminate_child(entry, pid);
+        terminate_child(entry, i32::try_from(pid).unwrap_or(0));
     }
 }
 
 /// Wait for `process` to exit, and end it once it has had no child
 /// processes for the grace.
-fn watch_until_idle(process: windows_sys::Win32::Foundation::HANDLE, pid: u32) {
-    use windows_sys::Win32::{
-        Foundation::WAIT_TIMEOUT,
-        System::Threading::{TerminateProcess, WaitForSingleObject},
-    };
-
+fn watch_until_idle(process: &ProcessHandle, pid: u32) {
     let mut idle_since = Instant::now();
-    // SAFETY: the caller keeps `process` open, with the access both calls
-    // need, for the length of the watch.
-    unsafe {
-        while WaitForSingleObject(process, WINDOWS_INTERRUPT_POLL_MS) == WAIT_TIMEOUT {
-            if has_child_processes(pid) {
-                idle_since = Instant::now();
-            } else if idle_since.elapsed() >= WINDOWS_INTERRUPT_GRACE {
-                TerminateProcess(process, STATUS_CONTROL_C_EXIT);
-                return;
-            }
+    while process.wait(WINDOWS_INTERRUPT_POLL) == Wait::StillRunning {
+        if has_child_processes(pid) {
+            idle_since = Instant::now();
+        } else if idle_since.elapsed() >= WINDOWS_INTERRUPT_GRACE {
+            process.terminate(STATUS_CONTROL_C_EXIT);
+            return;
         }
     }
 }
 
 /// A handle of the caller's own to the child holding `entry`, when the
-/// entry still names `pid`. It is passed around as an address because a
-/// raw handle cannot cross threads.
-fn duplicate_child_handle(entry: &RelayEntry, pid: i32) -> Option<usize> {
-    use windows_sys::Win32::{
-        Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE},
-        System::Threading::GetCurrentProcess,
-    };
-
-    if pid <= 0 {
+/// entry still names `pid`. The watch runs on a thread of its own, so it
+/// cannot borrow the entry's.
+fn duplicate_child_handle(entry: &RelayEntry, pid: u32) -> Option<ProcessHandle> {
+    let target = i32::try_from(pid).ok()?;
+    // Under the lock the entry cannot turn over, as in `terminate_child`.
+    let handle = entry.handle.lock().expect("relay handle lock is not poisoned");
+    if entry.target.load(Ordering::Relaxed) != target {
         return None;
     }
-    let mut duplicate: HANDLE = ptr::null_mut();
-    entry.lock_handle();
-    // Under the lock the entry cannot turn over, as in `terminate_child`.
-    let handle = entry.handle.load(Ordering::Relaxed);
-    let duplicated = entry.target.load(Ordering::Relaxed) == pid
-        && !handle.is_null()
-        // SAFETY: the lock keeps the source handle open for the call, and
-        // `duplicate` is a stack local that outlives it.
-        && unsafe {
-            DuplicateHandle(
-                GetCurrentProcess(),
-                handle,
-                GetCurrentProcess(),
-                &raw mut duplicate,
-                0,
-                0,
-                DUPLICATE_SAME_ACCESS,
-            )
-        } != 0;
-    entry.unlock_handle();
-    duplicated.then_some(duplicate as usize)
+    handle.as_ref()?.duplicate()
 }
 
 /// Whether `pid` runs `cmd.exe`. A process list that cannot be read makes
 /// it not one, which leaves the child to the next interrupt.
 fn is_cmd(pid: u32) -> bool {
-    any_process(|process| process.th32ProcessID == pid && exe_is(&process.szExeFile, "cmd.exe"))
-        .unwrap_or(false)
+    pnpm_ffi_process::runs_image(pid, "cmd.exe").unwrap_or(false)
 }
 
 /// Whether any process names `pid` as its parent, other than the console
@@ -207,76 +150,24 @@ fn is_cmd(pid: u32) -> bool {
 /// Either only keeps pnpm waiting, and the next interrupt still ends the
 /// child.
 fn has_child_processes(pid: u32) -> bool {
-    any_process(|process| {
-        process.th32ParentProcessID == pid && !exe_is(&process.szExeFile, "conhost.exe")
-    })
-    .unwrap_or(true)
-}
-
-/// Whether any running process `matches`, or `None` when the process list
-/// cannot be read.
-fn any_process(mut matches: impl FnMut(&PROCESSENTRY32W) -> bool) -> Option<bool> {
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
-        System::Diagnostics::ToolHelp::{
-            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
-        },
-    };
-
-    // SAFETY: the snapshot handle is checked before use and closed below,
-    // and `process` is a stack local with `dwSize` set as the API requires.
-    unsafe {
-        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if snapshot == INVALID_HANDLE_VALUE {
-            return None;
-        }
-        let mut process: PROCESSENTRY32W = std::mem::zeroed();
-        process.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        let mut found = false;
-        let mut more = Process32FirstW(snapshot, &raw mut process) != 0;
-        while more && !found {
-            found = matches(&process);
-            more = Process32NextW(snapshot, &raw mut process) != 0;
-        }
-        CloseHandle(snapshot);
-        Some(found)
-    }
-}
-
-/// Whether a NUL-terminated executable name is `name`, ignoring case.
-fn exe_is(exe_file: &[u16], name: &str) -> bool {
-    let len = exe_file
-        .iter()
-        .position(|&unit| unit == 0)
-        .unwrap_or(exe_file.len());
-    String::from_utf16_lossy(&exe_file[..len]).eq_ignore_ascii_case(name)
+    pnpm_ffi_process::has_children(pid, "conhost.exe").unwrap_or(true)
 }
 
 /// End `pid` when the relay entry still names it. The termination goes
 /// through the handle the entry carries, never through a fresh lookup by
 /// pid, so a recycled pid cannot make it hit an unrelated process.
 fn terminate_child(entry: &RelayEntry, pid: i32) {
-    use windows_sys::Win32::System::Threading::TerminateProcess;
-
     if pid <= 0 || entry.target.load(Ordering::Acquire) != pid {
         return;
     }
-    entry.lock_handle();
     // Under the lock the entry cannot turn over: a release clears the
     // target and a claim retires the handle, each holding the lock.
-    if entry.target.load(Ordering::Relaxed) == pid {
-        let handle = entry.handle.load(Ordering::Relaxed);
-        if !handle.is_null() {
-            // SAFETY: the handle was opened with exactly the access
-            // `TerminateProcess` needs, and it is closed only by a claim
-            // holding this lock. On an already-exited child the call is a
-            // harmless no-op.
-            unsafe {
-                TerminateProcess(handle, STATUS_CONTROL_C_EXIT);
-            }
-        }
+    let handle = entry.handle.lock().expect("relay handle lock is not poisoned");
+    if entry.target.load(Ordering::Relaxed) == pid
+        && let Some(handle) = handle.as_ref()
+    {
+        handle.terminate(STATUS_CONTROL_C_EXIT);
     }
-    entry.unlock_handle();
 }
 
 #[cfg(test)]

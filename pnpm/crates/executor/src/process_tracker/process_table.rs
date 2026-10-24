@@ -82,10 +82,7 @@ fn has_other_threads(entry: &Path) -> bool {
 }
 
 fn is_in_group(pid: u32, leader: i32) -> bool {
-    let Ok(pid) = i32::try_from(pid) else { return false };
-    // SAFETY: `getpgid` only reads the process group of `pid`, and returns
-    // -1, never a group, once no such process exists.
-    unsafe { libc::getpgid(pid) == leader }
+    pnpm_ffi_signal::process_group_of(pid) == Some(leader)
 }
 
 /// The state and the process group in a `stat` line. Both follow the

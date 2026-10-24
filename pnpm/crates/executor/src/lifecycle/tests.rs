@@ -422,40 +422,15 @@ fn missing_manifest_returns_false() {
 #[cfg(unix)]
 #[test]
 fn child_sees_stamped_npm_package_and_preserves_user_config() {
-    /// RAII guard that restores a process env var to its pre-test
-    /// value on drop, so an assertion failure can't leak the seed
-    /// into sibling tests — nor clobber a value the env already had.
-    struct EnvGuard {
-        key: &'static str,
-        prev: Option<std::ffi::OsString>,
-    }
-    impl EnvGuard {
-        fn new(key: &'static str) -> Self {
-            EnvGuard { key, prev: std::env::var_os(key) }
-        }
-    }
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            // SAFETY: nextest runs each test in its own thread, so the
-            // only risk is sibling tests calling `env::vars()`
-            // concurrently — this `Drop` still runs on panic.
-            unsafe {
-                match self.prev.take() {
-                    Some(value) => std::env::set_var(self.key, value),
-                    None => std::env::remove_var(self.key),
-                }
-            }
-        }
-    }
-    let _user_guard = EnvGuard::new("npm_config_platform_arch");
-    let _auth_guard = EnvGuard::new("npm_config__authtoken");
-    // SAFETY: nextest runs each test in its own thread, so the only
-    // risk is sibling tests calling `env::vars()` concurrently — the
-    // guards' `Drop` removes the vars even on panic.
-    unsafe {
-        std::env::set_var("npm_config_platform_arch", "x64");
-        std::env::set_var("npm_config__authtoken", "should-not-leak");
-    }
+    // The guard holds the process-wide env lock and restores both
+    // variables on drop, so an assertion failure cannot leak the seed into
+    // a sibling test nor clobber a value the environment already had.
+    let env = pnpm_testing_utils::env_guard::EnvGuard::snapshot([
+        "npm_config_platform_arch",
+        "npm_config__authtoken",
+    ]);
+    env.set("npm_config_platform_arch", "x64");
+    env.set("npm_config__authtoken", "should-not-leak");
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();

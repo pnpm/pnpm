@@ -66,8 +66,8 @@ fn xdg_runtime_dir_its_owner_cannot_write_to_is_ignored() {
 
 #[test]
 fn xdg_runtime_dir_owned_by_another_user_is_ignored() {
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    if unsafe { libc::geteuid() } == 0 {
+    // Root owns `/`, so there would be no other user's directory to ignore.
+    if pnpm_ffi_process::effective_user_id() == 0 {
         return;
     }
     assert_eq!(xdg_runtime_dir(Some("/".into())), None);
@@ -82,8 +82,7 @@ fn creates_a_private_user_owned_lock_directory() {
     let directory = secure_temp_lock_dir(&name).unwrap();
     let metadata = std::fs::symlink_metadata(&directory).unwrap();
     assert!(metadata.is_dir());
-    // SAFETY: `geteuid` has no preconditions and does not mutate memory.
-    assert_eq!(metadata.uid(), unsafe { libc::geteuid() });
+    assert_eq!(metadata.uid(), pnpm_ffi_process::effective_user_id());
     assert_eq!(metadata.permissions().mode() & 0o777, 0o700);
     std::fs::remove_dir(directory).unwrap();
 }

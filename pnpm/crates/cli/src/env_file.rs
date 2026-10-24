@@ -18,14 +18,14 @@
 //! errors name the file but never echo its contents: env files routinely
 //! hold secrets that must not leak into stderr and CI logs.
 //!
-//! The load runs on the main thread before the startup thread exists, the
-//! only place `std::env::set_var` may run. `--env-file` is this binary's
-//! own option: [`strip_flags`] removes its tokens from the argv a
-//! dispatched pnpm receives (an older pnpm would reject the unknown flag),
-//! and the loaded variables travel by environment inheritance instead.
-//! Tokens past the passthrough point — script arguments after `--`, or
-//! after a `run`/`exec` script name — are left alone (see
-//! `crate::parse_boundary`).
+//! The load runs on the main thread before the startup thread exists,
+//! which is where the environment may still change (see
+//! [`load_from_argv`]). `--env-file` is this binary's own option:
+//! [`strip_flags`] removes its tokens from the argv a dispatched pnpm
+//! receives (an older pnpm would reject the unknown flag), and the loaded
+//! variables travel by environment inheritance instead. Tokens past the
+//! passthrough point are left alone (see `crate::parse_boundary`). Those are
+//! the script arguments after `--`, or after a `run`/`exec` script name.
 
 use crate::{
     flag_relocation::ArgTable,
@@ -79,25 +79,41 @@ impl EnvFileError {
     }
 }
 
-/// Load each file in order, layering its variables into the process
-/// environment. Later files override earlier files, and variables the
-/// environment already defines are left untouched.
-pub fn load<PathItem: AsRef<Path>>(paths: &[PathItem]) -> miette::Result<()> {
+/// Load each file in order, handing every variable it defines to `set`.
+/// Later files override earlier files, and variables the environment
+/// already defines are left untouched.
+///
+/// `set` is called as each entry is parsed rather than once a file is
+/// read, because `dotenvy` resolves a `$VAR` against the environment
+/// first: a later file's reference to an earlier file's variable only
+/// sees it if the change has already landed. Taking `set` as a parameter
+/// is also what lets a test drive the load without changing the process
+/// environment.
+fn load<PathItem: AsRef<Path>>(
+    paths: &[PathItem],
+    set: &mut impl FnMut(&str, &str),
+) -> miette::Result<()> {
     let mut loaded_keys = HashSet::new();
     for path in paths {
-        load_one(path.as_ref(), &mut loaded_keys)?;
+        load_one(path.as_ref(), &mut loaded_keys, set)?;
     }
     Ok(())
 }
 
-/// Scan `argv` for `--env-file` paths and load them. Runs on the main
-/// thread before the startup thread exists (see [`crate::main`]), which is
-/// what makes the `set_var` calls in [`load`] sound. Best-effort by
-/// necessity: around an option this binary does not know, the width
-/// computation can only guess, but such a command line is rejected or
-/// forwarded to another pnpm anyway.
-pub fn load_from_argv(argv: &[OsString]) -> miette::Result<()> {
-    load(&scan(argv).0)
+/// Scan `argv` for `--env-file` paths and load them.
+///
+/// `single_threaded` is what permits the environment change, and so what
+/// pins this call to the stretch of `main` before any thread starts.
+/// Best-effort by necessity: around an option this binary does not know,
+/// the width computation can only guess, but such a command line is
+/// rejected or forwarded to another pnpm anyway.
+pub fn load_from_argv(
+    argv: &[OsString],
+    single_threaded: &pnpm_ffi_process::SingleThreaded,
+) -> miette::Result<()> {
+    load(&scan(argv).0, &mut |name: &str, value: &str| {
+        single_threaded.set_var(name, value);
+    })
 }
 
 /// Remove the `--env-file` tokens from an argv that still carries the
@@ -114,7 +130,11 @@ pub fn strip_flags(argv: &[OsString]) -> Vec<OsString> {
 /// leading U+FEFF and fail to parse (or misname the variable).
 const UTF8_BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
-fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()> {
+fn load_one(
+    path: &Path,
+    loaded_keys: &mut HashSet<String>,
+    set: &mut impl FnMut(&str, &str),
+) -> miette::Result<()> {
     let bytes =
         std::fs::read(path).map_err(|source| EnvFileError::Read { path: path.to_owned(), source })?;
     let stripped = bytes.strip_prefix(&UTF8_BOM).unwrap_or(&bytes);
@@ -129,12 +149,7 @@ fn load_one(path: &Path, loaded_keys: &mut HashSet<String>) -> miette::Result<()
         let id = env_key_id(&key);
         if std::env::var_os(&key).is_none() || loaded_keys.contains(&id) {
             loaded_keys.insert(id);
-            // SAFETY: `load` runs on the main thread before `run_on_big_stack`
-            // spawns the startup thread, so no other thread exists that
-            // could access the environment concurrently.
-            unsafe {
-                std::env::set_var(&key, &value);
-            }
+            set(&key, &value);
         }
     }
     Ok(())

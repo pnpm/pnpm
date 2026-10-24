@@ -136,15 +136,16 @@ async fn a_non_string_range_from_read_package_fails_the_call() {
 #[cfg(target_vendor = "apple")]
 #[tokio::test]
 async fn the_worker_does_not_hold_an_inheritable_pipe_open() {
-    use std::{io::Read, os::fd::AsRawFd};
+    use std::{io::Read, os::fd::AsFd as _};
 
     let tmp = TempDir::new().expect("temp dir");
     let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
     std::fs::write(&pnpmfile_path, "module.exports = { hooks: {} }\n").expect("write pnpmfile");
     let (mut read_end, write_end) = std::io::pipe().expect("create the pipe");
-    // SAFETY: `write_end` owns the descriptor for the duration of the call.
-    let cleared = unsafe { libc::fcntl(write_end.as_raw_fd(), libc::F_SETFD, 0) };
-    assert_eq!(cleared, 0, "make the write end inheritable");
+    assert!(
+        pnpm_ffi_process::allow_inheritance(write_end.as_fd()),
+        "make the write end inheritable",
+    );
 
     let worker = NodeWorker::spawn(&pnpmfile_path).await.expect("spawn worker");
     assert!(worker.has_hooks().await, "the worker should be running");

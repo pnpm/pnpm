@@ -246,36 +246,13 @@ fn ctime_ns(_path: &Path, metadata: &fs::Metadata) -> Option<i64> {
 /// is what Node.js reports as `ctime` on Windows.
 #[cfg(windows)]
 fn ctime_ns(path: &Path, _metadata: &fs::Metadata) -> Option<i64> {
-    use std::os::windows::{fs::OpenOptionsExt as _, io::AsRawHandle as _};
-    use windows_sys::Win32::Storage::FileSystem::{
-        FILE_BASIC_INFO, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, FileBasicInfo, GetFileInformationByHandleEx,
-    };
     /// 100-nanosecond intervals between 1601-01-01 and the Unix epoch.
     const UNIX_EPOCH_TICKS: i64 = 116_444_736_000_000_000;
 
-    let file = fs::OpenOptions::new()
-        .access_mode(FILE_READ_ATTRIBUTES)
-        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
-        .open(path)
-        .ok()?;
-    let mut info = std::mem::MaybeUninit::<FILE_BASIC_INFO>::uninit();
-    // SAFETY: the handle stays open for the call, and `info` is a writable
-    // buffer of exactly the size passed.
-    let succeeded = unsafe {
-        GetFileInformationByHandleEx(
-            file.as_raw_handle(),
-            FileBasicInfo,
-            info.as_mut_ptr().cast(),
-            u32::try_from(size_of::<FILE_BASIC_INFO>()).ok()?,
-        )
-    };
-    if succeeded == 0 {
-        return None;
-    }
-    // SAFETY: the call succeeded, so it filled `info`.
-    let change_ticks = unsafe { info.assume_init() }.ChangeTime;
-    change_ticks.checked_sub(UNIX_EPOCH_TICKS)?.checked_mul(100)
+    pnpm_ffi_fs::change_time_ticks(path)
+        .ok()?
+        .checked_sub(UNIX_EPOCH_TICKS)?
+        .checked_mul(100)
 }
 
 #[cfg(not(any(unix, windows)))]
