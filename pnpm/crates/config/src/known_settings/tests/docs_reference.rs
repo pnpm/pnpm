@@ -34,7 +34,7 @@ const UNDOCUMENTED_SETTINGS: &[&str] = &[
     "registry",                  // registries.md
     "tagVersionPrefix",          // cli/version.md
     "testPattern",               // filtering.md
-    // Older spellings, mentioned only in the section of the current name.
+    // Aliases, mentioned only in the section of the setting they alias.
     "auditConfig",            // audit.ignore
     "auditLevel",             // audit.level
     "cleanupUnusedCatalogs",  // catalogPrune
@@ -43,7 +43,7 @@ const UNDOCUMENTED_SETTINGS: &[&str] = &[
     "proxy",                  // httpProxy
     "remoteSideEffectsCache", // sideEffectsCache.remote
     "updateConfig",           // update
-    // Removed in favor of allowBuilds, listed only in a note in settings/build.md.
+    // Replaced by allowBuilds, listed only in its migration note in settings/build.md.
     "ignoredBuiltDependencies",
     "neverBuiltDependencies",
     "onlyBuiltDependencies",
@@ -263,6 +263,12 @@ fn link_resolves(target: &str) -> bool {
                 .any(|heading| heading.slug == anchor))
 }
 
+/// The setting names a resolving index link documents. A link without an
+/// anchor points at a whole page, which documents no setting on its own.
+fn names_documented_by(link: &IndexLink) -> Vec<String> {
+    if link.target.contains('#') { setting_names(&link.text) } else { Vec::new() }
+}
+
 fn settings_pages() -> Vec<PathBuf> {
     let mut pages: Vec<PathBuf> = std::fs::read_dir(docs_dir().join("settings"))
         .expect("read pnpm/docs/settings")
@@ -307,7 +313,7 @@ fn find_gaps() -> Gaps {
     }
     for link in &links {
         if link_resolves(&link.target) {
-            documented.extend(setting_names(&link.text));
+            documented.extend(names_documented_by(link));
         } else {
             gaps.index_entries_without_section.insert(link.text.clone());
         }
@@ -371,6 +377,17 @@ fn report_kind(report: &mut String, kind: &str, found: &BTreeSet<String>, allowe
         writeln!(report, "{kind}, no longer gaps, so remove them from the list: {stale:?}").unwrap(
         );
     }
+}
+
+#[test]
+fn an_index_link_to_a_whole_page_documents_no_setting() {
+    let page_link = IndexLink { text: "catalog".to_string(), target: "./catalogs.md".to_string() };
+    assert!(link_resolves(&page_link.target));
+    assert_eq!(names_documented_by(&page_link), Vec::<String>::new());
+
+    let section_link =
+        IndexLink { text: "runtime".to_string(), target: "./settings/cli.md#runtime".to_string() };
+    assert_eq!(names_documented_by(&section_link), ["runtime"]);
 }
 
 #[test]
