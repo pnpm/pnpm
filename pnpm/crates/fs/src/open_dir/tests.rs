@@ -93,9 +93,8 @@ fn entry_names_lists_the_children_without_the_dot_entries() {
     assert_eq!(names, ["file", "metadata"]);
 }
 
-/// A listing reads through a duplicate of the held descriptor, which
-/// shares the offset the directory was read to, so each one has to rewind
-/// before it reads.
+/// A listing that read the held descriptor itself would leave its offset
+/// at the end, and the next listing would read nothing.
 #[test]
 fn entry_names_lists_the_same_names_when_called_again() {
     let root = tempdir().unwrap();
