@@ -524,8 +524,7 @@ impl BuildModules<'_> {
             has_publisher: self.cache.publisher.is_some(),
             frozen_store: self.cache.frozen_store,
             has_engine_name: self.cache.engine_name.is_some(),
-            can_write_store: self.cache.store_index_writer.is_some()
-                && self.cache.store_dir.is_some(),
+            can_write_store: self.cache.store.is_some(),
             has_packages: self.graph.packages.is_some(),
             // A rebuild that skips cached builds also reads the empty rows
             // the overlays leave out.

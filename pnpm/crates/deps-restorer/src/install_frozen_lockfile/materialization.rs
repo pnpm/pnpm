@@ -55,7 +55,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     importers: &install.lockfiles.wanted.importers,
                     dependency_groups: install.projects.dependency_groups,
                     materialized_snapshots: phase.linked.build_snapshots(
-                        &phase.fetched.materialized_snapshots,
+                        &phase.fetched.snapshot_selection.materialized,
                     ),
                     build_scope: phase.linked.build_scope.as_ref(),
                 },
@@ -85,7 +85,8 @@ impl<'a> InstallFrozenLockfile<'a> {
                     current_lockfile: install.lockfiles.current,
                     materialized_snapshots: (install.prior.rebuild.is_none()
                         && !install.prior.relink_every_slot_bin)
-                        .then_some(phase.fetched.materialized_snapshots.as_slice()),
+                        .then_some(phase.fetched.snapshot_selection.materialized.as_slice()),
+                    selected_snapshots: phase.fetched.snapshot_selection.loaded.as_deref(),
                     sidecar_lockfile: phase.current_lockfile,
                 },
                 packages: crate::LinkPackageData {
@@ -93,6 +94,7 @@ impl<'a> InstallFrozenLockfile<'a> {
                     package_bins: Some(&phase.fetched.package_bins),
                     requires_build_by_snapshot: Some(&phase.fetched.requires_build_by_snapshot),
                     cas_paths_by_pkg_id: phase.cas_paths_by_pkg_id,
+                    cas_paths_by_snapshot: phase.fetched.cas_paths_by_snapshot.clone(),
                 },
                 prior: install.prior.link_state(),
                 projects: crate::LinkProjects {

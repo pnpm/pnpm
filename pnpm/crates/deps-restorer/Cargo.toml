@@ -65,6 +65,8 @@ tracing = { workspace = true }
 
 url = { workspace = true }
 
+walkdir = { workspace = true }
+
 [dev-dependencies]
 pnpm-testing-utils = { workspace = true }
 
@@ -81,7 +83,6 @@ serde-saphyr = { workspace = true }
 sha2 = { workspace = true }
 tar = { workspace = true }
 text-block-macros = { workspace = true }
-walkdir = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
