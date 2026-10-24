@@ -195,14 +195,26 @@ fn package_list(sources: &[SkillSource]) -> String {
         .join(", ")
 }
 
-/// The entry name of every approved skill, mapped to the skill directory
-/// it links to.
-fn link_entries(approved: &[SkillSource]) -> Result<BTreeMap<String, PathBuf>, AgentSkillsError> {
-    let mut entries: BTreeMap<String, (PathBuf, &str)> = BTreeMap::new();
+#[derive(Clone)]
+struct SkillTarget {
+    preferred: PathBuf,
+    equivalent: BTreeSet<PathBuf>,
+}
+
+fn link_entries(
+    approved: &[SkillSource],
+) -> Result<BTreeMap<String, SkillTarget>, AgentSkillsError> {
+    let mut entries: BTreeMap<String, (SkillTarget, &str)> = BTreeMap::new();
     for source in approved {
         for skill in &source.skills {
             let name = format!("{AGENT_SKILL_LINK_PREFIX}{}-{skill}", source.link_segment);
-            let target = source.package_dir.join("skills").join(skill);
+            let target = SkillTarget {
+                preferred: source.package_dir.join("skills").join(skill),
+                equivalent: source.equivalent_skills
+                    .get(skill)
+                    .cloned()
+                    .unwrap_or_default(),
+            };
             if let Some((_, first)) = entries.get(&name) {
                 return Err(AgentSkillsError::NameCollision {
                     name,
@@ -223,8 +235,8 @@ fn link_entries(approved: &[SkillSource]) -> Result<BTreeMap<String, PathBuf>, A
 fn desired_entries(
     workspace_root: &Path,
     dirs: &[PathBuf],
-    entries: &BTreeMap<String, PathBuf>,
-) -> BTreeMap<String, PathBuf> {
+    entries: &BTreeMap<String, SkillTarget>,
+) -> BTreeMap<String, SkillTarget> {
     dirs.iter()
         .flat_map(|dir| {
             entries
@@ -285,7 +297,7 @@ fn remove_link(path: &Path) -> io::Result<()> {
 fn materialize(
     workspace_root: &Path,
     linked: &[String],
-    desired: &BTreeMap<String, PathBuf>,
+    desired: &BTreeMap<String, SkillTarget>,
 ) -> Result<(), AgentSkillsError> {
     for (entry, target) in desired {
         let path = workspace_root.join(entry);
@@ -295,20 +307,22 @@ fn materialize(
     }
     for (entry, target) in desired {
         let path = workspace_root.join(entry);
-        create_link(target, &path).map_err(|source| AgentSkillsError::Io { path, source })?;
+        create_link(&target.preferred, &path)
+            .map_err(|source| AgentSkillsError::Io { path, source })?;
     }
     Ok(())
 }
 
-/// Whether `path` holds something pnpm must not replace. pnpm replaces only
-/// a link: one it recorded, one that already resolves to `target`, or one
-/// that resolves to nothing, as a link into a removed `node_modules` does.
-fn is_occupied(path: &Path, target: &Path, recorded: bool) -> bool {
+fn is_occupied(path: &Path, target: &SkillTarget, recorded: bool) -> bool {
     if fs::symlink_metadata(path).is_err() {
         return false;
     }
     let replaceable = pnpm_fs::is_symlink_or_junction(path).unwrap_or(false)
-        && (recorded || links_to(path, target) || fs::metadata(path).is_err());
+        && (recorded
+            || std::iter::once(&target.preferred)
+                .chain(&target.equivalent)
+                .any(|target| links_to(path, target))
+            || fs::metadata(path).is_err());
     !replaceable
 }
 

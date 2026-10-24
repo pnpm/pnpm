@@ -158,20 +158,6 @@ impl RegistryError {
         self.to_string()
     }
 
-    /// Map the error to the HTTP status the proxy should return to the
-    /// client. Follows the standard gateway semantics:
-    ///
-    /// * `502 Bad Gateway` — upstream returned something we can't make
-    ///   use of (5xx, malformed JSON, generic transport failure).
-    /// * `503 Service Unavailable` — couldn't reach upstream at all
-    ///   (DNS, connection refused, network unreachable). Distinct from
-    ///   502 so pnpm clients see "service down" rather than "upstream
-    ///   misbehaved" — both trigger the client's retry loop, but the
-    ///   distinction matters for monitoring and for any future circuit
-    ///   breaker.
-    /// * `504 Gateway Timeout` — upstream took too long to respond.
-    /// * `400 Bad Request` — client-supplied package or tarball name
-    ///   wasn't usable. Not retryable.
     #[must_use]
     pub fn status_code(&self) -> StatusCode {
         if let Some(code) = self.client_status_code() {

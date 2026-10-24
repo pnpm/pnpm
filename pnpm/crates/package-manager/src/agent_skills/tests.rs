@@ -547,3 +547,97 @@ fn rejects_symlinked_gitignore() {
     assert!(matches!(error, AgentSkillsError::Io { .. }));
     assert_eq!(fs::read_to_string(&external_file).unwrap(), "");
 }
+
+#[test]
+fn peer_variants_choose_the_same_target_when_importers_change_order() {
+    let root = tempfile::tempdir().unwrap();
+    let variants = ["1.0.0(peer@1.0.0)", "1.0.0(peer@2.0.0)"];
+    for variant in variants {
+        install_package(
+            &root
+                .path()
+                .join("node_modules/.pnpm")
+                .join(variant)
+                .join("foo"),
+            &["guide"],
+        );
+    }
+    let config = config(&[("foo", true)], Some(&[".claude/skills"]));
+    let mut targets = Vec::new();
+    let mut linked = Vec::new();
+    for order in [variants, [variants[1], variants[0]]] {
+        let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
+        for (importer, variant) in ["a", "b"].into_iter().zip(order) {
+            let modules = root
+                .path()
+                .join(importer)
+                .join("node_modules");
+            fs::create_dir_all(&modules).unwrap();
+            pnpm_fs::force_symlink_dir(
+                &root
+                    .path()
+                    .join("node_modules/.pnpm")
+                    .join(variant)
+                    .join("foo"),
+                &modules.join("foo"),
+            )
+            .unwrap();
+            writeln!(yaml, "  {importer}:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: {variant}").unwrap();
+        }
+        let lockfile: Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+        let state = sync(root.path(), &lockfile, &config, &linked, None).unwrap();
+        linked = state.linked;
+        targets.push(link_target(&root.path().join(".claude/skills/pnpm-foo-guide")));
+    }
+    assert_eq!(targets[0], targets[1]);
+}
+
+#[test]
+fn recovers_an_unrecorded_link_to_another_installed_peer_variant() {
+    let root = tempfile::tempdir().unwrap();
+    let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
+    for peer in ["1.0.0", "2.0.0"] {
+        let package = root
+            .path()
+            .join("packages")
+            .join(peer)
+            .join("node_modules/foo");
+        install_package(&package, &["guide"]);
+        writeln!(yaml, "  packages/{peer}:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0(peer@{peer})").unwrap();
+    }
+    let skills = root.path().join(".claude/skills");
+    fs::create_dir_all(&skills).unwrap();
+    pnpm_fs::force_symlink_dir(
+        &root.path().join("packages/2.0.0/node_modules/foo/skills/guide"),
+        &skills.join("pnpm-foo-guide"),
+    )
+    .unwrap();
+    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).unwrap();
+    let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
+    assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
+    assert_eq!(
+        link_target(&skills.join("pnpm-foo-guide")),
+        link_target(&root.path().join("packages/1.0.0/node_modules/foo/skills/guide")),
+    );
+}
+
+#[test]
+fn unrecorded_links_to_other_packages_versions_or_skills_remain_occupied() {
+    for other in [
+        "node_modules/bar/skills/guide",
+        "node_modules/foo@2.0.0/skills/guide",
+        "node_modules/foo/skills/migrate",
+    ] {
+        let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide", "migrate"])]);
+        let skills = root.path().join(".claude/skills");
+        fs::create_dir_all(&skills).unwrap();
+        install_package(&root.path().join("node_modules/bar"), &["guide"]);
+        install_package(&root.path().join("node_modules/foo@2.0.0"), &["guide"]);
+        let target = root.path().join(other);
+        pnpm_fs::force_symlink_dir(&target, &skills.join("pnpm-foo-guide")).unwrap();
+        let error =
+            sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
+        assert!(matches!(error, AgentSkillsError::Occupied { .. }), "{error:?}");
+        assert_eq!(link_target(&skills.join("pnpm-foo-guide")), link_target(&target));
+    }
+}

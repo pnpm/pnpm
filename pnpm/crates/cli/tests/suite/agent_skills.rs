@@ -153,6 +153,16 @@ fn install_links_approved_skills_and_prunes_revoked_ones() {
             .is_file(),
     );
 
+    assert_eq!(
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+            "node_modules"
+        ),)
+        .unwrap()
+        .unwrap()
+        .linked_skills,
+        Some(vec![LINK.to_string()]),
+    );
+
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml =
         fs::read_to_string(&yaml_path).expect("read yaml").replace("skills: true", "skills: false");
@@ -264,5 +274,77 @@ fn repeat_install_links_into_a_new_agent_dir() {
     assert!(
         workspace.join(".cursor/skills/pnpm-@pnpm.e2e+with-agent-skills-guide/SKILL.md").is_file(),
     );
+    drop(harness);
+}
+
+#[test]
+fn peer_variant_changes_preserve_skill_ownership() {
+    let (harness, workspace) = project(concat!(
+        "packages:\n  - packages/*\n",
+        "dedupePeerDependents: false\n",
+        "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n",
+        "packageExtensions:\n  '@pnpm.e2e/with-agent-skills@*':\n",
+        "    peerDependencies:\n      '@pnpm.e2e/peer-a': '*'\n",
+    ));
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).unwrap();
+    let write_manifest = |dir: &Path, peer: &str| {
+        fs::write(
+            dir.join("package.json"),
+            serde_json::json!({
+                "name": if dir == workspace { "root" } else { "app" },
+                "dependencies": { PACKAGE: "1.0.0", "@pnpm.e2e/peer-a": peer },
+            })
+            .to_string(),
+        )
+        .unwrap();
+    };
+    let mut targets = Vec::new();
+    for (root_peer, app_peer) in [("1.0.0", "1.0.1"), ("1.0.1", "1.0.0"), ("1.0.1", "1.0.1")] {
+        write_manifest(&workspace, root_peer);
+        write_manifest(&app, app_peer);
+        pnpm(&workspace)
+            .with_args(["install", "--no-frozen-lockfile"])
+            .assert()
+            .success();
+        let modules = pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(
+            &workspace.join("node_modules"),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(modules.linked_skills, Some(vec![LINK.to_string()]));
+        targets.push(fs::canonicalize(workspace.join(LINK)).unwrap());
+        if targets.len() == 1 {
+            let alternate = [&workspace, &app]
+                .into_iter()
+                .map(|dir| {
+                    fs::canonicalize(
+                        dir.join("node_modules")
+                            .join(PACKAGE)
+                            .join("skills/guide"),
+                    )
+                    .unwrap()
+                })
+                .max()
+                .unwrap();
+            assert_ne!(alternate, targets[0]);
+            pnpm_fs::force_symlink_dir(&alternate, &workspace.join(LINK)).unwrap();
+            let mut modules = modules;
+            modules.linked_skills = None;
+            pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(
+                &workspace.join("node_modules"),
+                modules,
+            )
+            .unwrap();
+        }
+    }
+    assert_eq!(targets[0], targets[1]);
+    assert_ne!(targets[1], targets[2]);
+    assert!(targets[1].is_dir(), "the previous variant still exists");
+    pnpm(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(fs::canonicalize(workspace.join(LINK)).unwrap(), targets[2]);
     drop(harness);
 }

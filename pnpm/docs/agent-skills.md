@@ -43,7 +43,7 @@ permissions:
 
 An approval covers every skill of the package, in every later version. A git or tarball dependency is approved by its exact source or, for git, by its repository, with the same keys as [`allowBuilds`](./settings/build.md#allowbuilds).
 
-If a package resolves to several versions in a workspace, the highest version decides which skills are linked. If the highest version ships no skills, none are linked, even when an older version does.
+If a package resolves to several versions in a workspace, the highest version decides which skills are linked. If the highest version ships no skills, none are linked, even when an older version does. Copies of the same version with different peer dependencies use a consistent skill source across installs. Existing links to those copies can be refreshed even when their ownership record is missing.
 
 ## Where skills are linked
 

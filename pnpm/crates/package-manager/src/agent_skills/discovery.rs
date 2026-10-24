@@ -6,7 +6,7 @@ use crate::{
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::parse_name_version_from_key;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
 };
@@ -24,6 +24,7 @@ pub(super) struct SkillSource {
     pub(super) package_dir: PathBuf,
     /// The names of the skill directories, sorted.
     pub(super) skills: Vec<String>,
+    pub(super) equivalent_skills: BTreeMap<String, BTreeSet<PathBuf>>,
 }
 
 /// The direct dependencies of every importer that ship skills.
@@ -137,13 +138,10 @@ fn is_package_name(alias: &str) -> bool {
     }
 }
 
-/// A registry package is one directory however many importers depend on
-/// it. Any other key, such as `link:../lib`, can be relative to its
-/// importer.
 fn probe_key(importer_id: &str, resolved: &str) -> String {
     let dep_path = normalize_build_dep_path(resolved);
     if node_semver::Version::parse(parse_name_version_from_key(&dep_path).1).is_ok() {
-        dep_path
+        resolved.to_string()
     } else {
         format!("{importer_id}\0{resolved}")
     }
@@ -162,21 +160,23 @@ enum Probe {
     Found(ShippedSkills),
 }
 
-/// [`probe_package`], probing a package once however many importers depend
-/// on it. An absent directory is not cached, and its version takes no part
-/// in choosing the highest: what it ships is unknown.
 fn cached_skills(
     cache: &mut HashMap<String, ShippedSkills>,
     key: String,
     dir: &Path,
 ) -> ShippedSkills {
-    if let Some(found) = cache.get(&key) {
-        return found.clone();
+    if let Some(Some((skills, package_dir))) = cache.get(&key)
+        && (skills.is_empty()
+            || fs::canonicalize(dir).is_ok_and(|resolved| resolved == *package_dir))
+    {
+        return Some((skills.clone(), package_dir.clone()));
     }
     match probe_package(dir) {
         Probe::Absent => None,
         Probe::Found(found) => {
-            cache.insert(key, found.clone());
+            if found.is_some() {
+                cache.insert(key, found.clone());
+            }
             found
         }
     }
@@ -222,6 +222,7 @@ fn skill_source(
     };
     SkillSource {
         skills,
+        equivalent_skills: BTreeMap::new(),
         dep_path,
         approval_key,
         link_segment: link_segment.replace('/', "+"),
@@ -232,7 +233,10 @@ fn skill_source(
 /// Record `source` under its approval key unless a source already kept
 /// there [`supersedes`] it.
 fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource) {
-    match by_key.get(&source.approval_key) {
+    match by_key.get_mut(&source.approval_key) {
+        Some(kept) if source.dep_path == kept.dep_path && registry_version(&source).is_some() => {
+            merge_peer_variant(kept, source);
+        }
         Some(kept) if !supersedes(&source, kept) => {}
         _ => {
             by_key.insert(source.approval_key.clone(), source);
@@ -240,13 +244,34 @@ fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource)
     }
 }
 
-/// Whether `candidate` replaces `kept` for the same approval key. Only
-/// registry versions compare: any other key names one source already.
+fn merge_peer_variant(kept: &mut SkillSource, mut source: SkillSource) {
+    if supersedes(&source, kept) {
+        std::mem::swap(kept, &mut source);
+    }
+    for skill in source.skills {
+        source.equivalent_skills
+            .entry(skill.clone())
+            .or_default()
+            .insert(source.package_dir.join("skills").join(skill));
+    }
+    for (skill, targets) in source.equivalent_skills {
+        let kept_targets = kept.equivalent_skills.entry(skill).or_default();
+        kept_targets.extend(targets);
+    }
+}
+
+fn registry_version(source: &SkillSource) -> Option<node_semver::Version> {
+    node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
+}
+
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
-    let version = |source: &SkillSource| {
-        node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
-    };
-    matches!((version(candidate), version(kept)), (Some(candidate), Some(kept)) if candidate > kept)
+    match (registry_version(candidate), registry_version(kept)) {
+        (Some(candidate_version), Some(kept_version)) => candidate_version
+            .cmp(&kept_version)
+            .then_with(|| kept.package_dir.cmp(&candidate.package_dir))
+            .is_gt(),
+        _ => false,
+    }
 }
 
 /// The skills directly under `<package_dir>/skills`: the subdirectories
@@ -261,3 +286,6 @@ fn skill_names(package_dir: &Path) -> Vec<String> {
     names.sort();
     names
 }
+
+#[cfg(test)]
+mod tests;
