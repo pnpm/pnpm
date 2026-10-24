@@ -214,6 +214,14 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_mins(1);
+
+    /// The checks config loading applies to `metrics`, for a config built in
+    /// code.
+    pub fn ensure_valid_metrics(&self) -> Result<(), RegistryError> {
+        self.metrics
+            .as_ref()
+            .map_or(Ok(()), |metrics| metrics.validate(self.listen))
+    }
 }
 
 #[derive(Debug, Clone)]

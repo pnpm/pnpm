@@ -298,6 +298,7 @@ pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> pnpr_error::
     // `serve`/`serve_listener`.
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
+    config.http.ensure_valid_metrics()?;
     let osv_index = load_active_osv_index(&config)?;
     router_with_auth_and_osv(config, auth, osv_index)
 }

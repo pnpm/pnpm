@@ -93,6 +93,7 @@ pub async fn serve(mut config: Config) -> pnpr_error::Result<()> {
     // rather than start a server that only answers `/-/ping`.
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
+    config.http.ensure_valid_metrics()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -178,6 +179,7 @@ pub async fn serve_listener(
     let listen = listener.local_addr()?;
     config.features.ensure_a_feature_is_enabled()?;
     config.routing.ensure_valid_registry_graph(config.features.registry.enabled)?;
+    config.http.ensure_valid_metrics()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`

@@ -17,7 +17,7 @@ pub struct MetricsConfig {
 }
 
 impl MetricsConfig {
-    /// The shortest `token` pnpr accepts.
+    /// The shortest `token` pnpr accepts, not counting surrounding whitespace.
     pub const MIN_TOKEN_LEN: usize = 32;
 
     pub(super) fn validate(&self, server_listen: SocketAddr) -> Result<(), RegistryError> {
@@ -28,7 +28,7 @@ impl MetricsConfig {
             (_, Some(listen)) if listen == server_listen => Err(RegistryError::InvalidConfig {
                 reason: format!("metrics.listen {listen} is the server's own listen address"),
             }),
-            (Some(token), _) if token.len() < Self::MIN_TOKEN_LEN => {
+            (Some(token), _) if token.trim().len() < Self::MIN_TOKEN_LEN => {
                 Err(RegistryError::InvalidConfig {
                     reason: format!(
                         "metrics.token must be at least {} characters long",

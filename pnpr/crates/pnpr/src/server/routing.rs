@@ -97,7 +97,8 @@ fn finish_router(
         // restricted token is rejected before a write handler buffers its
         // up-to-100-MiB body), and stash the identity for handlers to read.
         // Inside the trace layer below, so a rejection is still one record.
-        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate));
+        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
+        .merge(main_listener_metrics_routes(&state));
     let mut router = apply_request_timeout(router, state.inner.config.http.request_timeout);
     if !cors_origins.is_empty() {
         router = router.layer(
@@ -123,9 +124,8 @@ fn finish_router(
     Ok(with_observability_layers(router, state.clone()).with_state(state))
 }
 
-/// Health probes and, per [`metrics_on_main_listener`], metrics, each with a
-/// `/~<name>/`-addressed twin.
-fn probe_routes(state: &AppState) -> Router<AppState> {
+/// Health probes, each with a `/~<name>/`-addressed twin.
+fn probe_routes() -> Router<AppState> {
     let mut router: Router<AppState> = Router::new();
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
@@ -133,29 +133,36 @@ fn probe_routes(state: &AppState) -> Router<AppState> {
             .route(&path("/-/ping"), get(serve_ping))
             .route(&path("/-/ready"), get(serve_ready))
             .route(&path("/-/live"), get(serve_live));
-        if metrics_on_main_listener(state) {
+    }
+    router
+}
+
+/// The main listener's metrics routes, each with a `/~<name>/`-addressed twin.
+/// It serves them only to a scraper that sends `metrics.token`, and never when
+/// `metrics.listen` gives them their own listener. They sit outside
+/// [`authenticate`], so a scrape never looks its token up as a user token and
+/// still answers while the auth backend is down.
+fn main_listener_metrics_routes(state: &AppState) -> Router<AppState> {
+    let served = state.inner.config.http.metrics
+        .as_ref()
+        .is_some_and(|metrics| metrics.token.is_some() && metrics.listen.is_none());
+    let mut router: Router<AppState> = Router::new();
+    if served {
+        for base in ["", "/~{registry}"] {
             router = router
-                .route(&path("/-/metrics"), get(serve_metrics))
-                .route(&path("/metrics"), get(serve_metrics));
+                .route(&format!("{base}/-/metrics"), get(serve_metrics))
+                .route(&format!("{base}/metrics"), get(serve_metrics));
         }
     }
     router
 }
 
-/// The main listener serves metrics only to a scraper that sends
-/// `metrics.token`, and never when `metrics.listen` gives them their own.
-fn metrics_on_main_listener(state: &AppState) -> bool {
-    state.inner.config.http.metrics
-        .as_ref()
-        .is_some_and(|metrics| metrics.token.is_some() && metrics.listen.is_none())
-}
-
 /// The router for `metrics.listen`, sharing `state` with the main router so
-/// both report the same counters.
+/// both report the same counters, with the main router's access log and
+/// request IDs.
 pub(super) fn metrics_listener_router(state: AppState) -> Router {
-    Router::new()
-        .route("/metrics", get(serve_metrics))
-        .with_state(state)
+    let router = Router::new().route("/metrics", get(serve_metrics));
+    with_observability_layers(router, state.clone()).with_state(state)
 }
 
 fn apply_request_timeout(
@@ -213,7 +220,7 @@ fn surface_routes(
     // The configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router = probe_routes(state);
+    let mut router = probe_routes();
     router = router
         .merge(super::oidc::routes(ui_served))
         .merge(account_routes())

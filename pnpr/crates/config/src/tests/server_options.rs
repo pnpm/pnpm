@@ -292,6 +292,7 @@ fn metrics_are_off_by_default_and_need_a_long_token_or_a_listener() {
     for (yaml, field) in [
         ("metrics: {}\n", "metrics needs"),
         ("metrics:\n  token: short\n", "metrics.token"),
+        (format!("metrics:\n  token: '{}x'\n", " ".repeat(40)).as_str(), "metrics.token"),
         (format!("metrics:\n  listen: {}\n", listen()).as_str(), "metrics.listen"),
     ] {
         let err = load(yaml).expect_err(yaml);

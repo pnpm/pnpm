@@ -124,6 +124,46 @@ async fn a_metrics_listener_takes_metrics_off_the_main_listener_and_shares_its_c
 }
 
 #[tokio::test]
+async fn a_metrics_token_is_never_resolved_as_a_user_token() {
+    // The authentication layer refuses an unknown `pnpr_oci_` bearer before
+    // any handler runs, so a scrape only succeeds if it bypasses that layer.
+    let token = "pnpr_oci_0123456789abcdef0123456789abcdef";
+    let tmp = TempDir::new().unwrap();
+    let app =
+        app_with_metrics(&tmp, Some(MetricsConfig { token: Some(token.into()), listen: None }));
+    let response = app
+        .oneshot(scrape("/-/metrics", Some(token)))
+        .await
+        .unwrap();
+    assert!(is_prometheus(&response), "status {}", response.status());
+}
+
+#[tokio::test]
+async fn a_metrics_token_matches_without_its_surrounding_whitespace() {
+    let tmp = TempDir::new().unwrap();
+    let padded = format!("{METRICS_TOKEN}\n");
+    let app = app_with_metrics(&tmp, Some(MetricsConfig { token: Some(padded), listen: None }));
+    let response = app
+        .oneshot(scrape("/-/metrics", Some(METRICS_TOKEN)))
+        .await
+        .unwrap();
+    assert!(is_prometheus(&response), "status {}", response.status());
+}
+
+#[test]
+fn a_router_built_in_code_refuses_a_short_metrics_token() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_metrics(
+        &tmp,
+        Some(MetricsConfig { token: Some("short".into()), listen: None }),
+    );
+    let auth = AuthState::in_memory_with_max_users(config.identity.auth.htpasswd.max_users);
+    let err =
+        crate::server::try_router_with_auth(config, auth).expect_err("a short token must fail");
+    assert!(err.to_string().contains("metrics.token"), "{err}");
+}
+
+#[tokio::test]
 async fn a_metrics_listener_without_a_token_serves_any_scraper() {
     let tmp = TempDir::new().unwrap();
     let metrics = MetricsConfig { token: None, listen: Some("127.0.0.1:0".parse().unwrap()) };
@@ -135,6 +175,10 @@ async fn a_metrics_listener_without_a_token_serves_any_scraper() {
         .await
         .unwrap();
     assert!(is_prometheus(&response));
+    assert!(
+        response.headers().contains_key("x-request-id"),
+        "no request ID on the metrics listener",
+    );
 }
 
 #[tokio::test]
