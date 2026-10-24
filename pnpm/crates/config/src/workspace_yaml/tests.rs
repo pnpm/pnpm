@@ -99,4 +99,6 @@ mod env_placeholders;
 
 mod readable_settings;
 
+mod task_entries;
+
 mod side_effects_cache_exclude;
