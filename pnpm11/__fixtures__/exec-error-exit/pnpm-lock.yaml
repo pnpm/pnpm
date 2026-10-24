@@ -7,3 +7,7 @@ settings:
 importers:
 
   .: {}
+
+  project-a: {}
+
+  project-b: {}
