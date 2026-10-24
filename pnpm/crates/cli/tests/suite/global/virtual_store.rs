@@ -243,7 +243,7 @@ fn global_add_ignores_the_caller_project_virtual_store_dirs() {
     assert_eq!(slots(&npmrc_info.store_dir, PKG).len(), 1, "one slot for {PKG} in the store");
     assert!(
         !workspace.join("project-gvs").exists(),
-        "the project's globalVirtualStoreDir is unused"
+        "the project's globalVirtualStoreDir is unused",
     );
     assert!(!workspace.join("project-vs").exists(), "the project's virtualStoreDir is unused");
 
