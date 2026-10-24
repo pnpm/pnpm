@@ -846,6 +846,28 @@ describe('prune keeps the packages that a registered project still uses', () => 
     return withStoreIndex(storeDir, (storeIndex) => Array.from(storeIndex.keys()).sort())
   }
 
+  // Every store file the rows under `keys` name, with their side effects.
+  function blobPathsOfRows (storeDir: string, keys: string[]): string[] {
+    return withStoreIndex(storeDir, (storeIndex) => keys.flatMap((key) => {
+      const row = storeIndex.get(key) as PackageFilesIndex
+      return [
+        ...row.files.values(),
+        ...Array.from(row.sideEffects?.values() ?? []).flatMap((diff) => Array.from(diff.added?.values() ?? [])),
+      ].map(({ digest, mode }) => getFilePathByModeInCafs(storeDir, digest, mode))
+    }))
+  }
+
+  async function expectPruneKeepsEveryRowAndBlob (storeDir: string): Promise<void> {
+    const keysBefore = sortedIndexKeys(storeDir)
+    expect(keysBefore.length).toBeGreaterThan(1)
+    const blobPaths = blobPathsOfRows(storeDir, keysBefore)
+
+    await prune(storeDir)
+
+    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    expect(blobPaths.filter((blobPath) => !fs.existsSync(blobPath))).toStrictEqual([])
+  }
+
   test('a patched dependency installed with packageImportMethod: hardlink', async () => {
     // A patched package gets its own copy of the files even under `hardlink`,
     // so no store file of it has a hard link outside the store.
@@ -876,28 +898,24 @@ describe('prune keeps the packages that a registered project still uses', () => 
     // count alone marks every package unused.
     prepareProject('packageImportMethod: copy\n')
     const storeDir = await install()
-    const keysBefore = sortedIndexKeys(storeDir)
-    expect(keysBefore.length).toBeGreaterThan(1)
 
-    await prune(storeDir)
-
-    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
   })
 
   // Without a wanted lockfile, the install writes the installed lockfile into
-  // the custom virtual store directory.
+  // the custom virtual store directory. Under a global virtual store, the
+  // project records the shared store as its virtualStoreDir and keeps the
+  // installed lockfile in node_modules/.pnpm.
   test.each([
-    'virtualStoreDir: vs\n',
-    'virtualStoreDir: vs\nlockfile: false\n',
-  ])('every package installed with packageImportMethod: copy and %j', async (workspaceYaml) => {
+    ['virtualStoreDir: vs\n', 'node_modules/.pnpm/lock.yaml'],
+    ['virtualStoreDir: vs\nlockfile: false\n', 'vs/lock.yaml'],
+    ['enableGlobalVirtualStore: true\n', 'node_modules/.pnpm/lock.yaml'],
+  ])('every package installed with packageImportMethod: copy and %j', async (workspaceYaml, installedLockfile) => {
     prepareProject(`packageImportMethod: copy\n${workspaceYaml}`)
     const storeDir = await install()
-    const keysBefore = sortedIndexKeys(storeDir)
-    expect(keysBefore.length).toBeGreaterThan(1)
+    expect(fs.existsSync(installedLockfile)).toBe(true)
 
-    await prune(storeDir)
-
-    expect(sortedIndexKeys(storeDir)).toStrictEqual(keysBefore)
+    await expectPruneKeepsEveryRowAndBlob(storeDir)
   })
 
   test('a runtime installed with packageImportMethod: copy', async () => {
