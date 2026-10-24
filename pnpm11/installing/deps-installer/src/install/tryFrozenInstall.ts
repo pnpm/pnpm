@@ -1,10 +1,12 @@
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { PnpmError } from '@pnpm/error'
 import { headlessInstall } from '@pnpm/installing.deps-restorer'
 import { isEmptyLockfile, writeLockfiles, writeWantedLockfile } from '@pnpm/lockfile.fs'
+import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate } from '@pnpm/lockfile.verification'
 import { logger } from '@pnpm/logger'
 import type { PatchGroupRecord } from '@pnpm/patching.config'
@@ -136,6 +138,9 @@ async function lockfileIsUpToDateWithProjects (
   if (untrackedReadPackageHookMayHaveChanged) return false
   if (opts.pruneLockfileImporters && Object.keys(ctx.wantedLockfile.importers).length !== Object.keys(ctx.projects).length) return false
   if (isEmptyLockfile(ctx.wantedLockfile) || ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION) return false
+  // A frozen install installs the keys the lockfile records. Any other install
+  // writes the current keys, so it resolves when the recorded ones are not.
+  if (findOutdatedRegistryKey(ctx.wantedLockfile, pickRegistryContext(opts)) != null) return false
   return allProjectsAreUpToDate(Object.values(ctx.projects), upToDateCheckOptions(opts, { ctx, wantedLockfile: ctx.wantedLockfile }))
 }
 

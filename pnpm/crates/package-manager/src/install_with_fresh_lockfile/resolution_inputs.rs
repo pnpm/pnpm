@@ -54,6 +54,7 @@ pub(crate) struct ResolverFetchContext<'a> {
 pub(crate) struct ResolverRegistryContext<'a> {
     pub named: &'a HashMap<String, String>,
     pub by_prefix: &'a HashMap<String, String>,
+    pub declared: &'a pnpm_lockfile::DeclaredRegistryPrefixes,
     pub cache: &'a Arc<InMemoryPackageMetaCache>,
     /// See `NpmResolver::full_metadata` — forced on when `time-based`
     /// resolution or the `no-downgrade` trust policy needs the

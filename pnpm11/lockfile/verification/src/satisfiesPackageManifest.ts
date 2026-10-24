@@ -223,7 +223,8 @@ function findDependencyMismatch (
   }
   const range = importer.specifiers[depName]
   if (range == null || !semver.validRange(range)) return undefined
-  const version = dp.removeSuffix(importerDeps[depName])
+  const lockedVersion = dp.removeSuffix(importerDeps[depName])
+  const version = dp.parseRegistryQualifiedVersion(lockedVersion)?.version ?? lockedVersion
   if (semver.valid(version) && !semver.satisfies(version, range)) {
     return {
       satisfies: false,

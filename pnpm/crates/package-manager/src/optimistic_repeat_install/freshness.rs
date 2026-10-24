@@ -492,6 +492,8 @@ fn refreshed_state(
         filesystem_now_ms: filesystem_now,
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: state.settings.auto_dedupe,
+            // The check passed, so a recorded verification still holds.
+            registry_keys_verified: state.settings.registry_prefixes.is_some(),
             kept_groups: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),

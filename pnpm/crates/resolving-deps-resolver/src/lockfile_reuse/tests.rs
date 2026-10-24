@@ -78,69 +78,180 @@ fn registry_metadata() -> PackageMetadata {
 #[test]
 fn reuses_when_locked_version_satisfies_the_manifest_range() {
     let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
-    let key = reusable_importer_dep(&lockfile, ".", "react", "^18.0.0")
-        .expect("locked 18.2.0 satisfies ^18.0.0");
+    let key = reusable_importer_dep(
+        &lockfile,
+        ".",
+        "react",
+        "^18.0.0",
+        &registry_context(default_registry()),
+    )
+    .expect("locked 18.2.0 satisfies ^18.0.0");
     assert_eq!(key.to_string(), "react@18.2.0");
 }
 
 #[test]
 fn reuses_across_a_widened_but_still_satisfied_range() {
     let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "react", ">=17").is_some());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "react",
+            ">=17",
+            &registry_context(default_registry())
+        )
+        .is_some(),
+    );
 }
 
 #[test]
 fn fresh_resolves_when_range_no_longer_satisfies_locked_version() {
     let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "react", "^19.0.0").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "react",
+            "^19.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 #[test]
 fn fresh_resolves_when_locked_prerelease_does_not_satisfy_stable_range() {
     let lockfile = single_dep_lockfile("react", "21.0.0-rc.0", "21.0.0-rc.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "react", "21.0.0").is_none());
-    assert!(reusable_importer_dep(&lockfile, ".", "react", "^21.0.0").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "react",
+            "21.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "react",
+            "^21.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 #[test]
 fn fresh_resolves_a_new_dependency_absent_from_the_lockfile() {
     let lockfile = single_dep_lockfile("react", "^18.0.0", "18.2.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "left-pad", "^1.0.0").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "left-pad",
+            "^1.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 #[test]
 fn reuses_a_locked_runtime_the_widened_range_still_admits() {
     let lockfile = single_dep_lockfile("node", "runtime:26.10.0", "runtime:26.10.0");
-    let key = reusable_importer_dep(&lockfile, ".", "node", "runtime:^26")
-        .expect("locked 26.10.0 satisfies ^26");
+    let key = reusable_importer_dep(
+        &lockfile,
+        ".",
+        "node",
+        "runtime:^26",
+        &registry_context(default_registry()),
+    )
+    .expect("locked 26.10.0 satisfies ^26");
     assert_eq!(key.to_string(), "node@runtime:26.10.0");
 }
 
 #[test]
 fn fresh_resolves_a_runtime_range_that_excludes_the_locked_version() {
     let lockfile = single_dep_lockfile("node", "runtime:^26", "runtime:26.10.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^27").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "node",
+            "runtime:^27",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 #[test]
 fn fresh_resolves_an_unchanged_runtime_range_the_locked_version_left() {
     let lockfile = single_dep_lockfile("node", "runtime:^26", "runtime:27.0.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^26").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "node",
+            "runtime:^26",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
     let lockfile = single_dep_lockfile("node", "runtime:26.10.0", "runtime:26.11.1");
-    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:26.10.0").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "node",
+            "runtime:26.10.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 #[test]
 fn reuses_a_locked_runtime_under_an_unchanged_non_range_selector() {
     let lockfile = single_dep_lockfile("node", "runtime:lts", "runtime:24.11.0");
-    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:lts").is_some());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "node",
+            "runtime:lts",
+            &registry_context(default_registry())
+        )
+        .is_some(),
+    );
 }
 
 #[test]
 fn reuses_a_locked_runtime_only_from_the_same_release_channel() {
     let lockfile = single_dep_lockfile("node", "runtime:rc/24.0.0-rc.4", "runtime:24.0.0-rc.4");
-    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:rc/^24.0.0-rc.3").is_some());
-    assert!(reusable_importer_dep(&lockfile, ".", "node", "runtime:^24.0.0-rc.3").is_none());
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "node",
+            "runtime:rc/^24.0.0-rc.3",
+            &registry_context(default_registry())
+        )
+        .is_some(),
+    );
+    assert!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "node",
+            "runtime:^24.0.0-rc.3",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 #[test]
@@ -163,7 +274,16 @@ fn reuses_an_unchanged_git_specifier_at_its_locked_commit() {
         },
     )]));
 
-    assert_eq!(reusable_importer_dep(&lockfile, ".", "git-pkg", specifier), Some(key));
+    assert_eq!(
+        reusable_importer_dep(
+            &lockfile,
+            ".",
+            "git-pkg",
+            specifier,
+            &registry_context(default_registry())
+        ),
+        Some(key),
+    );
 }
 
 #[test]
@@ -452,20 +572,43 @@ fn prior_child_key_applies_the_satisfies_gate() {
         serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "1.2.0" } }))
             .expect("parse snapshot entry");
 
-    let key = super::prior_child_key(&snapshot, "bar", "^1.0.0").expect("recorded ref satisfies");
+    let key =
+        super::prior_child_key(&snapshot, "bar", "^1.0.0", &registry_context(default_registry()))
+            .expect("recorded ref satisfies");
     assert_eq!(key.to_string(), "bar@1.2.0");
 
     assert!(
-        super::prior_child_key(&snapshot, "bar", "^2.0.0").is_none(),
+        super::prior_child_key(&snapshot, "bar", "^2.0.0", &registry_context(default_registry()))
+            .is_none(),
         "an edited range the recorded version no longer satisfies yields no prior key",
     );
-    assert!(super::prior_child_key(&snapshot, "baz", "^1.0.0").is_none(), "unrecorded alias");
+    assert!(
+        super::prior_child_key(&snapshot, "baz", "^1.0.0", &registry_context(default_registry()))
+            .is_none(),
+        "unrecorded alias",
+    );
 
     let prerelease_snapshot: pnpm_lockfile::SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "bar": "21.0.0-rc.0" } }))
             .expect("parse snapshot entry");
-    assert!(super::prior_child_key(&prerelease_snapshot, "bar", "21.0.0").is_none());
-    assert!(super::prior_child_key(&prerelease_snapshot, "bar", "^21.0.0").is_none());
+    assert!(
+        super::prior_child_key(
+            &prerelease_snapshot,
+            "bar",
+            "21.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
+    assert!(
+        super::prior_child_key(
+            &prerelease_snapshot,
+            "bar",
+            "^21.0.0",
+            &registry_context(default_registry())
+        )
+        .is_none(),
+    );
 }
 
 /// Covers <https://github.com/pnpm/pnpm/issues/16654>.
@@ -476,30 +619,189 @@ fn prior_child_key_rejects_an_alias_ref_for_a_bare_range() {
     }))
     .expect("parse snapshot entry");
 
-    assert!(super::prior_child_key(&snapshot, "bar", "^1.0.0").is_none());
+    assert!(
+        super::prior_child_key(&snapshot, "bar", "^1.0.0", &registry_context(default_registry()))
+            .is_none(),
+    );
+}
+
+/// The registry facts with the `work` and `zeta` prefixes both naming one
+/// registry, which the `@work` scope also routes to; `gh` is the built-in
+/// alias, which nothing declares.
+fn prefixed_registry_context() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://npm.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries: HashMap::from([
+            ("default".to_string(), "https://registry.example.test/".to_string()),
+            ("@work".to_string(), registry.to_string()),
+        ]),
+        registries_by_prefix: HashMap::from([
+            ("gh".to_string(), "https://npm.pkg.github.com/".to_string()),
+            ("work".to_string(), registry.to_string()),
+            ("zeta".to_string(), registry.to_string()),
+        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
+            ("work", registry),
+            ("zeta", registry),
+        ]),
+        registry_options_by_url: std::collections::BTreeMap::new(),
+    }
 }
 
 #[test]
-fn reduce_named_registry_spec_matches_registry_and_package_name() {
-    let key_name: PkgName = "@scope/old".parse().unwrap();
+fn locked_child_admits_a_named_registry_spec_for_its_registry_and_package() {
+    let context = prefixed_registry_context();
+    let alias: PkgName = "@scope/old".parse().unwrap();
+    let key: PkgNameVerPeer = "@scope/old@work:1.2.0".parse().unwrap();
 
-    // Bare range: the alias carries the package name, nothing to compare.
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:^1.0.0"), Some("^1.0.0"));
+    // Bare range: the alias carries the package name.
+    assert_eq!(super::locked_child_admits(&alias, &key, "work:^1.0.0", &context), Some(true));
 
     // Aliased shape naming the same package.
     assert_eq!(
-        super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/old@^1.0.0"),
-        Some("^1.0.0"),
+        super::locked_child_admits(&alias, &key, "work:@scope/old@^1.0.0", &context),
+        Some(true),
     );
 
     // Aliased shape naming a *different* package: reusing the recorded entry
     // would install `@scope/old` for a dependency that asked for
     // `@scope/new`.
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "gh:@scope/new@^1.0.0"), None);
+    assert_eq!(
+        super::locked_child_admits(&alias, &key, "work:@scope/new@^1.0.0", &context),
+        Some(false),
+    );
 
-    // A spec aimed at another registry never satisfies this key.
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "work:^1.0.0"), None);
-    assert_eq!(super::reduce_named_registry_spec("gh", &key_name, "^1.0.0"), None);
+    // A spec aimed at another registry never satisfies this key; another
+    // prefix of the same registry does.
+    assert_eq!(super::locked_child_admits(&alias, &key, "gh:^1.0.0", &context), Some(false));
+    assert_eq!(super::locked_child_admits(&alias, &key, "zeta:^1.0.0", &context), Some(true));
+
+    // A prefix nothing declares is not a specifier the gate can judge.
+    assert_eq!(super::locked_child_admits(&alias, &key, "gone:^1.0.0", &context), None);
+
+    assert_eq!(super::locked_child_admits(&alias, &key, "work:^2.0.0", &context), Some(false));
+}
+
+#[test]
+fn locked_child_admits_a_plain_range_through_the_registry_its_scope_routes_to() {
+    let context = prefixed_registry_context();
+    let alias: PkgName = "@work/foo".parse().unwrap();
+    let qualified: PkgNameVerPeer = "@work/foo@work:1.2.0".parse().unwrap();
+    let plain: PkgNameVerPeer = "@work/foo@1.2.0".parse().unwrap();
+
+    // `@work` routes to the registry `work:` names, so either key satisfies
+    // a range, and a plain key satisfies the prefixed spec.
+    assert_eq!(super::locked_child_admits(&alias, &qualified, "^1.0.0", &context), Some(true));
+    assert_eq!(super::locked_child_admits(&alias, &plain, "^1.0.0", &context), Some(true));
+    assert_eq!(super::locked_child_admits(&alias, &plain, "work:^1.0.0", &context), Some(true));
+
+    // A key of another registry never satisfies the range.
+    let github: PkgNameVerPeer = "@work/foo@gh:1.2.0".parse().unwrap();
+    assert_eq!(super::locked_child_admits(&alias, &github, "^1.0.0", &context), Some(false));
+    let unscoped: PkgName = "foo".parse().unwrap();
+    let unscoped_qualified: PkgNameVerPeer = "foo@work:1.2.0".parse().unwrap();
+    assert_eq!(
+        super::locked_child_admits(&unscoped, &unscoped_qualified, "^1.0.0", &context),
+        Some(false),
+    );
+}
+
+/// A key the registries setting now writes differently still pins its
+/// version; whether its subtree is reused is [`locked_key_is_current`]'s call.
+#[test]
+fn prior_child_key_keeps_the_pin_of_a_key_the_registries_setting_rekeys() {
+    let context = prefixed_registry_context();
+    let snapshot: pnpm_lockfile::SnapshotEntry = serde_json::from_value(serde_json::json!({
+        "dependencies": {
+            "@work/foo": "1.2.0",
+            "@work/bar": "work:1.2.0",
+            "@work/baz": "zeta:1.2.0",
+        },
+    }))
+    .expect("parse snapshot entry");
+
+    for (alias, specifier) in [
+        ("@work/foo", "^1.0.0"),
+        ("@work/bar", "^1.0.0"),
+        ("@work/bar", "zeta:^1.0.0"),
+        ("@work/baz", "zeta:^1.0.0"),
+    ] {
+        assert!(
+            super::prior_child_key(&snapshot, alias, specifier, &context).is_some(),
+            "{alias} {specifier}",
+        );
+    }
+}
+
+#[test]
+fn reusable_importer_dep_keeps_the_pin_of_a_key_the_registries_setting_rekeys() {
+    let context = prefixed_registry_context();
+    for recorded in ["1.2.0", "work:1.2.0", "zeta:1.2.0"] {
+        let lockfile = single_dep_lockfile("@work/foo", "^1.0.0", recorded);
+        assert!(
+            reusable_importer_dep(&lockfile, ".", "@work/foo", "^1.0.0", &context).is_some(),
+            "{recorded}",
+        );
+    }
+}
+
+/// A reused subtree has to carry the key a fresh resolve of its specifier
+/// mints.
+#[test]
+fn locked_key_is_current_when_it_is_the_key_the_specifier_mints() {
+    let context = prefixed_registry_context();
+    let alias: PkgName = "@work/foo".parse().unwrap();
+    let current = |key: &str, specifier: &str| {
+        super::locked_key_is_current(
+            &alias,
+            &key.parse::<PkgNameVerPeer>().unwrap(),
+            specifier,
+            &context,
+        )
+    };
+
+    // The `@work` scope's registry declares `work`, so a plain range mints a
+    // `work:` key.
+    assert!(current("@work/foo@work:1.2.0", "^1.0.0"));
+    assert!(!current("@work/foo@1.2.0", "^1.0.0"));
+    // Another declared alias of the registry mints the same key.
+    assert!(current("@work/foo@work:1.2.0", "zeta:^1.0.0"));
+    assert!(!current("@work/foo@zeta:1.2.0", "zeta:^1.0.0"));
+    assert!(!current("@work/foo@zeta:1.2.0", "work:^1.0.0"));
+    // Keys that are not registry versions are left alone.
+    assert!(current("@work/foo@file:packages/foo", "file:packages/foo"));
+}
+
+/// A built-in alias qualifies only the specifiers that spell it, so neither
+/// direction between a plain key and an `npmjs:` key is reused.
+#[test]
+fn locked_key_is_current_follows_the_spelling_of_a_built_in_alias() {
+    let context = pnpm_lockfile::RegistryContext {
+        registries: HashMap::from([(
+            "default".to_string(),
+            "https://registry.npmjs.org/".to_string(),
+        )]),
+        registries_by_prefix: HashMap::from([
+            ("npmjs".to_string(), "https://registry.npmjs.org/".to_string()),
+            ("gh".to_string(), "https://npm.pkg.github.com/".to_string()),
+        ]),
+        ..Default::default()
+    };
+    let alias: PkgName = "foo".parse().unwrap();
+    let current = |key: &str, specifier: &str| {
+        super::locked_key_is_current(
+            &alias,
+            &key.parse::<PkgNameVerPeer>().unwrap(),
+            specifier,
+            &context,
+        )
+    };
+
+    assert!(current("foo@1.0.0", "^1.0.0"));
+    assert!(current("foo@npmjs:1.0.0", "npmjs:^1.0.0"));
+    assert!(!current("foo@1.0.0", "npmjs:^1.0.0"));
+    assert!(!current("foo@npmjs:1.0.0", "^1.0.0"));
+    assert!(current("foo@gh:1.0.0", "gh:^1.0.0"));
 }
 
 #[test]
@@ -544,10 +846,11 @@ fn attach_snapshot_dependencies_converts_dep_refs_to_manifest_specifiers() {
 /// does not reuse another package recorded under the alias.
 #[test]
 fn locked_child_admits_a_bare_named_registry_spec_only_for_the_alias_package() {
+    let context = prefixed_registry_context();
     let alias: PkgName = "foo".parse().expect("parse alias");
     let other: PkgNameVerPeer = "bar@work:1.2.0".parse().expect("parse key");
-    assert_eq!(super::locked_child_admits(&alias, &other, "work:^1.0.0"), Some(false));
-    assert_eq!(super::locked_child_admits(&alias, &other, "work:bar@^1.0.0"), Some(true));
+    assert_eq!(super::locked_child_admits(&alias, &other, "work:^1.0.0", &context), Some(false));
+    assert_eq!(super::locked_child_admits(&alias, &other, "work:bar@^1.0.0", &context), Some(true));
     let own: PkgNameVerPeer = "foo@work:1.2.0".parse().expect("parse key");
-    assert_eq!(super::locked_child_admits(&alias, &own, "work:^1.0.0"), Some(true));
+    assert_eq!(super::locked_child_admits(&alias, &own, "work:^1.0.0", &context), Some(true));
 }

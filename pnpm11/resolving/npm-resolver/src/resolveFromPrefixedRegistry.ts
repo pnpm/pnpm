@@ -1,6 +1,6 @@
+import { pickDeclaredRegistryPrefix } from '@pnpm/config.pick-registry-for-package'
 import type {
   NonDeprecatedAlternative,
-  PkgResolutionId,
   ResolutionPolicyViolation,
   TarballResolution,
   WantedDependency,
@@ -16,6 +16,7 @@ import {
 import { findNonDeprecatedAlternative } from './pickPackageFromMeta.js'
 import { createPickPackageOptions } from './pickPackageOptions.js'
 import { warnOnceOnHeldBackUpdate } from './preferredVersionSelectors.js'
+import { qualifiedPackageId, registryPackageId } from './registryPackageId.js'
 import { createRegistryTarballResolution } from './registryTarballResolution.js'
 import { detectMinReleaseAgeViolation, latestAllowedByPolicy } from './releaseAgePolicy.js'
 import type {
@@ -36,9 +37,11 @@ export async function resolveJsr (
   const spec = parseJsrSpecifierToRegistryPackageSpec(wantedDependency.bareSpecifier, wantedDependency.alias, opts.defaultTag ?? 'latest')
   if (spec == null) return null
 
-  const picked = await pickFromSimpleRegistry({ ctx, wantedDependency, opts, spec, registry: ctx.registriesByScope['@jsr']! }) // '@jsr' is always defined
+  const registry = ctx.registriesByScope['@jsr']! // '@jsr' is always defined
+  const picked = await pickFromSimpleRegistry({ ctx, wantedDependency, opts, spec, registry })
   return {
     ...picked,
+    id: registryPackageId(ctx, { name: picked.manifest.name, version: picked.manifest.version, registry }),
     normalizedBareSpecifier: opts.calcSpecifier
       ? calcPrefixedSpecifier({
         prefix: 'jsr:',
@@ -82,11 +85,16 @@ export async function resolveFromNamedRegistry (
   const picked = await pickFromSimpleRegistry({ ctx, wantedDependency, opts, spec, registry })
   return {
     ...picked,
-    // Qualifying the id with the registry alias is what keeps the same
-    // name@version resolved from two registries distinct in the lockfile.
-    // Without it they collapse onto one entry and whichever resolved first
-    // decides the tarball both consumers get.
-    id: `${picked.manifest.name}@${spec.registryName}:${picked.manifest.version}` as PkgResolutionId,
+    // Qualifying the id with the registry is what keeps the same name@version
+    // resolved from two registries distinct in the lockfile. Without it they
+    // collapse onto one entry and whichever resolved first decides the
+    // tarball both consumers get. A built-in alias that no declared prefix
+    // shares a registry with qualifies the id with its own name.
+    id: qualifiedPackageId(
+      picked.manifest.name,
+      picked.manifest.version,
+      pickDeclaredRegistryPrefix(ctx.declaredRegistriesByPrefix, registry) ?? spec.registryName
+    ),
     normalizedBareSpecifier: opts.calcSpecifier
       ? calcPrefixedSpecifier({
         prefix: `${spec.registryName}:`,
@@ -107,10 +115,9 @@ export async function resolveFromNamedRegistry (
 
 // Shared inner shell for resolvers that pull from a single registry URL with
 // an already-parsed RegistryPackageSpec (jsr, named-registry). Returns the
-// fields common to their result envelopes; each caller adds its own
+// fields common to their result envelopes; each caller adds its own id,
 // resolvedVia, alias, and normalizedBareSpecifier.
 async function pickFromSimpleRegistry (request: RegistrySpecRequest): Promise<{
-  id: PkgResolutionId
   latest?: string
   nonDeprecatedAlternative?: NonDeprecatedAlternative
   manifest: DependencyManifest
@@ -127,7 +134,6 @@ async function pickFromSimpleRegistry (request: RegistrySpecRequest): Promise<{
   const resolution = createRegistryTarballResolution(pickedPackage)
   const publishedAt = meta.time?.[pickedPackage.version]
   return {
-    id: `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId,
     latest: latestAllowedByPolicy(meta, opts),
     // Only worked out for a deprecated pick, so the scan stays on the rare path.
     nonDeprecatedAlternative: pickedPackage.deprecated

@@ -1,3 +1,4 @@
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import type { PnpmContext } from '@pnpm/installing.context'
 import { getAppliedPatchKeys } from '@pnpm/installing.deps-resolver'
@@ -196,5 +197,6 @@ export function upToDateCheckOptions (
     lockfileDir: opts.lockfileDir,
     workspaceDir: opts.workspaceDir,
     readPackageHook: opts.readPackageHook,
+    registries: pickRegistryContext(opts),
   }
 }

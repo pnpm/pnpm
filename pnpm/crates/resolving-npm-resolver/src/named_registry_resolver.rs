@@ -17,7 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use pnpm_lockfile::registry_server_type;
+use pnpm_lockfile::{DeclaredRegistryPrefixes, registry_server_type};
 
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
@@ -62,6 +62,11 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// checks aliases against this set per call, so caching it
     /// avoids rebuilding the set for every resolve.
     pub registry_names: HashSet<String>,
+    /// The prefixes the project declares, which decide the prefix a
+    /// resolved id carries: the one keys for the picked registry carry,
+    /// which is the written alias unless several declared prefixes name
+    /// that registry, or the alias is a built-in nothing declares.
+    pub declared_prefixes: DeclaredRegistryPrefixes,
     pub metadata: crate::RegistryMetadataClient<Cache>,
     pub format: crate::RegistryMetadataFormat,
     pub cache_policy: crate::MetadataCachePolicy,
@@ -116,10 +121,11 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             }
         };
 
+        let key_prefix = self.declared_prefixes.prefix_for(registry).unwrap_or(&registry_name);
         crate::npm_resolver::RegistryResolutionSource {
             resolved_via: NAMED_REGISTRY_RESOLVED_VIA,
             registry,
-            registry_name: Some(registry_name.as_str()),
+            registry_name: Some(key_prefix),
             server_type: registry_server_type(&self.format.registry_options_by_url, registry),
         }
         .build_result(
