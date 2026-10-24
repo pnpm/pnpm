@@ -112,6 +112,13 @@ fn broad_name_patterns_do_not_approve_builds() {
 }
 
 #[test]
+fn question_mark_in_scope_does_not_approve_other_scopes() {
+    let policy = policy_from_specs([("@par?el/*", true)], false);
+    assert_eq!(policy.check("@parcel/watcher@1.0.0"), None);
+    assert_eq!(policy.check("@parxel/watcher@1.0.0"), None);
+}
+
+#[test]
 fn wildcard_versions_are_not_accepted() {
     for pattern in ["core-js@.*", "@parcel/watcher@.*", "@parcel/*@1.0.0"] {
         let approvals = HashMap::from([(pattern.to_string(), true)]);
