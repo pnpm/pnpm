@@ -176,7 +176,7 @@ function applyLoadedProjectWorkspaceManifest (
   pnpmConfig.workspacePackagePatterns = cliOptions['workspace-packages'] as string[] ?? workspaceManifest?.packages ?? ['.']
   if (!workspaceManifest) return undefined
   warnAboutDroppedWorkspaceManifestKeys(state.warnings, workspaceManifest)
-  addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
+  const settings = addSettingsFromWorkspaceManifestToConfig(pnpmConfig, {
     configFromCliOpts: state.configFromCliOpts,
     projectManifest: pnpmConfig.rootProjectManifest,
     skipSettings: forSelfUpdate
@@ -185,15 +185,10 @@ function applyLoadedProjectWorkspaceManifest (
     workspaceDir,
     workspaceManifest,
   })
-  pnpmConfig.workspaceRegistryPrefixes = getPrefixesDeclaredByWorkspaceManifest(workspaceManifest)
+  // Read after the manifest's entries it may not contribute, such as one whose
+  // URL holds an env placeholder, are dropped.
+  pnpmConfig.workspaceRegistryPrefixes = Object.keys(settings.registriesByPrefix ?? {})
   return getRegistriesDeclaredByWorkspaceManifest(state, workspaceManifest)
-}
-
-/** The prefixes `registries` entries and the deprecated `namedRegistries` declare. */
-function getPrefixesDeclaredByWorkspaceManifest (workspaceManifest: WorkspaceManifest): string[] {
-  const declared = Object.values(workspaceManifest.registries ?? {})
-    .flatMap((entry) => typeof entry === 'object' && entry.prefix != null ? [entry.prefix] : [])
-  return [...declared, ...Object.keys(workspaceManifest.namedRegistries ?? {})]
 }
 
 /** For global installs, read settings from pnpm-workspace.yaml in the global package directory. */

@@ -52,24 +52,22 @@ impl WorkspacePackageManifest {
     }
 }
 
-/// The workspace package `name` at `version`, or the one project of that name
-/// when `version` is none of them. Several projects of the name and no match
-/// select nothing: a guess would send a consumer to another project's
-/// registry.
+/// The one workspace package `name` at `version`, or the one project of that
+/// name when `version` is none of them. Several projects at `version`, or
+/// several projects of the name and no match, select nothing: a guess would
+/// send a consumer to another project's registry.
 pub(super) fn workspace_package_at<'a>(
     workspace_packages: Option<&'a WorkspacePackageManifests>,
     name: &str,
     version: &str,
 ) -> Option<&'a WorkspacePackageManifest> {
     let projects = workspace_packages?.get(name)?;
-    if let Some(project) = projects
+    let mut at_version = projects
         .iter()
-        .find(|project| project.version == version)
-    {
-        return Some(project);
-    }
-    match projects.as_slice() {
-        [only] => Some(only),
+        .filter(|project| project.version == version);
+    match (at_version.next(), at_version.next(), projects.as_slice()) {
+        (Some(project), None, _) => Some(project),
+        (None, _, [only]) => Some(only),
         _ => None,
     }
 }
