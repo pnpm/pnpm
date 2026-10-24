@@ -44,7 +44,7 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, RwLock},
+    sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock},
 };
 
 use crate::{
@@ -276,6 +276,7 @@ pub(super) struct WorkspaceResolutionCache {
     /// same snapshot key recover its bound providers at most once per
     /// workspace pass.
     pub(super) bound_providers: Mutex<HashMap<PkgNameVerPeer, pnpm_lockfile::BoundProviders>>,
+    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
     /// Resolved registry map (`"default"` + per-scope) used to
     /// materialize a prior `Registry` lockfile resolution back into its
     /// tarball URL for the `currentPkg` payload. Empty when the entry
@@ -551,6 +552,12 @@ impl WorkspaceTreeCtx {
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
     pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.reuse.lockfile.as_ref()
+    }
+
+    pub(crate) fn unlisted_importer_locked_peers(
+        &self,
+    ) -> &OnceLock<Arc<HashMap<String, HashSet<String>>>> {
+        &self.cache.unlisted_importer_locked_peers
     }
 
     /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.

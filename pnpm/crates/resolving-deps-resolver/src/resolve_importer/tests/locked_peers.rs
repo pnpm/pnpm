@@ -283,6 +283,49 @@ fn a_hashed_peer_suffix_without_package_metadata_records_nothing() {
     assert!(versions.is_empty());
 }
 
+#[test]
+fn importers_missing_from_the_lockfile_share_one_locked_peer_scan() {
+    use super::super::locked_peers::LockedPeers;
+    use crate::resolve_dependency_tree::{TreeCtx, WorkspaceTreeCtx};
+    use pnpm_lockfile::{ImporterDepVersion, PkgName, ProjectSnapshot, ResolvedDependencySpec};
+    use pnpm_resolving_resolver_base::ResolveOptions;
+
+    let mut lockfile = peer_context_lockfile(
+        None,
+        [
+            ("consumer@1.0.0(peer@2.0.0)", SnapshotEntry::default()),
+            ("other@1.0.0(peer@3.0.0)", SnapshotEntry::default()),
+        ],
+    );
+    lockfile.importers.insert(
+        "app".to_string(),
+        ProjectSnapshot {
+            dependencies: Some(std::collections::HashMap::from([(
+                PkgName::parse("consumer").unwrap(),
+                ResolvedDependencySpec {
+                    specifier: "1.0.0".to_string(),
+                    version: ImporterDepVersion::Regular("1.0.0(peer@2.0.0)".parse().unwrap()),
+                },
+            )])),
+            ..ProjectSnapshot::default()
+        },
+    );
+    let workspace =
+        Arc::new(WorkspaceTreeCtx::default().with_wanted_lockfile(Some(Arc::new(lockfile))));
+    let peers_of = |importer_id| {
+        let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default());
+        LockedPeers::of(&ctx, importer_id).versions
+    };
+
+    let first = peers_of("new-a");
+    let second = peers_of("new-b");
+    let listed = peers_of("app");
+
+    assert_eq!(first["peer"], HashSet::from_iter(["2.0.0".to_string(), "3.0.0".to_string()]));
+    assert!(Arc::ptr_eq(&first, &second));
+    assert_eq!(listed["peer"], HashSet::from_iter(["2.0.0".to_string()]));
+}
+
 /// A package that declares no peers still carries the peers its own
 /// children resolved through it, so the suffix stays the only record of
 /// them.
