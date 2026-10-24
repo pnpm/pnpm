@@ -131,8 +131,9 @@ pub(super) fn keeps_locked_version(
 }
 
 /// `named_registry` is the prefix the locked key carries. A named specifier
-/// pins only when its own prefix keys that registry the same way, which
-/// another declared alias of the registry does too (see
+/// pins only when it and the locked key name one registry, compared by the
+/// prefix that registry's keys carry, so another declared alias of it, or a
+/// key an older configuration wrote with one, pins too (see
 /// [`RegistryContext::key_prefix_for_alias`]).
 pub(super) fn exact_registry_specifier_for_revision_refresh(
     specifier: &str,
@@ -151,7 +152,10 @@ pub(super) fn exact_registry_specifier_for_revision_refresh(
     };
     let names_locked_registry = registries
         .key_prefix_for_alias(protocol)
-        .is_some_and(|prefix| Some(prefix) == named_registry);
+        .is_some_and(|prefix| {
+            named_registry.and_then(|locked| registries.key_prefix_for_alias(locked))
+                == Some(prefix)
+        });
     if protocol != "npm" && protocol != "jsr" && !names_locked_registry {
         return specifier.to_string();
     }

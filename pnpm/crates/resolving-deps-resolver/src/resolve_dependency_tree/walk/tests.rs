@@ -173,6 +173,16 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
         "corp:pkg@1.2.3",
     );
     assert_eq!(
+        exact_registry_specifier_for_revision_refresh(
+            "zeta:pkg@^1.0.0",
+            "1.2.3",
+            Some("zeta"),
+            &registries
+        ),
+        "zeta:pkg@1.2.3",
+        "a key an older configuration wrote with another alias of the registry",
+    );
+    assert_eq!(
         exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None, &registries),
         "jsr:@scope/pkg@1.2.3",
     );

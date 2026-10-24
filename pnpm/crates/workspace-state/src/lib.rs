@@ -275,11 +275,14 @@ pub struct WorkspaceStateSettings {
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
-    /// The prefixes `registries` and `namedRegistries` declare, which decide
-    /// the lockfile keys of the packages resolved from their registries.
-    /// Recorded only when there are any, so a state written under other
-    /// prefixes, or by a pnpm that did not key by them, proves nothing about
-    /// the lockfile's keys. pnpm v11 does not record it.
+    /// What decides the lockfile keys of registry packages: each prefix
+    /// `registries` and `namedRegistries` declare, mapped to its URL, and
+    /// each route (`route:default`, `route:@<scope>`) whose registry declares
+    /// a prefix, mapped to that prefix. A prefix never contains `:`.
+    /// Recorded only when a prefix is declared, and only by an install that
+    /// verified the lockfile's keys, so a state written under other
+    /// registries, or by a pnpm that did not key by them, proves nothing about
+    /// the lockfile's keys.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registry_prefixes: Option<BTreeMap<String, String>>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.

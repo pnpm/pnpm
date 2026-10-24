@@ -532,3 +532,35 @@ fn jsr_specifiers_share_the_key_of_the_registry_prefix() {
 
     drop((root, anchor));
 }
+
+/// The freshness check of a `file:` dependency reads its children's
+/// registry-qualified keys through the configured registries.
+#[test]
+fn frozen_reinstall_accepts_a_registry_qualified_child_of_a_local_directory_dependency() {
+    let (root, workspace, anchor) = setup();
+    let registry = anchor.mock_instance.url();
+    append_workspace_yaml_key(&workspace, "namedRegistries", format!("{{ work: '{registry}' }}"));
+    append_workspace_yaml_key(&workspace, "registries", format!("{{ '@pnpm.e2e': '{registry}' }}"));
+    fs::create_dir(workspace.join("local")).expect("create local");
+    fs::write(
+        workspace.join("local/package.json"),
+        r#"{ "name": "local", "version": "1.0.0", "dependencies": { "@pnpm.e2e/foo": "^100.0.0" } }"#,
+    )
+    .expect("write local/package.json");
+    write_manifest(&workspace, r#"{ "local": "file:./local" }"#);
+
+    pacquet_in(&workspace)
+        .with_arg("install")
+        .assert()
+        .success();
+    assert_eq!(package_keys(&lockfile(&workspace), CHILD), ["@pnpm.e2e/foo@work:100.1.0"]);
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
+
+    pacquet_in(&workspace)
+        .with_args(["install", "--frozen-lockfile"])
+        .assert()
+        .success();
+    assert_eq!(virtual_store_copies(&workspace, CHILD).len(), 1);
+
+    drop((root, anchor));
+}

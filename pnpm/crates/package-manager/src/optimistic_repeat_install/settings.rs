@@ -1,7 +1,10 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+pub(crate) use registry_prefixes::recorded_registry_prefixes;
+
 mod agent_skills;
 mod equivalence;
+mod registry_prefixes;
 mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
@@ -388,16 +391,6 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         workspace_package_patterns: config.workspace_package_patterns.clone(),
         ..store_location::store_location_settings(config, agent_skills_settings(config))
     }
-}
-
-/// The `registryPrefixes` an install that verified the lockfile's keys
-/// records: the declared prefixes, or nothing when there are none.
-pub(crate) fn recorded_registry_prefixes(
-    config: &Config,
-) -> Option<std::collections::BTreeMap<String, String>> {
-    (!config.registries_by_prefix.is_empty()).then(|| {
-        config.registries_by_prefix.clone()
-    })
 }
 
 pub(crate) fn current_settings_with_catalogs(

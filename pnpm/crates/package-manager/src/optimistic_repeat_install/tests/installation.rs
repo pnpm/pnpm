@@ -511,6 +511,40 @@ fn run_gate_passes_on_unverified_registry_prefixes() {
         Decision::Skipped { reason } if reason.contains("settings"),
     ));
 }
+/// A scope routed to a registry that declares a prefix re-keys its packages,
+/// so the state recorded under the old routing proves nothing about the keys.
+#[test]
+fn returns_skipped_when_a_scope_moves_to_a_registry_declaring_a_prefix() {
+    let work = "https://npm.work.test/";
+    let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| {
+            config.registries_by_prefix.insert("work".to_string(), work.to_string());
+        },
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let recorded = super::super::recorded_registry_prefixes(recorded_config);
+    assert_eq!(recorded, Some(BTreeMap::from([("work".to_string(), work.to_string())])));
+
+    let mut routed = recorded_config.clone();
+    routed.registries_by_scope.insert("@corp".to_string(), work.to_string());
+    let routed = routed.leak();
+
+    assert_eq!(
+        super::super::recorded_registry_prefixes(routed),
+        Some(BTreeMap::from([
+            ("route:@corp".to_string(), "work".to_string()),
+            ("work".to_string(), work.to_string()),
+        ])),
+    );
+    assert!(matches!(
+        check(dir.path(), routed, pnpm_config::NodeLinker::Isolated, &project_manifests),
+        Decision::Skipped { reason } if reason.contains("settings"),
+    ));
+}
 /// Drift in `minimumReleaseAgeIgnoreMissingTime` invalidates the cached
 /// state. pnpm resolves it to a concrete `true` default and records it,
 /// so pacquet records and compares it too.

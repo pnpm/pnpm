@@ -131,8 +131,8 @@ async function stateValidation (
 type LockfileReadOptions = Pick<InstallDepsOptions, 'mergeGitBranchLockfiles' | 'useGitBranchLockfile'>
 
 /**
- * The `registryPrefixes` this install records: the declared prefixes, when
- * the keys of every lockfile it left behind carry them. The lockfiles are
+ * The `registryPrefixes` this install records (see `recordedRegistryPrefixes`),
+ * when the keys of every lockfile it left behind are the ones it describes. The lockfiles are
  * read back from disk, so the keys of importers a filtered install did not
  * resolve are verified too. A missing lockfile verifies nothing, unless the
  * install keeps none: then every key is minted from the current registries.
@@ -141,7 +141,7 @@ async function verifiedRegistryPrefixes (
   opts: Partial<RegistryContext> & Pick<InstallDepsOptions, 'useLockfile'>,
   readLockfiles: () => Promise<Array<LockfileObject | null>>
 ): Promise<Record<string, string> | undefined> {
-  const declared = recordedRegistryPrefixes(opts.registriesByPrefix)
+  const declared = recordedRegistryPrefixes(opts)
   if (declared == null || opts.useLockfile === false) return declared
   const { registriesByScope } = opts
   if (registriesByScope == null) return undefined
