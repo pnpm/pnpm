@@ -940,7 +940,7 @@ overrides:
   '@yarnpkg/nm>@yarnpkg/core': 4.9.1
   adm-zip@<0.6.0: ^0.6.0
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
-  body-parser@<2.2.1: ^2.2.1
+  body-parser@<2.4.0: ^2.4.0
   brace-expansion@<5.0.5: '>=5.0.5'
   clipanion: 3.2.0-rc.6
   cookie@<0.7.0: '>=0.7.0'
@@ -4067,6 +4067,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -5710,6 +5713,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -6444,6 +6450,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -6501,6 +6510,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../../resolving/jsr-specifier-parser
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -7698,6 +7710,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -7759,6 +7774,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash

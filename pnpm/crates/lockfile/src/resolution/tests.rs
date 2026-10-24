@@ -115,3 +115,5 @@ mod behavior;
 mod streaming;
 
 mod security;
+
+mod registry_prefixes;

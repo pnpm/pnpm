@@ -32,7 +32,7 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use crate::{
-    lockfile_reuse::{reusable_importer_dep, synthesize_reused_result},
+    lockfile_reuse::{locked_key_is_current, reusable_importer_dep, synthesize_reused_result},
     node_id::NodeId,
     parent_pkg_aliases::{ParentPkgAliases, declared_peer_dependencies},
     resolved_tree::{
@@ -95,6 +95,7 @@ impl ReuseSource {
         wanted: &WantedDependency,
     ) -> Option<PkgNameVerPeer> {
         let lockfile = ctx.workspace.reuse.lockfile.as_ref()?;
+        let registries = &ctx.workspace.cache.registry_context;
         match self {
             ReuseSource::Importer { importer_id } => {
                 let alias = wanted.alias.as_deref()?;
@@ -106,6 +107,7 @@ impl ReuseSource {
                     importer_id,
                     alias,
                     wanted.bare_specifier.as_deref()?,
+                    registries,
                 )
             }
             ReuseSource::Transitive { key } => key.clone(),
@@ -149,6 +151,16 @@ pub(super) fn try_reuse_node(
     }
     let alias = wanted.alias.as_deref()?;
     let key = prior_key?;
+    // The pin stands, but a subtree recorded under a key the configuration
+    // no longer writes is resolved again, which records the current key.
+    if !locked_key_is_current(
+        &alias.parse().ok()?,
+        key,
+        wanted.bare_specifier.as_deref()?,
+        &ctx.workspace.cache.registry_context,
+    ) {
+        return None;
+    }
     if !subtree_fully_reusable(ctx, lockfile, key, depth) {
         return None;
     }

@@ -1,14 +1,16 @@
-use super::reduce_named_registry_spec;
+use super::locked_child_admits;
 use node_semver::{Range, Version};
-use pnpm_lockfile::{PkgNameVerPeer, Prefix, ResolvedDependencySpec};
+use pnpm_lockfile::{PkgName, PkgNameVerPeer, Prefix, RegistryContext, ResolvedDependencySpec};
 use pnpm_tool_protocol::strip_tool_protocol;
 
-/// Whether `bare_specifier` admits the version `spec` locked as `key`. `None`
-/// when the locked version or the specifier has no comparable form.
+/// Whether `bare_specifier` admits the version `spec` locked as `key` for
+/// the importer dependency `alias`. `None` when the locked version or the
+/// specifier has no comparable form.
 pub(super) fn admits_locked_version(
     spec: &ResolvedDependencySpec,
-    key: &PkgNameVerPeer,
+    (alias, key): (&PkgName, &PkgNameVerPeer),
     bare_specifier: &str,
+    registries: &RegistryContext,
 ) -> Option<bool> {
     let ver_peer = spec.version.ver_peer()?;
     if ver_peer.prefix() == Prefix::Runtime {
@@ -18,14 +20,7 @@ pub(super) fn admits_locked_version(
             ver_peer.version_semver()?,
         ));
     }
-    if let Some((registry_name, version)) = ver_peer.registry_qualified() {
-        let range = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?
-            .parse::<Range>()
-            .ok()?;
-        return Some(range.satisfies(version));
-    }
-    let range = bare_specifier.parse::<Range>().ok()?;
-    Some(range.satisfies(ver_peer.version_semver()?))
+    locked_child_admits(alias, key, bare_specifier, registries)
 }
 
 /// Whether a `tool:` / `runtime:` dependency keeps its locked version: a range selector

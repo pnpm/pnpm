@@ -3,7 +3,7 @@ import { getWantedLockfileName } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
 import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { loadWorkspaceState, normalizeUnsetSetting, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { loadWorkspaceState, normalizeUnsetSetting, recordedRegistryPrefixes, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { equals } from 'ramda'
 
@@ -139,7 +139,7 @@ function isUnfilteredWorkspaceInstall (opts: CheckDepsStatusOptions): boolean {
 
 function findSettingsIssue (opts: CheckDepsStatusOptions, workspaceState: WorkspaceState): string | undefined {
   if (workspaceState.settings) {
-    const changedSetting = findChangedSetting(opts, workspaceState.settings)
+    const changedSetting = findChangedSetting(opts, workspaceState.settings) ?? findChangedRegistryPrefixes(opts, workspaceState.settings)
     if (changedSetting != null) return `The value of the ${changedSetting} setting has changed`
   }
   if ((opts.configDependencies != null || workspaceState.configDependencies != null) && !equals(opts.configDependencies ?? {}, workspaceState.configDependencies ?? {})) {
@@ -159,6 +159,15 @@ function findChangedSetting (opts: CheckDepsStatusOptions, storedSettings: Works
     if (!equals(storedValue, currentValue)) return settingName
   }
   return undefined
+}
+
+/**
+ * A state records the declared prefixes only for a lockfile whose keys carry
+ * them, so a missing or different record calls for the install that re-keys
+ * the lockfile.
+ */
+function findChangedRegistryPrefixes (opts: CheckDepsStatusOptions, storedSettings: WorkspaceState['settings']): string | undefined {
+  return equals(storedSettings.registryPrefixes, recordedRegistryPrefixes(opts.registriesByPrefix)) ? undefined : 'registryPrefixes'
 }
 
 /**

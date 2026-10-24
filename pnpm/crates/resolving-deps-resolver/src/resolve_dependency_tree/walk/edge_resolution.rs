@@ -179,7 +179,12 @@ pub(super) fn edge_opts<'c>(
         current_pkg_from_lockfile(lockfile, key, &ctx.workspace.cache.registry_context)
     });
     if opts.refresh.update == UpdateBehavior::Patches {
-        pin_patched_revision(wanted, current_pkg.as_ref(), prior_key);
+        pin_patched_revision(
+            wanted,
+            current_pkg.as_ref(),
+            prior_key,
+            &ctx.workspace.cache.registry_context,
+        );
     }
     match current_pkg {
         Some(current_pkg) => {

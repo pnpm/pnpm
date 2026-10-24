@@ -9,6 +9,22 @@ use super::locked_versions::{
     exact_registry_specifier_for_revision_refresh, registry_revisions_conflict,
 };
 
+/// `corp` and `zeta` both declare one registry; its keys carry `corp`.
+fn corp_registries() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://corp.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries_by_prefix: std::collections::HashMap::from([
+            ("corp".to_string(), registry.to_string()),
+            ("zeta".to_string(), registry.to_string()),
+        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
+            ("corp", registry),
+            ("zeta", registry),
+        ]),
+        ..Default::default()
+    }
+}
+
 fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
 }
@@ -73,9 +89,18 @@ fn identical_registry_revisions_can_share_an_identity() {
 
 #[test]
 fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selectors() {
-    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None), "1.2.3");
+    let registries = corp_registries();
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("npm:@scope/pkg@^1.0.0", "1.2.3", None,),
+        exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None, &registries),
+        "1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh(
+            "npm:@scope/pkg@^1.0.0",
+            "1.2.3",
+            None,
+            &registries,
+        ),
         "npm:@scope/pkg@1.2.3",
     );
     assert_eq!(
@@ -83,31 +108,46 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
             "corp:@scope/pkg@^1.0.0",
             "1.2.3",
             Some("corp"),
+            &registries,
         ),
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("corp:@scope/pkg", "1.2.3", Some("corp"),),
+        exact_registry_specifier_for_revision_refresh(
+            "corp:@scope/pkg",
+            "1.2.3",
+            Some("corp"),
+            &registries,
+        ),
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("corp:pkg", "1.2.3", Some("corp"),),
+        exact_registry_specifier_for_revision_refresh(
+            "corp:pkg",
+            "1.2.3",
+            Some("corp"),
+            &registries
+        ),
         "corp:pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None,),
+        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None, &registries),
         "jsr:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None),
+        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None, &registries),
         "1.2.3+r1",
     );
-    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None), "1.2.3");
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None, &registries),
+        "1.2.3",
+    );
     assert_eq!(
         exact_registry_specifier_for_revision_refresh(
             "git+https://example.test/repo.git",
             "1.2.3",
-            None
+            None,
+            &registries,
         ),
         "git+https://example.test/repo.git",
     );

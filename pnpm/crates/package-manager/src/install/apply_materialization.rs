@@ -357,6 +357,10 @@ fn write_applied_workspace_state<Reporter: self::Reporter>(
             established_auto_dedupe: (config.auto_dedupe
                 && inputs.materialized.fresh_lockfile.is_some())
             .then_some(true),
+            registry_keys_verified: crate::install::registry_keys_current(
+                config,
+                inputs.materialized.fresh_lockfile.as_ref().or(inputs.resolution.loaded),
+            ),
             kept_groups: None,
         },
         vouched: &vouched,

@@ -6,6 +6,16 @@ export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution, type PkgSnapshotToResolutionOptions } from './pkgSnapshotToResolution.js'
 export { refIsLocalDirectory, refIsLocalTarball } from './refIsLocalTarball.js'
+export {
+  findOutdatedRegistryKey,
+  keyPrefixForAlias,
+  keyPrefixForRegistry,
+  type OutdatedRegistryKey,
+  registryOfDepPath,
+  registryOfPackage,
+  registryOfPrefix,
+  rekeyDepPath,
+} from './registryKeys.js'
 export { resolvedPackageVersionsFromLockfile } from './resolvedPackageVersions.js'
 export { toLockfileResolution } from './toLockfileResolution.js'
 export * from '@pnpm/lockfile.types'

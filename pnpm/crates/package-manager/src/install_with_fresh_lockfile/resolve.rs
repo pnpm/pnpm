@@ -194,6 +194,7 @@ pub(super) struct WorkspaceWalk {
     pub time_based: bool,
     pub registries: HashMap<String, String>,
     pub registries_by_prefix: HashMap<String, String>,
+    pub declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes,
 }
 
 /// What every importer's resolve reads, and the walk reads alongside.
@@ -284,6 +285,7 @@ impl WorkspaceWalk {
             registry_context: pnpm_lockfile::RegistryContext {
                 registries: self.registries,
                 registries_by_prefix: self.registries_by_prefix,
+                declared_prefixes: self.declared_prefixes,
                 registry_options_by_url: config.registry_options_by_url.clone(),
             },
             share_workspace_resolutions: self.share_workspace_resolutions,

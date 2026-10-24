@@ -404,6 +404,7 @@ fn record_test_workspace_state(
         filesystem_now_ms: Some(backdate_validated_files(workspace_root)),
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: config.auto_dedupe.then_some(true),
+            registry_keys_verified: true,
             kept_groups: None,
         },
         vouched: &super::validation::Vouched::All,

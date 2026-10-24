@@ -1,3 +1,5 @@
+use pnpm_lockfile::RegistryContext;
+
 use super::{
     Arc, CurrentPkg, LockfileResolution, PkgNameVerPeer, PreferredVersionsOverlay,
     ResolveDependencyTreeError, ResolvedPackage, TarballRevision, TreeCtx, WantedDependency,
@@ -43,6 +45,7 @@ pub(super) fn pin_patched_revision(
     wanted: &mut WantedDependency,
     current_pkg: Option<&CurrentPkg>,
     prior_key: Option<&PkgNameVerPeer>,
+    registries: &RegistryContext,
 ) {
     let Some(version) = current_pkg.and_then(|current| current.version.as_deref()) else {
         return;
@@ -52,6 +55,7 @@ pub(super) fn pin_patched_revision(
         specifier,
         version,
         prior_key.and_then(|key| key.suffix.registry_qualified().map(|(name, _)| name)),
+        registries,
     )
     .into();
 }
@@ -126,10 +130,15 @@ pub(super) fn keeps_locked_version(
         && !update_unpins_edge(ctx.update_scope(), wanted, locked_version, depth)
 }
 
+/// `named_registry` is the prefix the locked key carries. A named specifier
+/// pins only when its own prefix keys that registry the same way, which
+/// another declared alias of the registry does too (see
+/// [`RegistryContext::key_prefix_for_alias`]).
 pub(super) fn exact_registry_specifier_for_revision_refresh(
     specifier: &str,
     version: &str,
     named_registry: Option<&str>,
+    registries: &RegistryContext,
 ) -> String {
     if has_registry_revision_specifier(specifier) {
         return specifier.to_string();
@@ -140,7 +149,10 @@ pub(super) fn exact_registry_specifier_for_revision_refresh(
     let Some((protocol, body)) = specifier.split_once(':') else {
         return specifier.to_string();
     };
-    if protocol != "npm" && protocol != "jsr" && named_registry != Some(protocol) {
+    let names_locked_registry = registries
+        .key_prefix_for_alias(protocol)
+        .is_some_and(|prefix| Some(prefix) == named_registry);
+    if protocol != "npm" && protocol != "jsr" && !names_locked_registry {
         return specifier.to_string();
     }
     if body.parse::<node_semver::Range>().is_ok() {

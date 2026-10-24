@@ -27,6 +27,11 @@ pub(crate) struct StateWrite<'a> {
 pub(crate) struct CarriedSettings<'a> {
     /// The dedupe baseline this write knows of, per [`recorded_auto_dedupe`].
     pub(crate) established_auto_dedupe: Option<bool>,
+    /// Whether the lockfile this run leaves behind has the keys the declared
+    /// registry prefixes call for (see [`super::registry_keys_current`]). Only
+    /// then does the state record the prefixes (see
+    /// [`WorkspaceStateSettings::registry_prefixes`](pnpm_workspace_state::WorkspaceStateSettings::registry_prefixes)).
+    pub(crate) registry_keys_verified: bool,
     /// The recorded dependency groups to keep instead of the run's, for a
     /// writer that ignored group drift.
     pub(crate) kept_groups: Option<&'a pnpm_workspace_state::WorkspaceStateSettings>,
@@ -47,6 +52,10 @@ pub(crate) fn recorded_workspace_state(write: &StateWrite<'_>) -> WorkspaceState
     );
     state.settings.auto_dedupe =
         recorded_auto_dedupe(write.config, write.carried.established_auto_dedupe);
+    if write.carried.registry_keys_verified {
+        state.settings.registry_prefixes =
+            crate::optimistic_repeat_install::recorded_registry_prefixes(write.config);
+    }
     if let Some(kept) = write.carried.kept_groups {
         state.settings.dev = kept.dev;
         state.settings.optional = kept.optional;

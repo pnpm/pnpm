@@ -60,3 +60,5 @@ mod workspace_settings;
 mod configuration_check_settings_passes_when;
 
 mod configuration_check_settings_reports_pnpmfile;
+
+mod registry_keys;

@@ -75,6 +75,7 @@ fn build_resolver(
     let resolver = NamedRegistryResolver {
         registries_by_prefix: merged,
         registry_names,
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
         metadata: crate::RegistryMetadataClient {
             http_client: Arc::new(ThrottledClient::default()),
             auth_headers: Arc::new(AuthHeaders::default()),

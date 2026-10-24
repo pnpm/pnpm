@@ -66,7 +66,13 @@ export interface ResolveFromNpmContext {
   pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>
   getAuthHeaderValueByURI: GetAuthHeader
   registriesByScope: RegistriesByScope
+  /** The declared prefixes over the built-in aliases. */
   registriesByPrefix: Record<string, string>
+  /**
+   * The prefixes the project declares, without the built-in aliases. They
+   * qualify the ids of the packages resolved from their registries.
+   */
+  declaredRegistriesByPrefix: Record<string, string>
   namedRegistryNames: ReadonlySet<string>
   saveWorkspaceProtocol?: boolean | 'rolling'
   /**
