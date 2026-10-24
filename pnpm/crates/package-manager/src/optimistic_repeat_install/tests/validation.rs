@@ -203,3 +203,37 @@ fn source_date_epoch_records_deterministic_pnpmfile_digests_without_trusting_mti
         "an edited pnpmfile with mtime restored before SOURCE_DATE_EPOCH must be detected",
     );
 }
+
+#[test]
+fn workspace_bin_digests_match_between_implementations_and_ignore_layout() {
+    use super::super::validation::workspace_bins_digest;
+    use std::path::PathBuf;
+
+    let root = Path::new("/project");
+    let package = manifest(r#"{"name":"a","bin":{"a-one":"one.js","a-two":"two.js"}}"#);
+    let projects = [(root.join("packages/a"), &package)];
+    let digest = workspace_bins_digest(root, &projects);
+    assert_eq!(digest.as_deref(), Some("341026c69559cca8573860896362ff03"));
+    let reordered = manifest(
+        r#"{"bin":{"a-two":"two.js","a-one":"one.js"},"name":"a","description":"changed"}"#,
+    );
+    assert_eq!(workspace_bins_digest(root, &[(root.join("packages/a"), &reordered)]), digest);
+    let moved = PathBuf::from("/moved");
+    assert_eq!(workspace_bins_digest(&moved, &[(moved.join("packages/a"), &package)]), digest);
+    for changed in [
+        r#"{"name":"a","bin":{"a-one":"two.js","a-two":"two.js"}}"#,
+        r#"{"name":"a","bin":{"a-renamed":"one.js","a-two":"two.js"}}"#,
+        r#"{"name":"a","bin":{"a-one":"one.js"}}"#,
+        r#"{"name":"a","bin":"one.js"}"#,
+        r#"{"name":"renamed","bin":{"a-one":"one.js","a-two":"two.js"}}"#,
+        r#"{"name":"a","directories":{"bin":"bin"}}"#,
+        r#"{"name":"a"}"#,
+    ] {
+        let changed = manifest(changed);
+        assert_ne!(workspace_bins_digest(root, &[(root.join("packages/a"), &changed)]), digest);
+    }
+    for value in [r#"{"name":"a"}"#, r#"{"bin":null,"directories":{"bin":null}}"#] {
+        let package = manifest(value);
+        assert_eq!(workspace_bins_digest(root, &[(root.join("packages/a"), &package)]), None);
+    }
+}

@@ -20,6 +20,10 @@ When a workspace project changes, unchanged direct dependencies in other project
 keep their locked versions if those versions still satisfy their declared ranges.
 Use [`pnpm update`](update.md) to request dependency updates.
 
+Changes to a workspace package's `bin` field are linked into its dependents'
+`node_modules/.bin` on the next install, even with `--frozen-lockfile` and an
+unchanged lockfile.
+
 ![](/img/demos/pnpm-install.svg)
 
 [workspace]: ../workspaces.md

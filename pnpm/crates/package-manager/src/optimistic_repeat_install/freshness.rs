@@ -156,6 +156,10 @@ pub(super) fn check_freshness(
 ) -> Result<(), Stale> {
     check_static_freshness(check, state, policy, scope)?;
     let drift = InputDrift::compute(check, state);
+    let held = drift.held(check, scope);
+    if !super::validation::held_workspace_bins_match(check, state, &held) {
+        return Err(Stale::Content("workspace package bins changed since the last install"));
+    }
     if moved {
         return settle_moved_tree(check, state, &drift, policy);
     }
@@ -169,7 +173,6 @@ pub(super) fn check_freshness(
     }
     let unverified = state_unverified_by_changed_lockfile(check, state, &drift, policy)?;
     let state = unverified.as_ref().unwrap_or(state);
-    let held = drift.held(check, scope);
     if held.is_empty() && !drift.patches_modified {
         return settle_proven_tree(check, state, &drift, policy, scope);
     }

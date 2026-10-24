@@ -216,6 +216,7 @@ mod whoami;
 mod why;
 mod windows_dir_env;
 mod with;
+mod workspace_bins;
 mod workspace_cycles;
 mod workspace_install;
 mod workspace_path_overrides;

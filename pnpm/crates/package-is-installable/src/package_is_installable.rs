@@ -74,8 +74,6 @@ impl InstallabilityError {
 
 /// Tri-state verdict returned by [`package_is_installable`].
 ///
-/// - [`InstallabilityVerdict::Installable`]: no warning, no skip, just
-///   install.
 /// - [`InstallabilityVerdict::SkipOptional`]: the package is
 ///   incompatible and was declared optional; caller should emit
 ///   `pnpm:skipped-optional-dependency` and exclude the package from

@@ -61,6 +61,7 @@ export interface Validation {
    * importer id, where it is not `lockfile`. `null` when there was none.
    */
   lockfiles?: Record<string, string | null>
+  workspaceBins?: Record<string, string>
 }
 
 export interface FileSignature {

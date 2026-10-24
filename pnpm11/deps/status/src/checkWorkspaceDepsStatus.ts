@@ -8,11 +8,11 @@ import { getLockfileImporterId, type LockfileObject, readCurrentLockfile } from 
 import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectId } from '@pnpm/types'
-import type { WorkspaceState } from '@pnpm/workspace.state'
-import { equals, filter } from 'ramda'
+import { workspaceBinsDigest, type WorkspaceState } from '@pnpm/workspace.state'
 
 import { assertWorkspaceProjectsUpToDate } from './assertWantedLockfileUpToDate.js'
 import { findModulesDirIssue, type ProjectStats, selectProjectDirs } from './findModulesDirIssue.js'
+import { findWorkspaceBinsIssue, findWorkspaceStructureIssue } from './findWorkspaceStructureIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { errorMessageOf, outdatedResult } from './outdatedResult.js'
 import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
@@ -48,13 +48,14 @@ interface WantedLockfileReader {
 
 export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext): Promise<CheckDepsStatusResult> {
   const { allProjects, opts, workspaceState } = ctx
-  const structureIssue = findWorkspaceStructureIssue(ctx)
+  const structureIssue = findWorkspaceStructureIssue(ctx) ?? findWorkspaceBinsIssue(ctx, createInstallCoverage(ctx))
   if (structureIssue != null) return outdatedResult(structureIssue, workspaceState)
 
   const allManifestStats = await statProjects(opts, allProjects)
   const proof = opts.sharedWorkspaceLockfile === false && coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     ? undefined
     : validationProof(workspaceState, workspaceLockfileDir(ctx), {
+      workspaceBins: workspaceBinsDigest(workspaceLockfileDir(ctx), allProjects) ?? null,
       wantedLockfileName: ctx.wantedLockfileName,
       sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
       unmergedBranchLockfiles: opts.sharedWorkspaceLockfile !== false && opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
@@ -325,25 +326,6 @@ function createInstallCoverage (
     include: workspaceInclude(ctx),
   })
   return (rootDir) => selected.has(path.resolve(rootDir))
-}
-
-function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState }: WorkspaceDepsStatusContext): string | undefined {
-  if (!equals(
-    filter(value => value != null, workspaceState.settings.catalogs ?? {}),
-    filter(value => value != null, opts.catalogs ?? {})
-  )) {
-    return 'Catalogs cache outdated'
-  }
-  if (allProjects.length !== Object.keys(workspaceState.projects).length ||
-    !allProjects.every((currentProject) => {
-      const prevProject = workspaceState.projects[currentProject.rootDir]
-      if (!prevProject) return false
-      return prevProject.name === currentProject.manifest.name && (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0')
-    })
-  ) {
-    return 'The workspace structure has changed since last install'
-  }
-  return undefined
 }
 
 async function statProjects (opts: CheckDepsStatusOptions, allProjects: Project[]): Promise<ProjectStats[]> {

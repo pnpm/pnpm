@@ -116,6 +116,8 @@ pub struct Validation {
     /// importer id, where it is not [`Self::lockfile`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub lockfiles: BTreeMap<String, Option<String>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workspace_bins: BTreeMap<String, String>,
 }
 
 impl Validation {
