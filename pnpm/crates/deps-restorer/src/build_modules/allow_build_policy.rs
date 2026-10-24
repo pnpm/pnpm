@@ -353,7 +353,7 @@ fn is_scope_build_pattern(spec: &str) -> bool {
     spec.strip_prefix('@')
         .and_then(|spec| spec.strip_suffix("/*"))
         .is_some_and(|scope| {
-            !scope.is_empty() && !scope.contains(['*', '/', '@', ':', '#', '!', ' '])
+            !scope.is_empty() && !scope.contains(['*', '?', '/', '@', ':', '#', '!', ' '])
         })
 }
 
