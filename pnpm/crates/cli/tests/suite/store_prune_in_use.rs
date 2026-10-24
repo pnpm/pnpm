@@ -172,6 +172,15 @@ fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_virtual_store_d
     assert_prune_keeps_every_package_installed_by_copy("virtualStoreDir: vs\n", "vs/lock.yaml");
 }
 
+#[test]
+fn store_prune_keeps_every_package_installed_by_copy_in_a_custom_virtual_store_dir_without_a_lockfile()
+ {
+    assert_prune_keeps_every_package_installed_by_copy(
+        "virtualStoreDir: vs\nlockfile: false\n",
+        "vs/lock.yaml",
+    );
+}
+
 fn assert_prune_keeps_every_package_installed_by_copy(
     workspace_yaml: &str,
     installed_lockfile: &str,
