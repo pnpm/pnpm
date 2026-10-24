@@ -1,7 +1,7 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
 use crate::{
-    ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
+    ColorMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
+    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
 };
 use pnpm_store_dir::StoreIndexFormat;
 use pretty_assertions::assert_eq;
@@ -185,6 +185,30 @@ fn save_workspace_protocol_reads_from_the_environment() {
     }
     let settings = WorkspaceSettings::from_pnpm_config_env::<EnvPinned>();
     assert_eq!(settings.save_workspace_protocol, Some(SaveWorkspaceProtocol::On));
+}
+
+#[test]
+fn resolution_settings_read_from_the_environment() {
+    struct EnvResolution;
+    impl EnvVar for EnvResolution {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_LINK_WORKSPACE_PACKAGES"
+                | "PNPM_CONFIG_INJECT_WORKSPACE_PACKAGES"
+                | "PNPM_CONFIG_FROZEN_STORE" => Some("true".to_owned()),
+                "PNPM_CONFIG_EXTEND_NODE_PATH" | "PNPM_CONFIG_OPTIMISTIC_REPEAT_INSTALL" => {
+                    Some("false".to_owned())
+                }
+                _ => None,
+            }
+        }
+    }
+    let settings = WorkspaceSettings::from_pnpm_config_env::<EnvResolution>();
+    assert_eq!(settings.link_workspace_packages, Some(LinkWorkspacePackages::DirectOnly));
+    assert_eq!(settings.inject_workspace_packages, Some(true));
+    assert_eq!(settings.frozen_store, Some(true));
+    assert_eq!(settings.extend_node_path, Some(false));
+    assert_eq!(settings.optimistic_repeat_install, Some(false));
 }
 
 #[test]
