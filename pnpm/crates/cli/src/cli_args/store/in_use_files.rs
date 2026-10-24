@@ -74,8 +74,7 @@ fn load_installed_lockfiles(project: &Path) -> io::Result<Vec<Lockfile>> {
 
 /// A lockfile of a version this pnpm cannot read adds nothing, like a
 /// missing one, so one project installed by another pnpm does not stop the
-/// prune. A pnpm with another lockfile format keeps its files in another
-/// store directory.
+/// prune. The hard-link check then decides for that project's files.
 fn load_installed_lockfile(
     project: &Path,
     install_state_dir: &Path,

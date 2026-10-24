@@ -113,8 +113,7 @@ async function readModulesManifestOfProject (modulesDir: string): Promise<Module
 /**
  * A lockfile of a version this pnpm cannot read adds nothing, like a
  * missing one, so one project installed by another pnpm does not stop the
- * prune. A pnpm with another lockfile format keeps its files in another
- * store directory.
+ * prune. The hard-link check then decides for that project's files.
  */
 async function readInstalledLockfile (projectDir: string, installStateDir: string): Promise<LockfileObject | null> {
   try {
