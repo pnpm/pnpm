@@ -98,7 +98,7 @@ fn no_modify_path_prints_the_block_setup_writes_for_bash() {
     let settings = unmodified_path_settings(&ManualSetupShell::Posix(Some("bash".to_string())));
     assert!(
         settings.starts_with("export PNPM_HOME='/root/.pnpm'\ncase \":$PATH:\" in"),
-        "{settings}"
+        "{settings}",
     );
 }
 
