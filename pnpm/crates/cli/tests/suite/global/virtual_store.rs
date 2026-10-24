@@ -223,3 +223,29 @@ fn store_prune_after_global_remove_keeps_only_the_slots_other_groups_use() {
 
     drop((root, npmrc_info));
 }
+
+/// A global install reads no settings from the project it runs in, so a
+/// project cannot move the global groups' packages into a directory it
+/// controls.
+#[test]
+fn global_add_ignores_the_caller_project_virtual_store_dirs() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_canonical_global_home(&pnpm_home, &npmrc_info);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read the project workspace yaml");
+    yaml.push_str("globalVirtualStoreDir: project-gvs\nvirtualStoreDir: project-vs\n");
+    fs::write(&workspace_yaml, yaml).expect("write the project workspace yaml");
+
+    global_add(&workspace, &pnpm_home, PKG);
+
+    assert_eq!(slots(&npmrc_info.store_dir, PKG).len(), 1, "one slot for {PKG} in the store");
+    assert!(
+        !workspace.join("project-gvs").exists(),
+        "the project's globalVirtualStoreDir is unused"
+    );
+    assert!(!workspace.join("project-vs").exists(), "the project's virtualStoreDir is unused");
+
+    drop((root, npmrc_info));
+}
