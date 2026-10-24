@@ -12,61 +12,67 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Request settings read only from `.npmrc` (`apply_network_key` in
-/// `npmrc_auth`), so they are not [`WorkspaceSettings`](crate::WorkspaceSettings) fields.
-const NPMRC_ONLY_SETTINGS: &[&str] = &["localAddress", "strictSsl"];
-
 // Each list below holds today's gaps of one kind, one name per gap. A gap
 // missing from its list fails the test, and so does an entry that is no
 // longer a gap, so fixing the docs means deleting the entry.
 
 /// Settings read from config files that no section or index entry documents.
 const UNDOCUMENTED_SETTINGS: &[&str] = &[
-    "_auth",
-    "aggregateOutput",
-    "allowUnusedPatches",
-    "auditConfig",
-    "auditLevel",
-    "bail",
-    "bootConfig",
-    "catalog",
-    "catalogs",
-    "changedFilesIgnorePattern",
-    "cleanupUnusedCatalogs",
-    "configDependencies",
-    "forceLegacyDeploy",
-    "gitChecks",
-    "ignoreWorkspace",
+    // Documented under a heading on another page, with no entry under
+    // "Settings documented elsewhere" in the index.
+    "_auth",              // npmrc.md
+    "allowUnusedPatches", // cli/patch.md
+    "bootConfig",         // config-includes.md
+    "forceLegacyDeploy",  // cli/deploy.md
+    "provenance",         // cli/publish.md
+    // Documented in the prose of another page, with no heading.
+    "catalog",                   // catalogs.md
+    "catalogs",                  // catalogs.md
+    "changedFilesIgnorePattern", // filtering.md
+    "configDependencies",        // config-dependencies.md
+    "gitChecks",                 // cli/publish.md
+    "registry",                  // registries.md
+    "tagVersionPrefix",          // cli/version.md
+    "testPattern",               // filtering.md
+    // Older spellings, mentioned only in the section of the current name.
+    "auditConfig",            // audit.ignore
+    "auditLevel",             // audit.level
+    "cleanupUnusedCatalogs",  // catalogPrune
+    "maxSockets",             // maxsockets
+    "noproxy",                // noProxy
+    "proxy",                  // httpProxy
+    "remoteSideEffectsCache", // sideEffectsCache.remote
+    "updateConfig",           // update
+    // Removed in favor of allowBuilds, listed only in a note in settings/build.md.
     "ignoredBuiltDependencies",
-    "maxSockets",
-    "mergeGitBranchLockfiles",
     "neverBuiltDependencies",
-    "noproxy",
-    "offline",
     "onlyBuiltDependencies",
-    "packageLock",
+    // Command-line options that a config file can also set, documented only
+    // as flags of their commands.
+    "aggregateOutput",
+    "bail",
+    "ignoreWorkspace",
+    "mergeGitBranchLockfiles",
+    "offline",
     "patchesDir",
     "pending",
     "preferOffline",
-    "provenance",
-    "proxy",
-    "registry",
-    "remoteSideEffectsCache",
     "reporterHidePrefix",
     "reverse",
     "saveCatalogName",
     "savePeer",
-    "scope",
     "skipManifestObfuscation",
     "sort",
     "stream",
-    "tagVersionPrefix",
-    "testPattern",
-    "updateConfig",
+    // Documented nowhere.
+    "packageLock",
+    "scope",
 ];
 
 /// Sections and index entries naming a setting pnpm reads from no config file.
-const SECTIONS_FOR_UNKNOWN_SETTINGS: &[&str] = &["npmPath", "tag"];
+const SECTIONS_FOR_UNKNOWN_SETTINGS: &[&str] = &[
+    "npmPath", // settings/cli.md, a pnpm v11 setting
+];
 
 /// Sections in `settings/*.md` that the index in `settings.md` does not link.
 const SECTIONS_MISSING_FROM_INDEX: &[&str] = &[];
@@ -282,7 +288,6 @@ fn find_gaps() -> Gaps {
     let code_keys: BTreeSet<&str> = settings_field_keys()
         .iter()
         .map(String::as_str)
-        .chain(NPMRC_ONLY_SETTINGS.iter().copied())
         .collect();
     let settings_md_path = docs_dir().join("settings.md");
     let links = index_links(&read_doc(&settings_md_path));

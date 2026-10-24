@@ -299,6 +299,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 [Full reference →](./settings/cli.md#nodejs-settings)
 
 * [nodeVersion](./settings/cli.md#nodeversion)
+* [runtime](./settings/cli.md#runtime)
 * [runtimeOnFail](./settings/cli.md#runtimeonfail)
 * [nodeDownloadMirrors](./settings/cli.md#nodedownloadmirrors)
 * [tools](./settings/cli.md#tools)
