@@ -119,7 +119,7 @@ impl CachedBuildInputs<'_> {
             .collect::<Vec<_>>();
         if !roots
             .iter()
-            .any(|key| self.fetched.side_effects_maps_by_snapshot.contains_key(key))
+            .any(|key| self.fetched.side_effects.maps.contains_key(key))
         {
             return HashMap::new();
         }
@@ -154,7 +154,7 @@ impl CachedBuildInputs<'_> {
             retain_dependency_closure(self.selected, snapshots, vec![key.clone()]);
             return None;
         }
-        let overlays = self.fetched.side_effects_maps_by_snapshot.get(key)?;
+        let overlays = self.fetched.side_effects.maps.get(key)?;
         let should_run_scripts = !self.config.ignore_scripts
             && self.allow_build_policy.check(&key.without_peer().to_string()) == Some(true);
         let cache_key = pnpm_graph_hasher::calc_dep_state(
@@ -228,7 +228,7 @@ fn cached_build_maps(
 ) -> Option<crate::CasPathsBySnapshot> {
     let mut maps = HashMap::new();
     for (key, cache_key) in cached {
-        let Some(overlay) = fetched.side_effects_maps_by_snapshot
+        let Some(overlay) = fetched.side_effects.maps
             .get(key)
             .and_then(|overlays| overlays.get(cache_key))
         else {

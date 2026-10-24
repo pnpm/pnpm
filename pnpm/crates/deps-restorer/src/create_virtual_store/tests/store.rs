@@ -350,7 +350,7 @@ async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
     let first = install.run().await.expect("seeded store satisfies the offline install");
     assert_eq!(first.requires_build_by_snapshot.get(&install.package_key), Some(&false));
     assert!(
-        first.side_effects_maps_by_snapshot.contains_key(&install.package_key),
+        first.side_effects.maps.contains_key(&install.package_key),
         "the seeded side-effects row must reach the build phase while its files verify",
     );
 
@@ -363,7 +363,7 @@ async fn skipped_warm_slot_with_a_side_effects_row_is_still_checked() {
         second.snapshot_selection.materialized,
     );
     assert!(
-        !second.side_effects_maps_by_snapshot.contains_key(&install.package_key),
+        !second.side_effects.maps.contains_key(&install.package_key),
         "a row that failed its files check must not feed the build phase",
     );
     assert_eq!(

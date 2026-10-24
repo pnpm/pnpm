@@ -4,6 +4,9 @@ pub use pnpm_package_manifest::requires_build_from_cas_paths;
 
 mod pipeline;
 
+mod output;
+pub use output::{CreateVirtualStoreOutput, SnapshotSelection};
+
 mod warm;
 use warm::{
     gvs_slot_needs_rebuild, snapshot_needs_build_marker, warm_cas_paths_by_pkg_id,
@@ -234,72 +237,6 @@ impl CasPrefetch {
 /// by. `None` for a resolution that never goes through the CAFS
 /// (directory and git), which therefore has no row to prefetch.
 pub(crate) type SnapshotWithCacheKey<'a> = (&'a PackageKey, &'a SnapshotEntry, Option<String>);
-
-/// Output of [`CreateVirtualStore::run`]. Bundles the bin-link
-/// manifest cache, the per-snapshot side-effects-cache overlays the
-/// build-phase needs, and the per-install fetch-failure set.
-///
-/// `fetch_failed` is the set of `optional: true` snapshots whose
-/// tarball / metadata / extract step blew up during this install.
-/// The caller (`InstallFrozenLockfile::run`) folds these into its
-/// own [`crate::SkippedSnapshots`] so downstream consumers
-/// (`build_graph`, `link_bins`, hoisting, etc.) treat them as
-/// absent — a failed-fetch optional snapshot is not present
-/// in the install graph.
-pub struct CreateVirtualStoreOutput {
-    pub package_manifests: PackageManifests,
-    pub package_bins: PackageBins,
-    pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
-    /// The raw side-effects rows the overlays above were built from,
-    /// including the empty rows those overlays leave out.
-    pub side_effects_by_snapshot: SideEffectsBySnapshot,
-    pub requires_build_by_snapshot: RequiresBuildBySnapshot,
-    /// Snapshot keys whose package directories this run materialized.
-    /// The build phase uses this list to record only newly deferred
-    /// builds under `ignoreScripts`; earlier debt is retained from
-    /// `.modules.yaml` by the install orchestrator.
-    pub snapshot_selection: SnapshotSelection,
-    pub fetch_failed: HashSet<PackageKey>,
-    /// Per-package CAS index, populated only when
-    /// [`crate::ModuleLinkerContext::kind`] is
-    /// [`NodeLinker::Hoisted`](pnpm_modules_yaml::NodeLinker::Hoisted). Threaded into
-    /// [`crate::link_hoisted_modules()`] which materializes the
-    /// hoisted `node_modules/` tree directly from these CAS paths
-    /// — there is no virtual store under hoisted, so this is the
-    /// only output that survives into the link phase. `None` for
-    /// the isolated and pnp linkers (their slot directories are
-    /// the bridge into the link phase instead). Pacquet decouples
-    /// fetch and walk, so the index is built here at fetch time.
-    pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
-    pub cas_paths_by_snapshot: Option<crate::CasPathsBySnapshot>,
-}
-
-pub struct SnapshotSelection {
-    pub materialized: Vec<PackageKey>,
-    pub loaded: Option<Vec<PackageKey>>,
-}
-
-impl SnapshotSelection {
-    pub(super) fn materialized(materialized: Vec<PackageKey>) -> Self {
-        Self { materialized, loaded: None }
-    }
-}
-
-impl CreateVirtualStoreOutput {
-    pub fn build_cache<'a>(
-        &'a self,
-        engine_name: Option<&'a str>,
-        store_index_writer: &'a std::sync::Arc<pnpm_store_dir::StoreIndexWriter>,
-    ) -> crate::BuildPhaseCache<'a> {
-        crate::BuildPhaseCache {
-            maps_by_snapshot: &self.side_effects_maps_by_snapshot,
-            diffs_by_snapshot: &self.side_effects_by_snapshot,
-            requires_build_by_snapshot: &self.requires_build_by_snapshot,
-            engine_name,
-            store_index_writer,
-        }
-    }
-}
 
 /// This subroutine generates filesystem layout for the virtual store at `node_modules/.pacquet`.
 #[must_use]
@@ -638,8 +575,7 @@ fn nothing_to_materialize(is_hoisted: bool) -> CreateVirtualStoreOutput {
     CreateVirtualStoreOutput {
         package_manifests: PackageManifests::new(),
         package_bins: PackageBins::new(),
-        side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot::new(),
-        side_effects_by_snapshot: SideEffectsBySnapshot::new(),
+        side_effects: output::SideEffectsOutput::default(),
         requires_build_by_snapshot: RequiresBuildBySnapshot::new(),
         snapshot_selection: SnapshotSelection::materialized(Vec::new()),
         fetch_failed: HashSet::new(),
