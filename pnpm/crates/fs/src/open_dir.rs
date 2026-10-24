@@ -1,7 +1,7 @@
 #[cfg(not(unix))]
 use crate::remove_dirent;
 use std::{
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
@@ -71,6 +71,24 @@ impl OpenDir {
     pub fn open_child_dir(&self, name: &OsStr) -> io::Result<Option<Self>> {
         let path = self.path.join(name);
         if is_dir_no_follow(&path)? { Ok(Some(Self { path })) } else { Ok(None) }
+    }
+
+    /// The names of the entries directly inside this directory, `.` and
+    /// `..` excluded.
+    pub fn entry_names(&self) -> io::Result<Vec<OsString>> {
+        #[cfg(unix)]
+        return unix::entry_names(self.handle.as_fd());
+        #[cfg(not(unix))]
+        {
+            let entries = match fs::read_dir(&self.path) {
+                Ok(entries) => entries,
+                Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
+                Err(error) => return Err(error),
+            };
+            entries
+                .map(|entry| entry.map(|entry| entry.file_name()))
+                .collect()
+        }
     }
 
     /// The path the directory was opened at.

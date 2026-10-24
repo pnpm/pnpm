@@ -1,7 +1,7 @@
 use crate::{PruneError, StoreDir};
+use pipe_trait::Pipe;
 use pnpm_fs::OpenDir;
 use std::{
-    fs,
     io::{self, ErrorKind},
     iter,
     path::{Path, PathBuf},
@@ -16,9 +16,9 @@ impl StoreDir {
     /// A symbolic link is not a directory here, so it is kept. So is a
     /// directory that is or holds this store or one of `protected_dirs`,
     /// for a `cacheDir` that encloses them. `cache_dir` is held open and
-    /// each layout directory is opened and emptied through it, so on Unix a
-    /// link put in either's place meanwhile does not redirect the removal
-    /// (see [`OpenDir`]).
+    /// each layout directory is opened through it, so on Unix a link put in
+    /// either's place meanwhile redirects neither what is listed nor what
+    /// is removed (see [`OpenDir`]).
     ///
     /// The caller holds the store's prune lock, which keeps out the installs
     /// that read the cache.
@@ -91,26 +91,15 @@ fn holds_any(dir: &Path, protected: &[PathBuf]) -> bool {
         .any(|path| path.starts_with(dir))
 }
 
-/// The names of the entries of `dir`, none when its path no longer leads
-/// anywhere. Entries whose names are not UTF-8 are skipped.
+/// The names of the entries of `dir`. Entries whose names are not UTF-8
+/// are skipped.
 fn child_names(dir: &OpenDir) -> Result<Vec<String>, PruneError> {
-    let read_error = |error| read_error(dir.path(), error);
-    let entries = match fs::read_dir(dir.path()) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(read_error(error)),
-    };
-    let mut names = Vec::new();
-    for entry in entries {
-        if let Ok(name) = entry
-            .map_err(read_error)?
-            .file_name()
-            .into_string()
-        {
-            names.push(name);
-        }
-    }
-    Ok(names)
+    let names = dir.entry_names().map_err(|error| read_error(dir.path(), error))?;
+    names
+        .into_iter()
+        .filter_map(|name| name.into_string().ok())
+        .collect::<Vec<_>>()
+        .pipe(Ok)
 }
 
 fn read_error(path: &Path, error: io::Error) -> PruneError {

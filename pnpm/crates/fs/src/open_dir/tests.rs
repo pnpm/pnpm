@@ -82,6 +82,33 @@ fn open_child_dir_opens_only_a_real_directory() {
 }
 
 #[test]
+fn entry_names_lists_the_children_without_the_dot_entries() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    let mut names = dir.entry_names().unwrap();
+    names.sort();
+
+    assert_eq!(names, ["file", "metadata"]);
+}
+
+#[test]
+fn entry_names_lists_the_same_names_when_called_again() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    let mut first = dir.entry_names().unwrap();
+    let mut second = dir.entry_names().unwrap();
+    first.sort();
+    second.sort();
+
+    assert_eq!(first, ["file", "metadata"]);
+    assert_eq!(second, first);
+}
+
+#[test]
 fn remove_child_dir_removes_a_directory_with_its_contents() {
     let root = tempdir().unwrap();
     create_tree(root.path());
@@ -150,6 +177,47 @@ fn remove_child_dir_ignores_a_link_substituted_after_the_open() {
             .exists(),
     );
     assert_eq!(names(&root.path().join("moved")), ["file"]);
+}
+
+fn list_from_several_threads(dir: &OpenDir) {
+    std::thread::scope(|scope| {
+        for _ in 0..8 {
+            scope.spawn(|| assert_every_listing_is_whole(dir));
+        }
+    });
+}
+
+fn assert_every_listing_is_whole(dir: &OpenDir) {
+    for _ in 0..200 {
+        let mut names = dir.entry_names().unwrap();
+        names.sort();
+        assert_eq!(names, ["file", "metadata"]);
+    }
+}
+
+#[test]
+fn entry_names_is_complete_when_listings_overlap() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+
+    list_from_several_threads(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn entry_names_ignores_a_link_substituted_after_the_open() {
+    let root = tempdir().unwrap();
+    create_tree(root.path());
+    fs::create_dir_all(root.path().join("elsewhere/metadata")).unwrap();
+    fs::write(root.path().join("elsewhere/decoy"), "").unwrap();
+    let dir = OpenDir::open(&root.path().join("real")).unwrap();
+    substitute_real(root.path());
+
+    let mut names = dir.entry_names().unwrap();
+    names.sort();
+
+    assert_eq!(names, ["file", "metadata"]);
 }
 
 /// Same race one level up: the parent is replaced after the open, and a

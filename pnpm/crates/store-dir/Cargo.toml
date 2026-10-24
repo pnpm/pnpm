@@ -24,6 +24,7 @@ derive_more = { workspace = true }
 dunce = { workspace = true }
 miette = { workspace = true }
 node-semver = { workspace = true }
+pipe-trait = { workspace = true }
 rayon = { workspace = true }
 rmp-serde = { workspace = true }
 rusqlite = { workspace = true }
@@ -50,7 +51,6 @@ windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 junction = { workspace = true }
-pipe-trait = { workspace = true }
 pretty_assertions = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
