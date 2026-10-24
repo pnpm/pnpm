@@ -96,7 +96,7 @@ fn unresolved_package_locations_do_not_hide_skills_from_installed_variants() {
 }
 
 #[test]
-fn merging_variants_keeps_valid_alternatives_without_adding_skills() {
+fn merging_variants_keeps_skills_from_installed_peers() {
     let mut selected = BTreeMap::new();
     let mut without_skills = source("b");
     without_skills.skills.clear();
@@ -113,5 +113,21 @@ fn merging_variants_keeps_valid_alternatives_without_adding_skills() {
         variant.skills.clear();
         variant
     });
-    assert_eq!(selected["foo"].skills, Vec::<String>::new());
+    assert_eq!(selected["foo"].skills, ["guide"]);
+}
+
+#[test]
+fn peer_variants_without_skills_do_not_suppress_valid_skill_sources() {
+    for directories in [["a", "b"], ["b", "a"]] {
+        let mut selected = BTreeMap::new();
+        for directory in directories {
+            let mut variant = source(directory);
+            if directory == "a" {
+                variant.skills.clear();
+            }
+            keep_highest(&mut selected, variant);
+        }
+        assert_eq!(selected["foo"].skills, ["guide"]);
+        assert_eq!(selected["foo"].package_dir, PathBuf::from("b"));
+    }
 }

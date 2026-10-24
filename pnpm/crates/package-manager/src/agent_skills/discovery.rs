@@ -245,7 +245,11 @@ fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource)
 }
 
 fn merge_peer_variant(kept: &mut SkillSource, mut source: SkillSource) {
-    if supersedes(&source, kept) {
+    let source_has_skills = !source.skills.is_empty();
+    let kept_has_skills = !kept.skills.is_empty();
+    if (source_has_skills && !kept_has_skills)
+        || (source_has_skills == kept_has_skills && supersedes(&source, kept))
+    {
         std::mem::swap(kept, &mut source);
     }
     for skill in source.skills {
