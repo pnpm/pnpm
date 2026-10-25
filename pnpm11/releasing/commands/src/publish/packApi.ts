@@ -4,7 +4,7 @@ import path from 'node:path'
 import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
 import { readProjectManifest } from '@pnpm/cli.utils'
-import { pickRegistryForPackage, pickRegistryPrefixForUrl } from '@pnpm/config.pick-registry-for-package'
+import { pickDeclaredRegistryPrefix, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
 import { packlistWithSources } from '@pnpm/fs.packlist'
@@ -230,7 +230,7 @@ async function publishRegistryPrefix (
   if (publishedName == null) return undefined
   const registry = getPublishConfigRegistry(publishConfig, publishedName) ??
     pickRegistryForPackage(registriesByScope, publishedName)
-  return pickRegistryPrefixForUrl(registriesByPrefix, registry)
+  return pickDeclaredRegistryPrefix(registriesByPrefix, registry)
 }
 
 const publicationManifests = new WeakMap<Project, Promise<ProjectManifest>>()

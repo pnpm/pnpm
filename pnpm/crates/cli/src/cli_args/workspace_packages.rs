@@ -1,6 +1,7 @@
 use crate::cli_args::{install::resolve_bool_override, publish::PublishManifestArgs};
 use pnpm_config::Config;
 use pnpm_hooks::PnpmfileHooks;
+use pnpm_lockfile::DeclaredRegistryPrefixes;
 use pnpm_pack::{PackManifestOptions, WorkspacePackageManifest, WorkspacePackageManifests};
 use pnpm_package_manifest::{PackageManifestError, safe_read_project_manifest_from_dir};
 use pnpm_publish::{find_registry_info, publish_config_registry};
@@ -14,6 +15,7 @@ pub fn build_workspace_package_manifest_map(
     projects: &[Project],
     config: &Config,
 ) -> Result<WorkspacePackageManifests, PackageManifestError> {
+    let declared_prefixes = config.workspace_declared_registry_prefixes();
     let mut map = WorkspacePackageManifests::new();
     for project in projects {
         let manifest = project.manifest.value();
@@ -30,7 +32,13 @@ pub fn build_workspace_package_manifest_map(
                     .unwrap_or_default()
                     .to_string(),
                 root_dir: Some(project.root_dir.clone()),
-                registry_prefix: publish_registry_prefix(project, name, config)?.map(str::to_owned),
+                registry_prefix: publish_registry_prefix(
+                    project,
+                    name,
+                    config,
+                    &declared_prefixes,
+                )?
+                .map(str::to_owned),
             });
     }
     Ok(map)
@@ -41,11 +49,12 @@ pub fn build_workspace_package_manifest_map(
 /// `publishConfig.registry`, then the scope's registry, then the default
 /// registry, read from the [`publication_manifest`]. The scope is that of the
 /// published name, which `publishConfig.name` may rename.
-fn publish_registry_prefix<'config>(
+fn publish_registry_prefix<'prefixes>(
     project: &Project,
     name: &str,
-    config: &'config Config,
-) -> Result<Option<&'config str>, PackageManifestError> {
+    config: &Config,
+    declared_prefixes: &'prefixes DeclaredRegistryPrefixes,
+) -> Result<Option<&'prefixes str>, PackageManifestError> {
     if config.workspace_registry_prefixes.is_empty() {
         return Ok(None);
     }
@@ -64,7 +73,7 @@ fn publish_registry_prefix<'config>(
     ) else {
         return Ok(None);
     };
-    Ok(config.declared_registry_prefix(registry.as_str()))
+    Ok(declared_prefixes.prefix_for(registry.as_str()))
 }
 
 /// The manifest `pnpm publish` selects the registry from. A project that
