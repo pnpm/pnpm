@@ -342,7 +342,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let manifest = body_json(manifest.into_body()).await;
     assert_eq!(
         manifest["dist"]["tarball"],
-        json!("http://example.test/npm/~acme/@acme/widget/-/widget-1.0.0.tgz"),
+        json!("http://example.test/npm/~acme/@acme/widget@1.0.0"),
     );
 
     assert!(local_blob_path(tmp.path(), "acme", "@acme/widget", "widget-1.0.0.tgz").exists());

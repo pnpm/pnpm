@@ -4,17 +4,15 @@ use super::{
 };
 
 /// Rewrite every `dist.tarball` in `value` to a URL served by *this*
-/// registry instead of whatever URL the source put there. The new URL is
-/// `{public_url}/{pkg}/-/{basename}`, where `basename` is the last
-/// `/`-separated segment of the original tarball URL. This handles both
-/// npm's canonical `/{pkg}/-/{basename}` shape and verdaccio's
-/// `/{scope}/{name}/-/{scope}/{filename}` shape uniformly — we only look
-/// at the basename, never at the path prefix.
-///
-/// The basename is preserved verbatim rather than reconstructed from the
-/// version, so a non-canonical tarball name (e.g. esprima-fb's zero-padded
+/// registry instead of whatever URL the source put there. When the version's
+/// tarball filename is canonical (`<basename>-<version>.tgz` or
+/// `@scope/<basename>-<version>.tgz`) or the original URL carries no usable
+/// basename, the new URL is `{public_url}/{pkg}@{version}`. When the upstream
+/// tarball filename is non-canonical (e.g. esprima-fb's zero-padded
 /// `esprima-fb-3001.0001.0000-dev-harmony-fb.tgz` for version
-/// `3001.1.0-dev-harmony-fb`) survives into the client's lockfile and is
+/// `3001.1.0-dev-harmony-fb`), the new URL is `{public_url}/{pkg}/-/{basename}`,
+/// where `basename` is the last `/`-separated segment of the original tarball
+/// URL, so the preserved basename survives into the client's lockfile and is
 /// fetched back from the path the upstream actually hosts. The tarball
 /// endpoint binds each request to a version's declared `dist.integrity`
 /// (see `serve_tarball`), so a preserved name can't smuggle in unverified
@@ -61,18 +59,11 @@ pub(super) fn rewrite_dist_tarball(
 ) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
     // server, where integrity and OSV are enforced — never passed through.
-    // When the upstream URL has no usable basename (e.g. it ends in `/`), fall
-    // back to the version-derived canonical name (the manifest carries its own
-    // `version`) so a malformed URL still points at pnpr (and 404s there)
-    // rather than directing the client at an arbitrary upstream host.
     let version = value
         .get("version")
         .and_then(Value::as_str)
         .filter(|version| expected_version.is_none_or(|expected| *version == expected))
         .map(str::to_string);
-    let fallback = version
-        .as_deref()
-        .map(|version| pkg.tarball_name_for_version(version));
     let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
@@ -99,11 +90,48 @@ pub(super) fn rewrite_dist_tarball(
     dist.remove("revisions");
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
     let Some(tarball) = tarball_value.as_str() else { return };
-    let filename = tarball_basename(tarball)
+    let target_version = version.as_deref().or(expected_version);
+    *tarball_value = Value::String(rewritten_tarball_url(pkg, target_version, tarball, public_url));
+}
+
+fn rewritten_tarball_url(
+    pkg: &CanonicalPackageName,
+    version: Option<&str>,
+    tarball: &str,
+    public_url: &str,
+) -> String {
+    let basename = tarball_basename(tarball);
+    if let Some(version) = version
+        && is_version_addressable_tarball(pkg, version, basename)
+    {
+        return format!("{public_url}/{pkg}@{version}", pkg = pkg.as_str());
+    }
+    let filename = basename
         .map(str::to_owned)
-        .or(fallback)
+        .or_else(|| version.map(|version| pkg.tarball_name_for_version(version)))
         .unwrap_or_default();
-    *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
+    format!("{public_url}/{}/-/{filename}", pkg.as_str())
+}
+
+fn is_version_addressable_tarball(
+    pkg: &CanonicalPackageName,
+    version: &str,
+    basename: Option<&str>,
+) -> bool {
+    if !pnpr_package_name::is_safe_path_segment(version)
+        || version
+            .split_once('+')
+            .and_then(|(_, build)| build.strip_prefix('r'))
+            .is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+            })
+    {
+        return false;
+    }
+    basename.is_none_or(|basename| {
+        pkg.parse_tarball_name(basename)
+            .is_ok_and(|(_, parsed_version)| parsed_version == version)
+    })
 }
 
 fn rewrite_dist_attestations(

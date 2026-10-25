@@ -79,7 +79,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
     let served = body_json(response.into_body()).await;
     assert_eq!(
         served["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz",
+        "http://example.test/npm/mypkg@1.0.0",
     );
 
     // The tarball streams back byte-for-byte out of the bucket.

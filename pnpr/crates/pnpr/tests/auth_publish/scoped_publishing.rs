@@ -319,6 +319,55 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
 }
 
 #[tokio::test]
+async fn unpublish_tarball_via_version_route_url() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    for (pkg, put_path, delete_path, blob_name) in [
+        (
+            "unpub-ver",
+            "/npm/unpub-ver",
+            "/npm/unpub-ver@1.0.0/-rev/anything",
+            "unpub-ver-1.0.0.tgz",
+        ),
+        (
+            "@scope/unpub-ver",
+            "/npm/@scope/unpub-ver",
+            "/npm/@scope/unpub-ver@1.0.0/-rev/anything",
+            "unpub-ver-1.0.0.tgz",
+        ),
+    ] {
+        let body = publish_doc(pkg, "1.0.0", b"bytes");
+        let request = Request::put(put_path)
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let publish = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(publish.status(), StatusCode::CREATED);
+        assert!(local_blob_path(&storage, "", pkg, blob_name).exists());
+
+        let request = Request::delete(delete_path)
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert!(!local_blob_path(&storage, "", pkg, blob_name).exists());
+    }
+}
+
+#[tokio::test]
 async fn missing_unpublish_policy_denies_destructive_writes() {
     let tmp = TempDir::new().unwrap();
     let (config, storage) = static_config_with_packages(

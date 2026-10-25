@@ -192,7 +192,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     let served_packument = body_json(packument_response.into_body()).await;
     assert_eq!(
         served_packument["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/@scope/wire-form/-/wire-form-1.0.0.tgz",
+        "http://example.test/npm/@scope/wire-form@1.0.0",
     );
 
     let served = app

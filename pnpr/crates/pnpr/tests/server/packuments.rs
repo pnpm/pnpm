@@ -53,10 +53,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(
-        body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(body["versions"]["1.0.0"]["dist"]["tarball"], "http://example.test/npm/foo@1.0.0");
     assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], sha1_hex_of(tarball));
     assert_eq!(body["versions"]["1.0.0"]["dist"]["integrity"], sha512_integrity(tarball));
 
@@ -541,10 +538,7 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
     let mut decoded = Vec::new();
     GzDecoder::new(&gzipped[..]).read_to_end(&mut decoded).expect("decode gzip");
     let body: Value = serde_json::from_slice(&decoded).unwrap();
-    assert_eq!(
-        body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(body["versions"]["1.0.0"]["dist"]["tarball"], "http://example.test/npm/foo@1.0.0");
 
     mock.assert_async().await;
 }
@@ -582,10 +576,7 @@ async fn packument_is_zstd_compressed_for_clients_that_prefer_it() {
         Some("zstd"),
     );
     let body = decode_zstd(&body_bytes(response.into_body()).await).await;
-    assert_eq!(
-        body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(body["versions"]["1.0.0"]["dist"]["tarball"], "http://example.test/npm/foo@1.0.0");
 
     mock.assert_async().await;
 }

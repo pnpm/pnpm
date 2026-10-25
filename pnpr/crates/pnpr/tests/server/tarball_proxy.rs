@@ -189,7 +189,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
     // URL is canonical for the client's configured registry (integrity-only).
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/~npmjs/foo/-/foo-1.0.0.tgz",
+        "http://example.test/npm/~npmjs/foo@1.0.0",
     );
     mock.assert_async().await;
 }

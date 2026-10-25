@@ -24,10 +24,7 @@ fn rewrites_npm_form_tarball() {
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
-    assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:4873/foo@1.0.0");
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["shasum"], "abc");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["attestations"]["url"],
@@ -260,7 +257,7 @@ fn rewrites_verdaccio_form_tarball_for_scoped() {
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/@foo/no-deps/-/no-deps-1.0.0.tgz",
+        "http://127.0.0.1:9999/@foo/no-deps@1.0.0",
     );
 }
 
@@ -289,22 +286,26 @@ fn preserves_non_canonical_tarball_basename() {
 }
 
 #[test]
-fn rewrites_query_bearing_tarball_to_its_path_basename() {
-    // A signed/query-bearing upstream URL must rewrite to the path basename
-    // alone: the query is not part of the route a client later requests, so
+fn rewrites_query_bearing_tarball_without_query_string() {
+    // A signed/query-bearing upstream URL must drop its query string when
+    // rewritten: the query is not part of the route a client later requests, so
     // keeping it would desync the public URL from the serve-time match.
     let mut doc = json!({
         "versions": {
             "1.0.0": {
                 "dist": { "tarball": "https://cdn.example.com/foo/-/foo-1.0.0.tgz?sig=abc&exp=123" }
+            },
+            "3001.1.0-dev-harmony-fb": {
+                "dist": { "tarball": "https://cdn.example.com/foo/-/foo-3001.0001.0000-dev-harmony-fb.tgz?sig=abc&exp=123" }
             }
         }
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:9999/foo@1.0.0");
     assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/foo/-/foo-1.0.0.tgz",
+        doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
+        "http://127.0.0.1:9999/foo/-/foo-3001.0001.0000-dev-harmony-fb.tgz",
     );
 }
 
@@ -324,10 +325,7 @@ fn rewrites_basenameless_tarball_url_to_pnpr_route() {
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
-    assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:9999/foo@1.0.0");
 }
 
 #[test]
@@ -368,7 +366,7 @@ fn extracts_version_by_dist_tag() {
         CanonicalPackageName::parse("@foo/no-deps", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "latest", "http://reg").unwrap();
     assert_eq!(manifest["version"], "1.0.0");
-    assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps/-/no-deps-1.0.0.tgz");
+    assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps@1.0.0");
     assert_eq!(manifest["dist"]["shasum"], "abc");
 }
 
@@ -381,7 +379,7 @@ fn extracts_version_by_literal_version() {
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "2.0.0", "http://reg").unwrap();
     assert_eq!(manifest["version"], "2.0.0");
-    assert_eq!(manifest["dist"]["tarball"], "http://reg/foo/-/foo-2.0.0.tgz");
+    assert_eq!(manifest["dist"]["tarball"], "http://reg/foo@2.0.0");
 }
 
 #[test]
