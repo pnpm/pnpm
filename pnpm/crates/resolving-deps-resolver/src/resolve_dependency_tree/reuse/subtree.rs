@@ -10,7 +10,7 @@ use pnpm_lockfile::{PkgNameVerPeer, SnapshotEntry};
 use rustc_hash::FxHashMap as HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::lockfile_reuse::synthesize_reused_result;
+use crate::{UpdateReuseScope, lockfile_reuse::synthesize_reused_result};
 
 use super::super::{lock_recoverable, tree_ctx::TreeCtx};
 
@@ -52,10 +52,8 @@ pub(crate) struct SubtreeReuseCache {
     /// before the memo, by [`Self::target_distances`], so the answer holds
     /// for every importer and depth.
     pub(crate) reusable: Mutex<HashMap<PkgNameVerPeer, bool>>,
-    /// [`TargetDistances`] per update scope, computed on first use. Keyed by
-    /// the importer whose own scope applies, or `None` for the
-    /// workspace-wide scope.
-    pub(crate) target_distances: Mutex<HashMap<Option<String>, Arc<TargetDistances>>>,
+    /// [`TargetDistances`] per update scope, computed on first use.
+    pub(crate) target_distances: Mutex<HashMap<UpdateReuseScope, Arc<TargetDistances>>>,
 }
 
 /// `snapshot`'s children: the snapshot key of each entry in

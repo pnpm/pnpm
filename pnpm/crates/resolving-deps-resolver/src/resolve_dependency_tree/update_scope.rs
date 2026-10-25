@@ -5,7 +5,7 @@ use pnpm_resolving_resolver_base::WantedDependency;
 /// reuse. An excluded package re-resolves to highest-in-range, and its
 /// whole subtree re-resolves with it (so the bump's new transitive deps
 /// are picked up).
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum UpdateReuseScope {
     /// Reuse every still-satisfied dependency. `install` / `add`.
     #[default]

@@ -198,3 +198,34 @@ fn a_small_cycle_in_a_lockfile_larger_than_the_depth_is_walked_once() {
     assert!(reusable(&ctx, &lockfile, "a@1.0.0"));
     assert_eq!(memoised_answers(&ctx), 3);
 }
+
+/// A filtered workspace update gives every selected importer a scope of
+/// its own. Importers whose scopes name the same targets share one set of
+/// target distances.
+#[test]
+fn importers_updating_the_same_targets_share_their_target_distances() {
+    let lockfile = Lockfile::parse(CHAIN, Path::new("pnpm-lock.yaml"))
+        .expect("parse the lockfile")
+        .expect("the lockfile has content")
+        .pipe(Arc::new);
+    let targets = std::iter::once(("c".to_string(), None)).collect::<crate::UpdateTargets>();
+    let workspace = WorkspaceTreeCtx::default()
+        .with_lockfile_reuse(crate::WorkspaceLockfileReuse {
+            lockfile: Some(Arc::clone(&lockfile)),
+            scopes_by_importer: ["first", "second"]
+                .into_iter()
+                .map(|importer| {
+                    (importer.to_string(), crate::UpdateReuseScope::Except(targets.clone()))
+                })
+                .collect(),
+            depth: crate::UpdateDepth::new(4),
+            ..Default::default()
+        })
+        .pipe(Arc::new);
+    for importer in ["first", "second"] {
+        let ctx = TreeCtx::with_workspace(Arc::clone(&workspace), ResolveOptions::default())
+            .with_importer_id(importer);
+        assert!(!reusable(&ctx, &lockfile, "a@1.0.0"));
+    }
+    assert_eq!(lock_recoverable(&workspace.cache.subtree.target_distances).len(), 1);
+}
