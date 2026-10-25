@@ -33,7 +33,9 @@ const ORGS_DIR: &str = "orgs";
 /// [`encode_segment`] never writes it.
 const MARKER: char = '@';
 /// The files named `<basename>-<version><extension>`, which [`blob_segment`]
-/// stores without the `<basename>-`.
+/// stores without the `<basename>-`. Adding an extension changes how a stored
+/// file with it decodes, so one joins only with the ecosystem that introduces
+/// it, and only when no other ecosystem stores files with it.
 const VERSIONED_EXTENSIONS: [&str; 3] = [".tgz", ".sigstore", ".crate"];
 const ESCAPE: u8 = b'!';
 const HEX: &[u8; 16] = b"0123456789abcdef";

@@ -85,3 +85,16 @@ fn blob_segments_the_layout_cannot_produce_do_not_decode() {
         assert_eq!(decode_blob_segment("foo", segment), None, "{segment:?}");
     }
 }
+
+#[test]
+fn files_of_ecosystems_without_versioned_names_keep_their_names() {
+    for file in [
+        "sha256-aa",
+        "demo-1.0-py3-none-any.whl",
+        "demo-1.0-py3-none-any.whl.metadata",
+        "demo-1.0.tar.gz",
+        "demo-1.0.zip",
+    ] {
+        assert_eq!(blob_segment("demo", file), encode_segment(file), "{file}");
+    }
+}
