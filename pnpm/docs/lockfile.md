@@ -121,7 +121,7 @@ packages:
 ```
 
 It says that the package is a registry revision, fetched from the registry's
-integrity-addressed route rather than the canonical `name@version` URL.
+`<name>@<version>+r<revision>` route rather than the `<name>@<version>` URL.
 `revision: 0` is the original, and a positive number is a replacement. An entry
 with no `revision` field is an ordinary entry outside the revision protocol. See
 [Registry revisions](./registry-revisions.md).

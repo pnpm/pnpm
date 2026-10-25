@@ -1,19 +1,48 @@
 use super::{
     Cow, Integrity, InvalidRevisionSpecifierError, InvalidTarballRevisionMetadataError,
     MalformedRevisionHistoryError, NoMatchingRevisionError, PackageVersion, RegistryPackageSpec,
-    RegistryRevisionSelector, ResolveError, TarballRevision,
-    is_integrity_addressed_registry_tarball_url,
+    RegistryRevisionSelector, ResolveError, TarballRevision, has_complete_sha512_digest,
+    is_on_revision_tarball_route, is_revision_registry_tarball_url,
 };
 
 /// The tarball's revision, when the registry serves one: it must pair
-/// with a URL addressed by the pick's complete sha512 integrity, and a
-/// URL addressed that way must carry a revision.
+/// with a `<registry>/<name>@<version>+r<revision>` URL and complete sha512
+/// integrity, and a URL on the revision route must carry a revision.
 pub(super) fn tarball_revision(
     picked: &PackageVersion,
     integrity: Option<&Integrity>,
     registry: &str,
 ) -> Result<Option<TarballRevision>, ResolveError> {
-    let revision = picked.dist.revision
+    let revision = parse_dist_revision(picked)?;
+    let revision_addressed = revision
+        .zip(integrity)
+        .is_some_and(|(revision, integrity)| {
+            has_complete_sha512_digest(integrity)
+                && is_revision_registry_tarball_url(
+                    &picked.dist.tarball,
+                    &picked.name,
+                    &picked.version.to_string(),
+                    revision,
+                    registry,
+                )
+        });
+    match (revision, revision_addressed) {
+        (Some(_), false) => Err(Box::new(InvalidTarballRevisionMetadataError::new(
+            &picked.dist.tarball,
+            "the URL does not match its revision, complete sha512 integrity, and registry",
+        ))),
+        (None, _) if is_on_revision_tarball_route(&picked.dist.tarball, registry) => {
+            Err(Box::new(InvalidTarballRevisionMetadataError::new(
+                &picked.dist.tarball,
+                "the URL is on the registry's revision route but has no revision",
+            )))
+        }
+        _ => Ok(revision),
+    }
+}
+
+fn parse_dist_revision(picked: &PackageVersion) -> Result<Option<TarballRevision>, ResolveError> {
+    picked.dist.revision
         .as_ref()
         .map(|revision| {
             revision
@@ -27,32 +56,7 @@ pub(super) fn tarball_revision(
         .map_err(|reason| {
             Box::new(InvalidTarballRevisionMetadataError::new(&picked.dist.tarball, reason))
                 as ResolveError
-        })?;
-    let integrity_addressed = integrity.is_some_and(|integrity| {
-        is_integrity_addressed_registry_tarball_url(&picked.dist.tarball, integrity, registry)
-    });
-    match (revision, integrity_addressed) {
-        (Some(_), false) => Err(Box::new(InvalidTarballRevisionMetadataError::new(
-            &picked.dist.tarball,
-            "the URL does not match its complete sha512 integrity and registry",
-        ))),
-        (None, _) if is_on_digest_route(&picked.dist.tarball, registry) => {
-            Err(Box::new(InvalidTarballRevisionMetadataError::new(
-                &picked.dist.tarball,
-                "the URL is on the registry's digest route but has no revision",
-            )))
-        }
-        _ => Ok(revision),
-    }
-}
-
-/// Whether `tarball` sits on `registry`'s `-/tarballs/sha512/` route, whatever
-/// digest it names.
-fn is_on_digest_route(tarball: &str, registry: &str) -> bool {
-    let registry = registry.trim_end_matches('/');
-    tarball
-        .strip_prefix(registry)
-        .is_some_and(|path| path.starts_with("/-/tarballs/sha512/"))
+        })
 }
 
 pub(super) fn select_package_revision<'a>(
@@ -163,13 +167,13 @@ pub(super) fn package_revision_record<'a>(
             format!("revision {requested} is advertised more than once"),
         ));
     }
-    if requested > pnpm_lockfile::MAX_TARBALL_REVISION {
+    let Ok(revision) = TarballRevision::try_from(requested) else {
         return Err(malformed_revision_history(
             picked,
             "a revision is not a canonical safe integer",
         ));
-    }
-    validate_package_revision_record(picked, requested, registry, matches[0]).map(Some)
+    };
+    validate_package_revision_record(picked, revision, registry, matches[0]).map(Some)
 }
 
 /// A revision-aware version advertises both its selected revision and a
@@ -252,36 +256,49 @@ pub(super) const REVISION_MANIFEST_FIELDS: [&str; 12] = [
     "hasInstallScript",
 ];
 
+fn required_revision_str<'a>(
+    picked: &PackageVersion,
+    record: &'a serde_json::Value,
+    field: &str,
+    reason: impl FnOnce() -> String,
+) -> Result<&'a str, ResolveError> {
+    record
+        .get(field)
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| malformed_revision_history(picked, reason()))
+}
+
 pub(super) fn validate_package_revision_record<'a>(
     picked: &PackageVersion,
-    requested: u64,
+    revision: TarballRevision,
     registry: &str,
     record: &'a serde_json::Value,
 ) -> Result<ValidatedPackageRevision<'a>, ResolveError> {
-    let integrity_text = record
-        .get("integrity")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| {
-            malformed_revision_history(picked, format!("revision {requested} has no integrity"))
-        })?;
+    let integrity_text = required_revision_str(picked, record, "integrity", || {
+        format!("revision {revision} has no integrity")
+    })?;
     let integrity = integrity_text
         .parse::<Integrity>()
         .map_err(|_| {
-            malformed_revision_history(
-                picked,
-                format!("revision {requested} has invalid integrity"),
-            )
+            malformed_revision_history(picked, format!("revision {revision} has invalid integrity"))
         })?;
-    let tarball = record
-        .get("tarball")
-        .and_then(serde_json::Value::as_str)
-        .ok_or_else(|| {
-            malformed_revision_history(picked, format!("revision {requested} has no tarball URL"))
-        })?;
-    if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, registry) {
+    let tarball = required_revision_str(picked, record, "tarball", || {
+        format!("revision {revision} has no tarball URL")
+    })?;
+    if !has_complete_sha512_digest(&integrity)
+        || !is_revision_registry_tarball_url(
+            tarball,
+            &picked.name,
+            &picked.version.to_string(),
+            revision,
+            registry,
+        )
+    {
         return Err(malformed_revision_history(
             picked,
-            format!("revision {requested} is not addressed by its complete sha512 integrity"),
+            format!(
+                "revision {revision} is not addressed by its revision URL and complete sha512 integrity",
+            ),
         ));
     }
     let manifest = record
@@ -290,7 +307,7 @@ pub(super) fn validate_package_revision_record<'a>(
         .ok_or_else(|| {
             malformed_revision_history(
                 picked,
-                format!("revision {requested} has an invalid manifest"),
+                format!("revision {revision} has an invalid manifest"),
             )
         })?;
     Ok(ValidatedPackageRevision { integrity, integrity_text, tarball, manifest })

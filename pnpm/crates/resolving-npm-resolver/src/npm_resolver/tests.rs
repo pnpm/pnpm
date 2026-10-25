@@ -412,10 +412,13 @@ fn shasum_only_package_body(shasum: &str) -> String {
 fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String {
     let original_digest =
         "H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ";
+    let original_tarball = tarball
+        .rsplit_once("+r")
+        .map_or_else(|| tarball.to_string(), |(base, _)| format!("{base}+r0"));
     let original = json!({
         "revision": 0,
         "integrity": format!("sha512-{}==", original_digest.replace('_', "/").replace('-', "+")),
-        "tarball": tarball.replace(&"A".repeat(86), original_digest),
+        "tarball": original_tarball,
         "manifest": {},
     });
     let selected = json!({
@@ -467,19 +470,19 @@ fn revision_history_package_body(registry: &str) -> String {
                 "optionalDependencies": { "removed": "1.0.0" },
                 "dist": {
                     "integrity": integrity_c,
-                    "tarball": format!("{registry}-/tarballs/sha512/{digest_c}"),
+                    "tarball": format!("{registry}acme@1.0.0+r2"),
                     "revision": 2,
                     "revisions": [
                         {
                             "revision": 0,
                             "integrity": integrity_a,
-                            "tarball": format!("{registry}-/tarballs/sha512/{digest_a}"),
+                            "tarball": format!("{registry}acme@1.0.0+r0"),
                             "manifest": { "dependencies": { "original": "1.0.0" } },
                         },
                         {
                             "revision": 1,
                             "integrity": integrity_b,
-                            "tarball": format!("{registry}-/tarballs/sha512/{digest_b}"),
+                            "tarball": format!("{registry}acme@1.0.0+r1"),
                             "manifest": {
                                 "name": "not-acme",
                                 "version": "9.0.0",
@@ -491,7 +494,7 @@ fn revision_history_package_body(registry: &str) -> String {
                         {
                             "revision": 2,
                             "integrity": integrity_c,
-                            "tarball": format!("{registry}-/tarballs/sha512/{digest_c}"),
+                            "tarball": format!("{registry}acme@1.0.0+r2"),
                             "manifest": { "dependencies": { "selected-current": "1.0.0" } },
                         },
                     ],

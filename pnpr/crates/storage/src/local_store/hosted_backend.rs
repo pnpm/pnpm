@@ -3,9 +3,9 @@ use futures_util::TryStreamExt as _;
 use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, Body, BoxStream,
     CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, ErrorKind, GetRange, HostedBackend,
-    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefWrite,
-    PACKAGES_DIR, Path, PathBuf, RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait,
-    decode_segment, fs, read_dir_if_present, stream, streaming,
+    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, PACKAGES_DIR, Path, PathBuf,
+    RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait, decode_segment, fs,
+    read_dir_if_present, stream, streaming,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -156,28 +156,6 @@ impl HostedBackend for Store {
             }
         }
         Ok(dirs)
-    }
-
-    async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
-        Store::read_revision_refs(self, digest).await
-    }
-
-    async fn write_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-        bytes: &[u8],
-    ) -> Result<HostedRevisionRefWrite> {
-        Store::write_revision_ref(self, digest, ref_id, owner, bytes).await
-    }
-
-    async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
-        Store::remove_revision_ref(self, digest, ref_id, owner).await
-    }
-
-    async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
-        Store::commit_revision_ref(self, digest, ref_id, owner).await
     }
 
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend> {

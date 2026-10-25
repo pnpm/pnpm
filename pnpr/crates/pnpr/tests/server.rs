@@ -64,7 +64,6 @@ use axum::{
 };
 use flate2::read::GzDecoder;
 use futures_util::stream;
-use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, IpNetwork, MaxUsers, PackagePattern,
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,

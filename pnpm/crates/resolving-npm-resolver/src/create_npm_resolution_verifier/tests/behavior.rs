@@ -32,7 +32,7 @@ async fn rejects_a_current_revision_without_history() {
                 "version": "1.0.0",
                 "dist": {
                     "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
-                    "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+                    "tarball": format!("{registry}revision-pkg@1.0.0+r0"),
                     "revision": 0,
                 }
             }
@@ -67,7 +67,7 @@ async fn accepts_a_selected_revision_zero() {
     let original = serde_json::json!({
         "revision": 0,
         "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
-        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+        "tarball": format!("{registry}revision-pkg@1.0.0+r0"),
         "manifest": {},
     });
     let packument = serde_json::json!({
@@ -158,22 +158,22 @@ async fn accepts_an_advertised_historical_revision() {
                 "version": "1.0.0",
                 "dist": {
                     "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
-                    "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                    "tarball": format!("{registry}revision-pkg@1.0.0+r2"),
                     "revision": 2,
                     "revisions": [{
                         "revision": 0,
                         "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
-                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+                        "tarball": format!("{registry}revision-pkg@1.0.0+r0"),
                         "manifest": {},
                     }, {
                         "revision": 1,
                         "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
-                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ONE_DIGEST}"),
+                        "tarball": format!("{registry}revision-pkg@1.0.0+r1"),
                         "manifest": {},
                     }, {
                         "revision": 2,
                         "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
-                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                        "tarball": format!("{registry}revision-pkg@1.0.0+r2"),
                         "manifest": {},
                     }],
                 }

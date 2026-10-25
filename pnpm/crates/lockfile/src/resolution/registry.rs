@@ -1,6 +1,4 @@
-use super::{
-    BTreeMap, Cow, Deserialize, HashMap, Integrity, Serialize, integrity_addressed_tarball_path,
-};
+use super::{BTreeMap, Cow, Deserialize, HashMap, Serialize};
 use crate::{PkgNameVerPeer, Prefix, VersionPart};
 
 /// The software serving a registry, declared through the `registries`
@@ -301,41 +299,6 @@ pub fn normalized_registry_key(registry: &str) -> Option<String> {
 pub struct TarballUrlOptions<'a> {
     pub registry: &'a str,
     pub server_type: Option<RegistryServerType>,
-}
-
-/// Build an integrity-addressed tarball URL relative to `registry`.
-#[must_use]
-pub fn integrity_addressed_registry_tarball_url(
-    integrity: &Integrity,
-    registry: &str,
-) -> Option<String> {
-    let path = integrity_addressed_tarball_path(integrity)?;
-    let registry =
-        if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") };
-    url::Url::parse(&registry)
-        .ok()?
-        .join(&path)
-        .ok()
-        .map(Into::into)
-}
-
-/// Whether `tarball` is the exact digest route derived from `registry` and `integrity`.
-#[must_use]
-pub fn is_integrity_addressed_registry_tarball_url(
-    tarball: &str,
-    integrity: &Integrity,
-    registry: &str,
-) -> bool {
-    if !tarball.contains("/-/tarballs/sha512/") {
-        return false;
-    }
-    let Some(expected) = integrity_addressed_registry_tarball_url(integrity, registry) else {
-        return false;
-    };
-    match (url::Url::parse(tarball), url::Url::parse(&expected)) {
-        (Ok(actual), Ok(expected)) => actual == expected,
-        _ => false,
-    }
 }
 
 /// Derive the canonical npm registry tarball URL for `name@version`. Port of

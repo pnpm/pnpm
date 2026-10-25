@@ -259,17 +259,6 @@ pub enum RegistryError {
         stage_id: String,
     },
 
-    #[display("Hosted revision digest already has the maximum of {limit} references")]
-    #[from(skip)]
-    RevisionReferenceLimit { limit: usize },
-
-    #[display("Hosted revision reference index for digest {digest:?} changed while writing")]
-    #[from(skip)]
-    RevisionReferenceWriteConflict {
-        #[error(not(source))]
-        digest: String,
-    },
-
     #[display(
         "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
     )]

@@ -514,10 +514,7 @@ fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
     let LockfileResolution::Tarball(tarball) = current_pkg.resolution else {
         panic!("registry resolution must materialize as a tarball");
     };
-    assert_eq!(
-        tarball.tarball,
-        format!("https://registry.example.test/work/npm/-/tarballs/sha512/{}", "A".repeat(86)),
-    );
+    assert_eq!(tarball.tarball, "https://registry.example.test/work/npm/pkg@1.0.0+r7");
     assert_eq!(tarball.revision, Some(TarballRevision::try_from(7).unwrap()));
 }
 

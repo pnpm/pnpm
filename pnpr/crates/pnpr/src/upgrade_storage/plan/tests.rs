@@ -84,10 +84,7 @@ fn an_org_directory_becomes_its_namespace() {
                 "npm~internal/tool/tool-1.0.0.tgz",
                 moved("orgs/npm!7einternal/packages/tool/blobs/tool-1.0.0.tgz", false),
             ),
-            (
-                "npm~internal/.revisions/sha512/abc/index.json",
-                moved("orgs/npm!7einternal/.revisions/sha512/abc/index.json", false),
-            ),
+            ("npm~internal/.revisions/sha512/abc/index.json", Step::Remove,),
             (
                 "npm~internal/.tombstones/v0/@scope/gone.json",
                 moved("orgs/npm!7einternal/.tombstones/v0/!40scope!2fgone.json", false),
@@ -127,10 +124,7 @@ fn the_default_namespace_records_move_with_it() {
             &[]
         ),
         [
-            (
-                ".revisions/sha512/abc/index.json",
-                moved("default/.revisions/sha512/abc/index.json", false)
-            ),
+            (".revisions/sha512/abc/index.json", Step::Remove,),
             (".tombstones/v0/left-pad.json", moved("default/.tombstones/v0/left-pad.json", false)),
             (".pnpr-uploads/x", Step::Remove),
         ]

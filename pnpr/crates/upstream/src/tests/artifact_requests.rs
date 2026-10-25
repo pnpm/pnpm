@@ -147,7 +147,14 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
         let outcome = match mode {
             0 => upstream.fetch_artifact_response(&server.url()).await,
             1 => upstream.fetch_tarball_response(&name, "foo.tgz").await,
-            _ => upstream.fetch_revision_tarball_response("digest").await,
+            _ => {
+                upstream.fetch_revision_tarball_response(
+                    &name,
+                    "1.0.0",
+                    pnpm_lockfile::TarballRevision::try_from(0).unwrap(),
+                )
+                .await
+            }
         };
         let FetchOutcome::Ok(response) = outcome.unwrap() else {
             panic!("expected artifact response")
@@ -193,7 +200,12 @@ async fn revision_download_budget_starts_after_waiting_for_a_permit() {
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
     let held = upstream.http.client.acquire_for_url(&url).await;
-    let fetch = upstream.fetch_revision_tarball_response("digest");
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let fetch = upstream.fetch_revision_tarball_response(
+        &name,
+        "1.0.0",
+        pnpm_lockfile::TarballRevision::try_from(0).unwrap(),
+    );
     let release_permit = async {
         tokio::time::sleep(Duration::from_millis(400)).await;
         drop(held);

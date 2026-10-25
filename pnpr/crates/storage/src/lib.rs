@@ -14,10 +14,6 @@ pub use atomic_write::{
     remove_atomic_write_temps, unique_tmp_path, write_atomic, write_atomic_new,
 };
 
-pub use revision_ref_index::HostedRevisionRefWrite;
-
-pub(crate) use revision_ref_index::{HostedRevisionRefIndex, is_canonical_revision_ref_owner};
-
 pub use blob_write::{BlobSlot, BlobWrite, SealedBlob};
 
 pub(crate) use local_store::read_dir_if_present;
@@ -51,11 +47,6 @@ mod registry_records;
 mod atomic_write;
 use atomic_write::create_tmp_file;
 
-mod revision_ref_index;
-use revision_ref_index::{
-    validate_revision_digest, validate_revision_ref_id, validate_revision_ref_owner,
-};
-
 mod blob_write;
 
 mod local_store;
@@ -71,13 +62,10 @@ use futures_util::{
     StreamExt,
     stream::{self, BoxStream},
 };
-use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
-use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashSet,
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
     sync::{
@@ -92,10 +80,6 @@ use tokio::{
 };
 
 use layout::{BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, decode_segment, encode_segment};
-pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
-pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
-/// Bounds both the persisted candidate set and work triggered by one digest request.
-pub(crate) const MAX_HOSTED_REVISION_REFS: usize = 32;
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
 /// Retries the commit path allows the document write: higher than the
 /// request-path budget because a sealed transaction has to converge, and a
@@ -261,48 +245,6 @@ impl Storage {
         canonical: &CanonicalPackageName,
     ) -> Result<Vec<String>> {
         self.hosted.list_package_blobs(canonical).await
-    }
-
-    pub async fn read_hosted_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
-        validate_revision_digest(digest)?;
-        self.hosted.read_revision_refs(digest).await
-    }
-
-    pub async fn write_hosted_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-        bytes: &[u8],
-    ) -> Result<HostedRevisionRefWrite> {
-        validate_revision_digest(digest)?;
-        validate_revision_ref_id(ref_id)?;
-        validate_revision_ref_owner(owner)?;
-        self.hosted.write_revision_ref(digest, ref_id, owner, bytes).await
-    }
-
-    pub(crate) async fn remove_hosted_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-    ) -> Result<()> {
-        validate_revision_digest(digest)?;
-        validate_revision_ref_id(ref_id)?;
-        validate_revision_ref_owner(owner)?;
-        self.hosted.remove_revision_ref(digest, ref_id, owner).await
-    }
-
-    pub async fn commit_hosted_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-    ) -> Result<()> {
-        validate_revision_digest(digest)?;
-        validate_revision_ref_id(ref_id)?;
-        validate_revision_ref_owner(owner)?;
-        self.hosted.commit_revision_ref(digest, ref_id, owner).await
     }
 
     // --- Authoritative (hosted) store -----------------------------------

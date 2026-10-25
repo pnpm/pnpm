@@ -1,8 +1,8 @@
 use super::{
     JsonValue, LockfileResolution, RegistryArtifact, RegistryArtifactHistory,
     ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
-    TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision,
-    is_integrity_addressed_registry_tarball_url,
+    TARBALL_URL_MISMATCH_VIOLATION_CODE, TarballRevision, has_complete_sha512_digest,
+    is_revision_registry_tarball_url,
 };
 
 pub(super) fn same_tarball_url(left: &str, right: &str) -> bool {
@@ -72,9 +72,11 @@ pub(super) fn current_revision_number(
 
 /// The published history must hold revision 0, and the current revision
 /// must appear in it exactly once, with the same integrity and tarball the
-/// current record carries, and be addressed by that integrity.
+/// current record carries, and be addressed by its revision URL and sha512 integrity.
 pub(super) fn current_history_violation(
     artifact: &RegistryArtifactHistory,
+    name: &str,
+    version: &str,
     current_revision: u64,
     registry: &str,
 ) -> Option<ResolutionVerification> {
@@ -93,12 +95,14 @@ pub(super) fn current_history_violation(
             candidate.revision.as_ref().and_then(JsonValue::as_u64) == Some(current_revision)
         })
         .collect();
+    let revision = TarballRevision::try_from(current_revision).ok();
     let consistent = current_history.len() == 1
         && current_history[0].integrity == artifact.current.integrity
         && matches!(
-            (artifact.current.tarball.as_deref(), artifact.current.integrity.as_ref()),
-            (Some(tarball), Some(integrity))
-                if is_integrity_addressed_registry_tarball_url(tarball, integrity, registry),
+            (artifact.current.tarball.as_deref(), artifact.current.integrity.as_ref(), revision),
+            (Some(tarball), Some(integrity), Some(revision))
+                if has_complete_sha512_digest(integrity)
+                    && is_revision_registry_tarball_url(tarball, name, version, revision, registry),
         )
         && matches!(
             (current_history[0].tarball.as_deref(), artifact.current.tarball.as_deref()),

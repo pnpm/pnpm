@@ -10,7 +10,7 @@
 
 pub(super) use cache::VersionTgzCache;
 
-use cache::DistOrigin;
+use cache::{DistOrigin, VersionTgz, version_manifest_tgz, version_tgz};
 
 use super::{
     Action, AppState, CachedTgz, CanonicalPackageName, DistBlock, Ecosystem, FetchOutcome,
@@ -19,8 +19,9 @@ use super::{
     authorize, authorized_upstream, cached_upstream_tarball, caller_scoped,
     declared_tarball_integrity, ensure_osv_allowed, is_tar_registry, not_found,
     read_source_packument, recover_stale_upstream_packument, resolve_registry_source,
-    serve_bound_upstream_tarball, serve_registry_tarball, tar_decode_limit, tar_response,
-    tarball_basename, tarball_cache_name, tgz_integrity_key, timed, upstream_cache_namespace,
+    serve_bound_upstream_tarball, serve_registry_tarball, serve_revision_tarball, tar_decode_limit,
+    tar_response, tarball_basename, tarball_cache_name, tgz_integrity_key, timed,
+    upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
 use pnpr_storage::DocumentStamp;
@@ -35,7 +36,8 @@ mod cache;
 const MAX_VERSION_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
 
 /// `GET {base}/<name>@<version>`: the version's tarball, as the published
-/// `.tgz` on a `.tgz` registry and as its tar on a tar registry.
+/// `.tgz` on a `.tgz` registry, as its tar on a tar registry, and as a
+/// revision's tar when `<version>` carries `+r<revision>`.
 pub(super) async fn serve_package_tarball(
     state: &AppState,
     identity: &Identity,
@@ -47,6 +49,22 @@ pub(super) async fn serve_package_tarball(
     let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
         return not_found();
     };
+    if let Some(parsed) = super::revision_tarballs::parse_revision_version(version) {
+        let response = match parsed {
+            Ok((base_version, revision)) => {
+                serve_revision_tarball(
+                    state,
+                    identity,
+                    headers,
+                    &target,
+                    (raw_name, base_version, revision),
+                )
+                .await
+            }
+            Err(()) => not_found(),
+        };
+        return caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response);
+    }
     let request = VersionRequest { state, identity, target: &target, raw_name, version };
     let response = request.serve(headers).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
@@ -386,48 +404,4 @@ enum ManifestRead {
 struct CachedPackument {
     namespace: String,
     ttl: Duration,
-}
-
-struct VersionTgz {
-    filename: String,
-    dist: DistBlock,
-    integrity_key: Option<String>,
-}
-
-fn version_tgz(packument: &[u8], version: &str) -> Option<VersionTgz> {
-    let mut packument: PackumentDists = serde_json::from_slice(packument).ok()?;
-    dist_tgz(packument.versions.shift_remove(version)?.dist?)
-}
-
-#[derive(serde::Deserialize)]
-struct VersionManifest {
-    version: String,
-    #[serde(default)]
-    dist: Option<DistBlock>,
-}
-
-/// The dist of a version manifest for `version`. An upstream resolves a
-/// dist-tag at the same URL, so a manifest of another version is refused. A
-/// dist without a valid integrity is left to the packument, which carries the
-/// integrity pnpr pins for it.
-fn version_manifest_tgz(manifest: &[u8], version: &str) -> Option<VersionTgz> {
-    let manifest: VersionManifest = serde_json::from_slice(manifest).ok()?;
-    let dist = manifest.dist.filter(|dist| dist.integrity.is_some())?;
-    let tgz = (manifest.version == version).then(|| dist_tgz(dist))??;
-    tgz.integrity_key.is_some().then_some(tgz)
-}
-
-fn dist_tgz(dist: DistBlock) -> Option<VersionTgz> {
-    let filename = dist.tarball
-        .as_deref()
-        .and_then(tarball_basename)?
-        .to_string();
-    let mut fields = serde_json::Map::new();
-    if let Some(integrity) = &dist.integrity {
-        fields.insert("integrity".to_string(), Value::String(integrity.clone()));
-    }
-    if let Some(shasum) = &dist.shasum {
-        fields.insert("shasum".to_string(), Value::String(shasum.clone()));
-    }
-    Some(VersionTgz { filename, integrity_key: tgz_integrity_key(&fields), dist })
 }

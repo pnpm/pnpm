@@ -15,7 +15,6 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use pnpm_crypto_hash::{create_hex_hash, integrity_addressed_tarball_path};
 use serde_json::{Value, json};
 use ssri::Integrity;
 
@@ -25,7 +24,7 @@ use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
+    journal::{CommitOutcome, JournaledPublish},
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
         write_sigstore_bundle,
@@ -33,10 +32,10 @@ use pnpr_storage::{
 };
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize_package, authorized_upstream, default_registry_target, documents::RegistryDocuments,
-    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
-    restore_tgz_integrities, tar_integrity_of, tgz_integrity_key,
+    Action, AppState, AuthedCaller, HostedGate, RegistrySource, WriteTarget, authorize_package,
+    authorized_upstream, default_registry_target, documents::RegistryDocuments, hosted_gate,
+    hosted_storage, resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
+    tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -348,9 +347,7 @@ async fn stage_batch(
 ///
 /// A version whose blob lost its immutable slot to another replica is dropped
 /// from the document the transaction writes, which keeps the store consistent
-/// with the blob that won; the caller reads that out of the outcome. One that
-/// could not claim a digest-reference slot is dropped the same way, and
-/// reported here: the publisher asked for a version that is not there.
+/// with the blob that won; the caller reads that out of the outcome.
 pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
@@ -364,17 +361,12 @@ pub(super) async fn commit_publishes(
             document: &stage.document,
             base_version: stage.base_version.as_ref(),
             slots: &stage.slots,
-            revision_refs: &stage.revision_refs,
         })
         .collect();
-    let outcome = state.inner.storage
+    state.inner.storage
         .publish_journal()
         .commit(&state.inner.storage, &entries, &RegistryDocuments)
-        .await?;
-    match outcome.reference_limit {
-        Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
-        None => Ok(outcome),
-    }
+        .await
 }
 
 /// The packages a commit could not record, as the error a publisher gets

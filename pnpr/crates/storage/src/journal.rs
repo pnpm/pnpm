@@ -6,7 +6,7 @@
 //! per package. A crash in the middle of those steps could leave a blob that
 //! no document mentions, or some packages of a batch published and others
 //! not. The journal closes that window: before anything is promoted, the full
-//! intent — the computed document bytes, revision references, and locations
+//! intent — the computed document bytes and locations
 //! of the staged tmp files — is persisted under `.pnpr-journal/<txn>/` and
 //! sealed with a single atomic rename of the `commit` marker.
 //! [`PublishJournal::commit`] then applies it, and [`recover_publish_journal`]
@@ -31,22 +31,18 @@
 //! what was published between the failed apply and the restart.
 
 mod transaction_files;
-use transaction_files::{
-    cleanup_lost_tmp_paths, revision_ref_owner, roll_back, sync_dir, txn_id, write_transaction,
-};
+use transaction_files::{cleanup_lost_tmp_paths, roll_back, sync_dir, txn_id, write_transaction};
 
 use crate::{
     BlobFinalize, BlobSlot, COMMIT_DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite,
-    HostedDocumentVersion, HostedRevisionRefWrite, Storage, is_canonical_revision_ref_owner,
-    unique_tmp_path,
+    HostedDocumentVersion, Storage, unique_tmp_path,
 };
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
-use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -77,14 +73,6 @@ static TXN_COUNTER: AtomicU64 = AtomicU64::new(0);
 mod manifest;
 use manifest::{Manifest, ManifestBlob, ManifestPackage};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JournaledRevisionRef {
-    pub filename: String,
-    pub digest: String,
-    pub ref_id: String,
-    pub bytes: Vec<u8>,
-}
-
 /// One package of a publish about to be committed, borrowed from the
 /// handler's staged state.
 pub struct JournaledPublish<'publish> {
@@ -99,7 +87,6 @@ pub struct JournaledPublish<'publish> {
     /// commit writes `document` as it is; otherwise it merges.
     pub base_version: Option<&'publish HostedDocumentVersion>,
     pub slots: &'publish [BlobSlot],
-    pub revision_refs: &'publish [JournaledRevisionRef],
 }
 
 /// One hosted document to bring up to date as a transaction is applied.
@@ -152,9 +139,6 @@ pub struct LostBlob {
 pub struct CommitOutcome {
     /// The blobs whose immutable slot another writer already owned.
     pub lost_blobs: Vec<LostBlob>,
-    /// Set when an entry could not claim a digest-reference slot, to the
-    /// limit that was reached.
-    pub reference_limit: Option<usize>,
     /// Packages whose merge left the stored document exactly as it was:
     /// every entry this transaction journaled for them was already recorded,
     /// or was lost with its blob. Nothing of theirs became newly visible.
@@ -181,7 +165,6 @@ pub struct PublishJournal {
 /// [`Self::apply`] here, or through startup recovery.
 struct SealedTxn {
     dir: PathBuf,
-    revision_ref_owner: String,
     /// The stored-document version each sealed package was computed from,
     /// positionally. Empty when startup recovery reopens the transaction,
     /// which always merges instead.
@@ -242,8 +225,7 @@ impl PublishJournal {
     /// committed: either the caller applies it now, or startup
     /// recovery does.
     async fn seal(&self, packages: &[JournaledPublish<'_>]) -> Result<SealedTxn> {
-        let revision_ref_owner = txn_id();
-        let dir = self.root.join(&revision_ref_owner);
+        let dir = self.root.join(txn_id());
         if let Err(err) = write_transaction(&dir, packages).await {
             // Nothing of an unsealed transaction may become visible. Startup
             // recovery would roll this one back, but removing it here keeps a
@@ -255,7 +237,7 @@ impl PublishJournal {
             .iter()
             .map(|package| package.base_version.cloned())
             .collect();
-        Ok(SealedTxn { dir, revision_ref_owner, base_versions })
+        Ok(SealedTxn { dir, base_versions })
     }
 }
 
@@ -302,8 +284,7 @@ impl SealedTxn {
     /// startup recovery does: with no base versions, so every document is
     /// merged into what the store holds rather than written over it.
     fn reopen(dir: PathBuf) -> Result<Self> {
-        let revision_ref_owner = revision_ref_owner(&dir)?.to_string();
-        Ok(Self { dir, revision_ref_owner, base_versions: Vec::new() })
+        Ok(Self { dir, base_versions: Vec::new() })
     }
 
     /// Run every step of the sealed transaction that has not run yet, then
@@ -345,7 +326,7 @@ impl SealedTxn {
         Ok(())
     }
 
-    /// Promote one journaled package's blobs, references and document.
+    /// Promote one journaled package's blobs and document.
     async fn apply_package<'a>(
         &self,
         index: usize,
@@ -363,86 +344,13 @@ impl SealedTxn {
             None => storage.clone(),
         };
         let target = PackageTarget { store, name };
-        let mut lost_blobs = promote_blobs(&target, package, lost_tmp_paths).await?;
-        let claimed = self.claim_revision_refs(
-            &target,
-            package,
-            &mut lost_blobs,
-            &mut context.progress.outcome,
-        )
-        .await?;
+        let lost_blobs = promote_blobs(&target, package, lost_tmp_paths).await?;
         self.write_package_document(&target, package, index, &lost_blobs, context).await?;
-        for revision_ref in claimed.into_values().flatten() {
-            target.store.commit_hosted_revision_ref(
-                &revision_ref.digest,
-                &revision_ref.ref_id,
-                &self.revision_ref_owner,
-            )
-            .await?;
-        }
         context.progress.outcome.lost_blobs.extend(
             lost_blobs
                 .into_iter()
                 .map(|filename| LostBlob { package: package.id(), filename }),
         );
-        Ok(())
-    }
-
-    /// Claim a revision reference for every blob that landed, backing this
-    /// package's claims out again if the store's reference limit is reached.
-    async fn claim_revision_refs<'a>(
-        &self,
-        target: &PackageTarget,
-        package: &'a ManifestPackage,
-        lost_blobs: &mut HashSet<String>,
-        outcome: &mut CommitOutcome,
-    ) -> Result<HashMap<&'a str, Vec<&'a JournaledRevisionRef>>> {
-        let mut claimed: HashMap<&str, Vec<&JournaledRevisionRef>> = HashMap::new();
-        for revision_ref in &package.revision_refs {
-            if lost_blobs.contains(&revision_ref.filename) {
-                continue;
-            }
-            let write = target.store.write_hosted_revision_ref(
-                &revision_ref.digest,
-                &revision_ref.ref_id,
-                &self.revision_ref_owner,
-                &revision_ref.bytes,
-            )
-            .await;
-            match write {
-                Ok(HostedRevisionRefWrite::Claimed | HostedRevisionRefWrite::AlreadyClaimed) => {
-                    claimed
-                        .entry(&revision_ref.filename)
-                        .or_default()
-                        .push(revision_ref);
-                }
-                Ok(HostedRevisionRefWrite::Committed) => {}
-                Err(RegistryError::RevisionReferenceLimit { limit }) => {
-                    outcome.reference_limit = Some(limit);
-                    lost_blobs.insert(revision_ref.filename.clone());
-                    let backed_out = claimed.remove(revision_ref.filename.as_str());
-                    self.release_claims(target, backed_out).await?;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        Ok(claimed)
-    }
-
-    /// Drop the references already claimed for a blob the limit has cost us.
-    async fn release_claims(
-        &self,
-        target: &PackageTarget,
-        claimed: Option<Vec<&JournaledRevisionRef>>,
-    ) -> Result<()> {
-        for claimed_ref in claimed.into_iter().flatten() {
-            target.store.remove_hosted_revision_ref(
-                &claimed_ref.digest,
-                &claimed_ref.ref_id,
-                &self.revision_ref_owner,
-            )
-            .await?;
-        }
         Ok(())
     }
 

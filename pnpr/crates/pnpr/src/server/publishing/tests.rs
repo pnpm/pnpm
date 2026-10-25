@@ -54,7 +54,14 @@ async fn a_published_tarball_hashes_its_tar_under_a_decode_permit() {
     assert!(waited.is_err(), "the write must wait for a decode permit");
     decodes.add_permits(1);
     let (_slot, tar) = write.await.unwrap();
-    assert_eq!(tar.map(|tar| tar.integrity), Some(sha512(b"tar bytes")));
+    assert!(tar.is_some());
+    let integrities = storage.read_tar_integrities(&name).await.unwrap();
+    assert_eq!(
+        integrities
+            .get(&sha512(&tgz).to_string())
+            .map(|derived| derived.tar_integrity.as_str()),
+        Some(sha512(b"tar bytes").to_string().as_str()),
+    );
     assert_eq!(decodes.available_permits(), 1);
 }
 
