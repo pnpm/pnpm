@@ -1,6 +1,9 @@
 //! The peer and resolution settings of the environment overlay.
 
-use super::{HoistingLimits, StringReader, WorkspaceSettings, parse_json, parse_json_or_string};
+use super::{
+    HoistingLimits, LinkWorkspacePackages, StringReader, WorkspaceSettings, parse_json,
+    parse_json_or_string,
+};
 
 impl WorkspaceSettings {
     pub(super) fn read_peer_env(&mut self, reader: &StringReader<'_>) {
@@ -27,7 +30,17 @@ impl WorkspaceSettings {
     pub(super) fn read_resolution_env(&mut self, reader: &StringReader<'_>) {
         let settings = self;
         json_field!(settings, reader, exclude_links_from_lockfile, "EXCLUDE_LINKS_FROM_LOCKFILE");
+        json_field!(settings, reader, optimistic_repeat_install, "OPTIMISTIC_REPEAT_INSTALL");
         json_field!(settings, reader, hoist_workspace_packages, "HOIST_WORKSPACE_PACKAGES");
+        json_field!(settings, reader, extend_node_path, "EXTEND_NODE_PATH");
+        enum_field!(
+            settings,
+            reader,
+            link_workspace_packages,
+            "LINK_WORKSPACE_PACKAGES",
+            LinkWorkspacePackages
+        );
+        json_field!(settings, reader, inject_workspace_packages, "INJECT_WORKSPACE_PACKAGES");
         enum_field!(settings, reader, hoisting_limits, "HOISTING_LIMITS", HoistingLimits);
         json_field!(settings, reader, external_dependencies, "EXTERNAL_DEPENDENCIES");
         json_field!(settings, reader, auto_dedupe, "AUTO_DEDUPE");
@@ -47,6 +60,7 @@ impl WorkspaceSettings {
         json_field!(settings, reader, fail_if_no_match, "FAIL_IF_NO_MATCH");
         json_field!(settings, reader, ignore_workspace_cycles, "IGNORE_WORKSPACE_CYCLES");
         json_field!(settings, reader, disallow_workspace_cycles, "DISALLOW_WORKSPACE_CYCLES");
+        json_field!(settings, reader, frozen_store, "FROZEN_STORE");
         json_field!(settings, reader, side_effects_cache, "SIDE_EFFECTS_CACHE");
         json_field!(settings, reader, side_effects_cache_readonly, "SIDE_EFFECTS_CACHE_READONLY");
     }
