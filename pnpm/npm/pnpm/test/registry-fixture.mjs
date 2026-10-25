@@ -7,19 +7,29 @@
 // does, and the same knob Corepack itself reads.
 import { Buffer } from 'node:buffer'
 import { createHash, createSign, generateKeyPairSync } from 'node:crypto'
+import fs from 'node:fs'
 import http from 'node:http'
+import https from 'node:https'
+import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import zlib from 'node:zlib'
 
-import { isMusl, platformPackageName } from 'get-pnpm'
+import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
+
+// The loopback certificate the Rust network tests use, issued for `127.0.0.1`
+// by a private CA. See `trusted_tls_server.rs` next to it for how it was made.
+const TLS_FIXTURES = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../crates/testing-utils/src/fixtures/tls'
+)
+/** The CA that issued the certificate a `tls` fixture registry serves. */
+export const TLS_CA_FILE = path.join(TLS_FIXTURES, 'ca.pem')
 
 export const VERSION = '99.0.0'
-export const packageName = platformPackageName({
-  major: 99,
-  platform: process.platform,
-  arch: process.arch,
-  musl: isMusl(),
-})
+// The package the wrapper names for this host. get-pnpm picks its own, so a
+// download fails here if the two stop agreeing.
+export const packageName = splitBinSpecifier(getBinCandidates()[0]).packageName
 export const binFile = process.platform === 'win32' ? 'pnpm.exe' : 'pnpm'
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
@@ -40,33 +50,33 @@ export const INTEGRITY_KEYS = JSON.stringify({
  * @param {Buffer | string} opts.payload Contents of the binary inside the tarball.
  * @param {boolean} [opts.tamper] Serve bytes the published checksum does not cover.
  * @param {boolean} [opts.unsigned] Publish the package without a signature.
+ * @param {boolean} [opts.tls] Serve over HTTPS, with a certificate only {@link TLS_CA_FILE} vouches for.
  * @returns {Promise<{url: string, requests: Array<{url: string, authorization?: string}>, close: () => Promise<void>}>}
  */
-export function startRegistry ({ payload, tamper = false, unsigned = false }) {
+export function startRegistry ({ payload, tamper = false, unsigned = false, tls = false }) {
   const tarball = zlib.gzipSync(tarArchive(`package/${binFile}`, Buffer.from(payload)))
   const served = tamper ? Buffer.concat([tarball, Buffer.from('tampered')]) : tarball
   const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`
   const tarballPath = `/${packageName}/-/${VERSION}.tgz`
+  const packumentPath = `/${packageName.replaceAll('/', '%2f')}`
 
   const requests = []
-  const server = http.createServer((req, res) => {
+  const protocol = tls ? 'https' : 'http'
+  const serverOptions = tls
+    ? {
+        cert: fs.readFileSync(path.join(TLS_FIXTURES, 'server.crt')),
+        key: fs.readFileSync(path.join(TLS_FIXTURES, 'server.key')),
+      }
+    : {}
+  const server = (tls ? https : http).createServer(serverOptions, (req, res) => {
     requests.push({ url: req.url, authorization: req.headers.authorization })
     if (req.url === `/${packageName}/${VERSION}`) {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({
-        name: packageName,
-        version: VERSION,
-        dist: {
-          integrity,
-          tarball: `http://127.0.0.1:${server.address().port}${tarballPath}`,
-          signatures: unsigned ? [] : [{
-            keyid: 'SHA256:fixture-key',
-            sig: createSign('SHA256')
-              .update(`${packageName}@${VERSION}:${integrity}`)
-              .sign(privateKey, 'base64'),
-          }],
-        },
-      }))
+      res.end(JSON.stringify(versionDocument()))
+    } else if (req.url === packumentPath) {
+      // Where get-pnpm looks for signatures a version document lacks.
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ name: packageName, versions: { [VERSION]: versionDocument() } }))
     } else if (req.url === tarballPath) {
       res.writeHead(200, { 'content-type': 'application/octet-stream' })
       res.end(served)
@@ -75,10 +85,27 @@ export function startRegistry ({ payload, tamper = false, unsigned = false }) {
     }
   })
 
+  function versionDocument () {
+    return {
+      name: packageName,
+      version: VERSION,
+      dist: {
+        integrity,
+        tarball: `${protocol}://127.0.0.1:${server.address().port}${tarballPath}`,
+        signatures: unsigned ? [] : [{
+          keyid: 'SHA256:fixture-key',
+          sig: createSign('SHA256')
+            .update(`${packageName}@${VERSION}:${integrity}`)
+            .sign(privateKey, 'base64'),
+        }],
+      },
+    }
+  }
+
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       resolve({
-        url: `http://127.0.0.1:${server.address().port}`,
+        url: `${protocol}://127.0.0.1:${server.address().port}`,
         requests,
         close: () => new Promise((closed) => {
           server.close(closed)

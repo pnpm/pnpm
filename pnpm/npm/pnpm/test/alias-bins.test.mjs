@@ -13,6 +13,8 @@ import process from 'node:process'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { bundleDownloader } from './bundled-downloader.mjs'
+
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 /** Each alias and the argv it prepends: `pnpx` and `pnx` mean `pnpm dlx`. */
 const ALIASES = [['pn', []], ['pnpx', ['dlx']], ['pnx', ['dlx']]]
@@ -300,6 +302,7 @@ function createFixture ({ installBinary = true } = {}) {
     writeStub(path.join(wrapperDir, 'pnpm'), 'sibling')
   } else {
     fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0' }))
+    bundleDownloader(wrapperDir)
   }
 
   return { dir, wrapperDir }

@@ -11,6 +11,7 @@ import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
+import { bundleDownloader } from './bundled-downloader.mjs'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WRAPPER_FILES = ['pnpm', 'native-binary.mjs', 'bin/pnpm.mjs']
@@ -250,6 +251,7 @@ function createFixture ({ installPlatformPackage = true, nestedUnder = [] } = {}
     fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(wrapperDir, file))
   }
   fs.chmodSync(path.join(wrapperDir, 'pnpm'), 0o755)
+  bundleDownloader(wrapperDir)
   fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0' }))
 
   if (installPlatformPackage) {
