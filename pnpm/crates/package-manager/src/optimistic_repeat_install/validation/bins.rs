@@ -57,15 +57,17 @@ pub(crate) fn project_bins_digest<'a>(
     }
 }
 
+/// Whether `recorded` proves `importer_id` installed with the bins digest
+/// `bins`. A state without a validation record proves nothing about any
+/// project, so it matches and leaves the verdict to the checks that handle
+/// such a state.
 pub(crate) fn project_bins_match(
     recorded: Option<&Validation>,
     importer_id: &str,
     bins: Option<&str>,
 ) -> bool {
-    recorded
-        .and_then(|validation| validation.workspace_bins.get(importer_id))
-        .map(String::as_str)
-        == bins
+    let Some(validation) = recorded else { return true };
+    validation.workspace_bins.get(importer_id).map(String::as_str) == bins
 }
 
 pub(crate) fn held_workspace_bins_match(
@@ -73,6 +75,9 @@ pub(crate) fn held_workspace_bins_match(
     state: &WorkspaceState,
     held: &[&ManifestStat<'_>],
 ) -> bool {
+    if held.is_empty() || state.validation.is_none() {
+        return true;
+    }
     let bins = workspace_bins_digest(check.workspace_root, check.project_manifests);
     held.iter()
         .all(|stat| {

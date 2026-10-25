@@ -3,7 +3,8 @@
 use super::super::{
     pnpmfiles_drift,
     validation::{
-        FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, record_validation,
+        FileDigest, FileDigests, RecordValidation, Vouched, manifest_digest, project_bins_match,
+        record_validation,
     },
 };
 use pnpm_config::Config;
@@ -236,4 +237,12 @@ fn workspace_bin_digests_match_between_implementations_and_ignore_layout() {
         let package = manifest(value);
         assert_eq!(workspace_bins_digest(root, &[(root.join("packages/a"), &package)]), None);
     }
+}
+
+#[test]
+fn a_state_without_a_validation_record_matches_any_project_bins() {
+    assert!(project_bins_match(None, ".", Some("341026c69559cca8573860896362ff03")));
+    let recorded = Validation::default();
+    assert!(!project_bins_match(Some(&recorded), ".", Some("341026c69559cca8573860896362ff03")));
+    assert!(project_bins_match(Some(&recorded), "packages/a", None));
 }

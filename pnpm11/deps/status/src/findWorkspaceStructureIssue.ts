@@ -25,19 +25,22 @@ export function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState
 /**
  * Whether a project the install covers links a workspace bin declaration
  * that differs from what it was proven installed with. `workspaceBins` is the
- * digest of the current declarations across the workspace.
+ * digest of the current declarations across the workspace. A state without a
+ * validation record proves nothing about any project, so it raises no issue
+ * and leaves the verdict to the checks that handle such a state.
  */
 export function findWorkspaceBinsIssue (
   ctx: WorkspaceDepsStatusContext,
   installCovers: (rootDir: string) => boolean,
   workspaceBins: string | undefined
 ): string | undefined {
-  const { allProjects, workspaceState } = ctx
+  const { allProjects, workspaceState: { validation } } = ctx
+  if (validation == null) return undefined
   const lockfileDir = ctx.opts.lockfileDir ?? ctx.workspaceDir
   if (allProjects.some(({ rootDir, manifest }) => {
     if (!installCovers(rootDir)) return false
     const importerId = importerIdOf(lockfileDir, rootDir)
-    return workspaceState.validation?.workspaceBins?.[importerId] !== projectBinsDigest(importerId, manifest, workspaceBins)
+    return validation.workspaceBins?.[importerId] !== projectBinsDigest(importerId, manifest, workspaceBins)
   })) {
     return 'workspace package bins changed since the last install'
   }
