@@ -82,6 +82,8 @@ fn package_segments_the_layout_cannot_produce_do_not_decode() {
         (Ecosystem::Oci, &["@a!2fb", "c"][..]),
         (Ecosystem::Oci, &["@", "@app", "tool"][..]),
         (Ecosystem::Oci, &["acme", "app"][..]),
+        (Ecosystem::Oci, &["@acme", ".."][..]),
+        (Ecosystem::Oci, &["@acme", "."][..]),
     ] {
         assert_eq!(decode_package_segments(ecosystem, segments), None, "{ecosystem}:{segments:?}");
     }

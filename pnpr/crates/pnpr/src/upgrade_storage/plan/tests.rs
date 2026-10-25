@@ -227,3 +227,48 @@ fn a_legacy_repository_named_like_a_new_layout_directory_is_refused() {
         assert!(error.contains("is named like a directory of the new layout"), "{error}");
     }
 }
+
+#[test]
+fn a_literal_org_colliding_with_a_grouped_legacy_org_is_refused() {
+    let paths = vec!["npm~internal/tool/package.json".to_string()];
+    let orgs = BTreeSet::from([
+        ("internal".to_string(), Ecosystem::Npm),
+        ("npm~internal".to_string(), Ecosystem::Cargo),
+    ]);
+    let error = plan(&paths, &orgs).unwrap_err();
+    assert!(
+        error.contains(r#""npm~internal" is both a configured org and the legacy namespace"#),
+        "{error}",
+    );
+}
+
+#[test]
+fn multiple_default_ecosystems_with_root_data_are_refused() {
+    let orgs = BTreeSet::from([(String::new(), Ecosystem::Npm), (String::new(), Ecosystem::Cargo)]);
+    for path in ["left-pad/package.json", ".tombstones/v0/left-pad.json"] {
+        let error = plan(&[path.to_string()], &orgs).unwrap_err();
+        assert!(error.contains("more than one ecosystem is configured without an org"), "{error}");
+    }
+}
+
+#[test]
+fn a_shared_org_with_a_legacy_directory_is_refused() {
+    let paths = vec!["acme/tool/package.json".to_string()];
+    let orgs = BTreeSet::from([
+        ("acme".to_string(), Ecosystem::Npm),
+        ("acme".to_string(), Ecosystem::Oci),
+    ]);
+    let error = plan(&paths, &orgs).unwrap_err();
+    assert!(error.contains(r#""acme" is configured for more than one ecosystem"#), "{error}");
+}
+
+#[test]
+fn dot_segments_in_legacy_package_paths_are_orphans() {
+    assert_eq!(
+        steps(&["acme/../package.json", "acme/.hidden/package.json"], &[("", Ecosystem::Oci)]),
+        [
+            ("acme/../package.json".to_string(), Step::Orphan),
+            ("acme/.hidden/package.json".to_string(), Step::Orphan),
+        ],
+    );
+}

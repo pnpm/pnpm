@@ -442,13 +442,20 @@ fn decode_package_file_key(
     location: &str,
 ) -> Option<(String, PackageFile)> {
     let rest = location.strip_prefix(normalized_prefix)?;
-    let parts: Vec<&str> = rest.split('/').collect();
-    let (pkg_segments, tail) = match parts.as_slice() {
-        [pkg_segments @ .., DOCUMENT_FILE] => (pkg_segments, None),
-        [pkg_segments @ .., BLOBS_DIR, blob] => (pkg_segments, Some(*blob)),
-        _ => return None,
+    let (pkg_path, tail) = if let Some(pkg_path) = rest
+        .strip_suffix(DOCUMENT_FILE)
+        .and_then(|prefix| prefix.strip_suffix('/'))
+    {
+        (pkg_path, None)
+    } else {
+        let (pkg_path, blob) = rest.rsplit_once(&format!("/{BLOBS_DIR}/"))?;
+        if blob.is_empty() || blob.contains('/') {
+            return None;
+        }
+        (pkg_path, Some(blob))
     };
-    let name = decode_package_segments(ecosystem, pkg_segments)?;
+    let pkg_segments: Vec<&str> = pkg_path.split('/').collect();
+    let name = decode_package_segments(ecosystem, &pkg_segments)?;
     let file = match tail {
         None => PackageFile::Document,
         Some(blob) => PackageFile::Blob(decode_blob_segment(&name, blob)?),

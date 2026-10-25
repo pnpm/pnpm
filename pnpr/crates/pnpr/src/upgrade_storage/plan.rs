@@ -113,36 +113,63 @@ fn check_shared_orgs(
         .filter(|(org, _)| org.is_empty())
         .count()
         > 1
-        && packages.iter().any(|(ns, _)| ns.org.is_empty())
+        && (packages.iter().any(|(ns, _)| ns.org.is_empty())
+            || paths.iter().any(|path| is_namespace_record(path)))
     {
         return Err("more than one ecosystem is configured without an org; \
              keep only the ecosystem the store was written with before upgrading"
             .to_string());
     }
-    for (org, _) in orgs {
-        if !org.is_empty()
-            && orgs
-                .iter()
-                .filter(|(other, _)| other == org)
-                .count()
-                > 1
-            && paths
-                .iter()
-                .any(|path| {
-                    path.strip_prefix(org)
-                        .is_some_and(|rest| rest.starts_with('/'))
-                })
-        {
-            return Err(format!(
-                "{org:?} is configured for more than one ecosystem; \
-                 keep only the ecosystem the store was written with before upgrading",
-            ));
+    for (org, ecosystem) in orgs {
+        if !org.is_empty() {
+            check_named_org(paths, orgs, org, *ecosystem)?;
         }
     }
     Ok(())
 }
 
-/// Every `(namespace, package)` the earlier layout holds a document for.
+fn check_named_org(
+    paths: &[String],
+    orgs: &BTreeSet<(String, Ecosystem)>,
+    org: &str,
+    ecosystem: Ecosystem,
+) -> Result<(), String> {
+    if orgs
+        .iter()
+        .filter(|(other, _)| other == org)
+        .count()
+        > 1
+        && has_path_under(paths, org)
+    {
+        return Err(format!(
+            "{org:?} is configured for more than one ecosystem; \
+             keep only the ecosystem the store was written with before upgrading",
+        ));
+    }
+    let synthetic = format!("{ecosystem}~{org}");
+    if orgs
+        .iter()
+        .any(|(other, _)| other == &synthetic)
+        && has_path_under(paths, &synthetic)
+    {
+        return Err(format!(
+            "{synthetic:?} is both a configured org and the legacy namespace of {org:?}; \
+             rename one before upgrading",
+        ));
+    }
+    Ok(())
+}
+
+fn has_path_under(paths: &[String], prefix: &str) -> bool {
+    paths
+        .iter()
+        .any(|path| {
+            path.strip_prefix(prefix)
+                .is_some_and(|rest| rest.starts_with('/'))
+        })
+}
+
+/// Every `(namespace, package)` with a legacy package document in `paths`.
 fn legacy_packages<'a>(
     paths: &'a [String],
     orgs: &'a BTreeSet<(String, Ecosystem)>,
@@ -152,7 +179,10 @@ fn legacy_packages<'a>(
         .filter_map(|path| {
             let (ns, rest) = split_namespace(path, orgs)?;
             let package = rest.strip_suffix(LEGACY_DOCUMENT)?.strip_suffix('/')?;
-            (!package.starts_with('.')).then(|| (ns, package.to_string()))
+            package
+                .split('/')
+                .all(|part| !part.is_empty() && !part.starts_with('.'))
+                .then(|| (ns, package.to_string()))
         })
         .collect()
 }
@@ -222,13 +252,9 @@ fn is_new_layout(path: &str, orgs: &BTreeSet<(String, Ecosystem)>) -> bool {
 }
 
 fn parse_ecosystem(raw: &str) -> Option<Ecosystem> {
-    match raw {
-        "npm" => Some(Ecosystem::Npm),
-        "cargo" => Some(Ecosystem::Cargo),
-        "pypi" => Some(Ecosystem::Pypi),
-        "oci" => Some(Ecosystem::Oci),
-        _ => None,
-    }
+    Ecosystem::all()
+        .into_iter()
+        .find(|ecosystem| ecosystem.as_str() == raw)
 }
 
 fn is_new_namespace_path(ecosystem: Ecosystem, rest: &str) -> bool {

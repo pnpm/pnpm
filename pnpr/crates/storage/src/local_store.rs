@@ -374,7 +374,9 @@ fn visit_package_entry(
     let is_prefix = segment.starts_with(crate::layout::MARKER);
     next.push(segment);
     if is_prefix {
-        pending.push((next, dir));
+        if ecosystem == Ecosystem::Oci && next.len() < 128 {
+            pending.push((next, dir));
+        }
         return;
     }
     let refs: Vec<&str> = next

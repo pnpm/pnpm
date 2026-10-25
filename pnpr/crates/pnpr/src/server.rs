@@ -437,13 +437,10 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// The hosted storage view a publish writes to: a hosted namespace, or
-/// the flat (path-less) store when `org` is `None`.
+/// The npm hosted storage view for `org`, or the default npm namespace when
+/// `org` is `None`.
 fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
-    match org {
-        Some(org) => state.inner.storage.for_hosted(org, pnpr_registry::Ecosystem::Npm),
-        None => state.inner.storage.clone(),
-    }
+    state.inner.storage.for_hosted(org.unwrap_or(""), pnpr_registry::Ecosystem::Npm)
 }
 
 // --------------------------------------------------------------------

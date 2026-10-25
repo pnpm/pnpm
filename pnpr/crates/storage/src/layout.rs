@@ -119,7 +119,7 @@ pub fn package_segments(ecosystem: Ecosystem, name: &str) -> Vec<String> {
             if name.contains('/')
                 && name
                     .split('/')
-                    .all(|part| !part.is_empty())
+                    .all(|part| !part.is_empty() && part != "." && part != "..")
             {
                 let mut parts: Vec<&str> = name.split('/').collect();
                 let leaf = parts.pop().unwrap_or_default();
