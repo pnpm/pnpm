@@ -130,13 +130,11 @@ These cannot be installed globally:
 
 `pnpm add -g rust` installs a [Rust toolchain](./cargo.md#rust-toolchain), not the npm package named `rust`.
 
-A `--global` command fails with `ERR_PNPM_CONFIG_CONFLICT_<SETTING>_WITH_GLOBAL` if one of these settings is passed on the command line:
+A global package command fails with `ERR_PNPM_CONFIG_CONFLICT_<SETTING>_WITH_GLOBAL` if the command line sets one of these:
 
-* `--virtual-store-dir`
-* `--hoist-pattern`, unless the pattern is `*`
-* `--lockfile-dir`
-* `--link-workspace-packages`
-* `--shared-workspace-lockfile`
+* `--virtual-store-dir` or `--lockfile-dir`
+* `--hoist-pattern` to a pattern other than `*`
+* `--link-workspace-packages` or `--shared-workspace-lockfile` to a value other than `false`
 
 The same settings from the environment or a config file do not fail the command.
 
