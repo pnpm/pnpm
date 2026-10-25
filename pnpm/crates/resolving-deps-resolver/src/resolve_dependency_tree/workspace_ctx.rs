@@ -35,6 +35,8 @@ mod subtree_split;
 
 mod cache_keys;
 
+mod update_scopes;
+
 use chrono::{DateTime, Utc};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
@@ -59,10 +61,8 @@ use crate::{
 
 use super::{
     DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
-    UpdateDepth, UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
+    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::SubtreeReuseCache, tree_ctx::TreeCtx,
 };
-
-pub(super) type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// An importer's resolved direct-dependency versions, keyed by package
 /// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
@@ -265,12 +265,8 @@ pub(super) struct WorkspaceResolutionCache {
     pub(super) in_flight_by_wanted: Mutex<HashMap<WantedKey, Arc<tokio::sync::Mutex<()>>>>,
     /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     pub(super) share_workspace_resolutions: bool,
-    /// Memoises `reuse::subtree_fully_reusable` per update scope and snapshot
-    /// key. Keep-all importers share one scope; update-active importers use
-    /// isolated scopes so one importer's reuse answer cannot leak to another.
-    /// `true` means the package and its entire transitive subtree can be
-    /// synthesized from the prior lockfile.
-    pub(super) subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
+    /// See [`SubtreeReuseCache`].
+    pub(super) subtree: SubtreeReuseCache,
     /// Memoises [`pnpm_lockfile::BoundProviders::of_snapshot`] for hashed
     /// snapshot keys so repeated peer-scope and child-split checks on the
     /// same snapshot key recover its bound providers at most once per
@@ -602,13 +598,6 @@ impl WorkspaceTreeCtx {
     pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
         self.reuse.depth = update_depth;
         self
-    }
-
-    pub(super) fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
-        if matches!(self.reuse.scope, UpdateReuseScope::None) {
-            return &self.reuse.scope;
-        }
-        self.reuse.scopes_by_importer.get(importer_id).unwrap_or(&self.reuse.scope)
     }
 
     #[must_use]

@@ -5,7 +5,7 @@ use pnpm_resolving_resolver_base::WantedDependency;
 /// reuse. An excluded package re-resolves to highest-in-range, and its
 /// whole subtree re-resolves with it (so the bump's new transitive deps
 /// are picked up).
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub enum UpdateReuseScope {
     /// Reuse every still-satisfied dependency. `install` / `add`.
     #[default]
@@ -173,17 +173,6 @@ impl UpdateDepth {
     pub(super) fn reaches(self, depth: i32) -> bool {
         self.0.is_none_or(|max_depth| depth <= max_depth)
     }
-
-    /// The depth to memoise a subtree-reuse answer under. Beyond the
-    /// ceiling no node is an update target, so every deeper level shares
-    /// one answer — and an unlimited update never varies by depth at all.
-    #[must_use]
-    pub(super) fn memo_bucket(self, depth: i32) -> i32 {
-        match self.0 {
-            None => 0,
-            Some(max_depth) => depth.min(max_depth.saturating_add(1)),
-        }
-    }
 }
 
 /// The `pacquet update` scope a node is judged against: which names the
@@ -207,7 +196,7 @@ impl UpdateScope<'_> {
 /// is judged by name alone -- see [`crate::UpdateTargets::covers`]. Past the
 /// `--depth` ceiling the update no longer reaches, so every node keeps its
 /// locked resolution.
-pub(super) fn update_excludes(
+fn update_excludes(
     scope: UpdateScope<'_>,
     name: &str,
     version: Option<&node_semver::Version>,

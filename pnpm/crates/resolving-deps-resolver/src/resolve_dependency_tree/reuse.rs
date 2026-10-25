@@ -15,6 +15,7 @@ pub(super) use direct_versions::{
 pub(super) use snapshot_children::{
     PendingReusedNode, reuse_key_matches_peer_scope, reuse_matches_peer_scope,
 };
+pub(super) use subtree::{SubtreeReuseCache, TargetDistances};
 
 mod direct_versions;
 mod snapshot_children;
