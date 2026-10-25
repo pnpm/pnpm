@@ -345,9 +345,9 @@ fn packument_tarball_filename(
     name: &CanonicalPackageName,
     version: &str,
 ) -> Result<String, RegistryError> {
-    let basename = pnpr_upstream::tarball_basename(tarball);
+    let basename = pnpr_upstream::tarball_basename_for_package(tarball, name);
     let fallback = name.tarball_name_for_version(version);
-    let raw_filename = basename.unwrap_or(&fallback);
+    let raw_filename = basename.as_deref().unwrap_or(&fallback);
     let (filename, _) = tarball_cache_name(name, raw_filename)
         .map_err(|err| {
             tarball_integrity_error(

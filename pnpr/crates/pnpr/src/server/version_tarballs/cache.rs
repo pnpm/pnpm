@@ -1,5 +1,6 @@
 use super::{
-    CanonicalPackageName, DistBlock, PackumentDists, Value, tarball_basename, tgz_integrity_key,
+    CanonicalPackageName, DistBlock, PackumentDists, Value, tarball_basename_for_package,
+    tgz_integrity_key,
 };
 use pnpr_storage::DocumentStamp;
 use std::{
@@ -14,9 +15,13 @@ pub(super) struct VersionTgz {
     pub(super) integrity_key: Option<String>,
 }
 
-pub(super) fn version_tgz(packument: &[u8], version: &str) -> Option<VersionTgz> {
+pub(super) fn version_tgz(
+    packument: &[u8],
+    name: &CanonicalPackageName,
+    version: &str,
+) -> Option<VersionTgz> {
     let mut packument: PackumentDists = serde_json::from_slice(packument).ok()?;
-    dist_tgz(packument.versions.shift_remove(version)?.dist?)
+    dist_tgz(name, packument.versions.shift_remove(version)?.dist?)
 }
 
 #[derive(serde::Deserialize)]
@@ -30,18 +35,22 @@ struct VersionManifest {
 /// dist-tag at the same URL, so a manifest of another version is refused. A
 /// dist without a valid integrity is left to the packument, which carries the
 /// integrity pnpr pins for it.
-pub(super) fn version_manifest_tgz(manifest: &[u8], version: &str) -> Option<VersionTgz> {
+pub(super) fn version_manifest_tgz(
+    manifest: &[u8],
+    name: &CanonicalPackageName,
+    version: &str,
+) -> Option<VersionTgz> {
     let manifest: VersionManifest = serde_json::from_slice(manifest).ok()?;
     let dist = manifest.dist.filter(|dist| dist.integrity.is_some())?;
-    let tgz = (manifest.version == version).then(|| dist_tgz(dist))??;
+    let tgz = (manifest.version == version).then(|| dist_tgz(name, dist))??;
     tgz.integrity_key.is_some().then_some(tgz)
 }
 
-fn dist_tgz(dist: DistBlock) -> Option<VersionTgz> {
+fn dist_tgz(name: &CanonicalPackageName, dist: DistBlock) -> Option<VersionTgz> {
     let filename = dist.tarball
         .as_deref()
-        .and_then(tarball_basename)?
-        .to_string();
+        .and_then(|url| tarball_basename_for_package(url, name))?
+        .into_owned();
     let mut fields = serde_json::Map::new();
     if let Some(integrity) = &dist.integrity {
         fields.insert("integrity".to_string(), Value::String(integrity.clone()));

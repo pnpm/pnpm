@@ -365,6 +365,31 @@ async fn unpublish_tarball_via_version_route_url() {
         assert_eq!(response.status(), StatusCode::CREATED);
         assert!(!local_blob_path(&storage, "", pkg, blob_name).exists());
     }
+
+    // Reserved `+r<digits>` revision identifiers must not delete a hosted `.tgz` blob.
+    let body = publish_doc("unpub-rev", "1.0.0+r0", b"bytes");
+    let request = Request::put("/npm/unpub-rev")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+    assert!(local_blob_path(&storage, "", "unpub-rev", "unpub-rev-1.0.0+r0.tgz").exists());
+
+    let request = Request::delete("/npm/unpub-rev@1.0.0+r0/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert!(local_blob_path(&storage, "", "unpub-rev", "unpub-rev-1.0.0+r0.tgz").exists());
 }
 
 #[tokio::test]

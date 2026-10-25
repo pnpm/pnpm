@@ -150,7 +150,6 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
         (json!(0), "https://upstream.test/foo@1.0.0+r0"),
         (json!(2), "https://other.test/foo@1.0.0+r2"),
     ] {
-        let basename = tarball_basename(tarball).unwrap();
         let mut doc = json!({
             "version": "1.0.0",
             "dist": {
@@ -167,7 +166,7 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
             "http://pnpr.test/~corp/",
         );
 
-        assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{basename}"));
+        assert_eq!(doc["dist"]["tarball"], "http://pnpr.test/~corp/foo@1.0.0");
         assert!(doc["dist"].get("revision").is_none());
     }
 }
@@ -262,11 +261,30 @@ fn rewrites_verdaccio_form_tarball_for_scoped() {
 }
 
 #[test]
-fn preserves_non_canonical_tarball_basename() {
-    // A version whose tarball filename does not follow the
-    // `<name>-<version>.tgz` convention (here esprima-fb's zero-padded
-    // name for version `3001.1.0-dev-harmony-fb`) keeps its basename, so
-    // the client records and fetches back the path the upstream hosts.
+fn rewrites_upstream_pnpr_version_route_tarball_url() {
+    for (pkg, upstream_url, expected) in [
+        ("foo", "https://up.pnpr.test/npm/foo@1.0.0", "http://127.0.0.1:9999/foo@1.0.0"),
+        (
+            "@scope/foo",
+            "https://up.pnpr.test/npm/@scope/foo@1.0.0",
+            "http://127.0.0.1:9999/@scope/foo@1.0.0",
+        ),
+    ] {
+        let mut doc = json!({
+            "versions": {
+                "1.0.0": {
+                    "dist": { "tarball": upstream_url }
+                }
+            }
+        });
+        let name = CanonicalPackageName::parse(pkg, pnpr_package_name::Ecosystem::Npm).unwrap();
+        rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+        assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], expected);
+    }
+}
+
+#[test]
+fn rewrites_non_canonical_tarball_basename_to_version_route() {
     let mut doc = json!({
         "versions": {
             "3001.1.0-dev-harmony-fb": {
@@ -281,15 +299,12 @@ fn preserves_non_canonical_tarball_basename() {
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz",
+        "http://127.0.0.1:9999/esprima-fb@3001.1.0-dev-harmony-fb",
     );
 }
 
 #[test]
 fn rewrites_query_bearing_tarball_without_query_string() {
-    // A signed/query-bearing upstream URL must drop its query string when
-    // rewritten: the query is not part of the route a client later requests, so
-    // keeping it would desync the public URL from the serve-time match.
     let mut doc = json!({
         "versions": {
             "1.0.0": {
@@ -305,7 +320,7 @@ fn rewrites_query_bearing_tarball_without_query_string() {
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:9999/foo@1.0.0");
     assert_eq!(
         doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/foo/-/foo-3001.0001.0000-dev-harmony-fb.tgz",
+        "http://127.0.0.1:9999/foo@3001.1.0-dev-harmony-fb",
     );
 }
 

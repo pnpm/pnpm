@@ -2,7 +2,7 @@ use super::{
     ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
     describe_tars, filter_osv_vulnerable_versions, header, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, streaming, tarball_basename,
+    rewrite_upstream_tarball_urls, streaming, tarball_basename_for_package,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -58,7 +58,7 @@ pub(super) fn expected_tarball_dist(
             let dist = manifest.dist.as_ref()?;
             dist.tarball
                 .as_deref()
-                .and_then(tarball_basename)
+                .and_then(|url| tarball_basename_for_package(url, name))
                 .is_some_and(|basename| basename == filename)
                 .then_some((version, dist))
         });

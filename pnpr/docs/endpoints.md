@@ -75,10 +75,9 @@ Every request routes through the registry graph:
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
 - Served `dist.tarball` URLs are rewritten onto `--public-url` (`PNPR_PUBLIC_URL`)
-  as `<registry>/<name>@<version>` (or `<registry>/<name>/-/<filename>` when an
-  upstream version uses a non-canonical tarball filename) and stay canonical for
-  the base the client addressed (`/npm/` or `/npm/~<name>/`), so lockfiles
-  don't bake in a registry name.
+  as `<registry>/<name>@<version>` and stay canonical for the base the client
+  addressed (`/npm/` or `/npm/~<name>/`), so lockfiles don't bake in a
+  registry name.
 
 ## pnpr protocol endpoints
 

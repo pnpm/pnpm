@@ -22,7 +22,7 @@ use pnpr_osv::{OsvIndex, format_advisory_ids};
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
-use pnpr_upstream::tarball_basename;
+use pnpr_upstream::{tarball_basename, tarball_basename_for_package};
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
 /// per line; the client parses frames as they arrive. Excluded from the

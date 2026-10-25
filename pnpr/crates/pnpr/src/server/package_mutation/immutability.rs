@@ -1,4 +1,4 @@
-use pnpr_upstream::tarball_basename;
+use pnpr_upstream::{tarball_basename_for_package, version_route_tarball_version};
 use serde_json::Map;
 
 use super::{CanonicalPackageName, RegistryError, Value};
@@ -238,19 +238,7 @@ fn restore_stored_tarball(
 }
 
 fn is_version_route_url(url: &str, pkg: &CanonicalPackageName) -> bool {
-    split_version_route(url, pkg).is_some()
-}
-
-fn split_version_route<'a>(url: &'a str, pkg: &CanonicalPackageName) -> Option<&'a str> {
-    let path = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url);
-    let (prefix, version) = path.rsplit_once('@')?;
-    ((prefix.ends_with(&format!("/{}", pkg.as_str())) || prefix == pkg.as_str())
-        && !version.is_empty()
-        && !version.contains('/'))
-    .then_some(version)
+    version_route_tarball_version(url, pkg).is_some()
 }
 
 /// The tarball basename a version is actually served under, mirroring
@@ -274,11 +262,8 @@ pub(super) fn served_tarball_basename(
 }
 
 fn tarball_basename_or_version_route(url: &str, pkg: &CanonicalPackageName) -> Option<String> {
-    if let Some(version) = split_version_route(url, pkg) {
-        return Some(pkg.tarball_name_for_version(version));
-    }
-    let basename = tarball_basename(url)?;
-    Some(pkg.canonicalize_tarball_name(basename).unwrap_or_else(|_| basename.to_owned()))
+    let basename = tarball_basename_for_package(url, pkg)?;
+    Some(pkg.canonicalize_tarball_name(&basename).unwrap_or_else(|_| basename.into_owned()))
 }
 
 /// Reject a published version whose `dist` isn't an object: a restore needs an

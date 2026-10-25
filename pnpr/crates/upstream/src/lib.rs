@@ -3,7 +3,7 @@ pub use discovery::SearchResponse;
 pub use packument::{
     extract_upstream_revision_integrity, extract_upstream_version_manifest,
     extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
-    tarball_basename,
+    tarball_basename, tarball_basename_for_package, version_route_tarball_version,
 };
 
 pub use oci::oci_download_allowed;

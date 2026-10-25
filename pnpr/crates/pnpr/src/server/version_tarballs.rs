@@ -20,7 +20,7 @@ use super::{
     declared_tarball_integrity, ensure_osv_allowed, is_tar_registry, not_found,
     read_source_packument, recover_stale_upstream_packument, resolve_registry_source,
     serve_bound_upstream_tarball, serve_registry_tarball, serve_revision_tarball, tar_decode_limit,
-    tar_response, tarball_basename, tarball_cache_name, tgz_integrity_key, timed,
+    tar_response, tarball_basename_for_package, tarball_cache_name, tgz_integrity_key, timed,
     upstream_cache_namespace,
 };
 use axum::response::IntoResponse;
@@ -215,7 +215,8 @@ impl VersionRequest<'_> {
         };
         // The stamp was taken before the read, so a packument rewritten in
         // between only costs the next request a miss.
-        Ok(version_tgz(&packument, self.version).map(|tgz| (tgz, stamp.map(DistOrigin::Packument))))
+        Ok(version_tgz(&packument, name, self.version)
+            .map(|tgz| (tgz, stamp.map(DistOrigin::Packument))))
     }
 
     /// The version's dist from its manifest, or from the stale cached
@@ -241,7 +242,7 @@ impl VersionRequest<'_> {
             recover_stale_upstream_packument(self.state, &cached?.namespace, upstream, name, err)
                 .await
                 .ok()??;
-        version_tgz(&stale, self.version).map(|tgz| (tgz, None))
+        version_tgz(&stale, name, self.version).map(|tgz| (tgz, None))
     }
 
     /// The version's dist from `<upstream>/<name>/<version>`.
@@ -258,8 +259,10 @@ impl VersionRequest<'_> {
         )
         .await;
         match fetched {
-            Ok(FetchOutcome::Ok(manifest)) => version_manifest_tgz(&manifest.bytes, self.version)
-                .map_or(ManifestRead::Unusable, ManifestRead::Dist),
+            Ok(FetchOutcome::Ok(manifest)) => {
+                version_manifest_tgz(&manifest.bytes, name, self.version)
+                    .map_or(ManifestRead::Unusable, ManifestRead::Dist)
+            }
             Ok(FetchOutcome::NotFound) => ManifestRead::Unusable,
             Err(
                 err @ (RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. }),

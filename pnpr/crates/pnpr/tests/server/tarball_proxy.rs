@@ -812,7 +812,7 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    // The served packument advertises the preserved basename on this server.
+    // The served packument advertises the `<name>@<version>` route on this server.
     let served = app
         .clone()
         .oneshot(
@@ -824,9 +824,22 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
         .unwrap();
     let doc = body_json(served.into_body()).await;
     let advertised = doc["versions"]["3001.1.0-exotic"]["dist"]["tarball"].as_str().unwrap();
-    assert!(advertised.ends_with(&format!("/npm/foo/-/{exotic}")), "got {advertised}");
+    assert!(advertised.ends_with("/npm/foo@3001.1.0-exotic"), "got {advertised}");
 
-    // And fetching that URL back serves the verified bytes.
+    // Fetching `<name>@<version>` or `/-/<exotic>` resolves the upstream
+    // packument's declared filename and serves the verified bytes.
+    let version_response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/foo@3001.1.0-exotic")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(version_response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(version_response.into_body()).await, bytes);
+
     let response = app
         .oneshot(
             Request::get(format!("/npm/foo/-/{exotic}").as_str())
@@ -914,4 +927,83 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     assert!(!public_cache_blobs(&storage, "@types/node").join("@types").exists());
     packument_mock.assert_async().await;
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_pnpr_version_route_tarball_is_proxied() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"chained-pnpr-tarball";
+    let packument = json!({
+        "name": "@scope/foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{}/@scope/foo@1.0.0", upstream.url()),
+                    "integrity": sha512_integrity(bytes),
+                },
+            },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/@scope/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/@scope/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let served = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/@scope/foo")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let doc = body_json(served.into_body()).await;
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/npm/@scope/foo@1.0.0",
+    );
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/npm/@scope/foo@1.0.0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+
+    let filename_response = app
+        .oneshot(
+            Request::get("/npm/@scope/foo/-/foo-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(filename_response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(filename_response.into_body()).await, bytes);
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
 }
