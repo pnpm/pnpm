@@ -22,7 +22,7 @@ monorepo.
 |-------------------------------------------------------|------------------------------------------------------------|----------------------------------------------------|
 | `hooks.readPackage(pkg, context): pkg`                | Called after pnpm parses the dependency's package manifest | Allows you to mutate a dependency's `package.json`. |
 | `hooks.updateConfig(config): config`                  | Called after pnpm reads its configuration                  | Allows you to change pnpm's settings.              |
-| `hooks.preResolution(options)`                        | Called before the dependencies are resolved                | Allows you to run code with access to the lockfiles. |
+| `hooks.preResolution(options, logger)`                | Called before the dependencies are resolved                | Allows you to mutate the lockfiles before resolution. |
 | `hooks.afterAllResolved(lockfile, context): lockfile` | Called after the dependencies have been resolved.          | Allows you to mutate the lockfile.                 |
 | `hooks.beforePacking(pkg, dir, context): pkg`         | Called before creating a tarball during pack/publish       | Allows you to customize the published `package.json` |
 | `resolvers`                                           | Called during package resolution.                          | Allows you to register custom package resolvers.  |
@@ -242,9 +242,11 @@ The modifications made by this hook only affect the `package.json` inside the ta
 
 :::
 
-### `hooks.preResolution(options): Promise<void>`
+### `hooks.preResolution(options, logger): Promise<void>` {#hookspreresolutionoptions-promisevoid}
 
-This hook is executed after reading and parsing the lockfiles of the project, but before resolving dependencies. It allows modifications to the lockfile objects.
+This hook is executed after reading and parsing the lockfiles of the project, but before resolving dependencies. pnpm continues the install from the changes it makes to `options.wantedLockfile` and `options.currentLockfile`. With `--frozen-lockfile`, pnpm checks the changed wanted lockfile against the project manifests.
+
+Only changes made to these objects in place count. pnpm ignores the hook's return value and any object assigned to an `options` field. A hook that throws fails the install, and so does a hook that leaves a lockfile object in a shape that is not a valid lockfile.
 
 #### Arguments
 
@@ -255,6 +257,23 @@ This hook is executed after reading and parsing the lockfiles of the project, bu
 * `options.lockfileDir` - The directory where the wanted lockfile is found.
 * `options.storeDir` - The location of the store directory.
 * `options.registries` - A map of scopes to registry URLs.
+* `logger.info(msg)` and `logger.warn(msg)` - Print a message from the hook at the info or warning level.
+
+#### Usage example
+
+```js title=".pnpmfile.mjs"
+function preResolution({ wantedLockfile }, logger) {
+  // Resolve the dependencies of the root project again
+  if (wantedLockfile.importers?.['.']) {
+    delete wantedLockfile.importers['.']
+    logger.info('Dropped the locked dependencies of the root project')
+  }
+}
+
+export const hooks = {
+  preResolution
+}
+```
 
 ### `hooks.importPackage(destinationDir, options)`
 

@@ -41,7 +41,13 @@ impl PnpmfileHooks for RecordingReadPackageHook {
         Ok(Value::Null)
     }
 
-    async fn pre_resolution(&self, _: PreResolutionHookContext, _: PreResolutionHookLogger) {}
+    async fn pre_resolution(
+        &self,
+        ctx: PreResolutionHookContext,
+        _: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError> {
+        Ok(ctx)
+    }
 
     async fn filter_log(&self, _: Value, _: HookContext) -> bool {
         true

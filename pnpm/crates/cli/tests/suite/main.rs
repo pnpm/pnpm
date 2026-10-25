@@ -151,6 +151,7 @@ mod pnpm_cli_cmd_shim;
 mod pnpm_compatibility;
 mod pnpr_install;
 mod pnpx_alias;
+mod pre_resolution_hook;
 mod prefix;
 mod profile;
 mod prune;

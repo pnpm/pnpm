@@ -518,27 +518,6 @@ fn deprecation_log_fn<Reporter: self::Reporter>() -> pnpm_resolving_deps_resolve
     })
 }
 
-/// Build one side of the `preResolution` hook's `logger`: each
-/// `logger.info(...)` / `logger.warn(...)` call emits a `pnpm:hook` event at
-/// the given level. `from` is the literal `"pnpmfile"` — pnpm's
-/// `createPreResolutionHookLogger` hardcodes it rather than passing the
-/// pnpmfile path.
-fn pre_resolution_log_fn<Reporter: self::Reporter>(
-    prefix: &Path,
-    level: LogLevel,
-) -> pnpm_hooks::LogFn {
-    let prefix = prefix.to_string_lossy().into_owned();
-    Arc::new(move |message: String| {
-        Reporter::emit(&LogEvent::Hook(HookLog {
-            level,
-            from: "pnpmfile".to_string(),
-            hook: "preResolution".to_string(),
-            message,
-            prefix: prefix.clone(),
-        }));
-    })
-}
-
 /// The importer selection the patch-usage check is scoped by.
 #[derive(Clone, Copy)]
 struct PatchUsageScope<'a> {
