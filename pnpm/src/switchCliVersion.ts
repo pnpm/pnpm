@@ -48,12 +48,11 @@ export async function switchCliVersion (config: Config): Promise<void> {
     env: {
       ...process.env,
       [pnpmEnv.name]: pnpmEnv.value,
-      // Disable the target pnpm's own package-manager-version management so
-      // it doesn't try to switch again. We set both names because v10 reads
-      // npm_config_* while v11+ reads pnpm_config_*, and this spawn may
-      // target either major.
+      // Disable the target pnpm's own version switching so it doesn't switch
+      // again. `pmOnFail=ignore` is deliberately not set: a v11+ target
+      // would then skip recording the pin in pnpm-lock.yaml, which its
+      // later frozen installs need (pnpm/pnpm#17303).
       npm_config_manage_package_manager_versions: 'false',
-      pnpm_config_pm_on_fail: 'ignore',
     },
   })
 
