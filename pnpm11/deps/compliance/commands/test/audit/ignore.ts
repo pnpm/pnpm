@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, expect, test } from '@jest/globals'
@@ -178,6 +179,30 @@ test('ignored GHSAs are not duplicated', async () => {
 
   const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.auditConfig?.ignoreGhsas).toStrictEqual(expect.arrayContaining(existingGhsas))
+})
+
+test.each([
+  { flags: { fix: true, ignore: ['GHSA-cph5-m8f7-6c5x'] }, message: '"--fix" may not be used with "--ignore"' },
+  { flags: { fix: 'update', ignore: ['GHSA-cph5-m8f7-6c5x'] }, message: '"--fix" may not be used with "--ignore"' },
+  { flags: { fix: true, ignoreUnfixable: true }, message: '"--fix" may not be used with "--ignore-unfixable"' },
+  { flags: { interactive: true, ignoreUnfixable: true }, message: '"--interactive" may not be used with "--ignore-unfixable"' },
+])('$message', async ({ flags, message }) => {
+  const tmp = testFixtures.prepare('has-vulnerabilities')
+  const workspaceManifestPath = path.join(tmp, 'pnpm-workspace.yaml')
+  const workspaceManifest = 'packages:\n  - .\n'
+  fs.writeFileSync(workspaceManifestPath, workspaceManifest)
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, MIXED_RESPONSE)
+
+  await expect(audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    ...flags,
+  })).rejects.toMatchObject({ code: 'ERR_PNPM_AUDIT_FIX_WITH_IGNORE', message })
+
+  expect(fs.readFileSync(workspaceManifestPath, 'utf8')).toBe(workspaceManifest)
 })
 
 async function auditWithIgnores (response: Record<string, unknown>, opts: Partial<audit.AuditOptions>): Promise<number> {
