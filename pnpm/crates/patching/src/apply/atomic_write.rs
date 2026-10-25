@@ -1,8 +1,7 @@
-#[cfg(target_os = "wasi")]
 use pnpm_fs::CopyPermissions as Permissions;
 #[cfg(not(target_os = "wasi"))]
 use std::{
-    fs::{self, OpenOptions, Permissions},
+    fs::{self, OpenOptions},
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -101,7 +100,7 @@ fn stage_and_replace(
     }
 
     if let Some(permissions) = permissions
-        && let Err(error) = file.set_permissions(permissions.clone())
+        && let Err(error) = permissions.apply_to_file(&file)
     {
         drop(file);
         let _ = fs::remove_file(tmp);
@@ -120,7 +119,6 @@ fn stage_and_replace(
 }
 
 #[cfg(target_os = "wasi")]
-#[allow(clippy::trivially_copy_pass_by_ref, reason = "Shares the native permissions signature")]
 pub(super) fn write_atomic_with_mode(
     target: &Path,
     content: &[u8],
@@ -129,30 +127,24 @@ pub(super) fn write_atomic_with_mode(
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
     let mut temporary = if let Some(permissions) = permissions {
         tempfile::Builder::new()
-            .make_in(parent, |path| pnpm_fs::create_new_with_mode(path, *permissions))?
+            .make_in(parent, |path| pnpm_fs::create_new_with_mode(path, permissions.mode()))?
     } else {
         tempfile::Builder::new().tempfile_in(parent)?
     };
     temporary.write_all(content)?;
     if let Some(permissions) = permissions {
-        pnpm_fs::set_file_permissions(temporary.as_file(), permissions)?;
+        permissions.apply_to_file(temporary.as_file())?;
     }
     temporary.persist(target).map_err(|error| error.error)?;
     Ok(())
 }
 
-#[cfg(all(unix, not(target_os = "wasi")))]
+#[cfg(any(unix, target_os = "wasi"))]
 pub(super) fn create_permissions(new_mode: Option<&FileMode>) -> Option<Permissions> {
-    use std::os::unix::fs::PermissionsExt;
     new_mode
         .copied()
         .and_then(file_mode_bits)
-        .map(fs::Permissions::from_mode)
-}
-
-#[cfg(target_os = "wasi")]
-pub(super) fn create_permissions(new_mode: Option<&FileMode>) -> Option<Permissions> {
-    new_mode.copied().and_then(file_mode_bits)
+        .map(Permissions::from_mode)
 }
 
 #[cfg(not(any(unix, target_os = "wasi")))]
@@ -160,38 +152,20 @@ pub(super) fn create_permissions(_new_mode: Option<&FileMode>) -> Option<Permiss
     None
 }
 
-#[cfg(unix)]
 pub(super) fn modify_permissions(
     target: &Path,
     new_mode: Option<&FileMode>,
 ) -> io::Result<Permissions> {
-    use std::os::unix::fs::PermissionsExt;
-    let metadata = fs::metadata(target)?;
-    let mut permissions = metadata.permissions();
+    #[cfg(any(unix, target_os = "wasi"))]
     if let Some(bits) = new_mode.copied().and_then(file_mode_bits) {
-        permissions.set_mode(bits);
+        return Ok(Permissions::from_mode(bits));
     }
-    Ok(permissions)
-}
-
-#[cfg(all(not(unix), not(target_os = "wasi")))]
-pub(super) fn modify_permissions(
-    target: &Path,
-    _new_mode: Option<&FileMode>,
-) -> io::Result<Permissions> {
-    fs::metadata(target).map(|metadata| metadata.permissions())
-}
-
-#[cfg(target_os = "wasi")]
-pub(super) fn modify_permissions(
-    target: &Path,
-    new_mode: Option<&FileMode>,
-) -> io::Result<Permissions> {
-    let mut permissions = pnpm_fs::copy_permissions(target)?;
-    if let Some(bits) = new_mode.copied().and_then(file_mode_bits) {
-        permissions = bits;
-    }
-    Ok(permissions)
+    #[cfg(not(any(unix, target_os = "wasi")))]
+    let _ = new_mode;
+    #[cfg(not(target_os = "wasi"))]
+    return Ok(Permissions::of_metadata(&fs::metadata(target)?));
+    #[cfg(target_os = "wasi")]
+    pnpm_fs::copy_permissions(target)
 }
 
 #[cfg(unix)]

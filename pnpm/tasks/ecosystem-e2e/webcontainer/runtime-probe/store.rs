@@ -67,11 +67,11 @@ fn check_unreadable_directory_grant(directory: &Path) {
     let child = template.join("child");
     std::fs::create_dir(&child).unwrap();
     let opened = std::fs::File::open(&child).unwrap();
-    pnpm_fs::set_file_permissions(&opened, &0o300).unwrap();
+    pnpm_fs::CopyPermissions::from_mode(0o300).apply_to_file(&opened).unwrap();
     pnpm_fs::file_mode::grant_inherited_dir_mode(&child, &template)
         .expect("grant inherited mode to a write-and-search-only directory");
     assert_eq!(pnpm_fs::read_file_permissions(&opened).unwrap() & 0o7777, 0o2370);
-    pnpm_fs::set_file_permissions(&opened, &0o700).unwrap();
+    pnpm_fs::CopyPermissions::from_mode(0o700).apply_to_file(&opened).unwrap();
     drop(opened);
     std::fs::remove_dir_all(template).unwrap();
 }
@@ -80,9 +80,9 @@ fn check_unreadable_parent(directory: &Path) {
     let parent = directory.join("unreadable-parent");
     std::fs::create_dir(&parent).unwrap();
     let parent_file = std::fs::File::open(&parent).unwrap();
-    pnpm_fs::set_file_permissions(&parent_file, &0o330).unwrap();
+    pnpm_fs::CopyPermissions::from_mode(0o330).apply_to_file(&parent_file).unwrap();
     let created = pnpm_fs::create_file_inheriting_mode(&parent, &parent.join("inherited"), None);
-    pnpm_fs::set_file_permissions(&parent_file, &0o700).unwrap();
+    pnpm_fs::CopyPermissions::from_mode(0o700).apply_to_file(&parent_file).unwrap();
     let file = created.expect("create under a write-and-search-only parent");
     assert_eq!(pnpm_fs::read_file_permissions(&file).unwrap() & 0o777, 0o620);
     drop(file);

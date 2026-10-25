@@ -1,15 +1,16 @@
 #[cfg(unix)]
 use super::path_still_names;
-use super::{copy_file_atomic, copy_file_exclusive};
+use super::{CopyPermissions, copy_file_atomic, copy_file_exclusive};
 use std::{fs, io, path::Path};
 use tempfile::TempDir;
 
-fn source_permissions(path: &Path) -> fs::Permissions {
-    fs::File::open(path)
-        .unwrap()
-        .metadata()
-        .unwrap()
-        .permissions()
+fn source_permissions(path: &Path) -> CopyPermissions {
+    CopyPermissions::of_metadata(
+        &fs::File::open(path)
+            .unwrap()
+            .metadata()
+            .unwrap(),
+    )
 }
 
 #[test]
@@ -31,7 +32,7 @@ fn carries_the_supplied_mode() {
     let dir = TempDir::new().unwrap();
     let (source, target) = (dir.path().join("source"), dir.path().join("target"));
     fs::write(&source, "content").unwrap();
-    let permissions = fs::Permissions::from_mode(0o750);
+    let permissions = CopyPermissions::from_mode(0o750);
 
     copy_file_exclusive(&source, &target, &permissions, |_| Ok(())).unwrap();
 

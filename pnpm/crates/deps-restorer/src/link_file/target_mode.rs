@@ -7,14 +7,9 @@ use std::{io, path::Path};
 /// The permissions the copy tier gives a copy of `source_file`: the
 /// store-entry mode for a store entry, or the source's own permissions.
 pub(super) fn desired_permissions(source_file: &Path) -> io::Result<pnpm_fs::CopyPermissions> {
-    #[cfg(unix)]
+    #[cfg(any(unix, target_os = "wasi"))]
     if let Some(mode) = desired_mode(source_file) {
-        use std::os::unix::fs::PermissionsExt;
-        return Ok(fs::Permissions::from_mode(mode));
-    }
-    #[cfg(target_os = "wasi")]
-    if let Some(mode) = desired_mode(source_file) {
-        return Ok(mode);
+        return Ok(pnpm_fs::CopyPermissions::from_mode(mode));
     }
     pnpm_fs::copy_permissions(source_file)
 }

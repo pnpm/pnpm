@@ -1,11 +1,94 @@
 use std::{fs, io, path::Path};
 
-/// File-copy permissions represented by the target filesystem.
+/// The permission state a copy carries from one file to another.
+///
+/// What a platform carries differs: Unix and WASI carry the POSIX
+/// permission bits, Windows the read-only attribute, which is the whole of
+/// [`fs::Permissions`] there. One type holds all three, so a caller names
+/// `CopyPermissions` on every target and reaches the bits, where the
+/// platform has them, through [`CopyPermissions::mode`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyPermissions(Carried);
+
+/// What the platform's own calls hand over and take back.
 #[cfg(not(target_os = "wasi"))]
-pub type CopyPermissions = fs::Permissions;
+type Carried = fs::Permissions;
 /// WASI metadata omits permission bits; the host supplies the POSIX mode.
 #[cfg(target_os = "wasi")]
-pub type CopyPermissions = u32;
+type Carried = u32;
+
+impl CopyPermissions {
+    /// The POSIX permission bits, with the file type a `stat` mode carries
+    /// masked off.
+    #[cfg(any(unix, target_os = "wasi"))]
+    #[must_use]
+    pub fn mode(&self) -> u32 {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            self.0.mode() & 0o7777
+        }
+        #[cfg(target_os = "wasi")]
+        {
+            self.0
+        }
+    }
+
+    /// Permissions carrying the POSIX bits of `mode`.
+    #[cfg(any(unix, target_os = "wasi"))]
+    #[must_use]
+    pub fn from_mode(mode: u32) -> Self {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            Self(fs::Permissions::from_mode(mode))
+        }
+        #[cfg(target_os = "wasi")]
+        {
+            Self(mode & 0o7777)
+        }
+    }
+
+    /// The permissions `metadata` reports.
+    ///
+    /// Not available on WASI, whose metadata omits the bits: read them from
+    /// the file with [`read_file_permissions`] or from its path with
+    /// [`copy_permissions`] instead.
+    #[cfg(not(target_os = "wasi"))]
+    #[must_use]
+    pub fn of_metadata(metadata: &fs::Metadata) -> Self {
+        Self(metadata.permissions())
+    }
+
+    /// Apply these permissions to an open file.
+    ///
+    /// Reaches the file through the handle rather than its path, so a
+    /// writer that replaces the dirent cannot redirect the change onto a
+    /// file elsewhere.
+    pub fn apply_to_file(&self, file: &fs::File) -> io::Result<()> {
+        #[cfg(not(target_os = "wasi"))]
+        {
+            file.set_permissions(self.0.clone())
+        }
+        #[cfg(target_os = "wasi")]
+        {
+            crate::wasi_fs::set_file_mode(file, self.0)
+        }
+    }
+
+    /// Apply these permissions to whatever `path` names, following a link
+    /// at `path` as [`fs::set_permissions`] does.
+    pub fn apply_to_path(&self, path: &Path) -> io::Result<()> {
+        #[cfg(not(target_os = "wasi"))]
+        {
+            fs::set_permissions(path, self.0.clone())
+        }
+        #[cfg(target_os = "wasi")]
+        {
+            crate::file_mode::set_path_permissions(path, self.0)
+        }
+    }
+}
 
 pub fn copy_permissions(source: &Path) -> io::Result<CopyPermissions> {
     read_file_permissions(&fs::File::open(source)?)
@@ -16,24 +99,11 @@ pub fn copy_permissions(source: &Path) -> io::Result<CopyPermissions> {
 pub fn read_file_permissions(file: &fs::File) -> io::Result<CopyPermissions> {
     #[cfg(not(target_os = "wasi"))]
     {
-        file.metadata().map(|metadata| metadata.permissions())
+        file.metadata().map(|metadata| CopyPermissions(metadata.permissions()))
     }
     #[cfg(target_os = "wasi")]
     {
-        crate::wasi_fs::file_mode(file).map(|mode| mode & 0o7777)
-    }
-}
-
-/// Set permissions through a live descriptor, without reopening a replaceable path.
-#[inline]
-pub fn set_file_permissions(file: &fs::File, permissions: &CopyPermissions) -> io::Result<()> {
-    #[cfg(not(target_os = "wasi"))]
-    {
-        file.set_permissions(permissions.clone())
-    }
-    #[cfg(target_os = "wasi")]
-    {
-        crate::wasi_fs::set_file_mode(file, *permissions)
+        crate::wasi_fs::file_mode(file).map(|mode| CopyPermissions(mode & 0o7777))
     }
 }
 
@@ -73,7 +143,7 @@ pub fn copy_file_exclusive(
     let mut source = fs::File::open(source_path)?;
     let mut target = create_new_with_permissions(target_path, permissions)?;
     io::copy(&mut source, &mut target)
-        .and_then(|_| set_file_permissions(&target, permissions))
+        .and_then(|_| permissions.apply_to_file(&target))
         .and_then(|()| finish(&target))
         .inspect_err(|_| {
             if path_still_names(&target, target_path) {
@@ -166,7 +236,7 @@ pub(crate) fn path_still_names(created: &fs::File, path: &Path) -> bool {
 /// written.
 #[cfg(unix)]
 fn create_new_with_permissions(path: &Path, permissions: &CopyPermissions) -> io::Result<fs::File> {
-    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    use std::os::unix::fs::OpenOptionsExt as _;
     fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -189,7 +259,6 @@ fn create_new_with_permissions(
 mod tests;
 
 #[cfg(target_os = "wasi")]
-#[allow(clippy::trivially_copy_pass_by_ref, reason = "Shares the native permissions signature")]
 fn create_new_with_permissions(path: &Path, permissions: &CopyPermissions) -> io::Result<fs::File> {
-    crate::wasi_fs::create_new(path, *permissions)
+    crate::wasi_fs::create_new(path, permissions.mode())
 }

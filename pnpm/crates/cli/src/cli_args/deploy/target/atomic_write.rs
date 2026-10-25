@@ -15,11 +15,11 @@ pub(super) fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
     pnpm_fs::sync_file(tmp.as_file())?;
     #[cfg(not(target_os = "wasi"))]
     if let Ok(metadata) = fs::metadata(path) {
-        tmp.as_file().set_permissions(metadata.permissions())?;
+        pnpm_fs::CopyPermissions::of_metadata(&metadata).apply_to_file(tmp.as_file())?;
     }
     #[cfg(target_os = "wasi")]
     if let Ok(permissions) = pnpm_fs::copy_permissions(path) {
-        pnpm_fs::set_file_permissions(tmp.as_file(), &permissions)?;
+        permissions.apply_to_file(tmp.as_file())?;
     }
     tmp.persist(path).map_err(|error| error.error)?;
     Ok(())

@@ -1,10 +1,5 @@
-use super::{FsSetPermissions, ensure_executable, ensure_executable_bits};
-use std::{
-    fs::{self, Permissions},
-    io,
-    os::unix::fs::PermissionsExt,
-    path::Path,
-};
+use super::{FsSetPermissions, Permissions, ensure_executable, ensure_executable_bits};
+use std::{fs, io, os::unix::fs::PermissionsExt, path::Path};
 use tempfile::tempdir;
 
 /// Refuses every chmod, as the kernel does for a file another user owns.
@@ -22,7 +17,7 @@ fn executable_owned_by_another_user_does_not_require_chmod() {
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, "#!/usr/bin/env node\n").unwrap();
     for mode in [0o555, 0o755] {
-        fs::set_permissions(&target, Permissions::from_mode(mode)).unwrap();
+        Permissions::from_mode(mode).apply_to_path(&target).unwrap();
         ensure_executable_bits::<DeniedPermissions>(&target, None).unwrap();
     }
 }
@@ -34,7 +29,7 @@ fn shim_owned_by_another_user_does_not_require_chmod() {
     fs::create_dir_all(shim.parent().unwrap()).unwrap();
     fs::write(&shim, "#!/bin/sh\n").unwrap();
     for mode in [0o755, 0o775] {
-        fs::set_permissions(&shim, Permissions::from_mode(mode)).unwrap();
+        Permissions::from_mode(mode).apply_to_path(&shim).unwrap();
         ensure_executable::<DeniedPermissions>(&shim).unwrap();
     }
 }
@@ -46,7 +41,7 @@ fn shim_missing_executable_bits_still_requires_chmod() {
     fs::create_dir_all(shim.parent().unwrap()).unwrap();
     fs::write(&shim, "#!/bin/sh\n").unwrap();
     for mode in [0o644, 0o744] {
-        fs::set_permissions(&shim, Permissions::from_mode(mode)).unwrap();
+        Permissions::from_mode(mode).apply_to_path(&shim).unwrap();
         let error = ensure_executable::<DeniedPermissions>(&shim).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 
@@ -65,7 +60,7 @@ fn world_writable_shim_still_requires_chmod() {
     let shim = tmp.path().join("node_modules/.bin/foo");
     fs::create_dir_all(shim.parent().unwrap()).unwrap();
     fs::write(&shim, "#!/bin/sh\n").unwrap();
-    fs::set_permissions(&shim, Permissions::from_mode(0o777)).unwrap();
+    Permissions::from_mode(0o777).apply_to_path(&shim).unwrap();
     let error = ensure_executable::<DeniedPermissions>(&shim).unwrap_err();
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 
@@ -84,7 +79,7 @@ fn target_missing_executable_bits_has_bits_added() {
     fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, "#!/usr/bin/env node\n").unwrap();
     for initial_mode in [0o644, 0o744] {
-        fs::set_permissions(&target, Permissions::from_mode(initial_mode)).unwrap();
+        Permissions::from_mode(initial_mode).apply_to_path(&target).unwrap();
         ensure_executable_bits::<crate::capabilities::Host>(&target, None).unwrap();
         let mode = fs::metadata(&target)
             .unwrap()
@@ -103,7 +98,7 @@ fn target_in_the_installed_modules_dir_has_bits_added() {
     for target in [&installed, &elsewhere] {
         fs::create_dir_all(target.parent().unwrap()).unwrap();
         fs::write(target, "#!/usr/bin/env node\n").unwrap();
-        fs::set_permissions(target, Permissions::from_mode(0o644)).unwrap();
+        Permissions::from_mode(0o644).apply_to_path(target).unwrap();
         ensure_executable_bits::<crate::capabilities::Host>(target, Some(&modules_dir)).unwrap();
     }
     let mode = |path: &Path| {

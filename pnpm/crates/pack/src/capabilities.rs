@@ -141,12 +141,12 @@ impl FsAtomicWrite for Host {
         #[cfg(target_os = "wasi")]
         {
             let mode = if std::fs::symlink_metadata(dest).is_ok_and(|metadata| metadata.is_file()) {
-                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?
+                pnpm_fs::read_file_permissions(&pnpm_fs::open_file_without_following(dest)?)?.mode()
                     & 0o777
             } else {
                 0o644
             };
-            pnpm_fs::set_file_permissions(tmp.as_file(), &mode)?;
+            pnpm_fs::CopyPermissions::from_mode(mode).apply_to_file(tmp.as_file())?;
         }
         pnpm_fs::sync_file(tmp.as_file())?;
         tmp.persist(dest).map_err(|error| error.error)?;
