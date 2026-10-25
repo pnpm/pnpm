@@ -47,6 +47,9 @@ export function getNpmTarballUrl (
   opts?: TarballUrlOptions
 ): string {
   const registry = normalizeRegistry(opts?.registry)
+  // The pnpr layout addresses the version by its exact key, build metadata
+  // included; `.tgz` filenames drop it.
+  if (opts?.serverType === 'pnpr') return `${registry}${pkgName}@${pkgVersion}`
   // Artifactory keeps the scope in the filename of a scoped package's tarball
   // (`@acme/widget/-/@acme/widget-1.0.0.tgz`); the npm layout strips it.
   const filenameName = opts?.serverType === 'artifactory' ? pkgName : getScopelessName(pkgName)

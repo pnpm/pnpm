@@ -26,7 +26,7 @@ An entry may carry:
 |-------------------------------------------|------------|----------------------------------------------------------------------|
 | [`scopes`](#scopes)                       | `string[]` | The package scopes routed to this registry.                          |
 | [`prefix`](#prefix)                       | `string`   | The bare-specifier prefix this registry answers to.                  |
-| [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm` or `artifactory`.        |
+| [`serverType`](#servertype)               | `string`   | How the server lays out tarball URLs: `npm`, `artifactory`, or `pnpr`. |
 | [`supportsTimeField`](#supportstimefield) | `boolean`  | Whether the server's abbreviated metadata carries the `time` field.  |
 
 Any other field is rejected. In particular, credentials (`_authToken`, `_auth`, `_password`, `username`, `tokenHelper`) and TLS material (`ca`, `cafile`, `cert`, `certfile`, `key`, `keyfile`) are refused rather than silently ignored. `pnpm-workspace.yaml` is committed to the repository, so they belong in [`.npmrc`](./npmrc.md) (e.g. `//npm.corp.example.com/:_authToken=...`). A URL key that embeds `user:pass@` credentials is refused for the same reason.
@@ -69,13 +69,14 @@ Prefixes declared here follow the same rules as the deprecated [`namedRegistries
 
 ### serverType
 
-Registries do not all lay out tarball URLs the way the npm registry does. pnpm omits a tarball URL from `pnpm-lock.yaml` when it can rebuild the URL from the package's name, version, and registry. The lockfile then carries no host-specific URL for that package, and renaming or moving the registry does not churn the lockfile. Whether pnpm can rebuild a URL depends on the server, and `serverType` is where you declare it. It has three states:
+Registries do not all lay out tarball URLs the way the npm registry does. pnpm omits a tarball URL from `pnpm-lock.yaml` when it can rebuild the URL from the package's name, version, and registry. The lockfile then carries no host-specific URL for that package, and renaming or moving the registry does not churn the lockfile. Whether pnpm can rebuild a URL depends on the server, and `serverType` is where you declare it:
 
 | `serverType`  | Meaning                                                                                                                                                                                                                                                                       |
 |---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | *undeclared*  | Strict: a tarball URL is omitted only when it is exactly the canonical npm-layout URL (`<registry>/<name>/-/<scopeless-name>-<version>.tgz`). This is how every registry but `registry.npmjs.org` is read by default.                                                          |
 | `npm`         | The server behaves like `registry.npmjs.org`, which serves a scoped package from the percent-encoded path (`/@acme%2Fwidget/...`) as well as the unencoded one. A faithful mirror or caching proxy of the public registry is this. Built in for `registry.npmjs.org` itself.   |
 | `artifactory` | The server repeats the scope in a scoped package's tarball filename: `@acme/widget/-/@acme/widget-1.0.0.tgz`, where the npm layout strips it (`@acme/widget/-/widget-1.0.0.tgz`).                                                                                              |
+| `pnpr`        | The server serves a version's tarball at `<registry>/<name>@<version>`, such as `@acme/widget@1.0.0`. |
 
 For a JFrog Artifactory registry this is the difference between a lockfile that records a host-specific tarball URL for **every scoped package** and one that records none of them:
 
@@ -93,6 +94,7 @@ Values for common servers:
 | JFrog Artifactory                                     | `artifactory`                                                                                                              |
 | GitLab package registry                               | `artifactory`. It uses the same layout, repeating the scope in the filename.                                              |
 | A faithful mirror or caching proxy of the npm registry | `npm`                                                                                                                      |
+| pnpr                                                  | `pnpr`                                                                                                                     |
 | Verdaccio, Sonatype Nexus, Azure Artifacts            | None needed. They serve the exact canonical npm layout, which the strict default already reconstructs.                    |
 | GitHub Packages                                       | None. Its download URLs contain a content digest that cannot be derived from the package's identity, so they are kept in the lockfile. |
 | GitHub Enterprise Server                              | None. It serves a scoped package only from the percent-encoded path, which the strict default keeps in the lockfile and requests verbatim.  |

@@ -33,8 +33,8 @@ export interface RegistriesByPrefix {
 
 /**
  * The software serving a registry, declared through the `registries` setting.
- * Three states, because "behaves like the npm registry" is a claim only the
- * operator can make:
+ * Undeclared by default, because "behaves like the npm registry" is a claim
+ * only the operator can make:
  *
  * - undeclared — strict. Only the exact canonical URL is reconstructible.
  *   This is how every registry but registry.npmjs.org is read by default.
@@ -42,6 +42,7 @@ export interface RegistriesByPrefix {
  *   from the percent-encoded path as well as the unencoded one. A faithful
  *   mirror or caching proxy of the public registry is this.
  * - `artifactory` — repeats the scope in a scoped package's tarball filename.
+ * - `pnpr` — serves a version's tarball at `<registry><name>@<version>`.
  *
  * Only layouts pnpm can rebuild a URL for belong here. A registry that serves
  * tarballs from a content-derived path (GitHub Packages
@@ -49,7 +50,7 @@ export interface RegistriesByPrefix {
  * fact about the bytes rather than about the package's identity, so its URLs
  * are kept in the lockfile instead.
  */
-export type RegistryServerType = 'npm' | 'artifactory'
+export type RegistryServerType = 'npm' | 'artifactory' | 'pnpr'
 
 /**
  * Non-secret, per-registry settings from the `registries` setting. Held apart

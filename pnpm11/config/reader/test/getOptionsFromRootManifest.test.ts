@@ -544,7 +544,18 @@ test('getOptionsFromPnpmSettings() rejects an unknown registry server type', () 
     registries: {
       'https://npm.example.com/': { serverType: 'nexus' as never },
     },
-  })).toThrow(/should be one of "npm", "artifactory", but got "nexus"/)
+  })).toThrow(/should be one of "npm", "artifactory", "pnpr", but got "nexus"/)
+})
+
+test('getOptionsFromPnpmSettings() accepts the pnpr registry server type', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://pnpr.example/npm/': { serverType: 'pnpr' },
+    },
+  })
+  expect(options.registryOptionsByUrl).toStrictEqual({
+    'https://pnpr.example/npm/': { serverType: 'pnpr' },
+  })
 })
 
 test('getOptionsFromPnpmSettings() rejects credentials in a registry declaration', () => {
