@@ -2,7 +2,7 @@
 
 use super::{
     ErrorKind, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError, Path, SystemEnv,
-    WorkspaceSettings, fs, read_readable_settings, select_settings, settings::parse_settings,
+    WorkspaceSettings, fs, parse_settings, read_readable_settings, select_settings,
 };
 use crate::SettingsRead;
 
