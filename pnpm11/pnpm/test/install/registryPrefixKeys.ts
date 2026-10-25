@@ -332,7 +332,7 @@ test('an install re-keys an outdated key that a changed lockfile adds after a fi
   ])
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['project-*'],
-    registries: { '@pnpm.e2e': REGISTRY },
+    registries: { [REGISTRY]: { scopes: ['@pnpm.e2e'], serverType: 'pnpr' } },
     namedRegistries: { work: REGISTRY },
   })
   await execPnpm(['install', '--filter', 'project-1'])

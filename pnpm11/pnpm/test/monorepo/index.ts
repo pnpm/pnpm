@@ -15,7 +15,7 @@ import {
   tempDir as makeTempDir,
 } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import type { WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
@@ -27,6 +27,11 @@ import { temporaryDirectory } from 'tempy'
 import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm, execPnpmSync } from '../utils/index.js'
+
+/** Declares the mock registry's tarball layout, so the lockfile omits its tarball URLs. */
+const PNPR_REGISTRY_DECLARATION = {
+  [`http://localhost:${REGISTRY_MOCK_PORT}/npm/`]: { serverType: 'pnpr' },
+}
 
 test('no projects matched the filters', async () => {
   preparePackages([
@@ -971,7 +976,7 @@ test('shared-workspace-lockfile: install dependencies in a project that is symli
 
   await symlinkDir('workspace-2/package-2', 'workspace-1/package-2')
 
-  writeYamlFileSync('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  writeYamlFileSync('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'], registries: PNPR_REGISTRY_DECLARATION })
   writeYamlFileSync('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('workspace-1')
@@ -1072,7 +1077,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
     },
   ])
 
-  writeYamlFileSync('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'] })
+  writeYamlFileSync('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'], registries: PNPR_REGISTRY_DECLARATION })
 
   process.chdir('monorepo/workspace')
 

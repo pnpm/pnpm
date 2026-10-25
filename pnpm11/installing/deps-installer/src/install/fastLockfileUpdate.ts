@@ -184,6 +184,7 @@ function createRewriteOptions ({ ctx, opts }: MutationRun, isLockfileUpToDate: L
     lockfileIncludeTarballUrl: opts.lockfileIncludeTarballUrl,
     readPackageHook: opts.readPackageHook,
     registriesByScope: ctx.registriesByScope,
+    registryOptionsByUrl: opts.registryOptionsByUrl,
     requestPackage: opts.storeController.requestPackage,
     trustPolicy: opts.trustPolicy,
     trustPolicyExclude: opts.trustPolicyExclude
