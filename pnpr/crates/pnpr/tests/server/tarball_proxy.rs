@@ -841,6 +841,7 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
     assert_eq!(body_bytes(version_response.into_body()).await, bytes);
 
     let response = app
+        .clone()
         .oneshot(
             Request::get(format!("/npm/foo/-/{exotic}").as_str())
                 .body(Body::empty())
@@ -850,6 +851,20 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
+
+    // A canonical `<name>-<version>.tgz` request (such as from a chained pnpr
+    // proxy whose upstream packument advertised `<name>@<version>`) also binds
+    // to the declaring version's exotic filename in the source packument.
+    let canonical_response = app
+        .oneshot(
+            Request::get("/npm/foo/-/foo-3001.1.0-exotic.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(canonical_response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(canonical_response.into_body()).await, bytes);
     tarball_mock.assert_async().await;
 }
 

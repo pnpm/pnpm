@@ -89,7 +89,12 @@ pub(super) async fn serve_authorized_upstream_tarball(
         return response;
     }
     let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
-    let TarballDist { version, integrity, unpacked_size } = match dist {
+    let TarballDist {
+        filename: upstream_filename,
+        version,
+        integrity,
+        unpacked_size,
+    } = match dist {
         Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
@@ -97,11 +102,17 @@ pub(super) async fn serve_authorized_upstream_tarball(
     if let Err(err) = recheck_osv(state, name, &version, parsed_version) {
         return err.into_response();
     }
-    let tarball =
-        UpstreamTarball { namespace, name, filename, integrity: &integrity, unpacked_size };
+    let tarball = UpstreamTarball {
+        namespace,
+        name,
+        filename: &upstream_filename,
+        integrity: &integrity,
+        unpacked_size,
+    };
     if upstream.caches()
-        && state.inner.osv_index.is_some()
-        && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
+        && (state.inner.osv_index.is_some() || upstream_filename != filename)
+        && let Some(response) =
+            cached_upstream_tarball(state, namespace, name, &upstream_filename).await
     {
         schedule_cached_tarball_scan(state, tarball);
         return response;
