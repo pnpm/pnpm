@@ -1,16 +1,16 @@
 #[cfg(unix)]
 use super::path_still_names;
 use super::{CopyPermissions, copy_file_atomic, copy_file_exclusive};
+use pipe_trait::Pipe;
 use std::{fs, io, path::Path};
 use tempfile::TempDir;
 
 fn source_permissions(path: &Path) -> CopyPermissions {
-    CopyPermissions::of_metadata(
-        &fs::File::open(path)
-            .unwrap()
-            .metadata()
-            .unwrap(),
-    )
+    fs::File::open(path)
+        .unwrap()
+        .metadata()
+        .unwrap()
+        .pipe_ref(CopyPermissions::of_metadata)
 }
 
 #[test]
