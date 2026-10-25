@@ -7,14 +7,15 @@
 //!   orgs/<org>/                    one namespace per org
 //!   .<record namespace>/           records every namespace shares
 //! <namespace>/
-//!   packages/<name>/document.json
-//!   packages/<name>/blobs/<file>
+//!   packages/<scope>/<name>/document.json
+//!   packages/<scope>/<name>/blobs/<file>
 //!   .<record namespace>/           records of this namespace
 //! ```
 //!
-//! Every name and file name is one [`encode_segment`]ed path segment, so a
-//! name can never sit where an org, a namespace, a blob, or another name's
-//! child does, and an object key is byte for byte the local path.
+//! A package is the two segments of [`package_segments`] and a blob the one
+//! segment of [`blob_segment`], so a name can never sit where an org, a
+//! namespace, a blob, or another name's child does, and an object key is byte
+//! for byte the local path.
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -27,6 +28,9 @@ pub(crate) const DOCUMENT_FILE: &str = "document.json";
 pub(crate) const BLOBS_DIR: &str = "blobs";
 const DEFAULT_NAMESPACE: &str = "default";
 const ORGS_DIR: &str = "orgs";
+/// Opens the scope segment of a package and the segment of a blob not named
+/// after its package. [`encode_segment`] never writes it.
+const MARKER: char = '@';
 const ESCAPE: u8 = b'!';
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
@@ -53,7 +57,7 @@ pub fn local_package_dir(root: &Path, org: &str, name: &str) -> PathBuf {
     let mut dir = root.to_path_buf();
     dir.extend(namespace_segments(org));
     dir.push(PACKAGES_DIR);
-    dir.push(encode_segment(name));
+    dir.extend(package_segments(name));
     dir
 }
 
@@ -68,7 +72,7 @@ pub fn local_document_path(root: &Path, org: &str, name: &str) -> PathBuf {
 pub fn local_blob_path(root: &Path, org: &str, name: &str, file: &str) -> PathBuf {
     local_package_dir(root, org, name)
         .join(BLOBS_DIR)
-        .join(encode_segment(file))
+        .join(blob_segment(name, file))
 }
 
 /// Mark the local hosted store at `root` as being in [`LAYOUT_VERSION`].
@@ -79,6 +83,70 @@ pub fn local_blob_path(root: &Path, org: &str, name: &str, file: &str) -> PathBu
 pub fn write_local_layout_marker(root: &Path) -> std::io::Result<()> {
     let marker = serde_json::to_vec(&LayoutMarker { layout: LAYOUT_VERSION })?;
     std::fs::write(root.join(LAYOUT_FILE), marker)
+}
+
+/// The directories of package `name` below `packages/`: `@<scope>` and the
+/// rest of a scoped name, or `@` and a name without a scope.
+#[must_use]
+pub fn package_segments(name: &str) -> [String; 2] {
+    match name
+        .strip_prefix(MARKER)
+        .and_then(|rest| rest.split_once('/'))
+    {
+        Some((scope, rest)) if !scope.is_empty() => {
+            [format!("{MARKER}{}", encode_segment(scope)), encode_segment(rest)]
+        }
+        _ => [MARKER.to_string(), encode_segment(name)],
+    }
+}
+
+/// The inverse of [`package_segments`], or `None` for segments it cannot have
+/// produced.
+#[must_use]
+pub fn decode_package_segments(scope: &str, rest: &str) -> Option<String> {
+    let decoded = decode_segment(rest)?;
+    let name = match scope.strip_prefix(MARKER)? {
+        "" => decoded,
+        encoded => format!("{MARKER}{}/{decoded}", decode_segment(encoded)?),
+    };
+    (package_segments(&name) == [scope, rest]).then_some(name)
+}
+
+/// The segment of package `name`'s blob `file` below `blobs/`: `file` without
+/// the `<basename>-` it starts with, or `@` and all of `file` when it does not
+/// start with one. A tarball's segment is then its version and extension.
+#[must_use]
+pub fn blob_segment(name: &str, file: &str) -> String {
+    match strip_basename(name, file) {
+        Some(rest) => encode_segment(rest),
+        None => format!("{MARKER}{}", encode_segment(file)),
+    }
+}
+
+/// The inverse of [`blob_segment`], or `None` for a segment it cannot have
+/// produced.
+#[must_use]
+pub fn decode_blob_segment(name: &str, segment: &str) -> Option<String> {
+    let file = match segment.strip_prefix(MARKER) {
+        Some(file) => decode_segment(file)?,
+        None => format!("{}-{}", basename(name), decode_segment(segment)?),
+    };
+    (blob_segment(name, &file) == segment).then_some(file)
+}
+
+/// The part of `file` after `name`'s `<basename>-`, unless it is empty or
+/// starts with `.`, which would make it a dot segment or hidden file.
+fn strip_basename<'file>(name: &str, file: &'file str) -> Option<&'file str> {
+    let rest = file
+        .strip_prefix(basename(name))?
+        .strip_prefix('-')?;
+    (!rest.is_empty() && !rest.starts_with('.')).then_some(rest)
+}
+
+/// The last `/`-separated component of `name`, as
+/// [`pnpr_package_name::CanonicalPackageName`] names it.
+fn basename(name: &str) -> &str {
+    name.rsplit_once('/').map_or(name, |(_, last)| last)
 }
 
 /// `text` as one path segment that is the same on a case-insensitive

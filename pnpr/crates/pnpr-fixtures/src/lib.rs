@@ -250,6 +250,11 @@ fn fixture_fingerprint(root: &Path) -> String {
     let mut hasher = Sha256::new();
     // A storage tree built in another layout must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
+    hasher.update(
+        local_blob_path(Path::new(""), "", "@scope/name", "name-1.0.0.tgz")
+            .to_string_lossy()
+            .as_bytes(),
+    );
     for entry in fixture_files(root) {
         let path = entry.path();
         let relative = path.strip_prefix(root).expect("fixture entry under root");

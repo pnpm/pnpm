@@ -9,7 +9,7 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
 use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
-use pnpr_storage::layout::{local_blob_path, write_local_layout_marker};
+use pnpr_storage::layout::{blob_segment, local_blob_path, write_local_layout_marker};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
@@ -434,7 +434,10 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     }
     page_mock.assert_async().await;
     file_mock.assert_async().await;
-    assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_some(), "file is cached");
+    assert!(
+        find_file(&tmp.path().join(".pnpr-cache"), &blob_segment("requests", filename)).is_some(),
+        "file is cached",
+    );
 
     // A file the page does not list is never fetched.
     let response = app
@@ -507,7 +510,7 @@ async fn an_upstream_without_the_json_api_is_a_gateway_error_and_a_bad_hash_is_n
         .await
         .unwrap();
     assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
-    assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_none());
+    assert!(find_file(&tmp.path().join(".pnpr-cache"), &blob_segment("lying", filename)).is_none());
 }
 
 #[tokio::test]

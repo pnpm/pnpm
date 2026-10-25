@@ -146,12 +146,12 @@ async fn packages_documents_and_blobs_have_one_path_each() {
         .await
         .unwrap();
 
-    let package = tmp.path().join("storage/default/packages/!40scope!2f!41pp");
+    let package = tmp.path().join("storage/default/packages/@scope/!41pp");
     assert!(package.join("document.json").is_file());
-    assert!(package.join("blobs/!41pp-1.0.0.tgz").is_file());
+    assert!(package.join("blobs/1.0.0.tgz").is_file());
     assert!(
         tmp.path()
-            .join("storage/orgs/npm!7einternal/packages/!40scope!2f!41pp/document.json")
+            .join("storage/orgs/npm!7einternal/packages/@scope/!41pp/document.json")
             .is_file(),
     );
 }
@@ -451,10 +451,13 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
         .write_hosted_document_if_current(&pkg("real"), b"{}", None)
         .await
         .unwrap();
-    let packages = tmp.path().join("storage/default/packages");
+    let scopes = tmp.path().join("storage/default/packages");
+    fs::create_dir_all(tmp.path().join("outside-scope/pkg")).await.unwrap();
+    fs::symlink(tmp.path().join("outside-scope"), scopes.join("@linked")).await.unwrap();
+    let packages = scopes.join("@");
     fs::symlink(&outside, packages.join("linked")).await.unwrap();
     fs::create_dir_all(packages.join("real/blobs")).await.unwrap();
-    fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/sha256-aa"))
+    fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/@sha256-aa"))
         .await
         .unwrap();
     fs::symlink(outside.join("document.json"), packages.join("linked-doc"))

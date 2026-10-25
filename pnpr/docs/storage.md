@@ -21,10 +21,10 @@ The hosted store has the same layout on disk and in a bucket:
 ```text
 <storage>/
   layout.json                     marks the layout version
-  default/packages/<name>/        registries without an org
-  orgs/<org>/packages/<name>/     one namespace per org
-<namespace>/packages/<name>/document.json
-<namespace>/packages/<name>/blobs/<file>
+  default/                        registries without an org
+  orgs/<org>/                     one namespace per org
+<namespace>/packages/<scope>/<name>/document.json
+<namespace>/packages/<scope>/<name>/blobs/<file>
 ```
 
 A hosted registry declared under an
@@ -32,9 +32,17 @@ A hosted registry declared under an
 `org` uses the org `<ecosystem>~<name>`, stored as `orgs/<ecosystem>!7e<name>/`,
 for example `orgs/npm!7einternal/`.
 
-Every package name, org and file name is one path segment. Lowercase
-letters, digits, `.`, `_` and `-` are kept, and every other byte is written
-as `!` and two hex digits, so `@scope/pkg` is stored as `!40scope!2fpkg`.
+A scoped package is stored under `@<scope>/<name>/` and an unscoped one
+under `@/<name>/`, so `@scope/pkg` is in `packages/@scope/pkg/` and `left-pad`
+in `packages/@/left-pad/`. A file whose name starts with the package's
+unscoped name and a `-` is stored without that prefix, so
+`left-pad-1.0.0.tgz` is `blobs/1.0.0.tgz`. Any other file name is stored
+with a leading `@`, such as `blobs/@sha256-<hex>` for a container image
+layer.
+
+In every org, scope, name and file name, lowercase letters, digits, `.`,
+`_` and `-` are kept. Every other byte is written as `!` and two hex digits,
+so `@Scope/App` is stored as `@!53cope/!41pp/`.
 
 pnpr refuses to start on a store written by a newer pnpr, or on one in the
 layout pnpr used before `layout.json` existed. Convert such a store with

@@ -19,7 +19,8 @@ mod records;
 
 use crate::{
     BLOBS_DIR, BlobFinalize, DOCUMENT_FILE, DocumentWrite, HostedBackend, HostedDocumentForUpdate,
-    HostedDocumentVersion, PACKAGES_DIR, decode_segment, encode_segment,
+    HostedDocumentVersion, PACKAGES_DIR, blob_segment, decode_blob_segment,
+    decode_package_segments, package_segments,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -346,13 +347,14 @@ impl S3Store {
                         Err(error) => return Some(Err(error.into())),
                     };
                     let rest = meta.location.as_ref().strip_prefix(normalized_prefix.as_str())?;
+                    let (scope, rest) = rest.split_once('/')?;
                     let (package, file) = rest.split_once('/')?;
-                    let name = decode_segment(package)?;
+                    let name = decode_package_segments(scope, package)?;
                     let file = if file == DOCUMENT_FILE {
                         PackageFile::Document
                     } else {
                         let blob = file.strip_prefix(BLOBS_DIR)?.strip_prefix('/')?;
-                        PackageFile::Blob(decode_segment(blob)?)
+                        PackageFile::Blob(decode_blob_segment(&name, blob)?)
                     };
                     Some(Ok((name, file, meta)))
                 }
@@ -371,7 +373,7 @@ impl S3Store {
         while let Some(result) = listing.next().await {
             let meta = result?;
             if let Some(rest) = meta.location.as_ref().strip_prefix(prefix.as_str())
-                && let Some(decoded) = decode_segment(rest)
+                && let Some(decoded) = decode_blob_segment(name.as_str(), rest)
             {
                 blobs.push(decoded);
             }
@@ -392,7 +394,8 @@ impl S3Store {
     }
 
     fn package_prefix(&self, name: &CanonicalPackageName) -> String {
-        format!("{}{PACKAGES_DIR}/{}/", self.prefix, encode_segment(name.as_str()))
+        let [scope, rest] = package_segments(name.as_str());
+        format!("{}{PACKAGES_DIR}/{scope}/{rest}/", self.prefix)
     }
 
     fn document_key(&self, name: &CanonicalPackageName) -> ObjectPath {
@@ -403,7 +406,7 @@ impl S3Store {
         ObjectPath::from(format!(
             "{}{BLOBS_DIR}/{}",
             self.package_prefix(name),
-            encode_segment(filename),
+            blob_segment(name.as_str(), filename),
         ))
     }
 }
