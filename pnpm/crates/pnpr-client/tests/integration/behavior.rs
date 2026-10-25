@@ -339,26 +339,18 @@ async fn an_upload_of_a_stored_blob_retires_its_connection() {
         "an upload of a stored blob stores nothing: {already_stored}",
     );
     assert!(
-        already_stored
-            .to_ascii_lowercase()
-            .contains("connection: close"),
+        already_stored.to_ascii_lowercase().contains("connection: close"),
         "an upload answered before it arrived retires its connection: {already_stored}",
     );
 
     let mut remainder = Vec::new();
-    socket
-        .read_to_end(&mut remainder)
-        .await
-        .expect("read the closed connection");
+    socket.read_to_end(&mut remainder).await.expect("read the closed connection");
     assert!(remainder.is_empty(), "nothing follows the answer: {remainder:?}");
 }
 
 /// Send one blob upload on `socket` and return its response head.
 async fn put_blob(socket: &mut tokio::net::TcpStream, request: &str, blob: &[u8]) -> String {
-    socket
-        .write_all(request.as_bytes())
-        .await
-        .expect("write the upload head");
+    socket.write_all(request.as_bytes()).await.expect("write the upload head");
     socket.write_all(blob).await.expect("write the upload body");
     let mut head = Vec::new();
     let mut byte = [0_u8; 1];

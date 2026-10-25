@@ -278,10 +278,9 @@ pub(super) async fn serve_upload_artifact_blob(
 /// hyper closes it, and without this header the client never learns that
 /// and sends its next request into a socket the server has already shut.
 fn last_on_its_connection(mut response: Response) -> Response {
-    response.headers_mut().insert(
-        header::CONNECTION,
-        axum::http::HeaderValue::from_static("close"),
-    );
+    response
+        .headers_mut()
+        .insert(header::CONNECTION, axum::http::HeaderValue::from_static("close"));
     response
 }
 
