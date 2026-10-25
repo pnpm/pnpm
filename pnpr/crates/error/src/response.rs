@@ -56,10 +56,6 @@ impl RegistryError {
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
             RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
-            RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
-            RegistryError::RevisionReferenceWriteConflict { .. } => {
-                "revision_reference_write_conflict"
-            }
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -161,8 +157,8 @@ impl RegistryError {
     /// Map the error to the HTTP status the proxy should return to the
     /// client. Follows the standard gateway semantics:
     ///
-    /// * `502 Bad Gateway` — upstream returned something we can't make
-    ///   use of (5xx, malformed JSON, generic transport failure).
+    /// * `502 Bad Gateway` — upstream returned a response the proxy cannot
+    ///   use (5xx, malformed JSON, generic transport failure).
     /// * `503 Service Unavailable` — couldn't reach upstream at all
     ///   (DNS, connection refused, network unreachable). Distinct from
     ///   502 so pnpm clients see "service down" rather than "upstream
@@ -190,8 +186,6 @@ impl RegistryError {
             | RegistryError::BlobUploadConflict { .. }
             | RegistryError::DocumentWriteConflict { .. }
             | RegistryError::StagedApprovalInFlight { .. }
-            | RegistryError::RevisionReferenceLimit { .. }
-            | RegistryError::RevisionReferenceWriteConflict { .. }
             | RegistryError::AdminConflict { .. } => StatusCode::CONFLICT,
             RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
             RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,

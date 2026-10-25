@@ -21,6 +21,8 @@ If you want to tolerate some vulnerabilities as they don't affect your project, 
 
 Since v11, `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bulk` endpoint. The response does not include CVE identifiers, so advisories are filtered by GitHub advisory ID (GHSA) instead. If you previously listed CVEs under `auditConfig.ignoreCves`, replace each entry with the corresponding `GHSA-xxxx-xxxx-xxxx` value (shown in the `More info` column of `pnpm audit` output) under [`audit.ignore`].
 
+The command exits with code `1` when an advisory at or above the [audit level](#--audit-level-severity) remains after ignored advisories are removed. This also applies to `--ignore` and `--ignore-unfixable`, which save the IDs first.
+
 [overrides]: ../settings/dependency-resolution.md#overrides
 [`audit.ignore`]: #auditignore
 

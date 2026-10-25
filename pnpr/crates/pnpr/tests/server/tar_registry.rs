@@ -1,8 +1,11 @@
+#[path = "tar_registry/mutations.rs"]
+mod mutations;
+
 use super::{
     AuthState, Body, Config, Ecosystem, PackagePattern, Registries, Registry, Request, ServiceExt,
     StatusCode, TempDir, body_bytes, body_json, config_for, enable_osv, gzip, header,
-    hosted_publish_request, hosted_with_access, integrity_addressed_tarball_path, osv_database,
-    router, router_with_auth, sha512_integrity, tar_of,
+    hosted_publish_request, hosted_with_access, osv_database, router, router_with_auth,
+    sha512_integrity, tar_of,
 };
 use crate::tokens::issue_token;
 use pnpr_storage::layout::encode_segment;
@@ -439,50 +442,6 @@ async fn completes_over_http(app: &axum::Router, path: &str, accept: Option<&str
     completed
 }
 
-#[tokio::test]
-async fn every_registry_serves_a_published_tar_by_its_digest() {
-    let tmp = TempDir::new().unwrap();
-    let mut config = acme_config(tmp.path().to_path_buf());
-    // The tar is derived at publish even with no tar registry configured.
-    config.routing.tar_registries.clear();
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
-    let tar = widget_tar();
-    let tgz = gzip(&tar);
-    let publish = router_with_auth(config.clone(), auth.clone())
-        .oneshot(hosted_publish_request(
-            "/npm/~acme/@acme/widget",
-            "@acme/widget",
-            "1.0.0",
-            &tgz,
-            &token,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(publish.status(), StatusCode::CREATED);
-    assert!(
-        tmp.path()
-            .join(".tar-integrity")
-            .exists(),
-        "publish records the tar binding",
-    );
-
-    config.routing.tar_registries.insert("zstd".to_string());
-    let app = router_with_auth(config, auth);
-    let tar_integrity = sha512_integrity(&tar).parse().unwrap();
-    let revision_path = integrity_addressed_tarball_path(&tar_integrity).unwrap();
-    let tgz_integrity = sha512_integrity(&tgz).parse().unwrap();
-    let tgz_path = integrity_addressed_tarball_path(&tgz_integrity).unwrap();
-    for registry in ["main", "zstd"] {
-        let response = get(&app, &format!("/npm/~{registry}/{revision_path}"), None).await;
-        assert_eq!(response.status(), StatusCode::OK, "{registry}");
-        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/x-tar");
-        assert_eq!(body_bytes(response.into_body()).await, tar, "{registry}");
-        let by_tgz = get(&app, &format!("/npm/~{registry}/{tgz_path}"), None).await;
-        assert_eq!(by_tgz.status(), StatusCode::NOT_FOUND, "the .tgz digest names no revision");
-    }
-}
-
 /// A version that only carries the legacy SHA-1 `shasum` still gets a tar.
 #[tokio::test]
 async fn a_shasum_only_upstream_version_is_served_as_a_tar() {
@@ -834,114 +793,4 @@ async fn pathological_bin_counts_omit_dist_pnpr_bins_and_preserve_requires_build
         packument["versions"]["1.0.0"]["dist"]["pnpr"],
         serde_json::json!({ "requiresBuild": false }),
     );
-}
-
-async fn put_json(
-    app: &axum::Router,
-    uri: &str,
-    token: &str,
-    body: &serde_json::Value,
-) -> axum::response::Response {
-    app.clone()
-        .oneshot(
-            Request::put(uri)
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::from(serde_json::to_vec(body).unwrap()))
-                .unwrap(),
-        )
-        .await
-        .unwrap()
-}
-
-#[tokio::test]
-async fn a_deprecate_through_a_tar_registry_keeps_the_stored_dist() {
-    let tmp = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
-    let tgz = gzip(&widget_tar());
-    let publish = app
-        .clone()
-        .oneshot(hosted_publish_request(
-            "/npm/~acme/@acme/widget",
-            "@acme/widget",
-            "1.0.0",
-            &tgz,
-            &token,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(publish.status(), StatusCode::CREATED);
-    let stored = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
-
-    let mut packument =
-        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget", None).await.into_body()).await;
-    packument["versions"]["1.0.0"]["deprecated"] = serde_json::json!("use 2.0.0 instead");
-    let response = put_json(&app, "/npm/~zstd/@acme%2Fwidget", &token, &packument).await;
-    assert_eq!(response.status(), StatusCode::CREATED);
-
-    let after = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
-    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "use 2.0.0 instead");
-    assert_eq!(after["versions"]["1.0.0"]["dist"], stored["versions"]["1.0.0"]["dist"]);
-}
-
-#[tokio::test]
-async fn a_partial_unpublish_through_a_tar_registry_keeps_the_stored_dist_and_deletes_the_tarball()
-{
-    let tmp = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let token = issue_token(&auth, "alice").await;
-    let app = router_with_auth(acme_config(tmp.path().to_path_buf()), auth);
-    for (version, content) in [("1.0.0", "a"), ("1.0.1", "b")] {
-        let tar = tar_of(&[("package/index.js", content.as_bytes())]);
-        let publish = app
-            .clone()
-            .oneshot(hosted_publish_request(
-                "/npm/~acme/@acme/widget",
-                "@acme/widget",
-                version,
-                &gzip(&tar),
-                &token,
-            ))
-            .await
-            .unwrap();
-        assert_eq!(publish.status(), StatusCode::CREATED);
-    }
-    let stored = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
-
-    let mut packument =
-        body_json(get(&app, "/npm/~zstd/@acme%2Fwidget", None).await.into_body()).await;
-    assert_ne!(
-        packument["versions"]["1.0.0"]["dist"]["integrity"],
-        stored["versions"]["1.0.0"]["dist"]["integrity"],
-    );
-    packument["versions"]
-        .as_object_mut()
-        .unwrap()
-        .remove("1.0.1");
-    packument["dist-tags"]["latest"] = serde_json::json!("1.0.0");
-    let response = put_json(&app, "/npm/~zstd/@acme%2Fwidget/-rev/1-0", &token, &packument).await;
-    assert_eq!(response.status(), StatusCode::CREATED);
-
-    let after = body_json(get(&app, "/npm/@acme%2Fwidget", None).await.into_body()).await;
-    assert!(after["versions"].get("1.0.1").is_none());
-    assert_eq!(after["versions"]["1.0.0"]["dist"], stored["versions"]["1.0.0"]["dist"]);
-
-    let kept = get(&app, "/npm/@acme/widget/-/widget-1.0.0.tgz", None).await;
-    assert_eq!(kept.status(), StatusCode::OK);
-    let removed = get(&app, "/npm/@acme/widget/-/widget-1.0.1.tgz", None).await;
-    assert_eq!(removed.status(), StatusCode::NOT_FOUND);
-
-    let client_delete = app
-        .clone()
-        .oneshot(
-            Request::delete("/npm/@acme/widget/-/widget-1.0.1.tgz/-rev/2-0")
-                .header(header::AUTHORIZATION, format!("Bearer {token}"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(client_delete.status(), StatusCode::CREATED);
 }

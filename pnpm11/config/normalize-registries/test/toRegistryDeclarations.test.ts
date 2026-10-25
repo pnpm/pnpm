@@ -48,6 +48,17 @@ test('toRegistryDeclarations() keys a prefix by the URL as written', () => {
   })
 })
 
+test('toRegistryDeclarations() declares the smallest of the prefixes that share a URL', () => {
+  expect(toRegistryDeclarations({
+    registriesByPrefix: {
+      zeta: 'https://npm.corp.example/',
+      work: 'https://npm.corp.example/',
+    },
+  })).toStrictEqual({
+    'https://npm.corp.example/': { prefix: 'work' },
+  })
+})
+
 test('toRegistryDeclarations() does not declare a built-in route the user did not point elsewhere', () => {
   // Declaring `@jsr` would put npm.jsr.io in front of a pnpr server's
   // allowlist on every request, including those that resolve no JSR package.

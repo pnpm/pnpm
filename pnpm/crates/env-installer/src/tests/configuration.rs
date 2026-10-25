@@ -447,7 +447,7 @@ async fn removal_preserves_a_shared_package_manager_graph() {
     let pin = env.importers["."].config_dependencies["@pnpm.e2e/foo"].clone();
     env.root_importer_mut().package_manager_dependencies =
         Some(BTreeMap::from([("@pnpm.e2e/foo".to_string(), pin)]));
-    env.write(root.path()).unwrap();
+    env.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
     config_deps.remove("@pnpm.e2e/foo");
     opts.mode = crate::ConfigDepsInstallMode::Bootstrap;
     resolve_and_install_config_deps::<SilentReporter>(&config_deps, &resolver, &opts)

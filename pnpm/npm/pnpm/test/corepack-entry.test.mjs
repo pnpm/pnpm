@@ -9,20 +9,18 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { after, describe, it } from 'node:test'
+import tls from 'node:tls'
 import { URL, fileURLToPath } from 'node:url'
 
-import { INTEGRITY_KEYS, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
+import { bundleDownloader } from './bundled-downloader.mjs'
+import { INTEGRITY_KEYS, TLS_CA_FILE, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WRAPPER_FILES = ['native-binary.mjs', 'bin/pnpm.mjs', 'bin/pnpx.mjs']
-// Where the published wrapper carries get-pnpm; scripts/bundle-node-gyp.mjs
-// puts it there, and the fixture stands in for that.
-const BUNDLED_DOWNLOADER = 'dist/node_modules/get-pnpm'
 // A stand-in for the 40 MB native binary: reports how it was called, and turns
 // a `fail` argument into a non-zero exit so exit codes can be asserted.
 const FAKE_BINARY = `#!/bin/sh
@@ -33,6 +31,8 @@ echo "ran: $*"
 const SPAWNS_THE_BINARY = process.platform === 'win32' &&
   'the stand-in for the native binary is a shell script, which Windows cannot spawn'
 const DOWNLOADED_BINARY = process.platform === 'win32' ? 'pnpm-native.exe' : 'pnpm-native'
+const ADDS_DEFAULT_CAS = tls.setDefaultCACertificates == null &&
+  'this Node.js cannot add a CA to the ones fetch trusts after startup'
 // The variables that could name a registry or a user `.npmrc` from the
 // environment the tests run in.
 const ENV_NPM_CONFIG = ['registry', 'userconfig'].flatMap((name) => [
@@ -221,6 +221,98 @@ describe('corepack entry point', () => {
     assert.ok(fixture.requests.some(({ url }) => url === `/${packageName}/${VERSION}`))
   })
 
+  it('refuses a registry certificate that no configured CA vouches for', async () => {
+    const fixture = await createFixture({ tls: true })
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${fixture.registryUrl}/`])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Could not reach/)
+    assert.deepEqual(fixture.requests, [])
+  })
+
+  it('trusts the CA in the cafile the user .npmrc names', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `cafile=${TLS_CA_FILE}`,
+    ])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
+  })
+
+  it('trusts every inline ca[] entry of the user .npmrc', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    // npm writes a PEM on one line, its line breaks escaped. The fixture CA
+    // comes first, so keeping only the last entry would not trust it.
+    const inline = (file) => JSON.stringify(fs.readFileSync(file, 'utf8'))
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `ca[]=${inline(TLS_CA_FILE)}`,
+      `ca[]=${inline(path.join(path.dirname(TLS_CA_FILE), 'server.crt'))}`,
+    ])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
+  })
+
+  it('trusts the CA the workspace .npmrc names for the registry it names', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    fs.mkdirSync(path.join(fixture.projectDir, 'certs'))
+    fs.copyFileSync(TLS_CA_FILE, path.join(fixture.projectDir, 'certs/ca.pem'))
+    // Relative to the .npmrc, as pnpm reads it, not to the directory pnpm runs in.
+    writeNpmrc(fixture, 'project/.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      'cafile=certs/ca.pem',
+    ])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [])
+    const packageDir = path.join(fixture.projectDir, 'packages/a')
+    fs.mkdirSync(packageDir, { recursive: true })
+
+    const result = await runEntry({ ...fixture, projectDir: packageDir }, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
+  })
+
+  it('trusts the CA the workspace .npmrc scopes to the registry', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    fs.writeFileSync(path.join(fixture.projectDir, 'pnpm-workspace.yaml'), '')
+    writeNpmrc(fixture, 'project/.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `${nerfDart(fixture.registryUrl)}:ca=${JSON.stringify(fs.readFileSync(TLS_CA_FILE, 'utf8'))}`,
+    ])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assertDownloaded(fixture, result)
+  })
+
+  it('does not trust a CA scoped to another registry', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [
+      `registry=${fixture.registryUrl}/`,
+      `//registry.example.com/:cafile=${TLS_CA_FILE}`,
+    ])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], userNpmConfig(userNpmrc))
+    assert.match(result.stderr, /Could not reach/)
+    assert.deepEqual(fixture.requests, [])
+  })
+
+  it('does not let a project .npmrc add a CA to an unchecked download', { skip: ADDS_DEFAULT_CAS }, async () => {
+    const fixture = await createFixture({ tls: true })
+    writeNpmrc(fixture, 'project/.npmrc', [`cafile=${TLS_CA_FILE}`])
+    const userNpmrc = writeNpmrc(fixture, 'user.npmrc', [`registry=${fixture.registryUrl}/`])
+
+    const result = await runEntry(fixture, 'bin/pnpm.mjs', ['--version'], {
+      ...userNpmConfig(userNpmrc),
+      COREPACK_INTEGRITY_KEYS: '0',
+    })
+    assert.match(result.stderr, /Could not reach/)
+    assert.deepEqual(fixture.requests, [])
+  })
+
   it('reports a disabled network instead of reaching for one', async () => {
     const fixture = await createFixture()
 
@@ -272,7 +364,7 @@ async function createFixture (registryOptions = {}) {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
     fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(dir, file))
   }
-  fs.cpSync(downloaderDir(), path.join(dir, BUNDLED_DOWNLOADER), { dereference: true, recursive: true })
+  bundleDownloader(dir)
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pnpm', version: VERSION }))
   const projectDir = path.join(dir, 'project')
   fs.mkdirSync(projectDir)
@@ -297,16 +389,30 @@ function userNpmConfig (userNpmrc) {
   return {
     ...Object.fromEntries(ENV_NPM_CONFIG.map((name) => [name, undefined])),
     COREPACK_NPM_REGISTRY: undefined,
+    // A CA the machine running the tests trusts must not make a TLS test pass.
+    NODE_EXTRA_CA_CERTS: undefined,
+    NODE_USE_SYSTEM_CA: undefined,
     npm_config_userconfig: userNpmrc,
+  }
+}
+
+/**
+ * The download went through: get-pnpm places the binary only once its
+ * signature and checksum are verified and it is extracted. Where the stand-in
+ * can be spawned, the binary also has to have run.
+ */
+function assertDownloaded (fixture, result) {
+  assert.deepEqual(new Set(fixture.requests.map(({ url }) => url)), new Set([
+    `/${packageName}/${VERSION}`,
+    `/${packageName}/-/${VERSION}.tgz`,
+  ]))
+  assert.ok(fs.existsSync(path.join(fixture.dir, DOWNLOADED_BINARY)), result.stderr)
+  if (!SPAWNS_THE_BINARY) {
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /ran: --version/)
   }
 }
 
 function nerfDart (registryUrl) {
   return `//${new URL(registryUrl).host}/`
-}
-
-/** The installed get-pnpm, which the release bundles into `dist/`. */
-function downloaderDir () {
-  const entryPoint = createRequire(import.meta.url).resolve('get-pnpm')
-  return path.resolve(entryPoint, '../..')
 }

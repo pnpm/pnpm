@@ -2,7 +2,7 @@ use super::{
     FreshInputs, ManifestSlots, OwnedInputs,
     errors::InstallWithFreshLockfileError,
     fix_lockfile_copy, hook_log_fn, include_transitive_optional_dependencies,
-    is_partial_workspace_selection, manifest_transforms, resolve, resolver_setup,
+    is_partial_workspace_selection, manifest_transforms, resolver_setup,
     seed_policy::{UpdateSeedPolicy, update_reuse_scopes},
     start_early_materialization,
 };
@@ -203,6 +203,7 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
         registry: crate::install_with_fresh_lockfile::resolution_inputs::ResolverRegistryContext {
             named: &registries.by_scope,
             by_prefix: &registries.named,
+            declared: &registries.declared,
             cache: &owned.fetching.meta_cache,
             full_metadata: policy.full_metadata,
             needs_full_metadata: Arc::clone(&policy.needs_full_metadata_for),
@@ -224,23 +225,6 @@ pub(super) struct PnpmfileHooks {
     pub(super) after_all_resolved_log: Option<pnpm_hooks::LogFn>,
 }
 impl PnpmfileHooks {
-    async fn run_pre_resolution<Reporter: self::Reporter>(
-        &self,
-        config: &Config,
-        lockfile_dir: &Path,
-        wanted_lockfile: Option<&Lockfile>,
-    ) {
-        if let Some(hook) = self.pnpmfile_hook.as_ref() {
-            resolve::run_pre_resolution_hook::<Reporter>(
-                hook,
-                config,
-                lockfile_dir,
-                wanted_lockfile,
-            )
-            .await;
-        }
-    }
-
     fn load<Reporter: self::Reporter>(
         pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
         lockfile_dir: &Path,
@@ -342,10 +326,8 @@ impl UpdateReuseScopes {
         Ok(Self { scope, by_importer })
     }
 }
-/// Runs between the resolvers being built and the resolve pass, in the
-/// order pnpm's install applies these: the pnpmfile's pre-resolution hook
-/// fires once the lockfile to resolve against is fixed, and a custom
-/// resolver may still drop every reuse scope after that.
+/// Runs between the resolvers being built and the resolve pass. A custom
+/// resolver may drop every reuse scope here.
 pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     install: FreshInputs<'a>,
     owned: &mut OwnedInputs,
@@ -378,7 +360,6 @@ pub(super) async fn prepare_resolution<'a, Reporter: self::Reporter + 'static>(
     // the `afterAllResolved` hook can transform the lockfile before it is
     // written.
     let hooks = PnpmfileHooks::load::<Reporter>(setup.chain.pnpmfile_hook.take(), lockfile_dir);
-    hooks.run_pre_resolution::<Reporter>(config, lockfile_dir, wanted_lockfile).await;
     let reuse = UpdateReuseScopes::settle(
         &owned.resolution.update_seed_policy,
         &setup.chain.custom_resolvers,

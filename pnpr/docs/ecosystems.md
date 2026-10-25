@@ -198,10 +198,10 @@ index points downloads at.
 
 ## One publish for a workspace that spans ecosystems
 
-`PUT /-/pnpr/v0/publish` publishes packages of any ecosystem in a single
+`PUT /-/pnpr/v0/publish` (also mounted under `/npm/-/pnpr/v0/publish` for
+`pnpm publish --batch`) publishes packages of any ecosystem in a single
 transaction. Each entry names its `ecosystem`, and an entry without one is an
-npm publish document, so the body the npm batch endpoint already takes is a
-valid one.
+npm publish document, so an npm-only batch body is already a valid one.
 
 ```json
 {
@@ -237,7 +237,7 @@ conflicting version completes the release.
 
 An [image manifest](container-images.md) whose layers are already uploaded can
 ride along in the same batch. `GET /-/pnpr` advertises support as
-`publish: [0]`. The npm-only `PUT /-/pnpm/v1/publish` stays where it is.
+`publish: [0]`.
 
 ## JSR
 

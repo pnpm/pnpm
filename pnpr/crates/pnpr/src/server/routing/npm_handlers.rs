@@ -3,11 +3,11 @@ use pnpr_policy::Identity;
 use super::{
     Action, AppState, AuthedCaller, CanonicalPackageName, Deserialize, Ecosystem, HeaderMap,
     IntoResponse, MAX_PUBLISH_BODY_BYTES, Path, RawQuery, RegistrySource, Response, State,
-    StatusCode, TargetRegistry, addressed_registry, authorize_package, caller_scoped,
-    check_publish_tombstone, delete_package, delete_tarball, get_dist_tags, hosted_storage,
-    not_found, private_no_cache, publish_package, remove_dist_tag, resolve_write_target,
-    serve_package_tarball, serve_packument, serve_revision_tarball, serve_search, serve_tarball,
-    serve_version_manifest, set_dist_tag, split_package_identifier, update_packument,
+    StatusCode, TargetRegistry, authorize_package, caller_scoped, check_publish_tombstone,
+    delete_package, delete_tarball, get_dist_tags, hosted_storage, not_found, private_no_cache,
+    publish_package, remove_dist_tag, resolve_write_target, serve_package_tarball, serve_packument,
+    serve_search, serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier,
+    update_packument,
 };
 
 // --------------------------------------------------------------------
@@ -64,11 +64,6 @@ pub(super) struct ScopedRevPath {
 pub(super) struct DistTagPath {
     pub(super) name: String,
     pub(super) tag: String,
-}
-
-#[derive(Deserialize)]
-pub(super) struct DigestPath {
-    pub(super) digest: String,
 }
 
 // --------------------------------------------------------------------
@@ -164,20 +159,6 @@ pub(super) async fn get_scoped_tarball(
     }
     let full = format!("{scope}/{name}");
     serve_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
-}
-
-/// `GET {base}/-/tarballs/sha512/{digest}` — an integrity-addressed tarball.
-pub(super) async fn get_revision_tarball(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(registry): TargetRegistry,
-    Path(path): Path<DigestPath>,
-    headers: HeaderMap,
-) -> Response {
-    let Some(target) = addressed_registry(&state, registry.as_deref(), Ecosystem::Npm) else {
-        return not_found();
-    };
-    serve_revision_tarball(&state, &identity, &headers, &target, &path.digest).await
 }
 
 /// `GET {base}/-/v1/search`.
@@ -361,30 +342,85 @@ pub(super) async fn put_scoped_packument_revision(
     update_packument(&state, &identity, registry.as_deref(), &full, &body_bytes).await
 }
 
-/// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
-/// (`pnpm unpublish --force`).
+/// `DELETE {base}/{pkg}` and `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole
+/// package (`pnpm unpublish --force`), or remove one version's tarball when the
+/// segment is `{pkg}@{version}`.
 pub(super) async fn unpublish_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<NamePath>,
 ) -> Response {
+    if let Some((pkg_name, version)) = split_package_identifier(&path.name) {
+        return unpublish_version_tarball(
+            &state,
+            &identity,
+            registry.as_deref(),
+            pkg_name,
+            version,
+        )
+        .await;
+    }
     delete_package(&state, &identity, registry.as_deref(), &path.name).await
 }
 
-/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package.
+/// `DELETE {base}/@{scope}/{pkg}` — remove a whole scoped package, or remove
+/// one scoped version's tarball when the second segment is `{pkg}@{version}`.
+pub(super) async fn delete_scoped_package(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TwoSegments>,
+) -> Response {
+    unpublish_scoped(&state, &identity, registry.as_deref(), &path.first, &path.second).await
+}
+
+/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package,
+/// or remove one scoped version's tarball when the second segment is
+/// `{pkg}@{version}` (`DELETE {dist.tarball}/-rev/{rev}`).
 pub(super) async fn unpublish_scoped_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<ScopedRevPath>,
 ) -> Response {
-    let ScopedRevPath { scope, name, .. } = path;
-    if !scope.starts_with('@') {
+    unpublish_scoped(&state, &identity, registry.as_deref(), &path.scope, &path.name).await
+}
+
+async fn unpublish_scoped(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    scope: &str,
+    name: &str,
+) -> Response {
+    if !scope.starts_with('@') || scope.contains('/') {
         return not_found();
     }
+    if let Some((bare_name, version)) = split_package_identifier(name) {
+        let full = format!("{scope}/{bare_name}");
+        return unpublish_version_tarball(state, identity, registry, &full, version).await;
+    }
     let full = format!("{scope}/{name}");
-    delete_package(&state, &identity, registry.as_deref(), &full).await
+    delete_package(state, identity, registry, &full).await
+}
+
+async fn unpublish_version_tarball(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+    version: &str,
+) -> Response {
+    if super::super::revision_tarballs::parse_revision_version(version).is_some() {
+        return not_found();
+    }
+    let canonical = match CanonicalPackageName::parse(raw_name, Ecosystem::Npm) {
+        Ok(name) => name,
+        Err(err) => return err.into_response(),
+    };
+    let filename = canonical.tarball_name_for_version(version);
+    delete_tarball(state, identity, registry, raw_name, &filename).await
 }
 
 /// `DELETE {base}/{pkg}/-/{filename}/-rev/{rev}` — remove one version's

@@ -17,7 +17,8 @@
 // binary Corepack does not install. Both are the wrapper's production
 // dependencies, deployed by `pnpm deploy` against this repo's lockfile, so they
 // are frozen and reviewed per pnpm release rather than resolved on the user's
-// machine — see pnpm/crates/executor/src/bundled_node_gyp.rs for node-gyp's
+// machine. get-pnpm is the workspace package in pnpm/npm/get-pnpm, so a pnpm
+// release ships its source as of that release — see pnpm/crates/executor/src/bundled_node_gyp.rs for node-gyp's
 // runtime half, and pnpm/npm/pnpm/bin/pnpm.mjs for get-pnpm's.
 //
 // The TypeScript CLI builds the same payload for its own package in
@@ -42,6 +43,10 @@ const NODE_GYP_BIN_SRC = path.join(REPO_ROOT, 'pnpm11', 'pnpm', 'node-gyp-bin')
 
 function deployNodeGyp () {
   fs.rmSync(DEPLOY_DIR, { recursive: true, force: true })
+
+  // get-pnpm is a workspace package, and the deploy injects its packed files,
+  // which are its build output.
+  execFileSync('pnpm', ['--filter=get-pnpm', 'run', 'build'], { cwd: REPO_ROOT, stdio: 'inherit' })
 
   // Reuses the workspace lockfile, patches, and overrides — overrides in
   // particular may be pinning a subdependency away from a CVE.

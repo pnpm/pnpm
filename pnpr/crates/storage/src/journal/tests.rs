@@ -1,11 +1,10 @@
 #[cfg(unix)]
 use super::sync_dir;
 use super::{
-    ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish,
-    JournaledRevisionRef, MANIFEST_FILE, Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
+    ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish, MANIFEST_FILE,
+    Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
 };
-use crate::{BlobFinalize, HostedRevisionRefWrite, Storage, publish::merge_journaled_packument};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use crate::{BlobFinalize, Storage, publish::merge_journaled_packument};
 use object_store::{ObjectStore, memory::InMemory};
 use pnpr_config::HostedStoreConfig;
 use pnpr_error::{RegistryError, Result};
@@ -102,7 +101,6 @@ fn npm_package(name: &str) -> PackageId {
 fn npm_publish<'publish>(
     name: &'publish CanonicalPackageName,
     packument: &'publish [u8],
-    revision_refs: &'publish [JournaledRevisionRef],
 ) -> JournaledPublish<'publish> {
     JournaledPublish {
         name,
@@ -111,7 +109,6 @@ fn npm_publish<'publish>(
         document: packument,
         base_version: None,
         slots: &[],
-        revision_refs,
     }
 }
 
@@ -143,196 +140,6 @@ async fn sync_dir_reports_success_for_a_directory() {
     let tmp = tempdir().unwrap();
 
     sync_dir(tmp.path()).await.unwrap();
-}
-
-#[tokio::test]
-async fn commit_persists_revision_references() {
-    let tmp = tempdir().unwrap();
-    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-    let storage = Storage::new(
-        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
-        tmp.path().join("hosted"),
-        tmp.path().join("cache"),
-    )
-    .unwrap();
-    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let packument = serde_json::to_vec(&json!({
-        "name": "pkg",
-        "versions": {},
-    }))
-    .unwrap();
-    let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
-    let record = br#"{"package":"pkg","version":"1.0.0"}"#.to_vec();
-    let revision_refs = [JournaledRevisionRef {
-        filename: "pkg-1.0.0.tgz".to_string(),
-        digest: digest.clone(),
-        ref_id: "a".repeat(64),
-        bytes: record.clone(),
-    }];
-    let entries = [npm_publish(&name, &packument, &revision_refs)];
-
-    storage
-        .publish_journal()
-        .commit(&storage, &entries, &NpmDocuments)
-        .await
-        .unwrap();
-
-    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record.clone()]);
-    assert_eq!(
-        storage
-            .write_hosted_revision_ref(&digest, &"a".repeat(64), "later-owner", &record)
-            .await
-            .unwrap(),
-        HostedRevisionRefWrite::Committed,
-    );
-}
-
-#[tokio::test]
-async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
-    let tmp = tempdir().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
-            .unwrap();
-    let digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
-    for index in 0..crate::MAX_HOSTED_REVISION_REFS {
-        storage
-            .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "existing-owner", b"{}")
-            .await
-            .unwrap();
-    }
-    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let packument = serde_json::to_vec(&json!({
-        "name": "pkg",
-        "versions": {
-            "1.0.0": {
-                "version": "1.0.0",
-                "dist": { "tarball": "http://host/pkg/-/publisher-chosen-name.tgz" },
-            },
-        },
-        "dist-tags": { "latest": "1.0.0" },
-        "time": { "1.0.0": "2026-07-01T00:00:00.000Z" },
-    }))
-    .unwrap();
-    let revision_refs = [JournaledRevisionRef {
-        filename: "pkg-1.0.0.tgz".to_string(),
-        digest: digest.clone(),
-        ref_id: "f".repeat(64),
-        bytes: br#"{"package":"pkg","version":"1.0.0"}"#.to_vec(),
-    }];
-    let entries = [npm_publish(&name, &packument, &revision_refs)];
-
-    let outcome = storage
-        .publish_journal()
-        .commit(&storage, &entries, &NpmDocuments)
-        .await
-        .unwrap();
-
-    assert_eq!(outcome.reference_limit, Some(crate::MAX_HOSTED_REVISION_REFS));
-    let hosted = storage
-        .read_hosted_document(&name)
-        .await
-        .unwrap()
-        .unwrap();
-    let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
-    assert_eq!(hosted["versions"], json!({}));
-    assert_eq!(hosted["dist-tags"], json!({}));
-    assert_eq!(hosted["time"].get("1.0.0"), None);
-    assert_eq!(
-        storage
-            .read_hosted_revision_refs(&digest)
-            .await
-            .unwrap()
-            .len(),
-        crate::MAX_HOSTED_REVISION_REFS,
-    );
-}
-
-#[tokio::test]
-async fn commit_only_removes_transaction_owned_references_for_a_dropped_version() {
-    let tmp = tempdir().unwrap();
-    let storage =
-        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
-            .unwrap();
-    let transaction_owned_digest = URL_SAFE_NO_PAD.encode([5_u8; 64]);
-    let previously_owned_digest = URL_SAFE_NO_PAD.encode([6_u8; 64]);
-    let full_digest = URL_SAFE_NO_PAD.encode([7_u8; 64]);
-    for index in 0..crate::MAX_HOSTED_REVISION_REFS {
-        storage
-            .write_hosted_revision_ref(
-                &full_digest,
-                &format!("{index:064x}"),
-                "existing-owner",
-                b"{}",
-            )
-            .await
-            .unwrap();
-    }
-    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
-    let packument = serde_json::to_vec(&json!({
-        "name": "pkg",
-        "versions": { "1.0.0": { "version": "1.0.0" } },
-    }))
-    .unwrap();
-    let ref_id = "f".repeat(64);
-    let record = br#"{"package":"pkg","version":"1.0.0"}"#.to_vec();
-    let revision_refs = [
-        JournaledRevisionRef {
-            filename: "pkg-1.0.0.tgz".to_string(),
-            digest: transaction_owned_digest.clone(),
-            ref_id: ref_id.clone(),
-            bytes: record.clone(),
-        },
-        JournaledRevisionRef {
-            filename: "pkg-1.0.0.tgz".to_string(),
-            digest: previously_owned_digest.clone(),
-            ref_id: ref_id.clone(),
-            bytes: record.clone(),
-        },
-        JournaledRevisionRef {
-            filename: "pkg-1.0.0.tgz".to_string(),
-            digest: full_digest,
-            ref_id: ref_id.clone(),
-            bytes: record.clone(),
-        },
-    ];
-    let entries = [npm_publish(&name, &packument, &revision_refs)];
-
-    let txn = storage
-        .publish_journal()
-        .seal(&entries)
-        .await
-        .unwrap();
-    let revision_ref_owner = txn.revision_ref_owner.clone();
-    storage
-        .write_hosted_revision_ref(&transaction_owned_digest, &ref_id, &revision_ref_owner, &record)
-        .await
-        .unwrap();
-    storage
-        .write_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner", &record)
-        .await
-        .unwrap();
-    storage
-        .commit_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner")
-        .await
-        .unwrap();
-    txn.apply(&storage, &NpmDocuments, &mut ApplyProgress::default()).await
-        .unwrap();
-
-    assert_eq!(
-        storage.read_hosted_revision_refs(&transaction_owned_digest).await.unwrap(),
-        Vec::<Vec<u8>>::new(),
-    );
-    assert_eq!(
-        storage.read_hosted_revision_refs(&previously_owned_digest).await.unwrap(),
-        vec![record],
-    );
-    let hosted = storage
-        .read_hosted_document(&name)
-        .await
-        .unwrap()
-        .unwrap();
-    let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
-    assert_eq!(hosted["versions"], json!({}));
 }
 
 #[tokio::test]
@@ -380,9 +187,9 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
     let entries = [
         JournaledPublish {
             slots: &conflicted_slots,
-            ..npm_publish(&conflicted_name, &conflicted_packument, &[])
+            ..npm_publish(&conflicted_name, &conflicted_packument)
         },
-        npm_publish(&later_name, b"not-json", &[]),
+        npm_publish(&later_name, b"not-json"),
     ];
     let txn_dir = storage
         .publish_journal()
@@ -473,7 +280,7 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
     .unwrap();
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
-    let entries = [npm_publish(&name, &document, &[])];
+    let entries = [npm_publish(&name, &document)];
     storage
         .publish_journal()
         .commit(&storage, &entries, &NpmDocuments)
@@ -507,7 +314,7 @@ async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
     .unwrap();
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
-    let entries = [npm_publish(&name, &document, &[])];
+    let entries = [npm_publish(&name, &document)];
     storage
         .publish_journal()
         .commit(&storage, &entries, &NpmDocuments)
@@ -547,8 +354,8 @@ async fn commit_does_not_report_what_its_own_first_attempt_wrote() {
     let failed_document =
         serde_json::to_vec(&json!({ "name": "failed-pkg", "versions": {} })).unwrap();
     let entries = [
-        npm_publish(&written_name, &written_document, &[]),
-        npm_publish(&failed_name, &failed_document, &[]),
+        npm_publish(&written_name, &written_document),
+        npm_publish(&failed_name, &failed_document),
     ];
     // Both documents exist, so neither commit below can take the write-as-is
     // path and every package goes through the merge.
@@ -586,7 +393,7 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
     .unwrap();
     let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
-    let entries = [npm_publish(&name, &document, &[])];
+    let entries = [npm_publish(&name, &document)];
     storage
         .publish_journal()
         .commit(&storage, &entries, &NpmDocuments)

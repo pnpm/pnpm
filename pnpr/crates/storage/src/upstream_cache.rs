@@ -1,4 +1,4 @@
-use super::{BlobWrite, CachedDocument, DocumentStamp, Result, Storage, validate_revision_digest};
+use super::{BlobWrite, CachedDocument, DocumentStamp, Result, Storage};
 use pnpr_package_name::CanonicalPackageName;
 use std::time::Duration;
 use tokio::fs;
@@ -77,23 +77,5 @@ impl Storage {
         filename: &str,
     ) -> Result<Option<(fs::File, u64)>> {
         self.cached.namespaced(namespace).open_blob(name, filename).await
-    }
-
-    pub async fn open_upstream_revision_blob_tmp(
-        &self,
-        namespace: &str,
-        digest: &str,
-    ) -> Result<BlobWrite> {
-        validate_revision_digest(digest)?;
-        self.cached.namespaced(namespace).open_revision_blob_tmp(digest).await
-    }
-
-    pub async fn open_upstream_revision_blob(
-        &self,
-        namespace: &str,
-        digest: &str,
-    ) -> Result<Option<(fs::File, u64)>> {
-        validate_revision_digest(digest)?;
-        self.cached.namespaced(namespace).open_revision_blob(digest).await
     }
 }

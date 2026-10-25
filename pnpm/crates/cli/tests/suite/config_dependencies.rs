@@ -18,7 +18,7 @@ use std::{
 };
 
 fn pacquet_at(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
+    _utils::pacquet_in(workspace).with_env("PNPM_CONFIG_NPMRC_AUTH_FILE", workspace.join(".npmrc"))
 }
 
 /// `pacquet install` resolves the `configDependencies` declared in
@@ -525,7 +525,7 @@ fn add_config_keeps_an_integrity_pin() {
     let integrity = lockfile
         .lines()
         .find_map(|line| line.trim().strip_prefix("resolution: {integrity: "))
-        .and_then(|rest| rest.strip_suffix('}'))
+        .and_then(|rest| rest.split([',', '}']).next())
         .expect("the lockfile records an integrity");
     fs::remove_file(workspace.join("pnpm-lock.yaml")).expect("remove lockfile");
     let yaml_path = workspace.join("pnpm-workspace.yaml");

@@ -160,7 +160,7 @@ fn locked_importer_version(lockfile: &Lockfile, importer_id: &str, alias: &str) 
         .find_map(|deps| deps.as_ref()?.get(&name))?
         .version
         .ver_peer()?
-        .version_semver()
+        .registry_version()
         .cloned()
 }
 

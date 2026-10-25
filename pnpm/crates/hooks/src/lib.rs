@@ -20,8 +20,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
-/// The `loadPnpmfile(path)` helper both Node entry points prepend to the script
-/// they generate.
+/// The `loadPnpmfile(path)` helper the worker script starts with.
 pub(crate) const LOAD_PNPMFILE: &str = include_str!("load_pnpmfile.cjs");
 
 /// A pnpmfile hook that pnpm accepts in a pnpmfile but never runs.
@@ -72,6 +71,7 @@ pub enum FetcherMethod {
     TempDir,
     LocalTarball,
     RemoteTarball,
+    Directory,
 }
 
 pub type FetcherCallbackSender = mpsc::UnboundedSender<FetcherCallback>;
@@ -124,8 +124,9 @@ pub struct PreResolutionHookLogger {
     pub warn: Arc<dyn Fn(String) + Send + Sync>,
 }
 
-/// Context provided to preResolution hooks.
-#[derive(Clone)]
+/// Context provided to preResolution hooks. `wanted_lockfile` and
+/// `current_lockfile` are `{}` when the lockfile does not exist.
+#[derive(Debug, Clone)]
 pub struct PreResolutionHookContext {
     pub wanted_lockfile: Value,
     pub current_lockfile: Value,
@@ -197,8 +198,19 @@ pub trait PnpmfileHooks: Send + Sync {
         Ok(manifest)
     }
 
-    /// `preResolution` hook: side-effect hook called before resolution (e.g., logging, validation).
-    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger);
+    /// `preResolution` hook: called before resolution with the lockfiles the
+    /// install read.
+    ///
+    /// Returns `ctx` with `wanted_lockfile` and `current_lockfile` as the
+    /// hook left them. Only changes the hook makes to those two objects in
+    /// place count: reassigning a context field or returning a value does
+    /// not, matching pnpm. A throwing hook yields a [`HookError`] and aborts
+    /// the install.
+    async fn pre_resolution(
+        &self,
+        ctx: PreResolutionHookContext,
+        logger: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError>;
 
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
@@ -425,7 +437,13 @@ impl PnpmfileHooks for NoopHooks {
     async fn after_all_resolved(&self, _: Value, _: HookContext) -> Result<Value, HookError> {
         Ok(Value::Null)
     }
-    async fn pre_resolution(&self, _: PreResolutionHookContext, _: PreResolutionHookLogger) {}
+    async fn pre_resolution(
+        &self,
+        ctx: PreResolutionHookContext,
+        _: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError> {
+        Ok(ctx)
+    }
     async fn filter_log(&self, _: Value, _: HookContext) -> bool {
         true
     }
@@ -478,8 +496,12 @@ impl PnpmfileHooks for ChecksumFreeHooks {
         self.0.before_packing(manifest, dir, ctx).await
     }
 
-    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
-        self.0.pre_resolution(ctx, logger).await;
+    async fn pre_resolution(
+        &self,
+        ctx: PreResolutionHookContext,
+        logger: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError> {
+        self.0.pre_resolution(ctx, logger).await
     }
 
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {

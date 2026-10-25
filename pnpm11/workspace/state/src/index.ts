@@ -1,6 +1,7 @@
 export { getHoistedProjectModulesDir } from './hoistedProjectModulesDir.js'
 export { loadWorkspaceState } from './loadWorkspaceState.js'
+export { recordedRegistryPrefixes } from './registryPrefixes.js'
 export { resolveStoreLocationSettings } from './storeLocation.js'
 export { type FileSignature, type ProjectsList, type Validation, WORKSPACE_STATE_SETTING_KEYS, type WorkspaceState, type WorkspaceStateSettings } from './types.js'
 export { type StateValidationOptions, updateWorkspaceState, type UpdateWorkspaceStateOptions } from './updateWorkspaceState.js'
-export { type FileDigest, fileDigestOf, fileSignatureTrusted, importerIdOf, lockfileDigest, manifestDigest, normalizeUnsetSetting, projectValidation, sharedInputPaths } from './validation.js'
+export { type FileDigest, fileDigestOf, fileSignatureTrusted, importerIdOf, lockfileDigest, manifestDigest, normalizeUnsetSetting, projectBinsDigest, projectValidation, sharedInputPaths, workspaceBinsDigest } from './validation.js'

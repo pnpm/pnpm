@@ -6,7 +6,7 @@ use super::{
     },
     CustomFetched, ExtractedPackageMetadata, SnapshotFetch, TarballFetch, download_tarball,
 };
-use crate::{build_modules::exec_scripts_prepend_node_path, custom_fetcher::CustomFetchOutcome};
+use crate::custom_fetcher::CustomFetchOutcome;
 use pnpm_config::PmOnFail;
 use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitHostedTarballFetcher};
 use pnpm_lockfile::{BinaryResolution, LockfileResolution, PackageKey, PackageMetadata};
@@ -32,7 +32,7 @@ impl InstallPackageBySnapshot<'_> {
         download: &IngestTarballToStore<'_>,
     ) -> Result<CustomFetched, InstallPackageBySnapshotError> {
         let Some(session) = self.fetching.custom_fetcher_session else {
-            return Ok(CustomFetched { resolution: None, cas_paths: None });
+            return Ok(CustomFetched { resolution: None, cas_paths: None, source_exists: true });
         };
         let config = self.ctx.config;
         let opts = serde_json::json!({
@@ -51,15 +51,25 @@ impl InstallPackageBySnapshot<'_> {
         Ok(match session.fetch::<Reporter>(download.clone(), &metadata.resolution, opts).await? {
             CustomFetchOutcome::Declined(resolution)
             | CustomFetchOutcome::Delegate { delegate: resolution, .. } => {
-                CustomFetched { resolution: Some(resolution), cas_paths: None }
+                CustomFetched { resolution: Some(resolution), cas_paths: None, source_exists: true }
             }
+            // The walk already used this install's directory options.
+            CustomFetchOutcome::Walked { directory, .. } => CustomFetched {
+                resolution: Some(directory.resolution()),
+                source_exists: directory.exists,
+                cas_paths: Some(directory.files_map),
+            },
             CustomFetchOutcome::Fetched { resolution, tarball } => {
                 let cas_paths = self.prepare_custom_tarball::<Reporter>(
                     SnapshotFetch { package_key, package_id, resolution: &resolution, download },
                     tarball.files_map.clone(),
                 )
                 .await?;
-                CustomFetched { resolution: Some(resolution), cas_paths: Some(cas_paths) }
+                CustomFetched {
+                    resolution: Some(resolution),
+                    cas_paths: Some(cas_paths),
+                    source_exists: true,
+                }
             }
         })
     }
@@ -80,7 +90,6 @@ impl InstallPackageBySnapshot<'_> {
                 package_key: fetch.package_key,
                 package_id: fetch.package_id,
                 allow_build: &allow_build,
-                scripts_prepend_node_path: exec_scripts_prepend_node_path(self.ctx.config),
             },
             tarball,
             cas_paths,
@@ -119,7 +128,7 @@ impl InstallPackageBySnapshot<'_> {
         let files_index_file = git_hosted_store_index_key(fetch.package_id, built);
         let package_name = fetch.package_key.name.to_string();
         let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
-            scripts: prepare_script_options(config, exec_scripts_prepend_node_path(config)),
+            scripts: prepare_script_options(config),
             source: pnpm_git_fetcher::GitSource {
                 cache: self.ctx.caches.git_source_cache,
                 repo: &git_resolution.repo,
@@ -211,7 +220,7 @@ impl InstallPackageBySnapshot<'_> {
                     != Some(false),
         );
         let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
-            scripts: prepare_script_options(config, fetch.scripts_prepend_node_path),
+            scripts: prepare_script_options(config),
             store: pnpm_git_fetcher::GitStoreContext {
                 dir: &config.store_dir,
                 index_writer: self.fetching.store_index_writer,
@@ -234,13 +243,11 @@ impl InstallPackageBySnapshot<'_> {
 /// How a git-hosted dependency's prepare scripts run for this install.
 fn prepare_script_options(
     config: &pnpm_config::Config,
-    prepend_node_path: pnpm_executor::ScriptsPrependNodePath,
 ) -> pnpm_git_fetcher::PrepareScriptOptions<'_> {
     pnpm_git_fetcher::PrepareScriptOptions {
         ignore: config.ignore_scripts,
         unsafe_perm: config.unsafe_perm,
         user_agent: Some(&config.user_agent),
-        prepend_node_path,
         shell: None,
         node_execpath: None,
         npm_execpath: None,

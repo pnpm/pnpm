@@ -1,5 +1,6 @@
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { stageLogger } from '@pnpm/core-loggers'
@@ -9,6 +10,7 @@ import { resolveDependencies } from '@pnpm/installing.deps-resolver'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { getPreferredVersionsFromLockfileAndManifests } from '@pnpm/lockfile.preferred-versions'
 import { createOverridesMapFromParsed } from '@pnpm/lockfile.settings-checker'
+import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { ProjectId, ReadPackageHook } from '@pnpm/types'
 import { equals, isEmpty, map as mapValues, pipeWith } from 'ramda'
@@ -58,7 +60,10 @@ export async function resolveProjects (
     !untrackedReadPackageHookMayHaveChanged
   const forceFullResolution = !lockedPeersAreCurrent ||
     !opts.currentLockfileIsUpToDate ||
-    opts.dedupePeerDependents
+    opts.dedupePeerDependents ||
+    // Every edge is walked, so that each package keyed by an outdated key is
+    // resolved again under its current one.
+    findOutdatedRegistryKey(ctx.wantedLockfile, pickRegistryContext(opts)) != null
   setUntrackedPnpmfileReadPackageHook(ctx.wantedLockfile, untrackedPnpmfileReadPackageHook)
   forgetRegeneratedLockfileFields(ctx, opts)
 

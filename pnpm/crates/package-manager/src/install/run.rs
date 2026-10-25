@@ -9,7 +9,7 @@ use fast_path::{
 };
 
 mod dispatch;
-use dispatch::{Dispatched, dispatch};
+use dispatch::Dispatched;
 
 mod manifests;
 use manifests::{HookedManifests, manifest_freshness_inputs, resolve_pnpmfile_hook};
@@ -35,6 +35,7 @@ use mode::{RunMode, WorkspaceManifestRollbackGuard};
 mod frozen_local_tarballs;
 mod owned;
 use owned::InstallOwned;
+mod pre_resolution;
 mod settled;
 mod time_machine_capture;
 mod uninstall_hooks;

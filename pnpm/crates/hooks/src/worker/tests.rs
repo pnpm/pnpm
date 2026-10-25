@@ -93,6 +93,73 @@ async fn a_queued_request_does_not_spend_its_timeout_waiting_for_its_turn() {
     call_read_package_concurrently(&worker, 100).await;
 }
 
+fn recording_logger(
+    messages: &Arc<std::sync::Mutex<Vec<String>>>,
+) -> crate::PreResolutionHookLogger {
+    let info = Arc::clone(messages);
+    let warn = Arc::clone(messages);
+    crate::PreResolutionHookLogger {
+        info: Arc::new(move |message| info.lock().unwrap().push(message)),
+        warn: Arc::new(move |message| warn.lock().unwrap().push(message)),
+    }
+}
+
+#[tokio::test]
+async fn pre_resolution_is_not_bound_by_the_request_timeout() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        "module.exports = { hooks: { preResolution: () => new Promise((resolve) => setTimeout(resolve, 1500)) } }\n",
+    )
+    .expect("write pnpmfile");
+    let worker = NodeWorker::spawn_with_request_timeout(&pnpmfile_path, Duration::from_secs(1))
+        .await
+        .expect("spawn worker");
+
+    let messages = Arc::default();
+    worker
+        .call_pre_resolution(serde_json::json!({}), recording_logger(&messages))
+        .await
+        .expect("a slow preResolution hook completes");
+}
+
+/// Output a hook prints goes to the log of the call that printed it, even
+/// while another call on the same worker is running.
+#[tokio::test]
+async fn concurrent_pre_resolution_calls_keep_their_own_output() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"module.exports = { hooks: { preResolution: async (ctx) => {
+  console.log(ctx.name + ' before');
+  await new Promise((resolve) => setTimeout(resolve, ctx.delay));
+  console.log(ctx.name + ' after');
+} } }
+",
+    )
+    .expect("write pnpmfile");
+    let worker = NodeWorker::spawn(&pnpmfile_path).await.expect("spawn worker");
+
+    let slow_messages = Arc::default();
+    let fast_messages = Arc::default();
+    let slow = worker.call_pre_resolution(
+        serde_json::json!({ "name": "slow", "delay": 300 }),
+        recording_logger(&slow_messages),
+    );
+    let fast = worker.call_pre_resolution(
+        serde_json::json!({ "name": "fast", "delay": 50 }),
+        recording_logger(&fast_messages),
+    );
+    let (slow, fast) = tokio::join!(slow, fast);
+    slow.expect("slow call");
+    fast.expect("fast call");
+
+    assert_eq!(*slow_messages.lock().unwrap(), ["slow before", "slow after"]);
+    assert_eq!(*fast_messages.lock().unwrap(), ["fast before", "fast after"]);
+}
+
 /// A range that is not a string makes the manifest invalid, and the worker
 /// sends the manifest back as JSON, which drops the entry. The call fails
 /// instead, naming the dependency, the field and the package.

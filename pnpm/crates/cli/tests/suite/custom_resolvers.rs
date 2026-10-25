@@ -11,6 +11,7 @@ use pnpm_testing_utils::{
     registry::TestRegistry,
 };
 use std::{
+    fmt::Write as _,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -28,6 +29,15 @@ fn write_manifest(workspace: &Path) {
         },
     });
     fs::write(workspace.join("package.json"), manifest.to_string()).expect("write package.json");
+}
+
+fn declare_pnpr_registry(workspace: &Path, registry_url: &str) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml = fs::read_to_string(&yaml_path).expect("read workspace yaml");
+    write!(workspace_yaml, "\nregistries:\n  '{registry_url}':\n    serverType: pnpr\n").expect(
+        "append registry declaration",
+    );
+    fs::write(&yaml_path, workspace_yaml).expect("write workspace yaml");
 }
 
 /// A resolver that claims `@pnpm.e2e/dep-of-pkg-with-1-dep` and resolves
@@ -267,6 +277,7 @@ fn custom_resolver_receives_current_pkg_on_subsequent_installs() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     write_manifest(&workspace);
+    declare_pnpr_registry(&workspace, mock_instance.url());
     // First install: the resolver claims nothing, so the npm resolver
     // pins 100.0.0 and the lockfile compacts it to `{integrity}`.
     fs::write(
@@ -322,10 +333,7 @@ module.exports = {
     // the tarball URL re-derived from the registry, like pnpm's
     // `pkgSnapshotToResolution`.
     let tarball = current_pkg["resolution"]["tarball"].as_str().expect("derived tarball URL");
-    assert!(
-        tarball.ends_with("/@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz"),
-        "got: {tarball}",
-    );
+    assert!(tarball.ends_with("/@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"), "got: {tarball}");
     assert!(
         current_pkg["resolution"]["integrity"].is_string(),
         "the recorded integrity carries over: {current_pkg}",
@@ -443,6 +451,7 @@ fn custom_typed_resolver_without_manifest_installs_dependencies() {
     fs::write(workspace.join("vendor/package.tgz"), &body).unwrap();
     fs::write(workspace.join("package.json"), r#"{"dependencies":{"custom-typed":"1.0.0"}}"#)
         .unwrap();
+    declare_pnpr_registry(&workspace, mock_instance.url());
     let integrity = pnpm_testing_utils::fixtures::sha512_integrity(&body);
     let resolution = serde_json::json!({
         "type": "custom:vendored", "name": "custom-typed", "version": "1.0.0",

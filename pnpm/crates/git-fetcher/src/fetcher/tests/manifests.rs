@@ -1,8 +1,7 @@
 use super::{
-    AllowBuildRef, GitFetcher, GitFetcherError, GitManifestQuery, ScriptsPrependNodePath,
-    SilentReporter, StoreDir, Value, deny_all_builds, make_bare_repo,
-    make_bare_repo_with_prepare_script, make_bare_repo_with_sub_package,
-    make_bare_repo_without_manifest, read_git_manifest, tempdir,
+    AllowBuildRef, GitFetcher, GitFetcherError, GitManifestQuery, SilentReporter, StoreDir, Value,
+    deny_all_builds, make_bare_repo, make_bare_repo_with_prepare_script,
+    make_bare_repo_with_sub_package, make_bare_repo_without_manifest, read_git_manifest, tempdir,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -18,7 +17,6 @@ async fn fetcher_handles_repo_without_package_json() {
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,
@@ -71,7 +69,6 @@ async fn fetcher_rejects_untrusted_manifest_identity() {
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,
@@ -133,7 +130,6 @@ async fn fetcher_allows_untrusted_manifest_identity_by_dep_path() {
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,

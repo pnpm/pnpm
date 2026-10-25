@@ -38,6 +38,8 @@ pub(crate) struct WorkspaceProjects<'a> {
     pub(crate) catalogs: &'a pnpm_catalogs_types::Catalogs,
     /// Shared by every importer of one check, which link the same targets.
     pub(crate) canonical_paths: &'a pnpm_fs::CanonicalPaths,
+    /// How a locked child's registry is decided, shared the same way.
+    pub(crate) registries: &'a pnpm_lockfile::RegistryContext,
 }
 
 /// Which of the project's `optionalDependencies` the comparison leaves out.

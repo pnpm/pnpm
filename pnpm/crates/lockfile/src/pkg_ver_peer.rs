@@ -127,6 +127,19 @@ impl PkgVerPeer {
         }
     }
 
+    /// The semver of a registry package, whether or not its key names the
+    /// registry. For a caller that has already settled which registry the
+    /// key belongs to.
+    #[must_use]
+    pub fn registry_version(&self) -> Option<&'_ Version> {
+        match &self.version {
+            VersionPart::Semver(version) | VersionPart::RegistryQualified { version, .. } => {
+                Some(version)
+            }
+            VersionPart::File(_) | VersionPart::NonSemver(_) => None,
+        }
+    }
+
     /// The `(registry_name, version)` pair of a registry-qualified version
     /// slot (`<registryName>:<version>`), if this is one.
     #[must_use]

@@ -29,7 +29,7 @@ use crate::{
 };
 use advisories::{
     audit, correct_inferred_patched_versions, filter_ignored_advisories, parse_audit_level,
-    severity_name, severity_number,
+    remove_advisories_by_ghsa, severity_name, severity_number,
 };
 use chrono::{DateTime, Utc};
 use clap::{Args, ValueEnum};
@@ -262,15 +262,16 @@ impl AuditArgs {
         audit_level: ConfigAuditLevel,
     ) -> miette::Result<AuditOutcome> {
         if !self.advisories.ignore.is_empty() || self.advisories.ignore_unfixable {
-            let output = ignore_vulnerabilities(
+            let ignored = ignore_vulnerabilities(
                 &report,
                 config,
                 settings_dir,
                 &self.advisories.ignore,
                 self.advisories.ignore_unfixable,
             )?;
-            print_command_output(&output);
-            return Ok(AuditOutcome::Clean);
+            print_command_output(&ignored.summary);
+            remove_advisories_by_ghsa(&mut report, &ignored.ignore_ghsas);
+            return Ok(audit_outcome(&report, audit_level));
         }
 
         let ignored = filter_ignored_advisories(&mut report, config);

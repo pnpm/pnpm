@@ -1,15 +1,18 @@
 pub use git_hosted::is_git_hosted_tarball_url;
+pub use pnpm_crypto_hash::has_complete_sha512_digest;
 pub use registry::{
-    RegistryContext, RegistryOptions, RegistryServerType, TarballUrlOptions,
-    integrity_addressed_registry_tarball_url, is_integrity_addressed_registry_tarball_url,
-    npm_tarball_url, pick_registry_for_package, registry_for_package, registry_server_type,
-    registry_supports_time_field,
+    DeclaredRegistryPrefixes, RegistryContext, RegistryOptions, RegistryServerType,
+    TarballUrlOptions, normalized_registry_key, npm_tarball_url, pick_registry_for_package,
+    registry_for_package, registry_server_type, registry_supports_time_field, same_registry,
+};
+pub use revision_url::{
+    is_on_revision_tarball_route, is_revision_registry_tarball_url, revision_registry_tarball_path,
+    revision_registry_tarball_url,
 };
 
 use crate::IntegrityTarget;
 use derive_more::{Display, Error, From, Into, TryInto};
 use pipe_trait::Pipe;
-use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_diagnostics::miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
@@ -466,33 +469,9 @@ impl LockfileResolution {
                 Ok(self.clone())
             };
         };
-
+        tarball.verify_revision_url(integrity, name, version, opts.registry)?;
         let git_hosted = tarball.is_git_hosted();
-        let integrity_addressed =
-            is_integrity_addressed_registry_tarball_url(&tarball.tarball, integrity, opts.registry);
-        if let Some(revision) = tarball.revision.filter(|_| !integrity_addressed) {
-            return Err(LockfileFormError::RevisionUrlMismatch { revision });
-        }
-        // A standard registry tarball whose URL can be rebuilt from name+version+
-        // registry is written as just `{integrity}` — pnpm derives the URL on
-        // demand. Every other tarball must keep its URL or it can no longer be
-        // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
-        // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
-        // `/download/` URLs).
-        let rebuildable = !git_hosted
-            && !tarball.tarball.starts_with("file:")
-            && (tarball.revision.is_some()
-                || (!opts.include_tarball_url
-                    && is_canonical_registry_tarball_url(
-                        &tarball.tarball,
-                        name,
-                        version,
-                        TarballUrlOptions {
-                            registry: opts.registry,
-                            server_type: opts.server_type,
-                        },
-                    )));
-        if rebuildable {
+        if tarball.is_rebuildable_registry_url(git_hosted, name, version, opts) {
             return Ok(LockfileResolution::Registry(RegistryResolution {
                 integrity: integrity.clone(),
                 revision: tarball.revision,
@@ -505,6 +484,56 @@ impl LockfileResolution {
         let mut kept = tarball.clone();
         kept.git_hosted = git_hosted.then_some(true);
         Ok(LockfileResolution::Tarball(kept))
+    }
+}
+
+impl TarballResolution {
+    fn verify_revision_url(
+        &self,
+        integrity: &Integrity,
+        name: &str,
+        version: &str,
+        registry: &str,
+    ) -> Result<(), LockfileFormError> {
+        if let Some(revision) = self.revision
+            && (!has_complete_sha512_digest(integrity)
+                || !is_revision_registry_tarball_url(
+                    &self.tarball,
+                    name,
+                    version,
+                    revision,
+                    registry,
+                ))
+        {
+            return Err(LockfileFormError::RevisionUrlMismatch { revision });
+        }
+        Ok(())
+    }
+
+    // A standard registry tarball whose URL can be rebuilt from name+version+
+    // registry is written as just `{integrity}` — pnpm derives the URL on
+    // demand. Every other tarball must keep its URL or it can no longer be
+    // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
+    // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
+    // `/download/` URLs).
+    fn is_rebuildable_registry_url(
+        &self,
+        git_hosted: bool,
+        name: &str,
+        version: &str,
+        opts: LockfileFormOptions<'_>,
+    ) -> bool {
+        if git_hosted || self.tarball.starts_with("file:") {
+            return false;
+        }
+        self.revision.is_some()
+            || (!opts.include_tarball_url
+                && is_canonical_registry_tarball_url(
+                    &self.tarball,
+                    name,
+                    version,
+                    TarballUrlOptions { registry: opts.registry, server_type: opts.server_type },
+                ))
     }
 }
 
@@ -595,6 +624,7 @@ impl From<LockfileResolution> for ResolutionSerde {
 mod tests;
 
 mod registry;
+mod revision_url;
 
 use registry::is_canonical_registry_tarball_url;
 

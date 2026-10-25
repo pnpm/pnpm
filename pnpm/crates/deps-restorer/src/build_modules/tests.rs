@@ -29,7 +29,6 @@ use super::{BuildModules, allow_build_policy::AllowBuildPolicy};
 // unconditionally would be an unused import on Windows.
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pnpm_config::{Config, PackageImportMethod};
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_lockfile::{
     PackageKey, PkgName, PkgVerPeer, ProjectSnapshot, ResolvedDependencyMap,
     ResolvedDependencySpec, SnapshotEntry,
@@ -210,11 +209,7 @@ fn frozen_backstop_run(
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            path: crate::ScriptPath {
-                prepend_node_path: ScriptsPrependNodePath::Never,
-                extra_bin_paths: &[],
-                private_hoisting: false,
-            },
+            path: crate::ScriptPath { extra_bin_paths: &[], private_hoisting: false },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,

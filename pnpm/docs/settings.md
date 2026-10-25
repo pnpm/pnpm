@@ -228,6 +228,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [preferFrozenLockfile](./settings/store.md#preferfrozenlockfile)
 * [excludeLinksFromLockfile](./settings/store.md#excludelinksfromlockfile)
 * [lockfileIncludeTarballUrl](./settings/store.md#lockfileincludetarballurl)
+* [symlinkedLockfileTargetDirs](./settings/store.md#symlinkedlockfiletargetdirs)
 * [lockfile.includeResolutionSettings](./settings/store.md#lockfileincluderesolutionsettings)
 * [lockfile.integrityTarget](./settings/store.md#lockfileintegritytarget)
 * [gitBranchLockfile](./settings/store.md#gitbranchlockfile)
@@ -299,6 +300,7 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 [Full reference →](./settings/cli.md#nodejs-settings)
 
 * [nodeVersion](./settings/cli.md#nodeversion)
+* [runtime](./settings/cli.md#runtime)
 * [runtimeOnFail](./settings/cli.md#runtimeonfail)
 * [nodeDownloadMirrors](./settings/cli.md#nodedownloadmirrors)
 * [tools](./settings/cli.md#tools)
@@ -365,7 +367,6 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [enablePrePostScripts](./settings/other.md#enableprepostscripts)
 * [scriptShell](./settings/other.md#scriptshell)
 * [shellEmulator](./settings/other.md#shellemulator)
-* [scriptsPrependNodePath](./settings/other.md#scriptsprependnodepath)
 * [catalogMode](./settings/other.md#catalogmode)
 * [ci](./settings/other.md#ci)
 * [catalogPrune](./settings/other.md#catalogprune)

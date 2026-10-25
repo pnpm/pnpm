@@ -59,18 +59,22 @@ describe('releaseFilterArgs', () => {
     expect(releaseFilterArgs(new Set())).toEqual([])
   })
 
-  test('releases everything (no filter) when all three products are selected', () => {
-    expect(releaseFilterArgs(new Set(['pnpm11', 'pnpm', 'pnpr']))).toEqual([])
+  test('releases everything (no filter) when every product is selected', () => {
+    expect(releaseFilterArgs(new Set(['pnpm11', 'pnpm', 'pnpr', 'get-pnpm']))).toEqual([])
   })
 
-  test('excludes the unselected alpha products when pnpm11 is selected', () => {
+  test('excludes the unselected separate products when pnpm11 is selected', () => {
     expect(releaseFilterArgs(new Set(['pnpm11'])))
-      .toEqual(['--filter=!pacquet', '--filter=!@pnpm/napi', '--filter=!@pnpm/pnpr'])
-    expect(releaseFilterArgs(new Set(['pnpm11', 'pnpr'])))
+      .toEqual(['--filter=!pacquet', '--filter=!@pnpm/napi', '--filter=!@pnpm/pnpr', '--filter=!get-pnpm'])
+    expect(releaseFilterArgs(new Set(['pnpm11', 'pnpr', 'get-pnpm'])))
       .toEqual(['--filter=!pacquet', '--filter=!@pnpm/napi'])
   })
 
-  test('includes only the selected alpha products when pnpm11 is not selected', () => {
+  test('releases get-pnpm alone', () => {
+    expect(releaseFilterArgs(new Set(['get-pnpm']))).toEqual(['--filter=get-pnpm'])
+  })
+
+  test('includes only the selected separate products when pnpm11 is not selected', () => {
     expect(releaseFilterArgs(new Set(['pnpm'])))
       .toEqual(['--filter=pacquet', '--filter=@pnpm/napi'])
     expect(releaseFilterArgs(new Set(['pnpm', 'pnpr'])))

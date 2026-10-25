@@ -746,9 +746,9 @@ async fn revision_addressed_tarball_does_not_retry_a_transient_failure() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
     let digest = "A".repeat(86);
-    let path = format!("/-/tarballs/sha512/{digest}");
+    let path = "/test-pkg@1.0.0+r1";
     let mock = server
-        .mock("GET", path.as_str())
+        .mock("GET", path)
         .with_status(503)
         .expect(1)
         .create_async()
@@ -788,9 +788,9 @@ async fn revision_addressed_tarball_does_not_follow_a_redirect() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;
     let digest = "A".repeat(86);
-    let path = format!("/-/tarballs/sha512/{digest}");
+    let path = "/test-pkg@1.0.0+r1";
     let redirect = server
-        .mock("GET", path.as_str())
+        .mock("GET", path)
         .with_status(302)
         .with_header("location", "/redirected.tgz")
         .expect(1)

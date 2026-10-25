@@ -212,7 +212,16 @@ pub(super) fn filter_ignored_advisories(
     report: &mut AuditReport,
     config: &Config,
 ) -> AuditVulnerabilityCounts {
-    let ignore_set = config.audit_config.ignore_ghsas
+    remove_advisories_by_ghsa(report, &config.audit_config.ignore_ghsas)
+}
+
+/// Remove the advisories whose GHSA id is in `ghsas` and count them per
+/// severity. Ids match after normalization, and a blank id matches nothing.
+pub(super) fn remove_advisories_by_ghsa(
+    report: &mut AuditReport,
+    ghsas: &[String],
+) -> AuditVulnerabilityCounts {
+    let ignore_set = ghsas
         .iter()
         .filter_map(|ghsa| {
             let ghsa_id = normalize_ghsa_id(ghsa);

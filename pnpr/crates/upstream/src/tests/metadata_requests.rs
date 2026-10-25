@@ -54,7 +54,7 @@ async fn fetch_tarball_response_forwards_configured_headers() {
 async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
     let mut server = mockito::Server::new_async().await;
     let redirect = server
-        .mock("GET", "/-/tarballs/sha512/digest")
+        .mock("GET", "/foo@1.0.0+r1")
         .match_header("authorization", "Bearer secret-token")
         .match_header("x-org", "acme")
         .with_status(302)
@@ -70,7 +70,13 @@ async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
         .await;
 
     let upstream = upstream(server.url(), auth_and_custom_headers());
-    let result = upstream.fetch_revision_tarball_response("digest").await;
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let result = upstream.fetch_revision_tarball_response(
+        &name,
+        "1.0.0",
+        pnpm_lockfile::TarballRevision::try_from(1).unwrap(),
+    )
+    .await;
 
     assert!(matches!(
         result,

@@ -400,8 +400,7 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
 }
 
 // Each evaluation of the pnpmfile appends to `loads`. The long-lived worker
-// evaluates it once; a pnpmfile without `preResolution` must not be loaded
-// a second time by the one-shot `preResolution` process.
+// that serves every hook evaluates it once.
 #[tokio::test]
 async fn pnpmfile_without_pre_resolution_is_loaded_once() {
     let registry = TestRegistry::start();

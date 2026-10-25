@@ -389,6 +389,146 @@ describe('checkDepsStatus - settings change detection', () => {
 
     expect(result.issue).not.toBe('The value of the enableGlobalVirtualStore setting has changed')
   })
+
+  it.each([
+    ['nothing was recorded and a prefix is declared now', undefined, { work: 'https://npm.example.test/' }],
+    ['the recorded prefixes differ from the declared ones', { work: 'https://npm.example.test/' }, { zeta: 'https://npm.example.test/' }],
+    ['prefixes were recorded and none is declared now', { work: 'https://npm.example.test/' }, undefined],
+  ])('returns upToDate: false when %s', async (_label, registryPrefixes, registriesByPrefix) => {
+    // A state written without proof that the lockfile keys carry the declared
+    // prefixes cannot skip the install that re-keys them.
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        registryPrefixes,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.upToDate).toBe(false)
+    expect(result.issue).toBe('The value of the registryPrefixes setting has changed')
+  })
+
+  it.each([
+    ['no prefix is declared or recorded', undefined, undefined],
+    ['an empty prefix map is declared', undefined, {}],
+    ['the recorded prefixes are the declared ones', { work: 'https://npm.example.test/' }, { work: 'https://npm.example.test/' }],
+  ])('does not report a registryPrefixes change when %s', async (_label, registryPrefixes, registriesByPrefix) => {
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        registryPrefixes,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
+  })
+  it('does not report a registryPrefixes change the caller ignores', async () => {
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp: Date.now() - 10_000,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+      registriesByPrefix: { work: 'https://npm.example.test/' },
+      ignoredWorkspaceStateSettings: ['registryPrefixes'],
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
+  })
+
+  it('returns upToDate: true when the lockfile and the config both set dedupePeers', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
+        dedupePeers: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    const lockfileMtime = lastValidatedTimestamp - 10_000
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp),
+      mtimeMs: lastValidatedTimestamp,
+    } as Stats))
+    const lockfile = {
+      lockfileVersion: '9.0',
+      settings: { dedupePeers: true },
+      importers: { '.': { specifiers: {} } },
+    } as unknown as LockfileObject
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => lockfile)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
 })
 
 describe('checkDepsStatus - pnpmfile modification', () => {

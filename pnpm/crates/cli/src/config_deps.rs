@@ -366,6 +366,7 @@ struct EnvInstallerContext {
     resolver: NpmResolver<InMemoryPackageMetaCache>,
     network: EnvironmentNetwork,
     store: pnpm_env_installer::ConfigDependencyStore,
+    symlinked_lockfile_target_dirs: Vec<std::path::PathBuf>,
 }
 
 impl EnvInstallerContext {
@@ -451,6 +452,9 @@ impl EnvInstallerContext {
                 strict_pkg_content_check: config.strict_store_pkg_content_check,
                 package_import_method: config.package_import_method,
             },
+            symlinked_lockfile_target_dirs: config
+                .symlinked_lockfile_target_dirs
+                .clone(),
         })
     }
 
@@ -484,8 +488,12 @@ impl EnvInstallerContext {
             store: self.store,
             store_index: pnpm_env_installer::ConfigDependencyStoreIndex::default(),
             root_dir,
-
-            frozen_lockfile,
+            lockfile: pnpm_env_installer::EnvLockfileOptions {
+                frozen: frozen_lockfile,
+                symlinked: pnpm_lockfile::SymlinkedLockfile::allowing(
+                    &self.symlinked_lockfile_target_dirs,
+                ),
+            },
         }
     }
 }

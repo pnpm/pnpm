@@ -137,13 +137,13 @@ fn is_package_name(alias: &str) -> bool {
     }
 }
 
-/// A registry package is one directory however many importers depend on
-/// it. Any other key, such as `link:../lib`, can be relative to its
-/// importer.
+/// A registry package is one directory per peer variant however many
+/// importers depend on it. Any other key, such as `link:../lib`, can be
+/// relative to its importer.
 fn probe_key(importer_id: &str, resolved: &str) -> String {
     let dep_path = normalize_build_dep_path(resolved);
     if node_semver::Version::parse(parse_name_version_from_key(&dep_path).1).is_ok() {
-        dep_path
+        resolved.to_string()
     } else {
         format!("{importer_id}\0{resolved}")
     }
@@ -188,7 +188,7 @@ fn cached_skills(
 fn probe_package(dir: &Path) -> Probe {
     let candidates = skill_names(dir);
     if candidates.is_empty() {
-        return if fs::symlink_metadata(dir).is_ok() {
+        return if dir.is_dir() {
             Probe::Found(Some((candidates, dir.to_path_buf())))
         } else {
             Probe::Absent
@@ -241,12 +241,21 @@ fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource)
 }
 
 /// Whether `candidate` replaces `kept` for the same approval key. Only
-/// registry versions compare: any other key names one source already.
+/// registry versions compare: any other key names one source already. Of
+/// two peer variants of one version, one that ships skills wins, then the
+/// lower package directory, so the choice does not depend on importer order.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
     let version = |source: &SkillSource| {
         node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
     };
-    matches!((version(candidate), version(kept)), (Some(candidate), Some(kept)) if candidate > kept)
+    let (Some(candidate_version), Some(kept_version)) = (version(candidate), version(kept)) else {
+        return false;
+    };
+    candidate_version
+        .cmp(&kept_version)
+        .then_with(|| (!candidate.skills.is_empty()).cmp(&!kept.skills.is_empty()))
+        .then_with(|| kept.package_dir.cmp(&candidate.package_dir))
+        .is_gt()
 }
 
 /// The skills directly under `<package_dir>/skills`: the subdirectories
@@ -261,3 +270,6 @@ fn skill_names(package_dir: &Path) -> Vec<String> {
     names.sort();
     names
 }
+
+#[cfg(test)]
+mod tests;

@@ -79,11 +79,10 @@ pub(super) fn update_lockfile_snapshots(
     patched_manifest: &PackageManifest,
 ) -> Result<(), super::PatchCommitError> {
     let declared = DeclaredDeps::from_manifest(patched_manifest);
-    let selection = state.config.wanted_lockfile_selection();
     update_single_lockfile_snapshots(
         state.lockfile_dir(),
         &state.lockfile_path(),
-        &selection,
+        state.config,
         name,
         version,
         apply_to_all,
@@ -98,7 +97,7 @@ pub(super) fn update_lockfile_snapshots(
         update_single_lockfile_snapshots(
             lockfile_dir,
             &lockfile_path,
-            &selection,
+            state.config,
             name,
             version,
             apply_to_all,
@@ -111,14 +110,15 @@ pub(super) fn update_lockfile_snapshots(
 fn update_single_lockfile_snapshots(
     lockfile_dir: &std::path::Path,
     lockfile_path: &std::path::Path,
-    selection: &pnpm_lockfile::WantedLockfileSelection,
+    config: &pnpm_config::Config,
     name: &str,
     version: &str,
     apply_to_all: bool,
     declared: &DeclaredDeps<'_>,
 ) -> Result<(), super::PatchCommitError> {
-    let Some(mut lockfile) = Lockfile::load_wanted(lockfile_dir, selection)
-        .map_err(super::PatchCommitError::LoadLockfile)?
+    let Some(mut lockfile) =
+        Lockfile::load_wanted(lockfile_dir, &config.wanted_lockfile_selection())
+            .map_err(super::PatchCommitError::LoadLockfile)?
     else {
         return Ok(());
     };
@@ -126,5 +126,7 @@ fn update_single_lockfile_snapshots(
         return Ok(());
     }
     pnpm_package_manager::prune_unreachable_packages(&mut lockfile);
-    lockfile.save_to_path(lockfile_path).map_err(super::PatchCommitError::SaveLockfile)
+    lockfile
+        .save_to_path(lockfile_path, config.symlinked_lockfile())
+        .map_err(super::PatchCommitError::SaveLockfile)
 }

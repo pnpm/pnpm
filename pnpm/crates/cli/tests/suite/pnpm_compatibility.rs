@@ -867,6 +867,18 @@ fn same_lockfiles_modules_and_tree_hoisted_and_filtered() {
     }
 }
 
+fn is_tarball_request_path(path: &str) -> bool {
+    path.ends_with(".tgz")
+        || path
+            .strip_prefix('/')
+            .and_then(|rest| {
+                rest.strip_prefix('@')
+                    .unwrap_or(rest)
+                    .split_once('@')
+            })
+            .is_some()
+}
+
 fn format_recorded_request(req: RecordedRequest) -> String {
     let RecordedRequest {
         method,
@@ -878,7 +890,7 @@ fn format_recorded_request(req: RecordedRequest) -> String {
         ..
     } = req;
     let path = path.strip_prefix("/npm").unwrap_or(&path);
-    if path.ends_with(".tgz") {
+    if is_tarball_request_path(path) {
         return format!("{method} {path} {status}");
     }
     let is_abbreviated = accept
@@ -955,7 +967,11 @@ fn same_registry_request_logs_across_install_modes() {
     );
     let warm_reresolve_tarballs: Vec<&String> = pacquet_logs[3]
         .iter()
-        .filter(|line| line.contains(".tgz"))
+        .filter(|line| {
+            line.split_whitespace()
+                .nth(1)
+                .is_some_and(is_tarball_request_path)
+        })
         .collect();
     assert_eq!(
         warm_reresolve_tarballs,

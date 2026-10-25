@@ -842,3 +842,14 @@ fn from_ini_warns_with_expanded_auth_key() {
         assert_eq!(auth.warnings, expected);
     }
 }
+
+/// `pnpm login` and the `ini` package write a key holding `=` as a JSON string.
+#[test]
+fn reads_a_json_quoted_credential_key() {
+    let ini = "\"//registry.example/npm=private/:_authToken\"=quoted-key-token\n";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(
+        default_auth_token(&auth, "//registry.example/npm=private/"),
+        Some(Some("quoted-key-token")),
+    );
+}

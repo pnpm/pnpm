@@ -59,8 +59,7 @@
     "is-subdir": "catalog:",
     "pretty-bytes": "catalog:",
     "ramda": "catalog:",
-    "ssri": "catalog:",
-    "symlink-dir": "catalog:"
+    "ssri": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",

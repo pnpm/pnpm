@@ -105,7 +105,7 @@ fn batch_timeout_records_every_accepted_package() {
     write_workspace(&workspace, &[("a", public_pkg("a")), ("b", public_pkg("b"))]);
     write_registry_npmrc(&workspace, &registry.url());
     let upload = registry
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .with_body("{}")
         .expect(1)
         .create();

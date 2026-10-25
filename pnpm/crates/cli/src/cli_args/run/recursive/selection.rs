@@ -90,11 +90,6 @@ pub(super) fn run_state_settings(
 ) -> Vec<String> {
     let mut sync_injected = config.sync_injected_deps_after_scripts.clone();
     sync_injected.sort();
-    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-        pnpm_config::ScriptsPrependNodePath::Always => "true",
-        pnpm_config::ScriptsPrependNodePath::Never => "false",
-        pnpm_config::ScriptsPrependNodePath::WarnOnly => "warn-only",
-    };
     let mut settings = task_run_execution_settings(&TaskRunExecutionSettings {
         extra_bin_paths: &config.extra_bin_paths,
         extra_env,
@@ -106,7 +101,6 @@ pub(super) fn run_state_settings(
     settings.extend([
         format!("enable-pre-post-scripts={}", config.enable_pre_post_scripts),
         format!("script-shell={}", config.script_shell.as_deref().unwrap_or_default()),
-        format!("scripts-prepend-node-path={scripts_prepend_node_path}"),
         format!("shell-emulator={}", config.shell_emulator),
         format!(
             "sync-injected-deps-after-scripts={}",

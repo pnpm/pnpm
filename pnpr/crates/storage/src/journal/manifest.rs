@@ -1,4 +1,4 @@
-use super::{Ecosystem, JournaledRevisionRef, PackageId, default_format_version};
+use super::{Ecosystem, PackageId, default_format_version};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -28,8 +28,6 @@ pub(super) struct ManifestPackage {
     pub(super) document_file: String,
     #[serde(alias = "tarballs")]
     pub(super) blobs: Vec<ManifestBlob>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub(super) revision_refs: Vec<JournaledRevisionRef>,
 }
 
 impl ManifestPackage {

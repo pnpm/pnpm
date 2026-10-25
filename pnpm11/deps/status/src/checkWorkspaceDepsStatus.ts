@@ -1,16 +1,18 @@
 import type fs from 'node:fs'
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { createProjectModulesDirResolver } from '@pnpm/config.reader'
 import { MANIFEST_BASE_NAMES } from '@pnpm/constants'
 import { getLockfileImporterId, type LockfileObject, readCurrentLockfile } from '@pnpm/lockfile.fs'
+import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
 import { logger } from '@pnpm/logger'
 import type { Project, ProjectId } from '@pnpm/types'
-import type { WorkspaceState } from '@pnpm/workspace.state'
-import { equals, filter } from 'ramda'
+import { workspaceBinsDigest, type WorkspaceState } from '@pnpm/workspace.state'
 
 import { assertWorkspaceProjectsUpToDate } from './assertWantedLockfileUpToDate.js'
 import { findModulesDirIssue, type ProjectStats, selectProjectDirs } from './findModulesDirIssue.js'
+import { findWorkspaceBinsIssue, findWorkspaceStructureIssue } from './findWorkspaceStructureIssue.js'
 import { modifiedAtOrAfter } from './modifiedAtOrAfter.js'
 import { errorMessageOf, outdatedResult } from './outdatedResult.js'
 import { patchesOrHooksAreModified } from './patchesOrHooksAreModified.js'
@@ -46,13 +48,15 @@ interface WantedLockfileReader {
 
 export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext): Promise<CheckDepsStatusResult> {
   const { allProjects, opts, workspaceState } = ctx
-  const structureIssue = findWorkspaceStructureIssue(ctx)
+  const workspaceBins = workspaceBinsDigest(workspaceLockfileDir(ctx), allProjects)
+  const structureIssue = findWorkspaceStructureIssue(ctx) ?? findWorkspaceBinsIssue(ctx, createInstallCoverage(ctx), workspaceBins)
   if (structureIssue != null) return outdatedResult(structureIssue, workspaceState)
 
   const allManifestStats = await statProjects(opts, allProjects)
   const proof = opts.sharedWorkspaceLockfile === false && coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     ? undefined
     : validationProof(workspaceState, workspaceLockfileDir(ctx), {
+      workspaceBins: workspaceBins ?? null,
       wantedLockfileName: ctx.wantedLockfileName,
       sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
       unmergedBranchLockfiles: opts.sharedWorkspaceLockfile !== false && opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
@@ -173,10 +177,36 @@ async function validateModifiedWorkspace (
     return outdatedResult(errorMessageOf(err), workspaceState)
   }
 
+  if (await recordedKeyVerificationIsStale(ctx, projectsToCheck, readWantedLockfileAndDir)) {
+    // A gate that ignores `registryPrefixes` passes without recording the
+    // lockfile, so the next install checks its keys again.
+    if (ctx.opts.ignoredWorkspaceStateSettings?.includes('registryPrefixes')) {
+      return { upToDate: true, workspaceState, wantedLockfileToRestore }
+    }
+    return outdatedResult('The lockfile records registry keys that the registries setting no longer writes', workspaceState)
+  }
+
   // update lastValidatedTimestamp to prevent pointless repeat
   await recordVouchedWorkspaceState(ctx, vouched.vouchedProjects)
 
   return { upToDate: true, workspaceState, wantedLockfileToRestore }
+}
+
+/**
+ * A recorded registry-key verification covers the lockfiles it was made for,
+ * and recording a passing check carries it forward. A lockfile changed since
+ * may record keys the registries setting no longer writes.
+ */
+async function recordedKeyVerificationIsStale (
+  { opts, workspaceState }: WorkspaceDepsStatusContext,
+  projectsToCheck: ProjectStats[],
+  readWantedLockfileAndDir: ReadWantedLockfileAndDir
+): Promise<boolean> {
+  const { registriesByScope } = opts
+  if (workspaceState.settings.registryPrefixes == null || registriesByScope == null) return false
+  const registries = pickRegistryContext({ ...opts, registriesByScope })
+  const lockfiles = await Promise.all(projectsToCheck.map(async ({ project }) => (await readWantedLockfileAndDir(project.rootDir)).wantedLockfile))
+  return [...new Set(lockfiles)].some((lockfile) => findOutdatedRegistryKey(lockfile, registries) != null)
 }
 
 async function recordVouchedWorkspaceState (
@@ -297,25 +327,6 @@ function createInstallCoverage (
     include: workspaceInclude(ctx),
   })
   return (rootDir) => selected.has(path.resolve(rootDir))
-}
-
-function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState }: WorkspaceDepsStatusContext): string | undefined {
-  if (!equals(
-    filter(value => value != null, workspaceState.settings.catalogs ?? {}),
-    filter(value => value != null, opts.catalogs ?? {})
-  )) {
-    return 'Catalogs cache outdated'
-  }
-  if (allProjects.length !== Object.keys(workspaceState.projects).length ||
-    !allProjects.every((currentProject) => {
-      const prevProject = workspaceState.projects[currentProject.rootDir]
-      if (!prevProject) return false
-      return prevProject.name === currentProject.manifest.name && (prevProject.version ?? '0.0.0') === (currentProject.manifest.version ?? '0.0.0')
-    })
-  ) {
-    return 'The workspace structure has changed since last install'
-  }
-  return undefined
 }
 
 async function statProjects (opts: CheckDepsStatusOptions, allProjects: Project[]): Promise<ProjectStats[]> {

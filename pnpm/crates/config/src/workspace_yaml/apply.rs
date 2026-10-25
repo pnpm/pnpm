@@ -182,6 +182,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir.take() {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
+        if let Some(dirs) = self.symlinked_lockfile_target_dirs.take() {
+            config.symlinked_lockfile_target_dirs = absolute_dirs(dirs);
+        }
     }
 
     /// Registry endpoints, their credentials, and the caches keyed by them.
@@ -341,7 +344,6 @@ impl WorkspaceSettings {
         // file carries both.
         overlay_some(&mut config.max_sockets, self.maxsockets.take());
         overlay_some(&mut config.max_sockets, self.max_sockets.take());
-        overlay(&mut config.scripts_prepend_node_path, self.scripts_prepend_node_path.take());
         overlay(&mut config.script_shell, self.script_shell.take());
         overlay(&mut config.node_options, self.node_options.take());
         overlay(&mut config.unsafe_perm, self.unsafe_perm.take());
@@ -478,4 +480,24 @@ impl WorkspaceSettings {
         }
         *proxy_config = keys.resolve();
     }
+}
+
+/// The absolute entries of `symlinkedLockfileTargetDirs`. A relative entry is
+/// dropped: the global config and the environment resolve relative paths
+/// against the working directory, which may be a repository's checkout.
+fn absolute_dirs(dirs: Vec<String>) -> Vec<std::path::PathBuf> {
+    dirs.into_iter()
+        .map(std::path::PathBuf::from)
+        .filter(|dir| {
+            let absolute = dir.is_absolute();
+            if !absolute {
+                let dir = dir.display();
+                tracing::warn!(
+                    target: "pacquet::config",
+                    "Ignoring {dir} in symlinkedLockfileTargetDirs because it is not an absolute path.",
+                );
+            }
+            absolute
+        })
+        .collect()
 }

@@ -37,7 +37,7 @@ async fn explicit_revision_selects_its_artifact_and_manifest() {
         panic!("expected tarball resolution");
     };
     assert_eq!(resolution.revision.map(TarballRevision::get), Some(1));
-    assert!(resolution.tarball.ends_with("sha512/Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g"));
+    assert!(resolution.tarball.ends_with("/acme@1.0.0+r1"));
     assert_eq!(result.normalized_bare_specifier.as_deref(), Some("1.0.0+r1"));
     let manifest = result.package.manifest.as_ref().expect("manifest");
     assert_eq!(manifest["name"], "acme");
@@ -51,7 +51,7 @@ async fn explicit_revision_selects_its_artifact_and_manifest() {
 async fn revision_metadata_rejects_a_tarball_from_another_registry() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let tarball = format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86));
+    let tarball = "https://attacker.example/acme@1.0.0+r1".to_string();
     server
         .mock("GET", "/acme")
         .with_status(200)

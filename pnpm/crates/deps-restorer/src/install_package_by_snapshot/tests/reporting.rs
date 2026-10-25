@@ -60,7 +60,7 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
     assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
 }
 #[test]
-fn registry_revision_uses_the_scoped_registry_digest_route() {
+fn registry_revision_uses_the_scoped_registry_revision_route() {
     let mut config = Config::new();
     config.registry = "https://default.example/npm/".to_string();
     config.registries_by_scope.insert(
@@ -76,10 +76,7 @@ fn registry_revision_uses_the_scoped_registry_digest_route() {
     let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
         .expect("a revision with complete integrity is fetchable");
 
-    assert_eq!(
-        tarball_url.as_ref(),
-        format!("https://private.example/npm/-/tarballs/sha512/{}", "A".repeat(86)),
-    );
+    assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo@1.0.0+r2");
 }
 /// A custom fetcher may delegate to a directory resolution, in which
 /// case the file map points at mutable local source even though the

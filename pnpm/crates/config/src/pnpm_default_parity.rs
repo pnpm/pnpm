@@ -27,8 +27,7 @@
 
 use crate::{
     CatalogMode, ColorMode, Config, InitType, LinkWorkspacePackages, NodeLinker,
-    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    VerifyDepsBeforeRun,
+    NodePackageMapType, ResolutionMode, SaveWorkspaceProtocol, VerifyDepsBeforeRun,
 };
 use std::collections::BTreeSet;
 
@@ -65,9 +64,11 @@ const NON_LITERAL: &[&str] = &[
     "workspace-prefix",             // the discovered workspace directory
 ];
 
-/// pnpm settings pacquet has no `Config` field for yet. Porting one
-/// means moving its key from here into a `mapped` row.
-const NOT_PORTED: &[&str] = &[];
+/// pnpm settings pacquet has no `Config` field for. Porting one means
+/// moving its key from here into a `mapped` row.
+const NOT_PORTED: &[&str] = &[
+    "scripts-prepend-node-path", // ignored: no Node.js process runs pnpm
+];
 
 /// Settings both stacks implement but deliberately default differently,
 /// with the reason each divergence is intended. Entries here are exempt
@@ -155,11 +156,6 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         // `boolean | 'install' | 'warn' | 'error' | 'prompt'` upstream;
         // the default is `'install'`.
         ("verify-deps-before-run", verify_deps_before_run_scalar(cfg.verify_deps_before_run)),
-        // `boolean | 'warn-only'` upstream; the default is `false`.
-        (
-            "scripts-prepend-node-path",
-            scripts_prepend_node_path_scalar(cfg.scripts_prepend_node_path),
-        ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
         ("node-experimental-package-map", Bool(cfg.node_package_map_mode.loads())),
         ("node-package-map-type", node_package_map_type_scalar(cfg.node_package_map_type)),
@@ -294,14 +290,6 @@ fn save_workspace_protocol_scalar(value: SaveWorkspaceProtocol) -> Scalar {
         SaveWorkspaceProtocol::Off => Scalar::Bool(false),
         SaveWorkspaceProtocol::On => Scalar::Bool(true),
         SaveWorkspaceProtocol::Rolling => s("rolling"),
-    }
-}
-
-fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
-    match value {
-        ScriptsPrependNodePath::Never => Scalar::Bool(false),
-        ScriptsPrependNodePath::Always => Scalar::Bool(true),
-        ScriptsPrependNodePath::WarnOnly => s("warn-only"),
     }
 }
 

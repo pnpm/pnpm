@@ -4,7 +4,6 @@ use super::{
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
 use pnpm_config::PackageImportMethod;
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_patching::ExtendedPatchInfo;
 use pnpm_reporter::SilentReporter;
@@ -124,11 +123,7 @@ new file mode 100644
             scripts: crate::BuildScriptOptions {
                 extra_env: &HashMap::new(),
                 user_agent: "pnpm/test",
-                path: crate::ScriptPath {
-                    prepend_node_path: ScriptsPrependNodePath::Never,
-                    extra_bin_paths: &[],
-                    private_hoisting: false,
-                },
+                path: crate::ScriptPath { extra_bin_paths: &[], private_hoisting: false },
                 shell: None,
                 shell_emulator: false,
                 unsafe_perm: true,

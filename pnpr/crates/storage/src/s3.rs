@@ -13,17 +13,13 @@
 //! resolver `SQLite` stores stay on local disk regardless —
 //! only the hosted store is pluggable.
 
-mod revision_refs;
-
 mod hosted_backend;
 
 mod records;
 
 use crate::{
-    BLOBS_DIR, BlobFinalize, DOCUMENT_FILE, DocumentWrite, HOSTED_REVISION_REF_INDEX_FILE,
-    HOSTED_REVISION_REFS_DIR, HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion,
-    HostedRevisionRefIndex, HostedRevisionRefWrite, PACKAGES_DIR, decode_segment, encode_segment,
-    wait_after_document_write_conflict,
+    BLOBS_DIR, BlobFinalize, DOCUMENT_FILE, DocumentWrite, HostedBackend, HostedDocumentForUpdate,
+    HostedDocumentVersion, PACKAGES_DIR, decode_segment, encode_segment,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -53,8 +49,6 @@ const MAX_SINGLE_PUT_BYTES: u64 = 128 * 1024 * 1024;
 /// How much of a large blob is sent per part. S3 requires at least 5 MiB for
 /// every part but the last.
 const MULTIPART_PART_BYTES: usize = 8 * 1024 * 1024;
-
-const REVISION_REF_WRITE_RETRIES: usize = 32;
 
 /// Object-store-backed hosted store. Mirrors the verdaccio-shaped
 /// key layout the on-disk [`crate`] uses

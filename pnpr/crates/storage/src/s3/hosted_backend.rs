@@ -1,7 +1,7 @@
 use super::{
     Arc, BlobFinalize, Body, CanonicalPackageName, DocumentWrite, HostedBackend,
-    HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefWrite, ObjectPath,
-    ObjectStoreExt, Path, PathBuf, Result, S3Store, StreamExt, async_trait, fs,
+    HostedDocumentForUpdate, HostedDocumentVersion, ObjectPath, ObjectStoreExt, Path, PathBuf,
+    Result, S3Store, StreamExt, async_trait, fs,
 };
 
 /// The S3-compatible object-store backend. Document writes are
@@ -178,28 +178,6 @@ impl HostedBackend for S3Store {
 
     async fn list_top_level_dirs(&self) -> Result<Vec<String>> {
         S3Store::list_top_level_dirs(self).await
-    }
-
-    async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>> {
-        S3Store::read_revision_refs(self, digest).await
-    }
-
-    async fn write_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-        bytes: &[u8],
-    ) -> Result<HostedRevisionRefWrite> {
-        S3Store::write_revision_ref(self, digest, ref_id, owner, bytes).await
-    }
-
-    async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
-        S3Store::remove_revision_ref(self, digest, ref_id, owner).await
-    }
-
-    async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()> {
-        S3Store::commit_revision_ref(self, digest, ref_id, owner).await
     }
 
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend> {

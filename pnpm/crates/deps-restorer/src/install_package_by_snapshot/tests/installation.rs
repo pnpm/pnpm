@@ -31,16 +31,13 @@ fn registry_revision_uses_the_registry_declared_for_its_prefix() {
     let (tarball_url, _) = tarball_url_and_integrity(&resolution, &package_key, &config)
         .expect("a prefixed registry revision is fetchable");
 
-    assert_eq!(
-        tarball_url.as_ref(),
-        format!("https://registry.example/workspace/npm/-/tarballs/sha512/{}", "A".repeat(86)),
-    );
+    assert_eq!(tarball_url.as_ref(), "https://registry.example/workspace/npm/foo@1.0.0+r4");
 }
 #[test]
 fn tarball_revision_rejects_a_url_outside_its_effective_registry() {
     let config = Config::new();
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86)),
+        tarball: "https://attacker.example/foo@1.0.0+r1".to_string(),
         integrity: Some(DUMMY_SHA512.parse().expect("parse integrity")),
         revision: Some(TarballRevision::try_from(1).unwrap()),
         git_hosted: None,

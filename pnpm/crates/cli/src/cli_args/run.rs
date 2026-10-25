@@ -1,5 +1,4 @@
 pub(crate) use environment::script_environment;
-pub(crate) use execution::exec_scripts_prepend_node_path;
 pub(super) use execution::{RunContext, get_run_script_commands, run_stages};
 pub(crate) use injected_sync::project_modules_dirs;
 pub(super) use listing::ScriptSelector;
@@ -22,8 +21,7 @@ use listing::{render_project_commands, throw_or_filter_hidden_scripts};
 use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::{
-    ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, exit_like,
-    interrupt_count, run_script,
+    ProcessTracker, RunScript, ScriptExit, ScriptOutput, exit_like, interrupt_count, run_script,
 };
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,

@@ -410,7 +410,7 @@ fn slot_import_opts<'a>(
             reuse_hardlinks: source_is_mutable && !force_import && !interrupted_build,
             keep_modules_dir: true,
             safe_to_skip,
-            preserve_symlinks: source_is_mutable,
+            symlink_targets: source_is_mutable.then_some(crate::SymlinkTargets::Imported),
             swap_lock,
         };
     }

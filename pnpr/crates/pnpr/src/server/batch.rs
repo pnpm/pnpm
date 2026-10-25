@@ -1,10 +1,8 @@
 //! `PUT /-/pnpr/v0/publish` — one publish transaction across ecosystems.
 //!
-//! The npm surface has a batch endpoint of its own (`/-/pnpm/v1/publish`),
-//! but its address belongs to that surface: it answers under `/npm/` too. A
-//! batch that carries a crate beside a package needs an address that belongs
-//! to no ecosystem, so this one lives in pnpr's own namespace, beside
-//! `resolve`.
+//! Mounted at the server root and under `/npm/`, so both cross-ecosystem
+//! releases and `pnpm publish --batch` (which resolves relative to the
+//! configured npm registry URL) address the same handler.
 //!
 //! Each entry names its `ecosystem` — absent means npm, so an npm batch body
 //! is already a valid one — and carries what that surface's own publish

@@ -496,7 +496,7 @@ fn serialize_variations_resolution() {
 #[test]
 fn to_lockfile_form_rejects_a_revision_with_a_mismatched_url() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86)),
+        tarball: "https://attacker.example/foo@1.0.0+r3".to_string(),
         integrity: Some(integrity(REVISION_SHA512)),
         revision: Some(TarballRevision::try_from(3).unwrap()),
         git_hosted: None,

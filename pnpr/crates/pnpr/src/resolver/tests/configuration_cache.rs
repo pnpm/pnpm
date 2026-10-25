@@ -713,3 +713,30 @@ fn intern_config_keys_add_missing_peer_types() {
         resolution_cache_key(off, &cache_request).expect("resolution cache key"),
     );
 }
+
+/// A request declares one prefix per registry URL, so it must be the one the
+/// client keys that registry's packages by.
+#[test]
+fn the_server_keys_a_registry_by_the_client_s_prefix() {
+    use super::super::intern_config;
+    use pnpm_store_dir::StoreDir;
+
+    const REGISTRY: &str = "https://npm.corp.example/";
+    let mut client = PacquetConfig::new();
+    for prefix in ["zeta", "work"] {
+        client.registries_by_prefix.insert(prefix.to_string(), REGISTRY.to_string());
+    }
+    let request = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "registries": client.registry_declarations(),
+    }))
+    .expect("resolve request parses");
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-registry-prefix-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-registry-prefix-cache");
+    let server = intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+        .expect("intern config");
+
+    assert_eq!(client.declared_registry_prefixes().prefix_for(REGISTRY), Some("work"));
+    assert_eq!(server.declared_registry_prefixes().prefix_for(REGISTRY), Some("work"));
+}

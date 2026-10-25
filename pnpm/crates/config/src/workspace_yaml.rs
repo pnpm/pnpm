@@ -2,6 +2,7 @@ pub mod package_configs;
 pub mod registries;
 pub use error::LoadWorkspaceYamlError;
 pub(crate) use includes::read_workspace_document;
+pub(crate) use parse_settings::parse_settings;
 pub use permissions::{
     PackagePermissions, PermissionCapability, SkillsSettings, decided_permissions,
 };
@@ -14,14 +15,13 @@ pub use sections::{
     RemoteSideEffectsCacheSettings, SideEffectsCacheSetting, SideEffectsCacheSettings,
     TaskSettings, Tool, ToolSettings, UpdateConfig, UpdateSettings, decided_allow_builds,
 };
-pub(crate) use settings::parse_settings;
 pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSettings};
 
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
     NodeLinkerSetting, NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
@@ -428,6 +428,8 @@ mod resolved;
 mod reset;
 
 mod settings;
+
+mod parse_settings;
 
 mod includes;
 

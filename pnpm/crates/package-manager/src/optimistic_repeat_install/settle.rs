@@ -32,7 +32,10 @@ pub(super) fn regenerate_wanted_lockfile_if_missing(
         return Ok(false);
     };
     current
-        .save_to_path(&check.workspace_root.join(check.config.wanted_lockfile_name()))
+        .save_to_path(
+            &check.workspace_root.join(check.config.wanted_lockfile_name()),
+            check.config.symlinked_lockfile(),
+        )
         .map(|()| true)
         .map_err(|_| "failed to regenerate the wanted lockfile from the current lockfile")
 }

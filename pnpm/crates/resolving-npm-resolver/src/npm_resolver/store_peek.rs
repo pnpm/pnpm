@@ -10,9 +10,10 @@ use pnpm_resolving_resolver_base::{
 use pnpm_store_dir::{SharedReadonlyStoreIndex, StoreIndex, store_index_key};
 
 use super::{
-    NPM_REGISTRY_RESOLVED_VIA, NpmResolver,
+    NPM_REGISTRY_RESOLVED_VIA, NpmResolver, ResolvedRegistry,
     guarded_pick::RegistryPick,
     release_policy::detect_min_release_age_violation,
+    resolution_result::resolution_id,
     workspace_pick::{prefer_workspace_pick, workspace_fallback_for},
 };
 use crate::{
@@ -33,10 +34,11 @@ pub(crate) async fn fast_path_pick(
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
     workspace_packages_active: Option<&Arc<WorkspacePackages>>,
+    key_prefix: Option<&str>,
 ) -> Result<Option<ResolveResult>, ResolveError> {
     if !opts.refresh.repick_current_version
         && let Some(result) =
-            peek_manifest_from_store(store_index, wanted_dependency, opts, spec).await?
+            peek_manifest_from_store(store_index, wanted_dependency, opts, spec, key_prefix).await?
     {
         return Ok(Some(result));
     }
@@ -62,22 +64,28 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         &self,
         outcome: Result<RegistryPick, ResolveError>,
         wanted_dependency: &WantedDependency,
-        registry: &str,
+        registry: ResolvedRegistry<'_>,
         workspace_packages_active: Option<&Arc<WorkspacePackages>>,
         spec: &RegistryPackageSpec,
         opts: &ResolveOptions,
     ) -> Result<Option<ResolveResult>, ResolveError> {
         if opts.refresh.repick_current_version
             && lacks_offline_metadata(&outcome)
-            && let Some(result) =
-                peek_manifest_from_store(self.store_index(), wanted_dependency, opts, spec).await?
+            && let Some(result) = peek_manifest_from_store(
+                self.store_index(),
+                wanted_dependency,
+                opts,
+                spec,
+                registry.key_prefix,
+            )
+            .await?
         {
             return Ok(Some(result));
         }
         workspace_fallback_for(
             outcome,
             wanted_dependency,
-            registry,
+            registry.url,
             workspace_packages_active,
             spec,
             opts,
@@ -89,11 +97,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     }
 }
 
+/// `key_prefix` is the prefix the resolved id carries, as for a registry
+/// pick: the locked id is not copied, so a package the lockfile keys
+/// otherwise is re-keyed even when its manifest comes from the store.
 pub(crate) async fn peek_manifest_from_store(
     store_index: Option<&SharedReadonlyStoreIndex>,
     wanted_dependency: &WantedDependency,
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
+    key_prefix: Option<&str>,
 ) -> Result<Option<ResolveResult>, ResolveError> {
     let Some(store_index) = store_index else {
         return Ok(None);
@@ -104,7 +116,7 @@ pub(crate) async fn peek_manifest_from_store(
     let Some(manifest) = fetch_cached_manifest(store_index, current_pkg).await else {
         return Ok(None);
     };
-    build_peek_result(wanted_dependency, opts, spec, current_pkg, manifest)
+    build_peek_result(wanted_dependency, opts, spec, (current_pkg, key_prefix), manifest)
 }
 
 fn is_eligible_for_store_peek<'a>(
@@ -158,7 +170,7 @@ fn build_peek_result(
     wanted_dependency: &WantedDependency,
     opts: &ResolveOptions,
     spec: &RegistryPackageSpec,
-    current_pkg: &CurrentPkg,
+    (current_pkg, key_prefix): (&CurrentPkg, Option<&str>),
     manifest: serde_json::Value,
 ) -> Result<Option<ResolveResult>, ResolveError> {
     let (Some(name), Some(version)) = (
@@ -186,7 +198,7 @@ fn build_peek_result(
     );
     let name_ver = PkgNameVer::new(pkg_name, semver_ver);
     Ok(Some(ResolveResult {
-        id: current_pkg.id.clone(),
+        id: resolution_id(key_prefix, &name_ver),
         policy_violation,
         resolution: current_pkg.resolution.clone(),
         resolved_via: NPM_REGISTRY_RESOLVED_VIA.to_string(),

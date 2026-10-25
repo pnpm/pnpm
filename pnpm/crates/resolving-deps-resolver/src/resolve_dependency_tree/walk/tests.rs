@@ -9,36 +9,94 @@ use super::locked_versions::{
     exact_registry_specifier_for_revision_refresh, registry_revisions_conflict,
 };
 
+/// `corp` and `zeta` both declare one registry; its keys carry `corp`.
+fn corp_registries() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://corp.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries_by_prefix: std::collections::HashMap::from([
+            ("corp".to_string(), registry.to_string()),
+            ("zeta".to_string(), registry.to_string()),
+        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
+            ("corp", registry),
+            ("zeta", registry),
+        ]),
+        ..Default::default()
+    }
+}
+
 fn key(raw: &str) -> PkgNameVerPeer {
     raw.parse().expect("parse snapshot key")
 }
 
+fn no_prefixes() -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext::default()
+}
+
+/// `work` declared for the default registry.
+fn work_default_registry() -> pnpm_lockfile::RegistryContext {
+    let registry = "https://registry.example.test/";
+    pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            registry.to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            registry.to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", registry)]),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn matches_the_re_keyed_id_of_the_recorded_entry() {
+    let registries = work_default_registry();
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@work:1.0.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@work:1.1.0", &registries));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@work:1.0.0", &no_prefixes()));
+}
+
 #[test]
 fn matches_a_plain_registry_id() {
-    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0"));
-    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.1.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0", &no_prefixes()));
+    assert!(!landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.1.0", &no_prefixes()));
 }
 
 #[test]
 fn strips_the_recorded_key_peer_and_patch_suffixes() {
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0"));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0"));
-    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"), "foo@1.0.0"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(bar@2.0.0)"), "foo@1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0(patch_hash=0000)"), "foo@1.0.0", &no_prefixes()));
+    assert!(landed_on_prior_entry(
+        &key("foo@1.0.0(patch_hash=0000)(bar@2.0.0)"),
+        "foo@1.0.0",
+        &no_prefixes()
+    ));
 }
 
 #[test]
 fn strips_the_resolved_id_patch_suffix() {
     assert!(landed_on_prior_entry(
         &key("foo@1.0.0(patch_hash=0000)"),
-        "foo@1.0.0(patch_hash=0000)"
+        "foo@1.0.0(patch_hash=0000)",
+        &no_prefixes()
     ),);
-    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)"));
+    assert!(landed_on_prior_entry(&key("foo@1.0.0"), "foo@1.0.0(patch_hash=0000)", &no_prefixes()));
 }
 
 #[test]
 fn matches_a_name_prefixed_file_id() {
-    assert!(landed_on_prior_entry(&key("foo@file:packages/foo"), "foo@file:packages/foo"));
-    assert!(!landed_on_prior_entry(&key("foo@file:packages/foo"), "file:packages/foo"));
+    assert!(landed_on_prior_entry(
+        &key("foo@file:packages/foo"),
+        "foo@file:packages/foo",
+        &no_prefixes()
+    ));
+    assert!(!landed_on_prior_entry(
+        &key("foo@file:packages/foo"),
+        "file:packages/foo",
+        &no_prefixes()
+    ));
 }
 
 fn revision_resolution(revision: u64, integrity: &str) -> LockfileResolution {
@@ -73,9 +131,18 @@ fn identical_registry_revisions_can_share_an_identity() {
 
 #[test]
 fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selectors() {
-    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None), "1.2.3");
+    let registries = corp_registries();
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("npm:@scope/pkg@^1.0.0", "1.2.3", None,),
+        exact_registry_specifier_for_revision_refresh("^1.0.0", "1.2.3", None, &registries),
+        "1.2.3",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh(
+            "npm:@scope/pkg@^1.0.0",
+            "1.2.3",
+            None,
+            &registries,
+        ),
         "npm:@scope/pkg@1.2.3",
     );
     assert_eq!(
@@ -83,31 +150,56 @@ fn revision_refresh_pins_registry_specifiers_without_overriding_revision_selecto
             "corp:@scope/pkg@^1.0.0",
             "1.2.3",
             Some("corp"),
+            &registries,
         ),
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("corp:@scope/pkg", "1.2.3", Some("corp"),),
+        exact_registry_specifier_for_revision_refresh(
+            "corp:@scope/pkg",
+            "1.2.3",
+            Some("corp"),
+            &registries,
+        ),
         "corp:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("corp:pkg", "1.2.3", Some("corp"),),
+        exact_registry_specifier_for_revision_refresh(
+            "corp:pkg",
+            "1.2.3",
+            Some("corp"),
+            &registries
+        ),
         "corp:pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None,),
+        exact_registry_specifier_for_revision_refresh(
+            "zeta:pkg@^1.0.0",
+            "1.2.3",
+            Some("zeta"),
+            &registries
+        ),
+        "zeta:pkg@1.2.3",
+        "a key an older configuration wrote with another alias of the registry",
+    );
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("jsr:@scope/pkg", "1.2.3", None, &registries),
         "jsr:@scope/pkg@1.2.3",
     );
     assert_eq!(
-        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None),
+        exact_registry_specifier_for_revision_refresh("1.2.3+r1", "1.2.3", None, &registries),
         "1.2.3+r1",
     );
-    assert_eq!(exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None), "1.2.3");
+    assert_eq!(
+        exact_registry_specifier_for_revision_refresh("^1.2.3+r1", "1.2.3", None, &registries),
+        "1.2.3",
+    );
     assert_eq!(
         exact_registry_specifier_for_revision_refresh(
             "git+https://example.test/repo.git",
             "1.2.3",
-            None
+            None,
+            &registries,
         ),
         "git+https://example.test/repo.git",
     );
@@ -260,4 +352,23 @@ mod overlay_view {
         );
         assert_ne!(direct_view, descendant_view);
     }
+}
+
+/// A transitive edge keeps the version its registry-qualified key locks, as
+/// it keeps a plain key's.
+#[test]
+fn a_registry_qualified_locked_version_pins_a_transitive_range() {
+    let ctx = crate::resolve_dependency_tree::TreeCtx::with_workspace(
+        std::sync::Arc::new(
+            crate::resolve_dependency_tree::workspace_ctx::WorkspaceTreeCtx::default(),
+        ),
+        pnpm_resolving_resolver_base::ResolveOptions::default(),
+    );
+    let mut wanted = pnpm_resolving_resolver_base::WantedDependency {
+        alias: Some("foo".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..Default::default()
+    };
+    super::locked_versions::pin_locked_version(&ctx, &mut wanted, Some(&key("foo@work:1.0.0")), 1);
+    assert_eq!(wanted.bare_specifier.as_deref(), Some("1.0.0"));
 }

@@ -17,11 +17,15 @@ Web-based login does not require an interactive terminal. Without a TTY, `pnpm l
 
 Since v12.13.0, web-based login prints the registry's `npm-notice` messages before the authentication URL. Some registries use them to show a verification code that you confirm in the browser.
 
-Since v12.1.0, the granted token is written to the global
-[`config.yaml`](./config.md), under the structured [`_auth`](../npmrc.md#_auth)
-setting. When `--scope` is present, the same write routes that scope to the
-registry under the global [`registries`](../registries.md) setting. pnpm still
-reads tokens written to [`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations).
+The granted token is written to
+[`<pnpm config>/auth.ini`](../npmrc.md#auth-file-locations). Since v12.1.0,
+`--scope` also routes that scope to the registry under the global
+[`registries`](../registries.md) setting in [`config.yaml`](./config.md).
+
+From v12.1.0 to v12.15.0, the token was written to the
+[`_auth`](../npmrc.md#_auth) setting in the global `config.yaml`. There, an
+unscoped token also made its registry the default. Since v12.16.0 a login
+removes the token it replaces from `_auth`.
 
 ## Options
 

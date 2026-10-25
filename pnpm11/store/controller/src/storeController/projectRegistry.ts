@@ -5,7 +5,6 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { isSubdir } from 'is-subdir'
-import { symlinkDir } from 'symlink-dir'
 
 const PROJECTS_DIR = 'projects'
 
@@ -15,7 +14,12 @@ export function getProjectsRegistryDir (storeDir: string): string {
 
 /**
  * Register a project as using the store.
- * Creates a symlink in {storeDir}/projects/{hash} → {projectDir}
+ * Creates a symlink in {storeDir}/projects/{hash} → {projectDir}.
+ *
+ * The link holds `projectDir` as given, not a path relative to the link,
+ * because a relative path computed between two spellings that cross a
+ * symlink at different depths resolves elsewhere. An existing entry that no
+ * longer resolves to `projectDir` is replaced.
  */
 export async function registerProject (storeDir: string, projectDir: string): Promise<void> {
   // Avoid creating circular symlinks when the store is inside the project directory
@@ -25,8 +29,62 @@ export async function registerProject (storeDir: string, projectDir: string): Pr
   const registryDir = getProjectsRegistryDir(storeDir)
   await fs.mkdir(registryDir, { recursive: true })
   const linkPath = path.join(registryDir, createShortHash(projectDir))
-  // symlink-dir handles the case where the symlink already exists
-  await symlinkDir(projectDir, linkPath)
+  try {
+    await linkProject(projectDir, linkPath)
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'EEXIST')) throw err
+    if (!await resolvesToSameDir(linkPath, projectDir)) {
+      await replaceProjectLink(projectDir, linkPath)
+    }
+  }
+}
+
+/**
+ * A concurrent registration of the same project may remove the entry first,
+ * or recreate it between the removal and the create.
+ */
+async function replaceProjectLink (projectDir: string, linkPath: string): Promise<void> {
+  try {
+    await fs.unlink(linkPath)
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'ENOENT')) throw err
+  }
+  try {
+    await linkProject(projectDir, linkPath)
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'EEXIST') || !await resolvesToSameDir(linkPath, projectDir)) throw err
+  }
+}
+
+function hasErrorCode (err: unknown, code: string): boolean {
+  return isError(err) && 'code' in err && err.code === code
+}
+
+/**
+ * Windows lets only privileged processes create symlinks, so the link falls
+ * back to a junction there.
+ */
+async function linkProject (projectDir: string, linkPath: string): Promise<void> {
+  const target = path.resolve(projectDir)
+  try {
+    await fs.symlink(target, linkPath, 'dir')
+  } catch (err: unknown) {
+    if (process.platform !== 'win32' || !hasErrorCode(err, 'EPERM')) throw err
+    await fs.symlink(target, linkPath, 'junction')
+  }
+}
+
+/**
+ * An entry that cannot be resolved for any reason is replaced. A real
+ * permission problem then surfaces from the removal.
+ */
+async function resolvesToSameDir (linkPath: string, projectDir: string): Promise<boolean> {
+  try {
+    const [linkTarget, project] = await Promise.all([fs.realpath(linkPath), fs.realpath(projectDir)])
+    return linkTarget === project
+  } catch {
+    return false
+  }
 }
 
 /**

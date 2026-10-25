@@ -294,7 +294,6 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
         document: document.to_bytes(),
         base_version: stored.map(|stored| stored.version),
         slots: vec![slot],
-        revision_refs: Vec::new(),
         org: Some(org.to_string()),
     })
 }

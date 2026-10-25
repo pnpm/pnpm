@@ -569,7 +569,7 @@ fn hoisted_import_opts<'a>(
     ImportIndexedDirOpts {
         force: files.source_exists || !files.source_is_mutable,
         keep_modules_dir: true,
-        preserve_symlinks: files.source_is_mutable,
+        symlink_targets: files.source_is_mutable.then_some(crate::SymlinkTargets::Imported),
         swap_lock,
         ..ImportIndexedDirOpts::default()
     }

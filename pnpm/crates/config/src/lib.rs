@@ -40,8 +40,7 @@ pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
     PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType,
+    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
 pub use settings::{Config, HoistPatterns, MacosBackupConfig};
 pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};
@@ -96,7 +95,7 @@ use crate::{
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_branches_containing_head, get_current_branch};
-use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
+use pnpm_lockfile::{Lockfile, RegistryOptions, SymlinkedLockfile, WantedLockfileSelection};
 use pnpm_matcher::create_matcher;
 use pnpm_patching::{
     CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,

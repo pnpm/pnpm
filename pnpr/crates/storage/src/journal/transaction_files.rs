@@ -1,7 +1,7 @@
 use super::{
     AsyncWriteExt, COMMIT_MARKER, JOURNAL_FORMAT_VERSION, JournaledPublish, MANIFEST_FILE,
-    Manifest, ManifestBlob, ManifestPackage, Ordering, Path, RegistryError, Result, SystemTime,
-    TXN_COUNTER, UNIX_EPOCH, fs, io, is_canonical_revision_ref_owner, unique_tmp_path,
+    Manifest, ManifestBlob, ManifestPackage, Ordering, Path, Result, SystemTime, TXN_COUNTER,
+    UNIX_EPOCH, fs, io, unique_tmp_path,
 };
 
 /// Write the transaction's documents and manifest and seal them with the
@@ -27,7 +27,6 @@ pub(super) async fn write_transaction(dir: &Path, packages: &[JournaledPublish<'
                     tmp_path: slot.tmp_path.clone(),
                 })
                 .collect(),
-            revision_refs: package.revision_refs.to_vec(),
         });
     }
     write_synced(&dir.join(MANIFEST_FILE), &serde_json::to_vec_pretty(&manifest)?).await?;
@@ -78,22 +77,6 @@ pub(super) fn txn_id() -> String {
         .as_millis() as u64;
     let counter = TXN_COUNTER.fetch_add(1, Ordering::Relaxed);
     format!("{millis:016}-{}-{counter}", std::process::id())
-}
-
-pub(super) fn revision_ref_owner(dir: &Path) -> Result<&str> {
-    let owner = dir
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| RegistryError::Internal {
-            reason: format!("publish journal path has no transaction id: {}", dir.display()),
-        })?;
-    if is_canonical_revision_ref_owner(owner) {
-        Ok(owner)
-    } else {
-        Err(RegistryError::Internal {
-            reason: format!("publish journal transaction id is invalid: {}", dir.display()),
-        })
-    }
 }
 
 pub(super) async fn write_synced(path: &Path, bytes: &[u8]) -> Result<()> {

@@ -61,6 +61,13 @@ export interface Validation {
    * importer id, where it is not `lockfile`. `null` when there was none.
    */
   lockfiles?: Record<string, string | null>
+  /**
+   * The digest of every workspace package's bin declarations, keyed by the
+   * importer id of each project that was proven installed with them. Only
+   * the root and the projects with dependencies link workspace bins, so only
+   * they have an entry.
+   */
+  workspaceBins?: Record<string, string>
 }
 
 export interface FileSignature {
@@ -127,4 +134,15 @@ export type WorkspaceStateSettings = Pick<Config, typeof WORKSPACE_STATE_SETTING
    * a setting change.
    */
   autoDedupe?: boolean
+  /**
+   * What decides the lockfile keys of registry packages: each prefix
+   * `registries` and `namedRegistries` declare, mapped to its URL, and each
+   * route (`route:default`, `route:@<scope>`) whose registry declares a
+   * prefix, mapped to that prefix. A prefix never contains `:`. Recorded only
+   * when a prefix is declared, and only by an install that verified the keys
+   * of the lockfile it left behind, so a state written under other
+   * registries, by a frozen install of an older lockfile, or by an older pnpm
+   * proves nothing about the lockfile's keys.
+   */
+  registryPrefixes?: Record<string, string>
 }

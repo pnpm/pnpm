@@ -7,6 +7,7 @@ import {
   importerIdOf,
   lockfileDigest,
   manifestDigest,
+  projectBinsDigest,
   projectValidation,
   sharedInputPaths,
   updateWorkspaceState,
@@ -44,6 +45,7 @@ export interface ValidationProof {
 }
 
 export interface ValidationProofOptions {
+  workspaceBins?: string | null
   wantedLockfileName: string
   unmergedBranchLockfiles: boolean
   sharedWorkspaceLockfile?: boolean
@@ -76,7 +78,7 @@ export function validationProof (
     lockfileChanged,
     lockfileUnreadable: lockfile.digest.kind === 'unreadable',
     rehashed: digest != null && !lockfileChanged && !fileSignatureTrusted(validation, lockfile.path),
-    proofOf: (rootDir, manifest) => proofOf(validation, importerIdOf(lockfileDir, rootDir), manifest, digest),
+    proofOf: (rootDir, manifest) => proofOf(validation, importerIdOf(lockfileDir, rootDir), { manifest, lockfile: digest, workspaceBins: opts.workspaceBins }),
   }
 }
 
@@ -112,9 +114,8 @@ function perProjectValidationProof (
         check = checkProjectLockfile(validation, rootDir, opts)
         byDir.set(rootDir, check)
       }
-      if (check.unreadable || record.lockfile !== check.digest) return 'lockfileChanged'
-      if (record.manifest !== manifestDigest(manifest)) return 'manifestChanged'
-      return 'proven'
+      if (check.unreadable) return 'lockfileChanged'
+      return proofOf(validation, importerId, { manifest, lockfile: check.digest, workspaceBins: opts.workspaceBins })
     },
   }
 }
@@ -139,12 +140,19 @@ function checkProjectLockfile (
   }
 }
 
-function proofOf (validation: Validation, importerId: string, manifest: ProjectManifest, lockfile: string | undefined): ProjectProof {
+interface ProjectProofInputs {
+  manifest: ProjectManifest
+  lockfile: string | undefined
+  workspaceBins: string | null | undefined
+}
+
+function proofOf (validation: Validation, importerId: string, { manifest, lockfile, workspaceBins }: ProjectProofInputs): ProjectProof {
   const record = projectValidation(validation, importerId)
   if (record == null) return 'unrecorded'
   // A changed lockfile calls for every check a changed manifest does, and more.
   if (record.lockfile !== lockfile) return 'lockfileChanged'
   if (record.manifest !== manifestDigest(manifest)) return 'manifestChanged'
+  if (workspaceBins !== undefined && validation.workspaceBins?.[importerId] !== projectBinsDigest(importerId, manifest, workspaceBins ?? undefined)) return 'manifestChanged'
   return 'proven'
 }
 
@@ -169,6 +177,8 @@ export async function recordValidatedWorkspaceState (
     settings: {
       ...opts,
       autoDedupe: opts.autoDedupe ?? workspaceState.settings.autoDedupe,
+      // The check passed, so the recorded verification of the lockfile keys still holds.
+      registryPrefixes: workspaceState.settings.registryPrefixes,
     },
     ignoredWorkspaceStateSettings: opts.ignoredWorkspaceStateSettings,
     filteredInstall: workspaceState.filteredInstall,

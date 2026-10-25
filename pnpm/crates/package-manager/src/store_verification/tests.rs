@@ -6,7 +6,7 @@ use pnpm_store_dir::{
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tempfile::{TempDir, tempdir};
 
@@ -51,13 +51,13 @@ fn store_with_rows(present: usize) -> (TempDir, &'static StoreDir, Vec<String>, 
     (tmp, store_dir, present_keys, gone)
 }
 
-/// Yield until `done`, or fail after a bounded number of turns.
+/// Poll `done` every millisecond until it holds, or fail after ten seconds.
 async fn wait_until(what: &str, done: impl Fn() -> bool) {
     for _ in 0..10_000 {
         if done() {
             return;
         }
-        tokio::task::yield_now().await;
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
     panic!("{what}");
 }
@@ -103,11 +103,18 @@ async fn finish_without_a_start_is_no_verification() {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::await_holding_lock,
+    reason = "the held index is what keeps the first batch in flight until the drop"
+)]
 async fn dropping_the_verification_stops_its_work_at_the_next_batch() {
-    let (_tmp, store_dir, present, _gone) = store_with_rows(12);
+    let (_tmp, store_dir, present, _gone) = store_with_rows(2);
     let index = Arc::new(Mutex::new(StoreIndex::open_readonly_in(store_dir).unwrap()));
     let files = SharedVerifiedFilesCache::default();
 
+    // A batch reads the index under its lock, so holding the lock keeps the
+    // first batch in flight until the verification has been dropped.
+    let held_index = index.lock().unwrap();
     let verification = StoreVerification::default();
     verification.start_in_batches(present, &index, store_dir, true, &files, 1);
     let task = verification.started
@@ -117,14 +124,20 @@ async fn dropping_the_verification_stops_its_work_at_the_next_batch() {
         .expect("started")
         .task
         .abort_handle();
-    wait_until("the verification never checks a file", || !files.is_empty()).await;
+    // This test, the verification's future and a running batch each hold
+    // the index.
+    wait_until("the verification never starts a batch", || Arc::strong_count(&index) > 2).await;
     drop(verification);
 
     wait_until("the verification task keeps running after its owner is dropped", || {
         task.is_finished()
     })
     .await;
-    assert!(files.len() < 12, "no batch starts once the verification is dropped");
+    assert!(files.is_empty(), "no file is checked while the index is held");
+
+    drop(held_index);
+    wait_until("the batch in flight never finishes", || !files.is_empty()).await;
+    assert_eq!(files.len(), 1, "only the batch in flight at the drop finishes");
 }
 
 #[tokio::test]

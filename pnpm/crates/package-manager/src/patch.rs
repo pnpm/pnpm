@@ -8,7 +8,6 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pnpm_config::{Config, PackageImportMethod};
-use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_git_fetcher::{GitFetchOutput, GitFetcherError, GitHostedTarballFetcher};
 use pnpm_lockfile::{Lockfile, LockfileResolution, PackageKey};
 use pnpm_network::ThrottledClient;
@@ -343,7 +342,6 @@ async fn git_hosted_cas_paths<Reporter: self::Reporter>(
             ignore: config.ignore_scripts,
             unsafe_perm: config.unsafe_perm,
             user_agent: Some(&config.user_agent),
-            prepend_node_path: exec_scripts_prepend_node_path(config),
             shell: None,
             node_execpath: None,
             npm_execpath: None,

@@ -1,8 +1,9 @@
 use super::{
     LockfileResolution, NpmResolutionVerifier, PkgName, RegistryArtifactHistory,
-    ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE, current_history_violation,
-    current_revision_number, is_integrity_addressed_registry_tarball_url, lockfile_revision,
-    missing_artifact_violation, select_revision, tarball_url_violation,
+    ResolutionVerification, TARBALL_REVISION_MISMATCH_VIOLATION_CODE, TarballRevision,
+    current_history_violation, current_revision_number, has_complete_sha512_digest,
+    is_revision_registry_tarball_url, lockfile_revision, missing_artifact_violation,
+    select_revision, tarball_url_violation,
 };
 
 impl NpmResolutionVerifier {
@@ -42,7 +43,10 @@ impl NpmResolutionVerifier {
             Ok(current_revision) => current_revision,
             Err(violation) => return Some(violation),
         };
-        if let Some(violation) = current_history_violation(&artifact, current_revision, registry) {
+        let pkg_name = name.to_string();
+        if let Some(violation) =
+            current_history_violation(&artifact, &pkg_name, version, current_revision, registry)
+        {
             return Some(violation);
         }
         // An entry outside the revision protocol keeps its ordinary binding,
@@ -50,14 +54,18 @@ impl NpmResolutionVerifier {
         let Some(requested) = requested else {
             return tarball_url_violation(lockfile_tarball, artifact.current.tarball.as_deref());
         };
-
         let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
         let selected = match select_revision(&artifact, requested, current_revision, integrity) {
             Ok(selected) => selected,
             Err(violation) => return Some(violation),
         };
-        unaddressed_revision_violation(selected.tarball.as_deref(), integrity, registry, requested)
-            .or_else(|| tarball_url_violation(lockfile_tarball, selected.tarball.as_deref()))
+        unaddressed_revision_violation(
+            selected.tarball.as_deref(),
+            (&pkg_name, version, requested),
+            integrity,
+            registry,
+        )
+        .or_else(|| tarball_url_violation(lockfile_tarball, selected.tarball.as_deref()))
     }
 
     /// The registry's own record for this version, recording the dist stats
@@ -89,21 +97,26 @@ impl NpmResolutionVerifier {
     }
 }
 
-/// A revision is only trustworthy when its URL is derived from its own
-/// integrity.
+/// A revision is only trustworthy when its URL matches its revision and its
+/// integrity is a complete sha512 digest.
 fn unaddressed_revision_violation(
     tarball: Option<&str>,
+    (name, version, requested): (&str, &str, u64),
     integrity: &ssri::Integrity,
     registry: &str,
-    requested: u64,
 ) -> Option<ResolutionVerification> {
-    let integrity_addressed = tarball.is_some_and(|tarball| {
-        is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
-    });
-    (!integrity_addressed).then(|| ResolutionVerification::Err {
+    let revision_addressed = TarballRevision::try_from(requested)
+        .ok()
+        .is_some_and(|revision| {
+            has_complete_sha512_digest(integrity)
+                && tarball.is_some_and(|tarball| {
+                    is_revision_registry_tarball_url(tarball, name, version, revision, registry)
+                })
+        });
+    (!revision_addressed).then(|| ResolutionVerification::Err {
         code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
         reason: format!(
-            "has revision {requested} that is not addressed by its complete sha512 integrity",
+            "has revision {requested} that is not addressed by its revision URL and complete sha512 integrity",
         ),
     })
 }

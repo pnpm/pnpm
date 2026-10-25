@@ -1,5 +1,5 @@
 use super::{AuditLevel, ColorMode, EnvVar, NodeLinker, assert_eq};
-use crate::workspace_yaml::settings::parse_settings;
+use crate::workspace_yaml::parse_settings;
 use std::fmt::Write as _;
 
 struct Env;

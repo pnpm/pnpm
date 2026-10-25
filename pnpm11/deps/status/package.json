@@ -35,6 +35,7 @@
   "dependencies": {
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
@@ -45,6 +46,7 @@
     "@pnpm/installing.context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
     "@pnpm/lockfile.settings-checker": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/types": "workspace:*",

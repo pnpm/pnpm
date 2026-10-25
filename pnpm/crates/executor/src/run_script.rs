@@ -185,8 +185,6 @@ fn child_env(opts: &RunScript<'_>) -> HashMap<String, String> {
         original_path.as_ref(),
         crate::bundled_node_gyp_bin(),
         opts.execution.extra_bin_paths,
-        opts.execution.prepend_node_path,
-        opts.environment.node_execpath,
     );
 
     let mut child_env = built.env;

@@ -59,10 +59,15 @@ async fn unknown_route_keeps_its_upstream_tarball_url() {
     let registry = TestRegistry::start();
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(registry.url()).await;
 
-    let outcome = PnprClient::new(pnpr_url)
-        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
-        .await
-        .expect("install should succeed");
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    opts.routing.registries.insert(
+        registry.url().to_string(),
+        pnpm_config::RegistryDeclaration {
+            server_type: Some(pnpm_lockfile::RegistryServerType::Pnpr),
+            ..pnpm_config::RegistryDeclaration::default()
+        },
+    );
+    let outcome = PnprClient::new(pnpr_url).resolve(opts).await.expect("install should succeed");
     let lockfile = serde_json::to_value(&outcome.lockfile).expect("lockfile serializes");
     let resolution = &lockfile["packages"]["@foo/no-deps@1.0.0"]["resolution"];
 

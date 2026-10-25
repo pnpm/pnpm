@@ -226,6 +226,10 @@ async fn a_cold_version_request_gets_its_own_tarball() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&url, tmp.path().to_path_buf()));
 
+    let other_response = get(&app, "/npm/foo@2.0.0").await;
+    assert_eq!(other_response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(other_response.into_body()).await, other);
+
     let response = get(&app, "/npm/foo@1.0.0").await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, requested);

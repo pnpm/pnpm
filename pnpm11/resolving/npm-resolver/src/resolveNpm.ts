@@ -1,4 +1,5 @@
-import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import { isSameRegistry, pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
+import * as dp from '@pnpm/deps.path'
 import { globalWarn } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type {
@@ -16,6 +17,7 @@ import { parseBareSpecifier, type RegistryPackageSpec } from './parseBareSpecifi
 import { pickPackageFromFetchedMeta, type PickPackageOptions } from './pickPackage.js'
 import { createPickPackageOptions } from './pickPackageOptions.js'
 import { warnOnceOnHeldBackUpdate } from './preferredVersionSelectors.js'
+import { registryPackageId } from './registryPackageId.js'
 import { createRegistryTarballResolution } from './registryTarballResolution.js'
 import { detectMinReleaseAgeViolation, latestAllowedByPolicy } from './releaseAgePolicy.js'
 import type {
@@ -134,14 +136,14 @@ async function resolveNpmSpec (request: NpmSpecRequest): Promise<NpmResolveResul
 // If publishedBy is set (resolutionMode=time-based or minimumReleaseAge is configured), we only take
 // the fast path when publishedAt is already known from the lockfile's `time:` block; otherwise we
 // fall through to a registry fetch so the cutoff isn't computed from missing data.
-async function peekLockedPackageUnlessUpdating ({ ctx, opts, spec }: NpmSpecRequest): Promise<LockedPackage | undefined> {
+async function peekLockedPackageUnlessUpdating ({ ctx, opts, spec, registry }: NpmSpecRequest): Promise<LockedPackage | undefined> {
   if (
     opts.currentPkg == null ||
     opts.update ||
     opts.updateChecksums ||
     opts.trustPolicy === 'no-downgrade'
   ) return undefined
-  return peekLockedPackage(ctx, spec, opts.currentPkg)
+  return peekLockedPackage(ctx, { spec, registry }, opts.currentPkg)
 }
 
 function resolveFromLockedPackage (locked: LockedPackage, opts: ResolveFromNpmOptions): NpmResolveResult {
@@ -303,7 +305,7 @@ function localPackageResolutionOptions (
 }
 
 function createRegistryResolveResult (
-  { ctx, wantedDependency, opts, spec }: NpmSpecRequest,
+  { ctx, wantedDependency, opts, spec, registry }: NpmSpecRequest,
   picked: RegistryPick & {
     trustDowngradesSkipped: string[]
     latest: string | undefined
@@ -313,7 +315,7 @@ function createRegistryResolveResult (
   const { meta, pickedPackage, locked } = picked
   warnOnceOnTrustDowngradeFallback(ctx, spec.name, pickedPackage.version, picked.trustDowngradesSkipped)
   warnOnceOnHeldBackUpdate(ctx, opts, spec, meta, pickedPackage.version)
-  const id = `${pickedPackage.name}@${pickedPackage.version}` as PkgResolutionId
+  const id = registryPackageId(ctx, { name: pickedPackage.name, version: pickedPackage.version, registry })
   const resolution = createRegistryTarballResolution(pickedPackage)
   const normalizedBareSpecifier = opts.calcSpecifier
     ? spec.normalizedBareSpecifier ?? calcSpecifier({
@@ -378,15 +380,19 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
 /**
  * Reads the locked package's manifest from the store. Only a tarball
  * resolution pinned by integrity is looked up, and only while the stored
- * package is still the locked one and satisfies `spec`.
+ * package is still the locked one, from `registry`, and satisfies `spec`.
+ * The id is minted as a registry pick mints it, so a locked key that the
+ * registry configuration now writes differently is re-keyed.
  */
 async function peekLockedPackage (
-  ctx: Pick<ResolveFromNpmContext, 'peekManifestFromStore'>,
-  spec: RegistryPackageSpec,
+  ctx: Pick<ResolveFromNpmContext, 'declaredRegistriesByPrefix' | 'peekManifestFromStore' | 'registriesByPrefix'>,
+  { spec, registry }: { spec: RegistryPackageSpec, registry: string },
   lockedPkg: NonNullable<ResolveFromNpmOptions['currentPkg']>
 ): Promise<LockedPackage | undefined> {
   const { resolution } = lockedPkg
   if (ctx.peekManifestFromStore == null || !('tarball' in resolution) || typeof resolution.integrity !== 'string') return undefined
+  const locked = dp.parse(lockedPkg.id)
+  if (!lockedIdNamesRegistry(ctx, locked.registryName, registry)) return undefined
   const manifest = await ctx.peekManifestFromStore({
     id: lockedPkg.id,
     integrity: resolution.integrity,
@@ -394,14 +400,31 @@ async function peekLockedPackage (
     version: lockedPkg.version,
   })
   if (!manifest?.name || !manifest?.version) return undefined
-  const satisfiesSpec =
-    (spec.type !== 'range' || spec.fetchSpec === '*' || semver.satisfies(manifest.version, spec.fetchSpec, { loose: true })) &&
-    (spec.type !== 'version' || manifest.version === spec.fetchSpec)
-  if (`${manifest.name}@${manifest.version}` !== lockedPkg.id || !satisfiesSpec) return undefined
+  if (manifest.name !== locked.name || manifest.version !== locked.version || !manifestSatisfiesSpec(manifest.version, spec)) return undefined
   return {
-    id: lockedPkg.id,
+    id: registryPackageId(ctx, { name: manifest.name, version: manifest.version, registry }),
     manifest,
     publishedAt: lockedPkg.publishedAt,
     resolution: resolution as TarballResolution,
   }
+}
+
+function manifestSatisfiesSpec (version: string, spec: RegistryPackageSpec): boolean {
+  return (spec.type !== 'range' || spec.fetchSpec === '*' || semver.satisfies(version, spec.fetchSpec, { loose: true })) &&
+    (spec.type !== 'version' || version === spec.fetchSpec)
+}
+
+/**
+ * Whether a locked id qualified by `registryName` names `registry`. A plain id
+ * names no registry of its own, and the lockfile reuse gate only hands over a
+ * locked package from the registry the dependency resolves against.
+ */
+function lockedIdNamesRegistry (
+  ctx: Pick<ResolveFromNpmContext, 'registriesByPrefix'>,
+  registryName: string | undefined,
+  registry: string
+): boolean {
+  if (registryName == null) return true
+  const lockedRegistry = Object.hasOwn(ctx.registriesByPrefix, registryName) ? ctx.registriesByPrefix[registryName] : undefined
+  return lockedRegistry != null && isSameRegistry(lockedRegistry, registry)
 }

@@ -2,10 +2,12 @@ import path from 'node:path'
 
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import type { DryRunInstallResult } from '@pnpm/installing.deps-installer'
-import { getWantedLockfileName } from '@pnpm/lockfile.fs'
-import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { type ProjectsList, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
+import { getWantedLockfileName, type LockfileObject, readWantedLockfile } from '@pnpm/lockfile.fs'
+import { findOutdatedRegistryKey } from '@pnpm/lockfile.utils'
+import type { Project, ProjectManifest, ProjectRootDir, RegistryContext } from '@pnpm/types'
+import { type ProjectsList, recordedRegistryPrefixes, sharedInputPaths, type StateValidationOptions, updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 
 import type { InstallDepsOptions } from './installDeps.js'
 import { type CommandFullName, recursive, type RecursiveOptions } from './recursive.js'
@@ -42,7 +44,10 @@ export async function updateSingleProjectWorkspaceState (
   const filteredInstall = isFilteredInstall(allProjects, installedProjectDirs)
   await updateWorkspaceState({
     allProjects: projectsToRecordInWorkspaceState(allProjects, opts, manifest),
-    settings: withUpdatedCatalogs(opts, updatedCatalogs),
+    settings: {
+      ...withUpdatedCatalogs(opts, updatedCatalogs),
+      registryPrefixes: await verifiedRegistryPrefixes(opts, async () => [await readLockfileForState(opts.lockfileDir ?? opts.workspaceDir ?? opts.dir, opts)]),
+    },
     workspaceDir: opts.lockfileDir ?? opts.workspaceDir ?? opts.dir,
     storeBaseDir: opts.workspaceDir ?? opts.dir,
     pnpmfiles: opts.pnpmfile,
@@ -70,6 +75,7 @@ export async function recursiveInstallThenUpdateWorkspaceState (
       settings: {
         ...withUpdatedCatalogs(opts, updatedCatalogs, recursiveResult.updatedCatalogs),
         storeDir: configuredStoreDir,
+        registryPrefixes: await verifiedRegistryPrefixes(opts, async () => readWorkspaceLockfiles(allProjects, opts)),
       },
       workspaceDir: opts.lockfileDir ?? opts.workspaceDir,
       storeBaseDir: opts.workspaceDir ?? opts.dir,
@@ -120,6 +126,51 @@ async function stateValidation (
     vouchedProjects: filteredInstall ? opts.installedProjectDirs : undefined,
     sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
   }
+}
+
+type LockfileReadOptions = Pick<InstallDepsOptions, 'mergeGitBranchLockfiles' | 'useGitBranchLockfile'>
+
+/**
+ * The `registryPrefixes` this install records (see `recordedRegistryPrefixes`),
+ * when the keys of every lockfile it left behind are the ones it describes. The lockfiles are
+ * read back from disk, so the keys of importers a filtered install did not
+ * resolve are verified too. A missing lockfile verifies nothing, unless the
+ * install keeps none: then every key is minted from the current registries.
+ */
+async function verifiedRegistryPrefixes (
+  opts: Partial<RegistryContext> & Pick<InstallDepsOptions, 'useLockfile'>,
+  readLockfiles: () => Promise<Array<LockfileObject | null>>
+): Promise<Record<string, string> | undefined> {
+  const declared = recordedRegistryPrefixes(opts)
+  if (declared == null || opts.useLockfile === false) return declared
+  const { registriesByScope } = opts
+  if (registriesByScope == null) return undefined
+  const registries = pickRegistryContext({ ...opts, registriesByScope })
+  const lockfiles = await readLockfiles()
+  const keysAreCurrent = lockfiles.every((lockfile) => lockfile != null && findOutdatedRegistryKey(lockfile, registries) == null)
+  return keysAreCurrent ? declared : undefined
+}
+
+/**
+ * The lockfiles a recursive install leaves behind: the shared one, or else
+ * the one of each project that has one.
+ */
+async function readWorkspaceLockfiles (
+  allProjects: Project[],
+  opts: LockfileReadOptions & Pick<RecursiveOptions, 'lockfileDir' | 'sharedWorkspaceLockfile' | 'workspaceDir'>
+): Promise<Array<LockfileObject | null>> {
+  if (opts.sharedWorkspaceLockfile !== false) return [await readLockfileForState(opts.lockfileDir ?? opts.workspaceDir, opts)]
+  const lockfiles = await Promise.all(allProjects.map(async ({ rootDir }) => readLockfileForState(rootDir, opts)))
+  // A project without a lockfile of its own has no keys to verify.
+  return lockfiles.filter((lockfile) => lockfile != null)
+}
+
+async function readLockfileForState (lockfileDir: string, opts: LockfileReadOptions): Promise<LockfileObject | null> {
+  return readWantedLockfile(lockfileDir, {
+    ignoreIncompatible: true,
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
 }
 
 /**

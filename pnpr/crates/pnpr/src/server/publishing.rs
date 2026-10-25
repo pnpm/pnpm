@@ -11,11 +11,9 @@ use std::collections::{BTreeSet, HashSet};
 
 use axum::{
     body::Body,
-    extract::State,
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use pnpm_crypto_hash::{create_hex_hash, integrity_addressed_tarball_path};
 use serde_json::{Value, json};
 use ssri::Integrity;
 
@@ -25,7 +23,7 @@ use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedDocumentVersion, Storage,
-    journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
+    journal::{CommitOutcome, JournaledPublish},
     publish::{
         PendingAttachment, extract_attachments, now_iso, stream_decode_verify_and_write,
         write_sigstore_bundle,
@@ -33,10 +31,10 @@ use pnpr_storage::{
 };
 
 use super::{
-    Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize_package, authorized_upstream, default_registry_target, documents::RegistryDocuments,
-    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
-    restore_tgz_integrities, tar_integrity_of, tgz_integrity_key,
+    Action, AppState, HostedGate, RegistrySource, WriteTarget, authorize_package,
+    authorized_upstream, default_registry_target, documents::RegistryDocuments, hosted_gate,
+    hosted_storage, resolve_ecosystem_source, resolve_write_target, restore_tgz_integrities,
+    tar_integrity_of, tgz_integrity_key,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -221,125 +219,6 @@ pub(super) async fn publish_package(
     }
 }
 
-/// `PUT /-/pnpm/v1/publish` — publish several packages with one
-/// request. The body is `{"packages": [<publish doc>, ...]}` where
-/// each entry is exactly the JSON body that `PUT /:pkg` takes
-/// (packument with `_attachments`). `pnpm publish --batch` sends
-/// this; the endpoint is not part of the standard npm registry API.
-///
-/// The batch is all-or-nothing up to the commit point: every
-/// document is validated (name, publish policy, attachment
-/// integrity) and every tarball of every package is fully written
-/// to a tmp slot before anything becomes visible to readers, so a
-/// batch that fails validation or staging leaves no new versions
-/// behind.
-pub(super) async fn serve_batch_publish(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    body: axum::body::Bytes,
-) -> Response {
-    let incoming: Value = match serde_json::from_slice(&body) {
-        Ok(v) => v,
-        Err(err) => return RegistryError::Json(err).into_response(),
-    };
-    let Value::Object(mut incoming) = incoming else {
-        return RegistryError::BadRequest { reason: "body must be a JSON object".to_string() }
-            .into_response();
-    };
-    let Some(Value::Array(docs)) = incoming.remove("packages") else {
-        return RegistryError::BadRequest {
-            reason: "body must have a `packages` array".to_string(),
-        }
-        .into_response();
-    };
-    if docs.is_empty() {
-        return RegistryError::BadRequest { reason: "`packages` must not be empty".to_string() }
-            .into_response();
-    }
-
-    let validated = match validate_batch_docs(&state, &identity, docs).await {
-        Ok(validated) => validated,
-        Err(err) => return err.into_response(),
-    };
-
-    // Hold every affected package's lock across the whole
-    // stage-and-commit, so concurrent writers of any package in the
-    // batch serialize with us just like with a single publish.
-    let names: Vec<&str> = validated
-        .iter()
-        .map(|(doc, _)| doc.name.as_str())
-        .collect();
-    let _guards = state.inner.locks.packages.lock_many(&names).await;
-
-    let staged = match stage_batch(&state, validated).await {
-        Ok(staged) => staged,
-        Err(err) => return err.into_response(),
-    };
-    match commit_publishes(&state, staged).await.and_then(report_unrecorded) {
-        Ok(()) => publish_created_response(),
-        Err(err) => err.into_response(),
-    }
-}
-
-/// Validate every document of a batch publish, refusing a package named twice.
-///
-/// One packument read-merge-write happens per package: with the same package
-/// twice in a batch, the second entry's merge would depend on the first's
-/// uncommitted result. Senders carry multiple versions of one package as
-/// several `versions` entries in a single document instead.
-///
-/// The batch endpoint is path-less, so each package routes via the default
-/// target; validation resolves that route and checks the resolved hosted
-/// registry's publish rule per document.
-async fn validate_batch_docs(
-    state: &AppState,
-    identity: &Identity,
-    docs: Vec<Value>,
-) -> Result<Vec<(ValidatedPublish, WriteTarget)>, RegistryError> {
-    let mut validated = Vec::with_capacity(docs.len());
-    let mut seen_names = std::collections::BTreeSet::new();
-    for doc in docs {
-        let Some(doc_name) = doc.get("name").and_then(Value::as_str) else {
-            return Err(RegistryError::BadRequest {
-                reason: "every entry in `packages` must have a string `name`".to_string(),
-            });
-        };
-        let name = CanonicalPackageName::parse(doc_name, pnpr_package_name::Ecosystem::Npm)?;
-        if !seen_names.insert(name.as_str().to_string()) {
-            return Err(RegistryError::BadRequest {
-                reason: format!("duplicate package {:?} in `packages`", name.as_str()),
-            });
-        }
-        validated.push(validate_publish_doc(state, identity, None, name, doc).await?);
-    }
-    Ok(validated)
-}
-
-/// Stage every document of a batch, cleaning up what already landed if one
-/// fails.
-///
-/// Each document's write target was resolved during validation, so a routing
-/// failure surfaced before any tarball was staged.
-async fn stage_batch(
-    state: &AppState,
-    validated: Vec<(ValidatedPublish, WriteTarget)>,
-) -> Result<Vec<StagedPublish>, RegistryError> {
-    let now = now_iso();
-    let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
-    for (doc, target) in validated {
-        match stage_publish(state, doc, &now, Some(&target.org)).await {
-            Ok(stage) => staged.push(stage),
-            Err(err) => {
-                for stage in staged {
-                    cleanup_tmp_slots(stage.slots).await;
-                }
-                return Err(err);
-            }
-        }
-    }
-    Ok(staged)
-}
-
 /// Make every staged publish visible, as one journaled transaction: a crash
 /// or I/O failure mid-apply can never leave the batch partially published,
 /// because startup recovery applies whatever the seal committed. The batch
@@ -348,9 +227,7 @@ async fn stage_batch(
 ///
 /// A version whose blob lost its immutable slot to another replica is dropped
 /// from the document the transaction writes, which keeps the store consistent
-/// with the blob that won; the caller reads that out of the outcome. One that
-/// could not claim a digest-reference slot is dropped the same way, and
-/// reported here: the publisher asked for a version that is not there.
+/// with the blob that won; the caller reads that out of the outcome.
 pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
@@ -364,17 +241,12 @@ pub(super) async fn commit_publishes(
             document: &stage.document,
             base_version: stage.base_version.as_ref(),
             slots: &stage.slots,
-            revision_refs: &stage.revision_refs,
         })
         .collect();
-    let outcome = state.inner.storage
+    state.inner.storage
         .publish_journal()
         .commit(&state.inner.storage, &entries, &RegistryDocuments)
-        .await?;
-    match outcome.reference_limit {
-        Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
-        None => Ok(outcome),
-    }
+        .await
 }
 
 /// The packages a commit could not record, as the error a publisher gets

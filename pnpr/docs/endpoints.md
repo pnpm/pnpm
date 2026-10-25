@@ -75,8 +75,9 @@ Every request routes through the registry graph:
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
 - Served `dist.tarball` URLs are rewritten onto `--public-url` (`PNPR_PUBLIC_URL`)
-  and stay canonical for the base the client addressed (`/npm/` or
-  `/npm/~<name>/`), so lockfiles don't bake in a registry name.
+  as `<registry>/<name>@<version>` and stay canonical for the base the client
+  addressed (`/npm/` or `/npm/~<name>/`), so lockfiles don't bake in a
+  registry name.
 
 ## pnpr protocol endpoints
 
@@ -181,10 +182,11 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}/-/{filename}` | Scoped tarball. Not served by a tar registry. |
 | `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
 | `GET` | `/@scope/{name}@{version}` | Scoped tarball by exact version. |
+| `GET` | `/{name}@{version}+r{revision}` | Unscoped package tar by exact version and revision. See [Registry revisions](https://pnpm.io/registry-revisions). |
+| `GET` | `/@scope/{name}@{version}+r{revision}` | Scoped package tar by exact version and revision. See [Registry revisions](https://pnpm.io/registry-revisions). |
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](https://pnpm.io/registry-revisions). |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
@@ -200,33 +202,29 @@ When OSV checks are enabled, vulnerable versions are removed from packuments
 and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.
 
-The digest route answers integrity-addressed
-[registry revisions](https://pnpm.io/registry-revisions). The digest is the SHA-512 of the
-uncompressed tar, on every registry, `.tgz` and tar registries alike. The
-response is the tar with `Content-Type: application/x-tar`, sent with the
-`gzip` or `zstd` content coding the client's `Accept-Encoding` allows, or with
-none, and `Vary: Accept-Encoding`. It carries no `ETag`, and a `Range` request
-gets the whole body.
+The `/{name}@{version}+r{revision}` route answers
+[registry revisions](https://pnpm.io/registry-revisions). Each revision's
+`dist.integrity` is the SHA-512 of the uncompressed tar, on every registry,
+`.tgz` and tar registries alike. The response is the tar with
+`Content-Type: application/x-tar`, sent with the `gzip` or `zstd` content coding
+the client's `Accept-Encoding` allows, or with none, and `Vary: Accept-Encoding`.
+It carries no `ETag`, and a `Range` request gets the whole body.
 
 For a proxied upstream registry, pnpr forwards the request with its own
 credentials and accepts a gzip-encoded or plain tar. It decodes the whole
-response and checks the tar against the digest before it caches or serves any
-of it. For a hosted registry, every publish decodes the `.tgz` and seals a
-durable package/version reference under the digest of its tar, so a digest is
-resolved with one bounded index read rather than a scan over packuments. A
-`.tgz` whose gzip stream does not decode in full has no tar, and gets no
-reference. Before the bytes are served, pnpr revalidates the current packument,
-the caller's access, registry routing, and OSV policy, so a digest URL is not a
-way around any of them. Every 3xx fails a digest fetch on the client side,
-same-origin included.
+response and checks the tar against the revision's `dist.integrity` in the
+upstream packument before it caches or serves any of it. For a hosted registry,
+revision `0` serves the tar of the published `.tgz` once its tar integrity has
+been verified. Every 3xx fails a revision fetch on the client side, same-origin
+included.
 
 Package metadata keeps an upstream's revision fields only when they form a
 complete revision record: `dist.revision`, including `0` for the original, a
-`dist.tarball` on the digest route, and a `dist.revisions` history that lists
-revision `0` once and the selected revision once. Such a version's `dist`
-omits `shasum` and `signatures`, which describe a `.tgz`, on either registry
-format. Any other version is served as ordinary metadata, without `revision`
-or `revisions`.
+`dist.tarball` on the `<name>@<version>+r<revision>` route, and a
+`dist.revisions` history that lists revision `0` once and the selected revision
+once. Such a version's `dist` omits `shasum` and `signatures`, which describe a
+`.tgz`, on either registry format. Any other version is served as ordinary
+metadata, without `revision` or `revisions`.
 
 When pnpr has verified a version's tarball (at publish time, on first read, or
 while streaming and caching an upstream tarball), its full packument,
@@ -254,11 +252,14 @@ a hosted registry.
 | --- | --- | --- |
 | `PUT` | `/{name}` | Publish an unscoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
 | `PUT` | `/@scope/{name}` | Publish a scoped package. Body is the npm publish document with `_attachments`. Requires `publish`. |
-| `PUT` | `/-/pnpm/v1/publish` | pnpm batch publish. Body is `{"packages":[<publish document>, ...]}`. The batch is all-or-nothing and each package requires `publish`. For a release that spans ecosystems, use [`PUT /-/pnpr/v0/publish`](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) instead. |
+| `PUT` | `/-/pnpr/v0/publish` | pnpm batch publish (also mounted on the server root). Body is `{"packages":[<publish document>, ...]}`. The batch is all-or-nothing and each package requires `publish`. See [One publish for a workspace that spans ecosystems](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems). |
 | `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
-| `DELETE` | `/{package}/-rev/{rev}` | Remove an entire package, used by force unpublish. Requires `unpublish`. Use a percent-encoded scoped package name for scoped packages. |
-| `DELETE` | `/{name}/-/{filename}/-rev/{rev}` | Remove an unscoped tarball. Requires `unpublish`. |
-| `DELETE` | `/@scope/{name}/-/{filename}/-rev/{rev}` | Remove a scoped tarball. Requires `unpublish`. |
+| `DELETE` | `/{name}` | Remove an entire unscoped package, used by force unpublish. Requires `unpublish`. Legacy `/{package}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}` | Remove an entire scoped package, used by force unpublish. Requires `unpublish`. Legacy `/@scope/{name}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}@{version}` | Remove an unscoped version's tarball. Requires `unpublish`. Legacy `/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}@{version}` | Remove a scoped version's tarball. Requires `unpublish`. Legacy `/@scope/{name}@{version}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/{name}/-/{filename}` | Remove an unscoped tarball. Requires `unpublish`. Legacy `/{name}/-/{filename}/-rev/{rev}` is also accepted. |
+| `DELETE` | `/@scope/{name}/-/{filename}` | Remove a scoped tarball. Requires `unpublish`. Legacy `/@scope/{name}/-/{filename}/-rev/{rev}` is also accepted. |
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |
 | `DELETE` | `/-/package/{package}/dist-tags/{tag}` | Remove a dist-tag. Requires `publish`. |
 
@@ -381,7 +382,8 @@ resolver-only server that exposes no registry surface.
 | `POST` | `/-/v1/login` | Initiates npm/pnpm browser SSO login. Returns `202 Accepted` with `loginUrl` and `doneUrl` when OIDC login is configured, or `404` to fall back to basic auth. |
 | `GET` | `/-/v1/login/start` | Browser entry point for SSO login. Validates the session and redirects to the configured OIDC provider or renders a provider picker. |
 | `GET` | `/-/v1/login/poll/{session}` | CLI polling endpoint (`doneUrl`). Returns `202 Accepted` with `Retry-After: 1` while pending, or `200 OK` with the bearer token once authenticated. |
-| `PUT` | `/-/user/org.couchdb.user:{name}` | npm adduser/login endpoint. Creates a user only when `auth.htpasswd.max_users` allows registration; existing users can log in with the correct password. Returns a bearer token. |
+| `PUT` | `/-/user/{name}` | npm adduser/login endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Creates a user only when `auth.htpasswd.max_users` allows registration; existing users can log in with the correct password. Returns a bearer token. |
+| `GET` | `/-/user/{name}` | User lookup endpoint. Also accepts legacy `/-/user/org.couchdb.user:{name}`. Returns the public user document when the account exists. |
 | `GET` | `/-/whoami` | Returns `{"username": ...}` for the authenticated caller. |
 | `GET` | `/-/npm/v1/user` | npm profile endpoint. Returns the authenticated username and placeholder profile fields. |
 | `GET` | `/-/npm/v1/tokens` | Lists bearer tokens for the authenticated caller in npm-compatible shape. The server records a token's last use at most once a minute. |

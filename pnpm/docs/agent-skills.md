@@ -43,7 +43,7 @@ permissions:
 
 An approval covers every skill of the package, in every later version. A git or tarball dependency is approved by its exact source or, for git, by its repository, with the same keys as [`allowBuilds`](./settings/build.md#allowbuilds).
 
-If a package resolves to several versions in a workspace, the highest version decides which skills are linked. If the highest version ships no skills, none are linked, even when an older version does.
+If a package resolves to several versions in a workspace, the highest version decides which skills are linked. If the highest version ships no skills, none are linked, even when an older version does. If one version is installed several times with different peer dependencies, every install links the skills of the same copy, as long as the set of copies does not change. pnpm treats a link to the same skill of the same package in the virtual store as its own, even if that copy is no longer in the lockfile.
 
 ## Where skills are linked
 

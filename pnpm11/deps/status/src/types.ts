@@ -1,12 +1,13 @@
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
-import type { IncludedDependencies } from '@pnpm/types'
+import type { IncludedDependencies, RegistryContext } from '@pnpm/types'
 import type { WorkspaceState, WorkspaceStateSettings } from '@pnpm/workspace.state'
 
 export type CheckDepsStatusOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'catalogs'
 | 'dedupeDirectDeps'
+| 'dedupePeers'
 | 'excludeLinksFromLockfile'
 | 'ignoreCompatibilityDb'
 | 'ignorePnpmfile'
@@ -27,7 +28,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'overrides'
 | 'packageExtensions'
 | 'ignoredOptionalDependencies'
-> & Pick<ConfigContext,
+> & Partial<RegistryContext> & Pick<ConfigContext,
 | 'allProjects'
 | 'hooks'
 | 'rootProjectManifest'

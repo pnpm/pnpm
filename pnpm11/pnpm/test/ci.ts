@@ -111,3 +111,24 @@ test.each([
   expect(result.status).toBe(0)
 })
 
+
+test.each([
+  '--lockfile',
+  '--config.lockfile=true',
+])('pnpm ci %s keeps the lockfile and installs from it', (flag) => {
+  prepare({
+    name: 'test-ci-lockfile-flag',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  expect(execPnpmSync(['install']).status).toBe(0)
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  const result = execPnpmSync(['ci', flag])
+  expect(result.status).toBe(0)
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+  expect(fs.existsSync(path.join('node_modules', 'is-positive'))).toBe(true)
+})
