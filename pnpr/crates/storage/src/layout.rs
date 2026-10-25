@@ -28,9 +28,13 @@ pub(crate) const DOCUMENT_FILE: &str = "document.json";
 pub(crate) const BLOBS_DIR: &str = "blobs";
 const DEFAULT_NAMESPACE: &str = "default";
 const ORGS_DIR: &str = "orgs";
-/// Opens the scope segment of a package and the segment of a blob not named
-/// after its package. [`encode_segment`] never writes it.
+/// Opens the scope segment of a package, and the segment of a
+/// [`VERSIONED_EXTENSIONS`] file not named after its package.
+/// [`encode_segment`] never writes it.
 const MARKER: char = '@';
+/// The files named `<basename>-<version><extension>`, which [`blob_segment`]
+/// stores without the `<basename>-`.
+const VERSIONED_EXTENSIONS: [&str; 3] = [".tgz", ".sigstore", ".crate"];
 const ESCAPE: u8 = b'!';
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
@@ -112,11 +116,16 @@ pub fn decode_package_segments(scope: &str, rest: &str) -> Option<String> {
     (package_segments(&name) == [scope, rest]).then_some(name)
 }
 
-/// The segment of package `name`'s blob `file` below `blobs/`: `file` without
-/// the `<basename>-` it starts with, or `@` and all of `file` when it does not
-/// start with one. A tarball's segment is then its version and extension.
+/// The segment of package `name`'s blob `file` below `blobs/`. A `.tgz`,
+/// `.sigstore` or `.crate` file drops the `<basename>-` it starts with, so a
+/// tarball's segment is its version and extension, or keeps all of its name
+/// behind `@` when it does not start with one. Any other file, such as an
+/// image digest or a wheel, is its name.
 #[must_use]
 pub fn blob_segment(name: &str, file: &str) -> String {
+    if !is_versioned(file) {
+        return encode_segment(file);
+    }
     match strip_basename(name, file) {
         Some(rest) => encode_segment(rest),
         None => format!("{MARKER}{}", encode_segment(file)),
@@ -129,7 +138,10 @@ pub fn blob_segment(name: &str, file: &str) -> String {
 pub fn decode_blob_segment(name: &str, segment: &str) -> Option<String> {
     let file = match segment.strip_prefix(MARKER) {
         Some(file) => decode_segment(file)?,
-        None => format!("{}-{}", basename(name), decode_segment(segment)?),
+        None if is_versioned(segment) => {
+            format!("{}-{}", basename(name), decode_segment(segment)?)
+        }
+        None => decode_segment(segment)?,
     };
     (blob_segment(name, &file) == segment).then_some(file)
 }
@@ -141,6 +153,12 @@ fn strip_basename<'file>(name: &str, file: &'file str) -> Option<&'file str> {
         .strip_prefix(basename(name))?
         .strip_prefix('-')?;
     (!rest.is_empty() && !rest.starts_with('.')).then_some(rest)
+}
+
+fn is_versioned(file: &str) -> bool {
+    VERSIONED_EXTENSIONS
+        .iter()
+        .any(|extension| file.ends_with(extension))
 }
 
 /// The last `/`-separated component of `name`, as

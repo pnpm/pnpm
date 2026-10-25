@@ -457,7 +457,7 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
     let packages = scopes.join("@");
     fs::symlink(&outside, packages.join("linked")).await.unwrap();
     fs::create_dir_all(packages.join("real/blobs")).await.unwrap();
-    fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/@sha256-aa"))
+    fs::symlink(outside.join("blobs/sha256-aa"), packages.join("real/blobs/sha256-aa"))
         .await
         .unwrap();
     fs::symlink(outside.join("document.json"), packages.join("linked-doc"))

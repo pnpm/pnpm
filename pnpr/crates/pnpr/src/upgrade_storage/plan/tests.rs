@@ -45,14 +45,14 @@ fn packages_without_an_org_move_into_the_default_namespace() {
                 moved("default/packages/@scope/!41pp/blobs/1.0.0.tgz", false),
             ),
             ("acme/app/package.json", moved("default/packages/@/acme!2fapp/document.json", true)),
-            ("acme/app/sha256-aa", moved("default/packages/@/acme!2fapp/blobs/@sha256-aa", false)),
+            ("acme/app/sha256-aa", moved("default/packages/@/acme!2fapp/blobs/sha256-aa", false)),
             (
                 "acme/app/tool/package.json",
                 moved("default/packages/@/acme!2fapp!2ftool/document.json", true)
             ),
             (
                 "acme/app/tool/sha256-bb",
-                moved("default/packages/@/acme!2fapp!2ftool/blobs/@sha256-bb", false)
+                moved("default/packages/@/acme!2fapp!2ftool/blobs/sha256-bb", false)
             ),
         ]
         .map(|(from, step)| (from.to_string(), step)),

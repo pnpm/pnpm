@@ -34,11 +34,12 @@ for example `orgs/npm!7einternal/`.
 
 A scoped package is stored under `@<scope>/<name>/` and an unscoped one
 under `@/<name>/`, so `@scope/pkg` is in `packages/@scope/pkg/` and `left-pad`
-in `packages/@/left-pad/`. A file whose name starts with the package's
-unscoped name and a `-` is stored without that prefix, so
-`left-pad-1.0.0.tgz` is `blobs/1.0.0.tgz`. Any other file name is stored
-with a leading `@`, such as `blobs/@sha256-<hex>` for a container image
-layer.
+in `packages/@/left-pad/`. A `.tgz`, `.sigstore` or `.crate` file is
+stored without the package's unscoped name and the `-` after it, so
+`left-pad-1.0.0.tgz` is `blobs/1.0.0.tgz`. Such a file that does not start
+with the package's name keeps its whole name behind a leading `@`. Every
+other file, such as a container image layer or a Python wheel, keeps its
+name.
 
 In every org, scope, name and file name, lowercase letters, digits, `.`,
 `_` and `-` are kept. Every other byte is written as `!` and two hex digits,

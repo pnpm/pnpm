@@ -66,11 +66,13 @@ fn a_blob_named_after_its_package_drops_the_name() {
         ("left-pad", "left-pad-1.0.0.tgz", "1.0.0.tgz"),
         ("@scope/pkg", "pkg-1.0.0-RC.1.sigstore", "1.0.0-!52!43.1.sigstore"),
         ("serde", "serde-1.0.0.crate", "1.0.0.crate"),
-        ("library/alpine", "sha256-aa", "@sha256-aa"),
-        ("my-pkg", "my_pkg-1.0.tar.gz", "@my_pkg-1.0.tar.gz"),
-        ("foo", "foo-", "@foo-"),
-        ("foo", "foo-..", "@foo-.."),
+        ("library/alpine", "sha256-aa", "sha256-aa"),
+        ("my-pkg", "my_pkg-1.0-py3-none-any.whl", "my_pkg-1.0-py3-none-any.whl"),
+        ("demo", "demo-1.0.tar.gz", "demo-1.0.tar.gz"),
+        ("foo", "foo-.tgz", "@foo-.tgz"),
+        ("foo", "foo-..tgz", "@foo-..tgz"),
         ("foo", "foobar-1.0.0.tgz", "@foobar-1.0.0.tgz"),
+        ("foo", "1.0.0.tgz", "@1.0.0.tgz"),
     ] {
         assert_eq!(blob_segment(name, file), segment, "{file}");
         assert_eq!(decode_blob_segment(name, segment).as_deref(), Some(file), "{segment}");
@@ -79,7 +81,7 @@ fn a_blob_named_after_its_package_drops_the_name() {
 
 #[test]
 fn blob_segments_the_layout_cannot_produce_do_not_decode() {
-    for segment in ["@foo-1.0.0.tgz", "", ".", "..", "Upper"] {
+    for segment in ["@foo-1.0.0.tgz", "@sha256-aa", ".tgz", "Upper"] {
         assert_eq!(decode_blob_segment("foo", segment), None, "{segment:?}");
     }
 }
