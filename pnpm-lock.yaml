@@ -547,8 +547,8 @@ catalogs:
       specifier: ^2.2.6
       version: 2.2.6
     get-pnpm:
-      specifier: ^0.0.6
-      version: 0.0.6
+      specifier: ^0.0.7
+      version: 0.0.7
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -1135,7 +1135,7 @@ importers:
     dependencies:
       get-pnpm:
         specifier: 'catalog:'
-        version: 0.0.6
+        version: 0.0.7
       node-gyp:
         specifier: 'catalog:'
         version: 12.3.0
@@ -15192,8 +15192,8 @@ packages:
     resolution: {integrity: sha512-pjzuKtY64GYfWizNAJ0fr9VqttZkNiK2iS430LtIHzjBEr6bX8Am2zm4sW4Ro5wjWW5cAlRL1qAMTcXbjNAO2Q==}
     engines: {node: '>=8.0.0'}
 
-  get-pnpm@0.0.6:
-    resolution: {integrity: sha512-fSE463qhWgDtDBjefiawt69k/LtZlnKf6QHPsMWqKi4p95MQ/PRhr631rn0SJdDd3MONGrA0Jpvw7YYZ3rchDQ==}
+  get-pnpm@0.0.7:
+    resolution: {integrity: sha512-XRBAkepKPNkbBjbtusdGwRmGu8fJ+/xpLBzmXZNYUlmyyUVf31GcB17CH/JMf3QooDpVnnFvOiz0+1FXxkWR9A==}
     engines: {node: '>=22.13'}
     hasBin: true
 
@@ -22918,7 +22918,7 @@ snapshots:
 
   get-package-type@0.1.0: {}
 
-  get-pnpm@0.0.6:
+  get-pnpm@0.0.7:
     dependencies:
       semver: 7.8.5
 
