@@ -4,11 +4,13 @@ let loadErr = null;
 let nextCallbackId = 0;
 const pendingCallbacks = new Map();
 // stdout carries the protocol. Output the pnpmfile writes there itself goes
-// to the running preResolution hook's log, or nowhere.
+// to the log of the preResolution call it was written from, or nowhere.
+const { AsyncLocalStorage } = require('node:async_hooks');
 const writeProtocol = process.stdout.write.bind(process.stdout);
-let forwardOutput = null;
+const outputForwarder = new AsyncLocalStorage();
 process.stdout.write = (chunk, encoding, callback) => {
-  if (forwardOutput !== null) {
+  const forwardOutput = outputForwarder.getStore();
+  if (forwardOutput !== undefined) {
     for (const line of String(chunk).split('\n')) {
       if (line.trim() !== '') forwardOutput(line.trim());
     }
@@ -210,12 +212,7 @@ async function handle(req) {
           info: (m) => send({ log: String(m) }),
           warn: (m) => send({ log: String(m), level: 'warn' }),
         };
-        forwardOutput = (line) => send({ log: line });
-        try {
-          await fn(ctx, logger);
-        } finally {
-          forwardOutput = null;
-        }
+        await outputForwarder.run((line) => send({ log: line }), () => fn(ctx, logger));
       }
       send({ ok: { wantedLockfile, currentLockfile } });
     } else if (req.hook === 'beforePacking') {

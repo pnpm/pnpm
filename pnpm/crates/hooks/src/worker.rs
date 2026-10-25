@@ -392,6 +392,9 @@ impl NodeWorker {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         let callback_timeout = label == "fetch" && callbacks.is_some();
+        // pnpm puts no time limit on `preResolution`, which may fetch or
+        // rewrite whole lockfiles.
+        let untimed = label == "preResolution";
         self.pending
             .lock()
             .unwrap()
@@ -413,7 +416,9 @@ impl NodeWorker {
                 .map_err(|err| self.exec_err(err.to_string()))?;
         }
 
-        let request_timeout = if callback_timeout {
+        let request_timeout = if untimed {
+            Duration::MAX
+        } else if callback_timeout {
             self.request_timeout.max(CALLBACK_FETCH_TIMEOUT)
         } else {
             self.request_timeout
