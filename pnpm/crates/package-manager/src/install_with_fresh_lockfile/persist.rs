@@ -257,7 +257,7 @@ pub(super) async fn finish_lockfile_only<Reporter: self::Reporter>(
 pub(super) async fn save_wanted_lockfile(
     built_lockfile: &Lockfile,
     target: &Path,
-    symlinked: SymlinkedLockfile,
+    symlinked: SymlinkedLockfile<'_>,
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     log: Option<pnpm_hooks::LogFn>,
 ) -> Result<bool, InstallWithFreshLockfileError> {

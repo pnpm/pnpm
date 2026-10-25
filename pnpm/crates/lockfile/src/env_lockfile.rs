@@ -148,7 +148,7 @@ impl EnvLockfile {
     pub fn write(
         &self,
         root_dir: &Path,
-        symlinked: SymlinkedLockfile,
+        symlinked: SymlinkedLockfile<'_>,
     ) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;

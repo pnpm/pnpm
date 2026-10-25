@@ -636,7 +636,10 @@ fn save_through_a_symlink_chain(
     symlink(&Path::new("..").join("staging").join(Lockfile::FILE_NAME), &path).unwrap();
 
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
-    lockfile.save_to_path(&path, SymlinkedLockfile::WriteThrough).unwrap();
+    let allowed_dirs = [source.clone()];
+    lockfile
+        .save_to_path(&path, SymlinkedLockfile::WriteThrough { allowed_dirs: &allowed_dirs })
+        .unwrap();
 
     assert_eq!(std::fs::read_to_string(&target).unwrap(), lockfile.to_yaml_string().unwrap());
     for link in [&path, &staging.join(Lockfile::FILE_NAME)] {
@@ -679,6 +682,57 @@ fn save_writes_through_a_symlink_chain_when_allowed() {
     );
 }
 
+/// `work/pnpm-lock.yaml` links to `allowed/pnpm-lock.yaml`, which links on
+/// to `outside/pnpm-lock.yaml`.
+#[cfg(unix)]
+#[test]
+fn save_refuses_a_link_chain_that_leaves_the_allowed_dirs() {
+    let dir = tempdir().unwrap();
+    let [allowed, outside, work] = ["allowed", "outside", "work"].map(|name| dir.path().join(name));
+    for dir in [&allowed, &outside, &work] {
+        std::fs::create_dir(dir).unwrap();
+    }
+    let victim = outside.join(Lockfile::FILE_NAME);
+    std::fs::write(&victim, "victim content").unwrap();
+    std::os::unix::fs::symlink(&victim, allowed.join(Lockfile::FILE_NAME)).unwrap();
+    let path = work.join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(allowed.join(Lockfile::FILE_NAME), &path).unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let allowed_dirs = [allowed];
+    let error = lockfile
+        .save_to_path(&path, SymlinkedLockfile::WriteThrough { allowed_dirs: &allowed_dirs })
+        .expect_err("a target outside the allowed directories must not be written");
+
+    dbg!(&error);
+    assert!(error.to_string().contains("outside the directories"));
+    assert_eq!(std::fs::read_to_string(&victim).unwrap(), "victim content");
+    assert!(std::fs::symlink_metadata(&path).unwrap().is_symlink());
+}
+
+/// The allowed directory is named through `alias`, a link to `source`.
+#[cfg(unix)]
+#[test]
+fn save_writes_through_when_the_allowed_dir_is_named_through_a_link() {
+    let dir = tempdir().unwrap();
+    let source = dir.path().join("source");
+    std::fs::create_dir(&source).unwrap();
+    let alias = dir.path().join("alias");
+    std::os::unix::fs::symlink(&source, &alias).unwrap();
+    let target = source.join(Lockfile::FILE_NAME);
+    std::fs::write(&target, "lockfileVersion: '9.0'\n").unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(&target, &path).unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let allowed_dirs = [alias];
+    lockfile
+        .save_to_path(&path, SymlinkedLockfile::WriteThrough { allowed_dirs: &allowed_dirs })
+        .unwrap();
+
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), lockfile.to_yaml_string().unwrap());
+}
+
 #[cfg(unix)]
 #[test]
 fn save_through_a_symlink_cycle_fails() {
@@ -689,8 +743,9 @@ fn save_through_a_symlink_cycle_fails() {
     std::os::unix::fs::symlink(&path, &other).unwrap();
 
     let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let allowed_dirs = [dir.path().to_path_buf()];
     let error = lockfile
-        .save_to_path(&path, SymlinkedLockfile::WriteThrough)
+        .save_to_path(&path, SymlinkedLockfile::WriteThrough { allowed_dirs: &allowed_dirs })
         .expect_err("a symlink cycle has no target to write");
 
     dbg!(&error);

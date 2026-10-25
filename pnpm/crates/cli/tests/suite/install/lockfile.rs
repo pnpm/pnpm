@@ -1087,7 +1087,7 @@ fn allow_symlinked_lockfile_writes_through_the_symlink() {
     let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
 
     new_pacquet_command(&workspace)
-        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", "true")
+        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", allowed_dirs_json(&source_lockfile))
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
@@ -1113,10 +1113,14 @@ fn changed_symlinked_lockfile_is_refused_even_if_the_workspace_yaml_allows_it() 
         ..
     } = CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
-    workspace_yaml.push_str("\nallowSymlinkedLockfile: true\n");
-    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
     let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
+    let allowed_dirs = allowed_dirs_json(&source_lockfile);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("{workspace_yaml}\nallowSymlinkedLockfile: {allowed_dirs}\n"),
+    )
+    .unwrap();
     let before = fs::read_to_string(&source_lockfile).unwrap();
 
     let output = new_pacquet_command(&workspace)
@@ -1131,4 +1135,42 @@ fn changed_symlinked_lockfile_is_refused_even_if_the_workspace_yaml_allows_it() 
     assert_eq!(fs::read_to_string(&source_lockfile).unwrap(), before);
 
     drop((root, mock_instance));
+}
+
+/// A target outside every listed directory is refused like an unlisted link.
+#[cfg(unix)]
+#[test]
+fn symlinked_lockfile_outside_the_allowed_dirs_is_refused() {
+    let CommandTempCwd {
+        pacquet,
+        root,
+        workspace,
+        npmrc_info,
+        ..
+    } = CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
+    let before = fs::read_to_string(&source_lockfile).unwrap();
+
+    let output = new_pacquet_command(&workspace)
+        .with_env(
+            "PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE",
+            allowed_dirs_json(&workspace.join("pnpm-lock.yaml")),
+        )
+        .with_args(["install", "--lockfile-only"])
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    eprintln!("STDERR:\n{stderr}");
+    assert!(stderr.contains("Refusing to write symlinked lockfile"));
+    assert_eq!(fs::read_to_string(&source_lockfile).unwrap(), before);
+
+    drop((root, mock_instance));
+}
+
+/// `allowSymlinkedLockfile` listing the directory of `file`, as JSON.
+#[cfg(unix)]
+fn allowed_dirs_json(file: &std::path::Path) -> String {
+    serde_json::to_string(&[file.parent().unwrap()]).unwrap()
 }

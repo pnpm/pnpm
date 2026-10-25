@@ -576,7 +576,10 @@ fn import_writes_through_a_symlinked_lockfile_when_allowed() {
         .expect("symlink pnpm-lock.yaml");
 
     pacquet
-        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", "true")
+        .with_env(
+            "PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE",
+            serde_json::to_string(&[&source]).unwrap(),
+        )
         .with_arg("import")
         .assert()
         .success();

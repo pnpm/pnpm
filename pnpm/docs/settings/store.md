@@ -174,12 +174,19 @@ Add the full URL to the package's tarball to every entry in `pnpm-lock.yaml`.
 
 Added in: v12.16.0
 
-* Default: **false**
-* Type: **Boolean**
+* Default: **[]**
+* Type: **string[]**
 
-When `pnpm-lock.yaml` is a symlink, pnpm reads it through the link but refuses to write changes to it. Set this to `true` to write the updated lockfile to the file the symlink points to. pnpm follows the whole chain of links, keeps every link in place, and keeps the target file's permissions. A lockfile that does not change is never written.
+When `pnpm-lock.yaml` is a symlink, pnpm reads it through the link but refuses to write changes to it. List the directories that the lockfile may link into, and pnpm writes the updated lockfile to the file the symlink points to if that file is inside one of them. pnpm follows the whole chain of links, keeps every link in place, and keeps the target file's permissions. A lockfile that does not change is never written.
 
-Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE=true`. The setting in `pnpm-workspace.yaml` is ignored, because the repository that commits the symlink must not be the one that allows writing through it.
+```yaml title="config.yaml"
+allowSymlinkedLockfile:
+  - ~/build/src
+```
+
+Each entry must be an absolute path or start with `~/`. pnpm ignores any other entry.
+
+Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE='["/path/to/src"]'`. The setting in `pnpm-workspace.yaml` is ignored, because the repository that commits the symlink must not be the one that allows writing through it.
 
 ### lockfile.includeResolutionSettings
 

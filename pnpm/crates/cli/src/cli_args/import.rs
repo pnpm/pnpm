@@ -91,13 +91,15 @@ impl ImportArgs {
 /// link replaces its target instead.
 fn replaced_lockfile_path(
     state: &State,
-    symlinked: SymlinkedLockfile,
+    symlinked: SymlinkedLockfile<'_>,
 ) -> miette::Result<std::path::PathBuf> {
     match symlinked {
-        SymlinkedLockfile::WriteThrough => lockfile_write_target(&state.lockfile_path(), symlinked)
-            .into_diagnostic()
-            .wrap_err("resolving the symlinked pnpm-lock.yaml")
-            .map(std::borrow::Cow::into_owned),
+        SymlinkedLockfile::WriteThrough { .. } => {
+            lockfile_write_target(&state.lockfile_path(), symlinked)
+                .into_diagnostic()
+                .wrap_err("resolving the symlinked pnpm-lock.yaml")
+                .map(std::borrow::Cow::into_owned)
+        }
         SymlinkedLockfile::Refuse => Ok(state.lockfile_path()),
     }
 }
@@ -105,12 +107,12 @@ fn replaced_lockfile_path(
 fn back_up_lockfile(
     lockfile_path: &Path,
     backup_path: &Path,
-    symlinked: SymlinkedLockfile,
+    symlinked: SymlinkedLockfile<'_>,
 ) -> miette::Result<()> {
     match symlinked {
         // Copied, so the link still resolves for the writers that save
         // through it during the import.
-        SymlinkedLockfile::WriteThrough => pnpm_fs::copy_permissions(lockfile_path)
+        SymlinkedLockfile::WriteThrough { .. } => pnpm_fs::copy_permissions(lockfile_path)
             .and_then(|permissions| {
                 pnpm_fs::copy_file_exclusive(lockfile_path, backup_path, &permissions, |_| Ok(()))
             }),

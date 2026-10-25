@@ -39,9 +39,13 @@ pub fn global_config_paths_expand_a_leading_tilde() {
         .expect("set once");
     let config_dir = home.path().join("xdg").join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
+    let absolute_dir = home.path().join("absolute");
     fs::write(
         config_dir.join("config.yaml"),
-        "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\n",
+        format!(
+            "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\nallowSymlinkedLockfile:\n  - ~/src\n  - relative\n  - '{}'\n",
+            absolute_dir.display(),
+        ),
     )
     .expect("write global config.yaml");
 
@@ -88,6 +92,8 @@ pub fn global_config_paths_expand_a_leading_tilde() {
     );
     assert_eq!(config.global_bin, Some(home.path().join("bin")));
     assert_eq!(config.store_dir.root(), home.path().join("store").join("v11"));
+    // A relative entry is dropped, not resolved against the working directory.
+    assert_eq!(config.allow_symlinked_lockfile, [home.path().join("src"), absolute_dir]);
 }
 
 #[test]

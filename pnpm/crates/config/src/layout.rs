@@ -378,12 +378,8 @@ impl Config {
 
     /// How a write that changes a symlinked wanted lockfile behaves.
     #[must_use]
-    pub fn symlinked_lockfile(&self) -> SymlinkedLockfile {
-        if self.allow_symlinked_lockfile {
-            SymlinkedLockfile::WriteThrough
-        } else {
-            SymlinkedLockfile::Refuse
-        }
+    pub fn symlinked_lockfile(&self) -> SymlinkedLockfile<'_> {
+        SymlinkedLockfile::allowing(&self.allow_symlinked_lockfile)
     }
 
     /// [`Self::wanted_lockfile_name`] paired with the merge flag, as the

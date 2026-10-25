@@ -201,7 +201,9 @@ fn write_through_symlinked_lockfile_when_allowed() {
     std::os::unix::fs::symlink("real-lockfile.yaml", &lockfile_path).unwrap();
 
     let env = sample_env_lockfile();
-    env.write(dir.path(), SymlinkedLockfile::WriteThrough).unwrap();
+    let allowed_dirs = [dir.path().to_path_buf()];
+    env.write(dir.path(), SymlinkedLockfile::WriteThrough { allowed_dirs: &allowed_dirs })
+        .unwrap();
 
     assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().is_symlink());
     assert_eq!(EnvLockfile::read(dir.path()).unwrap(), Some(env));

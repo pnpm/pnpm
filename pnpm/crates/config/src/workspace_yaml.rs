@@ -227,7 +227,7 @@ macro_rules! identically_named_settings {
             deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
             merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
             offline, prefer_offline,
-            lockfile_include_tarball_url, allow_symlinked_lockfile,
+            lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
             exclude_links_from_lockfile,
             optimistic_repeat_install,

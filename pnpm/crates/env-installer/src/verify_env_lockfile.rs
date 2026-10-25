@@ -12,7 +12,7 @@ use std::path::Path;
 pub fn write_verified_env_lockfile(
     env_lockfile: &EnvLockfile,
     root_dir: &Path,
-    symlinked_lockfile: SymlinkedLockfile,
+    symlinked_lockfile: SymlinkedLockfile<'_>,
 ) -> Result<(), ConfigDepError> {
     verify_env_lockfile(env_lockfile)?;
     env_lockfile.write(root_dir, symlinked_lockfile).map_err(ConfigDepError::WriteLockfile)
