@@ -1,8 +1,8 @@
 use super::{
     GitResolution, LockfileFormError, LockfileResolution, REVISION_SHA512, RegistryResolution,
-    TarballResolution, TarballRevision, assert_eq, integrity,
-    integrity_addressed_registry_tarball_url, is_integrity_addressed_registry_tarball_url,
-    render_resolution, text_block, undeclared_form,
+    TarballResolution, TarballRevision, assert_eq, integrity, is_on_revision_tarball_route,
+    is_revision_registry_tarball_url, render_resolution, revision_registry_tarball_url, text_block,
+    undeclared_form,
 };
 
 /// An `integrity: ''` entry — what an edited lockfile carries when the hash
@@ -77,39 +77,53 @@ fn serialize_git_resolution_drops_the_integrity() {
 }
 
 #[test]
-fn integrity_addressed_tarball_url_is_relative_to_the_declared_registry() {
+fn revision_tarball_url_is_relative_to_the_declared_registry() {
     let registry = "https://registry.example.test/npm/private";
-    let expected = format!("{registry}/-/tarballs/sha512/{}", "A".repeat(86));
+    let rev = TarballRevision::try_from(3).unwrap();
+    let expected = format!("{registry}/foo@1.0.0+r3");
     assert_eq!(
-        integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry),
+        revision_registry_tarball_url("foo", "1.0.0", rev, registry),
         Some(expected.clone()),
     );
-    assert!(is_integrity_addressed_registry_tarball_url(
-        &expected,
-        &integrity(REVISION_SHA512),
-        registry,
-    ));
-    assert!(!is_integrity_addressed_registry_tarball_url(
+    assert!(is_revision_registry_tarball_url(&expected, "foo", "1.0.0", rev, registry));
+    assert!(!is_revision_registry_tarball_url(
         &format!("{expected}?token=untrusted"),
-        &integrity(REVISION_SHA512),
+        "foo",
+        "1.0.0",
+        rev,
         registry,
     ));
-    assert!(!is_integrity_addressed_registry_tarball_url(
+    assert!(!is_revision_registry_tarball_url(
         "https://registry.example.test/npm/private/foo/-/foo-1.0.0.tgz",
-        &integrity(REVISION_SHA512),
+        "foo",
+        "1.0.0",
+        rev,
+        registry,
+    ));
+    assert!(!is_revision_registry_tarball_url(
+        "https://registry.example.test/npm/private/evil/../foo@1.0.0+r3",
+        "foo",
+        "1.0.0",
+        rev,
+        registry,
+    ));
+    assert!(is_on_revision_tarball_route(&expected, registry));
+    assert!(!is_on_revision_tarball_route(
+        "https://registry.example.test/npm/private/foo@1.0.0+20130313",
         registry,
     ));
 }
 
 #[test]
-fn to_lockfile_form_always_compacts_an_integrity_addressed_revision() {
+fn to_lockfile_form_always_compacts_a_revision_resolution() {
     let registry = "https://registry.example.test/npm/private/";
-    let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
-        .expect("complete sha512 integrity");
+    let revision = TarballRevision::try_from(3).unwrap();
+    let tarball = revision_registry_tarball_url("foo", "1.0.0", revision, registry)
+        .expect("valid revision url");
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(REVISION_SHA512)),
-        revision: Some(TarballRevision::try_from(3).unwrap()),
+        revision: Some(revision),
         git_hosted: None,
         path: None,
     });
@@ -119,7 +133,7 @@ fn to_lockfile_form_always_compacts_an_integrity_addressed_revision() {
             .unwrap(),
         LockfileResolution::Registry(RegistryResolution {
             integrity: integrity(REVISION_SHA512),
-            revision: Some(TarballRevision::try_from(3).unwrap()),
+            revision: Some(revision),
         }),
     );
 }
@@ -127,12 +141,13 @@ fn to_lockfile_form_always_compacts_an_integrity_addressed_revision() {
 #[test]
 fn to_lockfile_form_compacts_revision_zero() {
     let registry = "https://registry.example.test/npm/private/";
-    let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
-        .expect("complete sha512 integrity");
+    let revision = TarballRevision::try_from(0).unwrap();
+    let tarball = revision_registry_tarball_url("foo", "1.0.0", revision, registry)
+        .expect("valid revision url");
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(REVISION_SHA512)),
-        revision: Some(TarballRevision::try_from(0).unwrap()),
+        revision: Some(revision),
         git_hosted: None,
         path: None,
     });
@@ -142,16 +157,21 @@ fn to_lockfile_form_compacts_revision_zero() {
             .unwrap(),
         LockfileResolution::Registry(RegistryResolution {
             integrity: integrity(REVISION_SHA512),
-            revision: Some(TarballRevision::try_from(0).unwrap()),
+            revision: Some(revision),
         }),
     );
 }
 
 #[test]
-fn to_lockfile_form_keeps_an_integrity_addressed_url_without_a_revision() {
+fn to_lockfile_form_keeps_a_revision_url_without_a_revision() {
     let registry = "https://registry.example.test/npm/private/";
-    let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
-        .expect("complete sha512 integrity");
+    let tarball = revision_registry_tarball_url(
+        "foo",
+        "1.0.0",
+        TarballRevision::try_from(0).unwrap(),
+        registry,
+    )
+    .expect("valid revision url");
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(REVISION_SHA512)),
@@ -171,7 +191,7 @@ fn to_lockfile_form_keeps_an_integrity_addressed_url_without_a_revision() {
 #[test]
 fn to_lockfile_form_rejects_a_revision_without_integrity() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://registry.example.test/-/tarballs/sha512/digest".to_string(),
+        tarball: "https://registry.example.test/foo@1.0.0+r3".to_string(),
         integrity: None,
         revision: Some(TarballRevision::try_from(3).unwrap()),
         git_hosted: None,

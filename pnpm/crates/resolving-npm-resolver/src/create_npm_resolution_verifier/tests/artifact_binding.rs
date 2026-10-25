@@ -65,22 +65,22 @@ async fn rejects_a_revision_with_an_unadvertised_integrity() {
                 "version": "1.0.0",
                 "dist": {
                     "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
-                    "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                    "tarball": format!("{registry}revision-pkg@1.0.0+r2"),
                     "revision": 2,
                     "revisions": [{
                         "revision": 0,
                         "integrity": revision_integrity(REVISION_ZERO_DIGEST).to_string(),
-                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ZERO_DIGEST}"),
+                        "tarball": format!("{registry}revision-pkg@1.0.0+r0"),
                         "manifest": {},
                     }, {
                         "revision": 1,
                         "integrity": revision_integrity(REVISION_ONE_DIGEST).to_string(),
-                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_ONE_DIGEST}"),
+                        "tarball": format!("{registry}revision-pkg@1.0.0+r1"),
                         "manifest": {},
                     }, {
                         "revision": 2,
                         "integrity": revision_integrity(REVISION_TWO_DIGEST).to_string(),
-                        "tarball": format!("{registry}-/tarballs/sha512/{REVISION_TWO_DIGEST}"),
+                        "tarball": format!("{registry}revision-pkg@1.0.0+r2"),
                         "manifest": {},
                     }],
                 }

@@ -1,8 +1,8 @@
 use super::{
     ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
-    declared_tarball_integrity, describe_tars, filter_osv_vulnerable_versions, header,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, streaming, tarball_basename,
+    describe_tars, filter_osv_vulnerable_versions, header, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, streaming, tarball_basename,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -78,6 +78,44 @@ pub(super) fn expected_tarball_dist(
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
     Ok(Some(TarballDist { version: version.clone(), integrity, unpacked_size: dist.unpacked_size }))
+}
+
+/// Prefer SRI and fall back to legacy SHA-1, while refusing unverified bytes.
+pub(super) fn declared_tarball_integrity(
+    dist: &DistBlock,
+    name: &CanonicalPackageName,
+    filename: &str,
+    version: &str,
+) -> Result<Integrity, RegistryError> {
+    let integrity = if let Some(declared) = dist.integrity.as_deref() {
+        streaming::parse_integrity(declared)
+            .map_err(|err| {
+                tarball_integrity_error(
+                    name.as_str(),
+                    filename,
+                    format!("malformed dist.integrity: {err}"),
+                )
+            })?
+    } else {
+        let shasum = dist.shasum
+            .as_deref()
+            .ok_or_else(|| {
+                tarball_integrity_error(
+                    name.as_str(),
+                    filename,
+                    format!("packument has no dist.integrity or dist.shasum for {version:?}"),
+                )
+            })?;
+        Integrity::from_hex(shasum, ssri::Algorithm::Sha1)
+            .map_err(|err| {
+                tarball_integrity_error(
+                    name.as_str(),
+                    filename,
+                    format!("malformed dist.shasum: {err}"),
+                )
+            })?
+    };
+    Ok(integrity)
 }
 
 pub(super) fn tarball_stream_error(

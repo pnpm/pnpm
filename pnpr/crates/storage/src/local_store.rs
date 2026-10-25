@@ -1,13 +1,10 @@
-mod revision_refs;
-
 mod hosted_backend;
 
 use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, BlobWrite, Body, BoxStream,
     CachedDocument, CanonicalPackageName, DOCUMENT_FILE, DocumentStamp, DocumentWrite, Duration,
-    ErrorKind, GetRange, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
-    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, PACKAGES_DIR, Path, PathBuf, RangedBlob, RegistryError, Result,
+    ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
+    HostedDocumentVersion, PACKAGES_DIR, Path, PathBuf, RangedBlob, RegistryError, Result,
     SeekFrom, StreamExt, SystemTime, async_trait, create_tmp_file, decode_segment, encode_segment,
     fs, stream, streaming, unique_tmp_path, write_atomic, write_atomic_new,
 };
@@ -17,7 +14,6 @@ use super::{
 #[derive(Debug, Clone)]
 pub(super) struct Store {
     pub(super) root: PathBuf,
-    pub(super) revision_ref_write_lock: Arc<tokio::sync::Mutex<()>>,
     /// Serializes the read-compare-write of a record against every other
     /// write to it, removals included. One process owns this store, so an
     /// in-process lock is the whole of the compare-and-set the object-store
@@ -27,11 +23,7 @@ pub(super) struct Store {
 
 impl Store {
     pub(super) fn new(root: PathBuf) -> Self {
-        Self {
-            root,
-            revision_ref_write_lock: Arc::new(tokio::sync::Mutex::new(())),
-            record_write_lock: Arc::new(tokio::sync::Mutex::new(())),
-        }
+        Self { root, record_write_lock: Arc::new(tokio::sync::Mutex::new(())) }
     }
 
     /// A disposable store rooted at a sub-path of this one. Used to give a
@@ -40,7 +32,6 @@ impl Store {
     pub(super) fn namespaced(&self, prefix: &str) -> Store {
         Store {
             root: self.root.join(prefix),
-            revision_ref_write_lock: Arc::clone(&self.revision_ref_write_lock),
             record_write_lock: Arc::clone(&self.record_write_lock),
         }
     }
@@ -144,20 +135,6 @@ impl Store {
         self.open_blob_tmp_at(final_path).await
     }
 
-    pub(super) async fn open_revision_blob(&self, digest: &str) -> Result<Option<(fs::File, u64)>> {
-        let file = match fs::File::open(self.revision_blob_path(digest)).await {
-            Ok(file) => file,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(err) => return Err(err.into()),
-        };
-        let len = file.metadata().await?.len();
-        Ok(Some((file, len)))
-    }
-
-    pub(super) async fn open_revision_blob_tmp(&self, digest: &str) -> Result<BlobWrite> {
-        self.open_blob_tmp_at(self.revision_blob_path(digest)).await
-    }
-
     pub(super) async fn open_blob_tmp_at(&self, final_path: PathBuf) -> Result<BlobWrite> {
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent).await?;
@@ -258,15 +235,6 @@ impl Store {
         self.package_dir(name)
             .join(BLOBS_DIR)
             .join(encode_segment(filename))
-    }
-
-    /// Keyed by the digest of the revision's tar. `.revisions/sha512` holds
-    /// blobs a `.tgz` digest named, which this path never serves.
-    pub(super) fn revision_blob_path(&self, digest: &str) -> PathBuf {
-        self.root
-            .join(".revisions")
-            .join("tar-sha512")
-            .join(digest)
     }
 
     /// A record's path. The key's `/` separators become path components, so a

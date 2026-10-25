@@ -138,7 +138,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
 async fn revision_metadata_is_validated_and_preserved() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    let tarball = format!("{registry}acme@1.0.0+r2");
     let mock = server
         .mock("GET", "/acme")
         .with_status(200)
@@ -170,7 +170,7 @@ async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
     {
         let mut server = mockito::Server::new_async().await;
         let registry = format!("{}/", server.url());
-        let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+        let tarball = format!("{registry}acme@1.0.0+r1");
         server
             .mock("GET", "/acme")
             .with_status(200)

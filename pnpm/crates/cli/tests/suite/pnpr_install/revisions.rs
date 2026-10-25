@@ -1,8 +1,7 @@
 use super::{
     AddMockedRegistry, CommandExtra, CommandTempCwd, Ecosystem, configure_pnpr_auth, fs,
-    integrity_addressed_tarball_path, pacquet_at, point_npmrc_registry_at,
-    revision_fixture_tarball, revision_fixture_tarball_with_value, revision_packument, start_pnpr,
-    start_pnpr_registry,
+    pacquet_at, point_npmrc_registry_at, revision_fixture_tarball,
+    revision_fixture_tarball_with_value, revision_packument, start_pnpr, start_pnpr_registry,
 };
 use assert_cmd::assert::OutputAssertExt;
 
@@ -10,8 +9,8 @@ use assert_cmd::assert::OutputAssertExt;
 fn revision_install_and_frozen_reinstall_work_through_pnpr() {
     let mut upstream = mockito::Server::new();
     let tarball = revision_fixture_tarball();
-    let (integrity, packument) = revision_packument(&upstream, &tarball, 2, &[]);
-    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let (_integrity, packument) = revision_packument(&upstream, &tarball, 2, &[]);
+    let revision_path = "revision-pkg@1.0.0+r2";
     let packument_mock = upstream
         .mock("GET", "/revision-pkg")
         .with_body(packument.to_string())
@@ -68,13 +67,13 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
 }
 
 /// An original selected through the revision protocol is recorded as
-/// revision 0 and fetched from its tar digest route like any revision.
+/// revision 0 and fetched from its revision route like any revision.
 #[test]
-fn a_selected_revision_zero_is_recorded_and_fetched_by_digest() {
+fn a_selected_revision_zero_is_recorded_and_fetched_by_revision() {
     let mut upstream = mockito::Server::new();
     let tarball = revision_fixture_tarball();
     let (integrity, packument) = revision_packument(&upstream, &tarball, 0, &[]);
-    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let revision_path = "revision-pkg@1.0.0+r0";
     let _packument_mock = upstream
         .mock("GET", "/revision-pkg")
         .with_body(packument.to_string())
@@ -134,7 +133,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     let mut first_upstream = mockito::Server::new();
     let (first_integrity, first_packument) =
         revision_packument(&first_upstream, &first_tarball, 1, &[]);
-    let first_path = integrity_addressed_tarball_path(&first_integrity).unwrap();
+    let first_path = "revision-pkg@1.0.0+r1";
     first_upstream
         .mock("GET", "/revision-pkg")
         .with_body(first_packument.to_string())
@@ -148,9 +147,9 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
     let first_registry = start_pnpr_registry(&first_upstream.url(), Ecosystem::Npm);
 
     let mut second_upstream = mockito::Server::new();
-    let (second_integrity, second_packument) =
+    let (_second_integrity, second_packument) =
         revision_packument(&second_upstream, &second_tarball, 2, &[(&first_integrity, 1)]);
-    let second_path = integrity_addressed_tarball_path(&second_integrity).unwrap();
+    let second_path = "revision-pkg@1.0.0+r2";
     second_upstream
         .mock("GET", "/revision-pkg")
         .with_body(second_packument.to_string())
@@ -212,7 +211,7 @@ fn update_patches_refreshes_a_revision_through_the_pnpr_resolver() {
     let second_tarball = revision_fixture_tarball_with_value("revision two");
     let mut upstream = mockito::Server::new();
     let (first_integrity, first_packument) = revision_packument(&upstream, &first_tarball, 1, &[]);
-    let first_path = integrity_addressed_tarball_path(&first_integrity).unwrap();
+    let first_path = "revision-pkg@1.0.0+r1";
     let first_packument_mock = upstream
         .mock("GET", "/revision-pkg")
         .with_body(first_packument.to_string())
@@ -247,9 +246,9 @@ fn update_patches_refreshes_a_revision_through_the_pnpr_resolver() {
     first_tarball_mock.assert();
     first_packument_mock.remove();
 
-    let (second_integrity, second_packument) =
+    let (_second_integrity, second_packument) =
         revision_packument(&upstream, &second_tarball, 2, &[(&first_integrity, 1)]);
-    let second_path = integrity_addressed_tarball_path(&second_integrity).unwrap();
+    let second_path = "revision-pkg@1.0.0+r2";
     let second_packument_mock = upstream
         .mock("GET", "/revision-pkg")
         .with_body(second_packument.to_string())

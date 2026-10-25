@@ -6,46 +6,20 @@
 //! shortening after their own pre-escape step. Keeping the helpers in
 //! one place avoids duplicating the sha2 dependency in every consumer.
 
-use base64::{
-    Engine as _,
-    engine::general_purpose::{STANDARD as BASE64, URL_SAFE_NO_PAD},
-};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use sha2::{Digest, Sha256};
 use ssri::{Algorithm, Integrity};
 use std::{io, path::Path};
 
-/// Build the registry-relative path for a complete, canonical sha512 SRI.
-///
-/// Integrity-addressed registry tarballs accept exactly one sha512 hash. The
-/// digest must decode to all 64 bytes and round-trip through canonical padded
-/// base64 before it is rendered as unpadded base64url in the request path.
+/// Whether `integrity` is a single complete, canonical 64-byte `sha512` hash.
 #[must_use]
-pub fn integrity_addressed_tarball_path(integrity: &Integrity) -> Option<String> {
-    let [hash] = integrity.hashes.as_slice() else { return None };
-    if hash.algorithm != Algorithm::Sha512 {
-        return None;
+pub fn has_complete_sha512_digest(integrity: &Integrity) -> bool {
+    let [hash] = integrity.hashes.as_slice() else { return false };
+    if hash.algorithm != Algorithm::Sha512 || hash.digest.len() != 88 {
+        return false;
     }
-    if hash.digest.len() != 88 {
-        return None;
-    }
-    let digest = BASE64.decode(&hash.digest).ok()?;
-    if digest.len() != 64 || BASE64.encode(&digest) != hash.digest {
-        return None;
-    }
-    Some(format!("-/tarballs/sha512/{}", URL_SAFE_NO_PAD.encode(digest)))
-}
-
-/// Parse the digest segment of an integrity-addressed sha512 tarball path.
-#[must_use]
-pub fn integrity_addressed_tarball_integrity(digest: &str) -> Option<Integrity> {
-    if digest.len() != 86 {
-        return None;
-    }
-    let bytes = URL_SAFE_NO_PAD.decode(digest).ok()?;
-    if bytes.len() != 64 || URL_SAFE_NO_PAD.encode(&bytes) != digest {
-        return None;
-    }
-    format!("sha512-{}", BASE64.encode(bytes)).parse().ok()
+    let Ok(digest) = BASE64.decode(&hash.digest) else { return false };
+    digest.len() == 64 && BASE64.encode(&digest) == hash.digest
 }
 
 /// Compute the `sha256-<base64>` digest of `input`.

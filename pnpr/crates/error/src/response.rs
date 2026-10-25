@@ -56,10 +56,6 @@ impl RegistryError {
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
             RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
-            RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
-            RegistryError::RevisionReferenceWriteConflict { .. } => {
-                "revision_reference_write_conflict"
-            }
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -190,8 +186,6 @@ impl RegistryError {
             | RegistryError::BlobUploadConflict { .. }
             | RegistryError::DocumentWriteConflict { .. }
             | RegistryError::StagedApprovalInFlight { .. }
-            | RegistryError::RevisionReferenceLimit { .. }
-            | RegistryError::RevisionReferenceWriteConflict { .. }
             | RegistryError::AdminConflict { .. } => StatusCode::CONFLICT,
             RegistryError::TooManyRequests { .. } => StatusCode::TOO_MANY_REQUESTS,
             RegistryError::RequestTimeout { .. } => StatusCode::GATEWAY_TIMEOUT,

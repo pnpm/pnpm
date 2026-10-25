@@ -1,6 +1,5 @@
 use super::{
-    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, ErrorKind,
-    HostedRevisionRefIndex, HostedRevisionRefWrite, HostedStoreConfig, MAX_HOSTED_REVISION_REFS,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, DocumentWrite, ErrorKind, HostedStoreConfig,
     PackageTombstone, RegistryError, RegistryRecord, Storage, atomic_write::create_tmp_file_with,
     fs,
 };
@@ -21,123 +20,6 @@ fn document_write_conflict_delay_caps_growth() {
     assert_eq!(super::document_write_conflict_delay(1).as_millis(), 10);
     assert_eq!(super::document_write_conflict_delay(6).as_millis(), 250);
     assert_eq!(super::document_write_conflict_delay(32).as_millis(), 250);
-}
-
-#[tokio::test]
-async fn hosted_revision_refs_roundtrip_in_the_org_namespace() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp).for_hosted("acme");
-    let digest = "A".repeat(86);
-    let ref_id = "b".repeat(64);
-
-    assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), Vec::<Vec<u8>>::new());
-    storage
-        .write_hosted_revision_ref(
-            &digest,
-            &ref_id,
-            "owner-a",
-            br#"{"package":"foo","version":"1.0.0"}"#,
-        )
-        .await
-        .unwrap();
-    assert_eq!(
-        storage.read_hosted_revision_refs(&digest).await.unwrap(),
-        vec![br#"{"package":"foo","version":"1.0.0"}"#.to_vec()],
-    );
-    assert_eq!(
-        storage_in(&tmp).read_hosted_revision_refs(&digest).await.unwrap(),
-        Vec::<Vec<u8>>::new(),
-    );
-}
-
-#[tokio::test]
-async fn hosted_revision_ref_paths_reject_noncanonical_segments() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let digest = "A".repeat(86);
-
-    let invalid_digest = storage.read_hosted_revision_refs("../escape").await;
-    assert!(invalid_digest.is_err());
-    let invalid_ref =
-        storage.write_hosted_revision_ref(&digest, "../escape", "owner-a", b"{}").await;
-    assert!(invalid_ref.is_err());
-}
-
-#[tokio::test]
-async fn hosted_revision_ref_writes_enforce_the_read_bound() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let digest = "A".repeat(86);
-    for index in 0..MAX_HOSTED_REVISION_REFS {
-        storage
-            .write_hosted_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
-            .await
-            .unwrap();
-    }
-
-    let overflow = MAX_HOSTED_REVISION_REFS;
-    let err = storage
-        .write_hosted_revision_ref(&digest, &format!("{overflow:064x}"), "owner-a", b"{}")
-        .await
-        .unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::CONFLICT);
-    assert!(matches!(
-        err,
-        RegistryError::RevisionReferenceLimit { limit } if limit == MAX_HOSTED_REVISION_REFS
-    ));
-
-    assert_eq!(
-        storage
-            .write_hosted_revision_ref(&digest, &"0".repeat(64), "owner-a", b"{}")
-            .await
-            .unwrap(),
-        HostedRevisionRefWrite::AlreadyClaimed,
-    );
-    let mut stray_dir = tmp.path().join("storage");
-    stray_dir.extend(crate::layout::namespace_segments(""));
-    let stray_dir = stray_dir.join(super::HOSTED_REVISION_REFS_DIR).join(&digest);
-    fs::write(stray_dir.join("not-a-reference.json"), b"stray").await.unwrap();
-    fs::write(stray_dir.join("interrupted.tmp"), b"stray").await.unwrap();
-    let refs = storage.read_hosted_revision_refs(&digest).await.unwrap();
-    assert_eq!(refs.len(), MAX_HOSTED_REVISION_REFS);
-    assert!(refs.iter().all(|bytes| bytes == b"{}"));
-}
-
-#[tokio::test]
-async fn concurrent_hosted_revision_ref_writes_cannot_exceed_the_limit() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let digest = "A".repeat(86);
-    let mut writes = Vec::new();
-    for index in 0..MAX_HOSTED_REVISION_REFS * 2 {
-        let storage = storage.clone();
-        let digest = digest.clone();
-        writes.push(tokio::spawn(async move {
-            storage.write_hosted_revision_ref(&digest, &format!("{index:064x}"), "owner-a", b"{}")
-                .await
-        }));
-    }
-
-    let mut written = 0;
-    let mut rejected = 0;
-    for write in writes {
-        match write.await.unwrap() {
-            Ok(HostedRevisionRefWrite::Claimed) => written += 1,
-            Ok(outcome) => panic!("unexpected revision-reference write outcome: {outcome:?}"),
-            Err(RegistryError::RevisionReferenceLimit { .. }) => rejected += 1,
-            Err(err) => panic!("unexpected revision-reference write error: {err}"),
-        }
-    }
-    assert_eq!(written, MAX_HOSTED_REVISION_REFS);
-    assert_eq!(rejected, MAX_HOSTED_REVISION_REFS);
-    assert_eq!(
-        storage
-            .read_hosted_revision_refs(&digest)
-            .await
-            .unwrap()
-            .len(),
-        MAX_HOSTED_REVISION_REFS,
-    );
 }
 
 #[tokio::test]
@@ -555,33 +437,6 @@ async fn subsequent_write_tombstone_replaces_maintainers_and_merges_version_bans
     assert_eq!(stored.unpublished_by.as_deref(), Some("bob"));
 }
 
-#[tokio::test]
-async fn an_upstream_revision_blob_named_by_a_tgz_digest_is_not_served() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let digest = "A".repeat(86);
-    let tgz_keyed = tmp.path().join("cache/upstream/.revisions/sha512");
-    fs::create_dir_all(&tgz_keyed).await.unwrap();
-    fs::write(tgz_keyed.join(&digest), b"tgz").await.unwrap();
-    assert!(
-        storage
-            .open_upstream_revision_blob("upstream", &digest)
-            .await
-            .unwrap()
-            .is_none(),
-    );
-
-    let mut write = storage.open_upstream_revision_blob_tmp("upstream", &digest).await.unwrap();
-    write.write_all(b"tar").await.unwrap();
-    write.finalize().await.unwrap();
-    let (_file, len) = storage
-        .open_upstream_revision_blob("upstream", &digest)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(len, 3);
-}
-
 #[cfg(unix)]
 #[tokio::test]
 async fn symlinks_in_the_packages_directory_are_not_followed() {
@@ -643,36 +498,6 @@ async fn a_blob_being_staged_is_not_listed() {
         .await
         .unwrap();
     assert_eq!(files.len(), 2, "{files:?}");
-}
-
-#[test]
-fn revision_index_preserves_byte_for_byte_fidelity_across_formatting() {
-    let json_dense = b"{\"key\":\"value\",\"count\":1}";
-    let json_spaced = b"{\n  \"key\": \"value\",\n  \"count\": 1\n}";
-
-    let mut index = HostedRevisionRefIndex::default();
-    index
-        .insert(
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "owner1",
-            json_dense,
-        )
-        .unwrap();
-    index
-        .insert(
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-            "owner2",
-            json_spaced,
-        )
-        .unwrap();
-
-    let bytes = index.to_bytes();
-    let loaded = HostedRevisionRefIndex::from_bytes(&bytes).unwrap();
-
-    let bodies: Vec<&[u8]> = loaded.bodies().collect();
-    assert_eq!(bodies[0], json_dense);
-    assert_eq!(bodies[1], json_spaced);
-    assert_ne!(bodies[0], bodies[1]);
 }
 
 #[tokio::test]
@@ -977,34 +802,6 @@ impl super::backend::HostedBackend for HookedBackend {
     }
     async fn list_top_level_dirs(&self) -> pnpr_error::Result<Vec<String>> {
         self.inner.list_top_level_dirs().await
-    }
-    async fn read_revision_refs(&self, digest: &str) -> pnpr_error::Result<Vec<Vec<u8>>> {
-        self.inner.read_revision_refs(digest).await
-    }
-    async fn write_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-        bytes: &[u8],
-    ) -> pnpr_error::Result<HostedRevisionRefWrite> {
-        self.inner.write_revision_ref(digest, ref_id, owner, bytes).await
-    }
-    async fn remove_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-    ) -> pnpr_error::Result<()> {
-        self.inner.remove_revision_ref(digest, ref_id, owner).await
-    }
-    async fn commit_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-    ) -> pnpr_error::Result<()> {
-        self.inner.commit_revision_ref(digest, ref_id, owner).await
     }
     fn namespaced(&self, segment: &str) -> std::sync::Arc<dyn super::backend::HostedBackend> {
         self.inner.namespaced(segment)

@@ -3,9 +3,9 @@ use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, TarballUrlOptions, integrity_addressed_registry_tarball_url,
-    is_git_hosted_tarball_url, is_integrity_addressed_registry_tarball_url, npm_tarball_url,
-    registry_server_type,
+    LockfileResolution, PackageKey, TarballUrlOptions, has_complete_sha512_digest,
+    is_git_hosted_tarball_url, is_revision_registry_tarball_url, npm_tarball_url,
+    registry_server_type, revision_registry_tarball_url,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use std::{borrow::Cow, collections::HashMap, path::Path};
@@ -87,8 +87,8 @@ pub(super) fn tarball_resolution_url<'a>(
     Ok((tarball_url.pipe(Cow::Borrowed), integrity))
 }
 /// A `revision`-carrying tarball resolution addresses a registry
-/// tarball by its integrity, so the recorded URL must be exactly the
-/// one that integrity derives against the package's registry.
+/// tarball by `<registry>/<name>@<version>+r<revision>` and a complete
+/// sha512 integrity.
 pub(super) fn check_tarball_revision(
     tarball_url: &str,
     integrity: Option<&ssri::Integrity>,
@@ -99,11 +99,22 @@ pub(super) fn check_tarball_revision(
     if tarball_url.starts_with("file:") || tarball_resolution.is_git_hosted() {
         return Err(invalid_tarball_revision(package_key, "does not identify a registry tarball"));
     }
-    let Some(integrity) = integrity else {
+    let Some(integrity) = integrity.filter(|integrity| has_complete_sha512_digest(integrity))
+    else {
         return Err(invalid_tarball_revision(package_key, "has invalid or missing integrity"));
     };
-    let (registry, _) = registry_and_version(package_key, config)?;
-    if !is_integrity_addressed_registry_tarball_url(tarball_url, integrity, &registry) {
+    let _ = integrity;
+    let Some(revision) = tarball_resolution.revision else {
+        return Ok(());
+    };
+    let (registry, version) = registry_and_version(package_key, config)?;
+    if !is_revision_registry_tarball_url(
+        tarball_url,
+        &package_key.name.to_string(),
+        &version,
+        revision,
+        &registry,
+    ) {
         return Err(invalid_tarball_revision(package_key, "has a mismatched tarball URL"));
     }
     Ok(())
@@ -123,13 +134,22 @@ pub(super) fn registry_resolution_url<'a>(
         });
     };
     let (registry, version) = registry_and_version(package_key, config)?;
+    let name = package_key.name.to_string();
     let tarball_url = match registry_resolution.revision {
-        Some(_) => integrity_addressed_registry_tarball_url(integrity, &registry)
-            .ok_or_else(|| {
-                invalid_tarball_revision(package_key, "has invalid or missing integrity")
-            })?,
+        Some(revision) => {
+            if !has_complete_sha512_digest(integrity) {
+                return Err(invalid_tarball_revision(
+                    package_key,
+                    "has invalid or missing integrity",
+                ));
+            }
+            revision_registry_tarball_url(&name, &version, revision, &registry)
+                .ok_or_else(|| {
+                    invalid_tarball_revision(package_key, "has a mismatched tarball URL")
+                })?
+        }
         None => npm_tarball_url(
-            &package_key.name.to_string(),
+            &name,
             &version,
             TarballUrlOptions {
                 registry: &registry,

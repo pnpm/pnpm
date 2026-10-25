@@ -1,8 +1,7 @@
 use super::{
-    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion,
-    HostedOriginalRef, Identity, Integrity, JournaledRevisionRef, PendingAttachment, RegistryError,
-    RegistrySource, Storage, Value, WriteTarget, authorize_package, cleanup_tmp_slots,
-    create_hex_hash, extract_attachments, hosted_storage, integrity_addressed_tarball_path,
+    Action, AppState, CanonicalPackageName, Ecosystem, HashSet, HostedDocumentVersion, Identity,
+    Integrity, PendingAttachment, RegistryError, RegistrySource, Storage, Value, WriteTarget,
+    authorize_package, cleanup_tmp_slots, extract_attachments, hosted_storage,
     manifest::{
         check_publishable_versions, parse_hosted_packument, prepare_staged_document,
         record_publisher, restore_submitted_tgz_integrities, serialize_staged_document,
@@ -150,7 +149,6 @@ pub(in super::super) struct StagedPublish {
     pub(in super::super) document: Vec<u8>,
     pub(in super::super) base_version: Option<HostedDocumentVersion>,
     pub(in super::super) slots: Vec<pnpr_storage::BlobSlot>,
-    pub(in super::super) revision_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
     /// the write — and any crash recovery — lands in the right org.
@@ -194,17 +192,12 @@ pub(in super::super) async fn stage_publish(
     let written =
         write_attachment_slots(&storage, &name, prepared, &state.inner.proxy.tar_decodes).await?;
     let document = serialize_staged_document(merged, &written.tars);
-    let revision_refs = written.tars
-        .iter()
-        .filter_map(|tar| staged_hosted_original_ref(&name, tar))
-        .collect();
     Ok(StagedPublish {
         name,
         ecosystem: Ecosystem::Npm,
         document,
         base_version,
         slots: written.slots,
-        revision_refs,
         org: org.map(str::to_string),
     })
 }
@@ -219,8 +212,6 @@ pub(super) struct WrittenAttachments {
 /// A published `.tgz` whose whole gzip stream decoded to a tar.
 pub(super) struct PublishedTar {
     pub(super) version: String,
-    pub(super) filename: String,
-    pub(super) integrity: Integrity,
     pub(super) inspection: pnpm_tarball::TarInspection,
 }
 
@@ -284,15 +275,7 @@ pub(super) async fn write_attachment_slot(
             if let Err(err) = storage.record_tar_integrity(name, &tgz_integrity, derived).await {
                 tracing::warn!(?err, package = %name.as_str(), "recording a tar integrity failed");
             }
-            Ok((
-                slot,
-                Some(PublishedTar {
-                    version: prepared.version,
-                    filename: prepared.canonical,
-                    integrity,
-                    inspection,
-                }),
-            ))
+            Ok((slot, Some(PublishedTar { version: prepared.version, inspection })))
         }
         Ok(Err(err)) => Err(err),
         Err(join_err) => {
@@ -376,18 +359,4 @@ fn decode_and_write_attachment(
         }
     }
     Ok(())
-}
-
-/// The reference that serves a published version's tar by its digest.
-pub(super) fn staged_hosted_original_ref(
-    package: &CanonicalPackageName,
-    tar: &PublishedTar,
-) -> Option<JournaledRevisionRef> {
-    let path = integrity_addressed_tarball_path(&tar.integrity)?;
-    let digest = path.strip_prefix("-/tarballs/sha512/")?.to_string();
-    let record =
-        HostedOriginalRef { package: package.as_str().to_string(), version: tar.version.clone() };
-    let bytes = serde_json::to_vec(&record).expect("hosted original reference serializes");
-    let ref_id = create_hex_hash(&format!("{}\0{}", record.package, record.version));
-    Some(JournaledRevisionRef { filename: tar.filename.clone(), digest, ref_id, bytes })
 }

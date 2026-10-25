@@ -181,10 +181,11 @@ are checked against the serving registry's matching
 | `GET` | `/@scope/{name}/-/{filename}` | Scoped tarball. Not served by a tar registry. |
 | `GET` | `/{name}@{version}` | Unscoped tarball by exact version: the `.tgz`, or on a tar registry the tar. |
 | `GET` | `/@scope/{name}@{version}` | Scoped tarball by exact version. |
+| `GET` | `/{name}@{version}+r{revision}` | Unscoped package tar by exact version and revision. See [Registry revisions](https://pnpm.io/registry-revisions). |
+| `GET` | `/@scope/{name}@{version}+r{revision}` | Scoped package tar by exact version and revision. See [Registry revisions](https://pnpm.io/registry-revisions). |
 | `GET` | `/-/package/{package}/dist-tags` | Package `dist-tags` object. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `GET` | `/-/v1/search?text=<query>&size=<n>` | npm search v1 shape. Searches locally hosted packages by package-name substring, and the upstreams that opt in with [`search: true`](discovery.md). Results are filtered by access policy. Pass `browse=true` to page through hosted packages with no search term. |
 | `GET` | `/-/org/{scope}/package` | Packages of one organization, on registries that enable discovery. Added in v0.1.0-alpha.11. |
-| `GET` | `/-/tarballs/sha512/{digest}` | Immutable package tar by the base64url SHA-512 digest of the uncompressed tar, added in v0.1.0-alpha.8. See [Registry revisions](https://pnpm.io/registry-revisions). |
 
 If the client sends `Accept: application/vnd.npm.install-v1+json`, pnpr
 returns npm's abbreviated install-v1 packument shape.
@@ -200,33 +201,29 @@ When OSV checks are enabled, vulnerable versions are removed from packuments
 and dist-tags. Version manifests and tarballs for vulnerable versions are
 denied.
 
-The digest route answers integrity-addressed
-[registry revisions](https://pnpm.io/registry-revisions). The digest is the SHA-512 of the
-uncompressed tar, on every registry, `.tgz` and tar registries alike. The
-response is the tar with `Content-Type: application/x-tar`, sent with the
-`gzip` or `zstd` content coding the client's `Accept-Encoding` allows, or with
-none, and `Vary: Accept-Encoding`. It carries no `ETag`, and a `Range` request
-gets the whole body.
+The `/{name}@{version}+r{revision}` route answers
+[registry revisions](https://pnpm.io/registry-revisions). Each revision's
+`dist.integrity` is the SHA-512 of the uncompressed tar, on every registry,
+`.tgz` and tar registries alike. The response is the tar with
+`Content-Type: application/x-tar`, sent with the `gzip` or `zstd` content coding
+the client's `Accept-Encoding` allows, or with none, and `Vary: Accept-Encoding`.
+It carries no `ETag`, and a `Range` request gets the whole body.
 
 For a proxied upstream registry, pnpr forwards the request with its own
 credentials and accepts a gzip-encoded or plain tar. It decodes the whole
-response and checks the tar against the digest before it caches or serves any
-of it. For a hosted registry, every publish decodes the `.tgz` and seals a
-durable package/version reference under the digest of its tar, so a digest is
-resolved with one bounded index read rather than a scan over packuments. A
-`.tgz` whose gzip stream does not decode in full has no tar, and gets no
-reference. Before the bytes are served, pnpr revalidates the current packument,
-the caller's access, registry routing, and OSV policy, so a digest URL is not a
-way around any of them. Every 3xx fails a digest fetch on the client side,
-same-origin included.
+response and checks the tar against the revision's `dist.integrity` in the
+upstream packument before it caches or serves any of it. For a hosted registry,
+revision `0` serves the tar of the published `.tgz` once its tar integrity has
+been verified. Every 3xx fails a revision fetch on the client side, same-origin
+included.
 
 Package metadata keeps an upstream's revision fields only when they form a
 complete revision record: `dist.revision`, including `0` for the original, a
-`dist.tarball` on the digest route, and a `dist.revisions` history that lists
-revision `0` once and the selected revision once. Such a version's `dist`
-omits `shasum` and `signatures`, which describe a `.tgz`, on either registry
-format. Any other version is served as ordinary metadata, without `revision`
-or `revisions`.
+`dist.tarball` on the `<name>@<version>+r<revision>` route, and a
+`dist.revisions` history that lists revision `0` once and the selected revision
+once. Such a version's `dist` omits `shasum` and `signatures`, which describe a
+`.tgz`, on either registry format. Any other version is served as ordinary
+metadata, without `revision` or `revisions`.
 
 When pnpr has verified a version's tarball (at publish time, on first read, or
 while streaming and caching an upstream tarball), its full packument,

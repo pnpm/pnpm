@@ -53,7 +53,7 @@ pub(super) fn dist_view<'a>(
     tar_integrities: Option<&'a BTreeMap<String, DerivedTar>>,
 ) -> DistView<'a> {
     let revision_registry = match source {
-        RegistrySource::Upstream(source) => revision_source_registry(state, registry, source),
+        RegistrySource::Upstream(source) => revision_source_registry(state, source),
         RegistrySource::Hosted(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => None,
     };
     DistView { revision_registry, tar_integrities, tar_registry: is_tar_registry(state, registry) }

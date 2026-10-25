@@ -305,7 +305,7 @@ async fn explicit_original_revision_records_revision_zero() {
         panic!("expected tarball resolution");
     };
     assert_eq!(resolution.revision.map(TarballRevision::get), Some(0));
-    assert!(resolution.tarball.ends_with("/-/tarballs/sha512/H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ"));
+    assert!(resolution.tarball.ends_with("/acme@1.0.0+r0"));
     assert_eq!(
         result.package.manifest.as_ref().expect("manifest")["dependencies"],
         json!({
@@ -315,10 +315,10 @@ async fn explicit_original_revision_records_revision_zero() {
 }
 
 #[tokio::test]
-async fn selected_revision_zero_is_resolved_from_the_digest_route() {
+async fn selected_revision_zero_is_resolved_from_the_revision_route() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    let tarball = format!("{registry}acme@1.0.0+r0");
     server
         .mock("GET", "/acme")
         .with_status(200)
@@ -347,12 +347,12 @@ async fn incomplete_revision_metadata_is_rejected() {
     for (case, edit) in [
         ("history without a selected revision", "remove-revision"),
         ("selected revision without revision 0", "remove-original"),
-        ("digest URL without revision metadata", "remove-both"),
-        ("digest URL of another archive without revision metadata", "remove-both-mismatched"),
+        ("revision URL without revision metadata", "remove-both"),
+        ("revision URL of another revision without revision metadata", "remove-both-mismatched"),
     ] {
         let mut server = mockito::Server::new_async().await;
         let registry = format!("{}/", server.url());
-        let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+        let tarball = format!("{registry}acme@1.0.0+r1");
         let mut body: serde_json::Value =
             serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
         let dist = body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap();
@@ -373,7 +373,7 @@ async fn incomplete_revision_metadata_is_rejected() {
             "remove-both-mismatched" => {
                 dist.remove("revision");
                 dist.remove("revisions");
-                dist.insert("integrity".to_string(), json!(format!("sha512-{}==", "B".repeat(86))));
+                dist.insert("tarball".to_string(), json!(format!("{registry}other@1.0.0+r9")));
             }
             _ => unreachable!(),
         }
@@ -426,7 +426,7 @@ async fn unknown_and_invalid_explicit_revisions_are_hard_errors() {
 async fn current_revision_requires_a_matching_history_entry() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
-    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    let tarball = format!("{registry}acme@1.0.0+r1");
     let mut body: serde_json::Value =
         serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
     body["versions"]["1.0.0"]["dist"]["revisions"] = json!([]);

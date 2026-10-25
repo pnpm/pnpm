@@ -3,9 +3,9 @@ use super::{
     LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, PlatformSelector, RegistryOptions, RegistryResolution, RegistryServerType,
     TarballResolution, TarballRevision, TarballUrlOptions, VariationsResolution,
-    integrity_addressed_registry_tarball_url, is_git_hosted_tarball_url,
-    is_integrity_addressed_registry_tarball_url, libc_matches, npm_tarball_url,
-    registry_server_type, select_platform_variant,
+    is_git_hosted_tarball_url, is_on_revision_tarball_route, is_revision_registry_tarball_url,
+    libc_matches, npm_tarball_url, registry_server_type, revision_registry_tarball_url,
+    select_platform_variant,
 };
 use crate::serialize_yaml;
 use pretty_assertions::assert_eq;

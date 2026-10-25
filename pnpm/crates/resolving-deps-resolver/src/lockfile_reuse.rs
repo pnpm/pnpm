@@ -13,9 +13,8 @@ use locked_version::admits_locked_version;
 use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
     PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions,
-    integrity_addressed_registry_tarball_url, npm_tarball_url, pick_registry_for_package,
-    registry_server_type,
+    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions, npm_tarball_url,
+    pick_registry_for_package, registry_server_type, revision_registry_tarball_url,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
@@ -352,10 +351,9 @@ fn current_resolution(
             let (registry, tarball_version) =
                 current_registry_version(metadata_key, registry_context)?;
             let tarball = match registry_resolution.revision {
-                Some(_) => integrity_addressed_registry_tarball_url(
-                    &registry_resolution.integrity,
-                    &registry,
-                )?,
+                Some(revision) => {
+                    revision_registry_tarball_url(&name, &tarball_version, revision, &registry)?
+                }
                 None => npm_tarball_url(
                     &name,
                     &tarball_version,

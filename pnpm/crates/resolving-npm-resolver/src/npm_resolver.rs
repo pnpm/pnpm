@@ -66,7 +66,8 @@ use pnpm_config::{
 use pnpm_lockfile::{
     DeclaredRegistryPrefixes, LockfileResolution, PkgName, PkgNameVer, RegistryOptions,
     RegistryServerType, TarballResolution, TarballRevision, TarballUrlOptions,
-    is_integrity_addressed_registry_tarball_url, npm_tarball_url, registry_server_type,
+    has_complete_sha512_digest, is_on_revision_tarball_route, is_revision_registry_tarball_url,
+    npm_tarball_url, registry_server_type,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};

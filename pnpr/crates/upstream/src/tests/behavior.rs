@@ -6,13 +6,13 @@ fn drops_invalid_upstream_revision_history_entries() {
     let mut doc = json!({
         "version": "1.0.0",
         "dist": {
-            "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+            "tarball": "https://upstream.test/foo@1.0.0+r2",
             "integrity": format!("sha512-{digest}=="),
             "revision": 2,
             "revisions": [{
                 "revision": 1,
                 "integrity": format!("sha512-{digest}=="),
-                "tarball": format!("https://other.test/-/tarballs/sha512/{digest}"),
+                "tarball": "https://other.test/foo@1.0.0+r1",
                 "manifest": {},
             }],
         },
