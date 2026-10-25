@@ -7,6 +7,7 @@ export type CheckDepsStatusOptions = Pick<Config,
 | 'autoInstallPeers'
 | 'catalogs'
 | 'dedupeDirectDeps'
+| 'dedupePeers'
 | 'excludeLinksFromLockfile'
 | 'ignoreCompatibilityDb'
 | 'ignorePnpmfile'
