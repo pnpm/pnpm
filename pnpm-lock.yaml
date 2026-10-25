@@ -547,8 +547,8 @@ catalogs:
       specifier: ^2.2.6
       version: 2.2.6
     get-pnpm:
-      specifier: ^0.0.8
-      version: 0.0.8
+      specifier: ^0.0.9
+      version: 0.0.9
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -1135,7 +1135,7 @@ importers:
     dependencies:
       get-pnpm:
         specifier: 'catalog:'
-        version: 0.0.8
+        version: 0.0.9
       node-gyp:
         specifier: 'catalog:'
         version: 12.3.0
@@ -15195,8 +15195,8 @@ packages:
     resolution: {integrity: sha512-pjzuKtY64GYfWizNAJ0fr9VqttZkNiK2iS430LtIHzjBEr6bX8Am2zm4sW4Ro5wjWW5cAlRL1qAMTcXbjNAO2Q==}
     engines: {node: '>=8.0.0'}
 
-  get-pnpm@0.0.8:
-    resolution: {integrity: sha512-35akhQRnn0YnCdEZr/LxvDyNg5Z9HtlPSyQAD31TOOur2WJv3dbiRZtG64n3mhW+m5rfePwPxXu3XiySkQeBIQ==}
+  get-pnpm@0.0.9:
+    resolution: {integrity: sha512-lygEPYNpdwBkPV96cqwPmLGIbv5leUtPqbozOF09JFerNX90g9Cpm/FaOefGJBMuPELEH6lHP7JJkmH0wIWRuw==}
     engines: {node: '>=22.13'}
     hasBin: true
 
@@ -22923,7 +22923,7 @@ snapshots:
 
   get-package-type@0.1.0: {}
 
-  get-pnpm@0.0.8:
+  get-pnpm@0.0.9:
     dependencies:
       confbox: 0.3.1
       picomatch: 4.0.7
