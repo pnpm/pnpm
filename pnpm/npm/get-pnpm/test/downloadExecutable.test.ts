@@ -41,6 +41,8 @@ let requests: Array<{ path: string, authorization?: string }> = []
 let cdnRequests: Array<{ path: string, authorization?: string }> = []
 /** `host:port` of every origin a client reached through the proxy. */
 let proxiedOrigins: string[] = []
+// The servers these tests start, the only hosts the proxy forwards to.
+const fixtureHosts: string[] = []
 /** When set, the second tarball request of a test waits on it before being served. */
 let holdSecondTarball: Promise<void> | null = null
 /** Registry requests left to answer by destroying the connection instead of responding. */
@@ -548,8 +550,15 @@ function integrityOf (bytes: Buffer): string {
 }
 
 function relayProxyRequest (req: http.IncomingMessage, res: http.ServerResponse): void {
-  const target = new URL(req.url!)
-  proxiedOrigins.push(target.host)
+  const requested = new URL(req.url!)
+  proxiedOrigins.push(requested.host)
+  const host = fixtureHosts.find((fixtureHost) => fixtureHost === requested.host)
+  if (host == null) {
+    res.writeHead(403)
+    res.end()
+    return
+  }
+  const target = new URL(`${requested.pathname}${requested.search}`, `http://${host}`)
   const relay = http.request(target, { method: req.method, headers: req.headers, agent: new http.Agent() }, (upstream) => {
     res.writeHead(upstream.statusCode!, upstream.headers)
     upstream.pipe(res)
@@ -559,7 +568,12 @@ function relayProxyRequest (req: http.IncomingMessage, res: http.ServerResponse)
 
 function tunnelProxyConnection (req: http.IncomingMessage, socket: Duplex, head: Buffer): void {
   proxiedOrigins.push(req.url!)
-  const { hostname, port } = new URL(`http://${req.url!}`)
+  const host = fixtureHosts.find((fixtureHost) => fixtureHost === req.url)
+  if (host == null) {
+    socket.end('HTTP/1.1 403 Forbidden\r\n\r\n')
+    return
+  }
+  const { hostname, port } = new URL(`http://${host}`)
   const upstream = net.connect(Number(port), hostname, () => {
     socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
     upstream.write(head)
@@ -640,6 +654,7 @@ async function listen (target: http.Server): Promise<void> {
   await new Promise<void>((resolve) => {
     target.listen(0, '127.0.0.1', resolve)
   })
+  fixtureHosts.push(hostOf(target))
 }
 
 async function close (target: http.Server): Promise<void> {

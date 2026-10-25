@@ -30,7 +30,6 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
-      get_pnpm: ${{ steps.manual.outputs.rust || steps.filter.outputs.get_pnpm }}
       changesets: ${{ steps.filter.outputs.changesets }}
       docs: ${{ steps.filter.outputs.docs }}
       convergence: ${{ steps.manual.outputs.rust || steps.filter.outputs.convergence }}
@@ -83,8 +82,6 @@ jobs:
               - '!pnpr/crates/*/*.md'
               - '!pnpr/docker/*.md'
               - '!pnpr/client/*.md'
-              # The downloader has no Rust in it; get_pnpm below runs its tests.
-              - '!pnpm/npm/get-pnpm/**'
               - 'pnpm/**'
               - 'pnpr/**'
               - 'Cargo.toml'
@@ -110,15 +107,6 @@ jobs:
               - '.github/actions/install-crates/**'
               - '.github/actions/remote-cache/**'
               - '.github/scripts/measure-command.mjs'
-              - '.github/workflows/pacquet-ci.yml'
-            # The downloader the npm wrapper bundles. The npm-wrapper job runs
-            # its tests along with the wrapper's.
-            get_pnpm:
-              - 'pnpm/npm/get-pnpm/**'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - '.config/pnpm/**'
-              - 'eslint.config.mjs'
               - '.github/workflows/pacquet-ci.yml'
             changesets:
               - '.changeset/**'
@@ -570,7 +558,7 @@ jobs:
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
     needs: changes
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true' || needs.changes.outputs.get_pnpm == 'true') }}
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     strategy:
       fail-fast: false
       matrix:
