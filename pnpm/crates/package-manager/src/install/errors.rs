@@ -192,6 +192,25 @@ pub enum InstallError {
     #[diagnostic(code(ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT))]
     BadReadPackageHookResult(#[error(not(source))] pnpm_hooks::HookError),
 
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
+    PreResolutionHook(#[error(not(source))] pnpm_hooks::HookError),
+
+    #[display("Failed to serialize a lockfile for the preResolution hook: {_0}")]
+    #[diagnostic(code(ERR_PNPM_PRE_RESOLUTION_SERIALIZE))]
+    PreResolutionSerialize(#[error(source)] serde_json::Error),
+
+    /// The `preResolution` hook changed a lockfile object into something
+    /// that is not a lockfile.
+    #[display(
+        "The preResolution hook left {field} in a shape that is not a valid lockfile: {error}"
+    )]
+    #[diagnostic(code(ERR_PNPM_BAD_PRE_RESOLUTION_HOOK_RESULT))]
+    BadPreResolutionHookResult {
+        field: &'static str,
+        #[error(source)]
+        error: serde_json::Error,
+    },
+
     #[diagnostic(transparent)]
     FrozenLockfile(#[error(source)] InstallFrozenLockfileError),
 

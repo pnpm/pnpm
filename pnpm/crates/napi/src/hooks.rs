@@ -106,9 +106,10 @@ impl PnpmfileHooks for JsReadPackageHook {
 
     async fn pre_resolution(
         &self,
-        _ctx: PreResolutionHookContext,
+        ctx: PreResolutionHookContext,
         _logger: PreResolutionHookLogger,
-    ) {
+    ) -> Result<PreResolutionHookContext, HookError> {
+        Ok(ctx)
     }
 
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
@@ -267,9 +268,10 @@ impl PnpmfileHooks for JsBatchedReadPackageHook {
 
     async fn pre_resolution(
         &self,
-        _ctx: PreResolutionHookContext,
+        ctx: PreResolutionHookContext,
         _logger: PreResolutionHookLogger,
-    ) {
+    ) -> Result<PreResolutionHookContext, HookError> {
+        Ok(ctx)
     }
 
     async fn filter_log(&self, _log: Value, _ctx: HookContext) -> bool {
@@ -342,8 +344,12 @@ impl PnpmfileHooks for ChecksummedHooks {
         self.hooks.before_packing(manifest, dir, ctx).await
     }
 
-    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
-        self.hooks.pre_resolution(ctx, logger).await;
+    async fn pre_resolution(
+        &self,
+        ctx: PreResolutionHookContext,
+        logger: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError> {
+        self.hooks.pre_resolution(ctx, logger).await
     }
 
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {

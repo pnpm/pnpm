@@ -35,11 +35,13 @@ function preResolution(ctx, logger) {
         registries: serde_json::json!({ "default": "http://localhost:1234/" }),
     };
 
-    hooks.pre_resolution(
-        ctx,
-        pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
-    )
-    .await;
+    hooks
+        .pre_resolution(
+            ctx,
+            pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
+        )
+        .await
+        .expect("run preResolution");
 }
 
 #[tokio::test]
@@ -79,19 +81,21 @@ function preResolution(ctx, logger) {
 
     let info_messages = Arc::new(Mutex::new(Vec::new()));
     let captured_info_messages = Arc::clone(&info_messages);
-    hooks.pre_resolution(
-        ctx,
-        pnpm_hooks::PreResolutionHookLogger {
-            info: Arc::new(move |message| {
-                captured_info_messages
-                    .lock()
-                    .unwrap()
-                    .push(message);
-            }),
-            warn: Arc::new(|_| {}),
-        },
-    )
-    .await;
+    hooks
+        .pre_resolution(
+            ctx,
+            pnpm_hooks::PreResolutionHookLogger {
+                info: Arc::new(move |message| {
+                    captured_info_messages
+                        .lock()
+                        .unwrap()
+                        .push(message);
+                }),
+                warn: Arc::new(|_| {}),
+            },
+        )
+        .await
+        .expect("run preResolution");
 
     let info_messages = info_messages.lock().unwrap();
     dbg!(&*info_messages);
@@ -107,31 +111,182 @@ async fn empty_mjs_is_a_noop_for_pre_resolution() {
     let warnings = Arc::new(Mutex::new(Vec::new()));
     let captured_warnings = Arc::clone(&warnings);
 
-    hooks.pre_resolution(
-        pnpm_hooks::PreResolutionHookContext {
-            wanted_lockfile: serde_json::json!({}),
-            current_lockfile: serde_json::json!({}),
-            exists_current_lockfile: false,
-            exists_non_empty_wanted_lockfile: false,
-            lockfile_dir: "/test/lockfile".to_string(),
-            store_dir: "/test/store".to_string(),
-            registries: serde_json::json!({}),
-        },
-        pnpm_hooks::PreResolutionHookLogger {
-            info: Arc::new(|_| {}),
-            warn: Arc::new(move |message| {
-                captured_warnings
-                    .lock()
-                    .unwrap()
-                    .push(message);
-            }),
-        },
-    )
-    .await;
+    hooks
+        .pre_resolution(
+            pnpm_hooks::PreResolutionHookContext {
+                wanted_lockfile: serde_json::json!({}),
+                current_lockfile: serde_json::json!({}),
+                exists_current_lockfile: false,
+                exists_non_empty_wanted_lockfile: false,
+                lockfile_dir: "/test/lockfile".to_string(),
+                store_dir: "/test/store".to_string(),
+                registries: serde_json::json!({}),
+            },
+            pnpm_hooks::PreResolutionHookLogger {
+                info: Arc::new(|_| {}),
+                warn: Arc::new(move |message| {
+                    captured_warnings
+                        .lock()
+                        .unwrap()
+                        .push(message);
+                }),
+            },
+        )
+        .await
+        .expect("run preResolution");
 
     let warnings = warnings.lock().unwrap();
     dbg!(&*warnings);
     assert!(warnings.is_empty());
+}
+
+fn pre_resolution_context() -> pnpm_hooks::PreResolutionHookContext {
+    pnpm_hooks::PreResolutionHookContext {
+        wanted_lockfile: serde_json::json!({ "lockfileVersion": "9.0", "importers": {} }),
+        current_lockfile: serde_json::json!({ "lockfileVersion": "9.0" }),
+        exists_current_lockfile: true,
+        exists_non_empty_wanted_lockfile: false,
+        lockfile_dir: "/test/lockfile".to_string(),
+        store_dir: "/test/store".to_string(),
+        registries: serde_json::json!({}),
+    }
+}
+
+fn silent_logger() -> pnpm_hooks::PreResolutionHookLogger {
+    pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) }
+}
+
+#[tokio::test]
+async fn pre_resolution_returns_the_lockfiles_as_the_hook_mutated_them() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = { hooks: { async preResolution (ctx) {
+  await Promise.resolve();
+  ctx.wantedLockfile.overrides = { foo: '1.0.0' };
+  ctx.currentLockfile.importers = {};
+} } }
+",
+    )
+    .expect("write pnpmfile");
+
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let ctx = hooks
+        .pre_resolution(pre_resolution_context(), silent_logger())
+        .await
+        .expect("run preResolution");
+
+    assert_eq!(
+        ctx.wanted_lockfile,
+        serde_json::json!({ "lockfileVersion": "9.0", "importers": {}, "overrides": { "foo": "1.0.0" } }),
+    );
+    assert_eq!(
+        ctx.current_lockfile,
+        serde_json::json!({ "lockfileVersion": "9.0", "importers": {} }),
+    );
+    assert_eq!(ctx.lockfile_dir, "/test/lockfile");
+}
+
+#[tokio::test]
+async fn pre_resolution_ignores_reassigned_lockfiles_and_the_return_value() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = { hooks: { preResolution (ctx) {
+  ctx.wantedLockfile = { lockfileVersion: '9.0', overrides: { foo: '1.0.0' } };
+  return { wantedLockfile: {}, currentLockfile: {} };
+} } }
+",
+    )
+    .expect("write pnpmfile");
+
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let ctx = hooks
+        .pre_resolution(pre_resolution_context(), silent_logger())
+        .await
+        .expect("run preResolution");
+
+    let unchanged = pre_resolution_context();
+    assert_eq!(ctx.wanted_lockfile, unchanged.wanted_lockfile);
+    assert_eq!(ctx.current_lockfile, unchanged.current_lockfile);
+}
+
+#[tokio::test]
+async fn a_throwing_pre_resolution_hook_fails() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        "module.exports = { hooks: { preResolution () { throw new Error('rejected lockfile') } } }",
+    )
+    .expect("write pnpmfile");
+
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let error = hooks
+        .pre_resolution(pre_resolution_context(), silent_logger())
+        .await
+        .expect_err("a throwing hook fails");
+    dbg!(&error);
+    assert!(
+        matches!(&error, pnpm_hooks::HookError::Execution { message, .. } if message.contains("rejected lockfile")),
+    );
+}
+
+#[tokio::test]
+async fn pre_resolution_logger_and_output_reach_their_levels() {
+    let tmp = TempDir::new().expect("temp dir");
+    let pnpmfile_path = tmp.path().join(".pnpmfile.cjs");
+    std::fs::write(
+        &pnpmfile_path,
+        r"
+module.exports = { hooks: { preResolution (ctx, logger) {
+  logger.info('info message');
+  logger.warn('warn message');
+  console.log('raw output');
+} } }
+",
+    )
+    .expect("write pnpmfile");
+
+    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+    let messages = Arc::new(Mutex::new(Vec::new()));
+    let info_messages = Arc::clone(&messages);
+    let warn_messages = Arc::clone(&messages);
+    hooks
+        .pre_resolution(
+            pre_resolution_context(),
+            pnpm_hooks::PreResolutionHookLogger {
+                info: Arc::new(move |message| {
+                    info_messages
+                        .lock()
+                        .unwrap()
+                        .push(("info", message));
+                }),
+                warn: Arc::new(move |message| {
+                    warn_messages
+                        .lock()
+                        .unwrap()
+                        .push(("warn", message));
+                }),
+            },
+        )
+        .await
+        .expect("run preResolution");
+
+    let messages = messages.lock().unwrap();
+    dbg!(&*messages);
+    assert_eq!(
+        messages.as_slice(),
+        [
+            ("info", "info message".to_string()),
+            ("warn", "warn message".to_string()),
+            ("info", "raw output".to_string()),
+        ],
+    );
 }
 
 #[tokio::test]
@@ -189,19 +344,21 @@ function preResolution(ctx, logger) {
     };
     let info_messages = Arc::new(Mutex::new(Vec::new()));
     let captured_info_messages = Arc::clone(&info_messages);
-    hooks.pre_resolution(
-        ctx,
-        pnpm_hooks::PreResolutionHookLogger {
-            info: Arc::new(move |message| {
-                captured_info_messages
-                    .lock()
-                    .unwrap()
-                    .push(message);
-            }),
-            warn: Arc::new(|_| {}),
-        },
-    )
-    .await;
+    hooks
+        .pre_resolution(
+            ctx,
+            pnpm_hooks::PreResolutionHookLogger {
+                info: Arc::new(move |message| {
+                    captured_info_messages
+                        .lock()
+                        .unwrap()
+                        .push(message);
+                }),
+                warn: Arc::new(|_| {}),
+            },
+        )
+        .await
+        .expect("run preResolution");
 
     let info_messages = info_messages.lock().unwrap();
     dbg!(&*info_messages);

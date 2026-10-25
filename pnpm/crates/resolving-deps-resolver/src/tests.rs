@@ -341,9 +341,10 @@ impl pnpm_hooks::PnpmfileHooks for RecordingHooks {
 
     async fn pre_resolution(
         &self,
-        _ctx: pnpm_hooks::PreResolutionHookContext,
+        ctx: pnpm_hooks::PreResolutionHookContext,
         _logger: pnpm_hooks::PreResolutionHookLogger,
-    ) {
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
     }
 
     async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
@@ -378,9 +379,10 @@ impl pnpm_hooks::PnpmfileHooks for ReplacingHook {
 
     async fn pre_resolution(
         &self,
-        _ctx: pnpm_hooks::PreResolutionHookContext,
+        ctx: pnpm_hooks::PreResolutionHookContext,
         _logger: pnpm_hooks::PreResolutionHookLogger,
-    ) {
+    ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+        Ok(ctx)
     }
 
     async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {
@@ -423,9 +425,10 @@ async fn concurrent_first_misses_run_the_hook_pipeline_once() {
 
         async fn pre_resolution(
             &self,
-            _ctx: pnpm_hooks::PreResolutionHookContext,
+            ctx: pnpm_hooks::PreResolutionHookContext,
             _logger: pnpm_hooks::PreResolutionHookLogger,
-        ) {
+        ) -> Result<pnpm_hooks::PreResolutionHookContext, pnpm_hooks::HookError> {
+            Ok(ctx)
         }
 
         async fn filter_log(&self, _log: serde_json::Value, _ctx: pnpm_hooks::HookContext) -> bool {

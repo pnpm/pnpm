@@ -3,6 +3,22 @@ let mod = null;
 let loadErr = null;
 let nextCallbackId = 0;
 const pendingCallbacks = new Map();
+// stdout carries the protocol. Output the pnpmfile writes there itself goes
+// to the log of the preResolution call it was written from, or nowhere.
+const { AsyncLocalStorage } = require('node:async_hooks');
+const writeProtocol = process.stdout.write.bind(process.stdout);
+const outputForwarder = new AsyncLocalStorage();
+process.stdout.write = (chunk, encoding, callback) => {
+  const forwardOutput = outputForwarder.getStore();
+  if (forwardOutput !== undefined) {
+    for (const line of String(chunk).split('\n')) {
+      if (line.trim() !== '') forwardOutput(line.trim());
+    }
+  }
+  const done = typeof encoding === 'function' ? encoding : callback;
+  if (typeof done === 'function') done();
+  return true;
+};
 class BadReadPackageResultError extends Error {
   constructor(message) {
     super(message + " Hook imported via " + pnpmfilePath);
@@ -38,7 +54,7 @@ rl.on('line', (line) => {
 });
 async function handle(req) {
   const id = req.id;
-  const send = (obj) => process.stdout.write(JSON.stringify(Object.assign({ id }, obj)) + '\n');
+  const send = (obj) => writeProtocol(JSON.stringify(Object.assign({ id }, obj)) + '\n');
   await ensureLoaded();
   if (loadErr !== null) { send({ err: loadErr }); return; }
   if (req.query === 'hasHooks') { send({ ok: mod != null && mod.hooks != null }); return; }
@@ -185,7 +201,20 @@ async function handle(req) {
         throw new BadReadPackageResultError("readPackage hook did not return a package manifest object.");
       }
       validatePackageDependencies(serializedPkg);
-      process.stdout.write(response + '\n');
+      writeProtocol(response + '\n');
+    } else if (req.hook === 'preResolution') {
+      // pnpm passes the lockfile objects themselves and ignores what the hook
+      // returns, so only changes made to these two objects in place count.
+      const ctx = req.payload;
+      const { wantedLockfile, currentLockfile } = ctx;
+      if (typeof fn === 'function') {
+        const logger = {
+          info: (m) => send({ log: String(m) }),
+          warn: (m) => send({ log: String(m), level: 'warn' }),
+        };
+        await outputForwarder.run((line) => send({ log: line }), () => fn(ctx, logger));
+      }
+      send({ ok: { wantedLockfile, currentLockfile } });
     } else if (req.hook === 'beforePacking') {
       if (typeof fn !== 'function') { send({ ok: req.payload }); return; }
       const newPkg = await fn(req.payload, req.dir, context);

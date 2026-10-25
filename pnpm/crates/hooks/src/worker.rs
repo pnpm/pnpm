@@ -11,6 +11,7 @@
 //! - request:  `{"id": N, "hook": "readPackage", "payload": <value>}`
 //! - query:    `{"id": N, "query": "hasHooks"}`     (does the module export `hooks`?)
 //! - log:      `{"id": N, "log": "message"}`        (a `context.log(...)` call)
+//! - warning:  `{"id": N, "log": "message", "level": "warn"}` (a `preResolution` `logger.warn(...)`)
 //! - success:  `{"id": N, "ok": <value>}`
 //! - failure:  `{"id": N, "err": "message"}`
 
@@ -30,7 +31,7 @@ use std::{
     },
 };
 use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    io::AsyncWriteExt,
     sync::{Mutex, Semaphore, oneshot},
     time::{Duration, timeout},
 };
@@ -76,8 +77,20 @@ pub struct FetcherCapabilities {
     pub fetch: bool,
 }
 
+/// Where a request's log lines go, by level.
+struct RequestLog {
+    info: LogFn,
+    warn: LogFn,
+}
+
+impl From<LogFn> for RequestLog {
+    fn from(log: LogFn) -> Self {
+        RequestLog { info: Arc::clone(&log), warn: log }
+    }
+}
+
 struct Pending {
-    log: LogFn,
+    log: RequestLog,
     done: oneshot::Sender<Result<Value, WorkerError>>,
     callbacks: Option<FetcherCallbackSender>,
 }
@@ -96,7 +109,7 @@ type PendingMap = Arc<StdMutex<HashMap<u64, Pending>>>;
 /// [`NodeWorker::request`] — send failure, timeout, and cancellation of
 /// the caller's future — so a request the worker never answers cannot
 /// leak its entry. Removal is idempotent: a delivered reply has already
-/// removed the entry in [`dispatch_line`].
+/// removed the entry in [`dispatch::dispatch_line`].
 struct PendingEntryGuard {
     pending: PendingMap,
     id: u64,
@@ -180,6 +193,23 @@ impl NodeWorker {
     /// Run `hook` with `payload`, forwarding any `context.log(...)` to `log`.
     pub async fn call(&self, hook: &str, payload: Value, log: LogFn) -> Result<Value, HookError> {
         self.request(hook, serde_json::json!({ "hook": hook, "payload": payload }), log).await
+    }
+
+    /// Call the `preResolution` hook with `(ctx, logger)`. Returns
+    /// `{ wantedLockfile, currentLockfile }`: the objects `ctx` carried, as
+    /// the hook left them.
+    pub async fn call_pre_resolution(
+        &self,
+        ctx: Value,
+        logger: crate::PreResolutionHookLogger,
+    ) -> Result<Value, HookError> {
+        self.request_with_callbacks(
+            "preResolution",
+            serde_json::json!({ "hook": "preResolution", "payload": ctx }),
+            RequestLog { info: logger.info, warn: logger.warn },
+            None,
+        )
+        .await
     }
 
     /// Call the `beforePacking` hook with `(manifest, dir, context)`.
@@ -304,7 +334,7 @@ impl NodeWorker {
                 "payload": payload,
                 "callbacks": callbacks.is_some(),
             }),
-            log,
+            log.into(),
             callbacks,
         )
         .await
@@ -347,14 +377,14 @@ impl NodeWorker {
     /// first, so a request's timeout window covers only the time the
     /// worker had it, not the time its caller's fan-out spent queued.
     async fn request(&self, label: &str, body: Value, log: LogFn) -> Result<Value, HookError> {
-        self.request_with_callbacks(label, body, log, None).await
+        self.request_with_callbacks(label, body, log.into(), None).await
     }
 
     async fn request_with_callbacks(
         &self,
         label: &str,
         mut body: Value,
-        log: LogFn,
+        log: RequestLog,
         callbacks: Option<FetcherCallbackSender>,
     ) -> Result<Value, HookError> {
         let _in_flight = self.in_flight.acquire().await.expect("the semaphore is never closed");
@@ -362,6 +392,9 @@ impl NodeWorker {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (done, rx) = oneshot::channel();
         let callback_timeout = label == "fetch" && callbacks.is_some();
+        // pnpm puts no time limit on `preResolution`, which may fetch or
+        // rewrite whole lockfiles.
+        let untimed = label == "preResolution";
         self.pending
             .lock()
             .unwrap()
@@ -383,7 +416,9 @@ impl NodeWorker {
                 .map_err(|err| self.exec_err(err.to_string()))?;
         }
 
-        let request_timeout = if callback_timeout {
+        let request_timeout = if untimed {
+            Duration::MAX
+        } else if callback_timeout {
             self.request_timeout.max(CALLBACK_FETCH_TIMEOUT)
         } else {
             self.request_timeout
@@ -400,122 +435,6 @@ impl NodeWorker {
     }
 }
 
-/// Dispatch every line the worker writes; once it exits, fail every
-/// still-pending request so callers don't hang waiting for a response
-/// that will never arrive.
-fn spawn_stdout_reader(stdout: ChildStdout, pending: PendingMap, stdin: Arc<Mutex<ChildStdin>>) {
-    tokio::spawn(async move {
-        let mut lines = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            dispatch_line(&pending, &stdin, &line);
-        }
-        for (_, request) in pending.lock().unwrap().drain() {
-            let _ = request.done.send(Err(WorkerError::Execution(
-                "pnpmfile worker exited".to_string(),
-            )));
-        }
-    });
-}
-
-fn dispatch_line(pending: &PendingMap, stdin: &Arc<Mutex<ChildStdin>>, line: &str) {
-    let Ok(message) = serde_json::from_str::<Value>(line) else { return };
-    let Some(id) = message.get("id").and_then(Value::as_u64) else { return };
-
-    if let Some(log) = message.get("log").and_then(Value::as_str) {
-        let log_fn = pending
-            .lock()
-            .unwrap()
-            .get(&id)
-            .map(|entry| Arc::clone(&entry.log));
-        if let Some(log_fn) = log_fn {
-            log_fn(log.to_string());
-        }
-        return;
-    }
-
-    if let Some(callback) = message.get("callback") {
-        dispatch_callback(pending, stdin, id, callback);
-        return;
-    }
-
-    let Some(entry) = pending.lock().unwrap().remove(&id) else { return };
-    let result = match message.get("err").and_then(Value::as_str) {
-        Some(err)
-            if message.get("code").and_then(Value::as_str)
-                == Some("ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT") =>
-        {
-            Err(WorkerError::BadReadPackageResult(err.to_string()))
-        }
-        Some(err) => Err(WorkerError::Execution(err.to_string())),
-        None => Ok(message
-            .get("ok")
-            .cloned()
-            .unwrap_or(Value::Null)),
-    };
-    let _ = entry.done.send(result);
-}
-
-/// Hand one fetcher callback to the request that opened it, and reply to the
-/// worker with whatever it answers.
-fn dispatch_callback(
-    pending: &PendingMap,
-    stdin: &Arc<Mutex<ChildStdin>>,
-    id: u64,
-    callback: &Value,
-) {
-    let Some(callback_id) = callback.get("id").and_then(Value::as_u64) else { return };
-    let Some(method) = callback.get("method").cloned() else { return };
-    let Ok(method) = serde_json::from_value(method) else { return };
-    let resolution = callback
-        .get("resolution")
-        .cloned()
-        .unwrap_or(Value::Null);
-    let options = callback
-        .get("options")
-        .cloned()
-        .unwrap_or(Value::Null);
-    let callbacks = pending
-        .lock()
-        .unwrap()
-        .get(&id)
-        .and_then(|entry| entry.callbacks.clone());
-    let (response, receiver) = oneshot::channel();
-    if let Some(callbacks) = callbacks {
-        let _ = callbacks.send(FetcherCallback { method, resolution, options, response });
-    }
-    reply_when_answered(Arc::clone(stdin), callback_id, receiver);
-}
-
-fn reply_when_answered(
-    stdin: Arc<Mutex<ChildStdin>>,
-    callback_id: u64,
-    receiver: oneshot::Receiver<Result<Value, Value>>,
-) {
-    tokio::spawn(async move {
-        let result = receiver.await.unwrap_or_else(|_| {
-            Err(serde_json::json!({
-                "message": "built-in fetcher callback is unavailable",
-                "code": "ERR_PNPM_FETCHER_CALLBACK_UNAVAILABLE",
-            }))
-        });
-        let reply = match result {
-            Ok(value) => serde_json::json!({ "callbackResponse": callback_id, "ok": value }),
-            Err(error) => serde_json::json!({ "callbackResponse": callback_id, "err": error }),
-        };
-        write_worker_line(&stdin, &reply).await;
-    });
-}
-
-/// Write one JSON line to the worker's stdin, ignoring a closed pipe.
-async fn write_worker_line(stdin: &Mutex<ChildStdin>, reply: &Value) {
-    let Ok(mut line) = serde_json::to_string(reply) else { return };
-    line.push('\n');
-    let mut stdin = stdin.lock().await;
-    if stdin.write_all(line.as_bytes()).await.is_ok() {
-        let _ = stdin.flush().await;
-    }
-}
-
 /// Build the worker's Node script. `file_escaped` is the JSON-encoded pnpmfile
 /// path.
 fn build_runner(file_escaped: &str) -> String {
@@ -525,6 +444,9 @@ fn build_runner(file_escaped: &str) -> String {
         include_str!("worker.cjs"),
     )
 }
+
+mod dispatch;
+use dispatch::spawn_stdout_reader;
 
 #[cfg(target_vendor = "apple")]
 mod inherited_descriptors;
