@@ -262,11 +262,27 @@ pub(super) async fn serve_upload_artifact_blob(
             .await
     }
     .await;
+    // Only a stored blob read the upload to its end. Every other answer
+    // leaves bytes on the wire, which the connection cannot survive.
     private_no_cache(match result {
         Ok(true) => StatusCode::CREATED.into_response(),
-        Ok(false) => StatusCode::OK.into_response(),
-        Err(err) => err.into_response(),
+        Ok(false) => last_on_its_connection(StatusCode::OK.into_response()),
+        Err(err) => last_on_its_connection(err.into_response()),
     })
+}
+
+/// Mark a response whose request body was not read to its end.
+///
+/// A server that answers before the body arrives cannot keep the
+/// connection: the unsent remainder would be read as the next request.
+/// hyper closes it, and without this header the client never learns that
+/// and sends its next request into a socket the server has already shut.
+fn last_on_its_connection(mut response: Response) -> Response {
+    response.headers_mut().insert(
+        header::CONNECTION,
+        axum::http::HeaderValue::from_static("close"),
+    );
+    response
 }
 
 /// `HEAD /-/pnpr/v0/artifacts/blob?<owner>&integrity=<sha512-...>` — whether
