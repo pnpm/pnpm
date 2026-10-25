@@ -8,11 +8,11 @@ use pnpr::{
         prune_orphaned_namespaces_startup,
     },
 };
-use pnpr_storage::layout::encode_segment;
+use pnpr_storage::layout::package_segments;
 use std::{
     fs::{File, FileTimes},
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 use tempfile::TempDir;
@@ -224,7 +224,7 @@ async fn ttl_eviction_prunes_empty_package_directories() {
         .path()
         .join(active_ns)
         .join("packages")
-        .join(encode_segment("@my-scope/my-pkg"))
+        .join(PathBuf::from_iter(package_segments("@my-scope/my-pkg")))
         .join("document.json");
     create_file_with_age(&scoped_file, b"{}", Duration::from_hours(240));
 
@@ -241,7 +241,7 @@ async fn ttl_eviction_prunes_empty_package_directories() {
         !tmp.path()
             .join(active_ns)
             .join("packages")
-            .join(encode_segment("@my-scope/my-pkg"))
+            .join(PathBuf::from_iter(package_segments("@my-scope/my-pkg")))
             .exists(),
     );
     assert!(

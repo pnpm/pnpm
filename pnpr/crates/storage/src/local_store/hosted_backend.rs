@@ -4,8 +4,8 @@ use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, Body, BoxStream,
     CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, ErrorKind, GetRange, HostedBackend,
     HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, PACKAGES_DIR, Path, PathBuf,
-    RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait, decode_segment, fs,
-    read_dir_if_present, stream, streaming,
+    RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait, decode_blob_segment, fs,
+    package_dirs, read_dir_if_present, stream, streaming,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -130,7 +130,7 @@ impl HostedBackend for Store {
                 .file_name()
                 .to_str()
                 .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
-                .and_then(decode_segment)
+                .and_then(|file| decode_blob_segment(name.as_str(), file))
                 && metadata.is_file()
             {
                 list.push(blob);
@@ -206,29 +206,6 @@ impl HostedBackend for Store {
     }
 }
 
-/// Every package directory below `packages`, with its decoded name.
-async fn package_dirs(packages: &Path) -> Result<Vec<(String, PathBuf)>> {
-    let mut dirs = Vec::new();
-    let Some(mut entries) = read_dir_if_present(packages).await? else {
-        return Ok(dirs);
-    };
-    while let Some(entry) = entries.next_entry().await? {
-        // `file_type` does not follow a symlink, so a link cannot lead the
-        // inventory, and the deletions that act on it, out of the store.
-        if !entry.file_type().await?.is_dir() {
-            continue;
-        }
-        if let Some(name) = entry
-            .file_name()
-            .to_str()
-            .and_then(decode_segment)
-        {
-            dirs.push((name, entry.path()));
-        }
-    }
-    Ok(dirs)
-}
-
 /// The document and blobs of the package `name` in `dir`.
 async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>> {
     let mut files = Vec::new();
@@ -252,7 +229,7 @@ async fn package_files(name: String, dir: PathBuf) -> Result<Vec<HostedBlobFile>
             .file_name()
             .to_str()
             .filter(|file| !crate::atomic_write::is_atomic_write_temp_name(file))
-            .and_then(decode_segment)
+            .and_then(|file| decode_blob_segment(&name, file))
             && metadata.is_file()
         {
             files.push(blob_file(&name, Some(blob), &metadata)?);

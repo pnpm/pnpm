@@ -7,7 +7,10 @@
 //! `package.json` was a package: its other files were its blobs, and its
 //! subdirectories other packages (nested image repositories).
 
-use pnpr_storage::layout::{decode_segment, encode_segment, namespace_segments};
+use pnpr_storage::layout::{
+    blob_segment, decode_blob_segment, decode_package_segments, encode_segment, namespace_segments,
+    package_segments,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 const LEGACY_DOCUMENT: &str = "package.json";
@@ -157,10 +160,12 @@ fn is_new_namespace_path(rest: &str) -> bool {
 
 fn is_new_package_path(rest: &str) -> bool {
     let components: Vec<&str> = rest.split('/').collect();
-    let decodes = |segment: &str| decode_segment(segment).is_some();
     match components.as_slice() {
-        ["packages", package, "document.json"] => decodes(package),
-        ["packages", package, "blobs", blob] => decodes(package) && decodes(blob),
+        ["packages", scope, package, "document.json"] => {
+            decode_package_segments(scope, package).is_some()
+        }
+        ["packages", scope, package, "blobs", blob] => decode_package_segments(scope, package)
+            .is_some_and(|name| decode_blob_segment(&name, blob).is_some()),
         _ => false,
     }
 }
@@ -229,11 +234,14 @@ fn package_step(prefix: &str, rest: &str, is_package: impl Fn(&str) -> bool) -> 
     if !is_package(package) || file.starts_with('.') {
         return Step::Orphan;
     }
-    let package_dir = format!("{prefix}/packages/{}", encode_segment(package));
+    let package_dir = format!("{prefix}/packages/{}", package_segments(package).join("/"));
     if file == LEGACY_DOCUMENT {
         Step::Move { to: format!("{package_dir}/document.json"), document: true }
     } else {
-        Step::Move { to: format!("{package_dir}/blobs/{}", encode_segment(file)), document: false }
+        Step::Move {
+            to: format!("{package_dir}/blobs/{}", blob_segment(package, file)),
+            document: false,
+        }
     }
 }
 

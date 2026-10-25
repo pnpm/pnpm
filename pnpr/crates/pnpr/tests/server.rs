@@ -69,7 +69,7 @@ use pnpr::{
     PackageRule, PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use pnpr_fixtures::MockConfigPresets;
-use pnpr_storage::layout::{encode_segment, local_document_path};
+use pnpr_storage::layout::{blob_segment, local_document_path, package_segments};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -150,12 +150,17 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
         .cloned()
         .unwrap_or_else(|| public.join("__none__"))
         .join("packages")
-        .join(encode_segment(pkg))
+        .join(PathBuf::from_iter(package_segments(pkg)))
 }
 
 /// The directory [`public_cache_pkg`] keeps `pkg`'s cached tarballs in.
 fn public_cache_blobs(cache_root: &Path, pkg: &str) -> PathBuf {
     public_cache_pkg(cache_root, pkg).join("blobs")
+}
+
+/// Where [`public_cache_blobs`] keeps `pkg`'s cached `file`.
+fn public_cache_blob(cache_root: &Path, pkg: &str, file: &str) -> PathBuf {
+    public_cache_blobs(cache_root, pkg).join(blob_segment(pkg, file))
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {

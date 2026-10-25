@@ -79,7 +79,10 @@ use tokio::{
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
-use layout::{BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, decode_segment, encode_segment};
+use layout::{
+    BLOBS_DIR, DOCUMENT_FILE, PACKAGES_DIR, blob_segment, decode_blob_segment,
+    decode_package_segments, package_segments,
+};
 pub const DOCUMENT_WRITE_RETRIES: usize = 8;
 /// Retries the commit path allows the document write: higher than the
 /// request-path budget because a sealed transaction has to converge, and a

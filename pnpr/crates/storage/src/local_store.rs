@@ -5,8 +5,9 @@ use super::{
     CachedDocument, CanonicalPackageName, DOCUMENT_FILE, DocumentStamp, DocumentWrite, Duration,
     ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
     HostedDocumentVersion, PACKAGES_DIR, Path, PathBuf, RangedBlob, RegistryError, Result,
-    SeekFrom, StreamExt, SystemTime, async_trait, create_tmp_file, decode_segment, encode_segment,
-    fs, stream, streaming, unique_tmp_path, write_atomic, write_atomic_new,
+    SeekFrom, StreamExt, SystemTime, async_trait, blob_segment, create_tmp_file,
+    decode_blob_segment, decode_package_segments, fs, package_segments, stream, streaming,
+    unique_tmp_path, write_atomic, write_atomic_new,
 };
 
 /// One on-disk store rooted at a single directory, laid out as
@@ -203,17 +204,8 @@ impl Store {
     /// Every package with a document, decoded and sorted.
     pub(super) async fn list_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
-        let Some(mut entries) = read_dir_if_present(&self.root.join(PACKAGES_DIR)).await? else {
-            return Ok(names);
-        };
-        while let Some(entry) = entries.next_entry().await? {
-            let segment = entry.file_name();
-            let Some(name) = segment.to_str().and_then(decode_segment) else {
-                continue;
-            };
-            if entry.file_type().await?.is_dir()
-                && is_regular_file(&entry.path().join(DOCUMENT_FILE)).await?
-            {
+        for (name, dir) in package_dirs(&self.root.join(PACKAGES_DIR)).await? {
+            if is_regular_file(&dir.join(DOCUMENT_FILE)).await? {
                 names.push(name);
             }
         }
@@ -222,9 +214,9 @@ impl Store {
     }
 
     pub(super) fn package_dir(&self, name: &CanonicalPackageName) -> PathBuf {
-        self.root
-            .join(PACKAGES_DIR)
-            .join(encode_segment(name.as_str()))
+        let mut dir = self.root.join(PACKAGES_DIR);
+        dir.extend(package_segments(name.as_str()));
+        dir
     }
 
     pub(super) fn document_path(&self, name: &CanonicalPackageName) -> PathBuf {
@@ -234,7 +226,7 @@ impl Store {
     pub(super) fn blob_path(&self, name: &CanonicalPackageName, filename: &str) -> PathBuf {
         self.package_dir(name)
             .join(BLOBS_DIR)
-            .join(encode_segment(filename))
+            .join(blob_segment(name.as_str(), filename))
     }
 
     /// A record's path. The key's `/` separators become path components, so a
@@ -333,6 +325,37 @@ impl Store {
 }
 
 /// Whether `path` is a regular file, not following a symlink.
+/// Every package directory below `packages`, with its decoded name.
+/// `file_type` does not follow a symlink, so a link cannot lead a listing, or
+/// the deletions that act on it, out of the store.
+pub(super) async fn package_dirs(packages: &Path) -> Result<Vec<(String, PathBuf)>> {
+    let mut dirs = Vec::new();
+    for (scope, scope_dir) in subdirs(packages).await? {
+        for (rest, dir) in subdirs(&scope_dir).await? {
+            if let Some(name) = decode_package_segments(&scope, &rest) {
+                dirs.push((name, dir));
+            }
+        }
+    }
+    Ok(dirs)
+}
+
+/// The directories directly in `dir` with UTF-8 names.
+async fn subdirs(dir: &Path) -> Result<Vec<(String, PathBuf)>> {
+    let mut dirs = Vec::new();
+    let Some(mut entries) = read_dir_if_present(dir).await? else {
+        return Ok(dirs);
+    };
+    while let Some(entry) = entries.next_entry().await? {
+        if entry.file_type().await?.is_dir()
+            && let Ok(name) = entry.file_name().into_string()
+        {
+            dirs.push((name, entry.path()));
+        }
+    }
+    Ok(dirs)
+}
+
 pub(super) async fn is_regular_file(path: &Path) -> Result<bool> {
     Ok(symlink_metadata_if_present(path).await?.is_some_and(|metadata| metadata.is_file()))
 }

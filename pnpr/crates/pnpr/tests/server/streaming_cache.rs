@@ -1,7 +1,7 @@
 use super::{
     Body, Duration, Request, ServiceExt, StatusCode, TempDir, await_no_tgz, body_bytes, config_for,
-    json, mock_packument_for_tarball, public_cache_blobs, public_cache_pkg, router,
-    sha512_integrity, spawn_truncated_upstream, tarball_cache_entries,
+    json, mock_packument_for_tarball, public_cache_blob, public_cache_blobs, public_cache_pkg,
+    router, sha512_integrity, spawn_truncated_upstream, tarball_cache_entries,
 };
 
 /// Stale-if-error: once a cached packument is stale, a refetch that fails
@@ -181,7 +181,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     // path, so one tarball remains with no temporary siblings.
     let dir = public_cache_blobs(&cache_dir, "foo");
     let entries = tarball_cache_entries(&dir);
-    assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
+    assert_eq!(entries, vec!["1.0.0.tgz".to_string()]);
 
     mock.assert_async().await;
 }
@@ -218,7 +218,7 @@ async fn cache_tmp_open_failure_fails_closed() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     // The cache path under the not-a-dir should not exist.
-    let cache_path = public_cache_blobs(&blocked, "foo").join("foo-1.0.0.tgz");
+    let cache_path = public_cache_blob(&blocked, "foo", "foo-1.0.0.tgz");
     assert!(!cache_path.exists());
 }
 
@@ -305,7 +305,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
     // end-of-stream SRI check that promotes the verified bytes to the cache.
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 
-    let cache_path = public_cache_blobs(&cache_dir, "big").join("big-1.0.0.tgz");
+    let cache_path = public_cache_blob(&cache_dir, "big", "big-1.0.0.tgz");
     assert_eq!(std::fs::read(cache_path).unwrap(), bytes);
 }
 

@@ -34,28 +34,25 @@ fn packages_without_an_org_move_into_the_default_namespace() {
             &[],
         ),
         [
-            ("left-pad/package.json", moved("default/packages/left-pad/document.json", true)),
+            ("left-pad/package.json", moved("default/packages/@/left-pad/document.json", true)),
             (
                 "left-pad/left-pad-1.0.0.tgz",
-                moved("default/packages/left-pad/blobs/left-pad-1.0.0.tgz", false)
+                moved("default/packages/@/left-pad/blobs/1.0.0.tgz", false)
             ),
-            (
-                "@scope/App/package.json",
-                moved("default/packages/!40scope!2f!41pp/document.json", true)
-            ),
+            ("@scope/App/package.json", moved("default/packages/@scope/!41pp/document.json", true)),
             (
                 "@scope/App/App-1.0.0.tgz",
-                moved("default/packages/!40scope!2f!41pp/blobs/!41pp-1.0.0.tgz", false),
+                moved("default/packages/@scope/!41pp/blobs/1.0.0.tgz", false),
             ),
-            ("acme/app/package.json", moved("default/packages/acme!2fapp/document.json", true)),
-            ("acme/app/sha256-aa", moved("default/packages/acme!2fapp/blobs/sha256-aa", false)),
+            ("acme/app/package.json", moved("default/packages/@/acme!2fapp/document.json", true)),
+            ("acme/app/sha256-aa", moved("default/packages/@/acme!2fapp/blobs/sha256-aa", false)),
             (
                 "acme/app/tool/package.json",
-                moved("default/packages/acme!2fapp!2ftool/document.json", true)
+                moved("default/packages/@/acme!2fapp!2ftool/document.json", true)
             ),
             (
                 "acme/app/tool/sha256-bb",
-                moved("default/packages/acme!2fapp!2ftool/blobs/sha256-bb", false)
+                moved("default/packages/@/acme!2fapp!2ftool/blobs/sha256-bb", false)
             ),
         ]
         .map(|(from, step)| (from.to_string(), step)),
@@ -78,11 +75,11 @@ fn an_org_directory_becomes_its_namespace() {
         [
             (
                 "npm~internal/tool/package.json",
-                moved("orgs/npm!7einternal/packages/tool/document.json", true)
+                moved("orgs/npm!7einternal/packages/@/tool/document.json", true)
             ),
             (
                 "npm~internal/tool/tool-1.0.0.tgz",
-                moved("orgs/npm!7einternal/packages/tool/blobs/tool-1.0.0.tgz", false),
+                moved("orgs/npm!7einternal/packages/@/tool/blobs/1.0.0.tgz", false),
             ),
             ("npm~internal/.revisions/sha512/abc/index.json", Step::Remove,),
             (
@@ -138,7 +135,7 @@ fn tar_integrities_keep_their_namespace() {
         steps(&[".tar-integrity/@scope/pkg/package.json"], &[]),
         [(
             ".tar-integrity/@scope/pkg/package.json".to_string(),
-            moved(".tar-integrity/packages/!40scope!2fpkg/document.json", true),
+            moved(".tar-integrity/packages/@scope/pkg/document.json", true),
         )],
     );
 }
@@ -152,7 +149,7 @@ fn files_outside_any_package_are_orphans() {
         ),
         [
             ("stray/file.tgz", Step::Orphan),
-            ("left-pad/package.json", moved("default/packages/left-pad/document.json", true)),
+            ("left-pad/package.json", moved("default/packages/@/left-pad/document.json", true)),
             ("left-pad/.left-pad-1.0.0.tgz.tmp", Step::Orphan),
         ]
         .map(|(from, step)| (from.to_string(), step)),
@@ -164,16 +161,16 @@ fn an_interrupted_upgrade_resumes_where_it_stopped() {
     assert_eq!(
         steps(
             &[
-                "default/packages/left-pad/blobs/left-pad-1.0.0.tgz",
+                "default/packages/@/left-pad/blobs/1.0.0.tgz",
                 "left-pad/package.json",
-                "orgs/acme/packages/tool/document.json",
-                ".tar-integrity/packages/!40scope!2fpkg/document.json",
+                "orgs/acme/packages/@/tool/document.json",
+                ".tar-integrity/packages/@scope/pkg/document.json",
             ],
             &["acme"],
         ),
         [(
             "left-pad/package.json".to_string(),
-            moved("default/packages/left-pad/document.json", true)
+            moved("default/packages/@/left-pad/document.json", true)
         )],
     );
 }

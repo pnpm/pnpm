@@ -100,7 +100,7 @@ async fn an_interrupted_local_conversion_resumes() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("storage");
     write_legacy(&root).await;
-    let moved = root.join("default/packages/left-pad/blobs/left-pad-1.0.0.tgz");
+    let moved = root.join("default/packages/@/left-pad/blobs/1.0.0.tgz");
     tokio::fs::create_dir_all(moved.parent().unwrap()).await.unwrap();
     tokio::fs::rename(root.join("left-pad/left-pad-1.0.0.tgz"), &moved).await.unwrap();
     let storage =
