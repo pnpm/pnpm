@@ -3,8 +3,11 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { describe, expect, it } from '@jest/globals'
+import { createShortHash } from '@pnpm/crypto.hash'
 import { getRegisteredProjects, registerProject } from '@pnpm/store.controller'
 import { temporaryDirectory } from 'tempy'
+
+import { pruneGlobalVirtualStore } from '../src/storeController/pruneGlobalVirtualStore.js'
 
 describe('projectRegistry', () => {
   describe('registerProject()', () => {
@@ -121,4 +124,75 @@ describe('projectRegistry', () => {
       expect(projects).toEqual([validProject])
     })
   })
+
+  describe('a store spelled through a symlink of another depth', () => {
+    it('keeps the registration listed', async () => {
+      const { root, canonicalStore, storeThroughSymlink } = await createSymlinkedStore()
+      const projectDir = await createProject(root, 'project')
+
+      await registerProject(storeThroughSymlink, projectDir)
+
+      expect(await getRegisteredProjects(canonicalStore)).toEqual([projectDir])
+      expect(await getRegisteredProjects(storeThroughSymlink)).toEqual([projectDir])
+    })
+
+    // A junction holds only an absolute path.
+    const itWithRelativeLinks = process.platform === 'win32' ? it.skip : it
+    itWithRelativeLinks('replaces a relative link that crosses the symlink', async () => {
+      const { root, storeThroughSymlink } = await createSymlinkedStore()
+      const projectDir = await createProject(root, 'project')
+      const registryDir = path.join(storeThroughSymlink, 'projects')
+      await fs.mkdir(registryDir)
+      const linkPath = path.join(registryDir, createShortHash(projectDir))
+      await fs.symlink(path.relative(registryDir, projectDir), linkPath)
+      await expect(fs.stat(linkPath)).rejects.toThrow(/ENOENT/)
+
+      await registerProject(storeThroughSymlink, projectDir)
+
+      expect(await fs.realpath(linkPath)).toBe(await fs.realpath(projectDir))
+    })
+
+    it('lets prune keep the packages of a project registered through the symlink', async () => {
+      const { root, canonicalStore, storeThroughSymlink } = await createSymlinkedStore()
+      const packageDirs = await Promise.all(([
+        ['direct', canonicalStore],
+        ['through-symlink', storeThroughSymlink],
+      ] as const).map(async ([name, storeDir]) => {
+        const packageDir = path.join(canonicalStore, 'links', '@', name, '1.0.0', 'hash', 'node_modules', name)
+        await fs.mkdir(packageDir, { recursive: true })
+        const projectDir = await createProject(root, name)
+        await fs.mkdir(path.join(projectDir, 'node_modules'))
+        await fs.symlink(packageDir, path.join(projectDir, 'node_modules', name), 'junction')
+        await registerProject(storeDir, projectDir)
+        return packageDir
+      }))
+
+      await pruneGlobalVirtualStore(canonicalStore)
+
+      await Promise.all(packageDirs.map(async (packageDir) => {
+        expect((await fs.stat(packageDir)).isDirectory()).toBe(true)
+      }))
+    })
+  })
 })
+
+interface SymlinkedStore {
+  root: string
+  canonicalStore: string
+  storeThroughSymlink: string
+}
+
+async function createSymlinkedStore (): Promise<SymlinkedStore> {
+  const root = await fs.realpath(temporaryDirectory())
+  const canonicalStore = path.join(root, 'deep', 'nested', 'store')
+  await fs.mkdir(canonicalStore, { recursive: true })
+  const storeThroughSymlink = path.join(root, 'store-link')
+  await fs.symlink(canonicalStore, storeThroughSymlink, 'junction')
+  return { root, canonicalStore, storeThroughSymlink }
+}
+
+async function createProject (root: string, name: string): Promise<string> {
+  const projectDir = path.join(root, name)
+  await fs.mkdir(projectDir)
+  return projectDir
+}

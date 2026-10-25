@@ -10192,9 +10192,6 @@ importers:
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
-      symlink-dir:
-        specifier: 'catalog:'
-        version: 10.0.3
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
