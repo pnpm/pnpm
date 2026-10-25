@@ -592,27 +592,24 @@ fn peer_variants_choose_the_same_target_when_importers_change_order() {
     assert_eq!(targets[0], targets[1]);
 }
 
-/// A root project whose `foo` is the virtual store slot `slot`, with a
-/// config whose virtual store is `node_modules/.pnpm`.
-fn workspace_with_slot(slot: &str) -> (TempDir, Lockfile, Config) {
+/// A root project whose `foo` is `foo@1.0.0(peer@2.0.0)` in the virtual
+/// store `node_modules/.pnpm`, with a config that names that store.
+fn workspace_with_peer_variant() -> (TempDir, Lockfile, Config) {
     let root = tempfile::tempdir().unwrap();
     let store = root.path().join("node_modules/.pnpm");
-    let package = store.join(slot).join("node_modules/foo");
+    let package = store.join("foo@1.0.0_peer@2.0.0/node_modules/foo");
     install_package(&package, &["guide"]);
     pnpm_fs::force_symlink_dir(&package, &root.path().join("node_modules/foo")).unwrap();
-    let version = slot.trim_start_matches("foo@").replace('_', "(") + ")";
-    let yaml = format!(
-        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: {version}\n",
-    );
+    let yaml = "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0(peer@2.0.0)\n";
     let mut config = config(&[("foo", true)], Some(&[".claude/skills"]));
     config.install_state_dir = store;
-    (root, serde_saphyr::from_str(&yaml).unwrap(), config)
+    (root, serde_saphyr::from_str(yaml).unwrap(), config)
 }
 
 #[test]
 fn replaces_an_unrecorded_link_to_another_copy_in_the_virtual_store() {
     for old_slot in ["foo@1.0.0_peer@1.0.0", "foo@0.9.0"] {
-        let (root, lockfile, config) = workspace_with_slot("foo@1.0.0_peer@2.0.0");
+        let (root, lockfile, config) = workspace_with_peer_variant();
         let old_skill = root
             .path()
             .join("node_modules/.pnpm")
@@ -640,7 +637,7 @@ fn unrecorded_links_to_other_skills_or_outside_the_virtual_store_remain_occupied
         "node_modules/.pnpm/foo@1.0.0_peer@1.0.0/node_modules/foo/skills/migrate",
         "copies/node_modules/foo/skills/guide",
     ] {
-        let (root, lockfile, config) = workspace_with_slot("foo@1.0.0_peer@2.0.0");
+        let (root, lockfile, config) = workspace_with_peer_variant();
         let target = root.path().join(other);
         fs::create_dir_all(&target).unwrap();
         let link = root.path().join(".claude/skills/pnpm-foo-guide");
