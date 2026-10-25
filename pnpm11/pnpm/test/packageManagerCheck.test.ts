@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
+import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import isWindows from 'is-windows'
 import PATH_NAME from 'path-name'
@@ -1034,4 +1035,62 @@ test.each([
 
   expect(result.status).toBe(status)
   expect(fs.existsSync('pnpm-lock.yaml')).toBe(false)
+})
+
+// pnpm 10 starts the pnpm a project pins with version switching off and
+// `pmOnFail=ignore`, and switches only on the `packageManager` field, so the
+// pin that has to reach the lockfile is the `devEngines` one beside it
+// (https://github.com/pnpm/pnpm/issues/17303).
+test('a pin that pnpm 10 switched to is recorded for a later frozen install', async () => {
+  prepareEmpty()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  prepare({
+    packageManager: `pnpm@${pnpmVersion}`,
+    devEngines: {
+      packageManager: { name: 'pnpm', version: pnpmVersion, onFail: 'download' },
+    },
+  })
+  const registry = { pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! }
+
+  execPnpmSync(['install', '--lockfile-only'], {
+    env: {
+      ...registry,
+      npm_config_manage_package_manager_versions: 'false',
+      pnpm_config_pm_on_fail: 'ignore',
+    },
+    expectSuccess: true,
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']).toStrictEqual({
+    specifier: pnpmVersion,
+    version: pnpmVersion,
+  })
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+
+  execPnpmSync(['install', '--frozen-lockfile'], { env: registry, expectSuccess: true })
+
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+})
+
+test.each([
+  ['pmOnFail=ignore on its own', { pnpm_config_pm_on_fail: 'ignore' }, 'download'],
+  ['a pin the manifest itself ignores', { npm_config_manage_package_manager_versions: 'false', pnpm_config_pm_on_fail: 'ignore' }, 'ignore'],
+  ['a pnpm with handoff', { COREPACK_ROOT: 'pnpm-with', npm_config_manage_package_manager_versions: 'false', pnpm_config_pm_on_fail: 'ignore' }, 'download'],
+] as const)('%s leaves the pin unrecorded', async (_, env, onFail) => {
+  prepareEmpty()
+  const pnpmVersion = execPnpmSync(['--version']).stdout.toString().trim()
+  prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: pnpmVersion, onFail },
+    },
+  })
+
+  execPnpmSync(['install', '--lockfile-only'], {
+    env: { ...env, pnpm_config_registry: process.env.PNPM_CURRENT_VERSION_REGISTRY! },
+    expectSuccess: true,
+  })
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile?.importers['.'].packageManagerDependencies).toBeUndefined()
 })

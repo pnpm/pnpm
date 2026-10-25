@@ -76,6 +76,12 @@ fn resolve_package_manager_pin(
     )?))
 }
 
+/// pnpm 10 starts the pnpm a project pins with version switching off and
+/// `pmOnFail=ignore`, so the pin would never reach a fresh lockfile, and a
+/// later direct `--frozen-lockfile` install would fail on the lockfile it
+/// left (pnpm/pnpm#17303). The pin is recorded as it is without the `ignore`.
+/// A pin the manifest itself ignores stays unrecorded, as does one handed
+/// over by Corepack or `pnpm with`, which both set `COREPACK_ROOT`.
 fn legacy_switch_pin_sync(
     resolution: &PinResolution<'_>,
     root_manifest: &Value,
@@ -98,8 +104,6 @@ fn legacy_switch_pin_sync(
     {
         return Ok(None);
     }
-    // Older pnpm versions pass `ignore` to prevent another switch, but the
-    // compatible pin still belongs in a fresh lockfile (pnpm/pnpm#17303).
     env_lockfile_sync(config, root_manifest, roots, PmOnFail::Download, ReadEnvLockfile::NotYet)
 }
 

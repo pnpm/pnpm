@@ -101,7 +101,7 @@ Overrides the `onFail` behavior of both the `packageManager` field and `devEngin
 * `warn`: print a warning but continue (equivalent to the previous `packageManagerStrict: false` or `COREPACK_ENABLE_STRICT=0`).
 * `ignore`: skip the check entirely (equivalent to the previous `managePackageManagerVersions: false`). Useful when version management is handled by an external tool such as asdf, mise, or Volta.
 
-When an older pnpm starts the declared pnpm version with version switching disabled, the declared version is still recorded in `pnpm-lock.yaml`. A subsequent `pnpm install --frozen-lockfile` can use that lockfile without the older pnpm's environment settings.
+pnpm 10 starts the declared pnpm version with `pmOnFail` set to `ignore`. That pnpm still records the declared version in `pnpm-lock.yaml`, so a later `pnpm install --frozen-lockfile` run directly succeeds.
 
 A part of the configuration pnpm cannot read does not stop it from switching to the declared pnpm version, which reads the configuration itself. pnpm leaves out only what it cannot read, so it switches only when the `pmOnFail` it can read is `download`.
 

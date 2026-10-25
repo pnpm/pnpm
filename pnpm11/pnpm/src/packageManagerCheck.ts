@@ -1,6 +1,6 @@
 import { formatWarn } from '@pnpm/cli.default-reporter'
 import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
-import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { type Config, type ConfigContext, getWantedPackageManager } from '@pnpm/config.reader'
 import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
 import { PnpmError } from '@pnpm/error'
 import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
@@ -36,6 +36,8 @@ export async function handlePackageManagerAndRuntimes (opts: PackageManagerHandl
   if (pm != null) {
     if (pm.onFail !== 'ignore') {
       await handleWantedPackageManager(pm, opts)
+    } else {
+      await recordPinAfterLegacySwitch(pm, opts)
     }
   } else if (cmd === 'fetch' && !isExecutedByCorepack() && !rejectUnknownOptions) {
     await fetchLockedPackageManager(config, context)
@@ -79,6 +81,43 @@ async function handleWantedPackageManager (pm: EngineDependency, opts: PackageMa
       await syncEnvLockfile(config, context)
     })
   }
+}
+
+/**
+ * pnpm 10 starts the pnpm a project pins with version switching off and
+ * `pmOnFail=ignore`, so the pin would never reach a fresh lockfile, and a
+ * later direct `--frozen-lockfile` install would fail on the lockfile it left
+ * (pnpm/pnpm#17303). The pin is recorded as it is without the `ignore`. A pin
+ * the manifest itself ignores stays unrecorded, as does one handed over by
+ * Corepack or `pnpm with`, which both set `COREPACK_ROOT`.
+ */
+async function recordPinAfterLegacySwitch (pm: EngineDependency, opts: PackageManagerHandlingOptions): Promise<void> {
+  const { cmd, cliOptions, config, context, rejectUnknownOptions, recordPinWithoutSwitch } = opts
+  if (cliOptions.global || rejectUnknownOptions || !recordPinWithoutSwitch) return
+  if (config.pmOnFail !== 'ignore' || !isPackageManagerSwitchDisabled() || isExecutedByCorepack()) return
+  if (context.rootProjectManifest == null || getWantedPackageManager(context.rootProjectManifest).pm?.onFail === 'ignore') return
+  const printingVersion = cmd == null && cliOptions.version === true
+  await tolerateWhenPrintingVersion(printingVersion, async () => {
+    await syncEnvLockfile(config, { ...context, wantedPackageManager: { ...pm, onFail: 'download' } })
+  })
+}
+
+const PACKAGE_MANAGER_SWITCH_ENV_VARS = [
+  'npm_config_manage_package_manager_versions',
+  'NPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS',
+  'pnpm_config_manage_package_manager_versions',
+  'PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS',
+]
+
+/**
+ * Whether the environment turns the version switch off, as pnpm 10 does for
+ * the pnpm it starts.
+ */
+function isPackageManagerSwitchDisabled (): boolean {
+  return PACKAGE_MANAGER_SWITCH_ENV_VARS.some((name) => {
+    const value = process.env[name]?.toLowerCase()
+    return value === 'false' || value === '0'
+  })
 }
 
 /**

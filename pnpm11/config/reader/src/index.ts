@@ -67,7 +67,7 @@ export type { Config, ConfigContext, ProjectConfig, UniversalOptions, VerifyDeps
 export { type ConfigFileKey, isConfigFileKey } from './configFileKey.js'
 export type { CliOptions } from './getConfig/configBuildState.js'
 export { getIgnoredLockfilePnpmFieldKeys } from './getConfig/ignoredPnpmFieldKeys.js'
-export { type ParsedPackageManager, parsePackageManager, shouldPersistLockfile } from './getConfig/packageManager.js'
+export { getWantedPackageManager, type ParsedPackageManager, parsePackageManager, shouldPersistLockfile } from './getConfig/packageManager.js'
 export { isProjectManifestSkippedKey, whereRefusedKeyBelongs } from './getConfig/skippedKeys.js'
 export { isIniConfigKey, isNpmrcReadableKey } from './localConfig.js'
 
