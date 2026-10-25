@@ -442,7 +442,7 @@ async fn a_recovery_that_cannot_remove_its_artifact_keeps_the_scopes_it_retook()
         publish_overlapping_after_create: None,
         fail_reads_of: None,
         fail_scope_writes: false,
-        fail_only: Some(FailOnly::DeleteOf(format!(".pnpr-artifacts/v0/{variant}"))),
+        fail_only: Some(FailOnly::DeleteOf(format!(".artifacts/{variant}"))),
 
         quota: super::QuotaFaults {
             fail_next_write: None,

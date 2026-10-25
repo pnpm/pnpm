@@ -72,7 +72,7 @@ async fn a_local_store_is_converted_in_place() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("storage");
     write_legacy(&root).await;
-    tokio::fs::create_dir_all(root.join(".pnpr-journal")).await.unwrap();
+    tokio::fs::create_dir_all(root.join(".journal")).await.unwrap();
     let storage =
         Storage::new(&HostedStoreConfig::Fs, root.clone(), tmp.path().join("cache")).unwrap();
     let store = HostedStore::Local(root.clone());
@@ -87,10 +87,7 @@ async fn a_local_store_is_converted_in_place() {
     assert!(!root.join("left-pad").exists());
     assert!(!root.join("acme").exists());
     assert!(root.join(".staged/abc.json").exists());
-    assert!(
-        root.join(".pnpr-journal").is_dir(),
-        "an empty directory the upgrade did not touch stays",
-    );
+    assert!(root.join(".journal").is_dir(), "an empty directory the upgrade did not touch stays");
     assert!(root.join("stray/file").exists());
     assert!(upgrade(&storage, &store, &orgs(), false).await.unwrap().already_current);
 }

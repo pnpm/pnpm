@@ -20,7 +20,7 @@ const TAR_INTEGRITY: &str = ".tar-integrity";
 /// Rebuilt or abandoned rather than carried over: the listing index and
 /// digest-revision reverse index the new layout has no use for, and image
 /// uploads in progress.
-const DROPPED: [&str; 3] = [".package-index", ".pnpr-uploads", ".revisions"];
+const DROPPED: [&str; 4] = [".package-index", ".pnpr-uploads", ".revisions", ".uploads"];
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Namespace<'a> {
@@ -204,6 +204,9 @@ fn step(
             packages.contains(&(ns.clone(), package.to_string()))
         }));
     }
+    if let Some(step) = root_record_step(path) {
+        return Some(step);
+    }
     if path.starts_with('.') && !is_namespace_record(path) {
         return None;
     }
@@ -327,7 +330,7 @@ fn namespace_step(
         return Step::Remove;
     }
     if top == TOMBSTONES {
-        return tombstone_step(prefix, rest);
+        return tombstone_step(prefix, ecosystem, rest);
     }
     if top.starts_with('.') {
         return Step::Orphan;
@@ -335,10 +338,34 @@ fn namespace_step(
     package_step(prefix, ecosystem, rest, is_package)
 }
 
-/// A tombstone was keyed by the package name as it is; it is now keyed by
-/// the name as one encoded segment.
-fn tombstone_step(prefix: &str, rest: &str) -> Step {
-    let Some((version, file)) = rest
+fn root_record_step(path: &str) -> Option<Step> {
+    for prefix in [".team-rosters", ".rule-overrides"] {
+        if let Some(rest) = path.strip_prefix(&format!("{prefix}/v0/")) {
+            let to = if rest.contains('/') {
+                format!("{prefix}/{rest}")
+            } else {
+                format!("{prefix}/npm/{rest}")
+            };
+            return Some(Step::Move { to, document: false });
+        }
+    }
+    for (legacy, current) in [
+        (".scim-users/v0/", ".scim-users/"),
+        (".pipeline-runs/v1/", ".pipeline-runs/"),
+        (".pnpr-artifacts/v0/", ".artifacts/"),
+        (".pnpr-journal/", ".journal/"),
+    ] {
+        if let Some(rest) = path.strip_prefix(legacy) {
+            return Some(Step::Move { to: format!("{current}{rest}"), document: false });
+        }
+    }
+    None
+}
+
+/// A tombstone was keyed by the package name under `v0/`; it is now keyed by
+/// [`package_segments`].
+fn tombstone_step(prefix: &str, ecosystem: Ecosystem, rest: &str) -> Step {
+    let Some((_version, file)) = rest
         .strip_prefix(TOMBSTONES)
         .and_then(|rest| rest.strip_prefix('/'))
         .and_then(|rest| rest.split_once('/'))
@@ -348,10 +375,8 @@ fn tombstone_step(prefix: &str, rest: &str) -> Step {
     let Some(name) = file.strip_suffix(".json") else {
         return Step::Orphan;
     };
-    Step::Move {
-        to: format!("{prefix}/{TOMBSTONES}/{version}/{}.json", encode_segment(name)),
-        document: false,
-    }
+    let segments = package_segments(ecosystem, name).join("/");
+    Step::Move { to: format!("{prefix}/{TOMBSTONES}/{segments}.json"), document: false }
 }
 
 fn package_step(

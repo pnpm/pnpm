@@ -228,10 +228,8 @@ impl Store {
     }
 
     pub(super) fn package_dir(&self, name: &CanonicalPackageName) -> PathBuf {
-        let ecosystem =
-            if self.ecosystem == Ecosystem::Npm { name.ecosystem() } else { self.ecosystem };
         let mut dir = self.root.join(PACKAGES_DIR);
-        dir.extend(package_segments(ecosystem, name.as_str()));
+        dir.extend(package_segments(name.ecosystem(), name.as_str()));
         dir
     }
 
@@ -295,23 +293,6 @@ impl Store {
     /// deleted written back.
     pub(super) async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
         let _guard = self.record_write_lock.lock().await;
-        match fs::remove_file(self.record_path(namespace, key)).await {
-            Ok(()) => Ok(true),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    pub(super) async fn remove_record_if_current(
-        &self,
-        namespace: &str,
-        key: &str,
-        expected: &[u8],
-    ) -> Result<bool> {
-        let _guard = self.record_write_lock.lock().await;
-        if self.read_record(namespace, key).await?.as_deref() != Some(expected) {
-            return Ok(false);
-        }
         match fs::remove_file(self.record_path(namespace, key)).await {
             Ok(()) => Ok(true),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),

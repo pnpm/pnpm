@@ -166,7 +166,7 @@ registries:
 /// packages under the path operators are told is safe to wipe.
 #[test]
 fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
-    for org in [".pnpr-cache", ".pnpr-journal", ".hidden"] {
+    for org in [".pnpr-cache", ".journal", ".hidden"] {
         let yaml =
             format!("storage: ./s\nregistries:\n  sneaky:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)

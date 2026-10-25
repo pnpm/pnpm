@@ -104,7 +104,7 @@ fn an_org_directory_becomes_its_namespace() {
             ("npm~internal/.revisions/sha512/abc/index.json", Step::Remove,),
             (
                 "npm~internal/.tombstones/v0/@scope/gone.json",
-                moved("orgs/internal/npm/.tombstones/v0/!40scope!2fgone.json", false),
+                moved("orgs/internal/npm/.tombstones/@scope/gone.json", false),
             ),
             ("npm~internal/.package-index/tool/.present", Step::Remove),
             (
@@ -127,13 +127,41 @@ fn shared_records_and_root_files_stay() {
             &[
                 "htpasswd",
                 ".staged/abc.json",
-                ".team-rosters/v0/main.json",
-                ".pnpr-journal/0001/manifest.json",
+                ".team-rosters/npm/main.json",
+                ".journal/0001/manifest.json",
                 ".pnpr-cache/~public/x/package.json",
             ],
             &[],
         ),
         [],
+    );
+}
+
+#[test]
+fn legacy_root_records_move_to_current_namespaces() {
+    assert_eq!(
+        steps(
+            &[
+                ".team-rosters/v0/main.json",
+                ".team-rosters/v0/pypi/main.json",
+                ".rule-overrides/v0/main.json",
+                ".scim-users/v0/directory.json",
+                ".pipeline-runs/v1/demo/100.json",
+                ".pnpr-artifacts/v0/sha256/ab/cd/ef",
+                ".pnpr-journal/0001/manifest.json",
+            ],
+            &[],
+        ),
+        [
+            (".team-rosters/v0/main.json", moved(".team-rosters/npm/main.json", false)),
+            (".team-rosters/v0/pypi/main.json", moved(".team-rosters/pypi/main.json", false)),
+            (".rule-overrides/v0/main.json", moved(".rule-overrides/npm/main.json", false)),
+            (".scim-users/v0/directory.json", moved(".scim-users/directory.json", false)),
+            (".pipeline-runs/v1/demo/100.json", moved(".pipeline-runs/demo/100.json", false)),
+            (".pnpr-artifacts/v0/sha256/ab/cd/ef", moved(".artifacts/sha256/ab/cd/ef", false)),
+            (".pnpr-journal/0001/manifest.json", moved(".journal/0001/manifest.json", false)),
+        ]
+        .map(|(from, step)| (from.to_string(), step)),
     );
 }
 
@@ -152,7 +180,7 @@ fn the_default_namespace_records_move_with_it() {
             (".revisions/sha512/abc/index.json", Step::Remove,),
             (
                 ".tombstones/v0/left-pad.json",
-                moved("default/npm/.tombstones/v0/left-pad.json", false)
+                moved("default/npm/.tombstones/@/left-pad.json", false)
             ),
             (".pnpr-uploads/x", Step::Remove),
         ]

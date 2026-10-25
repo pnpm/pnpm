@@ -122,12 +122,12 @@ impl CanonicalPackageName {
     /// re-parsing it against a specific ecosystem grammar. Used for offline
     /// store migration and maintenance.
     #[must_use]
-    pub fn from_stored(raw: &str) -> Self {
+    pub fn from_stored(raw: &str, ecosystem: Ecosystem) -> Self {
         let basename = raw
             .rsplit_once('/')
             .map_or(raw, |(_, last)| last)
             .to_string();
-        Self { raw: raw.to_string(), basename, ecosystem: Ecosystem::Npm }
+        Self { raw: raw.to_string(), basename, ecosystem }
     }
 
     pub fn parse(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {

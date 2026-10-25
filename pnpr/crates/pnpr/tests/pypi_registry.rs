@@ -114,7 +114,7 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
             .is_file(),
     );
     assert!(
-        std::fs::read_dir(tmp.path().join(".pnpr-journal"))
+        std::fs::read_dir(tmp.path().join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -741,7 +741,7 @@ fn fabricate_crashed_upload(storage: &Path, filename: &str, wheel: &[u8]) -> Pat
     let tmp_path = blob.with_file_name(tmp_name);
     std::fs::write(&tmp_path, wheel).unwrap();
 
-    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
     std::fs::create_dir_all(&txn_dir).unwrap();
     let document = json!({
         "name": "demo-pkg",
@@ -783,7 +783,7 @@ async fn a_crashed_upload_is_completed_on_startup() {
 
     assert!(!tmp_path.exists(), "the staged file should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),

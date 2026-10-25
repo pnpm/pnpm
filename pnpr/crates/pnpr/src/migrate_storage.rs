@@ -123,7 +123,7 @@ async fn migrate_package(
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
     let canonical = CanonicalPackageName::parse(pkg_name, ecosystem)
-        .unwrap_or_else(|_| CanonicalPackageName::from_stored(pkg_name));
+        .unwrap_or_else(|_| CanonicalPackageName::from_stored(pkg_name, ecosystem));
 
     let doc_bytes = source
         .read_hosted_document(&canonical)

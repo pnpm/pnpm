@@ -109,7 +109,7 @@ fn fabricate_crashed_publish_in(
     let tmp_path = blob.with_file_name(tmp_name);
     std::fs::write(&tmp_path, tarball).unwrap();
 
-    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    let txn_dir = storage.join(".journal").join("0000000000000001-999-0");
     std::fs::create_dir_all(&txn_dir).unwrap();
     std::fs::write(
         txn_dir.join("packument-0.json"),
@@ -182,7 +182,7 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     );
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -243,7 +243,7 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
         "nothing must land in the default namespace for an org-journaled publish",
     );
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -275,7 +275,7 @@ async fn recovery_rolls_an_unsealed_transaction_back() {
     );
     assert!(!tmp_path.exists(), "staged tmp file should be deleted");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -340,7 +340,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
     assert!(
         local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "residue-pkg").exists(),
     );
-    let journal_root = storage.join(".pnpr-journal");
+    let journal_root = storage.join(".journal");
     let leftover: Vec<_> = match std::fs::read_dir(&journal_root) {
         Ok(entries) => entries
             .map(|entry| entry.unwrap().path())

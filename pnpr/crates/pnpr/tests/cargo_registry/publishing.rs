@@ -85,7 +85,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
         local_document_path(tmp.path(), "crates", pnpr_storage::Ecosystem::Cargo, "demo").is_file(),
     );
     assert!(
-        std::fs::read_dir(tmp.path().join(".pnpr-journal"))
+        std::fs::read_dir(tmp.path().join(".journal"))
             .unwrap()
             .next()
             .is_none(),
@@ -423,7 +423,7 @@ async fn a_crashed_publish_is_completed_on_startup() {
 
     assert!(!tmp_path.exists(), "the staged archive should be promoted away");
     assert!(
-        std::fs::read_dir(storage.join(".pnpr-journal"))
+        std::fs::read_dir(storage.join(".journal"))
             .unwrap()
             .next()
             .is_none(),

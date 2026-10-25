@@ -7,7 +7,7 @@
 //! no document mentions, or some packages of a batch published and others
 //! not. The journal closes that window: before anything is promoted, the full
 //! intent — the computed document bytes and locations
-//! of the staged tmp files — is persisted under `.pnpr-journal/<txn>/` and
+//! of the staged tmp files — is persisted under `.journal/<txn>/` and
 //! sealed with a single atomic rename of the `commit` marker.
 //! [`PublishJournal::commit`] then applies it, and [`recover_publish_journal`]
 //! runs at startup, before the server accepts requests: sealed transactions
@@ -55,7 +55,7 @@ use tokio::{fs, io::AsyncWriteExt};
 /// backend, the cache scratch on the S3 backend); the leading dot
 /// keeps it out of the package-listing walk, and no valid package name
 /// can collide with it.
-pub(crate) const JOURNAL_DIR: &str = ".pnpr-journal";
+pub(crate) const JOURNAL_DIR: &str = ".journal";
 
 const COMMIT_MARKER: &str = "commit";
 const MANIFEST_FILE: &str = "manifest.json";
