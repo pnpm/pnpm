@@ -2,7 +2,10 @@ use super::{
     CliArgs, CliCommand, CommandFactory, Diagnostic, Display, Error, ErrorKind, Pipe, ReporterType,
 };
 
-use crate::cli_args::reporter::ReporterFlags;
+use crate::{
+    cli_args::reporter::ReporterFlags,
+    config_overrides::{ConfigOverrides, GlobalConflict},
+};
 use std::path::{Path, PathBuf};
 
 /// Error type of [`CliArgs::apply_workspace_root`].
@@ -38,6 +41,20 @@ impl CliArgs {
         config_reporter: Option<pnpm_config::ReporterType>,
     ) -> ReporterType {
         self.reporter_flags().resolve(config_loglevel, config_reporter)
+    }
+
+    /// Reject the command-line settings a `--global` command cannot honour.
+    /// The `config` commands read `--global` as `--location=global`, so
+    /// pnpm does not check them.
+    pub(crate) fn check_global_conflicts(
+        &self,
+        config_overrides: &ConfigOverrides,
+    ) -> Result<(), GlobalConflict> {
+        match self.command {
+            CliCommand::Config(_) | CliCommand::Get(_) | CliCommand::Set(_) => Ok(()),
+            _ if self.command.is_global() => config_overrides.check_global_conflicts(),
+            _ => Ok(()),
+        }
     }
 
     pub fn validate_command_scoped_global_options(&self) -> Result<(), clap::Error> {

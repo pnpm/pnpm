@@ -1463,6 +1463,9 @@ fn global_update_requires_approval_for_the_immature_version() {
     drop((root, npmrc_info));
 }
 
+#[cfg(unix)]
+mod config_conflicts;
+
 mod shims;
 
 mod ownership;
