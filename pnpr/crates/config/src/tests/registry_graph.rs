@@ -124,10 +124,11 @@ defaultRegistry: ghost
     assert!(err.to_string().contains("defaultRegistry"), "unexpected error: {err}");
 }
 
-/// Two hosted registries sharing an `org` namespace would alias the same storage, so
-/// the collision must be rejected at load.
+/// Two hosted registries of the same ecosystem sharing an `org` namespace
+/// would alias the same storage, so the collision must be rejected at load,
+/// while two hosted registries of different ecosystems may share an `org`.
 #[test]
-fn from_yaml_str_rejects_duplicate_hosted_org() {
+fn from_yaml_str_rejects_duplicate_hosted_org_within_ecosystem_and_allows_across_ecosystems() {
     let yaml = "\
 storage: ./s
 registries:
@@ -139,8 +140,25 @@ registries:
     org: shared
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("two hosted registries on the same org must be rejected");
+        .expect_err("two hosted registries of the same ecosystem on the same org must be rejected");
     assert!(err.to_string().contains("reuses the `org`"), "unexpected error: {err}");
+
+    let cross_ecosystem = "\
+storage: ./s
+registries:
+  acme-npm:
+    type: hosted
+    org: shared
+  acme-cargo:
+    type: hosted
+    ecosystem: cargo
+    org: shared
+";
+    let mut config =
+        Config::from_yaml_str(cross_ecosystem, Path::new("/x"), listen(), None).unwrap();
+    config.routing.ensure_valid_registry_graph(config.features.registry.enabled).unwrap();
+    assert_eq!(config.routing.hosted["acme-npm"].org, "shared");
+    assert_eq!(config.routing.hosted["acme-cargo"].org, "shared");
 }
 
 /// A dot-prefixed `org` would alias a reserved dot-directory inside the

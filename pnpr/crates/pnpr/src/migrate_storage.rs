@@ -1,7 +1,7 @@
 use axum::body::to_bytes;
 use miette::IntoDiagnostic as _;
 use pnpr_config::{Config, HostedStoreConfig, S3Settings};
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_storage::Storage;
 use std::path::PathBuf;
 use tokio::fs;
@@ -44,16 +44,18 @@ pub async fn migrate_local_to_s3(
 
     let namespaces = crate::export::configured_hosted_namespaces(config);
     for org in namespaces {
-        let src = if org.is_empty() { source.clone() } else { source.for_hosted(&org) };
-        let tgt = if org.is_empty() { target.clone() } else { target.for_hosted(&org) };
+        for ecosystem in Ecosystem::all() {
+            let src = source.for_hosted(&org, ecosystem);
+            let tgt = target.for_hosted(&org, ecosystem);
 
-        let package_names = src
-            .hosted_package_names()
-            .await
-            .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
+            let package_names = src
+                .hosted_package_names()
+                .await
+                .map_err(|err| miette::miette!("failed to list source packages: {err}"))?;
 
-        for pkg_name in package_names {
-            migrate_package(&src, &tgt, &pkg_name, options, &mut report).await?;
+            for pkg_name in package_names {
+                migrate_package(&src, &tgt, ecosystem, &pkg_name, options, &mut report).await?;
+            }
         }
     }
 
@@ -115,11 +117,13 @@ fn resolve_target_s3_config(
 async fn migrate_package(
     source: &Storage,
     target: &Storage,
+    ecosystem: Ecosystem,
     pkg_name: &str,
     options: &MigrateStorageOptions,
     report: &mut MigrateReport,
 ) -> miette::Result<()> {
-    let canonical = CanonicalPackageName::from_stored(pkg_name);
+    let canonical = CanonicalPackageName::parse(pkg_name, ecosystem)
+        .unwrap_or_else(|_| CanonicalPackageName::from_stored(pkg_name));
 
     let doc_bytes = source
         .read_hosted_document(&canonical)

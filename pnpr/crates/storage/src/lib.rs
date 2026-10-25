@@ -32,6 +32,8 @@ pub use tombstones::{PackageTombstone, TOMBSTONES_NAMESPACE};
 
 pub use layout_state::HostedLayout;
 
+pub use pnpr_package_name::Ecosystem;
+
 pub use tar_integrities::DerivedTar;
 
 mod tar_integrities;
@@ -214,7 +216,7 @@ impl Storage {
             )),
         };
         let tar_integrities = root.namespaced(tar_integrities::NAMESPACE);
-        let hosted = namespace(&root, "");
+        let hosted = namespace(&root, "", Ecosystem::Npm);
         Ok(Self { root, hosted, cached, tar_integrities, tar_integrity_cache: Arc::default() })
     }
 

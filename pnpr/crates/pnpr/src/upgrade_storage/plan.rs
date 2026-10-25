@@ -7,6 +7,7 @@
 //! `package.json` was a package: its other files were its blobs, and its
 //! subdirectories other packages (nested image repositories).
 
+use pnpr_package_name::Ecosystem;
 use pnpr_storage::layout::{
     blob_segment, decode_blob_segment, decode_package_segments, encode_segment, namespace_segments,
     package_segments,
@@ -20,6 +21,12 @@ const TAR_INTEGRITY: &str = ".tar-integrity";
 /// digest-revision reverse index the new layout has no use for, and image
 /// uploads in progress.
 const DROPPED: [&str; 3] = [".package-index", ".pnpr-uploads", ".revisions"];
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Namespace<'a> {
+    org: &'a str,
+    ecosystem: Ecosystem,
+}
 
 /// What to do with one stored path, given as its `/`-separated components
 /// below the store root.
@@ -46,7 +53,7 @@ pub(crate) enum Step {
 /// default namespace, which the earlier layout cannot tell apart.
 pub(crate) fn plan(
     paths: &[String],
-    orgs: &BTreeSet<String>,
+    orgs: &BTreeSet<(String, Ecosystem)>,
 ) -> Result<Vec<(String, Step)>, String> {
     let packages = legacy_packages(paths, orgs);
     check_unambiguous(paths, orgs, &packages)?;
@@ -59,30 +66,33 @@ pub(crate) fn plan(
 /// Refuse what the earlier layout cannot tell apart from the new one.
 fn check_unambiguous(
     paths: &[String],
-    orgs: &BTreeSet<String>,
-    packages: &BTreeSet<(String, String)>,
+    orgs: &BTreeSet<(String, Ecosystem)>,
+    packages: &BTreeSet<(Namespace<'_>, String)>,
 ) -> Result<(), String> {
-    if orgs.contains("default") {
+    if orgs
+        .iter()
+        .any(|(org, _)| org == "default")
+    {
         return Err("an org named \"default\" cannot be told apart from the namespace of the \
              registry without an org; rename it before upgrading"
             .to_string());
     }
-    if let Some(org) = orgs
+    if let Some((org, _)) = orgs
         .iter()
-        .find(|org| paths.contains(&format!("{org}/{LEGACY_DOCUMENT}")))
+        .find(|(org, _)| !org.is_empty() && paths.contains(&format!("{org}/{LEGACY_DOCUMENT}")))
     {
         return Err(format!(
             "{org:?} is both an org and a package of the registry without an org; \
              move one of them aside before upgrading",
         ));
     }
+    check_shared_orgs(paths, orgs, packages)?;
     // Such a repository would share directories with the packages the
-    // upgrade moves into `default/packages/` or `orgs/`.
+    // upgrade moves into `default/` or `orgs/`.
     if let Some((_, package)) = packages
         .iter()
-        .find(|(org, package)| {
-            org.is_empty()
-                && (package.starts_with("default/packages/") || package.starts_with("orgs/"))
+        .find(|(ns, package)| {
+            ns.org.is_empty() && (package.starts_with("default/") || package.starts_with("orgs/"))
         })
     {
         return Err(format!(
@@ -93,22 +103,64 @@ fn check_unambiguous(
     Ok(())
 }
 
-/// Every `(org, package)` the earlier layout holds a document for.
-fn legacy_packages(paths: &[String], orgs: &BTreeSet<String>) -> BTreeSet<(String, String)> {
+fn check_shared_orgs(
+    paths: &[String],
+    orgs: &BTreeSet<(String, Ecosystem)>,
+    packages: &BTreeSet<(Namespace<'_>, String)>,
+) -> Result<(), String> {
+    if orgs
+        .iter()
+        .filter(|(org, _)| org.is_empty())
+        .count()
+        > 1
+        && packages.iter().any(|(ns, _)| ns.org.is_empty())
+    {
+        return Err("more than one ecosystem is configured without an org; \
+             keep only the ecosystem the store was written with before upgrading"
+            .to_string());
+    }
+    for (org, _) in orgs {
+        if !org.is_empty()
+            && orgs
+                .iter()
+                .filter(|(other, _)| other == org)
+                .count()
+                > 1
+            && paths
+                .iter()
+                .any(|path| {
+                    path.strip_prefix(org)
+                        .is_some_and(|rest| rest.starts_with('/'))
+                })
+        {
+            return Err(format!(
+                "{org:?} is configured for more than one ecosystem; \
+                 keep only the ecosystem the store was written with before upgrading",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Every `(namespace, package)` the earlier layout holds a document for.
+fn legacy_packages<'a>(
+    paths: &'a [String],
+    orgs: &'a BTreeSet<(String, Ecosystem)>,
+) -> BTreeSet<(Namespace<'a>, String)> {
     paths
         .iter()
         .filter_map(|path| {
-            let (org, rest) = split_namespace(path, orgs)?;
+            let (ns, rest) = split_namespace(path, orgs)?;
             let package = rest.strip_suffix(LEGACY_DOCUMENT)?.strip_suffix('/')?;
-            (!package.starts_with('.')).then(|| (org.to_string(), package.to_string()))
+            (!package.starts_with('.')).then(|| (ns, package.to_string()))
         })
         .collect()
 }
 
 fn step(
     path: &str,
-    orgs: &BTreeSet<String>,
-    packages: &BTreeSet<(String, String)>,
+    orgs: &BTreeSet<(String, Ecosystem)>,
+    packages: &BTreeSet<(Namespace<'_>, String)>,
 ) -> Option<Step> {
     if !path.contains('/') || is_new_layout(path, orgs) {
         return None;
@@ -117,31 +169,36 @@ fn step(
         .strip_prefix(TAR_INTEGRITY)
         .and_then(|rest| rest.strip_prefix('/'))
     {
-        return Some(package_step(TAR_INTEGRITY, rest, |package| {
-            packages.contains(&(TAR_INTEGRITY.to_string(), package.to_string()))
+        let ns = Namespace { org: TAR_INTEGRITY, ecosystem: Ecosystem::Npm };
+        return Some(package_step(TAR_INTEGRITY, Ecosystem::Npm, rest, |package| {
+            packages.contains(&(ns.clone(), package.to_string()))
         }));
     }
     if path.starts_with('.') && !is_namespace_record(path) {
         return None;
     }
-    let (org, rest) = split_namespace(path, orgs)?;
-    let prefix = namespace_segments(org).join("/");
-    Some(namespace_step(&prefix, rest, |package| {
-        packages.contains(&(org.to_string(), package.to_string()))
+    let (ns, rest) = split_namespace(path, orgs)?;
+    let prefix = namespace_segments(ns.org, ns.ecosystem).join("/");
+    Some(namespace_step(&prefix, ns.ecosystem, rest, |package| {
+        packages.contains(&(ns.clone(), package.to_string()))
     }))
 }
 
 /// Paths an interrupted upgrade already moved: the exact shapes the new
 /// layout gives a namespace's packages and records.
-fn is_new_layout(path: &str, orgs: &BTreeSet<String>) -> bool {
+fn is_new_layout(path: &str, orgs: &BTreeSet<(String, Ecosystem)>) -> bool {
     if let Some(rest) = path
         .strip_prefix(TAR_INTEGRITY)
         .and_then(|rest| rest.strip_prefix('/'))
     {
-        return is_new_package_path(rest);
+        return is_new_package_path(Ecosystem::Npm, rest);
     }
-    if let Some(rest) = path.strip_prefix("default/") {
-        return is_new_namespace_path(rest);
+    if let Some((eco, rest)) = path
+        .strip_prefix("default/")
+        .and_then(|rest| rest.split_once('/'))
+        && let Some(ecosystem) = parse_ecosystem(eco)
+    {
+        return is_new_namespace_path(ecosystem, rest);
     }
     let Some((org, rest)) = path
         .strip_prefix("orgs/")
@@ -149,22 +206,42 @@ fn is_new_layout(path: &str, orgs: &BTreeSet<String>) -> bool {
     else {
         return false;
     };
+    let Some((eco, rest)) = rest.split_once('/') else {
+        return false;
+    };
+    let Some(ecosystem) = parse_ecosystem(eco) else {
+        return false;
+    };
     orgs.iter()
-        .any(|configured| encode_segment(configured) == org)
-        && is_new_namespace_path(rest)
+        .any(|(configured, configured_eco)| {
+            !configured.is_empty()
+                && *configured_eco == ecosystem
+                && encode_segment(configured) == org
+        })
+        && is_new_namespace_path(ecosystem, rest)
 }
 
-fn is_new_namespace_path(rest: &str) -> bool {
-    rest.starts_with('.') || is_new_package_path(rest)
+fn parse_ecosystem(raw: &str) -> Option<Ecosystem> {
+    match raw {
+        "npm" => Some(Ecosystem::Npm),
+        "cargo" => Some(Ecosystem::Cargo),
+        "pypi" => Some(Ecosystem::Pypi),
+        "oci" => Some(Ecosystem::Oci),
+        _ => None,
+    }
 }
 
-fn is_new_package_path(rest: &str) -> bool {
+fn is_new_namespace_path(ecosystem: Ecosystem, rest: &str) -> bool {
+    rest.starts_with('.') || is_new_package_path(ecosystem, rest)
+}
+
+fn is_new_package_path(ecosystem: Ecosystem, rest: &str) -> bool {
     let components: Vec<&str> = rest.split('/').collect();
     match components.as_slice() {
-        ["packages", scope, package, "document.json"] => {
-            decode_package_segments(scope, package).is_some()
+        ["packages", segments @ .., "document.json"] => {
+            decode_package_segments(ecosystem, segments).is_some()
         }
-        ["packages", scope, package, "blobs", blob] => decode_package_segments(scope, package)
+        ["packages", segments @ .., "blobs", blob] => decode_package_segments(ecosystem, segments)
             .is_some_and(|name| decode_blob_segment(&name, blob).is_some()),
         _ => false,
     }
@@ -178,20 +255,44 @@ fn is_namespace_record(path: &str) -> bool {
     top == TOMBSTONES || DROPPED.contains(&top)
 }
 
-/// The org whose namespace `path` is in, and the path within it.
-fn split_namespace<'a>(path: &'a str, orgs: &BTreeSet<String>) -> Option<(&'a str, &'a str)> {
-    if let Some((top, rest)) = path.split_once('/')
-        && orgs.contains(top)
-    {
-        return Some((top, rest));
+/// The namespace `path` is in, and the path within it.
+fn split_namespace<'a>(
+    path: &'a str,
+    orgs: &'a BTreeSet<(String, Ecosystem)>,
+) -> Option<(Namespace<'a>, &'a str)> {
+    if let Some((top, rest)) = path.split_once('/') {
+        if let Some((org, ecosystem)) = orgs
+            .iter()
+            .find(|(org, _)| !org.is_empty() && org == top)
+        {
+            return Some((Namespace { org: org.as_str(), ecosystem: *ecosystem }, rest));
+        }
+        if let Some((eco_str, org_name)) = top.split_once('~')
+            && !org_name.is_empty()
+            && let Some((org, ecosystem)) = orgs
+                .iter()
+                .find(|(org, eco)| org == org_name && eco.as_str() == eco_str)
+        {
+            return Some((Namespace { org: org.as_str(), ecosystem: *ecosystem }, rest));
+        }
     }
     if path.starts_with(TAR_INTEGRITY) {
-        return path.split_once('/');
+        let (top, rest) = path.split_once('/')?;
+        return Some((Namespace { org: top, ecosystem: Ecosystem::Npm }, rest));
     }
-    Some(("", path))
+    let ecosystem = orgs
+        .iter()
+        .find_map(|(org, eco)| org.is_empty().then_some(*eco))
+        .unwrap_or(Ecosystem::Npm);
+    Some((Namespace { org: "", ecosystem }, path))
 }
 
-fn namespace_step(prefix: &str, rest: &str, is_package: impl Fn(&str) -> bool) -> Step {
+fn namespace_step(
+    prefix: &str,
+    ecosystem: Ecosystem,
+    rest: &str,
+    is_package: impl Fn(&str) -> bool,
+) -> Step {
     let top = rest
         .split('/')
         .next()
@@ -205,7 +306,7 @@ fn namespace_step(prefix: &str, rest: &str, is_package: impl Fn(&str) -> bool) -
     if top.starts_with('.') {
         return Step::Orphan;
     }
-    package_step(prefix, rest, is_package)
+    package_step(prefix, ecosystem, rest, is_package)
 }
 
 /// A tombstone was keyed by the package name as it is; it is now keyed by
@@ -227,14 +328,20 @@ fn tombstone_step(prefix: &str, rest: &str) -> Step {
     }
 }
 
-fn package_step(prefix: &str, rest: &str, is_package: impl Fn(&str) -> bool) -> Step {
+fn package_step(
+    prefix: &str,
+    ecosystem: Ecosystem,
+    rest: &str,
+    is_package: impl Fn(&str) -> bool,
+) -> Step {
     let Some((package, file)) = rest.rsplit_once('/') else {
         return Step::Orphan;
     };
     if !is_package(package) || file.starts_with('.') {
         return Step::Orphan;
     }
-    let package_dir = format!("{prefix}/packages/{}", package_segments(package).join("/"));
+    let package_dir =
+        format!("{prefix}/packages/{}", package_segments(ecosystem, package).join("/"));
     if file == LEGACY_DOCUMENT {
         Step::Move { to: format!("{package_dir}/document.json"), document: true }
     } else {

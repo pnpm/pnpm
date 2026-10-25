@@ -40,10 +40,10 @@ pub(in super::super) fn ecosystem_package_keys(
     Ok(normalized)
 }
 
-/// Two hosted registries sharing an `org` would read and write the same
-/// storage namespace, so a package published to one would surface through the
-/// other — breaking the declared-provenance isolation. Rejected at load,
-/// whether the config came from YAML or an embedder.
+/// Two hosted registries of the same ecosystem sharing an `org` would read and
+/// write the same storage namespace, so a package published to one would
+/// surface through the other — breaking the declared-provenance isolation.
+/// Rejected at load, whether the config came from YAML or an embedder.
 pub(in super::super) fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
     RegistryError::InvalidConfig {
         reason: format!(

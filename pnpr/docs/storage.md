@@ -21,20 +21,24 @@ The hosted store has the same layout on disk and in a bucket:
 ```text
 <storage>/
   layout.json                     marks the layout version
-  default/                        registries without an org
-  orgs/<org>/                     one namespace per org
+  default/<ecosystem>/            registries without an org
+  orgs/<org>/<ecosystem>/         one namespace per org and ecosystem
 <namespace>/packages/<scope>/<name>/document.json
 <namespace>/packages/<scope>/<name>/blobs/<file>
 ```
 
-A hosted registry declared under an
-[ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems) without an
-`org` uses the org `<ecosystem>~<name>`, stored as `orgs/<ecosystem>!7e<name>/`,
-for example `orgs/npm!7einternal/`.
+`<ecosystem>` is `npm`, `cargo`, `pypi`, or `oci`. A hosted registry declared
+under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems)
+without an `org` uses its own registry name as its `org`, under
+`orgs/<name>/<ecosystem>/`, for example `orgs/internal/npm/`.
 
-A scoped package is stored under `@<scope>/<name>/` and an unscoped one
-under `@/<name>/`, so `@scope/pkg` is in `packages/@scope/pkg/` and `left-pad`
-in `packages/@/left-pad/`. A `.tgz`, `.sigstore` or `.crate` file is
+pnpr stores an npm scoped package under `@<scope>/<name>/` and an unscoped
+package, Cargo crate, or Python project under `@/<name>/`, so `@scope/pkg` is
+in `packages/@scope/pkg/` and `left-pad` in `packages/@/left-pad/`. It stores a
+multi-component container image name `c_1/.../c_k` under
+`@<c_1>/.../@<c_{k-1}>/<c_k>/`, and a single-component one under `@/<name>/`,
+so `acme/app/tool` is in `packages/@acme/@app/tool/` and `ubuntu` in
+`packages/@/ubuntu/`. A `.tgz`, `.sigstore` or `.crate` file is
 stored without the package's unscoped name and the `-` after it, so
 `left-pad-1.0.0.tgz` is `blobs/1.0.0.tgz`. Such a file that does not start
 with the package's name keeps its whole name behind a leading `@`. Every

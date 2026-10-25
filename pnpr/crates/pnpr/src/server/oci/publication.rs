@@ -86,7 +86,7 @@ impl OciPublication {
     }
 
     pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
-        let storage = state.inner.storage.for_hosted(&self.org);
+        let storage = state.inner.storage.for_hosted(&self.org, Ecosystem::Oci);
         let snapshot = storage
             .read_hosted_document(&self.key)
             .await?

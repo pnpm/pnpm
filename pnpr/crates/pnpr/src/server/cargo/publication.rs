@@ -233,7 +233,7 @@ pub(super) async fn set_yanked(
     }
     let _guard = state.inner.locks.packages.lock(key.as_str()).await;
     let outcome = state.inner.storage
-        .for_hosted(&target.org)
+        .for_hosted(&target.org, ECOSYSTEM)
         .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
             update_crate_yank_status(existing, &key, version, yanked)
         })

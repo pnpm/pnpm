@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
 use pnpr_error::Result;
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
@@ -99,6 +99,10 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// A view rooted under `segment`, giving a hosted registry its own
     /// namespace so two orgs hosting the same `name@version` never collide.
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend>;
+
+    /// A view that decodes package directories and object keys with
+    /// `ecosystem`'s [`crate::layout::package_segments`] rules.
+    fn with_ecosystem(&self, ecosystem: Ecosystem) -> Arc<dyn HostedBackend>;
 
     /// What separates this backend's objects from another organization's.
     ///

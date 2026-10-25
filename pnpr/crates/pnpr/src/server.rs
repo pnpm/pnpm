@@ -441,7 +441,7 @@ fn private_no_cache(mut response: Response) -> Response {
 /// the flat (path-less) store when `org` is `None`.
 fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
     match org {
-        Some(org) => state.inner.storage.for_hosted(org),
+        Some(org) => state.inner.storage.for_hosted(org, pnpr_registry::Ecosystem::Npm),
         None => state.inner.storage.clone(),
     }
 }

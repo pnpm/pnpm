@@ -259,7 +259,7 @@ fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
         let router = format!("{ecosystem}/main");
         assert_eq!(config.routing.registries.default_for(ecosystem), Some(router.as_str()));
         assert_eq!(config.routing.registries.sources("main", ecosystem), [key.as_str()]);
-        assert_eq!(config.routing.hosted[&key].org, format!("{ecosystem}~internal"));
+        assert_eq!(config.routing.hosted[&key].org, "internal");
         for resolution in [
             config.routing.registries.resolve("internal", ecosystem, "demo"),
             config.routing.registries.resolve("main", ecosystem, "demo"),

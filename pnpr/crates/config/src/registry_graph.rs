@@ -74,7 +74,7 @@ pub(super) fn flatten_ecosystem_group(
         match &mut registry {
             RegistryFile::Hosted(hosted) => {
                 set_group_ecosystem(&name, &mut hosted.ecosystem, ecosystem)?;
-                hosted.org.get_or_insert_with(|| format!("{ecosystem}~{name}"));
+                hosted.org.get_or_insert_with(|| name.clone());
             }
             RegistryFile::Upstream(upstream) => {
                 set_group_ecosystem(&name, &mut upstream.ecosystem, ecosystem)?;
@@ -189,7 +189,7 @@ impl RegistryGraphBuilder {
         match file {
             RegistryFile::Hosted(registry) => {
                 let (config, ecosystem, patterns) =
-                    build_hosted_entry(&name, registry, &self.hosted)?;
+                    build_hosted_entry(&name, registry, &self.hosted, &self.ecosystems)?;
                 self.hosted.insert(name.clone(), config);
                 self.ecosystems.insert(name.clone(), ecosystem);
                 self.graph.insert(name, Registry::Hosted { patterns });
@@ -257,16 +257,24 @@ pub(super) fn build_hosted_entry(
     name: &str,
     registry: HostedFile,
     hosted: &IndexMap<String, HostedConfig>,
+    ecosystems: &IndexMap<String, Ecosystem>,
 ) -> Result<(HostedConfig, Ecosystem, Vec<PackagePattern>), RegistryError> {
     let org = registry.org.unwrap_or_default();
     validate_org_namespace(name, &org)?;
+    let ecosystem = registry.ecosystem.unwrap_or_default();
     if let Some((other, _)) = hosted
         .iter()
-        .find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
+        .find(|(other_name, existing): &(&String, &HostedConfig)| {
+            existing.org == org
+                && ecosystems
+                    .get(*other_name)
+                    .copied()
+                    .unwrap_or_default()
+                    == ecosystem
+        })
     {
         return Err(org_collision_error(name, &org, other));
     }
-    let ecosystem = registry.ecosystem.unwrap_or_default();
     if ecosystem != Ecosystem::Npm && registry.teams_managed_by == Management::Api {
         return Err(RegistryError::InvalidConfig {
             reason: format!(

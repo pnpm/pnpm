@@ -6,6 +6,7 @@ use crate::{
     layout::{LAYOUT_FILE, LAYOUT_VERSION, LayoutMarker},
 };
 use pnpr_error::RegistryError;
+use pnpr_package_name::Ecosystem;
 use std::sync::Arc;
 use tokio::fs;
 
@@ -25,15 +26,15 @@ pub enum HostedLayout {
 }
 
 impl Storage {
-    /// A view of `org`'s hosted namespace, so two orgs hosting the same
-    /// `name@version` can't collide. The empty org is the default namespace,
-    /// the one [`Storage::new`] addresses. The disposable proxy cache is
-    /// shared (org registries never touch it).
+    /// A view of `(org, ecosystem)`'s hosted namespace, so two registries
+    /// hosting the same `name@version` can't collide. The empty org is the
+    /// default namespace, and `("", Ecosystem::Npm)` is the one
+    /// [`Storage::new`] addresses. The disposable proxy cache is shared.
     #[must_use]
-    pub fn for_hosted(&self, org: &str) -> Storage {
+    pub fn for_hosted(&self, org: &str, ecosystem: Ecosystem) -> Storage {
         Storage {
             root: Arc::clone(&self.root),
-            hosted: namespace(&self.root, org),
+            hosted: namespace(&self.root, org, ecosystem),
             cached: self.cached.clone(),
             tar_integrities: Arc::clone(&self.tar_integrities),
             tar_integrity_cache: Arc::clone(&self.tar_integrity_cache),
@@ -139,11 +140,16 @@ impl Storage {
     }
 }
 
-/// `org`'s namespace of the hosted store `root`.
-pub(crate) fn namespace(root: &Arc<dyn HostedBackend>, org: &str) -> Arc<dyn HostedBackend> {
-    crate::layout::namespace_segments(org)
+/// `(org, ecosystem)`'s namespace of the hosted store `root`.
+pub(crate) fn namespace(
+    root: &Arc<dyn HostedBackend>,
+    org: &str,
+    ecosystem: Ecosystem,
+) -> Arc<dyn HostedBackend> {
+    crate::layout::namespace_segments(org, ecosystem)
         .iter()
         .fold(Arc::clone(root), |backend, segment| backend.namespaced(segment))
+        .with_ecosystem(ecosystem)
 }
 
 fn parse_marker(bytes: &[u8]) -> Result<LayoutMarker> {

@@ -1,14 +1,15 @@
 use super::{Step, plan};
+use pnpr_package_name::Ecosystem;
 use std::collections::BTreeSet;
 
-fn steps(paths: &[&str], orgs: &[&str]) -> Vec<(String, Step)> {
+fn steps(paths: &[&str], orgs: &[(&str, Ecosystem)]) -> Vec<(String, Step)> {
     let paths: Vec<String> = paths
         .iter()
         .map(ToString::to_string)
         .collect();
-    let orgs: BTreeSet<String> = orgs
+    let orgs: BTreeSet<(String, Ecosystem)> = orgs
         .iter()
-        .map(ToString::to_string)
+        .map(|(org, ecosystem)| ((*org).to_string(), *ecosystem))
         .collect();
     plan(&paths, &orgs).unwrap()
 }
@@ -26,33 +27,50 @@ fn packages_without_an_org_move_into_the_default_namespace() {
                 "left-pad/left-pad-1.0.0.tgz",
                 "@scope/App/package.json",
                 "@scope/App/App-1.0.0.tgz",
+            ],
+            &[],
+        ),
+        [
+            ("left-pad/package.json", moved("default/npm/packages/@/left-pad/document.json", true)),
+            (
+                "left-pad/left-pad-1.0.0.tgz",
+                moved("default/npm/packages/@/left-pad/blobs/1.0.0.tgz", false)
+            ),
+            (
+                "@scope/App/package.json",
+                moved("default/npm/packages/@scope/!41pp/document.json", true)
+            ),
+            (
+                "@scope/App/App-1.0.0.tgz",
+                moved("default/npm/packages/@scope/!41pp/blobs/1.0.0.tgz", false),
+            ),
+        ]
+        .map(|(from, step)| (from.to_string(), step)),
+    );
+}
+
+#[test]
+fn nested_image_repositories_split_into_marked_directories() {
+    assert_eq!(
+        steps(
+            &[
                 "acme/app/package.json",
                 "acme/app/sha256-aa",
                 "acme/app/tool/package.json",
                 "acme/app/tool/sha256-bb",
             ],
-            &[],
+            &[("", Ecosystem::Oci)],
         ),
         [
-            ("left-pad/package.json", moved("default/packages/@/left-pad/document.json", true)),
-            (
-                "left-pad/left-pad-1.0.0.tgz",
-                moved("default/packages/@/left-pad/blobs/1.0.0.tgz", false)
-            ),
-            ("@scope/App/package.json", moved("default/packages/@scope/!41pp/document.json", true)),
-            (
-                "@scope/App/App-1.0.0.tgz",
-                moved("default/packages/@scope/!41pp/blobs/1.0.0.tgz", false),
-            ),
-            ("acme/app/package.json", moved("default/packages/@/acme!2fapp/document.json", true)),
-            ("acme/app/sha256-aa", moved("default/packages/@/acme!2fapp/blobs/sha256-aa", false)),
+            ("acme/app/package.json", moved("default/oci/packages/@acme/app/document.json", true)),
+            ("acme/app/sha256-aa", moved("default/oci/packages/@acme/app/blobs/sha256-aa", false)),
             (
                 "acme/app/tool/package.json",
-                moved("default/packages/@/acme!2fapp!2ftool/document.json", true)
+                moved("default/oci/packages/@acme/@app/tool/document.json", true)
             ),
             (
                 "acme/app/tool/sha256-bb",
-                moved("default/packages/@/acme!2fapp!2ftool/blobs/sha256-bb", false)
+                moved("default/oci/packages/@acme/@app/tool/blobs/sha256-bb", false)
             ),
         ]
         .map(|(from, step)| (from.to_string(), step)),
@@ -69,24 +87,34 @@ fn an_org_directory_becomes_its_namespace() {
                 "npm~internal/.revisions/sha512/abc/index.json",
                 "npm~internal/.tombstones/v0/@scope/gone.json",
                 "npm~internal/.package-index/tool/.present",
+                "cargo~internal/serde/package.json",
+                "cargo~internal/serde/serde-1.0.0.crate",
             ],
-            &["npm~internal"],
+            &[("internal", Ecosystem::Npm), ("internal", Ecosystem::Cargo)],
         ),
         [
             (
                 "npm~internal/tool/package.json",
-                moved("orgs/npm!7einternal/packages/@/tool/document.json", true)
+                moved("orgs/internal/npm/packages/@/tool/document.json", true)
             ),
             (
                 "npm~internal/tool/tool-1.0.0.tgz",
-                moved("orgs/npm!7einternal/packages/@/tool/blobs/1.0.0.tgz", false),
+                moved("orgs/internal/npm/packages/@/tool/blobs/1.0.0.tgz", false),
             ),
             ("npm~internal/.revisions/sha512/abc/index.json", Step::Remove,),
             (
                 "npm~internal/.tombstones/v0/@scope/gone.json",
-                moved("orgs/npm!7einternal/.tombstones/v0/!40scope!2fgone.json", false),
+                moved("orgs/internal/npm/.tombstones/v0/!40scope!2fgone.json", false),
             ),
             ("npm~internal/.package-index/tool/.present", Step::Remove),
+            (
+                "cargo~internal/serde/package.json",
+                moved("orgs/internal/cargo/packages/@/serde/document.json", true),
+            ),
+            (
+                "cargo~internal/serde/serde-1.0.0.crate",
+                moved("orgs/internal/cargo/packages/@/serde/blobs/1.0.0.crate", false),
+            ),
         ]
         .map(|(from, step)| (from.to_string(), step)),
     );
@@ -122,7 +150,10 @@ fn the_default_namespace_records_move_with_it() {
         ),
         [
             (".revisions/sha512/abc/index.json", Step::Remove,),
-            (".tombstones/v0/left-pad.json", moved("default/.tombstones/v0/left-pad.json", false)),
+            (
+                ".tombstones/v0/left-pad.json",
+                moved("default/npm/.tombstones/v0/left-pad.json", false)
+            ),
             (".pnpr-uploads/x", Step::Remove),
         ]
         .map(|(from, step)| (from.to_string(), step)),
@@ -149,7 +180,7 @@ fn files_outside_any_package_are_orphans() {
         ),
         [
             ("stray/file.tgz", Step::Orphan),
-            ("left-pad/package.json", moved("default/packages/@/left-pad/document.json", true)),
+            ("left-pad/package.json", moved("default/npm/packages/@/left-pad/document.json", true)),
             ("left-pad/.left-pad-1.0.0.tgz.tmp", Step::Orphan),
         ]
         .map(|(from, step)| (from.to_string(), step)),
@@ -161,16 +192,17 @@ fn an_interrupted_upgrade_resumes_where_it_stopped() {
     assert_eq!(
         steps(
             &[
-                "default/packages/@/left-pad/blobs/1.0.0.tgz",
+                "default/npm/packages/@/left-pad/blobs/1.0.0.tgz",
                 "left-pad/package.json",
-                "orgs/acme/packages/@/tool/document.json",
+                "orgs/acme/npm/packages/@/tool/document.json",
+                "orgs/acme/oci/packages/@acme/@app/tool/document.json",
                 ".tar-integrity/packages/@scope/pkg/document.json",
             ],
-            &["acme"],
+            &[("acme", Ecosystem::Npm), ("acme", Ecosystem::Oci)],
         ),
         [(
             "left-pad/package.json".to_string(),
-            moved("default/packages/@/left-pad/document.json", true)
+            moved("default/npm/packages/@/left-pad/document.json", true)
         )],
     );
 }
@@ -178,13 +210,13 @@ fn an_interrupted_upgrade_resumes_where_it_stopped() {
 #[test]
 fn an_org_that_is_also_a_package_is_refused() {
     let paths = vec!["acme/package.json".to_string(), "acme/tool/package.json".to_string()];
-    let error = plan(&paths, &BTreeSet::from(["acme".to_string()])).unwrap_err();
+    let error = plan(&paths, &BTreeSet::from([("acme".to_string(), Ecosystem::Npm)])).unwrap_err();
     assert!(error.contains(r#""acme" is both an org and a package"#), "{error}");
 }
 
 #[test]
 fn an_org_named_default_is_refused() {
-    let error = plan(&[], &BTreeSet::from(["default".to_string()])).unwrap_err();
+    let error = plan(&[], &BTreeSet::from([("default".to_string(), Ecosystem::Npm)])).unwrap_err();
     assert!(error.contains(r#"an org named "default""#), "{error}");
 }
 

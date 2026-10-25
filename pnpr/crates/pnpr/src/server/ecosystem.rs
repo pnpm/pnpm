@@ -157,7 +157,10 @@ pub(super) async fn serve_hosted_blob(
     filename: &str,
 ) -> Result<Response, RegistryError> {
     let org = hosted_read_namespace(state, identity, source, key.as_str())?;
-    let blob = state.inner.storage.for_hosted(&org).open_hosted_blob(key, filename).await?;
+    let blob = state.inner.storage
+        .for_hosted(&org, key.ecosystem())
+        .open_hosted_blob(key, filename)
+        .await?;
     Ok(match blob {
         Some((body, len)) => tarball_response(body, len),
         None => not_found(),

@@ -197,7 +197,7 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 ) -> Result<Option<Document>, RegistryError> {
     let org = hosted_read_namespace(state, identity, source, key.as_str())?;
     state.inner.storage
-        .for_hosted(&org)
+        .for_hosted(&org, Document::ECOSYSTEM)
         .read_hosted_document(key)
         .await?
         .map(|bytes| Document::parse(&bytes).map_err(RegistryError::Json))
@@ -236,7 +236,10 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     // commit, so what the store serves under it is theirs. Answer with the
     // duplicate error `refuse` would have given had it seen their document.
     if !outcome.unrecorded.is_empty()
-        && let Some(stored) = state.inner.storage.for_hosted(org).read_hosted_document(key).await?
+        && let Some(stored) = state.inner.storage
+            .for_hosted(org, Document::ECOSYSTEM)
+            .read_hosted_document(key)
+            .await?
     {
         let doc = Document::parse(&stored).map_err(RegistryError::Json)?;
         if doc.format_version() > Document::FORMAT_VERSION {
@@ -265,7 +268,7 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
-    let storage = state.inner.storage.for_hosted(org);
+    let storage = state.inner.storage.for_hosted(org, Document::ECOSYSTEM);
     let stored = storage.read_hosted_document_for_update(key).await?;
     let mut document = match &stored {
         Some(stored) => Document::parse(&stored.bytes).map_err(RegistryError::Json)?,

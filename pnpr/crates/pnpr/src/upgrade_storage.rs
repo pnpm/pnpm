@@ -8,6 +8,7 @@ use miette::IntoDiagnostic as _;
 use object_store::{ObjectStore, ObjectStoreExt as _, path::Path as ObjectPath};
 use plan::Step;
 use pnpr_config::{Config, HostedStoreConfig, build_s3_store, normalize_key_prefix};
+use pnpr_package_name::Ecosystem;
 use pnpr_storage::{
     HostedLayout, Storage,
     layout::{LAYOUT_FILE, LAYOUT_VERSION},
@@ -38,10 +39,12 @@ pub async fn upgrade_storage(config: &Config, dry_run: bool) -> miette::Result<U
         config.storage.cache_dir.clone(),
     )
     .into_diagnostic()?;
-    let orgs: BTreeSet<String> = config.routing.hosted
-        .values()
-        .map(|hosted| hosted.org.clone())
-        .filter(|org| !org.is_empty())
+    let orgs: BTreeSet<(String, Ecosystem)> = config.routing.hosted
+        .iter()
+        .map(|(name, hosted)| {
+            let ecosystem = config.routing.registries.ecosystem(name).unwrap_or_default();
+            (hosted.org.clone(), ecosystem)
+        })
         .collect();
     upgrade(&storage, &HostedStore::open(config)?, &orgs, dry_run).await
 }
@@ -49,7 +52,7 @@ pub async fn upgrade_storage(config: &Config, dry_run: bool) -> miette::Result<U
 async fn upgrade(
     storage: &Storage,
     store: &HostedStore,
-    orgs: &BTreeSet<String>,
+    orgs: &BTreeSet<(String, Ecosystem)>,
     dry_run: bool,
 ) -> miette::Result<UpgradeReport> {
     let mut report = UpgradeReport { dry_run, ..UpgradeReport::default() };

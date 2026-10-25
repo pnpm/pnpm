@@ -363,6 +363,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
             &ObjectPath::from(object_key(&local_blob_path(
                 Path::new(""),
                 "",
+                pnpr_storage::Ecosystem::Npm,
                 "mixed-pkg",
                 "mixed-pkg-1.0.0.tgz",
             ))),
@@ -419,6 +420,7 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
             .get(&ObjectPath::from(object_key(&local_blob_path(
                 Path::new(""),
                 "",
+                pnpr_storage::Ecosystem::Npm,
                 "mixed-pkg",
                 "mixed-pkg-1.0.0.tgz",
             ))))

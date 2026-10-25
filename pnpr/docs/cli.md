@@ -145,7 +145,7 @@ each configured hosted registry decides which top-level directories are org
 namespaces, so run it with the configuration the store was written with.
 It refuses what the earlier layout cannot tell apart from the new one: an org
 named `default`, a top-level directory that is both an org and a package, and
-a repository whose name starts with `default/packages/` or `orgs/`.
+a repository whose name starts with `default/` or `orgs/`.
 In-progress image uploads are discarded. Files that belong to no package are
 reported and left where they are. An interrupted conversion can be run again.
 

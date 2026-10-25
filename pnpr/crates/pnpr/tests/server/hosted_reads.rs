@@ -228,11 +228,12 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
 
     // It physically lands in the org's storage namespace, not the default one.
     assert!(
-        local_document_path(tmp.path(), "acme", "@acme/widget").exists(),
+        local_document_path(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget")
+            .exists(),
         "published packument should be in the org namespace",
     );
     assert!(
-        !local_document_path(tmp.path(), "", "@acme/widget").exists(),
+        !local_document_path(tmp.path(), "", pnpr_storage::Ecosystem::Npm, "@acme/widget").exists(),
         "nothing should be written to the default namespace",
     );
 
@@ -371,7 +372,8 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
     }
     assert!(
-        !local_document_path(tmp.path(), "acme", "@typo/widget").exists(),
+        !local_document_path(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@typo/widget")
+            .exists(),
         "an off-pattern publish must write nothing",
     );
 
@@ -564,7 +566,8 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        !local_document_path(tmp.path(), "corp", "@corp/tool").exists(),
+        !local_document_path(tmp.path(), "corp", pnpr_storage::Ecosystem::Npm, "@corp/tool")
+            .exists(),
         "a denied publish must write nothing",
     );
 
@@ -575,7 +578,10 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .await
         .unwrap();
     assert_eq!(allowed.status(), StatusCode::CREATED);
-    assert!(local_document_path(tmp.path(), "corp", "@corp/tool").exists());
+    assert!(
+        local_document_path(tmp.path(), "corp", pnpr_storage::Ecosystem::Npm, "@corp/tool")
+            .exists(),
+    );
 
     // With the package now hosted, the non-member's path-less retag and
     // unpublish are masked the same way; the member's retag succeeds.
@@ -597,7 +603,8 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         .unwrap();
     assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
     assert!(
-        local_document_path(tmp.path(), "corp", "@corp/tool").exists(),
+        local_document_path(tmp.path(), "corp", pnpr_storage::Ecosystem::Npm, "@corp/tool")
+            .exists(),
         "a denied unpublish must remove nothing",
     );
     let retag_allowed = app

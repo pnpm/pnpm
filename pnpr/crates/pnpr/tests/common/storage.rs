@@ -52,8 +52,8 @@ pub fn object_key(relative: &Path) -> String {
     reason = "test helper called from multiple sites with owned literals; by-value keeps the call sites clean"
 )]
 fn write_package(storage: &Path, name: &str, tarball: &str, packument: Value) {
-    let document = local_document_path(storage, "", name);
-    let blob = local_blob_path(storage, "", name, tarball);
+    let document = local_document_path(storage, "", pnpr_storage::Ecosystem::Npm, name);
+    let blob = local_blob_path(storage, "", pnpr_storage::Ecosystem::Npm, name, tarball);
     std::fs::create_dir_all(blob.parent().unwrap()).expect("create package dir");
     std::fs::write(document, serde_json::to_vec(&packument).unwrap()).expect("write packument");
     std::fs::write(blob, format!("fake {name} tarball")).expect("write tarball");

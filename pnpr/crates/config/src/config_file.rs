@@ -46,7 +46,7 @@ pub(super) struct HostedFile {
     pub(super) ecosystem: Option<Ecosystem>,
     /// Storage namespace for this registry's packages, so two hosted registries can
     /// hold the same `name@version` without colliding. A grouped registry defaults
-    /// to `ecosystem~name`; a flat entry defaults to the storage root (`""`).
+    /// to `name`; a flat entry defaults to the default namespace (`""`).
     #[serde(default)]
     pub(super) org: Option<String>,
     /// The registry-level default: who may read this registry's packages when

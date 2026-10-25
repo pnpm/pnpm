@@ -30,7 +30,7 @@ use object_store::{
     path::Path as ObjectPath,
 };
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::CanonicalPackageName;
+use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -60,6 +60,7 @@ pub struct S3Store {
     store: Arc<dyn ObjectStore>,
     /// Normalized prefix: empty or `.../`-terminated.
     prefix: String,
+    ecosystem: Ecosystem,
     /// Local directory the publish flow stages decoded blobs in
     /// before they're uploaded. The decode/verify step writes through
     /// `std::fs` inside `spawn_blocking`, so it needs a real path even
@@ -123,7 +124,13 @@ async fn read_part(file: &mut fs::File, part: &mut [u8]) -> Result<usize> {
 
 impl S3Store {
     pub fn new(store: Arc<dyn ObjectStore>, prefix: String, cache_root: PathBuf) -> Self {
-        Self { store, prefix, staging_dir: cache_root.join(STAGING_SUBDIR), cache_root }
+        Self {
+            store,
+            prefix,
+            ecosystem: Ecosystem::Npm,
+            staging_dir: cache_root.join(STAGING_SUBDIR),
+            cache_root,
+        }
     }
 
     /// A view of this store with `segment` appended to the key prefix, giving a
@@ -138,6 +145,7 @@ impl S3Store {
             return Self {
                 store: Arc::clone(&self.store),
                 prefix: self.prefix.clone(),
+                ecosystem: self.ecosystem,
                 staging_dir: self.staging_dir.clone(),
                 cache_root: self.cache_root.clone(),
             };
@@ -145,6 +153,18 @@ impl S3Store {
         Self {
             store: Arc::clone(&self.store),
             prefix: format!("{}{segment}/", self.prefix),
+            ecosystem: self.ecosystem,
+            staging_dir: self.staging_dir.clone(),
+            cache_root: self.cache_root.clone(),
+        }
+    }
+
+    #[must_use]
+    pub fn with_ecosystem(&self, ecosystem: Ecosystem) -> S3Store {
+        Self {
+            store: Arc::clone(&self.store),
+            prefix: self.prefix.clone(),
+            ecosystem,
             staging_dir: self.staging_dir.clone(),
             cache_root: self.cache_root.clone(),
         }
@@ -337,6 +357,7 @@ impl S3Store {
     {
         let scope = ObjectPath::from(format!("{}{PACKAGES_DIR}", self.prefix));
         let normalized_prefix = format!("{}/", scope.as_ref());
+        let ecosystem = self.ecosystem;
         self.store
             .list(Some(&scope))
             .filter_map(move |result| {
@@ -346,16 +367,11 @@ impl S3Store {
                         Ok(meta) => meta,
                         Err(error) => return Some(Err(error.into())),
                     };
-                    let rest = meta.location.as_ref().strip_prefix(normalized_prefix.as_str())?;
-                    let (scope, rest) = rest.split_once('/')?;
-                    let (package, file) = rest.split_once('/')?;
-                    let name = decode_package_segments(scope, package)?;
-                    let file = if file == DOCUMENT_FILE {
-                        PackageFile::Document
-                    } else {
-                        let blob = file.strip_prefix(BLOBS_DIR)?.strip_prefix('/')?;
-                        PackageFile::Blob(decode_blob_segment(&name, blob)?)
-                    };
+                    let (name, file) = decode_package_file_key(
+                        ecosystem,
+                        &normalized_prefix,
+                        meta.location.as_ref(),
+                    )?;
                     Some(Ok((name, file, meta)))
                 }
             })
@@ -394,8 +410,10 @@ impl S3Store {
     }
 
     fn package_prefix(&self, name: &CanonicalPackageName) -> String {
-        let [scope, rest] = package_segments(name.as_str());
-        format!("{}{PACKAGES_DIR}/{scope}/{rest}/", self.prefix)
+        let ecosystem =
+            if self.ecosystem == Ecosystem::Npm { name.ecosystem() } else { self.ecosystem };
+        let segments = package_segments(ecosystem, name.as_str()).join("/");
+        format!("{}{PACKAGES_DIR}/{segments}/", self.prefix)
     }
 
     fn document_key(&self, name: &CanonicalPackageName) -> ObjectPath {
@@ -416,6 +434,26 @@ impl S3Store {
 pub(super) enum PackageFile {
     Document,
     Blob(String),
+}
+
+fn decode_package_file_key(
+    ecosystem: Ecosystem,
+    normalized_prefix: &str,
+    location: &str,
+) -> Option<(String, PackageFile)> {
+    let rest = location.strip_prefix(normalized_prefix)?;
+    let parts: Vec<&str> = rest.split('/').collect();
+    let (pkg_segments, tail) = match parts.as_slice() {
+        [pkg_segments @ .., DOCUMENT_FILE] => (pkg_segments, None),
+        [pkg_segments @ .., BLOBS_DIR, blob] => (pkg_segments, Some(*blob)),
+        _ => return None,
+    };
+    let name = decode_package_segments(ecosystem, pkg_segments)?;
+    let file = match tail {
+        None => PackageFile::Document,
+        Some(blob) => PackageFile::Blob(decode_blob_segment(&name, blob)?),
+    };
+    Some((name, file))
 }
 
 #[cfg(test)]

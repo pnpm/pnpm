@@ -721,7 +721,7 @@ async fn packument_rewrite_failure_during_tombstone_write_restores_prior_packume
 
     // Block tombstone recording by creating a directory where the tombstone file belongs
     let mut tombstone_file = dir.path().join("storage");
-    tombstone_file.extend(namespace_segments(""));
+    tombstone_file.extend(namespace_segments("", pnpr_storage::Ecosystem::Npm));
     tombstone_file.push(TOMBSTONES_NAMESPACE);
     tombstone_file.push(format!("{}.json", encode_segment("fail-pkg")));
     std::fs::create_dir_all(&tombstone_file).unwrap();

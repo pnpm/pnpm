@@ -367,7 +367,7 @@ impl Request {
         let (key, source) = self.hosted_source(name)?;
         let org = hosted_read_namespace(&self.state, &self.identity, &source, key.as_str())
             .map_err(Refusal::from)?;
-        let storage = self.state.inner.storage.for_hosted(&org);
+        let storage = self.state.inner.storage.for_hosted(&org, ECOSYSTEM);
         Ok(HostedRepo { key, source, storage })
     }
 

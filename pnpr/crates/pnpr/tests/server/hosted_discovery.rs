@@ -345,7 +345,16 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         json!("http://example.test/npm/~acme/@acme/widget@1.0.0"),
     );
 
-    assert!(local_blob_path(tmp.path(), "acme", "@acme/widget", "widget-1.0.0.tgz").exists());
+    assert!(
+        local_blob_path(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/widget",
+            "widget-1.0.0.tgz"
+        )
+        .exists(),
+    );
 
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
@@ -373,7 +382,16 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .await
         .unwrap();
     assert_eq!(delete_tar.status(), StatusCode::CREATED);
-    assert!(!local_blob_path(tmp.path(), "acme", "@acme/widget", "widget-1.0.0.tgz").exists());
+    assert!(
+        !local_blob_path(
+            tmp.path(),
+            "acme",
+            pnpr_storage::Ecosystem::Npm,
+            "@acme/widget",
+            "widget-1.0.0.tgz"
+        )
+        .exists(),
+    );
     let delete_pkg = app
         .clone()
         .oneshot(
@@ -384,7 +402,10 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         .await
         .unwrap();
     assert_eq!(delete_pkg.status(), StatusCode::CREATED);
-    assert!(!local_package_dir(tmp.path(), "acme", "@acme/widget").exists());
+    assert!(
+        !local_package_dir(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget")
+            .exists(),
+    );
 }
 
 /// Path-less responses resolved to a private registry carry the same

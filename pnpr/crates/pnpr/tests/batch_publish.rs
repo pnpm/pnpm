@@ -102,7 +102,8 @@ async fn batch_publish_writes_every_package_in_one_request() {
         [("batch-a", "1.0.0", bytes_a.as_slice()), ("batch-b", "2.0.0", bytes_b.as_slice())]
     {
         let packument: Value = serde_json::from_slice(
-            &std::fs::read(local_document_path(&storage, "", name)).expect("packument written"),
+            &std::fs::read(local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, name))
+                .expect("packument written"),
         )
         .unwrap();
         assert_eq!(packument["name"], name);
@@ -110,9 +111,14 @@ async fn batch_publish_writes_every_package_in_one_request() {
         assert_eq!(packument["dist-tags"]["latest"], version);
         assert!(packument.get("_attachments").is_none(), "_attachments should not be persisted");
 
-        let on_disk_tarball =
-            std::fs::read(local_blob_path(&storage, "", name, &format!("{name}-{version}.tgz")))
-                .expect("tarball written");
+        let on_disk_tarball = std::fs::read(local_blob_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            name,
+            &format!("{name}-{version}.tgz"),
+        ))
+        .expect("tarball written");
         assert_eq!(on_disk_tarball, bytes);
 
         let served = app
@@ -173,7 +179,13 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     assert_eq!(response.status(), StatusCode::CREATED);
 
     // On disk: canonical `<basename>-<version>.tgz` under the scope dir.
-    let on_disk = local_blob_path(&storage, "", "@scope/wire-form", "wire-form-1.0.0.tgz");
+    let on_disk = local_blob_path(
+        &storage,
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "@scope/wire-form",
+        "wire-form-1.0.0.tgz",
+    );
     assert_eq!(std::fs::read(&on_disk).unwrap(), bytes);
 
     // The served packument canonicalizes `dist.tarball` to the
@@ -219,7 +231,7 @@ async fn anonymous_batch_publish_is_rejected() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-    assert!(!local_package_dir(&storage, "", "anon-batch").exists());
+    assert!(!local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "anon-batch").exists());
 }
 
 /// The batch is all-or-nothing: when one package's tarball fails the
@@ -246,12 +258,17 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
     assert!(body_text.contains("EINTEGRITY"), "error should carry EINTEGRITY: {body_text}");
 
     for name in ["rollback-good", "rollback-bad"] {
-        let files: Vec<_> = walkdir::WalkDir::new(local_package_dir(&storage, "", name))
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_type().is_file())
-            .map(|entry| entry.path().to_path_buf())
-            .collect();
+        let files: Vec<_> = walkdir::WalkDir::new(local_package_dir(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            name,
+        ))
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .map(|entry| entry.path().to_path_buf())
+        .collect();
         assert!(
             files.is_empty(),
             "expected no artifacts for {name} after rejected batch, found: {files:?}",
@@ -279,7 +296,7 @@ async fn batch_publish_rejects_duplicate_package_names() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("duplicate npm package"), "got: {body_text}");
-    assert!(!local_package_dir(&storage, "", "dupe-pkg").exists());
+    assert!(!local_package_dir(&storage, "", pnpr_storage::Ecosystem::Npm, "dupe-pkg").exists());
 }
 
 #[tokio::test]
@@ -337,7 +354,13 @@ async fn batch_publish_merges_with_previously_published_versions() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let packument: Value = serde_json::from_slice(
-        &std::fs::read(local_document_path(&storage, "", "merge-pkg")).unwrap(),
+        &std::fs::read(local_document_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "merge-pkg",
+        ))
+        .unwrap(),
     )
     .unwrap();
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
