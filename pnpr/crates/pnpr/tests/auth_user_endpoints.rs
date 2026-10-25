@@ -189,6 +189,29 @@ async fn adduser_issues_token_for_canonical_username() {
 }
 
 #[tokio::test]
+async fn adduser_accepts_bare_user_route_without_couchdb_prefix() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/alice", adduser_body("alice", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let payload = body_json(response.into_body()).await;
+    let token = payload["token"].as_str().expect("token in response");
+
+    let response = app
+        .oneshot(get_with_bearer("/-/whoami", token))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = body_json(response.into_body()).await;
+    assert_eq!(payload["username"].as_str(), Some("alice"));
+}
+
+#[tokio::test]
 async fn oversized_login_body_is_rejected() {
     // Login is the one body-accepting endpoint reachable anonymously on
     // every tier, so it carries its own body cap (64 KiB) instead of

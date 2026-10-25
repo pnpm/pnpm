@@ -1,6 +1,6 @@
 use super::{
     AppState, AuthedCaller, Body, Deserialize, Identity, Path, RegistryError, Response, State,
-    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response, not_found,
+    StatusCode, TargetRegistry, UpsertOutcome, Value, header, json, json_response,
     private_no_cache, require_caller,
 };
 use axum::response::IntoResponse;
@@ -12,8 +12,13 @@ pub(crate) async fn get_whoami(
     private_no_cache(serve_whoami(&identity))
 }
 
-/// `PUT /-/user/org.couchdb.user:{name}` — adduser / login. Authenticates
-/// from the request body, not the caller's existing identity.
+fn strip_couchdb_user_prefix(user: &str) -> &str {
+    user.strip_prefix("org.couchdb.user:").unwrap_or(user)
+}
+
+/// `PUT /-/user/{user}` — adduser / login. Accepts bare `/-/user/{name}` and
+/// legacy `/-/user/org.couchdb.user:{name}`. Authenticates from the request
+/// body, not the caller's existing identity.
 pub(crate) async fn put_login(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
@@ -21,9 +26,7 @@ pub(crate) async fn put_login(
     Path(path): Path<UserPath>,
     body: axum::body::Bytes,
 ) -> Response {
-    let Some(name) = path.user.strip_prefix("org.couchdb.user:") else {
-        return not_found();
-    };
+    let name = strip_couchdb_user_prefix(&path.user);
     let ip_address = client_ip.map(|axum::extract::Extension(super::ClientIp(ip))| ip);
     if let Err(retry_after) = state.inner.identity.login_rate_limiter.check(ip_address, name) {
         return login_throttled_response(&state, retry_after);
@@ -54,17 +57,16 @@ pub(crate) async fn get_profile(
     private_no_cache(serve_profile(&identity))
 }
 
-/// `GET /-/user/org.couchdb.user:{name}` — fetch a `CouchDB` user document.
-/// Used by `npm owner add` to verify that the prospective maintainer exists
-/// before mutating the package document.
+/// `GET /-/user/{user}` — fetch a user document. Accepts bare `/-/user/{name}`
+/// and legacy `/-/user/org.couchdb.user:{name}`. Used by `npm owner add` to
+/// verify that the prospective maintainer exists before mutating the package
+/// document.
 pub(crate) async fn get_user(
     State(state): State<AppState>,
     TargetRegistry(_): TargetRegistry,
     Path(path): Path<UserPath>,
 ) -> Response {
-    let Some(name) = path.user.strip_prefix("org.couchdb.user:") else {
-        return not_found();
-    };
+    let name = strip_couchdb_user_prefix(&path.user);
     private_no_cache(match check_user_exists(&state, name).await {
         Ok(true) => json_response(
             StatusCode::OK,
