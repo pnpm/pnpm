@@ -355,9 +355,25 @@ fn descendant_processes(roots: &[u32]) -> Vec<i32> {
     descendants
 }
 
-/// Run `ps` and read its whole listing, giving up on anything that does not
-/// finish promptly. A `ps` that hangs is killed and its output discarded: a
-/// partial listing would name the wrong parents.
+/// How long `ps` gets before [`process_listing`] gives up on it.
+///
+/// The listing is the only way cancellation reaches a descendant of a
+/// child that shares pnpm's process group, so giving up on it leaves that
+/// descendant running. The deadline is here to turn a `ps` that hangs
+/// into a reported miss rather than a hang of pnpm's own, which is why it
+/// is far longer than any listing takes: a loaded machine must not reach
+/// it. Until it passes, cancellation waits, because a kill that misses
+/// the scripts is worse than one that is late.
+#[cfg(unix)]
+const PROCESS_LISTING_DEADLINE: Duration = Duration::from_secs(10);
+
+/// Run `ps` and read its whole listing. A `ps` that does not answer
+/// before [`PROCESS_LISTING_DEADLINE`] is killed and its output
+/// discarded, because a partial listing would name the wrong parents.
+///
+/// `None` says the listing could not be read, which is not the same as a
+/// tree with nothing in it, so it is reported rather than passed off as
+/// one: the descendants it would have named are left running.
 #[cfg(unix)]
 fn process_listing() -> Option<String> {
     let mut command = Command::new("/bin/ps");
@@ -370,26 +386,34 @@ fn process_listing() -> Option<String> {
         let mut listing = String::new();
         stdout.read_to_string(&mut listing).map(|_| listing)
     });
-    let completed = wait_briefly(&mut child);
-    if !completed {
+    if !exits_before(&mut child, PROCESS_LISTING_DEADLINE) {
         let _ = child.kill();
         let _ = child.wait();
+        // Reading the pipe is left to the thread that holds it: whatever
+        // else inherited it can keep it open for as long as it lives, and
+        // nothing here needs what it says any more.
+        drop(output);
+        eprintln!(
+            "pnpm could not list the running processes, so a process a cancelled script started may still be running",
+        );
+        return None;
     }
-    let listing = output.join().ok()?.ok()?;
-    completed.then_some(listing)
+    output.join().ok()?.ok()
 }
 
-/// Poll a child for up to half a second, reporting whether it exited.
+/// Poll a child until it exits or `deadline` passes, reporting whether it
+/// exited.
 #[cfg(unix)]
-fn wait_briefly(child: &mut crate::process::Child) -> bool {
-    for _ in 0..50 {
+fn exits_before(child: &mut crate::process::Child, deadline: Duration) -> bool {
+    let started = std::time::Instant::now();
+    loop {
         match child.try_wait() {
             Ok(Some(_)) => return true,
+            Ok(None) if started.elapsed() >= deadline => return false,
             Ok(None) => std::thread::sleep(Duration::from_millis(10)),
             Err(_) => return false,
         }
     }
-    false
 }
 
 /// The child pids of every parent named in a `pid ppid` listing.
