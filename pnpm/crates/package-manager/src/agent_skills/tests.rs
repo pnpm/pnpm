@@ -628,7 +628,7 @@ fn replaces_an_unrecorded_link_to_another_copy_in_the_virtual_store() {
         assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
         assert_eq!(
             link_target(&link),
-            link_target(&root.path().join("node_modules/foo/skills/guide"))
+            link_target(&root.path().join("node_modules/foo/skills/guide")),
         );
     }
 }
