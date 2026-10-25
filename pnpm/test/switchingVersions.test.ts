@@ -159,6 +159,38 @@ test('switch to pnpm v12 relinks the native binary so the installed engine actua
   expect(combined).toContain('12.0.0-alpha')
 }, 300_000)
 
+test('the pnpm v12 switched to records the pin in the lockfile, so a later frozen install succeeds (pnpm/pnpm#17303)', () => {
+  prepare()
+  const pnpmHome = path.resolve('pnpm')
+  // A v12 release that records the pin when switching is disabled, as every
+  // release from 12.4.0 does.
+  const version = '12.15.0'
+  // The public registry, as in the v12 test above: the child resolves its own
+  // pin from the registry it is given.
+  const env = {
+    PNPM_HOME: pnpmHome,
+    npm_config_registry: 'https://registry.npmjs.org/',
+  }
+  writeJsonFile('package.json', {
+    packageManager: `pnpm@${version}`,
+  })
+
+  // Renovate's lock file maintenance: a fresh lockfile written through the
+  // switch. v12 writes the env document only when it is not told to ignore
+  // the pin.
+  const firstRun = execPnpmSync(['install', '--lockfile-only'], { env, timeout: 300_000 })
+  expect(firstRun.status).toBe(0)
+  const lockfile = fs.readFileSync('pnpm-lock.yaml', 'utf8')
+  expect(lockfile).toContain('packageManagerDependencies')
+  expect(lockfile).toContain(`pnpm@${version}`)
+
+  // CI on that branch, also through pnpm v10.
+  const secondRun = execPnpmSync(['install', '--frozen-lockfile'], { env, timeout: 300_000 })
+  expect(secondRun.stderr.toString()).not.toContain('packageManagerDependencies')
+  expect(secondRun.status).toBe(0)
+  expect(fs.readFileSync('pnpm-lock.yaml', 'utf8')).toBe(lockfile)
+}, 600_000)
+
 test('npm passthrough still fires when packageManager selects pnpm v11+ but switching is disabled via .npmrc', () => {
   prepare()
   const pnpmHome = path.resolve('pnpm')
