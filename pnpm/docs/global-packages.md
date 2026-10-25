@@ -130,14 +130,6 @@ These cannot be installed globally:
 
 `pnpm add -g rust` installs a [Rust toolchain](./cargo.md#rust-toolchain), not the npm package named `rust`.
 
-A global package command fails with `ERR_PNPM_CONFIG_CONFLICT_<SETTING>_WITH_GLOBAL` if the command line sets one of these:
-
-* `--virtual-store-dir` or `--lockfile-dir`
-* `--hoist-pattern` to a pattern other than `*`
-* `--link-workspace-packages` or `--shared-workspace-lockfile` to a value other than `false`
-
-The same settings from the environment or a config file do not fail the command.
-
 ## Binaries location
 
 Globally installed binaries are stored in a `bin` subdirectory of `PNPM_HOME` (i.e., `$PNPM_HOME/bin/`). This keeps the `PNPM_HOME` directory clean. Internal directories like `global/` and `store/` don't pollute shell autocompletion when `PNPM_HOME` is on PATH.
