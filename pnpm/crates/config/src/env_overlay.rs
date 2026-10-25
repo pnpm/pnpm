@@ -17,8 +17,8 @@
 use crate::{
     AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType, LogLevel, NodeLinkerSetting,
     NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail, ReporterType,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, StoreIndexFormat,
-    TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, StoreIndexFormat, TrustPolicy,
+    VerifyDepsBeforeRun, VirtualStoreType, WorkspaceSettings, api::EnvVar,
 };
 use parse::{parse_json, parse_json_or_string, parse_tri_array};
 use std::collections::BTreeMap;
@@ -323,13 +323,6 @@ impl WorkspaceSettings {
         json_field!(settings, reader, runtime, "RUNTIME");
         enum_field!(settings, reader, runtime_on_fail, "RUNTIME_ON_FAIL", RuntimeOnFail);
         json_field!(settings, reader, node_download_mirrors, "NODE_DOWNLOAD_MIRRORS");
-        enum_field!(
-            settings,
-            reader,
-            scripts_prepend_node_path,
-            "SCRIPTS_PREPEND_NODE_PATH",
-            ScriptsPrependNodePath
-        );
         json_field!(settings, reader, enable_pre_post_scripts, "ENABLE_PRE_POST_SCRIPTS");
         tri_string_field!(settings, reader, script_shell, "SCRIPT_SHELL");
         settings.node_options = reader.value_allow_empty("NODE_OPTIONS").map(Some);

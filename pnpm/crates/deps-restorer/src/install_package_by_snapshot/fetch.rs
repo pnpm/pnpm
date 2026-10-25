@@ -4,13 +4,9 @@ use super::{
     InstallPackageBySnapshot, InstallPackageBySnapshotError, InstalledPackage,
     runtime::binary_variant_for_host,
 };
-use crate::{
-    CreateVirtualDirBySnapshot, build_modules::exec_scripts_prepend_node_path,
-    create_virtual_store::requires_build_from_cas_paths,
-};
+use crate::{CreateVirtualDirBySnapshot, create_virtual_store::requires_build_from_cas_paths};
 use pnpm_config::NodeLinker;
 use pnpm_directory_fetcher::{DirectoryFetchOutput, DirectoryFetcherError};
-use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_fs::lexical_normalize;
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry,
@@ -61,7 +57,6 @@ pub(super) struct TarballFetch<'a, AllowBuild> {
     package_key: &'a PackageKey,
     package_id: &'a str,
     allow_build: &'a AllowBuild,
-    scripts_prepend_node_path: ExecScriptsPrependNodePath,
 }
 
 #[derive(Debug, Default)]
@@ -375,7 +370,6 @@ impl InstallPackageBySnapshot<'_> {
             package_key: fetch.package_key,
             package_id: fetch.package_id,
             allow_build,
-            scripts_prepend_node_path: exec_scripts_prepend_node_path(self.ctx.config),
         })
         .await
     }

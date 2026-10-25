@@ -205,7 +205,6 @@ fn create_config(
         publish_wait_timeout: 0,
         provenance: None,
         tag_version_prefix: "v".to_string(),
-        scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,
         node_options: None,

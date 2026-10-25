@@ -3,7 +3,6 @@ use super::{
     output::{PumpLink, STREAMED_OUTPUT_CHUNK_BYTES},
     read_lifecycle_manifest, run_postinstall_hooks,
 };
-use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_reporter::{
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
@@ -103,7 +102,6 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -225,7 +223,6 @@ fn lifecycle_events_carry_optional_flag() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -306,7 +303,6 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -361,7 +357,6 @@ fn lifecycle_runs_under_silent_reporter() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -398,7 +393,6 @@ fn missing_manifest_returns_false() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -490,7 +484,6 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -547,7 +540,6 @@ fn malformed_manifest_propagates_error() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,
@@ -653,7 +645,6 @@ fn shell_emulator_lifecycle_emits_stdio_and_a_failing_exit() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: true,
             wd_bin_dir: None,
@@ -767,7 +758,6 @@ fn shell_emulator_runs_an_external_command_from_a_long_package_root() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: true,
             wd_bin_dir: None,
@@ -857,7 +847,6 @@ fn path_in_another_case_does_not_stand_in_for_path() {
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &extra_bin_paths,
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: Some(std::path::Path::new("/bin/sh")),
             shell_emulator: false,
             wd_bin_dir: None,

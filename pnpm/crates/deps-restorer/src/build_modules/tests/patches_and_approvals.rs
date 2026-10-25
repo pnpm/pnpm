@@ -9,8 +9,6 @@ use crate::{SkippedSnapshots, VirtualStoreLayout};
 #[cfg(unix)]
 use pnpm_config::PackageImportMethod;
 #[cfg(unix)]
-use pnpm_executor::ScriptsPrependNodePath;
-#[cfg(unix)]
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 #[cfg(unix)]
 use pnpm_reporter::SilentReporter;
@@ -231,11 +229,7 @@ new file mode 100644
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            path: crate::ScriptPath {
-                prepend_node_path: ScriptsPrependNodePath::Never,
-                extra_bin_paths: &[],
-                private_hoisting: false,
-            },
+            path: crate::ScriptPath { extra_bin_paths: &[], private_hoisting: false },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -372,11 +366,7 @@ new file mode 100644
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            path: crate::ScriptPath {
-                prepend_node_path: ScriptsPrependNodePath::Never,
-                extra_bin_paths: &[],
-                private_hoisting: false,
-            },
+            path: crate::ScriptPath { extra_bin_paths: &[], private_hoisting: false },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,
@@ -482,11 +472,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         scripts: crate::BuildScriptOptions {
             extra_env: &HashMap::new(),
             user_agent: "pnpm/test",
-            path: crate::ScriptPath {
-                prepend_node_path: ScriptsPrependNodePath::Never,
-                extra_bin_paths: &[],
-                private_hoisting: false,
-            },
+            path: crate::ScriptPath { extra_bin_paths: &[], private_hoisting: false },
             shell: None,
             shell_emulator: false,
             unsafe_perm: true,

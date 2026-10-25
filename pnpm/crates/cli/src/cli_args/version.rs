@@ -411,9 +411,6 @@ fn run_version_lifecycle_hook<Reporter: pnpm_reporter::Reporter>(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: super::run::exec_scripts_prepend_node_path(
-                config.scripts_prepend_node_path,
-            ),
             shell: script_shell.as_deref(),
             shell_emulator: config.shell_emulator,
             wd_bin_dir: Some(&bin_dir),

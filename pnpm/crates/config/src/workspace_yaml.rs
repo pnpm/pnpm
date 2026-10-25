@@ -20,8 +20,8 @@ pub use settings::{MacosBackupSettings, NodePackageMapSettings, WorkspaceSetting
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
     NodeLinkerSetting, NodePackageMapMode, NodePackageMapType, PackageImportMethod, PmOnFail,
-    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy,
-    VerifyDepsBeforeRun, VirtualStoreType,
+    ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType,
     api::{EnvVar, GetCurrentDir, GetHomeDir, LinkProbe},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},

@@ -4,9 +4,9 @@ use super::{
     InitType, LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
     PackageImportMethod, PackageManagerBootstrap, PathBuf, Pipe, PmOnFail, ProjectConfig,
     PythonSettings, RegistryOptions, RemoteCacheSettings, RemoteSideEffectsCacheSettings,
-    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SmartDefault, StoreDir, StoreIndexFormat, SystemTime, Tool, ToolSettings, TrustPolicy,
-    VerifyDepsBeforeRun, WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
+    ReporterType, ResolutionMode, RuntimeOnFail, SaveWorkspaceProtocol, SmartDefault, StoreDir,
+    StoreIndexFormat, SystemTime, Tool, ToolSettings, TrustPolicy, VerifyDepsBeforeRun,
+    WorkspaceKeyIssues, default_cache_dir, default_child_concurrency,
     default_enable_global_virtual_store, default_fetch_min_speed_ki_bps, default_fetch_retries,
     default_fetch_retry_factor, default_fetch_retry_maxtimeout, default_fetch_retry_mintimeout,
     default_fetch_timeout, default_fetch_warn_timeout_ms, default_git_shallow_hosts,
@@ -1233,12 +1233,6 @@ pub struct Config {
     /// the prefix. Default `"v"`.
     #[default(_code = "default_tag_version_prefix()")]
     pub tag_version_prefix: String,
-
-    /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Controls
-    /// whether `dirname(node_execpath)` is prepended to `PATH` when
-    /// running lifecycle scripts. Default `Never` (`scriptsPrependNodePath:
-    /// false`). Yaml accepts `true` / `false` / `"warn-only"`.
-    pub scripts_prepend_node_path: ScriptsPrependNodePath,
 
     /// `enablePrePostScripts` from `pnpm-workspace.yaml`. When `true`,
     /// `pnpm run <name>` also runs the `pre<name>` and `post<name>`

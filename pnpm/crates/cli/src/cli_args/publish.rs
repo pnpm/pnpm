@@ -20,7 +20,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
-use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
+use pnpm_executor::{RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{
     Host as PackHost, PackOptions, PackResult, WorkspacePackageManifest, api as pack_api,
@@ -425,7 +425,6 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: ScriptsPrependNodePath::default(),
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,

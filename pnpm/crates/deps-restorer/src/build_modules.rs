@@ -36,9 +36,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
-use pnpm_executor::{
-    LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
-};
+use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_postinstall_hooks};
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
 use pnpm_patching::{PatchApplyError, apply_patch_to_dir};
 use pnpm_reporter::{
@@ -621,14 +619,3 @@ fn schedule_builds<Reporter: self::Reporter>(
 
 #[cfg(test)]
 mod tests;
-
-/// The executor's canonical `scriptsPrependNodePath`. Config's mirror
-/// enum carries the yaml-deserialize impl; the executor's stays free of
-/// serde wiring.
-pub fn exec_scripts_prepend_node_path(config: &Config) -> ScriptsPrependNodePath {
-    match config.scripts_prepend_node_path {
-        pnpm_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
-        pnpm_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
-        pnpm_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
-    }
-}

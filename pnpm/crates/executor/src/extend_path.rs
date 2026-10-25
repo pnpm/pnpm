@@ -5,26 +5,6 @@ use std::{
     path::{self, Path, PathBuf},
 };
 
-/// Controls whether the dir containing the current `node` interpreter
-/// is appended to PATH. Tri-state, corresponding to the
-/// `scriptsPrependNodePath: boolean | 'warn-only'` config setting.
-///
-/// `pnpm-config` mirrors this enum with its own yaml-deserializable
-/// type and converts to this one at the call site, so the executor
-/// crate stays free of serde and Config wiring.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum ScriptsPrependNodePath {
-    /// `scriptsPrependNodePath: true` — always prepend.
-    Always,
-    /// `scriptsPrependNodePath: false` (or `null`) — never prepend.
-    #[default]
-    Never,
-    /// `scriptsPrependNodePath: 'warn-only'` — emit a warning if the
-    /// node in PATH differs from `process.execPath`, but do not
-    /// prepend.
-    WarnOnly,
-}
-
 /// Build the `PATH` env value for a lifecycle script spawn.
 ///
 /// Order, highest-priority first:
@@ -36,9 +16,7 @@ pub enum ScriptsPrependNodePath {
 ///    `modulesDir` says, so `wd_bin_dir` does not apply to them,
 /// 3. The bundled `node-gyp-bin` directory (when supplied),
 /// 4. `extra_bin_paths` (caller-supplied),
-/// 5. `dirname(node_execpath)` when `scripts_prepend_node_path` is
-///    [`Always`](ScriptsPrependNodePath::Always),
-/// 6. `original_path` (typically the inherited system PATH), minus the
+/// 5. `original_path` (typically the inherited system PATH), minus the
 ///    entries already listed above.
 #[must_use]
 pub fn extend_path(
@@ -47,8 +25,6 @@ pub fn extend_path(
     original_path: Option<&OsString>,
     node_gyp_bin: Option<&Path>,
     extra_bin_paths: &[PathBuf],
-    scripts_prepend_node_path: ScriptsPrependNodePath,
-    node_execpath: Option<&Path>,
 ) -> OsString {
     let mut path_arr: Vec<PathBuf> = Vec::new();
 
@@ -67,16 +43,6 @@ pub fn extend_path(
     }
 
     path_arr.extend_from_slice(extra_bin_paths);
-
-    // `WarnOnly` only emits a warning; the actual prepend is gated
-    // on the setting being `true`. We omit the warn-emission here;
-    // the caller (with reporter context) is a better place for it.
-    if scripts_prepend_node_path == ScriptsPrependNodePath::Always
-        && let Some(node) = node_execpath
-        && let Some(parent) = node.parent()
-    {
-        path_arr.push(parent.to_path_buf());
-    }
 
     if let Some(orig) = original_path {
         let added: HashSet<OsString> = path_arr

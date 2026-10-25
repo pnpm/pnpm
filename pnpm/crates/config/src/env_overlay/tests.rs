@@ -1,7 +1,7 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
 use crate::{
-    ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol,
-    ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
+    ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, TrustPolicy,
+    VirtualStoreType, api::EnvVar,
 };
 use pnpm_store_dir::StoreIndexFormat;
 use pretty_assertions::assert_eq;
@@ -194,22 +194,6 @@ fn enum_env_var_accepts_bare_identifier() {
     assert_eq!(
         parse_json_or_string::<NodePackageMapType>("loose"),
         Some(NodePackageMapType::Loose),
-    );
-}
-
-#[test]
-fn scripts_prepend_node_path_env_var_round_trips_all_three_shapes() {
-    assert_eq!(
-        parse_json_or_string::<ScriptsPrependNodePath>("true"),
-        Some(ScriptsPrependNodePath::Always),
-    );
-    assert_eq!(
-        parse_json_or_string::<ScriptsPrependNodePath>("false"),
-        Some(ScriptsPrependNodePath::Never),
-    );
-    assert_eq!(
-        parse_json_or_string::<ScriptsPrependNodePath>("warn-only"),
-        Some(ScriptsPrependNodePath::WarnOnly),
     );
 }
 

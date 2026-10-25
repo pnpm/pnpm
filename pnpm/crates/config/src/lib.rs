@@ -40,8 +40,7 @@ pub use setting_types::{
     AuditConfig, AuditLevel, CatalogMode, ColorMode, HoistingLimits, InitType,
     LinkWorkspacePackages, LogLevel, NodeLinker, NodePackageMapMode, NodePackageMapType,
     PackageImportMethod, PmOnFail, ReporterType, ResolutionMode, RuntimeOnFail,
-    SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
-    VirtualStoreType,
+    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, VirtualStoreType,
 };
 pub use settings::{Config, HoistPatterns, MacosBackupConfig};
 pub use settings_read::{PIN_DECISION_SETTINGS, SettingsRead};

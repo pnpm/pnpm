@@ -75,7 +75,7 @@ pnpm trusts the operating system's certificate store for registry connections. I
 
 ### `scriptsPrependNodePath`
 
-[`scriptsPrependNodePath`](./settings/other.md#scriptsprependnodepath) has no effect. Scripts run with the `node` found on `PATH`, and `warn-only` prints no warning.
+pnpm ignores the `scriptsPrependNodePath` setting. Scripts run with the `node` found on `PATH`.
 
 ### `packageImportMethod: auto` on Linux
 

@@ -1,6 +1,5 @@
 use super::{
-    Config, GlobalShims, GlobalShimsSetting, Path, ScriptsPrependNodePath, ShimPolicy,
-    WorkspaceSettings, assert_eq,
+    Config, GlobalShims, GlobalShimsSetting, Path, ShimPolicy, WorkspaceSettings, assert_eq,
 };
 
 #[test]
@@ -61,41 +60,6 @@ fn global_shims_later_layers_win_per_key() {
     assert!(shims.is_enabled("node"));
     assert!(!shims.is_enabled("deno"));
     assert!(shims.is_enabled("bun"));
-}
-
-/// `scriptsPrependNodePath` is a tri-state
-/// (`boolean | 'warn-only'`): `true` → Always, `false` → Never,
-/// `"warn-only"` → `WarnOnly`. Pacquet's default is Never.
-#[test]
-fn parses_scripts_prepend_node_path_true_from_yaml() {
-    let yaml = "scriptsPrependNodePath: true\n";
-    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.scripts_prepend_node_path, Some(ScriptsPrependNodePath::Always));
-
-    let mut config = Config::new();
-    assert_eq!(config.scripts_prepend_node_path, ScriptsPrependNodePath::Never, "default Never");
-    settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.scripts_prepend_node_path, ScriptsPrependNodePath::Always);
-}
-
-#[test]
-fn parses_scripts_prepend_node_path_false_from_yaml() {
-    let yaml = "scriptsPrependNodePath: false\n";
-    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.scripts_prepend_node_path, Some(ScriptsPrependNodePath::Never));
-}
-
-#[test]
-fn parses_scripts_prepend_node_path_warn_only_from_yaml() {
-    let yaml = "scriptsPrependNodePath: warn-only\n";
-    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.scripts_prepend_node_path, Some(ScriptsPrependNodePath::WarnOnly));
-}
-
-#[test]
-fn rejects_invalid_scripts_prepend_node_path() {
-    let yaml = "scriptsPrependNodePath: nonsense\n";
-    serde_saphyr::from_str::<WorkspaceSettings>(yaml).expect_err("must reject");
 }
 
 #[test]

@@ -341,7 +341,6 @@ impl WorkspaceSettings {
         // file carries both.
         overlay_some(&mut config.max_sockets, self.maxsockets.take());
         overlay_some(&mut config.max_sockets, self.max_sockets.take());
-        overlay(&mut config.scripts_prepend_node_path, self.scripts_prepend_node_path.take());
         overlay(&mut config.script_shell, self.script_shell.take());
         overlay(&mut config.node_options, self.node_options.take());
         overlay(&mut config.unsafe_perm, self.unsafe_perm.take());

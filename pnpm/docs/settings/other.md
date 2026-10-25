@@ -359,13 +359,6 @@ import ShellEmulator from './_shellEmulator.mdx'
 
 <ShellEmulator />
 
-### scriptsPrependNodePath
-
-* Default: **false**
-* Type: **true**, **false**, **warn-only**
-
-This setting has no effect. Scripts run with the `node` found on `PATH`.
-
 import CatalogMode from './_catalogMode.mdx'
 
 <CatalogMode />
