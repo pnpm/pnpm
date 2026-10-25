@@ -62,6 +62,16 @@ and the command that removes it.
   On Windows, it sets a `PNPM_HOME` user environment variable instead and adds
   `%PNPM_HOME%\bin` to your user `Path`.
 
+To leave your shell configuration and the Windows registry alone, pass
+`--no-modify-path` (or set `PNPM_NO_MODIFY_PATH=1`). pnpm is still installed in
+`PNPM_HOME`, and `pnpm setup` prints the lines to add yourself. This needs a pnpm
+version whose `pnpm setup` has that option; with an older one, the installer stops
+before changing anything.
+
+```sh
+npx get-pnpm --no-modify-path
+```
+
 ## Uninstalling
 
 1. Delete the `PNPM_HOME` directory, e.g. `rm -rf ~/.local/share/pnpm`.
@@ -122,6 +132,7 @@ These CAs are trusted in addition to the ones Node.js trusts. Node.js 22.19 or 2
 | --- | --- |
 | `PNPM_VERSION` | Version to install when no argument is given. |
 | `PNPM_HOME` | Directory to install pnpm into. |
+| `PNPM_NO_MODIFY_PATH` | Set to `1` for the same as `--no-modify-path`. |
 | `npm_config_registry` | Registry to download pnpm from. |
 | `npm_config_*:_authToken` | Registry-scoped bearer token. Project, user, and global npmrc tokens are also read. |
 | `npm_config_ca`, `npm_config_cafile` | CA certificates to trust for the registry. Project, user, and global npmrc CA settings are also read. |

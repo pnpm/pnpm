@@ -41,7 +41,8 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
       // The wrapper carries `dist/`; the platform package carries the executable.
       pnpm: packTarball('wrapper', { 'dist/worker.js': 'export {}\n' }),
       platform: packTarball('platform', {
-        pnpm: `#!/bin/sh\necho "$@" > "${setupLog}"\nls "$(dirname "$0")/dist" >> "${setupLog}"\n`,
+        // `setup --help` prints FAKE_SETUP_HELP, so a test can play an old or a new setup.
+        pnpm: `#!/bin/sh\nif [ "$2" = --help ]; then printf '%s\\n' "$FAKE_SETUP_HELP"; exit 0; fi\necho "$@" > "${setupLog}"\nls "$(dirname "$0")/dist" >> "${setupLog}"\n`,
       }),
     }
 
@@ -69,6 +70,32 @@ describe('installPnpm', { skip: process.platform === 'win32' }, () => {
     mode = 'ok'
     assert.equal(await install(), 0)
     assert.equal(fs.readFileSync(setupLog, 'utf8'), 'setup --force\nworker.js\n')
+  })
+
+  test('passes --no-modify-path to a setup that has it', async () => {
+    mode = 'ok'
+    process.env.FAKE_SETUP_HELP = '      --no-modify-path\n          Install pnpm without adding it to PATH'
+    try {
+      assert.equal(await installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }), 0)
+    } finally {
+      delete process.env.FAKE_SETUP_HELP
+    }
+    assert.equal(fs.readFileSync(setupLog, 'utf8'), 'setup --force --no-modify-path\nworker.js\n')
+  })
+
+  test('refuses --no-modify-path before running a setup that lacks it', async () => {
+    mode = 'ok'
+    fs.rmSync(setupLog, { force: true })
+    process.env.FAKE_SETUP_HELP = '  -f, --force  Override the PNPM_HOME env variable in case it already exists'
+    try {
+      await assert.rejects(
+        installPnpm({ versionSpec: 'latest', registry, keys: KEYS, modifyPath: false }),
+        (err: Error) => err.message.includes(`pnpm ${VERSION} cannot be installed without adding it to PATH`)
+      )
+    } finally {
+      delete process.env.FAKE_SETUP_HELP
+    }
+    assert.ok(!fs.existsSync(setupLog), 'setup is not run')
   })
 
   test('downloadPnpm places the executable without running setup', async () => {
