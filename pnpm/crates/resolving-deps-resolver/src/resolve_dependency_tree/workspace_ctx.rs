@@ -44,7 +44,7 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, RwLock},
+    sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock},
 };
 
 use crate::{
@@ -328,6 +328,10 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Per importer: the auto-installed peers whose lockfile pin is not
     /// reused. See `find_stale_peer_pins`.
     stale_peer_pins: HashMap<String, HashSet<String>>,
+    /// Every peer version the wanted lockfile pins, shared by the
+    /// importers the lockfile does not list. See
+    /// [`WorkspaceTreeCtx::unlisted_importer_locked_peers`].
+    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
 }
 
 #[derive(Default)]
@@ -551,6 +555,16 @@ impl WorkspaceTreeCtx {
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
     pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.reuse.lockfile.as_ref()
+    }
+
+    /// The locked peer versions of an importer the wanted lockfile does not
+    /// list. They do not depend on the importer, so `scan` runs once per
+    /// workspace and every such importer shares its result.
+    pub(crate) fn unlisted_importer_locked_peers(
+        &self,
+        scan: impl FnOnce() -> HashMap<String, HashSet<String>>,
+    ) -> Arc<HashMap<String, HashSet<String>>> {
+        Arc::clone(self.versions.unlisted_importer_locked_peers.get_or_init(|| Arc::new(scan())))
     }
 
     /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
