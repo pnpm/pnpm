@@ -21,7 +21,7 @@ If you want to tolerate some vulnerabilities as they don't affect your project, 
 
 `pnpm audit` queries the registry's `/-/npm/v1/security/advisories/bulk` endpoint. The response does not include CVE identifiers, so advisories are identified by the GitHub advisory ID (GHSA) in their URL.
 
-The command exits with code `1` when an advisory at or above the [audit level](#--audit-level-severity) remains after ignored advisories are removed. With `--ignore` or `--ignore-unfixable`, the command only saves the IDs and exits with code `0`.
+The command exits with code `1` when an advisory at or above the [audit level](#--audit-level-severity) remains after ignored advisories are removed. This also applies to `--ignore` and `--ignore-unfixable`, which save the IDs first.
 
 [overrides]: ../settings/dependency-resolution.md#overrides
 [`audit.ignore`]: #auditignore

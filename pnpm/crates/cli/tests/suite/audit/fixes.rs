@@ -744,6 +744,81 @@ fn audit_ignore_unfixable_ignores_advisories_without_a_fix() {
     mock.assert();
 }
 
+/// Run `pnpm audit <args>` against a registry serving one unfixable high
+/// advisory (`GHSA-test-1111-2222`) and one fixable low advisory
+/// (`GHSA-test-3333-4444`), returning the exit code.
+fn audit_exit_code_with_mixed_advisories(workspace_yaml: &str, args: &[&str]) -> Option<i32> {
+    let CommandTempCwd {
+        mut pacquet, workspace, root: _root, ..
+    } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &format!(
+            "{{\n{},\n{}\n}}",
+            advisory_entry(
+                "vulnerable",
+                401,
+                "high",
+                ">=0.0.0",
+                "unfixable",
+                "GHSA-test-1111-2222"
+            ),
+            advisory_entry("moderate-pkg", 402, "low", "<2.0.0", "fixable", "GHSA-test-3333-4444"),
+        ),
+    )
+    .create();
+    write_audit_workspace(&workspace, &registry.url(), workspace_yaml);
+
+    let output = pacquet
+        .arg("audit")
+        .args(args)
+        .output()
+        .expect("run pacquet audit");
+
+    mock.assert();
+    output.status.code()
+}
+
+#[test]
+fn audit_ignore_fails_when_a_vulnerability_that_was_not_ignored_remains() {
+    let code = audit_exit_code_with_mixed_advisories("", &["--ignore", "GHSA-test-1111-2222"]);
+    assert_eq!(code, Some(1));
+}
+
+#[test]
+fn audit_ignore_succeeds_when_every_vulnerability_is_ignored() {
+    let code = audit_exit_code_with_mixed_advisories(
+        "",
+        &["--ignore", "GHSA-test-1111-2222", "--ignore", "GHSA-test-3333-4444"],
+    );
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn audit_ignore_succeeds_when_the_remaining_vulnerabilities_were_ignored_before() {
+    let code = audit_exit_code_with_mixed_advisories(
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-test-3333-4444\n",
+        &["--ignore", "GHSA-test-1111-2222"],
+    );
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn audit_ignore_unfixable_fails_when_a_fixable_vulnerability_remains() {
+    let code = audit_exit_code_with_mixed_advisories("", &["--ignore-unfixable"]);
+    assert_eq!(code, Some(1));
+}
+
+#[test]
+fn audit_ignore_unfixable_succeeds_when_the_remaining_vulnerabilities_are_below_the_audit_level() {
+    let code = audit_exit_code_with_mixed_advisories(
+        "",
+        &["--ignore-unfixable", "--audit-level", "moderate"],
+    );
+    assert_eq!(code, Some(0));
+}
+
 /// End-to-end `audit --fix update`: install a dependency whose range spans a
 /// vulnerable high version and a safe low one, mark the high versions
 /// vulnerable, and confirm the resolver-time guard walks the lockfile back
