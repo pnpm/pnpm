@@ -12,7 +12,7 @@ use crate::StoreDir;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_crypto_hash::create_short_hash;
-use pnpm_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir};
+use pnpm_fs::{lexical_normalize, read_symlink_dir, remove_symlink_dir, symlink_dir_with_contents};
 use std::{
     fs,
     io::{self, ErrorKind},
@@ -68,7 +68,9 @@ pub enum RegisterProjectError {
 /// Register `project_dir` as a user of the store at
 /// `store_dir` by writing a symlink at
 /// `<store_dir>/projects/<create_short_hash(project_dir)>` pointing
-/// back at `project_dir`.
+/// back at `project_dir`. The link holds `project_dir` as given, not a path
+/// relative to the link, because a relative path computed between two
+/// spellings that cross a symlink at different depths resolves elsewhere.
 ///
 /// Skips silently when `store_dir` lives inside `project_dir` — the
 /// "store inside the project" case (legacy `--store-dir node_modules/.pnpm`
@@ -77,8 +79,7 @@ pub enum RegisterProjectError {
 ///
 /// Idempotent: if the symlink already exists pointing at the same
 /// project, the function is a no-op. If a previous entry under the
-/// same short hash points elsewhere (very unlikely — would require a
-/// sha256 collision in the first 32 hex chars), the stale entry is
+/// same short hash no longer resolves to `project_dir`, the entry is
 /// removed and re-created so a re-run heals the registry.
 pub fn register_project(
     store_dir: &StoreDir,
@@ -109,7 +110,7 @@ pub fn register_loaded_project(
     let link_path = registry_dir.join(create_short_hash(&project_dir_str));
 
     // Fast path: link doesn't exist yet — just create it.
-    match symlink_dir(project_dir, &link_path) {
+    match link_project(project_dir, &link_path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
             repair_project_link(project_dir, link_path)
@@ -122,10 +123,13 @@ pub fn register_loaded_project(
     }
 }
 
+fn link_project(project_dir: &Path, link_path: &Path) -> io::Result<()> {
+    symlink_dir_with_contents(project_dir, project_dir, link_path)
+}
+
 fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), RegisterProjectError> {
-    // Either the same project re-registering (no-op) or an
-    // unrelated path that hashed to the same slug (heal).
-    // Resolve and compare the existing link's target.
+    // Either the same project re-registering (no-op), or an entry that no
+    // longer resolves to it (heal).
     let existing_target = read_symlink_dir(&link_path)
         .map_err(|error| RegisterProjectError::InspectExisting {
             project_dir: project_dir.to_path_buf(),
@@ -145,7 +149,7 @@ fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), Reg
             old_target: existing_target.clone(),
             error,
         })?;
-    symlink_dir(project_dir, &link_path)
+    link_project(project_dir, &link_path)
         .map_err(|error| RegisterProjectError::CreateSymlink {
             project_dir: project_dir.to_path_buf(),
             link_path,
@@ -206,13 +210,9 @@ pub enum GetRegisteredProjectsError {
 /// List every project that's still registered against `store_dir` and
 /// drop registry entries whose target directory no longer exists.
 ///
-/// Returns the surviving project root paths (absolute: an absolute
-/// target is used as-is, a relative one is resolved against the link's
-/// parent directory — pacquet's [`register_project`] always writes
-/// absolute targets via [`pnpm_fs::symlink_dir`], but the
-/// relative-target branch is preserved so a registry seeded by pnpm
-/// (which uses `symlink-dir`'s "make relative when possible" behaviour
-/// on some platforms) still resolves correctly).
+/// Returns the surviving project root paths. An absolute target is used
+/// as-is. A relative one, which older pnpm versions wrote, is resolved
+/// against the link's parent directory.
 ///
 /// Side effects: any registry entry whose target stat returns
 /// `NotFound` is unlinked here, so the projects directory self-heals

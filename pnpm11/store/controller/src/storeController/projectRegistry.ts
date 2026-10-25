@@ -5,7 +5,6 @@ import { createShortHash } from '@pnpm/crypto.hash'
 import { isError, PnpmError } from '@pnpm/error'
 import { globalInfo } from '@pnpm/logger'
 import { isSubdir } from 'is-subdir'
-import { symlinkDir } from 'symlink-dir'
 
 const PROJECTS_DIR = 'projects'
 
@@ -15,7 +14,12 @@ export function getProjectsRegistryDir (storeDir: string): string {
 
 /**
  * Register a project as using the store.
- * Creates a symlink in {storeDir}/projects/{hash} → {projectDir}
+ * Creates a symlink in {storeDir}/projects/{hash} → {projectDir}.
+ *
+ * The link holds `projectDir` as given, not a path relative to the link,
+ * because a relative path computed between two spellings that cross a
+ * symlink at different depths resolves elsewhere. An existing entry that no
+ * longer resolves to `projectDir` is replaced.
  */
 export async function registerProject (storeDir: string, projectDir: string): Promise<void> {
   // Avoid creating circular symlinks when the store is inside the project directory
@@ -25,8 +29,38 @@ export async function registerProject (storeDir: string, projectDir: string): Pr
   const registryDir = getProjectsRegistryDir(storeDir)
   await fs.mkdir(registryDir, { recursive: true })
   const linkPath = path.join(registryDir, createShortHash(projectDir))
-  // symlink-dir handles the case where the symlink already exists
-  await symlinkDir(projectDir, linkPath)
+  try {
+    await linkProject(projectDir, linkPath)
+    return
+  } catch (err: unknown) {
+    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+  }
+  if (await resolvesToSameDir(linkPath, projectDir)) return
+  await fs.unlink(linkPath)
+  await linkProject(projectDir, linkPath)
+}
+
+/**
+ * Windows lets only privileged processes create symlinks, so the link falls
+ * back to a junction there.
+ */
+async function linkProject (projectDir: string, linkPath: string): Promise<void> {
+  try {
+    await fs.symlink(projectDir, linkPath, 'dir')
+  } catch (err: unknown) {
+    if (process.platform !== 'win32' || !isError(err) || !('code' in err) || err.code !== 'EPERM') throw err
+    await fs.symlink(projectDir, linkPath, 'junction')
+  }
+}
+
+async function resolvesToSameDir (linkPath: string, projectDir: string): Promise<boolean> {
+  try {
+    const [linkTarget, project] = await Promise.all([fs.realpath(linkPath), fs.realpath(projectDir)])
+    return linkTarget === project
+  } catch (err: unknown) {
+    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
 }
 
 /**
