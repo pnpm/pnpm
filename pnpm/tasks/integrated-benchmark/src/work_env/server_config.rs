@@ -7,7 +7,7 @@ use std::{
     io::Write,
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
-    process::Child,
+    process::{Child, Command},
     thread,
     time::Duration,
 };
@@ -42,6 +42,10 @@ pub(super) struct PnprServer {
     /// The latency proxy fronting this server, when `--pnpr-latency-ms`
     /// is set. Dropped (stopping the proxy) alongside the server.
     pub(super) latency_proxy: Option<LatencyProxy>,
+    /// Warm origin server backing a cold revision mock, spawned from the same
+    /// revision's `pnpr` binary so each revision speaks its own packument and
+    /// tarball URL format to its upstream.
+    pub(super) origin: Option<Box<PnprServer>>,
 }
 impl Drop for PnprServer {
     fn drop(&mut self) {
@@ -55,6 +59,7 @@ impl Drop for PnprServer {
         let _ = self.process.kill();
         let _ = self.process.wait();
         eprintln!("info: Terminated pnpr server pid {pid}");
+        self.origin = None;
     }
 }
 /// Poll the pnpr server's TCP port until it accepts a connection. Stays
@@ -100,6 +105,36 @@ pub(super) fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
+}
+/// Use isolated storage, wiped between iterations, with the warm mock as origin.
+pub(super) fn cold_revision_mock_command(
+    revision: &str,
+    binary: &Path,
+    bench_dir: &Path,
+    mock_port: u16,
+    public_url: &str,
+    origin_url: &str,
+) -> Command {
+    let cold_storage = bench_dir.join("cold-mock-storage");
+    let config_path = bench_dir.join("cold-mock-config.yaml");
+    fs::write(&config_path, cold_mock_config_yaml(&cold_storage, origin_url))
+        .expect("write cold mock config");
+    eprintln!(
+        "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {origin_url})...",
+    );
+    let mut command = Command::new(binary);
+    command
+        .arg("--config")
+        .arg(&config_path)
+        .arg("--storage")
+        .arg(&cold_storage)
+        .arg("--listen")
+        .arg(format!("127.0.0.1:{mock_port}"))
+        .arg("--public-url")
+        .arg(public_url)
+        .arg("--packument-ttl-secs")
+        .arg("31536000");
+    command
 }
 /// The cold mock config, serialized rather than string-formatted so the
 /// `storage` path and `origin` URL are escaped and the structure can't drift.

@@ -178,11 +178,14 @@ fn switching_to_a_tar_registry_needs_update_checksums() {
         npmrc_info,
         ..
     } = env;
+    let initial_workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    use_tar_registry(&workspace, npmrc_info.mock_instance.url(), Some("pnpr"));
     pacquet
         .with_arg("install")
         .assert()
         .success();
 
+    fs::write(workspace.join("pnpm-workspace.yaml"), initial_workspace_yaml).unwrap();
     use_tar_registry(&workspace, &tar_registry, Some("pnpr"));
     fs::remove_dir_all(workspace.join("node_modules")).unwrap();
     fs::remove_dir_all(&npmrc_info.store_dir).unwrap();

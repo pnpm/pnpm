@@ -3,16 +3,17 @@ use super::{
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
     describe_tars, filter_osv_vulnerable_versions, header, rewrite_tarball_urls,
     rewrite_upstream_tarball_urls, streaming, tarball_basename_for_package,
+    version_route_tarball_version,
 };
 
-/// The version and upstream filename a tarball request resolves to, plus that
-/// version's declared `dist.integrity`. The version is found by matching
-/// `filename` against each version's `dist.tarball` basename first, then
-/// falling back to the version parsed from a canonical `<name>-<version>.tgz`
-/// filename when the upstream packument uses a non-canonical basename.
+/// The version a tarball request resolves to, plus that version's declared
+/// `dist.integrity`. The version is found by matching `filename` against
+/// each version's `dist.tarball` basename rather than parsing it out of
+/// the filename, so a non-canonical name (see [`rewrite_tarball_urls`])
+/// resolves to the right version, integrity, and OSV identity.
 pub(super) struct TarballDist {
-    pub(super) filename: String,
     pub(super) version: String,
+    pub(super) version_route: Option<String>,
     pub(super) integrity: Integrity,
     pub(super) unpacked_size: Option<u64>,
 }
@@ -53,36 +54,6 @@ pub(super) fn expected_tarball_dist(
     filename: &str,
 ) -> Result<Option<TarballDist>, RegistryError> {
     let packument: PackumentDists = serde_json::from_slice(packument)?;
-    if let Some(dist) = match_tarball_basename(&packument, name, filename)? {
-        return Ok(Some(dist));
-    }
-    let Ok((_, parsed_version)) = name.parse_tarball_name(filename) else {
-        return Ok(None);
-    };
-    let Some(manifest) = packument.versions.get(&parsed_version) else {
-        return Ok(None);
-    };
-    let Some(dist) = manifest.dist.as_ref() else {
-        return Ok(None);
-    };
-    let Some(upstream_filename) =
-        dist.tarball.as_deref().and_then(|url| tarball_basename_for_package(url, name))
-    else {
-        return Ok(None);
-    };
-    let Ok((upstream_filename, _)) =
-        super::upstream_tarballs::tarball_cache_name(name, &upstream_filename)
-    else {
-        return Ok(None);
-    };
-    match_tarball_basename(&packument, name, &upstream_filename)
-}
-
-fn match_tarball_basename(
-    packument: &PackumentDists,
-    name: &CanonicalPackageName,
-    filename: &str,
-) -> Result<Option<TarballDist>, RegistryError> {
     let mut matches = packument.versions
         .iter()
         .filter_map(|(version, manifest)| {
@@ -108,9 +79,13 @@ fn match_tarball_basename(
         ));
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
+    let version_route = dist.tarball
+        .as_deref()
+        .and_then(|url| version_route_tarball_version(url, name))
+        .map(str::to_string);
     Ok(Some(TarballDist {
-        filename: filename.to_string(),
         version: version.clone(),
+        version_route,
         integrity,
         unpacked_size: dist.unpacked_size,
     }))

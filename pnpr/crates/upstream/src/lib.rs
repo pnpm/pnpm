@@ -258,15 +258,45 @@ impl Upstream {
         name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
+        let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
+        self.fetch_tarball_url(&url).await
+    }
+
+    /// Fetch a version-addressed tarball (`{base}/{name}@{version}`) from an
+    /// upstream `pnpr` registry.
+    pub async fn fetch_version_tarball_response(
+        &self,
+        name: &CanonicalPackageName,
+        version: &str,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
+        let url = format!("{}/{}@{version}", self.base.trim_end_matches('/'), name.as_str());
+        self.fetch_tarball_url(&url).await
+    }
+
+    /// Fetch a tarball by its version route (`{base}/{name}@{version}`) when
+    /// the upstream advertised one, or by its archive route
+    /// (`{base}/{name}/-/{filename}`) otherwise.
+    pub async fn fetch_tarball_or_version_response(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        version_route: Option<&str>,
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
+        match version_route {
+            Some(version) => self.fetch_version_tarball_response(name, version).await,
+            None => self.fetch_tarball_response(name, filename).await,
+        }
+    }
+
+    async fn fetch_tarball_url(&self, url: &str) -> Result<FetchOutcome<ThrottledResponse>> {
         let started = Instant::now();
         self.ensure_available()?;
-        let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
-        let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
+        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
-        let response = self.checked(response, &url).await?;
+        let response = self.checked(response, url).await?;
         // Success here covers only headers; a mid-stream body failure is
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.

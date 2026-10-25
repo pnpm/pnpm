@@ -860,7 +860,12 @@ fn lock_unserved_version_of_dep(workspace: &Path) {
             .expect("parse pnpm-lock.yaml");
     for section in ["packages", "snapshots"] {
         let entries = lockfile[section].as_object_mut().expect("the lockfile has the section");
-        let entry = entries.remove(&locked_key).expect("the section has the locked entry");
+        let mut entry = entries.remove(&locked_key).expect("the section has the locked entry");
+        if let Some(resolution) =
+            entry.get_mut("resolution").and_then(serde_json::Value::as_object_mut)
+        {
+            resolution.remove("tarball");
+        }
         entries.insert(unserved_key.clone(), entry);
     }
     for snapshot in lockfile["snapshots"]

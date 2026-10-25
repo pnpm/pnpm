@@ -187,7 +187,7 @@ use pnpr_upstream::{
     CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
     extract_upstream_revision_integrity, extract_upstream_version_manifest,
     extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
-    tarball_basename_for_package,
+    tarball_basename_for_package, version_route_tarball_version,
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
