@@ -240,7 +240,7 @@ pub struct MissingTarballUrlError {
 }
 
 /// Raised when a registry marks a tarball as a replacement revision but its
-/// revision number or integrity-addressed URL violates the metadata contract.
+/// revision number or revision tarball URL violates the metadata contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Tarball \"{tarball}\" has invalid revision metadata: {reason}")]
 #[diagnostic(code(ERR_PNPM_MALFORMED_METADATA))]

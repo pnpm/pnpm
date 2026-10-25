@@ -21,7 +21,7 @@ const MAX_PACKUMENT_BINS_BYTES: usize = 64 * 1024;
 /// How a served document describes each version's tarball.
 #[derive(Clone, Copy)]
 pub(super) struct DistView<'a> {
-    /// The upstream whose integrity-addressed revisions may be linked. Every
+    /// The upstream whose revision tarballs may be linked. Every
     /// other version is described by its canonical resource.
     pub(super) revision_registry: Option<&'a str>,
     /// Derived tar metadata of each version's `.tgz` (see
@@ -103,7 +103,7 @@ pub(super) fn overlay_verified_tar_stats(doc: &mut Value, table: &BTreeMap<Strin
 /// `dist.pnpr.requiresBuild` when known, and on a tar registry rewrite
 /// `dist` to describe its tar: the tar's integrity when it is known, and none
 /// of the fields that name or sign the `.tgz`. A projected revision already
-/// names its tar by digest, so it is kept as projected.
+/// names its tar at `<name>@<version>+r<revision>`, so it is kept as projected.
 pub(super) fn describe_tar(
     version: &mut Value,
     table: &BTreeMap<String, DerivedTar>,

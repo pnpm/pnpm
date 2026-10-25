@@ -62,9 +62,6 @@ pub(super) async fn serve_revision_tarball(
     if !pnpr_package_name::is_safe_path_segment(version) || version.contains('+') {
         return not_found();
     }
-    if let Err(err) = ensure_osv_allowed(state, &name, version) {
-        return err.into_response();
-    }
     match resolve_registry_source(state, target, name.as_str()) {
         RegistrySource::Upstream(source) => {
             serve_upstream_revision_tarball(
@@ -129,6 +126,9 @@ async fn load_upstream_revision_target<'state>(
 ) -> Result<Option<(&'state Upstream, Integrity)>, Response> {
     let resolved = RegistrySource::Upstream(source.to_string());
     if let Err(err) = authorize(state, identity, &resolved, name.as_str(), Action::Access) {
+        return Err(err.into_response());
+    }
+    if let Err(err) = ensure_osv_allowed(state, name, version) {
         return Err(err.into_response());
     }
     let upstream = match authorized_upstream(state, identity, source) {
@@ -370,6 +370,9 @@ async fn serve_hosted_revision_tarball(
         Ok(org) => org,
         Err(err) => return err.into_response(),
     };
+    if let Err(err) = ensure_osv_allowed(state, package, version) {
+        return err.into_response();
+    }
     if revision.get() != 0 {
         return not_found();
     }
