@@ -58,22 +58,6 @@ const MIXED_RESPONSE = {
   ],
 }
 
-async function auditWithIgnores (response: Record<string, unknown>, opts: Partial<audit.AuditOptions>): Promise<number> {
-  const tmp = testFixtures.prepare('has-vulnerabilities')
-  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
-    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
-    .reply(200, response)
-  const { exitCode } = await audit.handler({
-    ...AUDIT_REGISTRY_OPTS,
-    auditLevel: 'low',
-    dir: tmp,
-    rootProjectManifestDir: tmp,
-    fix: false,
-    ...opts,
-  })
-  return exitCode
-}
-
 test('--ignore exits with 1 when a vulnerability that was not ignored remains', async () => {
   expect(await auditWithIgnores(MIXED_RESPONSE, { ignore: ['GHSA-unfixable-test-0001'] })).toBe(1)
 })
@@ -195,3 +179,19 @@ test('ignored GHSAs are not duplicated', async () => {
   const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
   expect(manifest.auditConfig?.ignoreGhsas).toStrictEqual(expect.arrayContaining(existingGhsas))
 })
+
+async function auditWithIgnores (response: Record<string, unknown>, opts: Partial<audit.AuditOptions>): Promise<number> {
+  const tmp = testFixtures.prepare('has-vulnerabilities')
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, response)
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'low',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: false,
+    ...opts,
+  })
+  return exitCode
+}
