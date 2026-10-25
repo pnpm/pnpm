@@ -444,11 +444,13 @@ fn shared_inputs_match(
             .get(&*path.to_string_lossy())
             .map(|signature| signature.digest.clone())
     };
-    // Only a resolving install records `autoDedupe`, and it shapes no tree.
-    // Empty maps and `enableGlobalVirtualStore: false` match their omitted defaults.
+    // Only a resolving install records `autoDedupe`, and only a verifying one
+    // `registryPrefixes`; neither shapes a tree. Empty maps and
+    // `enableGlobalVirtualStore: false` match their omitted defaults.
     let settings = |state: &WorkspaceState| {
         let mut settings = state.settings.clone();
         settings.auto_dedupe = None;
+        settings.registry_prefixes = None;
         if settings.allow_builds.as_ref().is_some_and(BTreeMap::is_empty) {
             settings.allow_builds = None;
         }

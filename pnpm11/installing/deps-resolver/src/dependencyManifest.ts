@@ -1,10 +1,10 @@
 import { convertEnginesRuntimeToDependencies } from '@pnpm/pkg-manifest.utils'
-import type { PackageManifest } from '@pnpm/types'
+import type { PackageManifest, RegistryContext } from '@pnpm/types'
 import { omit } from 'ramda'
 import semver from 'semver'
 
-import { getRangeOfLockedPackage } from './getDepsToResolve.js'
 import { getPeerShadowedDependencies } from './hoistPeers.js'
+import { getRangeOfLockedPackage } from './lockedRegistryKey.js'
 
 export interface DependencyManifestContext {
   autoInstallPeers: boolean
@@ -42,9 +42,10 @@ function omitPeersFromDependencies (pkg: PackageManifest, ctx: DependencyManifes
  */
 export function lockedVersionSatisfies (
   wantedDep: { alias: string, bareSpecifier: string },
-  locked: { name: string, version: string, registryName?: string }
+  locked: { name: string, version: string, registryName?: string },
+  registries: RegistryContext
 ): boolean | undefined {
-  const range = getRangeOfLockedPackage(wantedDep, locked)
+  const range = getRangeOfLockedPackage(wantedDep, locked, registries)
   if (range == null) return false
   if (semver.validRange(range) == null) return undefined
   return semver.satisfies(locked.version, range, true)

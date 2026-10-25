@@ -1,3 +1,4 @@
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import { createProjectConfigRecord } from '@pnpm/config.reader'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
@@ -13,7 +14,7 @@ import {
 } from '@pnpm/lockfile.settings-checker'
 import { catalogResolutionsAreUpToDate, getWorkspacePackagesByDirectory, linkedPackagesAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import type { DependencyManifest, Project, ProjectId, ProjectManifest, ReadPackageHook } from '@pnpm/types'
+import type { DependencyManifest, Project, ProjectId, ProjectManifest, ReadPackageHook, RegistryContext } from '@pnpm/types'
 import { clone, once } from 'ramda'
 
 import type { CheckDepsStatusOptions } from './types.js'
@@ -227,6 +228,7 @@ async function assertLinkedPackagesUpToDate (
       autoInstallPeers: ctx.autoInstallPeers,
       catalogs: ctx.config.catalogs,
       readPackageHook,
+      registries: registryContextOf(ctx.config),
     },
     hookedManifests: ctx.hookedManifests,
   }, {
@@ -238,4 +240,9 @@ async function assertLinkedPackagesUpToDate (
       hint: 'Run `pnpm install` to update the packages',
     })
   }
+}
+
+function registryContextOf (config: CheckDepsStatusOptions): RegistryContext | undefined {
+  const { registriesByScope } = config
+  return registriesByScope == null ? undefined : pickRegistryContext({ ...config, registriesByScope })
 }

@@ -67,7 +67,7 @@ async fn shared_manifest_cache_does_not_leak_across_registries() {
         let cache_dir = TempDir::new().expect("tempdir");
         let resolver = NpmResolver {
             registries,
-            registries_by_prefix: HashMap::new(),
+            declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
             metadata: crate::RegistryMetadataClient {
                 http_client: Arc::new(ThrottledClient::default()),
                 auth_headers: Arc::new(AuthHeaders::default()),

@@ -463,12 +463,26 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
             catalogs,
         ),
     };
-    // Frozen installs share this builder and cannot establish a deduplication baseline.
+    // Frozen installs share this builder and cannot establish a deduplication
+    // baseline, nor vouch for the lockfile's registry keys.
     state.settings.auto_dedupe = None;
+    state.settings.registry_prefixes = None;
     if node_linker == NodeLinker::Hoisted {
         record_hoisted_modules_dirs(&mut state.projects, project_manifests);
     }
     state
+}
+
+/// Whether every `packages:` key of `lockfile` is the one the declared
+/// registry prefixes call for, so the state may record them. A missing
+/// lockfile verifies nothing.
+pub(crate) fn registry_keys_current(
+    config: &Config,
+    lockfile: Option<&pnpm_lockfile::Lockfile>,
+) -> bool {
+    lockfile.is_some_and(|lockfile| {
+        pnpm_lockfile::check_lockfile_registry_keys(lockfile, &config.registry_context()).is_ok()
+    })
 }
 
 /// The `autoDedupe` an install records in the workspace state.

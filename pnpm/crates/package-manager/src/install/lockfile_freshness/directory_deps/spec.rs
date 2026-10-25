@@ -15,6 +15,8 @@ pub(super) struct SpecDirs<'a> {
     /// manifests over in memory need not have written one.
     pub(super) manifests_by_dir: &'a ProjectManifestsByDir<'a>,
     pub(super) canonical_paths: &'a pnpm_fs::CanonicalPaths,
+    /// How a locked child's registry is decided, for the reuse gate.
+    pub(super) registries: &'a pnpm_lockfile::RegistryContext,
 }
 
 /// Whether the recorded resolution of a local directory dependency's child
@@ -45,7 +47,7 @@ pub(super) fn spec_satisfies_snapshot_dep(
     if is_locked_to_other_source(spec, lockfile_dep) {
         return Some(false);
     }
-    npm_or_registry_spec_satisfies(dep_name, spec, lockfile_dep)
+    npm_or_registry_spec_satisfies(dirs.registries, dep_name, spec, lockfile_dep)
 }
 
 /// Whether a spec that names one exact source, a tarball URL or a git
@@ -329,13 +331,14 @@ fn target_dir_satisfies(
 /// `None` when the spec is not a range the locked version can be checked
 /// against, such as a tag or a git or tarball spec.
 fn npm_or_registry_spec_satisfies(
+    registries: &pnpm_lockfile::RegistryContext,
     dep_name: &str,
     spec: &str,
     lockfile_dep: &pnpm_lockfile::SnapshotDepRef,
 ) -> Option<bool> {
     if let Ok(alias) = pnpm_lockfile::PkgName::parse(dep_name)
         && let Some(key) = lockfile_dep.resolve(&alias)
-        && let Some(admits) = locked_child_admits(&alias, &key, spec)
+        && let Some(admits) = locked_child_admits(&alias, &key, spec, registries)
     {
         return Some(admits);
     }

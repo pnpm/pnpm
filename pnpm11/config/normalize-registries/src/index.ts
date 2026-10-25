@@ -110,9 +110,8 @@ interface RegistryRoutes {
 
 /**
  * A registry's `prefix` field holds one name, so when several prefixes route
- * to the same URL the alphabetically last one is shown — sorted here rather
- * than left to insertion order, so both CLI implementations pick the same
- * one.
+ * to the same URL the alphabetically first one is declared: the one the
+ * registry's lockfile keys carry, which a pnpr server keys them by too.
  */
 function buildRegistryDeclarations (context: RegistryRoutes): Record<string, RegistryDeclaration> {
   const declarations: Record<string, RegistryDeclaration> = {}
@@ -141,7 +140,7 @@ function applyPrefixRoutes (
 ): void {
   const sortedPrefixEntries = Object.entries(registriesByPrefix ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
   for (const [prefix, registry] of sortedPrefixEntries) {
-    declarationFor(registry).prefix = prefix
+    declarationFor(registry).prefix ??= prefix
   }
 }
 

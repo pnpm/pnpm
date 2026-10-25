@@ -203,6 +203,7 @@ pub(super) async fn build_fresh_resolver_chain<Reporter: self::Reporter + 'stati
         registry: crate::install_with_fresh_lockfile::resolution_inputs::ResolverRegistryContext {
             named: &registries.by_scope,
             by_prefix: &registries.named,
+            declared: &registries.declared,
             cache: &owned.fetching.meta_cache,
             full_metadata: policy.full_metadata,
             needs_full_metadata: Arc::clone(&policy.needs_full_metadata_for),

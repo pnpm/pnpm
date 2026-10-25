@@ -111,10 +111,7 @@ fn build_npm_resolver(
             .resolved_registries()
             .into_iter()
             .collect(),
-        registries_by_prefix: config.registries_by_prefix
-            .clone()
-            .into_iter()
-            .collect(),
+        declared_prefixes: config.declared_registry_prefixes(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(http_client),
             auth_headers: Arc::clone(&config.auth_headers),
@@ -179,6 +176,7 @@ fn build_named_registry_resolver(
             .cloned()
             .collect(),
         registries_by_prefix: merged_registries_by_prefix,
+        declared_prefixes: config.declared_registry_prefixes(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client: Arc::clone(http_client),
             auth_headers: Arc::clone(&config.auth_headers),

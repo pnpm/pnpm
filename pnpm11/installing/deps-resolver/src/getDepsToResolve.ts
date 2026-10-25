@@ -23,6 +23,7 @@ import type { RegistryContext } from '@pnpm/types'
 import semver from 'semver'
 
 import type { WantedDependency } from './getWantedDependencies.js'
+import { getRangeOfLockedPackage, lockedKeyIsCurrent } from './lockedRegistryKey.js'
 import type {
   ExtendedWantedDependency,
   InfoFromLockfile,
@@ -30,7 +31,6 @@ import type {
   PkgAddress,
   ResolutionContext,
 } from './resolutionTypes.js'
-import { unwrapPackageName } from './unwrapPackageName.js'
 
 export type DepsToResolveOptions = RegistryContext & {
   currentDepth?: number
@@ -52,6 +52,8 @@ interface LockedReferenceLookup {
   preferredVersions?: PreferredVersions
   resolvedDependencies: ResolvedDependencies
   satisfiesWantedSpec: (wantedDep: { alias: string, bareSpecifier: string }, preferredRef: string) => boolean
+  /** Whether a reference that satisfies the wanted dependency is keyed the way a fresh resolve keys it. */
+  keyIsCurrent: (wantedDep: { alias: string, bareSpecifier: string }, reference: string) => boolean
   staleOverrideTargets?: ReadonlySet<string>
   wantedLockfile: LockfileObject
 }
@@ -67,6 +69,7 @@ export function getDepsToResolve (
   wantedLockfile: LockfileObject,
   options: DepsToResolveOptions
 ): ExtendedWantedDependency[] {
+  const registries = pickRegistryContext(options)
   const lookup: LockedReferenceLookup = {
     currentDepth: options.currentDepth,
     directDepVersions: options.directDepVersions,
@@ -77,7 +80,12 @@ export function getDepsToResolve (
     satisfiesWantedSpec: referenceSatisfiesWantedSpec.bind(null, {
       lockfile: wantedLockfile,
       prefix: options.prefix,
+      registries,
     }),
+    keyIsCurrent: (wantedDep, reference) => {
+      const depPath = dp.refToRelative(reference, wantedDep.alias)
+      return depPath == null || lockedKeyIsCurrent(wantedDep, depPath, registries)
+    },
     staleOverrideTargets: options.staleOverrideTargets,
     wantedLockfile,
   }
@@ -88,7 +96,7 @@ export function getDepsToResolve (
   let proceedAll = options.proceed
   for (const wantedDependency of wantedDependencies) {
     const { reference, preferredVersion, proceed } = chooseLockedReference(wantedDependency, lookup)
-    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, pickRegistryContext(options), reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, registries, reference, wantedDependency.alias)
     if (!proceedAll && makesSiblingsProceed(wantedDependency, infoFromLockfile)) {
       proceedAll = true
       for (const extendedWantedDep of extendedWantedDeps) {
@@ -114,7 +122,7 @@ function chooseLockedReference (
   const satisfiesWanted = lookup.satisfiesWantedSpec.bind(null, { alias, bareSpecifier: wantedDependency.bareSpecifier })
   const pinnedRef = lookup.resolvedDependencies[alias]
   if (pinnedRef && (satisfiesWanted(pinnedRef) || pinnedRef.startsWith('file:'))) {
-    return reuseOrRaisePinnedReference(wantedDependency, pinnedRef, lookup)
+    return proceedUnlessKeyIsCurrent({ alias, bareSpecifier: wantedDependency.bareSpecifier }, reuseOrRaisePinnedReference(wantedDependency, pinnedRef, lookup), lookup)
   }
   const preferredRef = lookup.preferredDependencies[alias]
   // If dependencies that were used by the previous version of the package
@@ -131,6 +139,20 @@ function chooseLockedReference (
     return { preferredVersion: getPinnedNameVer(lookup.wantedLockfile, lockedRef, alias)?.version }
   }
   return {}
+}
+
+/**
+ * The pin holds, but a package locked under a key the registry configuration
+ * no longer writes is resolved again, which records the current key, instead
+ * of reusing the subtree recorded under the old one.
+ */
+function proceedUnlessKeyIsCurrent (
+  wantedDep: { alias: string, bareSpecifier: string },
+  choice: LockedReferenceChoice,
+  lookup: LockedReferenceLookup
+): LockedReferenceChoice {
+  if (choice.reference == null || lookup.keyIsCurrent(wantedDep, choice.reference)) return choice
+  return { ...choice, proceed: true }
 }
 
 function reuseOrRaisePinnedReference (
@@ -177,6 +199,7 @@ function referenceSatisfiesWantedSpec (
   opts: {
     lockfile: LockfileObject
     prefix: string
+    registries: RegistryContext
   },
   wantedDep: { alias: string, bareSpecifier: string },
   preferredRef: string
@@ -192,53 +215,12 @@ function referenceSatisfiesWantedSpec (
     return false
   }
   const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-  const bareSpecifier = getRangeOfLockedPackage(wantedDep, { name, registryName })
+  const bareSpecifier = getRangeOfLockedPackage(wantedDep, { name, registryName }, opts.registries)
   if (bareSpecifier == null) return false
   if (!semver.validRange(bareSpecifier) && Object.values(opts.lockfile.importers).filter(importer => importer.specifiers[wantedDep.alias] === wantedDep.bareSpecifier).length) {
     return true
   }
   return semver.satisfies(version, bareSpecifier, true)
-}
-
-/**
- * The part of the wanted specifier that the locked package's version is
- * checked against, or `undefined` when the locked package cannot satisfy the
- * wanted dependency whatever its version.
- */
-export function getRangeOfLockedPackage (
-  wantedDep: { alias: string, bareSpecifier: string },
-  { name, registryName }: { name: string, registryName?: string }
-): string | undefined {
-  const { bareSpecifier } = wantedDep
-  if (registryName == null && bareSpecifier.startsWith('npm:')) {
-    const npmAlias = unwrapPackageName(wantedDep.alias, bareSpecifier)
-    return npmAlias.pkgName === name ? npmAlias.bareSpecifier : undefined
-  }
-  if (registryName == null) {
-    // A range names the alias's own package. A git or tarball specifier may
-    // resolve to a package of any name.
-    return name === wantedDep.alias || semver.validRange(bareSpecifier) == null ? bareSpecifier : undefined
-  }
-  return getRangeOfNamedRegistrySpec(wantedDep, { name, registryName })
-}
-
-function getRangeOfNamedRegistrySpec (
-  wantedDep: { alias: string, bareSpecifier: string },
-  { name, registryName }: { name: string, registryName: string }
-): string | undefined {
-  const { bareSpecifier } = wantedDep
-  // A registry-qualified entry may only satisfy a spec of the same named
-  // registry. A plain semver range means a default/scope-registry dep, which
-  // the qualified entry must never be substituted for.
-  if (!bareSpecifier.startsWith(`${registryName}:`)) return undefined
-  // Reduce `<registryName>:[<name>@]<range>` to its range for the semver check.
-  // A spec that names no package names the alias.
-  const body = bareSpecifier.slice(registryName.length + 1)
-  const versionDelimiter = body.lastIndexOf('@')
-  if (versionDelimiter > 0) {
-    return body.slice(0, versionDelimiter) === name ? body.slice(versionDelimiter + 1) : undefined
-  }
-  return name === wantedDep.alias ? body : undefined
 }
 
 /**

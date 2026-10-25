@@ -1,6 +1,7 @@
 use super::{
-    Arc, BTreeMap, DependencySpec, DirectDepVersions, PkgName, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx, lock_recoverable,
+    Arc, BTreeMap, DependencySpec, DirectDepVersion, DirectDepVersions, PkgName, PkgNameVerPeer,
+    ProjectSnapshot, ResolvedDependencyMap, SnapshotDepRef, SnapshotEntry, TreeCtx,
+    lock_recoverable,
 };
 
 /// Record the importer direct deps whose manifest specifier differs from
@@ -106,17 +107,29 @@ pub(in super::super) fn record_direct_dep_versions(
         Arc::clone(&lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions));
     let mut versions = lock_recoverable(&ctx.workspace.versions.direct_dep_versions);
     let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
-    extend_parsed_versions(by_name, level);
+    extend_parsed_versions(by_name, level, &ctx.workspace.cache.registry_context);
     for (name, candidates) in changed_versions.iter() {
         by_name.entry(name.clone()).or_insert_with(|| candidates.clone());
     }
 }
 
-fn extend_parsed_versions(by_name: &mut DirectDepVersions, level: &BTreeMap<String, Vec<String>>) {
+/// `level` holds resolved key suffixes, so a package from a registry that
+/// declares a prefix arrives as `<prefix>:<version>`.
+fn extend_parsed_versions(
+    by_name: &mut DirectDepVersions,
+    level: &BTreeMap<String, Vec<String>>,
+    registries: &pnpm_lockfile::RegistryContext,
+) {
     for (name, level_versions) in level {
         let bucket = by_name.entry(name.clone()).or_default();
         for version in level_versions {
-            let Ok(parsed) = version.parse::<node_semver::Version>() else { continue };
+            let Some(parsed) = version
+                .parse::<pnpm_lockfile::PkgVerPeer>()
+                .ok()
+                .and_then(|ver_peer| DirectDepVersion::of(name, &ver_peer, registries))
+            else {
+                continue;
+            };
             if !bucket.contains(&parsed) {
                 bucket.push(parsed);
             }
@@ -156,7 +169,14 @@ fn reused_parent_has_changed_direct_child(
                 .is_some_and(|set| set.contains(name))
                 || cross_changed
                     .as_deref()
-                    .is_some_and(|cross| cross_importer_changed_version(cross, name, dep_ref))
+                    .is_some_and(|cross| {
+                        cross_importer_changed_version(
+                            cross,
+                            name,
+                            dep_ref,
+                            &ctx.workspace.cache.registry_context,
+                        )
+                    })
         })
 }
 
@@ -164,6 +184,7 @@ fn cross_importer_changed_version(
     cross_changed: &DirectDepVersions,
     name: &PkgName,
     dep_ref: &SnapshotDepRef,
+    registries: &pnpm_lockfile::RegistryContext,
 ) -> bool {
     let (target_name, ver_peer) = match dep_ref {
         SnapshotDepRef::Plain(ver_peer) => (name, ver_peer),
@@ -175,11 +196,13 @@ fn cross_importer_changed_version(
         Some(_) => cross_changed.get(&target_name.to_string()),
     };
     candidates
-        .zip(ver_peer.version_semver())
+        .zip(DirectDepVersion::of(&target_name.to_string(), ver_peer, registries))
         .is_some_and(|(versions, pinned)| {
             versions
                 .iter()
-                .any(|version| version != pinned)
+                .any(|version| {
+                    version.registry == pinned.registry && version.version != pinned.version
+                })
         })
 }
 
@@ -215,21 +238,23 @@ fn node_depends_on_changed_direct_dep_with(
         .is_some_and(|snapshot| reused_parent_has_changed_direct_child(ctx, snapshot, scope))
 }
 
-/// The highest resolved direct-dependency version of `name` strictly
-/// above `pinned` that still satisfies `range`, or `None`. Anchored to
-/// direct deps (the deterministic, resolved-before-the-walk signal).
-/// `direct_versions` is the importer's snapshot, taken once per walked
-/// occurrence as it seeds its children.
+/// The highest resolved direct-dependency version of `name` from the
+/// registry of `pinned`, strictly above it, that still satisfies `range`, or
+/// `None`. Anchored to direct deps (the deterministic,
+/// resolved-before-the-walk signal). `direct_versions` is the importer's
+/// snapshot, taken once per walked occurrence as it seeds its children.
 pub(in super::super) fn higher_direct_dep_version(
     direct_versions: Option<&DirectDepVersions>,
     name: &str,
-    pinned: &node_semver::Version,
+    pinned: &DirectDepVersion,
     range: &node_semver::Range,
 ) -> Option<node_semver::Version> {
     direct_versions?
         .get(name)?
         .iter()
-        .filter(|&version| version > pinned && range.satisfies(version))
+        .filter(|direct| direct.registry == pinned.registry)
+        .map(|direct| &direct.version)
+        .filter(|&version| version > &pinned.version && range.satisfies(version))
         .max()
         .cloned()
 }
@@ -279,7 +304,11 @@ where
     if !versions.is_empty() {
         let mut changed_versions =
             lock_recoverable(&ctx.workspace.versions.changed_direct_dep_versions);
-        extend_parsed_versions(Arc::make_mut(&mut *changed_versions), &versions);
+        extend_parsed_versions(
+            Arc::make_mut(&mut *changed_versions),
+            &versions,
+            &ctx.workspace.cache.registry_context,
+        );
     }
     Ok(())
 }
@@ -334,3 +363,6 @@ where
         .as_ref()
         .map(|name_ver| (name_ver.name.to_string(), name_ver.suffix.to_string())))
 }
+
+#[cfg(test)]
+mod tests;

@@ -5,26 +5,51 @@ use std::sync::Arc;
 use super::super::child_seeds::{ChildSeedScope, child_wanted};
 use crate::resolve_dependency_tree::{
     DependencySpec, TreeCtx,
-    workspace_ctx::{DirectDepVersions, WorkspaceTreeCtx},
+    workspace_ctx::{DirectDepVersion, DirectDepVersions, WorkspaceTreeCtx},
 };
+
+const REGISTRY: &str = "https://registry.example.test/";
+
+/// `work` declared for the default registry.
+fn registries() -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            REGISTRY.to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            REGISTRY.to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", REGISTRY)]),
+        ..Default::default()
+    }
+}
 
 fn ctx(dedupe: crate::UpdateTargets) -> TreeCtx {
     let workspace = WorkspaceTreeCtx::default()
-        .with_lockfile_reuse(crate::WorkspaceLockfileReuse { dedupe, ..Default::default() });
+        .with_lockfile_reuse(crate::WorkspaceLockfileReuse { dedupe, ..Default::default() })
+        .with_registry_context(registries());
     TreeCtx::with_workspace(Arc::new(workspace), ResolveOptions::default())
 }
 
 /// A parent whose lockfile snapshot pins `react@17.0.2`, in an importer
 /// whose direct dependencies resolved `react` to both 17.0.2 and 18.2.0.
 fn child_wanted_for_react(ctx: &TreeCtx) -> (Option<String>, Option<String>) {
+    child_wanted_for_locked_react(ctx, "17.0.2")
+}
+
+/// [`child_wanted_for_react`] with the snapshot pinning `react` as `locked`.
+fn child_wanted_for_locked_react(ctx: &TreeCtx, locked: &str) -> (Option<String>, Option<String>) {
     let snapshot: SnapshotEntry =
-        serde_json::from_value(serde_json::json!({ "dependencies": { "react": "17.0.2" } }))
+        serde_json::from_value(serde_json::json!({ "dependencies": { "react": locked } }))
             .expect("parse snapshot entry");
+    let direct = |version: &str| DirectDepVersion {
+        registry: REGISTRY.to_string(),
+        version: version.parse().expect("parse version"),
+    };
     let mut direct_versions = DirectDepVersions::default();
-    direct_versions.insert(
-        "react".to_string(),
-        vec!["17.0.2".parse().expect("parse version"), "18.2.0".parse().expect("parse version")],
-    );
+    direct_versions.insert("react".to_string(), vec![direct("17.0.2"), direct("18.2.0")]);
     let scope = ChildSeedScope {
         prior_children_snapshot: Some(&snapshot),
         direct_versions: Some(Arc::new(direct_versions)),
@@ -56,5 +81,15 @@ fn a_dedupe_target_is_left_to_the_preferred_versions() {
     assert_eq!(
         child_wanted_for_react(&ctx(dedupe)),
         (Some("^17.0.0 || ^18.0.0".to_string()), Some("react@17.0.2".to_string())),
+    );
+}
+
+/// A plain range whose registry declares a prefix is locked under a
+/// registry-qualified key, which the refresh reads the same way.
+#[test]
+fn a_kept_registry_qualified_pin_is_refreshed_onto_the_higher_direct_dependency_version() {
+    assert_eq!(
+        child_wanted_for_locked_react(&ctx(crate::UpdateTargets::default()), "work:17.0.2"),
+        (Some("18.2.0".to_string()), None),
     );
 }

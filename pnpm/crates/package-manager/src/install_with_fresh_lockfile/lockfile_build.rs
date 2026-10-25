@@ -356,7 +356,9 @@ pub(super) fn build_fresh_lockfile(
     inputs: FreshLockfileInputs<'_>,
 ) -> Result<Lockfile, DependenciesGraphToLockfileError> {
     let importers = inputs.importer_entries();
-    let registries_by_prefix = registries_by_prefix(inputs.config);
+    // Same merge the resolver chain performs; the config was already
+    // validated at resolver construction, so skip re-validation here.
+    let registries_by_prefix = inputs.config.merged_registries_by_prefix();
     let registries: HashMap<String, String> = inputs.config
         .resolved_registries()
         .into_iter()
@@ -383,19 +385,6 @@ pub(super) fn build_fresh_lockfile(
             inputs.resolution.include_peer_dependencies,
         ),
     })
-}
-/// Same merge the resolver chain performs; the config was already
-/// validated at resolver construction, so skip re-validation here.
-pub(super) fn registries_by_prefix(config: &Config) -> HashMap<String, String> {
-    pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
-        .iter()
-        .map(|(name, url)| ((*name).to_string(), (*url).to_string()))
-        .chain(
-            config.registries_by_prefix
-                .iter()
-                .map(|(name, url)| (name.clone(), url.clone())),
-        )
-        .collect()
 }
 /// The `time:` section the rewritten lockfile carries: what the prior
 /// lockfile recorded, with this run's freshly resolved publish dates

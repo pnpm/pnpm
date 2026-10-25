@@ -57,6 +57,31 @@ test('recording a registry-qualified key leaves the lockfile version alone', asy
 test('the same package resolved from two registries gets one entry per registry', async () => {
   prepareEmpty()
 
+  // The same server under another host is another registry.
+  const otherRegistriesByPrefix = { work: `http://127.0.0.1:${REGISTRY_MOCK_PORT}/npm/` }
+  await install({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+      'foo-from-work': 'work:@pnpm.e2e/foo@1.0.0',
+    },
+  }, testDefaults({ registriesByPrefix: otherRegistriesByPrefix }, { registriesByPrefix: otherRegistriesByPrefix }))
+
+  const lockfile = readLockfile()
+  const packageKeys = Object.keys(lockfile.packages ?? {})
+  // Default and named registry resolutions for the same package and version
+  // require separate lockfile entries.
+  expect(packageKeys).toContain('@pnpm.e2e/foo@1.0.0')
+  expect(packageKeys).toContain('@pnpm.e2e/foo@work:1.0.0')
+  expect(lockfile.importers?.['.']?.dependencies?.['foo-from-work']).toStrictEqual({
+    specifier: 'work:@pnpm.e2e/foo@1.0.0',
+    version: '@pnpm.e2e/foo@work:1.0.0',
+  })
+})
+
+test('a plain range resolved from the registry a prefix declares shares the prefixed entry', async () => {
+  prepareEmpty()
+
+  // `work` names the default registry, so both dependencies reach one registry.
   await install({
     dependencies: {
       '@pnpm.e2e/foo': '1.0.0',
@@ -65,11 +90,12 @@ test('the same package resolved from two registries gets one entry per registry'
   }, testDefaults({ registriesByPrefix }, { registriesByPrefix }))
 
   const lockfile = readLockfile()
-  const packageKeys = Object.keys(lockfile.packages ?? {})
-  // Default and named registry resolutions for the same package and version
-  // require separate lockfile entries.
-  expect(packageKeys).toContain('@pnpm.e2e/foo@1.0.0')
-  expect(packageKeys).toContain('@pnpm.e2e/foo@work:1.0.0')
+  expect(Object.keys(lockfile.packages ?? {}).filter((key) => key.startsWith('@pnpm.e2e/foo@'))).toStrictEqual(['@pnpm.e2e/foo@work:1.0.0'])
+  // The specifiers stay as written.
+  expect(lockfile.importers?.['.']?.dependencies?.['@pnpm.e2e/foo']).toStrictEqual({
+    specifier: '1.0.0',
+    version: 'work:1.0.0',
+  })
   expect(lockfile.importers?.['.']?.dependencies?.['foo-from-work']).toStrictEqual({
     specifier: 'work:@pnpm.e2e/foo@1.0.0',
     version: '@pnpm.e2e/foo@work:1.0.0',

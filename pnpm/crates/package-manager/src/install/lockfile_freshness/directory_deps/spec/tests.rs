@@ -10,6 +10,7 @@ fn dirs<'a>(workspace_root: &'a Path, lockfile_dir: &'a Path) -> SpecDirs<'a> {
         lockfile_dir,
         manifests_by_dir: &NO_MANIFESTS,
         canonical_paths: Box::leak(Box::default()),
+        registries: Box::leak(Box::default()),
     }
 }
 
@@ -191,6 +192,7 @@ fn workspace_range_reads_a_loaded_manifest_before_the_disk() {
         lockfile_dir: &workspace_root,
         manifests_by_dir: &manifests_by_dir,
         canonical_paths: Box::leak(Box::default()),
+        registries: Box::leak(Box::default()),
     };
     let local_dep_dir = workspace_root.join("packages/consumer");
 
@@ -228,6 +230,7 @@ fn loaded_target_satisfies(workspace_root: &Path, target_dir: PathBuf) -> bool {
         lockfile_dir: workspace_root,
         manifests_by_dir: &manifests_by_dir,
         canonical_paths: Box::leak(Box::default()),
+        registries: Box::leak(Box::default()),
     };
     let file_dep: pnpm_lockfile::SnapshotDepRef = "file:packages/pkg".parse().unwrap();
     local_spec_satisfies(
@@ -283,6 +286,7 @@ fn a_loaded_project_above_the_workspace_root_is_trusted_unless_linked_elsewhere(
         lockfile_dir: &workspace_root,
         manifests_by_dir: &manifests_by_dir,
         canonical_paths: Box::leak(Box::default()),
+        registries: Box::leak(Box::default()),
     };
     assert!(super::importer_link_satisfies(
         &dirs,
@@ -329,10 +333,22 @@ fn an_importer_link_to_a_missing_sparse_checkout_directory_is_satisfied() {
     ));
 }
 
+/// `work` names a registry of its own, apart from the default one.
 fn registry_spec_satisfies(spec: &str, recorded: &str) -> Option<bool> {
+    let registries = pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            "https://registry.example.test/".to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            "https://npm.example.test/".to_string(),
+        )]),
+        ..Default::default()
+    };
     let recorded =
         recorded.parse::<pnpm_lockfile::SnapshotDepRef>().expect("parse the recorded reference");
-    super::npm_or_registry_spec_satisfies("foo", spec, &recorded)
+    super::npm_or_registry_spec_satisfies(&registries, "foo", spec, &recorded)
 }
 
 /// A named-registry specifier is judged as the resolver's reuse gate judges

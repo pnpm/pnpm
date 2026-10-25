@@ -36,6 +36,7 @@
     "@pnpm/catalogs.resolver": "workspace:*",
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",

@@ -4,7 +4,7 @@ import type {
   LockfileObject,
 } from '@pnpm/lockfile.types'
 import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
-import { DEPENDENCIES_FIELDS, type DependencyManifest, type ProjectId, type ReadPackageHook } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, type DependencyManifest, type ProjectId, type ReadPackageHook, type RegistryContext } from '@pnpm/types'
 import pEvery from 'p-every'
 import { isEmpty } from 'ramda'
 
@@ -26,6 +26,8 @@ export interface AllProjectsAreUpToDateOptions {
   lockfileDir: string
   workspaceDir?: string
   readPackageHook?: ReadPackageHook
+  /** See `LocalDirectoryResolution.registries`. */
+  registries?: RegistryContext
 }
 
 export async function allProjectsAreUpToDate (
@@ -87,6 +89,7 @@ function createLinkedPackagesContext (
       autoInstallPeers: opts.autoInstallPeers,
       catalogs: opts.catalogs,
       readPackageHook: opts.readPackageHook,
+      registries: opts.registries,
     },
     hookedManifests: new Map(),
   }

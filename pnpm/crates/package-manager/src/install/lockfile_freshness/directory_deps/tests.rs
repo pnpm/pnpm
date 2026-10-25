@@ -84,6 +84,7 @@ fn check_peer_spec(
             lockfile_dir: Path::new("."),
             manifests_by_dir: &HashMap::new(),
             canonical_paths: Box::leak(Box::default()),
+            registries: Box::leak(Box::default()),
         },
         catalogs,
     };
@@ -283,6 +284,7 @@ fn check_directory_dep_in_scope(
             manifests_by_dir: &manifests_by_dir,
             catalogs,
             canonical_paths: Box::leak(Box::default()),
+            registries: Box::leak(Box::default()),
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,
@@ -300,6 +302,7 @@ fn check_directory_dep_in_scope(
             lockfile_dir: Path::new("/ws"),
             manifests_by_dir: &HashMap::new(),
             canonical_paths: Box::leak(Box::default()),
+            registries: Box::leak(Box::default()),
         },
         catalogs,
     };
@@ -802,6 +805,7 @@ snapshots:
             manifests_by_dir: &manifests_by_dir,
             catalogs: &catalogs,
             canonical_paths: Box::leak(Box::default()),
+            registries: Box::leak(Box::default()),
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,
@@ -862,6 +866,7 @@ fn check_root_with_directories(
             manifests_by_dir: &manifests_by_dir,
             catalogs: &catalogs,
             canonical_paths: Box::leak(Box::default()),
+            registries: Box::leak(Box::default()),
         },
         optional_exclusions: crate::install::lockfile_freshness::OptionalDependencyExclusions {
             ignored: &ignored,

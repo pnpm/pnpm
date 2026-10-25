@@ -1,5 +1,6 @@
 import path from 'node:path'
 
+import { pickRegistryContext } from '@pnpm/config.normalize-registries'
 import { installabilityUnderForce } from '@pnpm/config.package-is-installable'
 import { MANIFEST_BASE_NAMES, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
@@ -158,6 +159,7 @@ async function checkEachProjectAgainstLockfile ({ ctx, opts }: MutationRun, froz
       catalogs: opts.catalogs,
       readPackageHook: opts.readPackageHook,
       frozenLockfile,
+      registries: pickRegistryContext(opts),
     },
     hookedManifests: new Map(),
   })

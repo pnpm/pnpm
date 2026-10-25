@@ -528,3 +528,20 @@ test('satisfiesPackageManifest() accepts an optional dependency the lockfile lef
     detailedReason: 'specifiers in the lockfile don\'t match specifiers in package.json:\n* 1 dependencies were added: added@1.0.0\n',
   })
 })
+
+test('satisfiesPackageManifest() checks a registry-qualified version against the range', () => {
+  // A plain range whose registry declares a prefix records a qualified version.
+  const importer = (version: string) => ({
+    dependencies: { '@work/foo': version },
+    specifiers: { '@work/foo': '^1.0.0' },
+  })
+  const pkg = {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: { '@work/foo': '^1.0.0' },
+  }
+  expect(satisfiesPackageManifest({}, importer('work:1.2.0'), pkg)).toStrictEqual({ satisfies: true })
+  expect(satisfiesPackageManifest({}, importer('work:2.0.0'), pkg)).toStrictEqual({
+    satisfies: false,
+    detailedReason: 'The importer resolution is broken at dependency "@work/foo": version "2.0.0" doesn\'t satisfy range "^1.0.0"',
+  })
+})

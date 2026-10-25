@@ -4067,6 +4067,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.parse-overrides':
         specifier: workspace:*
         version: link:../../config/parse-overrides
@@ -4097,6 +4100,9 @@ importers:
       '@pnpm/lockfile.settings-checker':
         specifier: workspace:*
         version: link:../../lockfile/settings-checker
+      '@pnpm/lockfile.utils':
+        specifier: workspace:*
+        version: link:../../lockfile/utils
       '@pnpm/lockfile.verification':
         specifier: workspace:*
         version: link:../../lockfile/verification
@@ -5710,6 +5716,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.pick-registry-for-package':
         specifier: workspace:*
         version: link:../../config/pick-registry-for-package
@@ -6444,6 +6453,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/config.version-policy':
         specifier: workspace:*
         version: link:../../config/version-policy
@@ -6501,6 +6513,9 @@ importers:
       '@pnpm/pkg-manifest.utils':
         specifier: workspace:*
         version: link:../../pkg-manifest/utils
+      '@pnpm/resolving.jsr-specifier-parser':
+        specifier: workspace:*
+        version: link:../../resolving/jsr-specifier-parser
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../resolving/npm-resolver
@@ -7698,6 +7713,9 @@ importers:
       '@pnpm/config.normalize-registries':
         specifier: workspace:*
         version: link:../../config/normalize-registries
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
@@ -7759,6 +7777,9 @@ importers:
       '@pnpm/config.matcher':
         specifier: workspace:*
         version: link:../../config/matcher
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/crypto.hash':
         specifier: workspace:*
         version: link:../../crypto/hash
@@ -11029,6 +11050,9 @@ importers:
       '@pnpm/catalogs.types':
         specifier: workspace:*
         version: link:../../catalogs/types
+      '@pnpm/config.pick-registry-for-package':
+        specifier: workspace:*
+        version: link:../../config/pick-registry-for-package
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader

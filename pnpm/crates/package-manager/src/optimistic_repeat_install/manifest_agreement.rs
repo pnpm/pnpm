@@ -164,19 +164,18 @@ pub(super) fn check_projects_content(
     check_settings_match_lockfile(check, wanted, parsed_overrides.as_deref(), dedupe_peers)?;
 
     let linked_ctx = LinkedPackagesContext::new(check.config, check.project_manifests);
-    let dependency_manifests = check.manifests.dependency_manifests;
     let workspace_packages = crate::install::workspace_packages_for_freshness(
         check.config,
         check.is_workspace_install,
         check.project_manifests,
-        dependency_manifests,
+        check.manifests.dependency_manifests,
     );
     let ignored_optional_matcher = pnpm_matcher::create_matcher(
         check.config.ignored_optional_dependencies.as_deref().unwrap_or_default(),
     );
     let project_manifests = crate::install::project_manifests_by_dir(
         check.project_manifests.iter().map(|(_, manifest)| *manifest),
-        dependency_manifests,
+        check.manifests.dependency_manifests,
     );
     let content_check = ProjectContentCheck {
         workspace_root: check.workspace_root,
@@ -188,6 +187,7 @@ pub(super) fn check_projects_content(
             manifests_by_dir: &project_manifests,
             catalogs: check.catalogs,
             canonical_paths: &pnpm_fs::CanonicalPaths::default(),
+            registries: &check.config.registry_context(),
         },
         ignored_optional_matcher: &ignored_optional_matcher,
         parsed_overrides: parsed_overrides.as_deref(),

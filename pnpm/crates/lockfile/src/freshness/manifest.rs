@@ -240,7 +240,14 @@ fn check_resolution_satisfies(
     let (Some(dep), Ok(range)) = (importer_dep, manifest_spec.parse::<node_semver::Range>()) else {
         return Ok(());
     };
-    let Some(version) = dep.version.ver_peer().and_then(|version| version.version_semver()) else {
+    let Some(version) = dep.version
+        .ver_peer()
+        .and_then(|version| {
+            version
+                .version_semver()
+                .or_else(|| version.registry_qualified().map(|(_, version)| version))
+        })
+    else {
         return Ok(());
     };
     if range.satisfies(version) {
