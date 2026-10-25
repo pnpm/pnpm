@@ -43,6 +43,60 @@ const UNFIXABLE_RESPONSE = {
   ],
 }
 
+// One advisory with an inferable fix and one without.
+const MIXED_RESPONSE = {
+  axios: [
+    {
+      id: 90000003,
+      url: 'https://github.com/advisories/GHSA-fixable-test-0003',
+      title: 'fixable axios advisory used for tests',
+      severity: 'low',
+      vulnerable_versions: '<0.21.1',
+      cwe: [] as string[],
+    },
+    UNFIXABLE_RESPONSE.axios[0],
+  ],
+}
+
+async function auditWithIgnores (response: Record<string, unknown>, opts: Partial<audit.AuditOptions>): Promise<number> {
+  const tmp = testFixtures.prepare('has-vulnerabilities')
+  getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+    .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+    .reply(200, response)
+  const { exitCode } = await audit.handler({
+    ...AUDIT_REGISTRY_OPTS,
+    auditLevel: 'low',
+    dir: tmp,
+    rootProjectManifestDir: tmp,
+    fix: false,
+    ...opts,
+  })
+  return exitCode
+}
+
+test('--ignore exits with 1 when a vulnerability that was not ignored remains', async () => {
+  expect(await auditWithIgnores(MIXED_RESPONSE, { ignore: ['GHSA-unfixable-test-0001'] })).toBe(1)
+})
+
+test('--ignore exits with 0 when every vulnerability is ignored', async () => {
+  expect(await auditWithIgnores(MIXED_RESPONSE, { ignore: ['GHSA-unfixable-test-0001', 'GHSA-fixable-test-0003'] })).toBe(0)
+})
+
+test('--ignore exits with 0 when the remaining vulnerabilities were ignored before', async () => {
+  expect(await auditWithIgnores(MIXED_RESPONSE, {
+    auditConfig: { ignoreGhsas: ['GHSA-fixable-test-0003'] },
+    ignore: ['GHSA-unfixable-test-0001'],
+  })).toBe(0)
+})
+
+test('--ignore-unfixable exits with 1 when a fixable vulnerability remains', async () => {
+  expect(await auditWithIgnores(MIXED_RESPONSE, { ignoreUnfixable: true })).toBe(1)
+})
+
+test('--ignore-unfixable exits with 0 when the remaining vulnerabilities are below the audit level', async () => {
+  expect(await auditWithIgnores(MIXED_RESPONSE, { auditLevel: 'moderate', ignoreUnfixable: true })).toBe(0)
+})
+
 test('ignores are added for vulnerable dependencies with no resolutions', async () => {
   const tmp = testFixtures.prepare('has-vulnerabilities')
 
@@ -84,7 +138,7 @@ test('the specified vulnerabilities are ignored', async () => {
     ignore: ['GHSA-cph5-m8f7-6c5x'],
   })
 
-  expect(exitCode).toBe(0)
+  expect(exitCode).toBe(1)
   expect(output).toContain('1 new vulnerabilities were ignored')
 
   const manifest = readYamlFileSync<any>(path.join(tmp, 'pnpm-workspace.yaml')) // eslint-disable-line
