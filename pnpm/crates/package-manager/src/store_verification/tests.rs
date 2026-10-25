@@ -104,7 +104,13 @@ async fn finish_without_a_start_is_no_verification() {
 
 #[tokio::test]
 async fn dropping_the_verification_stops_its_work_at_the_next_batch() {
-    let (_tmp, store_dir, present, _gone) = store_with_rows(12);
+    // The verification is woken by a blocking thread, so this task can be
+    // starved of polls while batches keep finishing before the scheduler
+    // reaches it. tokio's current-thread scheduler polls this task at least
+    // once every `event_interval` (61) task polls, so with more rows than
+    // that the verification cannot run out of batches before it is dropped.
+    let rows = 200;
+    let (_tmp, store_dir, present, _gone) = store_with_rows(rows);
     let index = Arc::new(Mutex::new(StoreIndex::open_readonly_in(store_dir).unwrap()));
     let files = SharedVerifiedFilesCache::default();
 
@@ -124,7 +130,7 @@ async fn dropping_the_verification_stops_its_work_at_the_next_batch() {
         task.is_finished()
     })
     .await;
-    assert!(files.len() < 12, "no batch starts once the verification is dropped");
+    assert!(files.len() < rows, "no batch starts once the verification is dropped");
 }
 
 #[tokio::test]
