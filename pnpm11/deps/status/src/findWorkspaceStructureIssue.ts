@@ -1,4 +1,4 @@
-import { importerIdOf, projectBinsDigest, workspaceBinsDigest } from '@pnpm/workspace.state'
+import { importerIdOf, projectBinsDigest } from '@pnpm/workspace.state'
 import { equals, filter } from 'ramda'
 
 import type { WorkspaceDepsStatusContext } from './checkWorkspaceDepsStatus.js'
@@ -22,14 +22,22 @@ export function findWorkspaceStructureIssue ({ allProjects, opts, workspaceState
   return undefined
 }
 
-export function findWorkspaceBinsIssue (ctx: WorkspaceDepsStatusContext, installCovers: (rootDir: string) => boolean): string | undefined {
+/**
+ * Whether a project the install covers links a workspace bin declaration
+ * that differs from what it was proven installed with. `workspaceBins` is the
+ * digest of the current declarations across the workspace.
+ */
+export function findWorkspaceBinsIssue (
+  ctx: WorkspaceDepsStatusContext,
+  installCovers: (rootDir: string) => boolean,
+  workspaceBins: string | undefined
+): string | undefined {
   const { allProjects, workspaceState } = ctx
   const lockfileDir = ctx.opts.lockfileDir ?? ctx.workspaceDir
-  const digest = workspaceBinsDigest(lockfileDir, allProjects)
   if (allProjects.some(({ rootDir, manifest }) => {
     if (!installCovers(rootDir)) return false
     const importerId = importerIdOf(lockfileDir, rootDir)
-    return workspaceState.validation?.workspaceBins?.[importerId] !== projectBinsDigest(importerId, manifest, digest)
+    return workspaceState.validation?.workspaceBins?.[importerId] !== projectBinsDigest(importerId, manifest, workspaceBins)
   })) {
     return 'workspace package bins changed since the last install'
   }

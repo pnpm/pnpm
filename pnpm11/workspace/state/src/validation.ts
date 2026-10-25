@@ -16,6 +16,11 @@ const DIGEST_LENGTH = 32
  */
 const WHOLE_SECOND_GRANULARITY_NS = 2_000_000_000
 
+/**
+ * The bins digest `importerId` records: `bins` when the project links
+ * workspace bins, which the root and any project with dependencies do, and
+ * `undefined` otherwise.
+ */
 export function projectBinsDigest (importerId: string, manifest: ProjectsList[number]['manifest'], bins: string | undefined): string | undefined {
   const hasDependencies = [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies]
     .some(dependencies => dependencies != null && Object.keys(dependencies).length > 0)

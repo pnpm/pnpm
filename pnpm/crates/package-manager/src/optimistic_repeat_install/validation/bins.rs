@@ -35,6 +35,9 @@ pub(crate) fn workspace_bins_digest(
     (!bins.is_empty()).then(|| value_digest(&serde_json::Value::Object(bins)))
 }
 
+/// The bins digest `importer_id` records: `bins` when the project links
+/// workspace bins, which the root and any project with dependencies do, and
+/// `None` otherwise.
 pub(crate) fn project_bins_digest<'a>(
     importer_id: &str,
     manifest: &PackageManifest,

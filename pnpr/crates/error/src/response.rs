@@ -161,6 +161,8 @@ impl RegistryError {
     /// Map the error to the HTTP status the proxy should return to the
     /// client. Follows the standard gateway semantics:
     ///
+    /// * `502 Bad Gateway` — upstream returned a response the proxy cannot
+    ///   use (5xx, malformed JSON, generic transport failure).
     /// * `503 Service Unavailable` — couldn't reach upstream at all
     ///   (DNS, connection refused, network unreachable). Distinct from
     ///   502 so pnpm clients see "service down" rather than "upstream

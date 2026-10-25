@@ -48,14 +48,15 @@ interface WantedLockfileReader {
 
 export async function checkWorkspaceDepsStatus (ctx: WorkspaceDepsStatusContext): Promise<CheckDepsStatusResult> {
   const { allProjects, opts, workspaceState } = ctx
-  const structureIssue = findWorkspaceStructureIssue(ctx) ?? findWorkspaceBinsIssue(ctx, createInstallCoverage(ctx))
+  const workspaceBins = workspaceBinsDigest(workspaceLockfileDir(ctx), allProjects)
+  const structureIssue = findWorkspaceStructureIssue(ctx) ?? findWorkspaceBinsIssue(ctx, createInstallCoverage(ctx), workspaceBins)
   if (structureIssue != null) return outdatedResult(structureIssue, workspaceState)
 
   const allManifestStats = await statProjects(opts, allProjects)
   const proof = opts.sharedWorkspaceLockfile === false && coveredProjectsMissingLockfile(ctx, allManifestStats).length > 0
     ? undefined
     : validationProof(workspaceState, workspaceLockfileDir(ctx), {
-      workspaceBins: workspaceBinsDigest(workspaceLockfileDir(ctx), allProjects) ?? null,
+      workspaceBins: workspaceBins ?? null,
       wantedLockfileName: ctx.wantedLockfileName,
       sharedWorkspaceLockfile: opts.sharedWorkspaceLockfile,
       unmergedBranchLockfiles: opts.sharedWorkspaceLockfile !== false && opts.mergeGitBranchLockfiles === true && hasUnmergedBranchLockfiles(workspaceLockfileDir(ctx), ctx.wantedLockfileName),
