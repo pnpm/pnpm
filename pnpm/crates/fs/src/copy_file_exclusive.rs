@@ -4,9 +4,8 @@ use std::{fs, io, path::Path};
 ///
 /// What a platform carries differs: Unix and WASI carry the POSIX
 /// permission bits, Windows the read-only attribute, which is the whole of
-/// [`fs::Permissions`] there. One type holds all three, so a caller names
-/// `CopyPermissions` on every target and reaches the bits, where the
-/// platform has them, through [`CopyPermissions::mode`].
+/// [`fs::Permissions`] there. One type holds all three, so the difference
+/// stays in this module rather than in the callers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CopyPermissions(Carried);
 

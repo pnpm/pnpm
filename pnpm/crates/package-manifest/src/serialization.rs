@@ -169,6 +169,21 @@ impl PackageManifest {
         Ok(contents)
     }
 
+    /// The permissions of the file at `path`, or `None` where nothing is
+    /// there yet.
+    fn existing_permissions(path: &Path) -> io::Result<Option<pnpm_fs::CopyPermissions>> {
+        #[cfg(not(target_os = "wasi"))]
+        let read =
+            fs::metadata(path).map(|metadata| pnpm_fs::CopyPermissions::of_metadata(&metadata));
+        #[cfg(target_os = "wasi")]
+        let read = pnpm_fs::copy_permissions(path);
+        match read {
+            Ok(permissions) => Ok(Some(permissions)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     /// Write `contents` to `path` atomically: a sibling temp file is written
     /// and fsynced, then renamed over `path`. A crash or write error therefore
     /// never leaves a truncated or partial manifest behind, matching the
@@ -179,18 +194,7 @@ impl PackageManifest {
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
-        #[cfg(not(target_os = "wasi"))]
-        let permissions = match fs::metadata(path) {
-            Ok(metadata) => Some(pnpm_fs::CopyPermissions::of_metadata(&metadata)),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
-        };
-        #[cfg(target_os = "wasi")]
-        let permissions = match pnpm_fs::copy_permissions(path) {
-            Ok(permissions) => Some(permissions),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error),
-        };
+        let permissions = Self::existing_permissions(path)?;
         #[cfg(target_os = "wasi")]
         let mut tmp = tempfile::Builder::new()
             .make_in(dir, |temporary| {
