@@ -78,7 +78,7 @@ fn reusable_at(ctx: &TreeCtx, lockfile: &Lockfile, key: &str, depth: i32) -> boo
 }
 
 fn memoised_answers(ctx: &TreeCtx) -> usize {
-    lock_recoverable(&ctx.workspace.cache.subtree_reusable).len()
+    lock_recoverable(&ctx.workspace.cache.subtree.reusable).len()
 }
 
 #[test]
@@ -160,7 +160,8 @@ snapshots:
 ";
 
 /// Under `--depth 4`, `c` sits two levels below `a`, so it is an update
-/// target only while `a` is at depth 2 or above.
+/// target only while `a` is at depth 2 or above. The memo holds one
+/// answer per node however many depths ask.
 #[test]
 fn a_depth_near_the_ceiling_keeps_its_own_answer() {
     let (ctx, lockfile) = update_ctx(CHAIN, &["c"], 4);
@@ -169,4 +170,31 @@ fn a_depth_near_the_ceiling_keeps_its_own_answer() {
     assert!(!reusable_at(&ctx, &lockfile, "a@1.0.0", 1));
     assert!(!reusable_at(&ctx, &lockfile, "a@1.0.0", 0));
     assert!(reusable_at(&ctx, &lockfile, "a@1.0.0", 4));
+    assert_eq!(memoised_answers(&ctx), 3);
+}
+
+/// The depth of a target is its shortest path from the node: under
+/// `--depth 1`, `c` is one level below `a` but two below `b`, whose
+/// subtree the update therefore leaves alone. `b`'s walk memoises `a` as
+/// synthesizable, which must not stand in for `a`'s own answer.
+#[test]
+fn a_target_counts_at_its_shortest_depth() {
+    let (ctx, lockfile) = update_ctx(CYCLE, &["c"], 1);
+    assert!(reusable_at(&ctx, &lockfile, "b@1.0.0", 0));
+    assert!(!reusable_at(&ctx, &lockfile, "a@1.0.0", 0));
+}
+
+/// The walk's cost does not depend on how many snapshots the lockfile
+/// holds beyond the subtree: a small cycle in a lockfile with more
+/// snapshots than `--depth` levels is still walked once
+/// (<https://github.com/pnpm/pnpm/issues/17329>).
+#[test]
+fn a_small_cycle_in_a_lockfile_larger_than_the_depth_is_walked_once() {
+    let mut lockfile = CYCLE.to_string();
+    for index in 0..300 {
+        writeln!(lockfile, "  unrelated-{index}@1.0.0: {{}}").expect("write the snapshot");
+    }
+    let (ctx, lockfile) = update_ctx(&lockfile, &["d"], 100);
+    assert!(reusable(&ctx, &lockfile, "a@1.0.0"));
+    assert_eq!(memoised_answers(&ctx), 3);
 }

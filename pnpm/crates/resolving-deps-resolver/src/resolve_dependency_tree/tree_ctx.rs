@@ -24,7 +24,8 @@ use crate::{
 };
 
 use super::{
-    ManifestHook, UpdateReuseScope, update_scope::UpdateScope, workspace_ctx::WorkspaceTreeCtx,
+    ManifestHook, UpdateReuseScope, reuse::TargetDistances, update_scope::UpdateScope,
+    workspace_ctx::WorkspaceTreeCtx,
 };
 
 /// Whether a wanted dep's resolution is computed relative to the
@@ -356,6 +357,11 @@ impl TreeCtx {
 
     pub(super) fn update_scope(&self) -> UpdateScope<'_> {
         UpdateScope { reuse: self.update_reuse_scope(), max_depth: self.workspace.reuse.depth }
+    }
+
+    /// The [`TargetDistances`] of this importer's update scope.
+    pub(super) fn target_distances(&self) -> Arc<TargetDistances> {
+        self.workspace.target_distances_for(&self.importer.id)
     }
 
     pub(super) fn update_cache_scope(&self) -> Option<String> {
