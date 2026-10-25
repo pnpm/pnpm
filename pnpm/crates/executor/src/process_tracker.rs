@@ -372,8 +372,8 @@ const PROCESS_LISTING_DEADLINE: Duration = Duration::from_secs(10);
 /// discarded, because a partial listing would name the wrong parents.
 ///
 /// `None` says the listing could not be read, which is not the same as a
-/// tree with nothing in it, so it is reported rather than passed off as
-/// one: the descendants it would have named are left running.
+/// tree with nothing in it: the descendants it would have named are left
+/// running, and a trace record says so.
 #[cfg(unix)]
 fn process_listing() -> Option<String> {
     let mut command = Command::new("/bin/ps");
@@ -393,8 +393,8 @@ fn process_listing() -> Option<String> {
         // else inherited it can keep it open for as long as it lives, and
         // nothing here needs what it says any more.
         drop(output);
-        eprintln!(
-            "pnpm could not list the running processes, so a process a cancelled script started may still be running",
+        tracing::warn!(
+            "the process listing did not arrive, so a process a cancelled script started may still be running",
         );
         return None;
     }
