@@ -130,8 +130,14 @@ fn peer_heavy_scenario_generates_shared_subgraph_root() {
         .expect("read leaf peer-heavy packument"),
     )
     .expect("parse leaf peer-heavy packument");
-    let registry_package_count =
-        fs::read_dir(registry.join("default/packages")).expect("read peer-heavy registry").count();
+    let registry_package_count: usize = fs::read_dir(registry.join("default/packages"))
+        .expect("read peer-heavy registry")
+        .map(|scope| {
+            fs::read_dir(scope.expect("read peer-heavy registry scope").path())
+                .expect("read peer-heavy registry scope")
+                .count()
+        })
+        .sum();
     let _ = fs::remove_dir_all(&dir);
 
     let dependencies = manifest["dependencies"].as_object().expect("generated dependencies");
