@@ -1,7 +1,12 @@
+use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
 use pnpm_store_dir::StoreDir;
-use pnpm_testing_utils::bin::CommandTempCwd;
-use std::{fs, io, path::Path, process::Stdio};
+use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use std::{
+    fs, io,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 /// Create `dir/node_modules/<name>/package.json` so the directory
 /// looks like an installed package that `clean` must remove.
@@ -158,6 +163,58 @@ fn clean_lockfile_removes_lockfile() {
     assert!(output.status.success(), "pacquet clean --lockfile should succeed");
 
     assert!(!lockfile.exists(), "pnpm-lock.yaml should be removed with --lockfile");
+
+    drop(root);
+}
+
+/// `pnpm ci` never removes the lockfile. `--lockfile` and
+/// `--config.lockfile=true` name the `lockfile` setting, so the install
+/// still runs frozen from the existing lockfile.
+#[test]
+fn ci_keeps_the_lockfile_when_the_lockfile_setting_is_given() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let dependency = workspace.join("dependency");
+    fs::create_dir_all(&dependency).expect("create the local dependency");
+    fs::write(dependency.join("package.json"), r#"{"name":"local-dependency","version":"1.0.0"}"#)
+        .expect("write the local dependency manifest");
+    fs::write(
+        workspace.join("package.json"),
+        r#"{"dependencies":{"local-dependency":"file:dependency"}}"#,
+    )
+    .expect("write the project manifest");
+    let store_dir = root.path().join("store");
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        format!("storeDir: {}\n", serde_json::to_string(&store_dir).expect("quote the store dir")),
+    )
+    .expect("write pnpm-workspace.yaml");
+    let output = pacquet
+        .with_args(["install"])
+        .output()
+        .expect("run pnpm install");
+    assert!(output.status.success(), "{output:?}");
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile = fs::read_to_string(&lockfile_path).expect("read the lockfile");
+
+    for flag in ["--lockfile", "--config.lockfile=true"] {
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_args(["ci", flag])
+            .output()
+            .expect("run pnpm ci");
+        assert!(output.status.success(), "pnpm ci {flag} should succeed: {output:?}");
+        assert_eq!(
+            fs::read_to_string(&lockfile_path).expect("the lockfile must survive pnpm ci"),
+            lockfile,
+            "pnpm ci {flag} must leave the lockfile unchanged",
+        );
+        assert!(
+            workspace.join("node_modules/local-dependency/package.json").exists(),
+            "pnpm ci {flag} should install the dependency",
+        );
+    }
 
     drop(root);
 }

@@ -327,14 +327,13 @@ fn install_with_config<'a>(
 }
 
 pub(super) fn ci<'a>(ctx: &RunCtx<'a>, args: CiArgs) -> miette::Result<CommandFuture<'a>> {
-    let clean_args = args.clean_args;
     let mut install_args = args.install_args;
     install_args.lockfile.frozen = true;
 
     // Run clean eagerly before the async future so errors surface
     // immediately. `ci` is not an overridable command, so this is always
     // the built-in clean, never a `clean` script the project declares.
-    clean_builtin(ctx, (ctx.loaders.config)()?, clean_args.lockfile)?;
+    clean_builtin(ctx, (ctx.loaders.config)()?, false)?;
 
     install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)
 }
