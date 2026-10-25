@@ -343,17 +343,30 @@ pub(super) async fn put_scoped_packument_revision(
 }
 
 /// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
-/// (`pnpm unpublish --force`).
+/// (`pnpm unpublish --force`), or remove one version's tarball when the segment
+/// is `{pkg}@{version}` (`DELETE {dist.tarball}/-rev/{rev}`).
 pub(super) async fn unpublish_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<NamePath>,
 ) -> Response {
+    if let Some((pkg_name, version)) = split_package_identifier(&path.name) {
+        return unpublish_version_tarball(
+            &state,
+            &identity,
+            registry.as_deref(),
+            pkg_name,
+            version,
+        )
+        .await;
+    }
     delete_package(&state, &identity, registry.as_deref(), &path.name).await
 }
 
-/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package.
+/// `DELETE {base}/@{scope}/{pkg}/-rev/{rev}` — remove a whole scoped package,
+/// or remove one scoped version's tarball when the second segment is
+/// `{pkg}@{version}` (`DELETE {dist.tarball}/-rev/{rev}`).
 pub(super) async fn unpublish_scoped_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -364,8 +377,31 @@ pub(super) async fn unpublish_scoped_package(
     if !scope.starts_with('@') {
         return not_found();
     }
+    if let Some((bare_name, version)) = split_package_identifier(&name) {
+        let full = format!("{scope}/{bare_name}");
+        return unpublish_version_tarball(&state, &identity, registry.as_deref(), &full, version)
+            .await;
+    }
     let full = format!("{scope}/{name}");
     delete_package(&state, &identity, registry.as_deref(), &full).await
+}
+
+async fn unpublish_version_tarball(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_name: &str,
+    version: &str,
+) -> Response {
+    if super::super::revision_tarballs::parse_revision_version(version).is_some() {
+        return not_found();
+    }
+    let canonical = match CanonicalPackageName::parse(raw_name, Ecosystem::Npm) {
+        Ok(name) => name,
+        Err(err) => return err.into_response(),
+    };
+    let filename = canonical.tarball_name_for_version(version);
+    delete_tarball(state, identity, registry, raw_name, &filename).await
 }
 
 /// `DELETE {base}/{pkg}/-/{filename}/-rev/{rev}` — remove one version's

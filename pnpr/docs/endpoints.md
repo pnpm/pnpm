@@ -75,8 +75,9 @@ Every request routes through the registry graph:
 - The serving registry's matching `packages:` rule is enforced on every read
   and write.
 - Served `dist.tarball` URLs are rewritten onto `--public-url` (`PNPR_PUBLIC_URL`)
-  and stay canonical for the base the client addressed (`/npm/` or
-  `/npm/~<name>/`), so lockfiles don't bake in a registry name.
+  as `<registry>/<name>@<version>` and stay canonical for the base the client
+  addressed (`/npm/` or `/npm/~<name>/`), so lockfiles don't bake in a
+  registry name.
 
 ## pnpr protocol endpoints
 
@@ -254,6 +255,8 @@ a hosted registry.
 | `PUT` | `/-/pnpm/v1/publish` | pnpm batch publish. Body is `{"packages":[<publish document>, ...]}`. The batch is all-or-nothing and each package requires `publish`. For a release that spans ecosystems, use [`PUT /-/pnpr/v0/publish`](ecosystems.md#one-publish-for-a-workspace-that-spans-ecosystems) instead. |
 | `PUT` | `/{package}/-rev/{rev}` | Replace a packument, used by partial unpublish. Requires both `publish` and `unpublish`. Use a percent-encoded scoped package name, for example `@scope%2Fname`. |
 | `DELETE` | `/{package}/-rev/{rev}` | Remove an entire package, used by force unpublish. Requires `unpublish`. Use a percent-encoded scoped package name for scoped packages. |
+| `DELETE` | `/{name}@{version}/-rev/{rev}` | Remove an unscoped version's tarball. Requires `unpublish`. |
+| `DELETE` | `/@scope/{name}@{version}/-rev/{rev}` | Remove a scoped version's tarball. Requires `unpublish`. |
 | `DELETE` | `/{name}/-/{filename}/-rev/{rev}` | Remove an unscoped tarball. Requires `unpublish`. |
 | `DELETE` | `/@scope/{name}/-/{filename}/-rev/{rev}` | Remove a scoped tarball. Requires `unpublish`. |
 | `PUT` | `/-/package/{package}/dist-tags/{tag}` | Add or update a dist-tag. Body is a JSON string version, for example `"1.0.0"`. Requires `publish`. |

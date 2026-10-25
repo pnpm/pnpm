@@ -2,7 +2,8 @@ use super::{
     ABBREVIATED_CONTENT_TYPE, Arc, Body, CanonicalPackageName, DistView, HeaderMap, IndexMap,
     Integrity, RegistryError, Response, StatusCode, Utc, Value, abbreviate_packument,
     describe_tars, filter_osv_vulnerable_versions, header, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, streaming, tarball_basename,
+    rewrite_upstream_tarball_urls, streaming, tarball_basename_for_package,
+    version_route_tarball_version,
 };
 
 /// The version a tarball request resolves to, plus that version's declared
@@ -12,6 +13,7 @@ use super::{
 /// resolves to the right version, integrity, and OSV identity.
 pub(super) struct TarballDist {
     pub(super) version: String,
+    pub(super) version_route: Option<String>,
     pub(super) integrity: Integrity,
     pub(super) unpacked_size: Option<u64>,
 }
@@ -58,7 +60,7 @@ pub(super) fn expected_tarball_dist(
             let dist = manifest.dist.as_ref()?;
             dist.tarball
                 .as_deref()
-                .and_then(tarball_basename)
+                .and_then(|url| tarball_basename_for_package(url, name))
                 .is_some_and(|basename| basename == filename)
                 .then_some((version, dist))
         });
@@ -77,7 +79,16 @@ pub(super) fn expected_tarball_dist(
         ));
     }
     let integrity = declared_tarball_integrity(dist, name, filename, version)?;
-    Ok(Some(TarballDist { version: version.clone(), integrity, unpacked_size: dist.unpacked_size }))
+    let version_route = dist.tarball
+        .as_deref()
+        .and_then(|url| version_route_tarball_version(url, name))
+        .map(str::to_string);
+    Ok(Some(TarballDist {
+        version: version.clone(),
+        version_route,
+        integrity,
+        unpacked_size: dist.unpacked_size,
+    }))
 }
 
 /// Prefer SRI and fall back to legacy SHA-1, while refusing unverified bytes.

@@ -1,4 +1,4 @@
-use pnpr_upstream::tarball_basename;
+use pnpr_upstream::{tarball_basename_for_package, version_route_tarball_version};
 use serde_json::Map;
 
 use super::{CanonicalPackageName, RegistryError, Value};
@@ -184,12 +184,14 @@ pub(super) fn check_integrity_immutable(
 }
 
 /// `dist.tarball` of a published version may not change, and an update that
-/// omits it has the stored one put back.
+/// omits it or submits a round-tripped `<pkg>@<version>` URL has the stored
+/// `.tgz` URL put back.
 ///
-/// Basenames are compared, not URLs: the round-trip carries the rewritten URL
-/// (see [`pnpr_upstream::rewrite_tarball_urls`]) while the hosted side keeps
-/// the original, and [`served_tarball_basename`] applies the same
-/// version-derived fallback so a basename-less stored URL is still pinned.
+/// Canonical tarball identities are compared, not URLs: the round-trip carries
+/// the rewritten URL (see [`pnpr_upstream::rewrite_tarball_urls`], which emits
+/// `{public_url}/{pkg}@{version}`) while the hosted side keeps the `.tgz` URL,
+/// and [`served_tarball_basename`] applies the same version-derived fallback so
+/// a basename-less stored URL is still pinned.
 pub(super) fn check_tarball_immutable(
     entry: &PublishedVersion<'_>,
     name: &CanonicalPackageName,
@@ -197,35 +199,53 @@ pub(super) fn check_tarball_immutable(
 ) -> Option<RegistryError> {
     let version = entry.version;
     let stored_basename = served_tarball_basename(entry.existing, name)?;
-    let incoming_basename = entry.manifest
+    let incoming_url = entry.manifest
         .get("dist")
         .and_then(|dist| dist.get("tarball"))
-        .and_then(Value::as_str)
-        .and_then(tarball_basename);
+        .and_then(Value::as_str);
+    let incoming_basename =
+        incoming_url.and_then(|url| tarball_basename_or_version_route(url, name));
     match incoming_basename {
         Some(submitted) if submitted != stored_basename => Some(RegistryError::BadRequest {
             reason: format!("dist.tarball for the published version {version:?} is immutable"),
         }),
-        Some(_) => None,
+        Some(_) => {
+            if incoming_url.is_some_and(|url| is_version_route_url(url, name)) {
+                restore_stored_tarball(entry, restore);
+            }
+            None
+        }
         None => {
             let refusal = require_object_dist(entry.manifest, version);
             if refusal.is_none() {
-                let stored = entry.existing
-                    .get("dist")
-                    .and_then(|dist| dist.get("tarball"))
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                restore.push((version.clone(), "tarball".to_string(), stored));
+                restore_stored_tarball(entry, restore);
             }
             refusal
         }
     }
 }
 
+fn restore_stored_tarball(
+    entry: &PublishedVersion<'_>,
+    restore: &mut Vec<(String, String, Value)>,
+) {
+    let stored = entry.existing
+        .get("dist")
+        .and_then(|dist| dist.get("tarball"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    restore.push((entry.version.clone(), "tarball".to_string(), stored));
+}
+
+fn is_version_route_url(url: &str, pkg: &CanonicalPackageName) -> bool {
+    version_route_tarball_version(url, pkg).is_some()
+}
+
 /// The tarball basename a version is actually served under, mirroring
 /// [`pnpr_upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
-/// one, otherwise the version-derived canonical name the rewrite falls back to.
-/// Returns `None` when the manifest carries no string `dist.tarball` to serve.
+/// one (normalized when it names `<pkg>@<version>`), otherwise the version-derived canonical name
+/// the rewrite falls back to. Returns `None` when the manifest carries no string `dist.tarball` to
+/// serve.
 pub(super) fn served_tarball_basename(
     manifest: &Value,
     pkg: &CanonicalPackageName,
@@ -234,11 +254,16 @@ pub(super) fn served_tarball_basename(
         .get("dist")
         .and_then(|dist| dist.get("tarball"))
         .and_then(Value::as_str)?;
-    if let Some(basename) = tarball_basename(url) {
-        return Some(basename.to_owned());
+    if let Some(basename) = tarball_basename_or_version_route(url, pkg) {
+        return Some(basename);
     }
     let version = manifest.get("version").and_then(Value::as_str)?;
     Some(pkg.tarball_name_for_version(version))
+}
+
+fn tarball_basename_or_version_route(url: &str, pkg: &CanonicalPackageName) -> Option<String> {
+    let basename = tarball_basename_for_package(url, pkg)?;
+    Some(pkg.canonicalize_tarball_name(&basename).unwrap_or_else(|_| basename.into_owned()))
 }
 
 /// Reject a published version whose `dist` isn't an object: a restore needs an

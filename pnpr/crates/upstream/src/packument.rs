@@ -4,21 +4,12 @@ use super::{
 };
 
 /// Rewrite every `dist.tarball` in `value` to a URL served by *this*
-/// registry instead of whatever URL the source put there. The new URL is
-/// `{public_url}/{pkg}/-/{basename}`, where `basename` is the last
-/// `/`-separated segment of the original tarball URL. This handles both
-/// npm's canonical `/{pkg}/-/{basename}` shape and verdaccio's
-/// `/{scope}/{name}/-/{scope}/{filename}` shape uniformly — we only look
-/// at the basename, never at the path prefix.
-///
-/// The basename is preserved verbatim rather than reconstructed from the
-/// version, so a non-canonical tarball name (e.g. esprima-fb's zero-padded
-/// `esprima-fb-3001.0001.0000-dev-harmony-fb.tgz` for version
-/// `3001.1.0-dev-harmony-fb`) survives into the client's lockfile and is
-/// fetched back from the path the upstream actually hosts. The tarball
-/// endpoint binds each request to a version's declared `dist.integrity`
-/// (see `serve_tarball`), so a preserved name can't smuggle in unverified
-/// bytes.
+/// registry instead of whatever URL the source put there. When the version
+/// has an addressable version string, the new URL is `{public_url}/{pkg}@{version}`,
+/// and `serve_package_tarball` resolves the version's declared `dist.tarball`
+/// filename and `dist.integrity` from its packument or version manifest. When
+/// no addressable version is available (such as a top-level manifest without a
+/// `version` field), the fallback URL is `{public_url}/{pkg}/-/{basename}`.
 ///
 /// Walks both packument shape (`{ "versions": { v: { dist: ... } } }`)
 /// and single-version manifest shape (`{ dist: ... }` at the top level)
@@ -61,18 +52,11 @@ pub(super) fn rewrite_dist_tarball(
 ) {
     // Every string `dist.tarball` must be rewritten to a route on *this*
     // server, where integrity and OSV are enforced — never passed through.
-    // When the upstream URL has no usable basename (e.g. it ends in `/`), fall
-    // back to the version-derived canonical name (the manifest carries its own
-    // `version`) so a malformed URL still points at pnpr (and 404s there)
-    // rather than directing the client at an arbitrary upstream host.
     let version = value
         .get("version")
         .and_then(Value::as_str)
         .filter(|version| expected_version.is_none_or(|expected| *version == expected))
         .map(str::to_string);
-    let fallback = version
-        .as_deref()
-        .map(|version| pkg.tarball_name_for_version(version));
     let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
@@ -99,11 +83,68 @@ pub(super) fn rewrite_dist_tarball(
     dist.remove("revisions");
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
     let Some(tarball) = tarball_value.as_str() else { return };
-    let filename = tarball_basename(tarball)
-        .map(str::to_owned)
-        .or(fallback)
+    let target_version = version.as_deref().or(expected_version);
+    *tarball_value = Value::String(rewritten_tarball_url(pkg, target_version, tarball, public_url));
+}
+
+fn rewritten_tarball_url(
+    pkg: &CanonicalPackageName,
+    version: Option<&str>,
+    tarball: &str,
+    public_url: &str,
+) -> String {
+    if let Some(version) = version
+        && is_addressable_version(version)
+    {
+        return format!("{public_url}/{pkg}@{version}", pkg = pkg.as_str());
+    }
+    let filename = tarball_basename_for_package(tarball, pkg)
+        .map(std::borrow::Cow::into_owned)
+        .or_else(|| version.map(|version| pkg.tarball_name_for_version(version)))
         .unwrap_or_default();
-    *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
+    format!("{public_url}/{}/-/{filename}", pkg.as_str())
+}
+
+fn is_addressable_version(version: &str) -> bool {
+    pnpr_package_name::is_safe_path_segment(version)
+        && !version
+            .split_once('+')
+            .and_then(|(_, build)| build.strip_prefix('r'))
+            .is_some_and(|digits| {
+                !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
+            })
+}
+
+/// The `<version>` segment when `url` ends on `{pkg}@{version}`, with any
+/// `?query`/`#fragment` stripped, when `<version>` is a safe non-revision
+/// version segment.
+#[must_use]
+pub fn version_route_tarball_version<'a>(
+    url: &'a str,
+    pkg: &CanonicalPackageName,
+) -> Option<&'a str> {
+    let path = url
+        .split(['?', '#'])
+        .next()
+        .unwrap_or(url);
+    let (prefix, version) = path.rsplit_once('@')?;
+    ((prefix.ends_with(&format!("/{}", pkg.as_str())) || prefix == pkg.as_str())
+        && is_addressable_version(version))
+    .then_some(version)
+}
+
+/// The tarball filename a `dist.tarball` URL addresses for `pkg`: the canonical
+/// `<basename>-<version>.tgz` when `url` is a `{pkg}@{version}` route, or
+/// [`tarball_basename`] otherwise.
+#[must_use]
+pub fn tarball_basename_for_package<'a>(
+    url: &'a str,
+    pkg: &CanonicalPackageName,
+) -> Option<std::borrow::Cow<'a, str>> {
+    if let Some(version) = version_route_tarball_version(url, pkg) {
+        return Some(std::borrow::Cow::Owned(pkg.tarball_name_for_version(version)));
+    }
+    tarball_basename(url).map(std::borrow::Cow::Borrowed)
 }
 
 fn rewrite_dist_attestations(

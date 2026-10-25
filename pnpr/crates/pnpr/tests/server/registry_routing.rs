@@ -682,7 +682,7 @@ async fn a_single_npm_ecosystem_still_answers_under_its_prefix() {
         .as_str()
         .unwrap()
         .to_string();
-    assert_eq!(advertised, "http://example.test/npm/npm/-/npm-10.0.0.tgz");
+    assert_eq!(advertised, "http://example.test/npm/npm@10.0.0");
 
     let fetched = app
         .oneshot(

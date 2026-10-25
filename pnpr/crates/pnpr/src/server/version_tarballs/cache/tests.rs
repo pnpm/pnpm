@@ -10,6 +10,7 @@ const TTL: Duration = Duration::from_mins(1);
 fn tgz() -> Arc<VersionTgz> {
     Arc::new(VersionTgz {
         filename: "foo-1.0.0.tgz".to_string(),
+        version_route: None,
         dist: serde_json::from_str("{}").unwrap(),
         integrity_key: None,
     })

@@ -300,3 +300,46 @@ fn strips_round_tripped_dist_pnpr_overlay() {
     assert!(enforce_published_version_immutability(&hosted, &pkg, &mut incoming).is_none());
     assert!(incoming["versions"]["1.0.0"]["dist"].get("pnpr").is_none());
 }
+
+#[test]
+fn accepts_round_tripped_version_route_tarball_url_and_restores_stored_url() {
+    let pkg =
+        CanonicalPackageName::parse("@acme/mypkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let hosted = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "@acme/mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://localhost/npm/@acme/mypkg/-/mypkg-1.0.0.tgz",
+                }
+            }
+        }
+    });
+
+    let mut incoming = json!({
+        "versions": {
+            "1.0.0": {
+                "name": "@acme/mypkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-test",
+                    "tarball": "http://example.test/npm/@acme/mypkg@1.0.0",
+                }
+            }
+        }
+    });
+
+    assert!(enforce_published_version_immutability(&hosted, &pkg, &mut incoming).is_none());
+    assert_eq!(
+        incoming["versions"]["1.0.0"]["dist"]["tarball"],
+        json!("http://localhost/npm/@acme/mypkg/-/mypkg-1.0.0.tgz"),
+    );
+
+    let mut wrong_version = incoming;
+    wrong_version["versions"]["1.0.0"]["dist"]["tarball"] =
+        json!("http://example.test/npm/@acme/mypkg@2.0.0");
+    let err = enforce_published_version_immutability(&hosted, &pkg, &mut wrong_version).unwrap();
+    assert!(matches!(err, RegistryError::BadRequest { .. }));
+}

@@ -2,7 +2,8 @@ use super::{
     Arc, CanonicalPackageName, HashMap, Identity, Lockfile, LockfileResolution, PacquetConfig,
     RouteClass, RouteContext, TarballResolution, is_git_hosted_tarball_url, is_http_tarball_url,
     pick_registry_for_package, sanitize_registry_tarball_url, strip_url_credentials,
-    tarball_basename, tarball_url_and_integrity,
+    tarball_basename, tarball_basename_for_package, tarball_url_and_integrity,
+    version_route_tarball_version,
 };
 
 #[derive(Clone)]
@@ -47,16 +48,15 @@ impl TarballRouter {
             // token. A genuinely public tarball is anonymously fetchable, so the
             // sanitized URL still works.
             RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
-            RouteClass::Hosted { .. } => pnpr_tarball_url(
-                &self.public_url,
-                package,
-                &tarball_filename(package, version, tarball_url),
-            ),
+            RouteClass::Hosted { .. } => {
+                pnpr_tarball_url(&self.public_url, package, version, tarball_url)
+            }
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
                 &alias,
                 package,
-                &tarball_filename(package, version, tarball_url),
+                version,
+                tarball_url,
             ),
         }
     }
@@ -129,16 +129,15 @@ impl TarballRouter {
             // malicious/compromised registry embedded in `dist.tarball` is
             // stripped first, so pnpr never streams or caches it.
             RouteClass::Public => strip_url_credentials(tarball_url),
-            RouteClass::Hosted { .. } => pnpr_tarball_url(
-                &self.public_url,
-                package,
-                &tarball_filename(package, version, tarball_url),
-            ),
+            RouteClass::Hosted { .. } => {
+                pnpr_tarball_url(&self.public_url, package, version, tarball_url)
+            }
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
                 &alias,
                 package,
-                &tarball_filename(package, version, tarball_url),
+                version,
+                tarball_url,
             ),
         }
     }
@@ -157,18 +156,28 @@ impl TarballRouter {
     }
 }
 
-pub(super) fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
-    if let Some(basename) = tarball_basename(tarball_url) {
-        return basename.to_string();
+pub(super) fn tarball_route_tail(package: &str, version: &str, tarball_url: &str) -> String {
+    if let Ok(name) = CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm)
+        && let Some(route_version) = version_route_tarball_version(tarball_url, &name)
+    {
+        return format!("{package}@{route_version}");
     }
-    match CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm) {
-        Ok(name) => name.tarball_name_for_version(version),
-        Err(_) => format!("{package}-{version}.tgz"),
-    }
+    let filename = match CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm) {
+        Ok(name) => tarball_basename_for_package(tarball_url, &name)
+            .map_or_else(|| name.tarball_name_for_version(version), std::borrow::Cow::into_owned),
+        Err(_) => tarball_basename(tarball_url)
+            .map_or_else(|| format!("{package}-{version}.tgz"), str::to_string),
+    };
+    format!("{package}/-/{filename}")
 }
 
-pub(super) fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
-    format!("{}/{package}/-/{filename}", npm_endpoint(public_url))
+pub(super) fn pnpr_tarball_url(
+    public_url: &str,
+    package: &str,
+    version: &str,
+    tarball_url: &str,
+) -> String {
+    format!("{}/{}", npm_endpoint(public_url), tarball_route_tail(package, version, tarball_url))
 }
 
 /// The registry-endpoint URL a proxied route's tarball is served through.
@@ -176,9 +185,14 @@ pub(super) fn upstream_endpoint_tarball_url(
     public_url: &str,
     upstream: &str,
     package: &str,
-    filename: &str,
+    version: &str,
+    tarball_url: &str,
 ) -> String {
-    format!("{}/~{upstream}/{package}/-/{filename}", npm_endpoint(public_url))
+    format!(
+        "{}/~{upstream}/{}",
+        npm_endpoint(public_url),
+        tarball_route_tail(package, version, tarball_url),
+    )
 }
 
 fn npm_endpoint(public_url: &str) -> String {
