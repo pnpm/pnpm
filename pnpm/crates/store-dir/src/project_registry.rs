@@ -136,25 +136,43 @@ fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), Reg
             link_path: link_path.clone(),
             error,
         })?;
-    let canonical_existing = canonicalize_or_join(&link_path, &existing_target);
-    let canonical_project =
-        dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
-    if canonical_existing == canonical_project {
+    if target_resolves_to(&link_path, &existing_target, project_dir) {
         return Ok(());
     }
-    remove_symlink_dir(&link_path)
-        .map_err(|error| RegisterProjectError::RemoveStale {
-            project_dir: project_dir.to_path_buf(),
-            link_path: link_path.clone(),
-            old_target: existing_target.clone(),
-            error,
-        })?;
-    link_project(project_dir, &link_path)
-        .map_err(|error| RegisterProjectError::CreateSymlink {
+    // A concurrent registration of the same project may remove the entry
+    // first, or recreate it between the removal and the create below.
+    match remove_symlink_dir(&link_path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(RegisterProjectError::RemoveStale {
+                project_dir: project_dir.to_path_buf(),
+                link_path,
+                old_target: existing_target,
+                error,
+            });
+        }
+    }
+    match link_project(project_dir, &link_path) {
+        Err(error)
+            if error.kind() == ErrorKind::AlreadyExists
+                && read_symlink_dir(&link_path)
+                    .is_ok_and(|target| target_resolves_to(&link_path, &target, project_dir)) =>
+        {
+            Ok(())
+        }
+        result => result.map_err(|error| RegisterProjectError::CreateSymlink {
             project_dir: project_dir.to_path_buf(),
             link_path,
             error,
-        })
+        }),
+    }
+}
+
+fn target_resolves_to(link_path: &Path, target: &Path, project_dir: &Path) -> bool {
+    let canonical_project =
+        dunce::canonicalize(project_dir).unwrap_or_else(|_| project_dir.to_path_buf());
+    canonicalize_or_join(link_path, target) == canonical_project
 }
 
 /// Error type for [`get_registered_projects`].

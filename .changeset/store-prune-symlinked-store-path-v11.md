@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-`pnpm store prune` no longer forgets a project that was installed with a different symlinked spelling of the store path, so it keeps the packages that project uses in the global virtual store.
+`pnpm store prune` now keeps the packages of a project that was installed with a different symlinked spelling of the store path. Previously, prune dropped such a project from its list and removed the packages only that project used from the global virtual store.

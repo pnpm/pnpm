@@ -31,13 +31,33 @@ export async function registerProject (storeDir: string, projectDir: string): Pr
   const linkPath = path.join(registryDir, createShortHash(projectDir))
   try {
     await linkProject(projectDir, linkPath)
-    return
   } catch (err: unknown) {
-    if (!isError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    if (!hasErrorCode(err, 'EEXIST')) throw err
+    if (!await resolvesToSameDir(linkPath, projectDir)) {
+      await replaceProjectLink(projectDir, linkPath)
+    }
   }
-  if (await resolvesToSameDir(linkPath, projectDir)) return
-  await fs.unlink(linkPath)
-  await linkProject(projectDir, linkPath)
+}
+
+/**
+ * A concurrent registration of the same project may remove the entry first,
+ * or recreate it between the removal and the create.
+ */
+async function replaceProjectLink (projectDir: string, linkPath: string): Promise<void> {
+  try {
+    await fs.unlink(linkPath)
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'ENOENT')) throw err
+  }
+  try {
+    await linkProject(projectDir, linkPath)
+  } catch (err: unknown) {
+    if (!hasErrorCode(err, 'EEXIST') || !await resolvesToSameDir(linkPath, projectDir)) throw err
+  }
+}
+
+function hasErrorCode (err: unknown, code: string): boolean {
+  return isError(err) && 'code' in err && err.code === code
 }
 
 /**
@@ -45,20 +65,23 @@ export async function registerProject (storeDir: string, projectDir: string): Pr
  * back to a junction there.
  */
 async function linkProject (projectDir: string, linkPath: string): Promise<void> {
+  const target = path.resolve(projectDir)
   try {
-    await fs.symlink(projectDir, linkPath, 'dir')
+    await fs.symlink(target, linkPath, 'dir')
   } catch (err: unknown) {
-    if (process.platform !== 'win32' || !isError(err) || !('code' in err) || err.code !== 'EPERM') throw err
-    await fs.symlink(projectDir, linkPath, 'junction')
+    if (process.platform !== 'win32' || !hasErrorCode(err, 'EPERM')) throw err
+    await fs.symlink(target, linkPath, 'junction')
   }
 }
+
+const UNRESOLVABLE_LINK_CODES = new Set(['ENOENT', 'ENOTDIR', 'ELOOP'])
 
 async function resolvesToSameDir (linkPath: string, projectDir: string): Promise<boolean> {
   try {
     const [linkTarget, project] = await Promise.all([fs.realpath(linkPath), fs.realpath(projectDir)])
     return linkTarget === project
   } catch (err: unknown) {
-    if (isError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (isError(err) && 'code' in err && UNRESOLVABLE_LINK_CODES.has(err.code as string)) return false
     throw err
   }
 }
