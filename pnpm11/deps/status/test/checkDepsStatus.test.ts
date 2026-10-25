@@ -483,6 +483,52 @@ describe('checkDepsStatus - settings change detection', () => {
 
     expect(result.issue).not.toBe('The value of the registryPrefixes setting has changed')
   })
+
+  it('returns upToDate: true when the lockfile and the config both set dedupePeers', async () => {
+    const lastValidatedTimestamp = Date.now() - 10_000
+    const mockWorkspaceState: WorkspaceState = {
+      lastValidatedTimestamp,
+      pnpmfiles: [],
+      settings: {
+        excludeLinksFromLockfile: false,
+        linkWorkspacePackages: true,
+        preferWorkspacePackages: true,
+        peersSuffixMaxLength: 1000,
+        dedupePeers: true,
+      },
+      projects: {},
+      filteredInstall: false,
+    }
+    jest.mocked(loadWorkspaceState).mockReturnValue(mockWorkspaceState)
+    const lockfileMtime = lastValidatedTimestamp - 10_000
+    jest.mocked(fsUtils.safeStat).mockImplementation(async () => ({
+      mtime: new Date(lockfileMtime),
+      mtimeMs: lockfileMtime,
+    } as Stats))
+    jest.mocked(fsUtils.safeStatSync).mockReturnValue(undefined)
+    jest.mocked(statManifestFileUtils.statManifestFile).mockImplementation(async () => ({
+      mtime: new Date(lastValidatedTimestamp),
+      mtimeMs: lastValidatedTimestamp,
+    } as Stats))
+    const lockfile = {
+      lockfileVersion: '9.0',
+      settings: { dedupePeers: true },
+      importers: { '.': { specifiers: {} } },
+    } as unknown as LockfileObject
+    jest.mocked(lockfileFs.readCurrentLockfile).mockImplementation(async () => lockfile)
+    jest.mocked(lockfileFs.readWantedLockfile).mockImplementation(async () => lockfile)
+
+    const opts: CheckDepsStatusOptions = {
+      rootProjectManifest: {},
+      rootProjectManifestDir: '/project',
+      pnpmfile: [],
+      ...mockWorkspaceState.settings,
+    }
+    const result = await checkDepsStatus(opts)
+
+    expect(result.issue).toBeUndefined()
+    expect(result.upToDate).toBe(true)
+  })
 })
 
 describe('checkDepsStatus - pnpmfile modification', () => {
