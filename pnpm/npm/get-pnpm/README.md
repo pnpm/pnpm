@@ -105,7 +105,7 @@ registry=https://registry.example.com/npm/
 
 An equivalent `npm_config_//registry.example.com/npm/:_authToken` environment entry is also accepted when the environment can represent that name. Credentials embedded in `npm_config_registry` are converted to HTTP Basic authentication and removed from the request URL.
 
-Authentication from npm config is sent only to the configured registry origin and the selected token's path scope. If registry metadata names a tarball on another origin or outside that scope, the credentials are not forwarded there. Prefer HTTPS for authenticated registries; configuring an HTTP registry sends its credentials over that HTTP connection.
+Authentication from npm config is sent only to the configured registry origin and the selected token's path scope. If registry metadata names a tarball on another origin or outside that scope, the credentials are not forwarded there. A token from npm config is sent only over HTTPS or to the local machine. Credentials embedded in `npm_config_registry` are sent to the URL they are embedded in.
 
 A registry behind a private certificate authority is reached with the `ca`, `ca[]`, and `cafile` settings of the same files, top-level or scoped to the registry. They are read as pnpm reads them, and a relative `cafile` is resolved against the directory of the npmrc that names it:
 

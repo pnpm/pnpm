@@ -129,16 +129,28 @@ test('uses the most specific registry path token and expands environment variabl
 test('normalizes default ports using the configured registry protocol', () => {
   const config = registryConfigFromEnv({
     env: {
-      npm_config_registry: 'http://registry.example.test:80/npm/',
-      'npm_config_//registry.example.test:80/npm/:_authToken': 'http-token',
+      npm_config_registry: 'http://127.0.0.1:80/npm/',
+      'npm_config_//127.0.0.1:80/npm/:_authToken': 'http-token',
     },
   })
 
   assert.deepEqual(config, {
-    registry: 'http://registry.example.test/npm/',
+    registry: 'http://127.0.0.1/npm/',
     authPath: '/npm/',
     headers: { authorization: 'Bearer http-token' },
   })
+})
+
+test('sends no token to a plain-HTTP registry on another machine', () => {
+  const env = { 'npm_config_//registry.example.test/:_authToken': 'token' }
+
+  assert.deepEqual(registryConfigFromEnv({ env: { ...env, npm_config_registry: 'http://registry.example.test/' } }), {
+    registry: 'http://registry.example.test/',
+  })
+  assert.equal(
+    registryConfigFromEnv({ env: { ...env, npm_config_registry: 'https://registry.example.test/' } }).headers?.authorization,
+    'Bearer token'
+  )
 })
 
 test('prefers a more specific token across npmrc precedence layers', () => {

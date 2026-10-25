@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import http from 'node:http'
+import net from 'node:net'
 import { pipeline } from 'node:stream/promises'
 import tls from 'node:tls'
 
@@ -21,6 +22,16 @@ export interface VersionMeta {
 const ABBREVIATED_PACKUMENT = 'application/vnd.npm.install-v1+json'
 
 export const DEFAULT_REGISTRY = 'https://registry.npmjs.org/'
+
+/** Whether credentials may be sent to `url`: over HTTPS, or to the local machine. */
+export function isUrlSecureForCredentials (url: URL): boolean {
+  return url.protocol === 'https:' || (url.protocol === 'http:' && isLoopback(url.hostname))
+}
+
+function isLoopback (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' ||
+    (net.isIPv4(hostname) && hostname.startsWith('127.'))
+}
 
 /**
  * A registry URL that can be used as a base for a relative path.

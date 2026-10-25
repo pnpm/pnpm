@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { DEFAULT_REGISTRY, normalizeRegistry, type RequestHeaders } from './registry.js'
+import { DEFAULT_REGISTRY, isUrlSecureForCredentials, normalizeRegistry, type RequestHeaders } from './registry.js'
 
 interface RegistryConfigOptions {
   cwd?: string
@@ -58,6 +58,7 @@ export function registryConfigFromEnv (opts: RegistryConfigOptions = {}): Regist
 }
 
 function tokenAuth (registry: string, sources: ConfigSource[]): RegistryConfig {
+  if (!isUrlSecureForCredentials(new URL(registry))) return { registry }
   const token = mostSpecificToken(sources.map((source) => tokenForRegistry(registry, source.entries)))
   return token == null
     ? { registry }

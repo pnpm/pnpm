@@ -1,11 +1,10 @@
 import fs from 'node:fs'
-import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
 import { certificateAuthorities, type ConfigSource, stripQuotes } from './npmConfig.js'
 import { findUp } from './projectPin.js'
-import { DEFAULT_REGISTRY, normalizeRegistry, type RequestHeaders } from './registry.js'
+import { DEFAULT_REGISTRY, isUrlSecureForCredentials, normalizeRegistry, type RequestHeaders } from './registry.js'
 
 export interface PnpmRegistryConfigOptions {
   /**
@@ -128,7 +127,7 @@ function expandEnv (value: string, env: NodeJS.ProcessEnv): string {
 
 function npmrcHeaders (settings: Map<string, string>, registry: string): RequestHeaders | undefined {
   const url = new URL(registry)
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback(url.hostname))) return undefined
+  if (!isUrlSecureForCredentials(url)) return undefined
   const prefixes = registryPrefixes(url)
   for (const scope of [':@pnpm', '']) {
     for (const prefix of prefixes) {
@@ -151,11 +150,6 @@ function registryPrefixes (url: URL): string[] {
     }
   }
   return prefixes
-}
-
-function isLoopback (hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '[::1]' ||
-    (net.isIPv4(hostname) && hostname.startsWith('127.'))
 }
 
 function npmrcAuthorization (settings: Map<string, string>, prefix: string): string | undefined {
