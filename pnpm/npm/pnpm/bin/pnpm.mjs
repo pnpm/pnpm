@@ -18,7 +18,7 @@
 // The download itself is `get-pnpm`, the package behind https://get.pnpm.io,
 // which already knows how to verify one; it travels in that same `dist/`
 // payload. What is left here is what it does not know: where to download from,
-// what credentials to use, and whose signature to trust.
+// what credentials and CAs to use, and whose signature to trust.
 import { Buffer } from 'node:buffer'
 import { spawnSync } from 'node:child_process'
 import console from 'node:console'
@@ -27,7 +27,6 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import tls from 'node:tls'
 import { URL } from 'node:url'
 import { readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
 
@@ -81,8 +80,7 @@ async function nativeBinary () {
     fail(`This copy of the pnpm package is missing the downloader it needs: ${err.message}`)
   })
   const signature = signaturePolicy()
-  const { certificates, ...access } = registryAccess({ readProjectNpmrc: signature.verifySignature !== false })
-  trustCertificates(certificates)
+  const access = registryAccess({ readProjectNpmrc: signature.verifySignature !== false })
   try {
     await downloadPnpmExecutable({
       version,
@@ -114,7 +112,7 @@ async function nativeBinary () {
 function registryAccess ({ readProjectNpmrc }) {
   const corepackRegistry = process.env.COREPACK_NPM_REGISTRY
   if (corepackRegistry) {
-    return { registry: corepackRegistry, headers: corepackHeaders(), certificates: [] }
+    return { registry: corepackRegistry, headers: corepackHeaders() }
   }
   const npmrc = readUserNpmrc()
   if (readProjectNpmrc) {
@@ -122,9 +120,9 @@ function registryAccess ({ readProjectNpmrc }) {
   }
   const registry = npmrc['@pnpm:registry'] || settingFromEnv('registry') || npmrc.registry
   if (!registry) {
-    return { registry: DEFAULT_REGISTRY, headers: corepackHeaders(), certificates: npmrcCertificates(npmrc, DEFAULT_REGISTRY) }
+    return { registry: DEFAULT_REGISTRY, headers: corepackHeaders(), ca: npmrcCertificates(npmrc, DEFAULT_REGISTRY) }
   }
-  return { registry, headers: npmrcHeaders(npmrc, registry), certificates: npmrcCertificates(npmrc, registry) }
+  return { registry, headers: npmrcHeaders(npmrc, registry), ca: npmrcCertificates(npmrc, registry) }
 }
 
 /**
@@ -146,27 +144,6 @@ function npmrcCertificates (npmrc, registry) {
     }
   }
   return pemTexts.flatMap((pem) => pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [])
-}
-
-/**
- * Adds `certificates` to the CAs Node.js trusts, which keeps the defaults, so a
- * download host that the registry redirects to stays reachable. Process-wide,
- * like the proxy `get-pnpm` applies: `fetch` takes no CA of its own. Only the
- * download runs in this process; the native binary reads `.npmrc` itself.
- */
-function trustCertificates (certificates) {
-  if (certificates.length === 0) {
-    return
-  }
-  if (tls.setDefaultCACertificates == null) {
-    console.error('This Node.js cannot apply the ca and cafile settings of .npmrc to the download. Set NODE_EXTRA_CA_CERTS to the CA file instead.')
-    return
-  }
-  try {
-    tls.setDefaultCACertificates([...tls.getCACertificates('default'), ...certificates])
-  } catch (err) {
-    console.error(`Could not use the CA certificates from .npmrc: ${err.message}`)
-  }
 }
 
 /** Credentials for Corepack's registry, read the way Corepack reads its own. */

@@ -61,6 +61,7 @@ export function startRegistry ({ payload, tamper = false, unsigned = false, tls 
   const served = tamper ? Buffer.concat([tarball, Buffer.from('tampered')]) : tarball
   const integrity = `sha512-${createHash('sha512').update(tarball).digest('base64')}`
   const tarballPath = `/${packageName}/-/${VERSION}.tgz`
+  const packumentPath = `/${packageName.replaceAll('/', '%2f')}`
 
   const requests = []
   const protocol = tls ? 'https' : 'http'
@@ -74,20 +75,11 @@ export function startRegistry ({ payload, tamper = false, unsigned = false, tls 
     requests.push({ url: req.url, authorization: req.headers.authorization })
     if (req.url === `/${packageName}/${VERSION}`) {
       res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({
-        name: packageName,
-        version: VERSION,
-        dist: {
-          integrity,
-          tarball: `${protocol}://127.0.0.1:${server.address().port}${tarballPath}`,
-          signatures: unsigned ? [] : [{
-            keyid: 'SHA256:fixture-key',
-            sig: createSign('SHA256')
-              .update(`${packageName}@${VERSION}:${integrity}`)
-              .sign(privateKey, 'base64'),
-          }],
-        },
-      }))
+      res.end(JSON.stringify(versionDocument()))
+    } else if (req.url === packumentPath) {
+      // Where get-pnpm looks for signatures a version document lacks.
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ name: packageName, versions: { [VERSION]: versionDocument() } }))
     } else if (req.url === tarballPath) {
       res.writeHead(200, { 'content-type': 'application/octet-stream' })
       res.end(served)
@@ -95,6 +87,23 @@ export function startRegistry ({ payload, tamper = false, unsigned = false, tls 
       res.writeHead(404).end()
     }
   })
+
+  function versionDocument () {
+    return {
+      name: packageName,
+      version: VERSION,
+      dist: {
+        integrity,
+        tarball: `${protocol}://127.0.0.1:${server.address().port}${tarballPath}`,
+        signatures: unsigned ? [] : [{
+          keyid: 'SHA256:fixture-key',
+          sig: createSign('SHA256')
+            .update(`${packageName}@${VERSION}:${integrity}`)
+            .sign(privateKey, 'base64'),
+        }],
+      },
+    }
+  }
 
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
