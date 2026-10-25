@@ -9,6 +9,8 @@
 
 use super::cache::{StoredTask, TaskCache};
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
+#[cfg(unix)]
+use pipe_trait::Pipe as _;
 use pnpm_config::Config;
 use pnpm_pnpr_client::{
     ArtifactBlobRequest, ArtifactBlobSource, ArtifactBuildPolicy, ArtifactCandidate, ArtifactFile,
@@ -302,9 +304,11 @@ fn artifact_file(entry_dir: &Path, path: String) -> io::Result<(ArtifactFile, Ar
 fn is_executable(path: &Path) -> io::Result<bool> {
     #[cfg(unix)]
     {
-        Ok(pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from(
-            fs::metadata(path)?.permissions(),
-        )))
+        path.pipe(fs::metadata)?
+            .permissions()
+            .pipe(pnpm_fs::FileMode::from)
+            .pipe(pnpm_fs::file_mode::is_executable)
+            .pipe(Ok)
     }
     #[cfg(not(unix))]
     {
