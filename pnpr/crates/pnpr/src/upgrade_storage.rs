@@ -46,30 +46,41 @@ pub async fn upgrade_storage(config: &Config, dry_run: bool) -> miette::Result<U
             (hosted.org.clone(), ecosystem)
         })
         .collect();
-    upgrade(&storage, &HostedStore::open(config)?, &orgs, dry_run).await
+    let registries: BTreeSet<(String, Ecosystem)> = config.routing.registries
+        .names()
+        .filter_map(|name| {
+            let ecosystem = config.routing.registries.ecosystem(name)?;
+            Some((pnpr_registry::Registries::local_name(name).to_string(), ecosystem))
+        })
+        .collect();
+    upgrade_with_registries(&storage, &HostedStore::open(config)?, &orgs, &registries, dry_run)
+        .await
 }
 
-async fn upgrade(
+async fn upgrade_with_registries(
     storage: &Storage,
     store: &HostedStore,
     orgs: &BTreeSet<(String, Ecosystem)>,
+    registries: &BTreeSet<(String, Ecosystem)>,
     dry_run: bool,
 ) -> miette::Result<UpgradeReport> {
     let mut report = UpgradeReport { dry_run, ..UpgradeReport::default() };
-    match storage.hosted_layout().await.into_diagnostic()? {
-        HostedLayout::Unmarked { has_data: true } => {}
-        HostedLayout::Current | HostedLayout::Unmarked { has_data: false } => {
-            report.already_current = true;
-            return Ok(report);
-        }
-        HostedLayout::Other(layout) => {
-            return Err(miette::miette!(
-                "the hosted store uses layout {layout}, and this pnpr converts only the unmarked layout to layout {LAYOUT_VERSION}",
-            ));
-        }
+    let layout = storage.hosted_layout().await.into_diagnostic()?;
+    if let HostedLayout::Other(layout) = layout {
+        return Err(miette::miette!(
+            "the hosted store uses layout {layout}, and this pnpr converts only the unmarked layout to layout {LAYOUT_VERSION}",
+        ));
     }
-    let steps =
-        plan::plan(&store.list().await?, orgs).map_err(|reason| miette::miette!("{reason}"))?;
+    let steps = plan::plan_with_registries(&store.list().await?, orgs, registries)
+        .map_err(|reason| miette::miette!("{reason}"))?;
+    if matches!(layout, HostedLayout::Current | HostedLayout::Unmarked { has_data: false })
+        && !steps
+            .iter()
+            .any(|(_, step)| *step != Step::Orphan)
+    {
+        report.already_current = true;
+        return Ok(report);
+    }
     report.counts = plan::tally(&steps);
     report.orphans = steps
         .iter()
@@ -147,21 +158,30 @@ async fn list_local(root: &Path) -> miette::Result<Vec<String>> {
             continue;
         };
         while let Some(entry) = entries.next_entry().await.into_diagnostic()? {
-            let path = child_path(&prefix, &entry.file_name().to_string_lossy());
-            if entry
-                .file_type()
-                .await
-                .into_diagnostic()?
-                .is_dir()
-            {
-                pending.push((entry.path(), path));
-            } else {
-                paths.push(path);
-            }
+            visit_local_entry(&prefix, &entry, &mut pending, &mut paths).await?;
         }
     }
     paths.sort();
     Ok(paths)
+}
+
+async fn visit_local_entry(
+    prefix: &str,
+    entry: &fs::DirEntry,
+    pending: &mut Vec<(PathBuf, String)>,
+    paths: &mut Vec<String>,
+) -> miette::Result<()> {
+    let path = child_path(prefix, &entry.file_name().to_string_lossy());
+    let file_type = entry.file_type().await.into_diagnostic()?;
+    if file_type.is_symlink() {
+        return Err(miette::miette!("refusing to upgrade store containing symlink {path:?}"));
+    }
+    if file_type.is_dir() {
+        pending.push((entry.path(), path));
+    } else {
+        paths.push(path);
+    }
+    Ok(())
 }
 
 fn child_path(prefix: &str, name: &str) -> String {

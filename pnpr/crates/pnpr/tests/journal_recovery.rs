@@ -312,6 +312,23 @@ async fn recovery_is_a_no_op_without_a_journal_directory() {
 }
 
 #[tokio::test]
+async fn recovery_rolls_a_legacy_pnpr_journal_transaction_forward() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let tarball = b"legacy-journal-bytes";
+    let tmp_path = fabricate_crashed_publish(&storage, "legacy-fwd", "1.0.0", tarball, true);
+    std::fs::rename(storage.join(".journal"), storage.join(".pnpr-journal")).unwrap();
+
+    recover_publish_journal(&static_config(storage.clone())).await.unwrap();
+
+    assert!(
+        local_document_path(&storage, "", pnpr_storage::Ecosystem::Npm, "legacy-fwd").is_file(),
+    );
+    assert!(!tmp_path.exists());
+    assert!(!storage.join(".pnpr-journal").exists());
+}
+
+#[tokio::test]
 async fn successful_batch_publish_leaves_no_journal_residue() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();

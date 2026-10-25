@@ -1,4 +1,4 @@
-use super::{HostedStore, upgrade};
+use super::{HostedStore, UpgradeReport, upgrade_with_registries};
 use object_store::{
     ObjectStore, ObjectStoreExt as _, PutPayload, memory::InMemory, path::Path as ObjectPath,
 };
@@ -7,6 +7,15 @@ use pnpr_package_name::{CanonicalPackageName, Ecosystem};
 use pnpr_storage::{HostedLayout, Storage};
 use std::{collections::BTreeSet, path::Path, sync::Arc};
 use tempfile::TempDir;
+
+async fn upgrade(
+    storage: &Storage,
+    store: &HostedStore,
+    orgs: &BTreeSet<(String, Ecosystem)>,
+    dry_run: bool,
+) -> miette::Result<UpgradeReport> {
+    upgrade_with_registries(storage, store, orgs, &BTreeSet::new(), dry_run).await
+}
 
 const LEGACY: [(&str, &[u8]); 9] = [
     ("left-pad/package.json", b"{\"name\":\"left-pad\"}"),
@@ -125,4 +134,58 @@ async fn an_object_store_is_converted_with_its_prefix() {
 
     upgrade(&storage, &store, &orgs(), false).await.unwrap();
     assert_converted(&storage).await;
+}
+
+#[tokio::test]
+async fn a_marked_store_with_legacy_records_and_tombstones_is_upgraded() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("storage");
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, root.clone(), tmp.path().join("cache")).unwrap();
+    storage.ensure_hosted_layout().await.unwrap();
+
+    let legacy_roster = root.join(".team-rosters/v0/acme.json");
+    tokio::fs::create_dir_all(legacy_roster.parent().unwrap()).await.unwrap();
+    tokio::fs::write(&legacy_roster, br#"{"devs":["alice"]}"#).await.unwrap();
+
+    let legacy_tombstone = root.join("default/npm/.tombstones/v0/!40scope!2fgone.json");
+    tokio::fs::create_dir_all(legacy_tombstone.parent().unwrap()).await.unwrap();
+    tokio::fs::write(
+        &legacy_tombstone,
+        br#"{"package":"@scope/gone","unpublished_at":"2026-01-01T00:00:00Z"}"#,
+    )
+    .await
+    .unwrap();
+
+    let store = HostedStore::Local(root.clone());
+    let report = upgrade(&storage, &store, &orgs(), false).await.unwrap();
+    assert!(!report.already_current);
+    assert!(root.join(".team-rosters/npm/acme.json").is_file());
+    assert!(
+        storage
+            .read_tombstone(&npm("@scope/gone"))
+            .await
+            .unwrap()
+            .is_some(),
+    );
+    assert!(upgrade(&storage, &store, &orgs(), false).await.unwrap().already_current);
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_store_containing_a_symlink_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path().join("storage");
+    write_legacy(&root).await;
+    let outside = tmp.path().join("outside");
+    tokio::fs::create_dir_all(&outside).await.unwrap();
+    tokio::fs::create_dir_all(root.join(".team-rosters")).await.unwrap();
+    std::os::unix::fs::symlink(&outside, root.join(".team-rosters/npm")).unwrap();
+
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, root.clone(), tmp.path().join("cache")).unwrap();
+    let error = upgrade(&storage, &HostedStore::Local(root), &orgs(), false)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("symlink"), "{error}");
 }

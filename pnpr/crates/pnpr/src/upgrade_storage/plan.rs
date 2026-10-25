@@ -7,6 +7,9 @@
 //! `package.json` was a package: its other files were its blobs, and its
 //! subdirectories other packages (nested image repositories).
 
+mod records;
+
+use self::records::{is_new_tombstone_path, root_record_step, tombstone_step};
 use pnpr_package_name::Ecosystem;
 use pnpr_storage::layout::{
     blob_segment, decode_blob_segment, decode_package_segments, encode_segment, namespace_segments,
@@ -15,7 +18,7 @@ use pnpr_storage::layout::{
 use std::collections::{BTreeMap, BTreeSet};
 
 const LEGACY_DOCUMENT: &str = "package.json";
-const TOMBSTONES: &str = ".tombstones";
+pub(super) const TOMBSTONES: &str = ".tombstones";
 const TAR_INTEGRITY: &str = ".tar-integrity";
 /// Rebuilt or abandoned rather than carried over: the listing index and
 /// digest-revision reverse index the new layout has no use for, and image
@@ -51,16 +54,28 @@ pub(crate) enum Step {
 ///
 /// A top-level directory is both an org's namespace and a package of the
 /// default namespace, which the earlier layout cannot tell apart.
-pub(crate) fn plan(
+pub(crate) fn plan_with_registries(
     paths: &[String],
     orgs: &BTreeSet<(String, Ecosystem)>,
+    registries: &BTreeSet<(String, Ecosystem)>,
 ) -> Result<Vec<(String, Step)>, String> {
     let packages = legacy_packages(paths, orgs);
     check_unambiguous(paths, orgs, &packages)?;
-    Ok(paths
-        .iter()
-        .filter_map(|path| step(path, orgs, &packages).map(|step| (path.clone(), step)))
-        .collect())
+    let mut steps = Vec::new();
+    let mut targets = BTreeSet::new();
+    for path in paths {
+        if let Some(step) = step(path, orgs, registries, &packages)? {
+            if let Step::Move { to, .. } = &step
+                && !targets.insert(to.clone())
+            {
+                return Err(format!(
+                    "multiple records map to {to:?}; remove or merge one before upgrading",
+                ));
+            }
+            steps.push((path.clone(), step));
+        }
+    }
+    Ok(steps)
 }
 
 /// Refuse what the earlier layout cannot tell apart from the new one.
@@ -69,6 +84,15 @@ fn check_unambiguous(
     orgs: &BTreeSet<(String, Ecosystem)>,
     packages: &BTreeSet<(Namespace<'_>, String)>,
 ) -> Result<(), String> {
+    if paths
+        .iter()
+        .any(|path| path.starts_with(".pnpr-journal/") || path.starts_with(".journal/"))
+    {
+        return Err(
+            "the hosted store has a pending publish journal; start pnpr once to recover it before upgrading"
+                .to_string(),
+        );
+    }
     if orgs
         .iter()
         .any(|(org, _)| org == "default")
@@ -190,31 +214,39 @@ fn legacy_packages<'a>(
 fn step(
     path: &str,
     orgs: &BTreeSet<(String, Ecosystem)>,
+    registries: &BTreeSet<(String, Ecosystem)>,
     packages: &BTreeSet<(Namespace<'_>, String)>,
-) -> Option<Step> {
+) -> Result<Option<Step>, String> {
     if !path.contains('/') || is_new_layout(path, orgs) {
-        return None;
+        return Ok(None);
+    }
+    if let Some((prefix, ecosystem, rest)) = split_new_namespace(path, orgs)
+        && rest.starts_with(TOMBSTONES)
+    {
+        return Ok(Some(tombstone_step(&prefix, ecosystem, rest)));
     }
     if let Some(rest) = path
         .strip_prefix(TAR_INTEGRITY)
         .and_then(|rest| rest.strip_prefix('/'))
     {
         let ns = Namespace { org: TAR_INTEGRITY, ecosystem: Ecosystem::Npm };
-        return Some(package_step(TAR_INTEGRITY, Ecosystem::Npm, rest, |package| {
+        return Ok(Some(package_step(TAR_INTEGRITY, Ecosystem::Npm, rest, |package| {
             packages.contains(&(ns.clone(), package.to_string()))
-        }));
+        })));
     }
-    if let Some(step) = root_record_step(path) {
-        return Some(step);
+    if let Some(step) = root_record_step(path, orgs, registries)? {
+        return Ok(Some(step));
     }
     if path.starts_with('.') && !is_namespace_record(path) {
-        return None;
+        return Ok(None);
     }
-    let (ns, rest) = split_namespace(path, orgs)?;
+    let Some((ns, rest)) = split_namespace(path, orgs) else {
+        return Ok(None);
+    };
     let prefix = namespace_segments(ns.org, ns.ecosystem).join("/");
-    Some(namespace_step(&prefix, ns.ecosystem, rest, |package| {
+    Ok(Some(namespace_step(&prefix, ns.ecosystem, rest, |package| {
         packages.contains(&(ns.clone(), package.to_string()))
-    }))
+    })))
 }
 
 /// Paths an interrupted upgrade already moved: the exact shapes the new
@@ -226,32 +258,33 @@ fn is_new_layout(path: &str, orgs: &BTreeSet<(String, Ecosystem)>) -> bool {
     {
         return is_new_package_path(Ecosystem::Npm, rest);
     }
+    split_new_namespace(path, orgs)
+        .is_some_and(|(_, ecosystem, rest)| is_new_namespace_path(ecosystem, rest))
+}
+
+fn split_new_namespace<'a>(
+    path: &'a str,
+    orgs: &BTreeSet<(String, Ecosystem)>,
+) -> Option<(String, Ecosystem, &'a str)> {
     if let Some((eco, rest)) = path
         .strip_prefix("default/")
         .and_then(|rest| rest.split_once('/'))
         && let Some(ecosystem) = parse_ecosystem(eco)
     {
-        return is_new_namespace_path(ecosystem, rest);
+        return Some((format!("default/{eco}"), ecosystem, rest));
     }
-    let Some((org, rest)) = path
+    let (org, rest) = path
         .strip_prefix("orgs/")
-        .and_then(|rest| rest.split_once('/'))
-    else {
-        return false;
-    };
-    let Some((eco, rest)) = rest.split_once('/') else {
-        return false;
-    };
-    let Some(ecosystem) = parse_ecosystem(eco) else {
-        return false;
-    };
+        .and_then(|rest| rest.split_once('/'))?;
+    let (eco, rest) = rest.split_once('/')?;
+    let ecosystem = parse_ecosystem(eco)?;
     orgs.iter()
         .any(|(configured, configured_eco)| {
             !configured.is_empty()
                 && *configured_eco == ecosystem
                 && encode_segment(configured) == org
         })
-        && is_new_namespace_path(ecosystem, rest)
+        .then(|| (format!("orgs/{org}/{eco}"), ecosystem, rest))
 }
 
 fn parse_ecosystem(raw: &str) -> Option<Ecosystem> {
@@ -261,6 +294,12 @@ fn parse_ecosystem(raw: &str) -> Option<Ecosystem> {
 }
 
 fn is_new_namespace_path(ecosystem: Ecosystem, rest: &str) -> bool {
+    if let Some(tombstone) = rest
+        .strip_prefix(TOMBSTONES)
+        .and_then(|rest| rest.strip_prefix('/'))
+    {
+        return is_new_tombstone_path(ecosystem, tombstone);
+    }
     rest.starts_with('.') || is_new_package_path(ecosystem, rest)
 }
 
@@ -336,47 +375,6 @@ fn namespace_step(
         return Step::Orphan;
     }
     package_step(prefix, ecosystem, rest, is_package)
-}
-
-fn root_record_step(path: &str) -> Option<Step> {
-    for prefix in [".team-rosters", ".rule-overrides"] {
-        if let Some(rest) = path.strip_prefix(&format!("{prefix}/v0/")) {
-            let to = if rest.contains('/') {
-                format!("{prefix}/{rest}")
-            } else {
-                format!("{prefix}/npm/{rest}")
-            };
-            return Some(Step::Move { to, document: false });
-        }
-    }
-    for (legacy, current) in [
-        (".scim-users/v0/", ".scim-users/"),
-        (".pipeline-runs/v1/", ".pipeline-runs/"),
-        (".pnpr-artifacts/v0/", ".artifacts/"),
-        (".pnpr-journal/", ".journal/"),
-    ] {
-        if let Some(rest) = path.strip_prefix(legacy) {
-            return Some(Step::Move { to: format!("{current}{rest}"), document: false });
-        }
-    }
-    None
-}
-
-/// A tombstone was keyed by the package name under `v0/`; it is now keyed by
-/// [`package_segments`].
-fn tombstone_step(prefix: &str, ecosystem: Ecosystem, rest: &str) -> Step {
-    let Some((_version, file)) = rest
-        .strip_prefix(TOMBSTONES)
-        .and_then(|rest| rest.strip_prefix('/'))
-        .and_then(|rest| rest.split_once('/'))
-    else {
-        return Step::Orphan;
-    };
-    let Some(name) = file.strip_suffix(".json") else {
-        return Step::Orphan;
-    };
-    let segments = package_segments(ecosystem, name).join("/");
-    Step::Move { to: format!("{prefix}/{TOMBSTONES}/{segments}.json"), document: false }
 }
 
 fn package_step(

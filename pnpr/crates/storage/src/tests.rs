@@ -555,6 +555,13 @@ async fn grouped_registries_with_same_local_name_keep_records_isolated() {
         storage.read_registry_record(RegistryRecord::TeamRoster, "pypi/shared").await.unwrap(),
         Some(pypi_record.to_vec()),
     );
+    assert!(
+        storage.remove_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+    );
+    assert_eq!(
+        storage.read_registry_record(RegistryRecord::TeamRoster, "npm/shared").await.unwrap(),
+        None,
+    );
 }
 
 #[tokio::test]
