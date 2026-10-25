@@ -584,17 +584,26 @@ jobs:
         with:
           restore-cache: false
 
-      - name: Install pnpm
+      # A Node.js of its own: the filtered install below leaves out the root
+      # project, which is what pins the repository's runtime, and get-pnpm's
+      # TypeScript tests need 22.18 or newer.
+      - name: Install pnpm and Node
         uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
         with:
+          runtime: node@24
           install: false
 
-      # Only the wrapper's own dependencies: get-pnpm, which the published
+      # Only the wrapper and what it depends on: get-pnpm, which the published
       # package carries in its dist/ payload and the tests stand in for. The
       # filter does not narrow the Cargo half of the install, which is why the
       # step above provisions Rust.
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --filter pacquet
+        run: pnpm install --frozen-lockfile --filter "pacquet..."
+
+      # Builds get-pnpm before running its tests, and leaves the build output
+      # the wrapper's tests bundle.
+      - name: Test get-pnpm
+        run: pnpm --filter=get-pnpm test
 
       # bash on both platforms: the shell has to expand the glob, because
       # `--test` only takes patterns itself on Node.js >=22.
@@ -621,6 +630,21 @@ jobs:
           pnpm runtime set node 18
           ./node_modules/.bin/node --version
           ./node_modules/.bin/node --test "$GITHUB_WORKSPACE"/pnpm/npm/pnpm/test/*.test.mjs
+
+      # get-pnpm's `engines` floor, on the latest release of that line. Its
+      # tests are TypeScript, which Node.js runs without a flag from 22.18.
+      - name: Test get-pnpm on its oldest supported Node.js line
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/get-pnpm-node"
+          cd "$RUNNER_TEMP/get-pnpm-node"
+          echo '{"name":"get-pnpm-node","version":"0.0.0"}' > package.json
+          pnpm runtime set node 22
+          node_bin="$PWD/node_modules/.bin/node"
+          "$node_bin" --version
+          cd "$GITHUB_WORKSPACE/pnpm/npm/get-pnpm"
+          "$node_bin" --test test/*.test.ts
 
   typos:
     name: Rust CI / Spell Check

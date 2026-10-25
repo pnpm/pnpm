@@ -48,7 +48,6 @@ minimumReleaseAgeExclude:
   - comver-to-semver
   - dir-is-case-sensitive
   - '@esbuild/*'
-  - get-pnpm@0.0.9
   - glob@11.1.0
   - is-inner-link
   - is-subdir

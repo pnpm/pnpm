@@ -109,7 +109,7 @@ jobs:
         .github/scripts/issue-fix-intent.test.sh
         .github/scripts/docker-image-tags.test.sh
         .agents/skills/pull-requests/scripts/resolve-pr-conflicts.test.sh
-        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/wait-for-pnpr.test.mjs
+        node --test .github/scripts/ts-test-scope.test.mjs .github/scripts/ts-test-chunks.test.mjs .github/scripts/assert-windows-crt-static.test.mjs .github/scripts/wait-for-pnpr.test.mjs .github/scripts/update-npm-signing-keys.test.mjs
     - name: Compile and lint TypeScript
       run: pn pipeline ts-check --include-workspace-root --full --no-cache
     - name: Package compiled artifacts

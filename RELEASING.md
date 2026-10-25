@@ -16,13 +16,14 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 3. Fetch the merge commit and tag each product whose version changed. Tag names
    must match what `release.yml` expects — `v<version>` for the pnpm CLIs,
-   `pnpr@<version>` for pnpr:
+   `pnpr@<version>` for pnpr, `get-pnpm@<version>` for get-pnpm:
 
-   | Product            | Manifest                     | Tag prefix |
-   | ------------------ | ---------------------------- | ---------- |
-   | pnpm (TypeScript)  | `pnpm11/pnpm/package.json`   | `v`        |
-   | pacquet (Rust)     | `pnpm/npm/pnpm/package.json` | `v`        |
-   | pnpr               | `pnpr/npm/pnpr/package.json` | `pnpr@`    |
+   | Product           | Manifest                         | Tag prefix  |
+   | ----------------- | -------------------------------- | ----------- |
+   | pnpm (TypeScript) | `pnpm11/pnpm/package.json`       | `v`         |
+   | pacquet (Rust)    | `pnpm/npm/pnpm/package.json`     | `v`         |
+   | pnpr              | `pnpr/npm/pnpr/package.json`     | `pnpr@`     |
+   | get-pnpm          | `pnpm/npm/get-pnpm/package.json` | `get-pnpm@` |
 
    ```bash
    git fetch origin
@@ -37,6 +38,7 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
      "v$(git show "$SHA:pnpm11/pnpm/package.json" | jq -r .version)"
      "v$(git show "$SHA:pnpm/npm/pnpm/package.json" | jq -r .version)"
      "pnpr@$(git show "$SHA:pnpr/npm/pnpr/package.json" | jq -r .version)"
+     "get-pnpm@$(git show "$SHA:pnpm/npm/get-pnpm/package.json" | jq -r .version)"
    )
 
    # Keep only the products whose version actually changed this release —
@@ -97,14 +99,14 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 `release.yml`'s plan job asks npm whether each product's *gate* package is
 already published — the one that product's publish job publishes last (`pnpm`
-for both CLIs, `@pnpm/pnpr` for pnpr) — and skips the product entirely if it
+for both CLIs, `@pnpm/pnpr` for pnpr, `get-pnpm` for get-pnpm) — and skips the product entirely if it
 is. A release that ran to completion is therefore a no-op on rerun.
 
 When a run fails and the fix is a code change, commit the fix, move the tag to
 the new commit and push it again:
 
 ```bash
-TAG=v<version>        # or pnpr@<version> — use the tag of the product that failed
+TAG=v<version>        # or pnpr@<version> or get-pnpm@<version> — the tag of the product that failed
 FIXED=<sha-of-the-fix-commit>
 
 git push origin ":refs/tags/$TAG"     # drop the remote tag

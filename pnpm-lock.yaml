@@ -546,9 +546,6 @@ catalogs:
     fuse-native:
       specifier: ^2.2.6
       version: 2.2.6
-    get-pnpm:
-      specifier: ^0.0.9
-      version: 0.0.9
     get-port:
       specifier: ^7.2.0
       version: 7.2.0
@@ -933,6 +930,16 @@ catalogs:
     yauzl:
       specifier: ^3.4.0
       version: 3.4.0
+  get-pnpm:
+    confbox:
+      specifier: 0.3.1
+      version: 0.3.1
+    picomatch:
+      specifier: 4.0.7
+      version: 4.0.7
+    semver:
+      specifier: 7.8.5
+      version: 7.8.5
 
 overrides:
   '@cypress/request@3.0.9>qs': ^6.14.1
@@ -1129,13 +1136,38 @@ importers:
         specifier: 'catalog:'
         version: 0.28.2
 
+  pnpm/npm/get-pnpm:
+    dependencies:
+      confbox:
+        specifier: catalog:get-pnpm
+        version: 0.3.1
+      picomatch:
+        specifier: catalog:get-pnpm
+        version: 4.0.7
+      semver:
+        specifier: catalog:get-pnpm
+        version: 7.8.5
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.19
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.3
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   pnpm/npm/napi: {}
 
   pnpm/npm/pnpm:
     dependencies:
       get-pnpm:
-        specifier: 'catalog:'
-        version: 0.0.9
+        specifier: workspace:*
+        version: link:../get-pnpm
       node-gyp:
         specifier: 'catalog:'
         version: 12.3.0
@@ -15195,11 +15227,6 @@ packages:
     resolution: {integrity: sha512-pjzuKtY64GYfWizNAJ0fr9VqttZkNiK2iS430LtIHzjBEr6bX8Am2zm4sW4Ro5wjWW5cAlRL1qAMTcXbjNAO2Q==}
     engines: {node: '>=8.0.0'}
 
-  get-pnpm@0.0.9:
-    resolution: {integrity: sha512-lygEPYNpdwBkPV96cqwPmLGIbv5leUtPqbozOF09JFerNX90g9Cpm/FaOefGJBMuPELEH6lHP7JJkmH0wIWRuw==}
-    engines: {node: '>=22.13'}
-    hasBin: true
-
   get-port@7.2.0:
     resolution: {integrity: sha512-afP4W205ONCuMoPBqcR6PSXnzX35KTcJygfJfcp+QY+uwm3p20p1YczWXhlICIzGMCxYBQcySEcOgsJcrkyobg==}
     engines: {node: '>=16'}
@@ -22922,12 +22949,6 @@ snapshots:
   get-npm-tarball-url@2.1.0: {}
 
   get-package-type@0.1.0: {}
-
-  get-pnpm@0.0.9:
-    dependencies:
-      confbox: 0.3.1
-      picomatch: 4.0.7
-      semver: 7.8.5
 
   get-port@7.2.0: {}
 

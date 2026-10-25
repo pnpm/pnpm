@@ -51,6 +51,7 @@ packages:
   - pnpm11/text/*
   - pnpm11/workspace/*
   - pnpm11/yaml/*
+  - pnpm/npm/get-pnpm
   - pnpm/npm/napi
   - pnpm/esm-loader
   - pnpm/npm/pnpm

@@ -7,19 +7,19 @@ use base64::Engine as _;
 use p256::{ecdsa::signature::Verifier, pkcs8::DecodePublicKey};
 use pnpm_network::normalize_registry_url;
 
-/// npm's public registry signing keys, mirrored from
-/// <https://registry.npmjs.org/-/npm/v1/keys>. `expires` is `None` for a
-/// key with no expiry.
+/// npm's public registry signing keys, generated from
+/// `.config/npm-signing-keys.json` by the meta-updater. `expires` is `None`
+/// for a key with no expiry.
 pub(super) const NPM_SIGNING_KEYS: &[NpmSigningKey] = &[
-    NpmSigningKey {
-        keyid: "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
-        key: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1Olb3zMAFFxXKHiIkQO5cJ3Yhl5i6UPp+IhuteBJbuHcA5UogKo0EWtlWwW6KSaKoTNEYL7JlCQiVnkhBktUgg==",
-        expires: Some("2025-01-29T00:00:00.000Z"),
-    },
     NpmSigningKey {
         keyid: "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
         key: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY6Ya7W++7aUPzvMTrezH6Ycx3c+HOKYCcNGybJZSCJq/fd7Qa8uuAKtdIkUQtQiEKERhAmE5lMMJhP8OkDOa2g==",
         expires: None,
+    },
+    NpmSigningKey {
+        keyid: "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
+        key: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1Olb3zMAFFxXKHiIkQO5cJ3Yhl5i6UPp+IhuteBJbuHcA5UogKo0EWtlWwW6KSaKoTNEYL7JlCQiVnkhBktUgg==",
+        expires: Some("2025-01-29T00:00:00.000Z"),
     },
 ];
 
