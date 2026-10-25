@@ -299,9 +299,9 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
 
 /// A publisher that loses the race to store a blob is answered before its
 /// upload has arrived, so the connection cannot carry another request.
-/// The answer says so, and the publisher's next request — the envelope
-/// that names the blob — goes to a connection of its own instead of into
-/// a socket the server has already shut.
+/// The answer says so. The publisher's next request is the envelope that
+/// names the blob, and it goes to a connection of its own rather than
+/// into a socket the server has already shut.
 #[tokio::test]
 async fn an_upload_of_a_stored_blob_retires_its_connection() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr_artifacts().await;
