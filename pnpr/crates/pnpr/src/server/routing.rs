@@ -5,9 +5,9 @@ pub(super) use super::{
     get_org_teams, get_team_members,
     health::{serve_live, serve_ping, serve_ready},
     hosted_storage, not_found, oci, pnpr_protocols_disabled, private_no_cache, publish_package,
-    pypi, remove_dist_tag, resolve_write_target, serve_batch_publish, serve_metrics,
-    serve_org_packages, serve_package_tarball, serve_packument, serve_pnpr_handshake, serve_search,
-    serve_tarball, serve_version_manifest, set_dist_tag, split_package_identifier, staged,
+    pypi, remove_dist_tag, resolve_write_target, serve_metrics, serve_org_packages,
+    serve_package_tarball, serve_packument, serve_pnpr_handshake, serve_search, serve_tarball,
+    serve_version_manifest, set_dist_tag, split_package_identifier, staged,
     team_access::{grant_team_access, list_team_packages, revoke_team_access},
     team_mutations::{TeamScope, add_team_member, create_team, destroy_team, remove_team_member},
     update_packument,
@@ -296,9 +296,10 @@ fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppStat
 /// was reached through.
 fn npm_registry_routes() -> Router<AppState> {
     // Batch publish: one request carrying many packages' publish documents.
-    // Not part of the standard npm registry API — `pnpm publish --batch` opts
-    // into it explicitly, and only against the path-less base.
-    let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
+    // Mounted at both the server root (`registry_routes`) and the path-less npm
+    // base (`/npm/-/pnpr/v0/publish`) so `pnpm publish --batch` can resolve it
+    // relative to the configured npm registry URL.
+    let mut router = Router::new().route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish));
     for base in ["", "/~{registry}"] {
         let path = |tail: &str| format!("{base}{tail}");
         let with_teams = team_routes(staged_routes(ping_route(router, base), base), base);
