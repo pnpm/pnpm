@@ -50,22 +50,28 @@ the script is executed instead of the built-in command.',
   })
 }
 
+export interface CleanOptions {
+  dir: string
+  modulesDir?: string
+  virtualStoreDir?: string
+  workspaceDir?: string
+  workspacePackagePatterns?: string[]
+}
+
 export async function handler (
-  opts: {
-    dir: string
-    lockfile?: boolean
-    modulesDir?: string
-    virtualStoreDir?: string
-    workspaceDir?: string
-    workspacePackagePatterns?: string[]
+  opts: CleanOptions & {
     cliOptions?: {
       lockfile?: boolean
     }
   }
 ): Promise<void> {
+  await cleanProjects({ ...opts, removeLockfile: opts.cliOptions?.lockfile === true })
+}
+
+export async function cleanProjects (opts: CleanOptions & { removeLockfile: boolean }): Promise<void> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   const rootDir = opts.workspaceDir ?? opts.dir
-  const cleanOpts = { modulesDir, removeLockfile: opts.cliOptions?.lockfile === true }
+  const cleanOpts = { modulesDir, removeLockfile: opts.removeLockfile }
   const dirs = await getProjectDirs(opts)
   await Promise.all(dirs.map(cleanProjectDir.bind(null, cleanOpts)))
   if (opts.virtualStoreDir) {

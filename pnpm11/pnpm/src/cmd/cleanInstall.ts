@@ -25,6 +25,7 @@ export function help (): string {
 }
 
 export async function handler (opts: PnpmOptions): Promise<void> {
-  await clean.handler(opts)
+  // `--lockfile` here is the install setting, not `pnpm clean --lockfile`.
+  await clean.cleanProjects({ ...opts, removeLockfile: false })
   await install.handler({ ...opts, frozenLockfile: true } as any) // eslint-disable-line
 }
