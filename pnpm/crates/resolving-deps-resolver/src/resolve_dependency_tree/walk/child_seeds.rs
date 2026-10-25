@@ -215,12 +215,14 @@ pub(super) fn child_wanted(
         prior_child_key(snapshot, alias, bare_specifier, &ctx.workspace.cache.registry_context)
     });
     if let Some(key) = prior.as_ref()
-        && let Some(higher) = key.suffix
-            .registry_version()
-            .zip(bare_specifier.parse::<node_semver::Range>().ok())
-            .and_then(|(pinned, parsed)| {
-                higher_direct_dep_version(scope.direct_versions.as_deref(), alias, pinned, &parsed)
-            })
+        && let Some(higher) = super::super::workspace_ctx::DirectDepVersion::of(
+            &key.suffix,
+            &ctx.workspace.cache.registry_context,
+        )
+        .zip(bare_specifier.parse::<node_semver::Range>().ok())
+        .and_then(|(pinned, parsed)| {
+            higher_direct_dep_version(scope.direct_versions.as_deref(), alias, &pinned, &parsed)
+        })
         && keeps_locked_version(ctx, &wanted, key, depth)
     {
         wanted.bare_specifier = Some(higher.to_string());

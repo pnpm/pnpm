@@ -5,7 +5,7 @@ use std::sync::Arc;
 use super::super::child_seeds::{ChildSeedScope, child_wanted};
 use crate::resolve_dependency_tree::{
     DependencySpec, TreeCtx,
-    workspace_ctx::{DirectDepVersions, WorkspaceTreeCtx},
+    workspace_ctx::{DirectDepVersion, DirectDepVersions, WorkspaceTreeCtx},
 };
 
 fn ctx(dedupe: crate::UpdateTargets) -> TreeCtx {
@@ -25,11 +25,13 @@ fn child_wanted_for_locked_react(ctx: &TreeCtx, locked: &str) -> (Option<String>
     let snapshot: SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "react": locked } }))
             .expect("parse snapshot entry");
+    let key_prefix = locked.split_once(':').map(|(prefix, _)| prefix.to_string());
+    let direct = |version: &str| DirectDepVersion {
+        key_prefix: key_prefix.clone(),
+        version: version.parse().expect("parse version"),
+    };
     let mut direct_versions = DirectDepVersions::default();
-    direct_versions.insert(
-        "react".to_string(),
-        vec!["17.0.2".parse().expect("parse version"), "18.2.0".parse().expect("parse version")],
-    );
+    direct_versions.insert("react".to_string(), vec![direct("17.0.2"), direct("18.2.0")]);
     let scope = ChildSeedScope {
         prior_children_snapshot: Some(&snapshot),
         direct_versions: Some(Arc::new(direct_versions)),

@@ -66,7 +66,43 @@ pub(super) type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// An importer's resolved direct-dependency versions, keyed by package
 /// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
-pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
+pub(super) type DirectDepVersions = HashMap<String, Vec<DirectDepVersion>>;
+
+/// A resolved direct-dependency version and the registry it came from, as
+/// the canonical key prefix of that registry (see
+/// [`pnpm_lockfile::RegistryContext::key_prefix_for_alias`]), or `None` for a
+/// plain key. Locked versions are compared only with entries from their own
+/// registry: a plain key names its registry by the scope routing, which is
+/// the same for every plain range of one name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DirectDepVersion {
+    pub(super) key_prefix: Option<String>,
+    pub(super) version: node_semver::Version,
+}
+
+impl DirectDepVersion {
+    /// The version `ver_peer` records, with its registry. `None` for a key
+    /// that is not a registry version.
+    pub(super) fn of(
+        ver_peer: &pnpm_lockfile::PkgVerPeer,
+        registries: &pnpm_lockfile::RegistryContext,
+    ) -> Option<Self> {
+        Some(Self {
+            key_prefix: canonical_key_prefix(ver_peer, registries).map(str::to_string),
+            version: ver_peer.registry_version()?.clone(),
+        })
+    }
+}
+
+/// The prefix the registry of a registry-qualified `ver_peer` keys its
+/// packages with today, which an older key may spell with another alias.
+pub(super) fn canonical_key_prefix<'a>(
+    ver_peer: &'a pnpm_lockfile::PkgVerPeer,
+    registries: &'a pnpm_lockfile::RegistryContext,
+) -> Option<&'a str> {
+    let (prefix, _) = ver_peer.registry_qualified()?;
+    Some(registries.key_prefix_for_alias(prefix).unwrap_or(prefix))
+}
 
 /// What registering a package in the workspace's package table found, with
 /// the table's shared id either way.

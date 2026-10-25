@@ -50,10 +50,10 @@ use super::{
         resolve_node_seed, walk_from_seeds,
     },
     workspace_ctx::{
-        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersions, PackageRegistration,
-        RecordedChildrenContext, claim_children_owner, insert_tree_node, is_current_children_owner,
-        make_non_owner_nodes_lazy, record_children, register_peer_dep_names,
-        register_shadowable_dep_names,
+        ChildrenOwnerClaim, ChildrenRecording, DirectDepVersion, DirectDepVersions,
+        PackageRegistration, RecordedChildrenContext, claim_children_owner, insert_tree_node,
+        is_current_children_owner, make_non_owner_nodes_lazy, record_children,
+        register_peer_dep_names, register_shadowable_dep_names,
     },
 };
 

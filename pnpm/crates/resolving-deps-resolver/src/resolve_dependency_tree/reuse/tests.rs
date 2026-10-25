@@ -3,14 +3,23 @@ mod higher_direct_dep_version {
 
     use node_semver::{Range, Version};
 
-    use super::super::{DirectDepVersions, higher_direct_dep_version};
+    use super::super::{DirectDepVersion, DirectDepVersions, higher_direct_dep_version};
 
+    /// `versions` as `<version>` or `<prefix>:<version>`.
     fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
         let parsed = versions
             .iter()
-            .map(|raw| raw.parse::<Version>().expect("parse version"))
+            .map(|raw| pinned(raw))
             .collect();
         HashMap::from_iter([(name.to_string(), parsed)])
+    }
+
+    fn pinned(raw: &str) -> DirectDepVersion {
+        let (key_prefix, version) = match raw.split_once(':') {
+            Some((prefix, version)) => (Some(prefix.to_string()), version),
+            None => (None, raw),
+        };
+        DirectDepVersion { key_prefix, version: version.parse().expect("parse version") }
     }
 
     fn ver(raw: &str) -> Version {
@@ -25,7 +34,7 @@ mod higher_direct_dep_version {
     fn picks_the_highest_in_range_version_above_the_pin() {
         let direct = direct("foo", &["1.1.0", "1.5.0", "2.0.0"]);
         assert_eq!(
-            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range("^1.0.0")),
+            higher_direct_dep_version(Some(&direct), "foo", &pinned("1.0.0"), &range("^1.0.0")),
             Some(ver("1.5.0")),
         );
     }
@@ -34,7 +43,7 @@ mod higher_direct_dep_version {
     fn none_when_no_direct_version_is_higher() {
         let direct = direct("foo", &["1.0.0"]);
         assert!(
-            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range("^1.0.0"))
+            higher_direct_dep_version(Some(&direct), "foo", &pinned("1.0.0"), &range("^1.0.0"))
                 .is_none(),
         );
     }
@@ -45,16 +54,50 @@ mod higher_direct_dep_version {
         // satisfy a range that doesn't admit prereleases, so no refresh.
         let direct = direct("foo", &["1.2.0-beta.1"]);
         assert!(
-            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range("^1.0.0"))
+            higher_direct_dep_version(Some(&direct), "foo", &pinned("1.0.0"), &range("^1.0.0"))
                 .is_none(),
         );
+    }
+
+    /// A direct dependency from another registry does not refresh the pin,
+    /// which that registry may not serve.
+    #[test]
+    fn refreshes_only_onto_a_version_from_the_pinned_registry() {
+        let direct = direct("foo", &["1.1.0", "public:1.2.0"]);
+        assert_eq!(
+            higher_direct_dep_version(
+                Some(&direct),
+                "foo",
+                &pinned("public:1.0.0"),
+                &range("^1.0.0")
+            ),
+            Some(ver("1.2.0")),
+        );
+        assert_eq!(
+            higher_direct_dep_version(Some(&direct), "foo", &pinned("1.0.0"), &range("^1.0.0")),
+            Some(ver("1.1.0")),
+        );
+        let other_registry_only = direct_only("foo", "1.1.0");
+        assert!(
+            higher_direct_dep_version(
+                Some(&other_registry_only),
+                "foo",
+                &pinned("public:1.0.0"),
+                &range("^1.0.0")
+            )
+            .is_none(),
+        );
+    }
+
+    fn direct_only(name: &str, version: &str) -> DirectDepVersions {
+        direct(name, &[version])
     }
 
     #[test]
     fn refreshes_a_prerelease_when_the_range_admits_it() {
         let direct = direct("foo", &["1.2.0-beta.1"]);
         assert_eq!(
-            higher_direct_dep_version(Some(&direct), "foo", &ver("1.0.0"), &range(">=1.2.0-0")),
+            higher_direct_dep_version(Some(&direct), "foo", &pinned("1.0.0"), &range(">=1.2.0-0")),
             Some(ver("1.2.0-beta.1")),
         );
     }
