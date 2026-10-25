@@ -38,7 +38,7 @@ pub(super) fn drop_failed_edge(
     if !(optional || broken_parent.is_some()) || !is_droppable_resolve_error(&err) {
         return Err(with_dependency_context(ctx, wanted, edge, opts, err));
     }
-    if wanted_lockfile_contains_satisfying_entry(ctx.workspace.reuse.lockfile.as_deref(), wanted) {
+    if wanted_lockfile_contains_satisfying_entry(ctx, wanted) {
         return Err(ResolveDependencyTreeError::LockedOptionalResolutionFailure(Box::new(
             with_dependency_context(ctx, wanted, edge, opts, err),
         )));

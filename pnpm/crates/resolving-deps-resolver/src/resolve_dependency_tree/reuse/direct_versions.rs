@@ -126,7 +126,7 @@ fn extend_parsed_versions(
             let Some(parsed) = version
                 .parse::<pnpm_lockfile::PkgVerPeer>()
                 .ok()
-                .and_then(|ver_peer| DirectDepVersion::of(&ver_peer, registries))
+                .and_then(|ver_peer| DirectDepVersion::of(name, &ver_peer, registries))
             else {
                 continue;
             };
@@ -196,12 +196,12 @@ fn cross_importer_changed_version(
         Some(_) => cross_changed.get(&target_name.to_string()),
     };
     candidates
-        .zip(DirectDepVersion::of(ver_peer, registries))
+        .zip(DirectDepVersion::of(&target_name.to_string(), ver_peer, registries))
         .is_some_and(|(versions, pinned)| {
             versions
                 .iter()
                 .any(|version| {
-                    version.key_prefix == pinned.key_prefix && version.version != pinned.version
+                    version.registry == pinned.registry && version.version != pinned.version
                 })
         })
 }
@@ -252,7 +252,7 @@ pub(in super::super) fn higher_direct_dep_version(
     direct_versions?
         .get(name)?
         .iter()
-        .filter(|direct| direct.key_prefix == pinned.key_prefix)
+        .filter(|direct| direct.registry == pinned.registry)
         .map(|direct| &direct.version)
         .filter(|&version| version > &pinned.version && range.satisfies(version))
         .max()

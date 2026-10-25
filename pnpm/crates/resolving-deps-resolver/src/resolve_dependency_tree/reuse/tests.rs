@@ -14,12 +14,15 @@ mod higher_direct_dep_version {
         HashMap::from_iter([(name.to_string(), parsed)])
     }
 
+    /// `raw` as `<version>` from the default registry, or `<registry>:<version>`.
     fn pinned(raw: &str) -> DirectDepVersion {
-        let (key_prefix, version) = match raw.split_once(':') {
-            Some((prefix, version)) => (Some(prefix.to_string()), version),
-            None => (None, raw),
-        };
-        DirectDepVersion { key_prefix, version: version.parse().expect("parse version") }
+        let (registry, version) = raw
+            .split_once(':')
+            .unwrap_or(("default", raw));
+        DirectDepVersion {
+            registry: format!("https://{registry}.test/"),
+            version: version.parse().expect("parse version"),
+        }
     }
 
     fn ver(raw: &str) -> Version {

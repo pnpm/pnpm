@@ -8,9 +8,28 @@ use crate::resolve_dependency_tree::{
     workspace_ctx::{DirectDepVersion, DirectDepVersions, WorkspaceTreeCtx},
 };
 
+const REGISTRY: &str = "https://registry.example.test/";
+
+/// `work` declared for the default registry.
+fn registries() -> pnpm_lockfile::RegistryContext {
+    pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([(
+            "default".to_string(),
+            REGISTRY.to_string(),
+        )]),
+        registries_by_prefix: std::collections::HashMap::from([(
+            "work".to_string(),
+            REGISTRY.to_string(),
+        )]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", REGISTRY)]),
+        ..Default::default()
+    }
+}
+
 fn ctx(dedupe: crate::UpdateTargets) -> TreeCtx {
     let workspace = WorkspaceTreeCtx::default()
-        .with_lockfile_reuse(crate::WorkspaceLockfileReuse { dedupe, ..Default::default() });
+        .with_lockfile_reuse(crate::WorkspaceLockfileReuse { dedupe, ..Default::default() })
+        .with_registry_context(registries());
     TreeCtx::with_workspace(Arc::new(workspace), ResolveOptions::default())
 }
 
@@ -25,9 +44,8 @@ fn child_wanted_for_locked_react(ctx: &TreeCtx, locked: &str) -> (Option<String>
     let snapshot: SnapshotEntry =
         serde_json::from_value(serde_json::json!({ "dependencies": { "react": locked } }))
             .expect("parse snapshot entry");
-    let key_prefix = locked.split_once(':').map(|(prefix, _)| prefix.to_string());
     let direct = |version: &str| DirectDepVersion {
-        key_prefix: key_prefix.clone(),
+        registry: REGISTRY.to_string(),
         version: version.parse().expect("parse version"),
     };
     let mut direct_versions = DirectDepVersions::default();
@@ -70,23 +88,8 @@ fn a_dedupe_target_is_left_to_the_preferred_versions() {
 /// registry-qualified key, which the refresh reads the same way.
 #[test]
 fn a_kept_registry_qualified_pin_is_refreshed_onto_the_higher_direct_dependency_version() {
-    let registry = "https://registry.example.test/";
-    let registries = pnpm_lockfile::RegistryContext {
-        registries: std::collections::HashMap::from([(
-            "default".to_string(),
-            registry.to_string(),
-        )]),
-        registries_by_prefix: std::collections::HashMap::from([(
-            "work".to_string(),
-            registry.to_string(),
-        )]),
-        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([("work", registry)]),
-        ..Default::default()
-    };
-    let workspace = WorkspaceTreeCtx::default().with_registry_context(registries);
-    let ctx = TreeCtx::with_workspace(Arc::new(workspace), ResolveOptions::default());
     assert_eq!(
-        child_wanted_for_locked_react(&ctx, "work:17.0.2"),
+        child_wanted_for_locked_react(&ctx(crate::UpdateTargets::default()), "work:17.0.2"),
         (Some("18.2.0".to_string()), None),
     );
 }

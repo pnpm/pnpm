@@ -216,6 +216,7 @@ pub(super) fn child_wanted(
     });
     if let Some(key) = prior.as_ref()
         && let Some(higher) = super::super::workspace_ctx::DirectDepVersion::of(
+            &key.name.to_string(),
             &key.suffix,
             &ctx.workspace.cache.registry_context,
         )

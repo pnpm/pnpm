@@ -181,17 +181,21 @@ pub(super) fn try_reuse_node(
 /// Only plain semver specifiers are checked; exotic specifiers (git,
 /// catalogs, tags, URLs) keep the skip-on-failure behavior.
 ///
-/// The check is deliberately by package name and range rather than by
-/// the current edge's locked snapshot ref: a satisfying entry locked
+/// The check is deliberately by package name, registry, and range (see
+/// [`crate::lockfile_reuse::locked_child_admits`]) rather than by the
+/// current edge's locked snapshot ref: a satisfying entry locked
 /// via any edge means the registry served this package in-range
 /// before, so failing loudly instead of skipping is the right outcome
 /// even when the failing edge itself was never locked. This matches
 /// the TypeScript resolver's `wantedLockfileContainsSatisfyingEntry`.
 pub(super) fn wanted_lockfile_contains_satisfying_entry(
-    lockfile: Option<&pnpm_lockfile::Lockfile>,
+    ctx: &TreeCtx,
     wanted: &WantedDependency,
 ) -> bool {
-    let Some(packages) = lockfile.and_then(|lockfile| lockfile.packages.as_ref()) else {
+    let Some(packages) = ctx.workspace.reuse.lockfile
+        .as_deref()
+        .and_then(|lockfile| lockfile.packages.as_ref())
+    else {
         return false;
     };
     let Some(alias) = wanted.alias
@@ -202,19 +206,21 @@ pub(super) fn wanted_lockfile_contains_satisfying_entry(
     };
     let (pkg_name, range) =
         unwrap_package_name(alias, wanted.bare_specifier.as_deref().unwrap_or_default());
-    let Ok(range) = range.parse::<node_semver::Range>() else {
+    if range.parse::<node_semver::Range>().is_err() {
         return false;
-    };
+    }
     let Ok(pkg_name) = PkgName::parse(pkg_name) else {
         return false;
     };
     packages
         .keys()
         .any(|key| {
-            key.name == pkg_name
-                && key.suffix
-                    .registry_version()
-                    .is_some_and(|version| range.satisfies(version))
+            crate::lockfile_reuse::locked_child_admits(
+                &pkg_name,
+                key,
+                range,
+                &ctx.workspace.cache.registry_context,
+            ) == Some(true)
         })
 }
 

@@ -69,39 +69,36 @@ pub(super) type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 pub(super) type DirectDepVersions = HashMap<String, Vec<DirectDepVersion>>;
 
 /// A resolved direct-dependency version and the registry it came from, as
-/// the canonical key prefix of that registry (see
-/// [`pnpm_lockfile::RegistryContext::key_prefix_for_alias`]), or `None` for a
-/// plain key. Locked versions are compared only with entries from their own
-/// registry: a plain key names its registry by the scope routing, which is
-/// the same for every plain range of one name.
+/// [`pnpm_lockfile::normalized_registry_key`], or as written when it does
+/// not parse (see [`pnpm_lockfile::same_registry`]). A locked version is compared
+/// only with entries from its own registry, so a plain key and a key
+/// qualified by that registry's prefix match.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct DirectDepVersion {
-    pub(super) key_prefix: Option<String>,
+    pub(super) registry: String,
     pub(super) version: node_semver::Version,
 }
 
 impl DirectDepVersion {
-    /// The version `ver_peer` records, with its registry. `None` for a key
-    /// that is not a registry version.
+    /// The version `ver_peer` records for `name`, with the registry its key
+    /// names: the prefix's for a qualified key, the routed one for a plain
+    /// key. `None` for a key that is not a registry version, or whose prefix
+    /// nothing declares.
     pub(super) fn of(
+        name: &str,
         ver_peer: &pnpm_lockfile::PkgVerPeer,
         registries: &pnpm_lockfile::RegistryContext,
     ) -> Option<Self> {
+        let registry = match ver_peer.registry_qualified() {
+            Some((prefix, _)) => registries.registry_of_prefix(prefix)?,
+            None => registries.routed_registry(name),
+        };
         Some(Self {
-            key_prefix: canonical_key_prefix(ver_peer, registries).map(str::to_string),
+            registry: pnpm_lockfile::normalized_registry_key(registry)
+                .unwrap_or_else(|| registry.to_string()),
             version: ver_peer.registry_version()?.clone(),
         })
     }
-}
-
-/// The prefix the registry of a registry-qualified `ver_peer` keys its
-/// packages with today, which an older key may spell with another alias.
-pub(super) fn canonical_key_prefix<'a>(
-    ver_peer: &'a pnpm_lockfile::PkgVerPeer,
-    registries: &'a pnpm_lockfile::RegistryContext,
-) -> Option<&'a str> {
-    let (prefix, _) = ver_peer.registry_qualified()?;
-    Some(registries.key_prefix_for_alias(prefix).unwrap_or(prefix))
 }
 
 /// What registering a package in the workspace's package table found, with

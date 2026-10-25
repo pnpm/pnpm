@@ -136,27 +136,59 @@ async fn fails_on_an_optional_dependency_that_cannot_be_resolved_with_a_satisfyi
 /// registry-qualified key.
 #[tokio::test]
 async fn fails_on_an_unresolvable_optional_dependency_locked_under_a_registry_qualified_key() {
+    let err = resolve_optional_failure_locked_as("broken@work:1.2.0").await
+        .expect_err("a locked optional dependency must fail loudly");
+    assert!(
+        matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
+        "unexpected error: {err}",
+    );
+}
+
+/// An entry from another registry does not lock the dependency, which
+/// resolves against its routed registry.
+#[tokio::test]
+async fn skips_an_optional_dependency_locked_only_under_another_registry() {
+    resolve_optional_failure_locked_as("broken@other:1.2.0").await
+        .expect("an entry from another registry keeps the skip behavior");
+}
+
+/// Resolve the optional failure fixture against a lockfile holding `key`,
+/// with `work` declared for the default registry and `other` for another.
+async fn resolve_optional_failure_locked_as(
+    key: &str,
+) -> Result<(), crate::ResolveDependencyTreeError> {
     let (_tmp, manifest, resolver) = optional_failure_fixture(FailureShape::Plain);
     let importers = [WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
     let mut opts = workspace_opts(false, false);
-    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package("broken@work:1.2.0")));
+    opts.reuse.lockfile = Some(std::sync::Arc::new(lockfile_with_package(key)));
     opts.reuse.scope = crate::UpdateReuseScope::None;
-    let result = resolve_workspace(
+    let default = "https://registry.example.test/";
+    let other = "https://other.example.test/";
+    opts.registry_context = pnpm_lockfile::RegistryContext {
+        registries: std::collections::HashMap::from([("default".to_string(), default.to_string())]),
+        registries_by_prefix: std::collections::HashMap::from([
+            ("work".to_string(), default.to_string()),
+            ("other".to_string(), other.to_string()),
+        ]),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::new([
+            ("work", default),
+            ("other", other),
+        ]),
+        ..Default::default()
+    };
+    match resolve_workspace(
         &resolver,
         &importers,
         &[DependencyGroup::Prod, DependencyGroup::Optional],
         opts,
         |_| importer_opts(std::path::PathBuf::from("/repo"), None),
     )
-    .await;
-
-    let Err(crate::ResolveImporterError::Resolve(err)) = result else {
-        panic!("a locked optional dependency must fail loudly");
-    };
-    assert!(
-        matches!(err, crate::ResolveDependencyTreeError::LockedOptionalResolutionFailure(_)),
-        "unexpected error: {err}",
-    );
+    .await
+    {
+        Ok(_) => Ok(()),
+        Err(crate::ResolveImporterError::Resolve(err)) => Err(err),
+        Err(err) => panic!("unexpected error: {err}"),
+    }
 }
 
 #[tokio::test]
