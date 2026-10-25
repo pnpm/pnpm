@@ -47,8 +47,8 @@ fn check_cas(directory: &Path) {
     assert_eq!(pnpm_store_dir::StoreDir::new(root.join("v11")).root(), &root.join("v11/v11-wasm"));
     assert_eq!(pnpm_store_dir::StoreDir::new(root.join("v11-wasm")).root(), store.root());
     let (file, _) = store.write_cas_file(b"executable contents", true).unwrap();
-    assert_eq!(pnpm_fs::copy_permissions(&file).unwrap() & 0o770, 0o770);
-    assert_eq!(pnpm_fs::copy_permissions(file.parent().unwrap()).unwrap() & 0o2770, 0o2770);
+    assert_eq!(pnpm_fs::copy_permissions(&file).unwrap().mode() & 0o770, 0o770);
+    assert_eq!(pnpm_fs::copy_permissions(file.parent().unwrap()).unwrap().mode() & 0o2770, 0o2770);
     let installed = directory.join("installed-executable");
     pnpm_fs::copy_file_atomic(&file, &installed).unwrap();
     assert_eq!(
@@ -70,7 +70,7 @@ fn check_unreadable_directory_grant(directory: &Path) {
     pnpm_fs::CopyPermissions::from_mode(0o300).apply_to_file(&opened).unwrap();
     pnpm_fs::file_mode::grant_inherited_dir_mode(&child, &template)
         .expect("grant inherited mode to a write-and-search-only directory");
-    assert_eq!(pnpm_fs::read_file_permissions(&opened).unwrap() & 0o7777, 0o2370);
+    assert_eq!(pnpm_fs::read_file_permissions(&opened).unwrap().mode() & 0o7777, 0o2370);
     pnpm_fs::CopyPermissions::from_mode(0o700).apply_to_file(&opened).unwrap();
     drop(opened);
     std::fs::remove_dir_all(template).unwrap();
@@ -84,7 +84,7 @@ fn check_unreadable_parent(directory: &Path) {
     let created = pnpm_fs::create_file_inheriting_mode(&parent, &parent.join("inherited"), None);
     pnpm_fs::CopyPermissions::from_mode(0o700).apply_to_file(&parent_file).unwrap();
     let file = created.expect("create under a write-and-search-only parent");
-    assert_eq!(pnpm_fs::read_file_permissions(&file).unwrap() & 0o777, 0o620);
+    assert_eq!(pnpm_fs::read_file_permissions(&file).unwrap().mode() & 0o777, 0o620);
     drop(file);
     drop(parent_file);
     std::fs::remove_dir_all(parent).unwrap();
