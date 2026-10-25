@@ -306,7 +306,7 @@ fn is_executable(path: &Path) -> io::Result<bool> {
     {
         path.pipe(fs::metadata)?
             .permissions()
-            .pipe(pnpm_fs::FileMode::from)
+            .pipe_ref(pnpm_fs::FileMode::from_permissions)
             .pipe(pnpm_fs::file_mode::is_executable)
             .pipe(Ok)
     }

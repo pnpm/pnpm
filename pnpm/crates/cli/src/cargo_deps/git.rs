@@ -396,7 +396,7 @@ fn entry_kind(root: &Path, entry: &fs::DirEntry) -> Result<Option<EntryKind>> {
 
 #[cfg(unix)]
 fn is_executable(metadata: &fs::Metadata) -> bool {
-    pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from(metadata.permissions()))
+    pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from_permissions(&metadata.permissions()))
 }
 
 #[cfg(not(unix))]

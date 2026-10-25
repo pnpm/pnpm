@@ -109,7 +109,7 @@ fn validate_permission_boundary(
 #[cfg(unix)]
 fn reachable_mode(path: &Path) -> io::Result<Option<FileMode>> {
     match std::fs::metadata(path) {
-        Ok(meta) => Ok(Some(FileMode::from(meta.permissions()))),
+        Ok(meta) => Ok(Some(FileMode::from_permissions(&meta.permissions()))),
         Err(error) if is_unchangeable(&error) || error.kind() == io::ErrorKind::NotFound => {
             Ok(None)
         }
@@ -152,7 +152,7 @@ fn add_opened_dir_mode_bits(
     if search_only && meta.uid() != pnpm_ffi_process::effective_user_id() {
         return Ok(());
     }
-    let mode = FileMode::from(meta.permissions());
+    let mode = FileMode::from_permissions(&meta.permissions());
     let merged = FileMode::from_mode(mode.mode() | extra.mode());
     if merged == mode {
         return Ok(());

@@ -428,9 +428,9 @@ fn file_mode_matches_store_entry(
             pnpm_fs::file_mode::current_umask(),
         )
     } else {
-        pnpm_fs::FileMode::from(store_meta.permissions())
+        pnpm_fs::FileMode::from_permissions(&store_meta.permissions())
     };
-    let target_mode = pnpm_fs::FileMode::from(target_meta.permissions());
+    let target_mode = pnpm_fs::FileMode::from_permissions(&target_meta.permissions());
     target_mode == expected_mode
         || same_identity
             && is_store_entry

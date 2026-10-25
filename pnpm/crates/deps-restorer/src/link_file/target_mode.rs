@@ -43,7 +43,7 @@ fn desired_mode(source_file: &Path) -> Option<pnpm_fs::FileMode> {
 #[cfg(unix)]
 pub(super) fn source_has_desired_mode(source_file: &Path) -> io::Result<bool> {
     let Some(desired) = desired_mode(source_file) else { return Ok(true) };
-    let mode = pnpm_fs::FileMode::from(fs::metadata(source_file)?.permissions());
+    let mode = pnpm_fs::FileMode::from_permissions(&fs::metadata(source_file)?.permissions());
     Ok(pnpm_fs::file_mode::store_inode_mode_is_linkable(mode, desired))
 }
 

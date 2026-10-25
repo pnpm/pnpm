@@ -78,9 +78,9 @@ impl FsIsExecutable for Host {
         #[cfg(unix)]
         {
             match std::fs::metadata(path) {
-                Ok(metadata) => Ok(pnpm_fs::file_mode::is_executable(pnpm_fs::FileMode::from(
-                    metadata.permissions(),
-                ))),
+                Ok(metadata) => Ok(pnpm_fs::file_mode::is_executable(
+                    pnpm_fs::FileMode::from_permissions(&metadata.permissions()),
+                )),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
                 Err(error) => Err(error),
             }

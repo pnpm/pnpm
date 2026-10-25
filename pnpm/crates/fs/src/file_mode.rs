@@ -197,7 +197,7 @@ pub fn set_path_permissions(path: &Path, mode: FileMode) -> io::Result<()> {
     #[cfg(unix)]
     {
         let file = crate::ensure_file::retry_on_fd_pressure(|| open_without_following(path))?;
-        if FileMode::from(file.metadata()?.permissions()) != mode {
+        if FileMode::from_permissions(&file.metadata()?.permissions()) != mode {
             file.set_permissions(mode.into())?;
         }
     }
@@ -223,7 +223,7 @@ pub fn set_path_permissions(path: &Path, mode: FileMode) -> io::Result<()> {
 pub fn make_file_executable(file: &std::fs::File) -> io::Result<()> {
     #[cfg(unix)]
     return {
-        let mode = FileMode::from(file.metadata()?.permissions());
+        let mode = FileMode::from_permissions(&file.metadata()?.permissions());
         if mode.mode() & EXEC_MASK == EXEC_MASK {
             return Ok(());
         }
@@ -289,7 +289,8 @@ pub fn unix_creation_mode(parent: &Path, requested: Option<FileMode>) -> UnixCre
     let executable = requested.is_some_and(is_executable);
     match std::fs::metadata(parent) {
         Ok(meta) => {
-            let wanted = inherited_file_mode(FileMode::from(meta.permissions()), executable);
+            let wanted =
+                inherited_file_mode(FileMode::from_permissions(&meta.permissions()), executable);
             UnixCreationMode { open_mode: Some(wanted), grant_mode: Some(wanted) }
         }
         Err(_) => UnixCreationMode { open_mode: requested, grant_mode: None },
@@ -330,7 +331,7 @@ impl UnixCreationMode {
 #[cfg(unix)]
 pub fn grant_mode_bits(file: &std::fs::File, wanted: FileMode) -> io::Result<()> {
     let current = match file.metadata() {
-        Ok(meta) => FileMode::from(meta.permissions()).mode() & 0o777,
+        Ok(meta) => FileMode::from_permissions(&meta.permissions()).mode() & 0o777,
         Err(error) if is_unchangeable(&error) => return Ok(()),
         Err(error) => return Err(error),
     };

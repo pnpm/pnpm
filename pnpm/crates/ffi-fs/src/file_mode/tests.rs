@@ -16,12 +16,13 @@ fn the_setuid_setgid_and_sticky_bits_are_kept() {
     assert_eq!(FileMode::from_mode(0o104755).mode(), 0o4755, "setuid survives a file type");
 }
 
-/// The round trip a caller makes when it reads one file's mode and sets
-/// another's.
+/// The path a caller takes when it reads one file's mode and sets
+/// another's. The file type goes on the way in and is not put back on the
+/// way out.
 #[test]
-fn a_mode_read_off_a_file_round_trips_through_permissions() {
+fn a_mode_read_off_a_file_loses_its_file_type() {
     let directory = Permissions::from_mode(0o40755);
-    let mode = FileMode::from(directory);
+    let mode = FileMode::from_permissions(&directory);
 
     assert_eq!(mode.mode(), 0o755, "the file type is gone");
     assert_eq!(Permissions::from(mode).mode(), 0o755);
