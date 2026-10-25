@@ -29,7 +29,7 @@ pub async fn export_storage(
 
     let namespaces = configured_hosted_namespaces(config);
     for org in namespaces {
-        let org_storage = if org.is_empty() { storage.clone() } else { storage.for_hosted(&org) };
+        let org_storage = storage.for_hosted(&org, Ecosystem::Npm);
         let base_out = if org.is_empty() { out.to_path_buf() } else { out.join(&org) };
 
         let package_names = org_storage

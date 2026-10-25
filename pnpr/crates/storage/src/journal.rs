@@ -336,13 +336,9 @@ impl SealedTxn {
         lost_tmp_paths: &mut Vec<&'a std::path::Path>,
     ) -> Result<()> {
         let name = CanonicalPackageName::parse(&package.name, package.ecosystem)?;
-        // Promote into the package's hosted namespace (or the flat store
-        // when it has none), so the commit and a later startup recovery
-        // land in exactly the store the publish targeted.
-        let store = match &package.org {
-            Some(org) => storage.for_hosted(org),
-            None => storage.clone(),
-        };
+        // Promote into the package's hosted namespace, so the commit and a
+        // later startup recovery land in the store the publish targeted.
+        let store = storage.for_hosted(package.org.as_deref().unwrap_or(""), package.ecosystem);
         let target = PackageTarget { store, name };
         let lost_blobs = promote_blobs(&target, package, lost_tmp_paths).await?;
         self.write_package_document(&target, package, index, &lost_blobs, context).await?;

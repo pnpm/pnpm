@@ -140,12 +140,15 @@ pnpr -c ./pnpr-s3.yaml migrate-storage --from ./storage --verify
 ### upgrade-storage
 
 Converts the hosted store to the current [storage layout](storage.md#layout).
-Back the store up and stop every pnpr process that uses it first. The org of
-each configured hosted registry decides which top-level directories are org
-namespaces, so run it with the configuration the store was written with.
+Back the store up and stop every pnpr process that uses it first. Each
+configured hosted registry's org and ecosystem decide which top-level
+directories are org namespaces and which ecosystem each moves into. Run the
+command with the configuration the store was written with.
 It refuses what the earlier layout cannot tell apart from the new one: an org
 named `default`, a top-level directory that is both an org and a package, and
-a repository whose name starts with `default/packages/` or `orgs/`.
+a repository whose name starts with `default/` or `orgs/`. It also refuses a
+legacy namespace shared by more than one ecosystem, or an org whose name
+matches another registry's `<ecosystem>~<org>` directory.
 In-progress image uploads are discarded. Files that belong to no package are
 reported and left where they are. An interrupted conversion can be run again.
 

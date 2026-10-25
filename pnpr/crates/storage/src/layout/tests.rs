@@ -2,6 +2,7 @@ use super::{
     blob_segment, decode_blob_segment, decode_package_segments, decode_segment, encode_segment,
     namespace_segments, package_segments,
 };
+use pnpr_package_name::Ecosystem;
 
 #[test]
 fn every_name_becomes_one_segment_that_decodes_back() {
@@ -33,30 +34,58 @@ fn segments_the_encoding_cannot_produce_do_not_decode() {
 
 #[test]
 fn the_default_namespace_cannot_be_an_org() {
-    assert_eq!(namespace_segments(""), ["default"]);
-    assert_eq!(namespace_segments("default"), ["orgs", "default"]);
-    assert_eq!(namespace_segments("npm~internal"), ["orgs", "npm!7einternal"]);
+    assert_eq!(namespace_segments("", Ecosystem::Npm), ["default", "npm"]);
+    assert_eq!(namespace_segments("", Ecosystem::Cargo), ["default", "cargo"]);
+    assert_eq!(namespace_segments("default", Ecosystem::Npm), ["orgs", "default", "npm"]);
+    assert_eq!(namespace_segments("acme", Ecosystem::Oci), ["orgs", "acme", "oci"]);
+    assert_eq!(
+        namespace_segments("npm~internal", Ecosystem::Pypi),
+        ["orgs", "npm!7einternal", "pypi"],
+    );
 }
 
 #[test]
-fn every_package_is_two_segments_that_decode_back() {
-    for (name, segments) in [
-        ("left-pad", ["@", "left-pad"]),
-        ("@pnpm-testing/fresh", ["@pnpm-testing", "fresh"]),
-        ("@Scope/App", ["@!53cope", "!41pp"]),
-        ("library/alpine", ["@", "library!2falpine"]),
-        ("@/empty-scope", ["@", "!40!2fempty-scope"]),
-        ("@no-slash", ["@", "!40no-slash"]),
+fn every_package_becomes_segments_that_decode_back() {
+    for (ecosystem, name, segments) in [
+        (Ecosystem::Npm, "left-pad", &["@", "left-pad"][..]),
+        (Ecosystem::Npm, "@pnpm-testing/fresh", &["@pnpm-testing", "fresh"][..]),
+        (Ecosystem::Npm, "@Scope/App", &["@!53cope", "!41pp"][..]),
+        (Ecosystem::Npm, "@/empty-scope", &["@", "!40!2fempty-scope"][..]),
+        (Ecosystem::Npm, "@no-slash", &["@", "!40no-slash"][..]),
+        (Ecosystem::Cargo, "serde_json", &["@", "serde_json"][..]),
+        (Ecosystem::Pypi, "django", &["@", "django"][..]),
+        (Ecosystem::Oci, "ubuntu", &["@", "ubuntu"][..]),
+        (Ecosystem::Oci, "library/alpine", &["@library", "alpine"][..]),
+        (Ecosystem::Oci, "acme/app/tool", &["@acme", "@app", "tool"][..]),
+        (Ecosystem::Oci, "acme/blobs", &["@acme", "blobs"][..]),
     ] {
-        assert_eq!(package_segments(name), segments, "{name}");
-        assert_eq!(decode_package_segments(segments[0], segments[1]).as_deref(), Some(name));
+        assert_eq!(package_segments(ecosystem, name), segments, "{ecosystem}:{name}");
+        assert_eq!(
+            decode_package_segments(ecosystem, segments).as_deref(),
+            Some(name),
+            "{ecosystem}:{name}",
+        );
     }
 }
 
 #[test]
 fn package_segments_the_layout_cannot_produce_do_not_decode() {
-    for (scope, rest) in [("scope", "pkg"), ("@a!2fb", "c"), ("@", "Upper"), ("@!zz", "pkg")] {
-        assert_eq!(decode_package_segments(scope, rest), None, "{scope}/{rest}");
+    for (ecosystem, segments) in [
+        (Ecosystem::Npm, &["scope", "pkg"][..]),
+        (Ecosystem::Npm, &["@a!2fb", "c"][..]),
+        (Ecosystem::Npm, &["@", "Upper"][..]),
+        (Ecosystem::Npm, &["@!zz", "pkg"][..]),
+        (Ecosystem::Npm, &["@acme", "@app", "tool"][..]),
+        (Ecosystem::Cargo, &["@scope", "serde"][..]),
+        (Ecosystem::Pypi, &["@scope", "django"][..]),
+        (Ecosystem::Oci, &["@", "library!2falpine"][..]),
+        (Ecosystem::Oci, &["@a!2fb", "c"][..]),
+        (Ecosystem::Oci, &["@", "@app", "tool"][..]),
+        (Ecosystem::Oci, &["acme", "app"][..]),
+        (Ecosystem::Oci, &["@acme", ".."][..]),
+        (Ecosystem::Oci, &["@acme", "."][..]),
+    ] {
+        assert_eq!(decode_package_segments(ecosystem, segments), None, "{ecosystem}:{segments:?}");
     }
 }
 

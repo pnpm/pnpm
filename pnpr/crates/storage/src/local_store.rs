@@ -3,7 +3,7 @@ mod hosted_backend;
 use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, BlobWrite, Body, BoxStream,
     CachedDocument, CanonicalPackageName, DOCUMENT_FILE, DocumentStamp, DocumentWrite, Duration,
-    ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
+    Ecosystem, ErrorKind, GetRange, HostedBackend, HostedBlobFile, HostedDocumentForUpdate,
     HostedDocumentVersion, PACKAGES_DIR, Path, PathBuf, RangedBlob, RegistryError, Result,
     SeekFrom, StreamExt, SystemTime, async_trait, blob_segment, create_tmp_file,
     decode_blob_segment, decode_package_segments, fs, package_segments, stream, streaming,
@@ -15,6 +15,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub(super) struct Store {
     pub(super) root: PathBuf,
+    pub(super) ecosystem: Ecosystem,
     /// Serializes the read-compare-write of a record against every other
     /// write to it, removals included. One process owns this store, so an
     /// in-process lock is the whole of the compare-and-set the object-store
@@ -24,7 +25,11 @@ pub(super) struct Store {
 
 impl Store {
     pub(super) fn new(root: PathBuf) -> Self {
-        Self { root, record_write_lock: Arc::new(tokio::sync::Mutex::new(())) }
+        Self {
+            root,
+            ecosystem: Ecosystem::Npm,
+            record_write_lock: Arc::new(tokio::sync::Mutex::new(())),
+        }
     }
 
     /// A disposable store rooted at a sub-path of this one. Used to give a
@@ -33,6 +38,15 @@ impl Store {
     pub(super) fn namespaced(&self, prefix: &str) -> Store {
         Store {
             root: self.root.join(prefix),
+            ecosystem: self.ecosystem,
+            record_write_lock: Arc::clone(&self.record_write_lock),
+        }
+    }
+
+    pub(super) fn with_ecosystem(&self, ecosystem: Ecosystem) -> Store {
+        Store {
+            root: self.root.clone(),
+            ecosystem,
             record_write_lock: Arc::clone(&self.record_write_lock),
         }
     }
@@ -204,7 +218,7 @@ impl Store {
     /// Every package with a document, decoded and sorted.
     pub(super) async fn list_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
-        for (name, dir) in package_dirs(&self.root.join(PACKAGES_DIR)).await? {
+        for (name, dir) in package_dirs(&self.root.join(PACKAGES_DIR), self.ecosystem).await? {
             if is_regular_file(&dir.join(DOCUMENT_FILE)).await? {
                 names.push(name);
             }
@@ -214,8 +228,10 @@ impl Store {
     }
 
     pub(super) fn package_dir(&self, name: &CanonicalPackageName) -> PathBuf {
+        let ecosystem =
+            if self.ecosystem == Ecosystem::Npm { name.ecosystem() } else { self.ecosystem };
         let mut dir = self.root.join(PACKAGES_DIR);
-        dir.extend(package_segments(name.as_str()));
+        dir.extend(package_segments(ecosystem, name.as_str()));
         dir
     }
 
@@ -324,20 +340,52 @@ impl Store {
     }
 }
 
-/// Whether `path` is a regular file, not following a symlink.
 /// Every package directory below `packages`, with its decoded name.
 /// `file_type` does not follow a symlink, so a link cannot lead a listing, or
 /// the deletions that act on it, out of the store.
-pub(super) async fn package_dirs(packages: &Path) -> Result<Vec<(String, PathBuf)>> {
+pub(super) async fn package_dirs(
+    packages: &Path,
+    ecosystem: Ecosystem,
+) -> Result<Vec<(String, PathBuf)>> {
     let mut dirs = Vec::new();
-    for (scope, scope_dir) in subdirs(packages).await? {
-        for (rest, dir) in subdirs(&scope_dir).await? {
-            if let Some(name) = decode_package_segments(&scope, &rest) {
-                dirs.push((name, dir));
-            }
+    let mut pending = Vec::new();
+    for (segment, dir) in subdirs(packages).await? {
+        if segment.starts_with(crate::layout::MARKER) {
+            pending.push((vec![segment], dir));
+        }
+    }
+    while let Some((segments, parent_dir)) = pending.pop() {
+        for (segment, dir) in subdirs(&parent_dir).await? {
+            visit_package_entry(ecosystem, &segments, segment, dir, &mut pending, &mut dirs);
         }
     }
     Ok(dirs)
+}
+
+fn visit_package_entry(
+    ecosystem: Ecosystem,
+    segments: &[String],
+    segment: String,
+    dir: PathBuf,
+    pending: &mut Vec<(Vec<String>, PathBuf)>,
+    dirs: &mut Vec<(String, PathBuf)>,
+) {
+    let mut next = segments.to_vec();
+    let is_prefix = segment.starts_with(crate::layout::MARKER);
+    next.push(segment);
+    if is_prefix {
+        if ecosystem == Ecosystem::Oci && next.len() < 128 {
+            pending.push((next, dir));
+        }
+        return;
+    }
+    let refs: Vec<&str> = next
+        .iter()
+        .map(String::as_str)
+        .collect();
+    if let Some(name) = decode_package_segments(ecosystem, &refs) {
+        dirs.push((name, dir));
+    }
 }
 
 /// The directories directly in `dir` with UTF-8 names.

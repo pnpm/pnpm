@@ -120,7 +120,10 @@ fn cached_blobs_dir(cache: &Path) -> std::path::PathBuf {
     cache
         .join("~public/test")
         .join(crate::layout::PACKAGES_DIR)
-        .join(std::path::PathBuf::from_iter(crate::layout::package_segments("foo")))
+        .join(std::path::PathBuf::from_iter(crate::layout::package_segments(
+            pnpr_package_name::Ecosystem::Npm,
+            "foo",
+        )))
         .join(crate::layout::BLOBS_DIR)
 }
 

@@ -1,5 +1,5 @@
 use super::{
-    Arc, BlobFinalize, Body, CanonicalPackageName, DocumentWrite, HostedBackend,
+    Arc, BlobFinalize, Body, CanonicalPackageName, DocumentWrite, Ecosystem, HostedBackend,
     HostedDocumentForUpdate, HostedDocumentVersion, ObjectPath, ObjectStoreExt, Path, PathBuf,
     Result, S3Store, StreamExt, async_trait, fs,
 };
@@ -182,6 +182,10 @@ impl HostedBackend for S3Store {
 
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend> {
         Arc::new(S3Store::namespaced(self, segment))
+    }
+
+    fn with_ecosystem(&self, ecosystem: Ecosystem) -> Arc<dyn HostedBackend> {
+        Arc::new(S3Store::with_ecosystem(self, ecosystem))
     }
 
     fn namespace(&self) -> String {

@@ -10,6 +10,7 @@ use tarball::{build_tarball, fixture_files};
 use base64::{Engine, engine::general_purpose};
 use flate2::{Compression, write::GzEncoder};
 use node_semver::{Range, Version};
+use pnpr_registry::Ecosystem;
 use pnpr_storage::layout::{local_blob_path, local_document_path, write_local_layout_marker};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
@@ -121,7 +122,7 @@ pub fn remove_version_field(storage: &Path, package: &str, version: &str, field:
 }
 
 fn edit_packument(storage: &Path, package: &str, edit: impl FnOnce(&mut Map<String, Value>)) {
-    let path = local_document_path(storage, "", package);
+    let path = local_document_path(storage, "", Ecosystem::Npm, package);
     let bytes = fs::read(&path)
         .unwrap_or_else(|err| panic!("read fixture packument at {}: {err}", path.display()));
     let mut packument: Value = serde_json::from_slice(&bytes).expect("parse fixture packument");
@@ -251,7 +252,7 @@ fn fixture_fingerprint(root: &Path) -> String {
     // A storage tree built in another layout must not be reused.
     hasher.update(pnpr_storage::layout::LAYOUT_VERSION.to_le_bytes());
     hasher.update(
-        local_blob_path(Path::new(""), "", "@scope/name", "name-1.0.0.tgz")
+        local_blob_path(Path::new(""), "", Ecosystem::Npm, "@scope/name", "name-1.0.0.tgz")
             .to_string_lossy()
             .as_bytes(),
     );
@@ -297,18 +298,24 @@ impl Package {
     }
 
     fn write(&self, storage_root: &Path) {
-        let blobs = local_blob_path(storage_root, "", &self.name, "-");
+        let blobs = local_blob_path(storage_root, "", Ecosystem::Npm, &self.name, "-");
         fs::create_dir_all(blobs.parent().expect("blob has a directory"))
             .expect("create test registry package storage dir");
         for version in self.versions.values() {
             fs::write(
-                local_blob_path(storage_root, "", &self.name, &version.tarball_name),
+                local_blob_path(
+                    storage_root,
+                    "",
+                    Ecosystem::Npm,
+                    &self.name,
+                    &version.tarball_name,
+                ),
                 &version.tarball,
             )
             .expect("write fixture tarball to test registry storage");
         }
         fs::write(
-            local_document_path(storage_root, "", &self.name),
+            local_document_path(storage_root, "", Ecosystem::Npm, &self.name),
             serde_json::to_vec(&self.packument()).expect("serialize fixture packument"),
         )
         .expect("write fixture packument to test registry storage");

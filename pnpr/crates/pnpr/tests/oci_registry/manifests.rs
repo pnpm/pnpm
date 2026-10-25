@@ -270,7 +270,7 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
             config.storage.cache_dir.clone(),
         )
         .unwrap()
-        .for_hosted("images");
+        .for_hosted("images", Ecosystem::Oci);
         let app = router_with_auth(config, AuthState::in_memory());
         let auth = basic(&token(&app).await);
         let repository = repository_with_colliding_lock_keys();
@@ -361,7 +361,7 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
         config.storage.cache_dir.clone(),
     )
     .unwrap()
-    .for_hosted("images");
+    .for_hosted("images", Ecosystem::Oci);
     let app = router_with_auth(config, AuthState::in_memory());
     let auth = basic(&token(&app).await);
     let subject = digest_of(b"subject");

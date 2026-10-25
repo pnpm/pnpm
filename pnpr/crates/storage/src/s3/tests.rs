@@ -350,21 +350,32 @@ async fn multipart_streams_large_files_in_bounded_parts_and_aborts_failures() {
 #[tokio::test]
 async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     let (store, _staging) = store_with_prefix("images");
+    let store = store.with_ecosystem(pnpr_package_name::Ecosystem::Oci);
     let parent =
         CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
     let child =
         CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
+    let blobs_repo =
+        CanonicalPackageName::parse("acme/blobs", pnpr_package_name::Ecosystem::Oci).unwrap();
     upload(&store, &parent, "sha256-parent", b"parent").await;
     upload(&store, &child, "sha256-child", b"child").await;
+    upload(&store, &blobs_repo, "sha256-blobs-repo", b"blobs-repo").await;
     write_document(&store, &parent, b"{}").await;
+    write_document(&store, &blobs_repo, b"{}").await;
     let files =
         crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
-    assert_eq!(files.len(), 3);
+    assert_eq!(files.len(), 5);
     assert!(
         files
             .iter()
             .any(|file| file.package == "acme/app/tool"
                 && file.blob.as_deref() == Some("sha256-child")),
+    );
+    assert!(
+        files
+            .iter()
+            .any(|file| file.package == "acme/blobs"
+                && file.blob.as_deref() == Some("sha256-blobs-repo")),
     );
 
     let (store, _staging) = store_with_prefix("npm~internal");

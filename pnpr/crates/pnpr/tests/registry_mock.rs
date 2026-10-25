@@ -78,7 +78,13 @@ async fn serves_scoped_packument_from_storage() {
 #[tokio::test]
 async fn serves_scoped_tarball_from_storage() {
     let storage = common::build_storage();
-    let on_disk = local_blob_path(storage.path(), "", "@foo/no-deps", "no-deps-1.0.0.tgz");
+    let on_disk = local_blob_path(
+        storage.path(),
+        "",
+        pnpr_storage::Ecosystem::Npm,
+        "@foo/no-deps",
+        "no-deps-1.0.0.tgz",
+    );
     let expected_bytes = std::fs::read(&on_disk).expect("fixture tarball");
 
     let app = router(static_config(storage.path().to_path_buf()));
@@ -311,8 +317,14 @@ async fn serves_a_single_npm_ecosystem_at_the_root() {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         body_bytes(response.into_body()).await,
-        std::fs::read(local_blob_path(storage.path(), "", "@foo/no-deps", "no-deps-1.0.0.tgz"))
-            .unwrap(),
+        std::fs::read(local_blob_path(
+            storage.path(),
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "@foo/no-deps",
+            "no-deps-1.0.0.tgz"
+        ))
+        .unwrap(),
     );
     let response = app
         .oneshot(

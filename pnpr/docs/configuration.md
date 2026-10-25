@@ -206,14 +206,16 @@ registries:
 
 | Key | Description |
 | --- | --- |
-| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<ecosystem>~<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
+| `org` | [Storage namespace](storage.md#layout) for this registry's packages, so two hosted registries can hold the same `name@version` without colliding. Omitted means the default namespace, or `<name>` for a registry declared under an [ecosystem group](ecosystems.md#reusing-a-name-across-ecosystems). Must be a single path-safe segment. |
 | `access` | The default read access for `packages:` entries that don't set their own. Defaults to `$all`. This is the only access field settable registry-wide. `publish` and `unpublish` belong to `packages:` entries. |
 | `teams` | Named user sets for this registry, referenced from its access lists as `team:<name>`. See [Teams](#teams). |
 | `packages` | The registry's namespace and per-package rules. See [above](#the-packages-map). Only these names can be served from or published to this registry. |
 | `tarballs` | The format this registry serves tarballs in: `tgz` (default) or `tar`. See [Tar registries](#tar-registries). |
 
-Two hosted registries cannot share an `org` namespace. That's rejected at
-config load.
+Two hosted registries of the same ecosystem cannot share an `org` namespace.
+That's rejected at config load. Hosted registries of different ecosystems can
+share an `org` because each ecosystem uses its own `<ecosystem>/` directory
+inside the namespace.
 
 The shape of a denial depends on who denied it. A caller that the
 registry-level `access:` default also denies is masked with a `404`. A

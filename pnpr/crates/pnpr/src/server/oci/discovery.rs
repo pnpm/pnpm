@@ -132,7 +132,7 @@ impl Request {
         let Some(hosted) = self.state.inner.config.routing.hosted.get(source) else {
             return Ok(Vec::new());
         };
-        let storage = self.state.inner.storage.for_hosted(&hosted.org);
+        let storage = self.state.inner.storage.for_hosted(&hosted.org, ECOSYSTEM);
         let names = storage.hosted_package_names().await?;
         // A listing may only name what this caller could have fetched.
         Ok(names

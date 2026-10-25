@@ -126,7 +126,13 @@ fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
 /// journal entry that says where it belongs.
 fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
     write_local_layout_marker(storage).unwrap();
-    let blob = local_blob_path(storage, "crates", "demo", "demo-0.1.0.crate");
+    let blob = local_blob_path(
+        storage,
+        "crates",
+        pnpr_storage::Ecosystem::Cargo,
+        "demo",
+        "demo-0.1.0.crate",
+    );
     std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
     let tmp_path = blob.with_file_name("demo-0.1.0.crate.tmp.999.0");
     std::fs::write(&tmp_path, archive).unwrap();

@@ -489,7 +489,8 @@ async fn per_upstream_maxage_overrides_global_ttl_in_cache_control() {
 #[tokio::test]
 async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() {
     let tmp = TempDir::new().unwrap();
-    let document = local_document_path(tmp.path(), "acme", "@acme/widget");
+    let document =
+        local_document_path(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget");
     std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     let doc = json!({
         "name": "@acme/widget",
@@ -551,7 +552,8 @@ async fn hosted_packument_responses_use_global_packument_ttl_in_cache_control() 
 #[tokio::test]
 async fn anonymous_only_package_carries_private_cache_headers_and_denies_authenticated_caller() {
     let tmp = TempDir::new().unwrap();
-    let document = local_document_path(tmp.path(), "acme", "@acme/widget");
+    let document =
+        local_document_path(tmp.path(), "acme", pnpr_storage::Ecosystem::Npm, "@acme/widget");
     std::fs::create_dir_all(document.parent().unwrap()).unwrap();
     let doc = json!({
         "name": "@acme/widget",

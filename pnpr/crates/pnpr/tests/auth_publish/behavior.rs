@@ -633,7 +633,13 @@ async fn dist_tag_mutations_refresh_time_modified() {
         .unwrap();
 
     let initial_time = serde_json::from_slice::<Value>(
-        &std::fs::read(local_document_path(&storage, "", "time-mod-pkg")).unwrap(),
+        &std::fs::read(local_document_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "time-mod-pkg",
+        ))
+        .unwrap(),
     )
     .unwrap()["time"]["modified"]
         .as_str()
@@ -656,7 +662,13 @@ async fn dist_tag_mutations_refresh_time_modified() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let after_set = serde_json::from_slice::<Value>(
-        &std::fs::read(local_document_path(&storage, "", "time-mod-pkg")).unwrap(),
+        &std::fs::read(local_document_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "time-mod-pkg",
+        ))
+        .unwrap(),
     )
     .unwrap()["time"]["modified"]
         .as_str()
@@ -674,7 +686,13 @@ async fn dist_tag_mutations_refresh_time_modified() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let after_delete = serde_json::from_slice::<Value>(
-        &std::fs::read(local_document_path(&storage, "", "time-mod-pkg")).unwrap(),
+        &std::fs::read(local_document_path(
+            &storage,
+            "",
+            pnpr_storage::Ecosystem::Npm,
+            "time-mod-pkg",
+        ))
+        .unwrap(),
     )
     .unwrap()["time"]["modified"]
         .as_str()

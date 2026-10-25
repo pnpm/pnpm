@@ -2,10 +2,10 @@ use futures_util::TryStreamExt as _;
 
 use super::{
     Arc, AsyncReadExt, AsyncSeekExt, BLOBS_DIR, BlobFinalize, Body, BoxStream,
-    CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, ErrorKind, GetRange, HostedBackend,
-    HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, PACKAGES_DIR, Path, PathBuf,
-    RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait, decode_blob_segment, fs,
-    package_dirs, read_dir_if_present, stream, streaming,
+    CanonicalPackageName, DOCUMENT_FILE, DocumentWrite, Ecosystem, ErrorKind, GetRange,
+    HostedBackend, HostedBlobFile, HostedDocumentForUpdate, HostedDocumentVersion, PACKAGES_DIR,
+    Path, PathBuf, RangedBlob, Result, SeekFrom, Store, StreamExt, async_trait,
+    decode_blob_segment, fs, package_dirs, read_dir_if_present, stream, streaming,
 };
 
 /// The single-node filesystem backend. It owns its directory tree
@@ -103,7 +103,8 @@ impl HostedBackend for Store {
 
     fn list_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
         let packages = self.root.join(PACKAGES_DIR);
-        stream::once(async move { package_dirs(&packages).await })
+        let ecosystem = self.ecosystem;
+        stream::once(async move { package_dirs(&packages, ecosystem).await })
             .map_ok(|dirs| {
                 stream::iter(dirs)
                     .then(|(name, dir)| package_files(name, dir))
@@ -160,6 +161,10 @@ impl HostedBackend for Store {
 
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend> {
         Arc::new(Store::namespaced(self, segment))
+    }
+
+    fn with_ecosystem(&self, ecosystem: Ecosystem) -> Arc<dyn HostedBackend> {
+        Arc::new(Store::with_ecosystem(self, ecosystem))
     }
 
     fn namespace(&self) -> String {

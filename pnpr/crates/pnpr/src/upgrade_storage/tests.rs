@@ -27,8 +27,8 @@ fn npm(name: &str) -> CanonicalPackageName {
     CanonicalPackageName::parse(name, Ecosystem::Npm).unwrap()
 }
 
-fn orgs() -> BTreeSet<String> {
-    BTreeSet::from(["acme".to_string()])
+fn orgs() -> BTreeSet<(String, Ecosystem)> {
+    BTreeSet::from([("acme".to_string(), Ecosystem::Npm)])
 }
 
 async fn write_legacy(root: &Path) {
@@ -57,7 +57,7 @@ async fn assert_converted(storage: &Storage) {
             .unwrap()
             .is_some(),
     );
-    let org = storage.for_hosted("acme");
+    let org = storage.for_hosted("acme", Ecosystem::Npm);
     assert_eq!(org.hosted_package_names().await.unwrap(), ["tool"]);
     assert!(
         org.open_hosted_blob(&npm("tool"), "tool-1.0.0.tgz").await
@@ -100,7 +100,7 @@ async fn an_interrupted_local_conversion_resumes() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path().join("storage");
     write_legacy(&root).await;
-    let moved = root.join("default/packages/@/left-pad/blobs/1.0.0.tgz");
+    let moved = root.join("default/npm/packages/@/left-pad/blobs/1.0.0.tgz");
     tokio::fs::create_dir_all(moved.parent().unwrap()).await.unwrap();
     tokio::fs::rename(root.join("left-pad/left-pad-1.0.0.tgz"), &moved).await.unwrap();
     let storage =

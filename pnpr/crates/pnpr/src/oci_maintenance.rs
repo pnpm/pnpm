@@ -36,7 +36,7 @@ pub async fn collect_oci_blobs(
         config.storage.hosted_dir.clone(),
         config.storage.cache_dir.clone(),
     )?
-    .for_hosted(&hosted.org);
+    .for_hosted(&hosted.org, Ecosystem::Oci);
     if dry_run {
         storage.check_hosted_layout().await?;
     } else {

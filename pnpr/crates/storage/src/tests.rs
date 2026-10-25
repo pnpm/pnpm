@@ -27,7 +27,12 @@ async fn hosted_blob_under_non_directory_package_path_is_an_error() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("foo");
-    let package_dir = crate::layout::local_package_dir(&tmp.path().join("storage"), "", "foo");
+    let package_dir = crate::layout::local_package_dir(
+        &tmp.path().join("storage"),
+        "",
+        pnpr_package_name::Ecosystem::Npm,
+        "foo",
+    );
     fs::create_dir_all(package_dir.parent().unwrap()).await.unwrap();
     fs::write(&package_dir, b"not a directory").await.unwrap();
 
@@ -118,17 +123,34 @@ async fn failed_blob_finalize_removes_tmp_file() {
 #[tokio::test]
 async fn nested_names_are_stored_as_siblings() {
     let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
+    let storage = storage_in(&tmp).for_hosted("", pnpr_package_name::Ecosystem::Oci);
     let parent =
         CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
     let child =
         CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
-    for name in [&parent, &child] {
+    let top = CanonicalPackageName::parse("acme", pnpr_package_name::Ecosystem::Oci).unwrap();
+    let blobs_repo =
+        CanonicalPackageName::parse("acme/blobs", pnpr_package_name::Ecosystem::Oci).unwrap();
+    for name in [&parent, &child, &top, &blobs_repo] {
         storage.write_hosted_document_if_current(name, b"{}", None).await.unwrap();
     }
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
+    let slot = storage.reserve_hosted_blob(&top, "sha256-top").await.unwrap();
+    fs::write(&slot.tmp_path, b"top-layer").await.unwrap();
+    storage.finalize_blob_slot(slot).await.unwrap();
+    let slot = storage.reserve_hosted_blob(&blobs_repo, "sha256-repo").await.unwrap();
+    fs::write(&slot.tmp_path, b"repo-layer").await.unwrap();
+    storage.finalize_blob_slot(slot).await.unwrap();
+    assert_eq!(
+        storage.hosted_package_names().await.unwrap(),
+        ["acme", "acme/app", "acme/app/tool", "acme/blobs"],
+    );
+    assert_eq!(storage.hosted_package_blobs(&top).await.unwrap(), ["sha256-top"]);
+    assert_eq!(storage.hosted_package_blobs(&blobs_repo).await.unwrap(), ["sha256-repo"]);
     storage.remove_package(&parent).await.unwrap();
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
+    assert_eq!(
+        storage.hosted_package_names().await.unwrap(),
+        ["acme", "acme/app/tool", "acme/blobs"],
+    );
 }
 
 #[tokio::test]
@@ -141,17 +163,17 @@ async fn packages_documents_and_blobs_have_one_path_each() {
     fs::write(&slot.tmp_path, b"tarball").await.unwrap();
     storage.finalize_blob_slot(slot).await.unwrap();
     storage
-        .for_hosted("npm~internal")
+        .for_hosted("npm~internal", pnpr_package_name::Ecosystem::Npm)
         .write_hosted_document_if_current(&name, b"{}", None)
         .await
         .unwrap();
 
-    let package = tmp.path().join("storage/default/packages/@scope/!41pp");
+    let package = tmp.path().join("storage/default/npm/packages/@scope/!41pp");
     assert!(package.join("document.json").is_file());
     assert!(package.join("blobs/1.0.0.tgz").is_file());
     assert!(
         tmp.path()
-            .join("storage/orgs/npm!7einternal/packages/@scope/!41pp/document.json")
+            .join("storage/orgs/npm!7einternal/npm/packages/@scope/!41pp/document.json")
             .is_file(),
     );
 }
@@ -160,7 +182,7 @@ async fn packages_documents_and_blobs_have_one_path_each() {
 async fn an_org_named_like_a_package_is_its_own_namespace() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
-    let org = storage.for_hosted("acme");
+    let org = storage.for_hosted("acme", pnpr_package_name::Ecosystem::Npm);
     storage
         .write_hosted_document_if_current(&pkg("acme"), b"{}", None)
         .await
@@ -451,7 +473,7 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
         .write_hosted_document_if_current(&pkg("real"), b"{}", None)
         .await
         .unwrap();
-    let scopes = tmp.path().join("storage/default/packages");
+    let scopes = tmp.path().join("storage/default/npm/packages");
     fs::create_dir_all(tmp.path().join("outside-scope/pkg")).await.unwrap();
     fs::write(tmp.path().join("outside-scope/pkg/document.json"), b"{}").await.unwrap();
     fs::symlink(tmp.path().join("outside-scope"), scopes.join("@linked")).await.unwrap();
@@ -810,6 +832,12 @@ impl super::backend::HostedBackend for HookedBackend {
     fn namespaced(&self, segment: &str) -> std::sync::Arc<dyn super::backend::HostedBackend> {
         self.inner.namespaced(segment)
     }
+    fn with_ecosystem(
+        &self,
+        ecosystem: pnpr_package_name::Ecosystem,
+    ) -> std::sync::Arc<dyn super::backend::HostedBackend> {
+        self.inner.with_ecosystem(ecosystem)
+    }
     fn namespace(&self) -> String {
         self.inner.namespace()
     }
@@ -989,4 +1017,48 @@ async fn replace_registry_record_rollback_preserves_concurrent_namespaced_update
 fn iso_from_unix_millis_formats_negative_millis_correctly() {
     assert_eq!(super::publish::iso_from_unix_millis(-1), "1969-12-31T23:59:59.999Z");
     assert_eq!(super::publish::iso_from_unix_millis(0), "1970-01-01T00:00:00.000Z");
+}
+
+#[tokio::test]
+async fn multi_component_and_max_length_oci_repositories_round_trip_on_local_storage() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp).for_hosted("images", pnpr_package_name::Ecosystem::Oci);
+
+    let max_len_repo = ["a"; 128].join("/");
+    assert_eq!(max_len_repo.len(), 255);
+    let repos = ["acme", "acme/blobs", "acme/app", "acme/app/tool", max_len_repo.as_str()];
+
+    for repo in repos {
+        let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
+        let doc = format!(r#"{{"repository":"{repo}"}}"#);
+        assert_eq!(
+            storage.write_hosted_document_if_current(&name, doc.as_bytes(), None).await.unwrap(),
+            DocumentWrite::Written,
+        );
+        let slot = storage.reserve_hosted_blob(&name, "sha256-deadbeef").await.unwrap();
+        fs::write(&slot.tmp_path, repo.as_bytes()).await.unwrap();
+        storage.finalize_blob_slot(slot).await.unwrap();
+    }
+
+    for repo in repos {
+        let name = CanonicalPackageName::parse(repo, pnpr_package_name::Ecosystem::Oci).unwrap();
+        let expected_doc = format!(r#"{{"repository":"{repo}"}}"#);
+        assert_eq!(
+            storage
+                .read_hosted_document(&name)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some(expected_doc.as_bytes()),
+        );
+    }
+
+    let mut listed = storage.hosted_package_names().await.unwrap();
+    listed.sort();
+    let mut expected: Vec<String> = repos
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
+    expected.sort();
+    assert_eq!(listed, expected);
 }

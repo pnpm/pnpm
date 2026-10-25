@@ -109,7 +109,10 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert!(local_blob_path(tmp.path(), "python", "demo-pkg", filename).is_file());
+    assert!(
+        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", filename)
+            .is_file(),
+    );
     assert!(
         std::fs::read_dir(tmp.path().join(".pnpr-journal"))
             .unwrap()
@@ -552,6 +555,7 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
     let object = ObjectPath::from(object_key(&local_blob_path(
         Path::new(""),
         "python",
+        pnpr_storage::Ecosystem::Pypi,
         "demo-pkg",
         filename,
     )));
@@ -684,7 +688,8 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
     let tmp = TempDir::new().unwrap();
     write_local_layout_marker(tmp.path()).unwrap();
     let orphan = "demo_pkg-1.0.0-py3-none-any.whl";
-    let orphan_blob = local_blob_path(tmp.path(), "python", "demo-pkg", orphan);
+    let orphan_blob =
+        local_blob_path(tmp.path(), "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", orphan);
     tokio::fs::create_dir_all(orphan_blob.parent().unwrap()).await.unwrap();
     tokio::fs::write(&orphan_blob, b"unpublished wheel").await.unwrap();
     let auth = AuthState::in_memory();
@@ -728,7 +733,8 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
 /// sealed journal entry that says where it belongs.
 fn fabricate_crashed_upload(storage: &Path, filename: &str, wheel: &[u8]) -> PathBuf {
     write_local_layout_marker(storage).unwrap();
-    let blob = local_blob_path(storage, "python", "demo-pkg", filename);
+    let blob =
+        local_blob_path(storage, "python", pnpr_storage::Ecosystem::Pypi, "demo-pkg", filename);
     std::fs::create_dir_all(blob.parent().unwrap()).unwrap();
     let mut tmp_name = blob.file_name().unwrap().to_os_string();
     tmp_name.push(".tmp.999.0");
