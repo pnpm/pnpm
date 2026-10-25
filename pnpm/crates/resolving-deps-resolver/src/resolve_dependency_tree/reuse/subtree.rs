@@ -61,8 +61,12 @@ impl Visit {
 impl SubtreeWalk<'_> {
     fn visit(&mut self, key: &PkgNameVerPeer, depth: i32) -> Visit {
         let scope = self.ctx.update_scope();
-        let memo_key =
-            (self.ctx.update_cache_scope(), key.clone(), scope.max_depth.memo_bucket(depth));
+        let graph_size = self.lockfile.snapshots.as_ref().map_or(0, std::collections::HashMap::len);
+        let memo_key = (
+            self.ctx.update_cache_scope(),
+            key.clone(),
+            scope.max_depth.memo_bucket(depth, graph_size),
+        );
         if let Some(&reusable) =
             lock_recoverable(&self.ctx.workspace.cache.subtree_reusable).get(&memo_key)
         {

@@ -174,15 +174,20 @@ impl UpdateDepth {
         self.0.is_none_or(|max_depth| depth <= max_depth)
     }
 
-    /// The depth to memoise a subtree-reuse answer under. Beyond the
-    /// ceiling no node is an update target, so every deeper level shares
-    /// one answer — and an unlimited update never varies by depth at all.
+    /// The depth to memoise a subtree-reuse answer under, for a walk over a
+    /// graph of `graph_size` nodes. Beyond the ceiling no node is an update
+    /// target, so every deeper level shares one answer — and an unlimited
+    /// update never varies by depth at all. Neither does a level at least
+    /// `graph_size` above the ceiling, since the walk reaches every node it
+    /// can reach along some path shorter than `graph_size`.
     #[must_use]
-    pub(super) fn memo_bucket(self, depth: i32) -> i32 {
-        match self.0 {
-            None => 0,
-            Some(max_depth) => depth.min(max_depth.saturating_add(1)),
+    pub(super) fn memo_bucket(self, depth: i32, graph_size: usize) -> i32 {
+        let Some(max_depth) = self.0 else { return 0 };
+        let graph_size = i32::try_from(graph_size).unwrap_or(i32::MAX);
+        if depth <= max_depth.saturating_sub(graph_size) {
+            return 0;
         }
+        depth.min(max_depth.saturating_add(1))
     }
 }
 
