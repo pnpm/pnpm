@@ -679,3 +679,33 @@ fn sbom_fails_when_the_lockfile_has_no_importer_for_a_selected_project() {
     assert!(stderr.contains("newpkg"), "the error should name the missing project:\n{stderr}");
     assert!(!stdout.contains("bomFormat"), "no SBOM may be written for an out-of-date lockfile");
 }
+
+#[test]
+fn sbom_fails_when_a_linked_workspace_project_has_a_malformed_manifest() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    fs::write(tmp.path().join("shared-lib/package.json"), "{ malformed json").unwrap();
+    let output = pacquet(
+        &tmp.path().join("app-a"),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only"],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(!output.status.success(), "a malformed manifest must fail the run");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("shared-lib"), "the error names the project: {stderr}");
+    assert!(stderr.contains("package.json"), "the error names the manifest: {stderr}");
+}
+
+#[test]
+fn sbom_tolerates_a_linked_workspace_project_without_a_manifest() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    fs::remove_file(tmp.path().join("shared-lib/package.json")).unwrap();
+    let parsed = run_sbom_json(&tmp.path().join("app-a"), "cyclonedx", &[]);
+    let components = parsed["components"].as_array().unwrap();
+    assert!(
+        !components
+            .iter()
+            .any(|component| component["name"] == "shared-lib"),
+        "a project without a manifest describes no component",
+    );
+}
