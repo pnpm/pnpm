@@ -58,7 +58,7 @@ fn workload_credentials_only_permit_named_package_publication() {
         "/-/user/org.couchdb.user:ci",
         "/-/npm/v1/tokens",
         "/-/pnpr/v0/publish",
-        "/npm/-/pnpm/v1/publish",
+        "/npm/-/pnpr/v0/publish",
         "/v2/token",
         "/npm/~private/@org%252fpkg",
         "/npm/~private/@org/pkg/",

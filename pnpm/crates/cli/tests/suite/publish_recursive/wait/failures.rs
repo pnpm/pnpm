@@ -27,13 +27,13 @@ fn batch_rejection_keeps_uploads_accepted_by_an_earlier_registry() {
     link_workspace_packages(&workspace);
     write_registry_npmrc(&workspace, &first_registry.url());
     let accepted = first_registry
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .with_body("{}")
         .expect(1)
         .create();
     let available = mock_available_packages(&mut first_registry, &["a", "b"]);
     let rejected = second_registry
-        .mock("PUT", "/-/pnpm/v1/publish")
+        .mock("PUT", "/-/pnpr/v0/publish")
         .with_status(403)
         .with_body(r#"{"error":"registry rejected upload"}"#)
         .expect(1)
@@ -102,7 +102,7 @@ fn assert_lifecycle_failure_summary(batch: bool, hook: &str, wait: bool) {
     link_workspace_packages(&workspace);
     write_registry_npmrc(&workspace, &registry.url());
     let accepted_names: &[&str] = if batch { &["a", "b", "c"] } else { &["a", "b"] };
-    let endpoints: &[&str] = if batch { &["/-/pnpm/v1/publish"] } else { &["/a", "/b"] };
+    let endpoints: &[&str] = if batch { &["/-/pnpr/v0/publish"] } else { &["/a", "/b"] };
     let uploads = endpoints
         .iter()
         .map(|endpoint| {

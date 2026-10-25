@@ -288,7 +288,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
             "length": tarball.len(),
         },
     });
-    let request = Request::put("/npm/-/pnpm/v1/publish")
+    let request = Request::put("/npm/-/pnpr/v0/publish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&json!({ "packages": [doc] })).unwrap()))

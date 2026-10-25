@@ -325,7 +325,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let batch_publish = app
         .clone()
         .oneshot(
-            Request::put("/npm/-/pnpm/v1/publish")
+            Request::put("/npm/-/pnpr/v0/publish")
                 .body(Body::from("{}"))
                 .unwrap(),
         )
