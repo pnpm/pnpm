@@ -2,8 +2,8 @@
 //! concurrently when the run's concurrency allows it, as they do in
 //! pnpm 11 — <https://github.com/pnpm/pnpm/issues/14933>.
 
-use super::{CommandExtra, CommandTempCwd, Duration, fs, json, write_workspace};
-use crate::_utils::{CHILD_DEADLINE, hold_until_cancelled_script};
+use super::{CommandExtra, CommandTempCwd, Duration, Stdio, fs, json, write_workspace};
+use crate::_utils::{hold_until_cancelled_script, wait_for_child};
 use assert_cmd::assert::OutputAssertExt;
 
 /// A pair of scripts that record whether they ever ran simultaneously:
@@ -149,20 +149,24 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
         )],
     );
 
-    // The run ending is the proof: `dev:slow` holds for longer than the
-    // deadline below and pnpm waits for the scripts it started, so the run
-    // reaches its verdict only once `dev:slow` is gone.
-    let output = assert_cmd::Command::from_std(pacquet)
-        .args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
-        .timeout(CHILD_DEADLINE)
-        .assert()
-        .failure()
-        .get_output()
-        .clone();
+    // The run ending is the proof: `dev:slow` holds for longer than
+    // `wait_for_child`'s deadline and pnpm waits for the scripts it
+    // started, so the run reaches its verdict only once `dev:slow` is
+    // gone. A cancellation that never arrives fails on that deadline,
+    // which says so.
+    let stderr_path = workspace.join("run.stderr");
+    let mut run = pacquet
+        .with_args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
+        .stdout(Stdio::null())
+        .stderr(fs::File::create(&stderr_path).expect("create the run output"))
+        .spawn()
+        .expect("spawn pacquet");
+    let status = wait_for_child(&mut run);
+    assert!(!status.success(), "the failing script must fail the run");
 
     // The cancelled sibling must not take the failing script's place as
     // the task's verdict, which is what names the project in the error.
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stderr = fs::read_to_string(&stderr_path).expect("read the run output");
     eprintln!("STDERR:\n{stderr}\n");
     assert!(stderr.contains("ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL"), "stderr: {stderr}");
 

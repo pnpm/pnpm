@@ -1,7 +1,7 @@
 use super::{
-    CommandExtra, CommandTempCwd, Duration, assert_no_bail_lets_siblings_finish, fs, json,
+    CommandExtra, CommandTempCwd, Duration, Stdio, assert_no_bail_lets_siblings_finish, fs, json,
 };
-use crate::_utils::{CHILD_DEADLINE, hold_until_cancelled_script};
+use crate::_utils::{hold_until_cancelled_script, wait_for_child};
 use assert_cmd::assert::OutputAssertExt;
 
 /// Without `--if-present`, calling a script that does not exist fails
@@ -212,14 +212,19 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     )
     .expect("write package.json");
 
-    // The run ending is the proof: `dev:slow` holds for longer than the
-    // deadline below and pnpm waits for the scripts it started, so the run
-    // reaches the failing script's exit code only once `dev:slow` is gone.
-    assert_cmd::Command::from_std(pacquet)
-        .args(["--workspace-concurrency=2", "run", "/^dev:/"])
-        .timeout(CHILD_DEADLINE)
-        .assert()
-        .code(17);
+    // The run ending is the proof: `dev:slow` holds for longer than
+    // `wait_for_child`'s deadline and pnpm waits for the scripts it
+    // started, so the run reaches the failing script's exit code only once
+    // `dev:slow` is gone. A cancellation that never arrives fails on that
+    // deadline, which says so.
+    let mut run = pacquet
+        .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn pacquet");
+    let status = wait_for_child(&mut run);
+    assert_eq!(status.code(), Some(17), "the run must end with the failing script's code");
     assert!(
         workspace.join("slow-started").exists(),
         "the slow script must have started beside the failing one",
