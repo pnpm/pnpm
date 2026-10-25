@@ -74,15 +74,16 @@ async function linkProject (projectDir: string, linkPath: string): Promise<void>
   }
 }
 
-const UNRESOLVABLE_LINK_CODES = new Set(['ENOENT', 'ENOTDIR', 'ELOOP'])
-
+/**
+ * An entry that cannot be resolved for any reason is replaced. A real
+ * permission problem then surfaces from the removal.
+ */
 async function resolvesToSameDir (linkPath: string, projectDir: string): Promise<boolean> {
   try {
     const [linkTarget, project] = await Promise.all([fs.realpath(linkPath), fs.realpath(projectDir)])
     return linkTarget === project
-  } catch (err: unknown) {
-    if (isError(err) && 'code' in err && UNRESOLVABLE_LINK_CODES.has(err.code as string)) return false
-    throw err
+  } catch {
+    return false
   }
 }
 

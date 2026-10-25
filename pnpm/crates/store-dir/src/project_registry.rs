@@ -124,7 +124,8 @@ pub fn register_loaded_project(
 }
 
 fn link_project(project_dir: &Path, link_path: &Path) -> io::Result<()> {
-    symlink_dir_with_contents(project_dir, project_dir, link_path)
+    let target = std::path::absolute(project_dir)?;
+    symlink_dir_with_contents(&target, &target, link_path)
 }
 
 fn repair_project_link(project_dir: &Path, link_path: PathBuf) -> Result<(), RegisterProjectError> {
