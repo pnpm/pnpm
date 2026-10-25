@@ -222,6 +222,7 @@ impl CliArgs {
             return Ok(());
         }
         self.configure_reporter();
+        self.check_global_conflicts(config_overrides)?;
 
         let anchors = RunAnchors::resolve(&self)?;
         select_reporter(self.effective_reporter());
