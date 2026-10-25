@@ -126,7 +126,7 @@ fn create_config(
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
-        allow_symlinked_lockfile: Vec::new(),
+        symlinked_lockfile_target_dirs: Vec::new(),
         lockfile_include_resolution_settings: false,
         lockfile_integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
         registry: "https://registry.npmjs.com/".to_string(),

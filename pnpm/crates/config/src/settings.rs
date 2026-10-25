@@ -617,9 +617,9 @@ pub struct Config {
     pub lockfile_include_tarball_url: bool,
 
     /// The directories a changed lockfile may be written to through a
-    /// symlink. The `allowSymlinkedLockfile` setting. Default empty: such a
+    /// symlink. The `symlinkedLockfileTargetDirs` setting. Default empty: such a
     /// write fails.
-    pub allow_symlinked_lockfile: Vec<PathBuf>,
+    pub symlinked_lockfile_target_dirs: Vec<PathBuf>,
 
     /// Record `autoDedupe`, `dedupeInjectedDeps`, `dedupePeerDependents` and
     /// `linkWorkspacePackages` in the lockfile's `settings`, so a lockfile

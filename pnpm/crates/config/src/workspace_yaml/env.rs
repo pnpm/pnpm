@@ -69,7 +69,7 @@ impl WorkspaceSettings {
     }
 
     /// Rewrite a leading `~/` in `storeDir`, `globalDir`, `globalBinDir`, and
-    /// each `allowSymlinkedLockfile` entry into the home directory. A shell
+    /// each `symlinkedLockfileTargetDirs` entry into the home directory. A shell
     /// expands the tilde before pnpm sees it, but a configuration file carries
     /// it verbatim.
     ///
@@ -77,7 +77,7 @@ impl WorkspaceSettings {
     /// tilde for an ordinary relative path segment.
     pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
         let single_dirs = [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir];
-        let listed_dirs = self.allow_symlinked_lockfile.iter_mut().flatten();
+        let listed_dirs = self.symlinked_lockfile_target_dirs.iter_mut().flatten();
         for dir in single_dirs
             .into_iter()
             .flatten()

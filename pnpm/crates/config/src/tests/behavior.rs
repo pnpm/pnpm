@@ -43,7 +43,7 @@ pub fn global_config_paths_expand_a_leading_tilde() {
     fs::write(
         config_dir.join("config.yaml"),
         format!(
-            "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\nallowSymlinkedLockfile:\n  - ~/src\n  - relative\n  - '{}'\n",
+            "globalDir: ~/global\nglobalBinDir: ~/bin\nstoreDir: ~/store\nsymlinkedLockfileTargetDirs:\n  - ~/src\n  - relative\n  - '{}'\n",
             absolute_dir.display(),
         ),
     )
@@ -93,7 +93,7 @@ pub fn global_config_paths_expand_a_leading_tilde() {
     assert_eq!(config.global_bin, Some(home.path().join("bin")));
     assert_eq!(config.store_dir.root(), home.path().join("store").join("v11"));
     // A relative entry is dropped, not resolved against the working directory.
-    assert_eq!(config.allow_symlinked_lockfile, [home.path().join("src"), absolute_dir]);
+    assert_eq!(config.symlinked_lockfile_target_dirs, [home.path().join("src"), absolute_dir]);
 }
 
 #[test]

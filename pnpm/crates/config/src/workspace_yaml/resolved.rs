@@ -83,8 +83,8 @@ impl WorkspaceSettings {
             global_virtual_store_dir: as_set(config, "globalVirtualStoreDir"),
             global_dir: as_set(config, "globalDir"),
             global_bin_dir: as_set(config, "globalBinDir"),
-            allow_symlinked_lockfile: Some(
-                config.allow_symlinked_lockfile
+            symlinked_lockfile_target_dirs: Some(
+                config.symlinked_lockfile_target_dirs
                     .iter()
                     .map(|dir| path(dir))
                     .collect(),

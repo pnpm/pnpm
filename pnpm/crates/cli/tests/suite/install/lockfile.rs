@@ -1075,7 +1075,7 @@ fn stage_symlinked_lockfile_needing_update(
 /// <https://github.com/pnpm/pnpm/issues/17222>
 #[cfg(unix)]
 #[test]
-fn allow_symlinked_lockfile_writes_through_the_symlink() {
+fn symlinked_lockfile_writes_through_into_a_target_dir() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -1087,7 +1087,7 @@ fn allow_symlinked_lockfile_writes_through_the_symlink() {
     let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
 
     new_pacquet_command(&workspace)
-        .with_env("PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE", allowed_dirs_json(&source_lockfile))
+        .with_env("PNPM_CONFIG_SYMLINKED_LOCKFILE_TARGET_DIRS", target_dirs_json(&source_lockfile))
         .with_args(["install", "--lockfile-only"])
         .assert()
         .success();
@@ -1115,10 +1115,10 @@ fn changed_symlinked_lockfile_is_refused_even_if_the_workspace_yaml_allows_it() 
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
     let source_lockfile = stage_symlinked_lockfile_needing_update(pacquet, root.path(), &workspace);
-    let allowed_dirs = allowed_dirs_json(&source_lockfile);
+    let allowed_dirs = target_dirs_json(&source_lockfile);
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        format!("{workspace_yaml}\nallowSymlinkedLockfile: {allowed_dirs}\n"),
+        format!("{workspace_yaml}\nsymlinkedLockfileTargetDirs: {allowed_dirs}\n"),
     )
     .unwrap();
     let before = fs::read_to_string(&source_lockfile).unwrap();
@@ -1154,8 +1154,8 @@ fn symlinked_lockfile_outside_the_allowed_dirs_is_refused() {
 
     let output = new_pacquet_command(&workspace)
         .with_env(
-            "PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE",
-            allowed_dirs_json(&workspace.join("pnpm-lock.yaml")),
+            "PNPM_CONFIG_SYMLINKED_LOCKFILE_TARGET_DIRS",
+            target_dirs_json(&workspace.join("pnpm-lock.yaml")),
         )
         .with_args(["install", "--lockfile-only"])
         .assert()
@@ -1169,8 +1169,8 @@ fn symlinked_lockfile_outside_the_allowed_dirs_is_refused() {
     drop((root, mock_instance));
 }
 
-/// `allowSymlinkedLockfile` listing the directory of `file`, as JSON.
+/// `symlinkedLockfileTargetDirs` listing the directory of `file`, as JSON.
 #[cfg(unix)]
-fn allowed_dirs_json(file: &std::path::Path) -> String {
+fn target_dirs_json(file: &std::path::Path) -> String {
     serde_json::to_string(&[file.parent().unwrap()]).unwrap()
 }

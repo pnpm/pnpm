@@ -182,8 +182,8 @@ impl WorkspaceSettings {
         if let Some(v) = self.store_dir.take() {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
-        if let Some(dirs) = self.allow_symlinked_lockfile.take() {
-            config.allow_symlinked_lockfile = absolute_dirs(dirs);
+        if let Some(dirs) = self.symlinked_lockfile_target_dirs.take() {
+            config.symlinked_lockfile_target_dirs = absolute_dirs(dirs);
         }
     }
 
@@ -482,7 +482,7 @@ impl WorkspaceSettings {
     }
 }
 
-/// The absolute entries of `allowSymlinkedLockfile`. A relative entry is
+/// The absolute entries of `symlinkedLockfileTargetDirs`. A relative entry is
 /// dropped: the global config and the environment resolve relative paths
 /// against the working directory, which may be a repository's checkout.
 fn absolute_dirs(dirs: Vec<String>) -> Vec<std::path::PathBuf> {
@@ -494,7 +494,7 @@ fn absolute_dirs(dirs: Vec<String>) -> Vec<std::path::PathBuf> {
                 let dir = dir.display();
                 tracing::warn!(
                     target: "pacquet::config",
-                    "Ignoring {dir} in allowSymlinkedLockfile because it is not an absolute path.",
+                    "Ignoring {dir} in symlinkedLockfileTargetDirs because it is not an absolute path.",
                 );
             }
             absolute

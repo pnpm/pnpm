@@ -13,7 +13,6 @@ use std::{collections::HashSet, sync::OnceLock};
 
 /// `(kebab-key, type-includes-Number)` for pnpm's own settings (`pnpmTypes`).
 const PNPM_TYPES: &[(&str, bool)] = &[
-    ("allow-symlinked-lockfile", false),
     ("auto-install-peers", false),
     ("bail", false),
     ("ci", false),
@@ -130,6 +129,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("side-effects-cache", false),
     ("side-effects-cache-readonly", false),
     ("symlink", false),
+    ("symlinked-lockfile-target-dirs", false),
     ("sort", false),
     ("state-dir", false),
     ("store-dir", false),

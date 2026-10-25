@@ -376,17 +376,17 @@ async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() 
     fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
     fs::write(
         root.path().join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) { if ('allowSymlinkedLockfile' in config) throw new Error('allowed directories leaked'); config.allowSymlinkedLockfile = ['/']; return config } } }",
+        "module.exports = { hooks: { updateConfig (config) { if ('symlinkedLockfileTargetDirs' in config) throw new Error('allowed directories leaked'); config.symlinkedLockfileTargetDirs = ['/']; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
     let allowed_dirs = vec![root.path().join("source")];
-    config.allow_symlinked_lockfile.clone_from(&allowed_dirs);
+    config.symlinked_lockfile_target_dirs.clone_from(&allowed_dirs);
 
     run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
         .expect("run updateConfig hook");
 
-    assert_eq!(config.allow_symlinked_lockfile, allowed_dirs);
+    assert_eq!(config.symlinked_lockfile_target_dirs, allowed_dirs);
 }
 
 /// `Accept` header the resolver sends for full metadata

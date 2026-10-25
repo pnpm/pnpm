@@ -198,7 +198,7 @@ fn manifest_catalogs_value(root_dir: &Path) -> Result<Value> {
 /// overlay: the machine-local backup policy, and the directories a symlinked
 /// lockfile may be written into. Repository-controlled hooks may neither read
 /// nor rewrite them.
-const HIDDEN_FROM_HOOKS: [&str; 2] = ["macosBackup", "allowSymlinkedLockfile"];
+const HIDDEN_FROM_HOOKS: [&str; 2] = ["macosBackup", "symlinkedLockfileTargetDirs"];
 
 /// Seed the hook input with the values pnpm resolves outside
 /// [`WorkspaceSettings`], so a hook can read and extend them. They are

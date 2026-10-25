@@ -168,7 +168,7 @@ pub enum SymlinkedLockfile<'dirs> {
     /// Resolve the whole link chain and atomically replace the final target,
     /// leaving every link in place, if that target is inside one of
     /// `allowed_dirs`. Any other target is refused. The
-    /// `allowSymlinkedLockfile` setting.
+    /// `symlinkedLockfileTargetDirs` setting.
     WriteThrough { allowed_dirs: &'dirs [PathBuf] },
 }
 
@@ -215,7 +215,7 @@ fn allowed_link_target(path: &Path, allowed_dirs: &[PathBuf]) -> io::Result<Path
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "Refusing to write symlinked lockfile at {} because it links to {}, which is outside the directories listed in allowSymlinkedLockfile.",
+                "Refusing to write symlinked lockfile at {} because it links to {}, which is outside the directories listed in symlinkedLockfileTargetDirs.",
                 path.display(),
                 target.display(),
             ),
@@ -227,7 +227,7 @@ fn refused_symlinked_lockfile(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
         format!(
-            "Refusing to write symlinked lockfile at {}. To write to the file it links to, list that file's directory in the allowSymlinkedLockfile setting.",
+            "Refusing to write symlinked lockfile at {}. To write to the file it links to, list that file's directory in the symlinkedLockfileTargetDirs setting.",
             path.display(),
         ),
     )

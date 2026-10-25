@@ -577,7 +577,7 @@ fn import_writes_through_a_symlinked_lockfile_when_allowed() {
 
     pacquet
         .with_env(
-            "PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE",
+            "PNPM_CONFIG_SYMLINKED_LOCKFILE_TARGET_DIRS",
             serde_json::to_string(&[&source]).unwrap(),
         )
         .with_arg("import")
