@@ -9,7 +9,6 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -17,13 +16,11 @@ import { after, describe, it } from 'node:test'
 import tls from 'node:tls'
 import { URL, fileURLToPath } from 'node:url'
 
+import { bundleDownloader } from './bundled-downloader.mjs'
 import { INTEGRITY_KEYS, TLS_CA_FILE, VERSION, binFile, packageName, startRegistry } from './registry-fixture.mjs'
 
 const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const WRAPPER_FILES = ['native-binary.mjs', 'bin/pnpm.mjs', 'bin/pnpx.mjs']
-// Where the published wrapper carries get-pnpm and its dependencies;
-// scripts/bundle-node-gyp.mjs puts them there, and the fixture stands in for that.
-const BUNDLED_MODULES = 'dist/node_modules'
 // A stand-in for the 40 MB native binary: reports how it was called, and turns
 // a `fail` argument into a non-zero exit so exit codes can be asserted.
 const FAKE_BINARY = `#!/bin/sh
@@ -367,9 +364,7 @@ async function createFixture (registryOptions = {}) {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
     fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(dir, file))
   }
-  for (const [name, packageDir] of downloaderPackages()) {
-    fs.cpSync(packageDir, path.join(dir, BUNDLED_MODULES, name), { dereference: true, recursive: true })
-  }
+  bundleDownloader(dir)
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pnpm', version: VERSION }))
   const projectDir = path.join(dir, 'project')
   fs.mkdirSync(projectDir)
@@ -420,22 +415,4 @@ function assertDownloaded (fixture, result) {
 
 function nerfDart (registryUrl) {
   return `//${new URL(registryUrl).host}/`
-}
-
-/**
- * The installed get-pnpm and every package it depends on, by name: what the
- * release bundles into `dist/node_modules`, side by side.
- */
-function downloaderPackages (name = 'get-pnpm', from = WRAPPER_DIR, found = new Map()) {
-  if (found.has(name)) {
-    return found
-  }
-  const lookup = createRequire(path.join(from, 'package.json')).resolve.paths(name)
-  const packageDir = fs.realpathSync(lookup.map((dir) => path.join(dir, name)).find((dir) => fs.existsSync(dir)))
-  found.set(name, packageDir)
-  const { dependencies = {} } = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'))
-  for (const dependency of Object.keys(dependencies)) {
-    downloaderPackages(dependency, packageDir, found)
-  }
-  return found
 }

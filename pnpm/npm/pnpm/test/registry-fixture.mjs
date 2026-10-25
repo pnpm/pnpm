@@ -15,7 +15,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import zlib from 'node:zlib'
 
-import { isMusl, platformPackageName } from 'get-pnpm'
+import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
 
 // The loopback certificate the Rust network tests use, issued for `127.0.0.1`
 // by a private CA. See `trusted_tls_server.rs` next to it for how it was made.
@@ -27,12 +27,9 @@ const TLS_FIXTURES = path.resolve(
 export const TLS_CA_FILE = path.join(TLS_FIXTURES, 'ca.pem')
 
 export const VERSION = '99.0.0'
-export const packageName = platformPackageName({
-  major: 99,
-  platform: process.platform,
-  arch: process.arch,
-  musl: isMusl(),
-})
+// The package the wrapper names for this host. get-pnpm picks its own, so a
+// download fails here if the two stop agreeing.
+export const packageName = splitBinSpecifier(getBinCandidates()[0]).packageName
 export const binFile = process.platform === 'win32' ? 'pnpm.exe' : 'pnpm'
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
