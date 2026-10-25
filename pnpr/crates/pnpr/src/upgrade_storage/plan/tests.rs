@@ -195,6 +195,13 @@ fn conflicting_or_ambiguous_legacy_record_moves_are_refused() {
     let error = plan(&duplicate, &BTreeSet::new()).unwrap_err();
     assert!(error.contains("multiple records map to"), "{error}");
 
+    let existing_tombstone = vec![
+        "default/npm/.tombstones/v0/!40scope!2fgone.json".to_string(),
+        "default/npm/.tombstones/@scope/gone.json".to_string(),
+    ];
+    let error = plan(&existing_tombstone, &BTreeSet::new()).unwrap_err();
+    assert!(error.contains("multiple records map to"), "{error}");
+
     let ambiguous_orgs = BTreeSet::from([
         ("shared".to_string(), Ecosystem::Npm),
         ("shared".to_string(), Ecosystem::Pypi),

@@ -61,12 +61,16 @@ pub(crate) fn plan_with_registries(
 ) -> Result<Vec<(String, Step)>, String> {
     let packages = legacy_packages(paths, orgs);
     check_unambiguous(paths, orgs, &packages)?;
+    let existing: BTreeSet<&str> = paths
+        .iter()
+        .map(String::as_str)
+        .collect();
     let mut steps = Vec::new();
     let mut targets = BTreeSet::new();
     for path in paths {
         if let Some(step) = step(path, orgs, registries, &packages)? {
             if let Step::Move { to, .. } = &step
-                && !targets.insert(to.clone())
+                && (existing.contains(to.as_str()) || !targets.insert(to.clone()))
             {
                 return Err(format!(
                     "multiple records map to {to:?}; remove or merge one before upgrading",

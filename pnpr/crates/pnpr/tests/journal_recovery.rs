@@ -328,6 +328,22 @@ async fn recovery_rolls_a_legacy_pnpr_journal_transaction_forward() {
     assert!(!storage.join(".pnpr-journal").exists());
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn recovery_refuses_a_symlinked_legacy_journal_root() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let outside = tmp.path().join("outside");
+    let victim = outside.join("0000000000000001-999-0");
+    std::fs::create_dir_all(&victim).unwrap();
+    std::os::unix::fs::symlink(&outside, storage.join(".pnpr-journal")).unwrap();
+
+    let err = recover_publish_journal(&static_config(storage)).await.unwrap_err();
+    assert!(err.to_string().contains("symlink"), "{err}");
+    assert!(victim.is_dir(), "outside directory must not be rolled back");
+}
+
 #[tokio::test]
 async fn successful_batch_publish_leaves_no_journal_residue() {
     let tmp = TempDir::new().unwrap();

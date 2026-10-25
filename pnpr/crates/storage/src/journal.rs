@@ -289,14 +289,30 @@ impl PublishJournal {
 }
 
 async fn list_txn_dirs(root: &Path) -> Result<Vec<PathBuf>> {
-    let mut entries = match fs::read_dir(root).await {
-        Ok(read_dir) => read_dir,
+    match fs::symlink_metadata(root).await {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(std::io::Error::other(format!(
+                "refusing to recover publish journal through symlink {}",
+                root.display(),
+            ))
+            .into());
+        }
+        Ok(_) => {}
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
         Err(err) => return Err(err.into()),
-    };
+    }
+    let mut entries = fs::read_dir(root).await?;
     let mut txn_dirs = Vec::new();
     while let Some(entry) = entries.next_entry().await? {
-        if entry.file_type().await?.is_dir() {
+        let file_type = entry.file_type().await?;
+        if file_type.is_symlink() {
+            return Err(std::io::Error::other(format!(
+                "refusing to recover publish journal entry symlink {}",
+                entry.path().display(),
+            ))
+            .into());
+        }
+        if file_type.is_dir() {
             txn_dirs.push(entry.path());
         }
     }
