@@ -61,6 +61,13 @@ export interface Validation {
    * importer id, where it is not `lockfile`. `null` when there was none.
    */
   lockfiles?: Record<string, string | null>
+  /**
+   * The digest of every workspace package's bin declarations, keyed by the
+   * importer id of each project that was proven installed with them. Only
+   * the root and the projects with dependencies link workspace bins, so only
+   * they have an entry.
+   */
+  workspaceBins?: Record<string, string>
 }
 
 export interface FileSignature {

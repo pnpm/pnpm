@@ -6,7 +6,11 @@ use super::super::{
     moved_tree_is_reusable, recorded_allow_builds_differ, unapproved_recorded_ignored_builds,
     update_workspace_state_or_warn, verify_lockfile_eagerly,
 };
-use crate::optimistic_repeat_install::{filesystem_now_ms_in_modules, materialized_shape_matches};
+use crate::optimistic_repeat_install::{
+    filesystem_now_ms_in_modules, materialized_shape_matches,
+    validation::{project_bins_digest, project_bins_match, workspace_bins_digest},
+};
+use pnpm_workspace::importer_id_from_root_dir;
 
 /// Whether any package in the lockfile resolves to a local directory.
 ///
@@ -45,7 +49,9 @@ pub(super) fn frozen_tree_up_to_date<'a>(
     {
         return None;
     }
-    context.recorded.state?;
+    if !workspace_bins_unchanged(context) {
+        return None;
+    }
     let wanted_lockfile = context.lockfile?;
     let current = context.current_lockfile?;
     // Past this gate `current` is the graph this install would
@@ -89,6 +95,18 @@ pub(super) fn frozen_tree_up_to_date<'a>(
         && tree_contents_intact(context, current, modules)
         && bins_resolve_where_the_tree_is(context, current);
     tree_intact.then_some((wanted_lockfile, modules))
+}
+
+fn workspace_bins_unchanged(context: &FrozenTreeUpToDate<'_>) -> bool {
+    let Some(state) = context.recorded.state else { return false };
+    let bins = workspace_bins_digest(context.tree.workspace_root, context.recorded.projects);
+    context.recorded.projects
+        .iter()
+        .all(|(dir, manifest)| {
+            let id = importer_id_from_root_dir(context.tree.workspace_root, dir);
+            let digest = project_bins_digest(&id, manifest, bins.as_deref());
+            project_bins_match(state.validation.as_ref(), &id, digest)
+        })
 }
 
 fn tree_contents_intact(

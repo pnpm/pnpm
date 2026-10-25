@@ -27,14 +27,14 @@ pub(crate) struct ManifestStat<'a> {
 /// its root directory and its manifest's digest.
 pub(crate) fn manifest_stats<'a>(
     project_manifests: &'a [(PathBuf, &'a PackageManifest)],
-    status: impl Fn(&Path, String) -> ProjectStatus,
+    status: impl Fn(&Path, &PackageManifest, String) -> ProjectStatus,
 ) -> Vec<ManifestStat<'a>> {
     project_manifests
         .iter()
         .map(|(root_dir, manifest)| ManifestStat {
             root_dir,
             manifest,
-            status: status(root_dir, manifest_digest(manifest)),
+            status: status(root_dir, manifest, manifest_digest(manifest)),
         })
         .collect()
 }

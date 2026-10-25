@@ -8,6 +8,10 @@
 //! install vouches only for the projects it installed, so the records of the
 //! others survive it unchanged.
 
+pub(crate) use bins::{
+    held_workspace_bins_match, project_bins_digest, project_bins_match, workspace_bins_digest,
+};
+
 use super::{Config, Lockfile, PackageManifest, Path, PathBuf};
 use pnpm_workspace::importer_id_from_root_dir;
 use pnpm_workspace_state::{FileSignature, Validation, WorkspaceState};
@@ -16,6 +20,8 @@ use std::{
     collections::{BTreeMap, HashSet},
     fs, io,
 };
+
+mod bins;
 
 /// How many hex digits of a SHA-256 digest a record keeps.
 const DIGEST_LEN: usize = 32;
@@ -29,8 +35,12 @@ const WHOLE_SECOND_GRANULARITY_NS: i64 = 2_000_000_000;
 /// directly, so a manifest that only reorders its keys or its whitespace keeps
 /// its digest.
 pub(crate) fn manifest_digest(manifest: &PackageManifest) -> String {
+    value_digest(manifest.value())
+}
+
+fn value_digest(value: &serde_json::Value) -> String {
     let mut hasher = Sha256::new();
-    hash_value(&mut hasher, manifest.value());
+    hash_value(&mut hasher, value);
     let mut digest = format!("{:x}", hasher.finalize());
     digest.truncate(DIGEST_LEN);
     digest
@@ -387,6 +397,7 @@ fn record_projects(
     carried: Option<&Validation>,
     lockfile: Option<&str>,
 ) -> usize {
+    let bins = workspace_bins_digest(inputs.workspace_root, inputs.project_manifests);
     let records = inputs.project_manifests
         .iter()
         .filter_map(|(root_dir, manifest)| {
@@ -396,14 +407,23 @@ fn record_projects(
                 Vouched::Projects { dirs, .. } => dirs.contains(root_dir),
             };
             if vouched {
-                return Some((importer_id, manifest_digest(manifest), lockfile));
+                let project_bins = project_bins_digest(&importer_id, manifest, bins.as_deref());
+                return Some((importer_id, manifest_digest(manifest), lockfile, project_bins));
             }
             let record = carried?.project(&importer_id)?;
-            Some((importer_id.clone(), record.manifest.to_string(), record.lockfile))
+            Some((
+                importer_id.clone(),
+                record.manifest.to_string(),
+                record.lockfile,
+                carried?.workspace_bins.get(&importer_id).map(String::as_str),
+            ))
         })
         .collect::<Vec<_>>();
     let recorded = records.len();
-    for (importer_id, manifest, lockfile) in records {
+    for (importer_id, manifest, lockfile, bins) in records {
+        if let Some(bins) = bins {
+            validation.workspace_bins.insert(importer_id.clone(), bins.to_string());
+        }
         validation.insert_project(importer_id, manifest, lockfile);
     }
     recorded

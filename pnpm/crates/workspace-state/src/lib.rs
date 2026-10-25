@@ -116,6 +116,12 @@ pub struct Validation {
     /// importer id, where it is not [`Self::lockfile`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub lockfiles: BTreeMap<String, Option<String>>,
+    /// The digest of every workspace package's bin declarations, keyed by the
+    /// importer id of each project that was proven installed with them. Only
+    /// the root and the projects with dependencies link workspace bins, so
+    /// only they have an entry.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workspace_bins: BTreeMap<String, String>,
 }
 
 impl Validation {
