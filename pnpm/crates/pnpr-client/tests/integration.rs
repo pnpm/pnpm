@@ -142,9 +142,14 @@ fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::Upstream
     )
 }
 
+/// Wait until the server answers the handshake, which every surface
+/// mounts. A bare TCP connect would not do: the kernel satisfies one from
+/// the accept backlog before the service is driving the connection, so a
+/// request sent on it can outrun the router.
 async fn wait_until_ready(addr: SocketAddr) {
+    let handshake = format!("http://{addr}/-/pnpr");
     for _ in 0..200 {
-        if tokio::net::TcpStream::connect(addr).await.is_ok() {
+        if reqwest::get(&handshake).await.is_ok_and(|response| response.status().is_success()) {
             return;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;

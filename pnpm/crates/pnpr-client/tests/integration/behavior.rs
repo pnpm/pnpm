@@ -256,17 +256,22 @@ async fn concurrent_artifact_publications_apply_the_variant_limit_at_read_time()
     let (payload, _) = fixture.envelope.decode_payload().expect("decode fixture payload");
     let candidate =
         ArtifactCandidate { key: fixture.key, subject: payload.subject, owner: payload.owner };
+    // One client, as a publishing pnpm has: sixteen of them would be
+    // sixteen connection pools opening sixteen sockets, which is
+    // contention the limit under test has nothing to do with. The
+    // barrier is what makes the publications overlap.
+    let client = Arc::new(PnprClient::new(pnpr_url.clone()));
     let barrier = Arc::new(Barrier::new(PUBLICATIONS + 1));
     let mut publications = Vec::with_capacity(PUBLICATIONS);
     for index in 0..PUBLICATIONS {
         let barrier = Arc::clone(&barrier);
-        let pnpr_url = pnpr_url.clone();
+        let client = Arc::clone(&client);
         let pnpr_auth = pnpr_auth.clone();
         let (publish, _, _, blobs) = signed_artifact_fixture_for_platform(index);
         publications.push(tokio::spawn(async move {
             let _blobs = blobs;
             barrier.wait().await;
-            PnprClient::new(pnpr_url).publish_artifact(&publish, Some(&pnpr_auth)).await
+            client.publish_artifact(&publish, Some(&pnpr_auth)).await
         }));
     }
     barrier.wait().await;
