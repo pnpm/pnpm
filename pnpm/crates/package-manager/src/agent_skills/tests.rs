@@ -592,52 +592,64 @@ fn peer_variants_choose_the_same_target_when_importers_change_order() {
     assert_eq!(targets[0], targets[1]);
 }
 
-#[test]
-fn recovers_an_unrecorded_link_to_another_installed_peer_variant() {
+/// A root project whose `foo` is the virtual store slot `slot`, with a
+/// config whose virtual store is `node_modules/.pnpm`.
+fn workspace_with_slot(slot: &str) -> (TempDir, Lockfile, Config) {
     let root = tempfile::tempdir().unwrap();
-    let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
-    for peer in ["1.0.0", "2.0.0"] {
-        let package = root
-            .path()
-            .join("packages")
-            .join(peer)
-            .join("node_modules/foo");
-        install_package(&package, &["guide"]);
-        writeln!(yaml, "  packages/{peer}:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: 1.0.0(peer@{peer})").unwrap();
-    }
-    let skills = root.path().join(".claude/skills");
-    fs::create_dir_all(&skills).unwrap();
-    pnpm_fs::force_symlink_dir(
-        &root.path().join("packages/2.0.0/node_modules/foo/skills/guide"),
-        &skills.join("pnpm-foo-guide"),
-    )
-    .unwrap();
-    let lockfile: Lockfile = serde_saphyr::from_str(&yaml).unwrap();
-    let state = sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap();
-    assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
-    assert_eq!(
-        link_target(&skills.join("pnpm-foo-guide")),
-        link_target(&root.path().join("packages/1.0.0/node_modules/foo/skills/guide")),
+    let store = root.path().join("node_modules/.pnpm");
+    let package = store.join(slot).join("node_modules/foo");
+    install_package(&package, &["guide"]);
+    pnpm_fs::force_symlink_dir(&package, &root.path().join("node_modules/foo")).unwrap();
+    let version = slot.trim_start_matches("foo@").replace('_', "(") + ")";
+    let yaml = format!(
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      foo:\n        specifier: 1.0.0\n        version: {version}\n",
     );
+    let mut config = config(&[("foo", true)], Some(&[".claude/skills"]));
+    config.install_state_dir = store;
+    (root, serde_saphyr::from_str(&yaml).unwrap(), config)
 }
 
 #[test]
-fn unrecorded_links_to_other_packages_versions_or_skills_remain_occupied() {
+fn replaces_an_unrecorded_link_to_another_copy_in_the_virtual_store() {
+    for old_slot in ["foo@1.0.0_peer@1.0.0", "foo@0.9.0"] {
+        let (root, lockfile, config) = workspace_with_slot("foo@1.0.0_peer@2.0.0");
+        let old_skill = root
+            .path()
+            .join("node_modules/.pnpm")
+            .join(old_slot)
+            .join("node_modules/foo");
+        install_package(&old_skill, &["guide"]);
+        let link = root.path().join(".claude/skills/pnpm-foo-guide");
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(&old_skill.join("skills/guide"), &link).unwrap();
+
+        let state = sync(root.path(), &lockfile, &config, &[], None).unwrap();
+
+        assert_eq!(state.linked, [".claude/skills/pnpm-foo-guide"]);
+        assert_eq!(
+            link_target(&link),
+            link_target(&root.path().join("node_modules/foo/skills/guide"))
+        );
+    }
+}
+
+#[test]
+fn unrecorded_links_to_other_skills_or_outside_the_virtual_store_remain_occupied() {
     for other in [
-        "node_modules/bar/skills/guide",
-        "node_modules/foo@2.0.0/skills/guide",
-        "node_modules/foo/skills/migrate",
+        "node_modules/.pnpm/bar@1.0.0/node_modules/bar/skills/guide",
+        "node_modules/.pnpm/foo@1.0.0_peer@1.0.0/node_modules/foo/skills/migrate",
+        "copies/node_modules/foo/skills/guide",
     ] {
-        let (root, lockfile) = workspace(&[("foo", "1.0.0", &["guide", "migrate"])]);
-        let skills = root.path().join(".claude/skills");
-        fs::create_dir_all(&skills).unwrap();
-        install_package(&root.path().join("node_modules/bar"), &["guide"]);
-        install_package(&root.path().join("node_modules/foo@2.0.0"), &["guide"]);
+        let (root, lockfile, config) = workspace_with_slot("foo@1.0.0_peer@2.0.0");
         let target = root.path().join(other);
-        pnpm_fs::force_symlink_dir(&target, &skills.join("pnpm-foo-guide")).unwrap();
-        let error =
-            sync(root.path(), &lockfile, &config(&[("foo", true)], None), &[], None).unwrap_err();
-        assert!(matches!(error, AgentSkillsError::Occupied { .. }), "{error:?}");
-        assert_eq!(link_target(&skills.join("pnpm-foo-guide")), link_target(&target));
+        fs::create_dir_all(&target).unwrap();
+        let link = root.path().join(".claude/skills/pnpm-foo-guide");
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        pnpm_fs::force_symlink_dir(&target, &link).unwrap();
+
+        let error = sync(root.path(), &lockfile, &config, &[], None).unwrap_err();
+
+        assert!(matches!(error, AgentSkillsError::Occupied { .. }), "{other}: {error:?}");
+        assert_eq!(link_target(&link), link_target(&target));
     }
 }

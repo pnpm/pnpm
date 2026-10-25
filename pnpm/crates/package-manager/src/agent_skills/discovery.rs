@@ -6,7 +6,7 @@ use crate::{
 use pnpm_config::NodeLinker;
 use pnpm_deps_restorer::parse_name_version_from_key;
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeMap, HashMap},
     fs,
     path::{Path, PathBuf},
 };
@@ -24,9 +24,6 @@ pub(super) struct SkillSource {
     pub(super) package_dir: PathBuf,
     /// The names of the skill directories, sorted.
     pub(super) skills: Vec<String>,
-    /// For each skill, its directories in the other installed peer
-    /// variants of the same version.
-    pub(super) equivalent_skills: BTreeMap<String, BTreeSet<PathBuf>>,
 }
 
 /// The direct dependencies of every importer that ship skills.
@@ -225,7 +222,6 @@ fn skill_source(
     };
     SkillSource {
         skills,
-        equivalent_skills: BTreeMap::new(),
         dep_path,
         approval_key,
         link_segment: link_segment.replace('/', "+"),
@@ -236,10 +232,7 @@ fn skill_source(
 /// Record `source` under its approval key unless a source already kept
 /// there [`supersedes`] it.
 fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource) {
-    match by_key.get_mut(&source.approval_key) {
-        Some(kept) if source.dep_path == kept.dep_path && registry_version(&source).is_some() => {
-            merge_peer_variant(kept, source);
-        }
+    match by_key.get(&source.approval_key) {
         Some(kept) if !supersedes(&source, kept) => {}
         _ => {
             by_key.insert(source.approval_key.clone(), source);
@@ -247,45 +240,22 @@ fn keep_highest(by_key: &mut BTreeMap<String, SkillSource>, source: SkillSource)
     }
 }
 
-/// Keep one of two peer variants of the same version, preferring the one
-/// that ships skills, and record the other's skill directories as
-/// equivalent targets.
-fn merge_peer_variant(kept: &mut SkillSource, mut source: SkillSource) {
-    let source_has_skills = !source.skills.is_empty();
-    let kept_has_skills = !kept.skills.is_empty();
-    if (source_has_skills && !kept_has_skills)
-        || (source_has_skills == kept_has_skills && supersedes(&source, kept))
-    {
-        std::mem::swap(kept, &mut source);
-    }
-    for skill in source.skills {
-        source.equivalent_skills
-            .entry(skill.clone())
-            .or_default()
-            .insert(source.package_dir.join("skills").join(skill));
-    }
-    for (skill, targets) in source.equivalent_skills {
-        let kept_targets = kept.equivalent_skills.entry(skill).or_default();
-        kept_targets.extend(targets);
-    }
-}
-
-fn registry_version(source: &SkillSource) -> Option<node_semver::Version> {
-    node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
-}
-
 /// Whether `candidate` replaces `kept` for the same approval key. Only
 /// registry versions compare: any other key names one source already. Of
-/// two equal versions, the lower package directory wins, so the choice does
-/// not depend on importer order.
+/// two peer variants of one version, one that ships skills wins, then the
+/// lower package directory, so the choice does not depend on importer order.
 fn supersedes(candidate: &SkillSource, kept: &SkillSource) -> bool {
-    match (registry_version(candidate), registry_version(kept)) {
-        (Some(candidate_version), Some(kept_version)) => candidate_version
-            .cmp(&kept_version)
-            .then_with(|| kept.package_dir.cmp(&candidate.package_dir))
-            .is_gt(),
-        _ => false,
-    }
+    let version = |source: &SkillSource| {
+        node_semver::Version::parse(parse_name_version_from_key(&source.dep_path).1).ok()
+    };
+    let (Some(candidate_version), Some(kept_version)) = (version(candidate), version(kept)) else {
+        return false;
+    };
+    candidate_version
+        .cmp(&kept_version)
+        .then_with(|| (!candidate.skills.is_empty()).cmp(&!kept.skills.is_empty()))
+        .then_with(|| kept.package_dir.cmp(&candidate.package_dir))
+        .is_gt()
 }
 
 /// The skills directly under `<package_dir>/skills`: the subdirectories

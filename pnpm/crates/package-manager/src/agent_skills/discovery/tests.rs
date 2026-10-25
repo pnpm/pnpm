@@ -1,8 +1,5 @@
 use super::{SkillSource, keep_highest};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 fn source(package_dir: &str) -> SkillSource {
     SkillSource {
@@ -11,7 +8,6 @@ fn source(package_dir: &str) -> SkillSource {
         link_segment: "foo".to_string(),
         package_dir: PathBuf::from(package_dir),
         skills: vec!["guide".to_string()],
-        equivalent_skills: BTreeMap::new(),
     }
 }
 
@@ -58,27 +54,6 @@ fn unresolved_package_locations_do_not_hide_skills_from_installed_variants() {
 }
 
 #[test]
-fn merging_variants_keeps_skills_from_installed_peers() {
-    let mut selected = BTreeMap::new();
-    let mut without_skills = source("b");
-    without_skills.skills.clear();
-    for variant in [source("c"), without_skills, source("a")] {
-        keep_highest(&mut selected, variant);
-    }
-    assert_eq!(selected["foo"].skills, ["guide"]);
-    assert_eq!(
-        selected["foo"].equivalent_skills["guide"],
-        BTreeSet::from([PathBuf::from("c/skills/guide")]),
-    );
-    keep_highest(&mut selected, {
-        let mut variant = source("0");
-        variant.skills.clear();
-        variant
-    });
-    assert_eq!(selected["foo"].skills, ["guide"]);
-}
-
-#[test]
 fn peer_variants_without_skills_do_not_suppress_valid_skill_sources() {
     for directories in [["a", "b"], ["b", "a"]] {
         let mut selected = BTreeMap::new();
@@ -89,7 +64,6 @@ fn peer_variants_without_skills_do_not_suppress_valid_skill_sources() {
             }
             keep_highest(&mut selected, variant);
         }
-        assert_eq!(selected["foo"].skills, ["guide"]);
         assert_eq!(selected["foo"].package_dir, PathBuf::from("b"));
     }
 }
