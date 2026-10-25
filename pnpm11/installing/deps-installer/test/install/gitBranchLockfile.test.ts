@@ -7,15 +7,17 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { testDefaults } from '../utils/index.js'
-
+const gitUtils = await import('@pnpm/network.git-utils')
 jest.unstable_mockModule('@pnpm/network.git-utils', () => ({
+  ...gitUtils,
   getCurrentBranch: jest.fn(),
   getBranchesContainingHead: jest.fn(() => Promise.resolve([])),
 }))
 
 const { getCurrentBranch, getBranchesContainingHead } = await import('@pnpm/network.git-utils')
 const { install, mutateModules } = await import('@pnpm/installing.deps-installer')
+// The test store loads `@pnpm/store.controller`, which reads lockfiles through `@pnpm/network.git-utils`.
+const { testDefaults } = await import('../utils/index.js')
 
 test('install with git-branch-lockfile = true', async () => {
   prepareEmpty()
