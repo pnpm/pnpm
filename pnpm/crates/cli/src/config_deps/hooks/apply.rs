@@ -31,7 +31,9 @@ fn hook_execution_changes(delta: &Value) -> Result<HookExecutionChanges> {
 
 fn filter_hook_delta(config: &Config, mut delta: Value) -> Value {
     if let Some(delta) = delta.as_object_mut() {
-        delta.remove("macosBackup");
+        for key in super::HIDDEN_FROM_HOOKS {
+            delta.remove(key);
+        }
         delta.retain(|key, _| {
             !config.cli_settings.contains(key)
                 && !config.cli_settings.contains(&pnpm_config::naming_cases::to_camel_case(key))

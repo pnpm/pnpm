@@ -3,4 +3,4 @@
 "pnpm": patch
 ---
 
-The warning about unrecognized settings now names `allowSymlinkedLockfile` as a pnpm v12 setting.
+The warning about unrecognized settings now marks `allowSymlinkedLockfile` as a setting of a newer pnpm version.

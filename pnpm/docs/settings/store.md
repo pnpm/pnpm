@@ -186,7 +186,7 @@ allowSymlinkedLockfile:
 
 Each entry must be an absolute path or start with `~/`. pnpm ignores any other entry.
 
-Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE='["/path/to/src"]'`. The setting in `pnpm-workspace.yaml` is ignored, because the repository that commits the symlink must not be the one that allows writing through it.
+Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_ALLOW_SYMLINKED_LOCKFILE='["/path/to/src"]'`. pnpm ignores the setting in `pnpm-workspace.yaml`, because the repository that commits the symlink must not be the one that allows writing through it.
 
 ### lockfile.includeResolutionSettings
 

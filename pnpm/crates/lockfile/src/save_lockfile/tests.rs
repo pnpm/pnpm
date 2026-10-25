@@ -710,6 +710,30 @@ fn save_refuses_a_link_chain_that_leaves_the_allowed_dirs() {
     assert!(std::fs::symlink_metadata(&path).unwrap().is_symlink());
 }
 
+/// `src-evil` shares a name prefix with the allowed `src`, but is not inside it.
+#[cfg(unix)]
+#[test]
+fn save_refuses_a_target_in_a_sibling_sharing_the_allowed_dir_prefix() {
+    let dir = tempdir().unwrap();
+    let [allowed, sibling] = ["src", "src-evil"].map(|name| dir.path().join(name));
+    for dir in [&allowed, &sibling] {
+        std::fs::create_dir(dir).unwrap();
+    }
+    let victim = sibling.join(Lockfile::FILE_NAME);
+    std::fs::write(&victim, "victim content").unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    std::os::unix::fs::symlink(&victim, &path).unwrap();
+
+    let lockfile: Lockfile = serde_saphyr::from_str(LOCKFILE_YAML).expect("parse fixture lockfile");
+    let allowed_dirs = [allowed];
+    let error = lockfile
+        .save_to_path(&path, SymlinkedLockfile::WriteThrough { allowed_dirs: &allowed_dirs })
+        .expect_err("a sibling sharing the name prefix is outside the allowed directory");
+
+    dbg!(&error);
+    assert_eq!(std::fs::read_to_string(&victim).unwrap(), "victim content");
+}
+
 /// The allowed directory is named through `alias`, a link to `source`.
 #[cfg(unix)]
 #[test]

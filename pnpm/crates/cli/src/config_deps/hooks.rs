@@ -194,6 +194,12 @@ fn manifest_catalogs_value(root_dir: &Path) -> Result<Value> {
     serde_json::to_value(&yaml_catalogs).into_diagnostic()
 }
 
+/// Settings that come only from trusted global config or its environment
+/// overlay: the machine-local backup policy, and the directories a symlinked
+/// lockfile may be written into. Repository-controlled hooks may neither read
+/// nor rewrite them.
+const HIDDEN_FROM_HOOKS: [&str; 2] = ["macosBackup", "allowSymlinkedLockfile"];
+
 /// Seed the hook input with the values pnpm resolves outside
 /// [`WorkspaceSettings`], so a hook can read and extend them. They are
 /// read back out of the delta rather than through `apply_to`.
@@ -220,10 +226,9 @@ fn seed_hook_input(
         serde_json::to_value(&config.extra_env).into_diagnostic()?,
     );
     object.append(&mut resolved_config_views(config, root_dir).into_diagnostic()?);
-    // Machine-local backup policy comes only from trusted global config or
-    // its environment overlay. Repository-controlled hooks may neither read
-    // nor rewrite it.
-    object.remove("macosBackup");
+    for key in HIDDEN_FROM_HOOKS {
+        object.remove(key);
+    }
     // The pnpmfiles being run, which is what the setting resolves to and
     // what pnpm reports, rather than only a pinned `pnpmfile` value.
     object.insert("pnpmfile".to_string(), serde_json::to_value(pnpmfiles).into_diagnostic()?);
