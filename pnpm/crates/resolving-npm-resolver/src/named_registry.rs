@@ -12,6 +12,8 @@ pub use pnpm_lockfile::pick_registry_for_package;
 
 pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
 
+use pnpm_lockfile::normalized_registry_key;
+
 use std::collections::HashMap;
 
 use derive_more::{Display, Error};
@@ -109,14 +111,7 @@ pub fn named_registry_tarball_prefixes(
 ) -> Vec<String> {
     let mut prefixes: Vec<String> = registries_by_prefix
         .values()
-        .filter_map(|url| Url::parse(url).ok())
-        .map(|parsed| {
-            let mut pathname = parsed.path().to_string();
-            if !pathname.ends_with('/') {
-                pathname.push('/');
-            }
-            format!("{}{}", parsed.origin().ascii_serialization(), pathname)
-        })
+        .filter_map(|url| normalized_registry_key(url))
         .collect();
     prefixes.sort_by(|a, b| {
         b.len()

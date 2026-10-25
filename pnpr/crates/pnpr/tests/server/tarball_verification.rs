@@ -72,7 +72,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
         .unwrap();
     assert_eq!(selected.status(), StatusCode::OK);
     let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
-    assert_eq!(selected["dist"]["tarball"], "http://example.test/npm/foo/-/foo-2.0.0.tgz");
+    assert_eq!(selected["dist"]["tarball"], "http://example.test/npm/foo@1.0.0");
 
     let full = app
         .clone()
@@ -84,14 +84,8 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
         .await
         .unwrap();
     let full: Value = serde_json::from_slice(&body_bytes(full.into_body()).await).unwrap();
-    assert_eq!(
-        full["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-2.0.0.tgz",
-    );
-    assert_eq!(
-        full["versions"]["2.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(full["versions"]["1.0.0"]["dist"]["tarball"], "http://example.test/npm/foo@1.0.0");
+    assert_eq!(full["versions"]["2.0.0"]["dist"]["tarball"], "http://example.test/npm/foo@2.0.0");
 
     let route = selected["dist"]["tarball"]
         .as_str()

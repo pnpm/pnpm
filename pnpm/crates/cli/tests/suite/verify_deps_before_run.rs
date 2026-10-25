@@ -235,7 +235,7 @@ fn install_action_reruns_a_production_only_install() {
 }
 
 #[test]
-fn dedupe_peers_lockfile_rewrite_installs_before_running_the_script() {
+fn dedupe_peers_lockfile_rewrite_runs_the_script_without_an_install() {
     let CommandTempCwd {
         pacquet,
         root,
@@ -287,45 +287,11 @@ fn dedupe_peers_lockfile_rewrite_installs_before_running_the_script() {
     );
 
     // The same lockfile in another layout has to be content-checked, and the
-    // run gate checks it without `dedupePeers`, as pnpm's does.
+    // run gate checks it with `dedupePeers`, as the install does.
     let mut relaid_lockfile =
         fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read regenerated lockfile");
     relaid_lockfile.push('\n');
     fs::write(workspace.join("pnpm-lock.yaml"), &relaid_lockfile).expect("rewrite the lockfile");
-
-    let output = pacquet_in(&workspace)
-        .with_args(["run", "hello"])
-        .output()
-        .expect("run script after lockfile regeneration");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("STDERR:\n{stderr}\n");
-    assert!(output.status.success(), "the script must run successfully");
-    assert!(
-        stderr.contains("Lockfile is up to date, resolution step is skipped"),
-        "the verifier install must reuse the regenerated lockfile:\n{stderr}",
-    );
-    let policy_verdict = stderr
-        .find("Lockfile passes supply-chain policies")
-        .expect("the verifier must report its lockfile policy verdict");
-    let frozen_install = stderr
-        .find("Lockfile is up to date, resolution step is skipped")
-        .expect("the verifier must report the frozen install");
-    let up_to_date = stderr
-        .find("Already up to date")
-        .expect("the verifier must report that no packages changed");
-    assert!(
-        policy_verdict < frozen_install && frozen_install < up_to_date,
-        "the verifier messages must match pnpm's order:\n{stderr}",
-    );
-    assert_eq!(
-        fs::read_to_string(workspace.join("pnpm-lock.yaml"))
-            .expect("read lockfile after verifier install"),
-        relaid_lockfile,
-    );
-    assert_eq!(
-        fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xhxh",
-    );
 
     pacquet_in(&workspace)
         .with_args(["run", "hello"])
@@ -333,7 +299,8 @@ fn dedupe_peers_lockfile_rewrite_installs_before_running_the_script() {
         .success();
     assert_eq!(
         fs::read_to_string(workspace.join("postinstall.log")).expect("read postinstall log"),
-        "xhxhh",
+        "xhh",
+        "a relaid lockfile with the same content needs no install",
     );
 
     drop((root, mock_instance));
@@ -2036,7 +2003,7 @@ fn unreachable_lockfile_snapshots_do_not_trigger_reinstall_loop() {
         .expect("the root importer has dependencies")
         .remove(&orphaned);
     wanted
-        .save_to_path(&workspace.join("pnpm-lock.yaml"))
+        .save_to_path(&workspace.join("pnpm-lock.yaml"), pnpm_lockfile::SymlinkedLockfile::Refuse)
         .expect("save the wanted lockfile");
     bump_mtime(&workspace.join("package.json"));
 

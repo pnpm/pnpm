@@ -1,7 +1,10 @@
 //! Comparing the settings a previous install recorded against the current ones.
 
+pub(crate) use registry_prefixes::recorded_registry_prefixes;
+
 mod agent_skills;
 mod equivalence;
+mod registry_prefixes;
 mod store_location;
 use agent_skills::agent_skills_settings;
 use equivalence::{
@@ -154,6 +157,11 @@ impl SettingsComparison<'_> {
             self,
             "lockfile.integrityTarget",
             recorded.lockfile_integrity_target != live.lockfile_integrity_target,
+        );
+        return_drift_if!(
+            self,
+            "registryPrefixes",
+            recorded.registry_prefixes != live.registry_prefixes,
         );
         None
     }
@@ -369,6 +377,7 @@ fn current_policy_settings(config: &Config) -> WorkspaceStateSettings {
         minimum_release_age_strict: config.minimum_release_age_strict.or_else(|| {
             config.resolved_minimum_release_age_strict().then_some(true)
         }),
+        registry_prefixes: recorded_registry_prefixes(config),
         side_effects_cache_exclude: config.side_effects_cache_exclude.clone(),
         // pnpm records the raw config value, which stays `undefined`
         // until the user configures the setting — `explicit_settings` is

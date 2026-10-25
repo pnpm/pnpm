@@ -60,6 +60,22 @@ pub enum LoginError {
         reason: String,
     },
 
+    #[display("Failed to read auth.ini at {}: {error}", path.display())]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_AUTH_INI))]
+    ReadAuthIni {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to write auth.ini at {}: {error}", path.display())]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_WRITE_AUTH_INI))]
+    WriteAuthIni {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
     #[display("Failed to read the global config file at {}: {error}", path.display())]
     #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_CONFIG_YAML))]
     ReadConfigYaml {

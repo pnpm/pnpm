@@ -4,7 +4,6 @@ use super::{
 };
 use crate::error::PreparePackageError;
 use miette::Diagnostic;
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_reporter::SilentReporter;
 use serde_json::json;
 use std::{
@@ -33,7 +32,6 @@ fn opts<'a>(allow: bool, ignore_scripts: bool) -> PreparePackageOptions<'a> {
             ignore: ignore_scripts,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,
@@ -54,7 +52,6 @@ fn opts_allow_registry_artifacts_only<'a>() -> PreparePackageOptions<'a> {
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,
@@ -78,7 +75,6 @@ fn opts_allow_dep_path<'a>(
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,

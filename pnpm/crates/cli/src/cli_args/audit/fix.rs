@@ -309,8 +309,16 @@ pub(crate) fn write_age_excludes(
     })
 }
 
+/// What [`ignore_vulnerabilities`] persisted.
+pub(crate) struct IgnoredVulnerabilities {
+    /// The user-facing summary of the newly ignored GHSA ids.
+    pub summary: String,
+    /// The merged `auditConfig.ignoreGhsas` list that was written.
+    pub ignore_ghsas: Vec<String>,
+}
+
 /// Merge the requested ignores into `auditConfig.ignoreGhsas` and persist
-/// them, returning the user-facing summary. Mirrors pnpm's `ignore()`:
+/// them. Mirrors pnpm's `ignore()`:
 /// `--ignore-unfixable` adds every advisory with no inferable fix (erroring
 /// when one lacks a GHSA id); otherwise the `--ignore` GHSA ids are added.
 pub(crate) fn ignore_vulnerabilities(
@@ -319,7 +327,7 @@ pub(crate) fn ignore_vulnerabilities(
     settings_dir: &std::path::Path,
     ignore: &[String],
     ignore_unfixable: bool,
-) -> miette::Result<String> {
+) -> miette::Result<IgnoredVulnerabilities> {
     let mut ordered: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for ghsa in config.audit_config.ignore_ghsas.iter().map(|ghsa| normalize_ghsa_id(ghsa)) {
@@ -350,7 +358,7 @@ pub(crate) fn ignore_vulnerabilities(
                 .wrap_err("write auditConfig.ignoreGhsas to pnpm-workspace.yaml")
         })?;
 
-    Ok(ignored_summary(&new_ignores))
+    Ok(IgnoredVulnerabilities { summary: ignored_summary(&new_ignores), ignore_ghsas: ordered })
 }
 
 fn ignored_summary(new_ignores: &[String]) -> String {

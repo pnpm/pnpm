@@ -438,6 +438,113 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     );
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
+/// A state written before a registry prefix was declared, or by a pnpm that
+/// did not key lockfile entries by it, proves nothing about the lockfile's
+/// keys, so the install resolves and re-keys them.
+#[test]
+fn returns_skipped_when_the_declared_registry_prefixes_drift() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    config.registries_by_prefix.insert("work".to_string(), "https://npm.example.test/".to_string());
+    let config = config.leak();
+
+    let mut stale_config = Config::new();
+    stale_config.modules_dir = config.modules_dir.clone();
+    let stale_settings = current_settings(
+        &stale_config,
+        pnpm_config::NodeLinker::Isolated,
+        isolated_included(),
+        None,
+    );
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry {
+            name: Some("root".into()),
+            version: Some("1.0.0".into()),
+            has_modules_dir: false,
+        },
+    );
+    write_state(workspace_root, backdate_validated_files(workspace_root), stale_settings, projects);
+
+    let decision = check(
+        workspace_root,
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+    );
+    assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
+}
+/// A script runs the same whatever keys the lockfile records, so the run
+/// gate leaves re-keying to the next install, which the state still asks
+/// for.
+#[test]
+fn run_gate_passes_on_unverified_registry_prefixes() {
+    let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |_| {},
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let mut declared = recorded_config.clone();
+    declared.registries_by_prefix.insert("work".to_string(), declared.registry.clone());
+    let declared = declared.leak();
+
+    let status = super::single_project_deps_status(&dir, declared, &project_manifests);
+
+    assert_eq!(status, super::RunDepsStatus::UpToDate);
+    let state = pnpm_workspace_state::load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state");
+    assert_eq!(state.settings.registry_prefixes, None);
+    assert!(matches!(
+        check(dir.path(), declared, pnpm_config::NodeLinker::Isolated, &project_manifests),
+        Decision::Skipped { reason } if reason.contains("settings"),
+    ));
+}
+/// A scope routed to a registry that declares a prefix re-keys its packages,
+/// so the state recorded under the old routing proves nothing about the keys.
+#[test]
+fn returns_skipped_when_a_scope_moves_to_a_registry_declaring_a_prefix() {
+    let work = "https://npm.work.test/";
+    let (dir, recorded_config, manifest) = setup_fresh_install_with_config(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        "",
+        |config| {
+            config.registries_by_prefix.insert("work".to_string(), work.to_string());
+        },
+    );
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+    let recorded = super::super::recorded_registry_prefixes(recorded_config);
+    assert_eq!(recorded, Some(BTreeMap::from([("work".to_string(), work.to_string())])));
+
+    let mut routed = recorded_config.clone();
+    routed.registries_by_scope.insert("@corp".to_string(), work.to_string());
+    let routed = routed.leak();
+
+    assert_eq!(
+        super::super::recorded_registry_prefixes(routed),
+        Some(BTreeMap::from([
+            ("route:@corp".to_string(), "work".to_string()),
+            ("work".to_string(), work.to_string()),
+        ])),
+    );
+    assert!(matches!(
+        check(dir.path(), routed, pnpm_config::NodeLinker::Isolated, &project_manifests),
+        Decision::Skipped { reason } if reason.contains("settings"),
+    ));
+}
 /// Drift in `minimumReleaseAgeIgnoreMissingTime` invalidates the cached
 /// state. pnpm resolves it to a concrete `true` default and records it,
 /// so pacquet records and compares it too.

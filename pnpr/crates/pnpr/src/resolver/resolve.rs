@@ -125,7 +125,7 @@ fn write_input_lockfile(
     let lockfile_path = dir.join(Lockfile::FILE_NAME);
     if let Some(lockfile) = input_lockfile {
         lockfile
-            .save_to_path(&lockfile_path)
+            .save_to_path(&lockfile_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
             .map_err(|err| ResolveError::install(err.to_string()))?;
     }
     Ok(lockfile_path)

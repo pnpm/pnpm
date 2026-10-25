@@ -179,20 +179,22 @@ async fn get_couchdb_user_endpoint() {
     assert_eq!(doc["_id"], "org.couchdb.user:admin_alice");
     assert_eq!(doc["roles"], json!([]));
 
-    // Check normal user in htpasswd auth backend
-    let response = app
-        .clone()
-        .oneshot(
-            Request::get("/-/user/org.couchdb.user:normal_bob")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let doc = body_json(response.into_body()).await;
-    assert_eq!(doc["name"], "normal_bob");
-    assert_eq!(doc["_id"], "org.couchdb.user:normal_bob");
+    // Check normal user in htpasswd auth backend (legacy and bare user paths)
+    for path in ["/-/user/org.couchdb.user:normal_bob", "/-/user/normal_bob"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "path {path}");
+        let doc = body_json(response.into_body()).await;
+        assert_eq!(doc["name"], "normal_bob");
+        assert_eq!(doc["_id"], "org.couchdb.user:normal_bob");
+    }
 
     // Check non-existent user
     let response = app

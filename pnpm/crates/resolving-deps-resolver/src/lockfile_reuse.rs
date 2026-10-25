@@ -3,22 +3,23 @@
 //! resolution + subtree instead of re-resolving from the registry.
 //! See `pnpm/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
-use node_semver::Range;
+pub use registry_range::locked_child_admits;
+pub(crate) use registry_range::locked_key_is_current;
+
+mod locked_version;
+mod registry_range;
+
+use locked_version::admits_locked_version;
 use pnpm_lockfile::{
     BundledDependencies, ImporterDepVersion, Lockfile, LockfileResolution, PkgName, PkgNameVer,
     PkgNameVerPeer, ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotDepRef,
-    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions,
-    integrity_addressed_registry_tarball_url, npm_tarball_url, pick_registry_for_package,
-    registry_server_type,
+    SnapshotEntry, StringOrList, TarballResolution, TarballUrlOptions, npm_tarball_url,
+    pick_registry_for_package, registry_server_type, revision_registry_tarball_url,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
 use pnpm_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
 use std::sync::Arc;
-
-mod locked_version;
-
-use locked_version::admits_locked_version;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
 /// lockfile entry shaped into what the resolver expects.
@@ -59,11 +60,14 @@ pub(crate) fn current_pkg_from_lockfile(
 /// `snapshot`'s dependency maps, when the recorded version still
 /// satisfies `bare_specifier`. A bare range names the package `alias`
 /// itself, so a ref recorded as an `npm:` alias of another package never
-/// satisfies it.
+/// satisfies it. Whether the key is one the configuration still writes is
+/// [`locked_key_is_current`]'s question, asked before a subtree is reused;
+/// the version pin holds either way.
 pub(crate) fn prior_child_key(
     snapshot: &SnapshotEntry,
     alias: &str,
     bare_specifier: &str,
+    registries: &RegistryContext,
 ) -> Option<PkgNameVerPeer> {
     let name: PkgName = alias.parse().ok()?;
     let dep_ref = snapshot.dependencies
@@ -75,58 +79,7 @@ pub(crate) fn prior_child_key(
                 .and_then(|deps| deps.get(&name))
         })?;
     let key = dep_ref.resolve(&name)?;
-    locked_child_admits(&name, &key, bare_specifier)?.then_some(key)
-}
-
-/// Whether the version locked as `key` for the child `alias` still satisfies
-/// `bare_specifier`. `None` when the reuse gate cannot judge the specifier: it
-/// is neither a semver range nor a named-registry specifier naming `key`'s
-/// registry, and the resolver resolves it again.
-#[must_use]
-pub fn locked_child_admits(
-    alias: &PkgName,
-    key: &PkgNameVerPeer,
-    bare_specifier: &str,
-) -> Option<bool> {
-    if let Some((registry_name, version)) = key.suffix.registry_qualified() {
-        let reduced = reduce_named_registry_spec(registry_name, &key.name, bare_specifier)?;
-        let range = reduced.parse::<Range>().ok()?;
-        // A spec that names no package (`<registry>:<range>`) names the alias.
-        let names_no_package = bare_specifier.len() == registry_name.len() + 1 + reduced.len();
-        return Some((!names_no_package || key.name == *alias) && range.satisfies(version));
-    }
-    let range = bare_specifier.parse::<Range>().ok()?;
-    Some(key.name == *alias && range.satisfies(key.suffix.version_semver()?))
-}
-
-/// Reduce a named-registry specifier (`<registryName>:[<name>@]<range>`) to
-/// the range to semver-check against a registry-qualified lockfile key.
-///
-/// `None` whenever the specifier cannot describe `key_name` from
-/// `registry_name`, so the caller falls through to a fresh resolve:
-///
-/// * a different registry — a qualified entry must never satisfy a spec
-///   aimed at another registry;
-/// * a different package — the aliased shape `<registry>:<name>@<range>`
-///   names its package explicitly, and an entry recorded for some other
-///   name is a different dependency even though the manifest alias is
-///   unchanged.
-fn reduce_named_registry_spec<'a>(
-    registry_name: &str,
-    key_name: &PkgName,
-    bare_specifier: &'a str,
-) -> Option<&'a str> {
-    let body = bare_specifier.strip_prefix(registry_name)?.strip_prefix(':')?;
-    // `@scope/name@range` splits at the last `@`; a bare `range` has none
-    // (or only the leading one of a scope, which never delimits a version).
-    let Some(index) = body
-        .rfind('@')
-        .filter(|index| *index > 0)
-    else {
-        return Some(body);
-    };
-    let (spec_name, range) = (&body[..index], &body[index + 1..]);
-    (spec_name == key_name.to_string()).then_some(range)
+    locked_child_admits(&name, &key, bare_specifier, registries)?.then_some(key)
 }
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior
@@ -142,6 +95,7 @@ pub(crate) fn reusable_importer_dep(
     importer_id: &str,
     alias: &str,
     bare_specifier: &str,
+    registries: &RegistryContext,
 ) -> Option<PkgNameVerPeer> {
     let name: PkgName = alias.parse().ok()?;
     let spec = importer_dep(lockfile.importers.get(importer_id)?, &name)?;
@@ -167,7 +121,7 @@ pub(crate) fn reusable_importer_dep(
     {
         return Some(key);
     }
-    admits_locked_version(spec, &key, bare_specifier)?.then_some(key)
+    admits_locked_version(spec, (&name, &key), bare_specifier, registries)?.then_some(key)
 }
 
 /// The recorded resolution for `name` across the importer's prod /
@@ -397,10 +351,9 @@ fn current_resolution(
             let (registry, tarball_version) =
                 current_registry_version(metadata_key, registry_context)?;
             let tarball = match registry_resolution.revision {
-                Some(_) => integrity_addressed_registry_tarball_url(
-                    &registry_resolution.integrity,
-                    &registry,
-                )?,
+                Some(revision) => {
+                    revision_registry_tarball_url(&name, &tarball_version, revision, &registry)?
+                }
                 None => npm_tarball_url(
                     &name,
                     &tarball_version,

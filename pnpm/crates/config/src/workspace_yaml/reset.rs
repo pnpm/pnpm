@@ -155,7 +155,7 @@ impl WorkspaceSettings {
         // types, plus the ones `from_resolved` reports only when set.
         resets.extend(same_named! {
             hoist_pattern, public_hoist_pattern, state_dir, lockfile_dir, npmrc_auth_file,
-            global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir,
+            global_pnpmfile, pnpmfile, global_dir, global_bin_dir, cache_dir, symlinked_lockfile_target_dirs,
             prefer_frozen_lockfile, lockfile, merge_git_branch_lockfiles,
             optimistic_repeat_install, minimum_release_age, global_shims, frozen_lockfile,
             provenance,
@@ -164,7 +164,7 @@ impl WorkspaceSettings {
             config_dependencies, dangerously_allow_all_builds, strict_dep_builds,
             ignore_scripts, ignore_pnpmfile, git_checks, engine_strict, force_ignores_platform,
             node_version,
-            runtime_on_fail, node_download_mirrors, scripts_prepend_node_path, script_shell,
+            runtime_on_fail, node_download_mirrors, script_shell,
             node_options, unsafe_perm, supported_architectures, ignored_optional_dependencies,
             overrides, package_extensions, package_configs, minimum_release_age_exclude,
             minimum_release_age_ignore_missing_time, minimum_release_age_strict,

@@ -35,6 +35,8 @@ mod subtree_split;
 
 mod cache_keys;
 
+mod update_scopes;
+
 use chrono::{DateTime, Utc};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
@@ -44,7 +46,7 @@ use std::{
     collections::BTreeMap,
     hash::{Hash, Hasher},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, RwLock},
+    sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock},
 };
 
 use crate::{
@@ -59,14 +61,45 @@ use crate::{
 
 use super::{
     DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
-    UpdateDepth, UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
+    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::SubtreeReuseCache, tree_ctx::TreeCtx,
 };
-
-pub(super) type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
 /// An importer's resolved direct-dependency versions, keyed by package
 /// name. See [`crate::resolve_dependency_tree::workspace_ctx::WorkspacePreferredVersions::direct_dep_versions`].
-pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
+pub(super) type DirectDepVersions = HashMap<String, Vec<DirectDepVersion>>;
+
+/// A resolved direct-dependency version and the registry it came from, as
+/// [`pnpm_lockfile::normalized_registry_key`], or as written when it does
+/// not parse (see [`pnpm_lockfile::same_registry`]). A locked version is compared
+/// only with entries from its own registry, so a plain key and a key
+/// qualified by that registry's prefix match.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DirectDepVersion {
+    pub(super) registry: String,
+    pub(super) version: node_semver::Version,
+}
+
+impl DirectDepVersion {
+    /// The version `ver_peer` records for `name`, with the registry its key
+    /// names: the prefix's for a qualified key, the routed one for a plain
+    /// key. `None` for a key that is not a registry version, or whose prefix
+    /// nothing declares.
+    pub(super) fn of(
+        name: &str,
+        ver_peer: &pnpm_lockfile::PkgVerPeer,
+        registries: &pnpm_lockfile::RegistryContext,
+    ) -> Option<Self> {
+        let registry = match ver_peer.registry_qualified() {
+            Some((prefix, _)) => registries.registry_of_prefix(prefix)?,
+            None => registries.routed_registry(name),
+        };
+        Some(Self {
+            registry: pnpm_lockfile::normalized_registry_key(registry)
+                .unwrap_or_else(|| registry.to_string()),
+            version: ver_peer.registry_version()?.clone(),
+        })
+    }
+}
 
 /// What registering a package in the workspace's package table found, with
 /// the table's shared id either way.
@@ -232,12 +265,8 @@ pub(super) struct WorkspaceResolutionCache {
     pub(super) in_flight_by_wanted: Mutex<HashMap<WantedKey, Arc<tokio::sync::Mutex<()>>>>,
     /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     pub(super) share_workspace_resolutions: bool,
-    /// Memoises `reuse::subtree_fully_reusable` per update scope and snapshot
-    /// key. Keep-all importers share one scope; update-active importers use
-    /// isolated scopes so one importer's reuse answer cannot leak to another.
-    /// `true` means the package and its entire transitive subtree can be
-    /// synthesized from the prior lockfile.
-    pub(super) subtree_reusable: Mutex<HashMap<SubtreeReuseKey, bool>>,
+    /// See [`SubtreeReuseCache`].
+    pub(super) subtree: SubtreeReuseCache,
     /// Memoises [`pnpm_lockfile::BoundProviders::of_snapshot`] for hashed
     /// snapshot keys so repeated peer-scope and child-split checks on the
     /// same snapshot key recover its bound providers at most once per
@@ -295,6 +324,10 @@ pub(crate) struct WorkspacePreferredVersions {
     /// Per importer: the auto-installed peers whose lockfile pin is not
     /// reused. See `find_stale_peer_pins`.
     stale_peer_pins: HashMap<String, HashSet<String>>,
+    /// Every peer version the wanted lockfile pins, shared by the
+    /// importers the lockfile does not list. See
+    /// [`WorkspaceTreeCtx::unlisted_importer_locked_peers`].
+    unlisted_importer_locked_peers: OnceLock<Arc<HashMap<String, HashSet<String>>>>,
 }
 
 #[derive(Default)]
@@ -520,6 +553,16 @@ impl WorkspaceTreeCtx {
         self.reuse.lockfile.as_ref()
     }
 
+    /// The locked peer versions of an importer the wanted lockfile does not
+    /// list. They do not depend on the importer, so `scan` runs once per
+    /// workspace and every such importer shares its result.
+    pub(crate) fn unlisted_importer_locked_peers(
+        &self,
+        scan: impl FnOnce() -> HashMap<String, HashSet<String>>,
+    ) -> Arc<HashMap<String, HashSet<String>>> {
+        Arc::clone(self.versions.unlisted_importer_locked_peers.get_or_init(|| Arc::new(scan())))
+    }
+
     /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
     /// See the `reuse_lockfile_subtrees` field.
     #[must_use]
@@ -555,13 +598,6 @@ impl WorkspaceTreeCtx {
     pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
         self.reuse.depth = update_depth;
         self
-    }
-
-    pub(super) fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
-        if matches!(self.reuse.scope, UpdateReuseScope::None) {
-            return &self.reuse.scope;
-        }
-        self.reuse.scopes_by_importer.get(importer_id).unwrap_or(&self.reuse.scope)
     }
 
     #[must_use]

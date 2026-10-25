@@ -1,6 +1,6 @@
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
-import { audit, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
+import { audit, type AuditAdvisory, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
@@ -288,14 +288,16 @@ async function ignoreVulnerabilities (auditReport: AuditReport, opts: AuditOptio
     rootProjectManifestDir: opts.rootProjectManifestDir,
     workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
   })
+  removeIgnoredAdvisories(auditReport, [...(opts.auditConfig?.ignoreGhsas ?? []), ...newIgnores])
+  const exitCode = filterAdvisoriesByAuditLevel(auditReport, opts.auditLevel).length > 0 ? 1 : 0
   if (newIgnores.length === 0) {
     return {
-      exitCode: 0,
+      exitCode,
       output: 'No new vulnerabilities were ignored',
     }
   }
   return {
-    exitCode: 0,
+    exitCode,
     output: `${newIgnores.length} new vulnerabilities were ignored:
 ${newIgnores.join('\n')}`,
   }
@@ -303,9 +305,7 @@ ${newIgnores.join('\n')}`,
 
 function reportVulnerabilities (auditReport: AuditReport, opts: AuditOptions): AuditCommandResult {
   const ignoredVulnerabilities = removeIgnoredAdvisories(auditReport, opts.auditConfig?.ignoreGhsas)
-  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel ?? 'low']
-  const advisoryEntries = Object.entries(auditReport.advisories)
-    .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
+  const advisoryEntries = filterAdvisoriesByAuditLevel(auditReport, opts.auditLevel)
   if (opts.json) {
     const advisories = Object.fromEntries(advisoryEntries)
     return {
@@ -323,6 +323,12 @@ function reportVulnerabilities (auditReport: AuditReport, opts: AuditOptions): A
     exitCode: output ? 1 : 0,
     output: `${output}${reportSummary(vulnerabilities, ignoredVulnerabilities)}`,
   }
+}
+
+function filterAdvisoriesByAuditLevel (auditReport: AuditReport, auditLevel: AuditLevelString | undefined): Array<[string, AuditAdvisory]> {
+  const minimumLevel = AUDIT_LEVEL_NUMBER[auditLevel ?? 'low']
+  return Object.entries(auditReport.advisories)
+    .filter(([, { severity }]) => AUDIT_LEVEL_NUMBER[severity] >= minimumLevel)
 }
 
 /**

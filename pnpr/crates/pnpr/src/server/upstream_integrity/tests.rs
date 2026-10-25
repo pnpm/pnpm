@@ -13,6 +13,7 @@ fn pinned(version: &str, shasum_of: Option<&[u8]>) -> MissingIntegrityTarball {
     MissingIntegrityTarball {
         version: version.to_string(),
         filename: format!("foo-{version}.tgz"),
+        version_route: None,
         needs_integrity: true,
         expected_shasum: shasum_of.map(|bytes| digest(Algorithm::Sha1, bytes)),
     }

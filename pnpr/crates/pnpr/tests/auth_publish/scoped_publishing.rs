@@ -288,6 +288,48 @@ async fn unpublish_force_removes_entire_package() {
 }
 
 #[tokio::test]
+async fn unpublish_package_without_rev_suffix() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    for (pkg, path) in
+        [("unpub-clean", "/npm/unpub-clean"), ("@scope/unpub-clean", "/npm/@scope/unpub-clean")]
+    {
+        let body = publish_doc(pkg, "1.0.0", b"contents");
+        let publish = Request::put(path)
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        assert_eq!(
+            app.clone()
+                .oneshot(publish)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CREATED,
+        );
+        assert!(local_document_path(&storage, "", pkg).exists());
+
+        let delete = Request::delete(path)
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            app.clone()
+                .oneshot(delete)
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::CREATED,
+        );
+        assert!(!local_package_dir(&storage, "", pkg).exists());
+    }
+}
+
+#[tokio::test]
 async fn unpublish_scoped_tarball_via_six_segment_route() {
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
@@ -316,6 +358,104 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     assert!(!local_blob_path(&storage, "", "@scope/unpub", "unpub-1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn unpublish_tarball_via_version_route_url() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    for (pkg, put_path, delete_path, blob_name) in [
+        (
+            "unpub-ver",
+            "/npm/unpub-ver",
+            "/npm/unpub-ver@1.0.0/-rev/anything",
+            "unpub-ver-1.0.0.tgz",
+        ),
+        (
+            "unpub-ver-clean",
+            "/npm/unpub-ver-clean",
+            "/npm/unpub-ver-clean@1.0.0",
+            "unpub-ver-clean-1.0.0.tgz",
+        ),
+        (
+            "unpub-tar-clean",
+            "/npm/unpub-tar-clean",
+            "/npm/unpub-tar-clean/-/unpub-tar-clean-1.0.0.tgz",
+            "unpub-tar-clean-1.0.0.tgz",
+        ),
+        (
+            "@scope/unpub-ver",
+            "/npm/@scope/unpub-ver",
+            "/npm/@scope/unpub-ver@1.0.0/-rev/anything",
+            "unpub-ver-1.0.0.tgz",
+        ),
+        (
+            "@scope/unpub-ver-clean",
+            "/npm/@scope/unpub-ver-clean",
+            "/npm/@scope/unpub-ver-clean@1.0.0",
+            "unpub-ver-clean-1.0.0.tgz",
+        ),
+        (
+            "@scope/unpub-tar-clean",
+            "/npm/@scope/unpub-tar-clean",
+            "/npm/@scope/unpub-tar-clean/-/unpub-tar-clean-1.0.0.tgz",
+            "unpub-tar-clean-1.0.0.tgz",
+        ),
+    ] {
+        let body = publish_doc(pkg, "1.0.0", b"bytes");
+        let request = Request::put(put_path)
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let publish = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(publish.status(), StatusCode::CREATED);
+        assert!(local_blob_path(&storage, "", pkg, blob_name).exists());
+
+        let request = Request::delete(delete_path)
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        let response = app
+            .clone()
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert!(!local_blob_path(&storage, "", pkg, blob_name).exists());
+    }
+
+    // Reserved `+r<digits>` revision identifiers must not delete a hosted `.tgz` blob.
+    let body = publish_doc("unpub-rev", "1.0.0+r0", b"bytes");
+    let request = Request::put("/npm/unpub-rev")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(
+        app.clone()
+            .oneshot(request)
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::CREATED,
+    );
+    assert!(local_blob_path(&storage, "", "unpub-rev", "unpub-rev-1.0.0+r0.tgz").exists());
+
+    let request = Request::delete("/npm/unpub-rev@1.0.0+r0/-rev/anything")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert!(local_blob_path(&storage, "", "unpub-rev", "unpub-rev-1.0.0+r0.tgz").exists());
 }
 
 #[tokio::test]

@@ -126,6 +126,7 @@ fn create_config(
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
+        symlinked_lockfile_target_dirs: Vec::new(),
         lockfile_include_resolution_settings: false,
         lockfile_integrity_target: pnpm_lockfile::IntegrityTarget::Resource,
         registry: "https://registry.npmjs.com/".to_string(),
@@ -205,7 +206,6 @@ fn create_config(
         publish_wait_timeout: 0,
         provenance: None,
         tag_version_prefix: "v".to_string(),
-        scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,
         node_options: None,
@@ -299,7 +299,7 @@ async fn resolve_via_mock(
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        registries_by_prefix: HashMap::new(),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client,
             auth_headers: Default::default(),

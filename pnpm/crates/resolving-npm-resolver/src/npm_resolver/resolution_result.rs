@@ -61,7 +61,7 @@ pub(crate) fn build_resolve_result(
     let (resolution, revision) = picked_tarball_resolution(picked, &args.registry)?;
     let published_at = args.meta.published_at(&version_str).map(str::to_string);
     let manifest = args.manifest_for_revision(picked, &version_str, revision)?;
-    let id = resolution_id(args.registry.registry_name, picked, &name_ver);
+    let id = resolution_id(args.registry.registry_name, &name_ver);
     let policy_violation = detect_min_release_age_violation(
         &pkg_name,
         &version_str,
@@ -130,14 +130,13 @@ pub(super) fn calculated_specifier(
         })
 }
 
-pub(super) fn resolution_id(
-    registry_name: Option<&str>,
-    picked: &PackageVersion,
-    name_ver: &PkgNameVer,
-) -> PkgResolutionId {
+/// The id of a registry resolution: `<name>@<version>`, or the
+/// registry-qualified `<name>@<registryName>:<version>` for a package whose
+/// lockfile key carries a prefix.
+pub(super) fn resolution_id(registry_name: Option<&str>, name_ver: &PkgNameVer) -> PkgResolutionId {
     match registry_name {
         Some(registry_name) => {
-            PkgResolutionId::from(format!("{}@{registry_name}:{}", picked.name, picked.version))
+            PkgResolutionId::from(format!("{}@{registry_name}:{}", name_ver.name, name_ver.suffix))
         }
         None => name_ver.into(),
     }

@@ -7,7 +7,6 @@ use super::{
     project_lifecycle_extra_env,
 };
 
-use pnpm_deps_restorer::build_modules::exec_scripts_prepend_node_path;
 use pnpm_executor::LifecycleScriptError;
 use pnpm_injected_deps_syncer::{BinLinkSettings, SyncInjectedDeps, sync_injected_deps};
 use pnpm_package_manifest::project_manifest_path;
@@ -43,7 +42,6 @@ pub(super) fn run_project_stages(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &config.extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: exec_scripts_prepend_node_path(config),
             shell: config.script_shell.as_deref().map(Path::new),
             shell_emulator: config.shell_emulator,
             wd_bin_dir: Some(&bin_dir),

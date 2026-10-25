@@ -1,6 +1,6 @@
 //! `pnpm logout` revokes the registry auth token on the server and
-//! removes it from the global `config.yaml`, and from the `auth.ini`
-//! earlier versions wrote. A token that instead lives in `.npmrc` or an
+//! removes it from `auth.ini`, and from the global `config.yaml` where
+//! earlier versions wrote it. A token that instead lives in `.npmrc` or an
 //! env var is left in place, with a warning, because pnpm owns only the
 //! files it writes itself.
 //!
@@ -118,8 +118,7 @@ pub struct LogoutOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
     pub registry: Option<&'a str>,
     pub auth_config: &'a HashMap<String, String>,
-    /// pnpm's `configDir`; the global config lives at
-    /// `<config_dir>/config.yaml` and the legacy `auth.ini` beside it.
+    /// pnpm's `configDir`, holding `auth.ini` and the global `config.yaml`.
     pub config_dir: &'a std::path::Path,
     pub retry: RetryOpts,
     /// Reporter prefix for the `global*` log lines (the working directory).
@@ -257,7 +256,7 @@ fn forget_in_config_yaml<Sys: FsReadToString + FsWrite>(
     Ok(removed)
 }
 
-/// Drop `token_key` from the `auth.ini` earlier versions wrote, reporting
+/// Drop `token_key` from `auth.ini`, reporting
 /// whether there was one to drop.
 fn forget_in_auth_ini<Sys: FsReadToString + FsWrite>(
     config_dir: &std::path::Path,

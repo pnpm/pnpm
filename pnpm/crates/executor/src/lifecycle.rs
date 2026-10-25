@@ -441,8 +441,6 @@ fn prepare_lifecycle_path(
         original_path.as_ref(),
         opts.execution.node_gyp_bin,
         opts.execution.extra_bin_paths,
-        opts.execution.prepend_node_path,
-        opts.environment.node_execpath,
     );
 
     Ok(path_env)

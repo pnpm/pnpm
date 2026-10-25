@@ -153,6 +153,16 @@ fn install_links_approved_skills_and_prunes_revoked_ones() {
             .is_file(),
     );
 
+    assert_eq!(
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&workspace.join(
+            "node_modules"
+        ),)
+        .unwrap()
+        .unwrap()
+        .linked_skills,
+        Some(vec![LINK.to_string()]),
+    );
+
     let yaml_path = workspace.join("pnpm-workspace.yaml");
     let yaml =
         fs::read_to_string(&yaml_path).expect("read yaml").replace("skills: true", "skills: false");
@@ -264,5 +274,51 @@ fn repeat_install_links_into_a_new_agent_dir() {
     assert!(
         workspace.join(".cursor/skills/pnpm-@pnpm.e2e+with-agent-skills-guide/SKILL.md").is_file(),
     );
+    drop(harness);
+}
+
+#[test]
+fn peer_variants_keep_one_link_target_and_replace_unrecorded_links() {
+    let (harness, workspace) = project(concat!(
+        "packages:\n  - packages/*\n",
+        "dedupePeerDependents: false\n",
+        "permissions:\n  '@pnpm.e2e/with-agent-skills':\n    skills: true\n",
+        "packageExtensions:\n  '@pnpm.e2e/with-agent-skills@*':\n",
+        "    peerDependencies:\n      '@pnpm.e2e/peer-a': '*'\n",
+    ));
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).unwrap();
+    let modules_dir = workspace.join("node_modules");
+    let install = |root_peer: &str, app_peer: &str| {
+        for (dir, name, peer) in [(&workspace, "root", root_peer), (&app, "app", app_peer)] {
+            let manifest = serde_json::json!({
+                "name": name,
+                "dependencies": { PACKAGE: "1.0.0", "@pnpm.e2e/peer-a": peer },
+            });
+            fs::write(dir.join("package.json"), manifest.to_string()).unwrap();
+        }
+        pnpm(&workspace)
+            .with_args(["install", "--no-frozen-lockfile"])
+            .assert()
+            .success();
+        fs::canonicalize(workspace.join(LINK)).unwrap()
+    };
+
+    let first = install("1.0.0", "1.0.1");
+    let swapped = install("1.0.1", "1.0.0");
+    assert_eq!(first, swapped, "swapping which importer has which variant keeps the target");
+
+    let mut modules =
+        pnpm_modules_yaml::read_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir)
+            .unwrap()
+            .unwrap();
+    assert_eq!(modules.linked_skills, Some(vec![LINK.to_string()]));
+    modules.linked_skills = None;
+    pnpm_modules_yaml::write_modules_manifest::<pnpm_modules_yaml::Host>(&modules_dir, modules)
+        .unwrap();
+
+    let after_peer_change = install("1.0.1", "1.0.1");
+    assert_ne!(after_peer_change, first);
+    assert!(first.is_dir(), "the variant that left the lockfile is still installed");
     drop(harness);
 }

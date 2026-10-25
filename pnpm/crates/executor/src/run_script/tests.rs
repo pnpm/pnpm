@@ -1,5 +1,5 @@
 use super::{RunScript, ScriptOutput, parsed_by_cmd, run_script};
-use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
+use crate::script_exit::ScriptExit;
 use pnpm_reporter::{LifecycleMessage, LogEvent};
 use std::{collections::HashMap, fs, path::Path, sync::Mutex};
 use tempfile::tempdir;
@@ -190,7 +190,6 @@ fn run_with_output(
         execution: crate::ScriptExecutionOptions {
             extra_bin_paths: &[],
             node_gyp_bin: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             shell_emulator: false,
             wd_bin_dir: None,

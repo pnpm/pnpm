@@ -635,7 +635,9 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
     let first = std::fs::read_to_string(&lockfile_path).expect("read first");
     let parsed: Lockfile = serde_saphyr::from_str(&first).expect("parse first");
     let second_path = dirs.path().join("pnpm-lock.round-trip.yaml");
-    parsed.save_to_path(&second_path).expect("save round-trip lockfile");
+    parsed
+        .save_to_path(&second_path, pnpm_lockfile::SymlinkedLockfile::Refuse)
+        .expect("save round-trip lockfile");
     let second = std::fs::read_to_string(&second_path).expect("read second");
     let reparsed: Lockfile = serde_saphyr::from_str(&second).expect("parse second");
 

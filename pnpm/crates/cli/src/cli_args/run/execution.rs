@@ -1,8 +1,7 @@
 use super::{
     Config, ExecDirs, HashMap, IndexMap, IntoDiagnostic, Mutex, PackageManifest, Path,
     ProcessTracker, ReporterType, RunError, RunScript, ScheduleGraphOptions, ScriptExit,
-    ScriptOutput, ScriptSelector, ScriptsPrependNodePath, TaskCompletion, Value, env,
-    exec_fallback, exit_like,
+    ScriptOutput, ScriptSelector, TaskCompletion, Value, env, exec_fallback, exit_like,
     injected_sync::{start_injected_edit_watch, sync_injected_deps_after},
     interrupt_count,
     lifecycle_failure::report_lifecycle_failure,
@@ -455,7 +454,6 @@ pub(in super::super) fn run_stage(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths: &crate::ecosystem_install::execution_paths(ctx.config, ctx.dir),
             node_gyp_bin: None,
-            prepend_node_path: exec_scripts_prepend_node_path(ctx.config.scripts_prepend_node_path),
             shell: ctx.config.script_shell.as_deref().map(Path::new),
             shell_emulator: ctx.config.shell_emulator,
             wd_bin_dir: Some(&modules_bin_dir),
@@ -485,14 +483,4 @@ pub(in super::super) fn run_stage(
         report_lifecycle_failure(ctx, status, stage);
     }
     Ok(Some(StageExit { status, interrupted }))
-}
-
-pub(crate) fn exec_scripts_prepend_node_path(
-    value: pnpm_config::ScriptsPrependNodePath,
-) -> ScriptsPrependNodePath {
-    match value {
-        pnpm_config::ScriptsPrependNodePath::Always => ScriptsPrependNodePath::Always,
-        pnpm_config::ScriptsPrependNodePath::Never => ScriptsPrependNodePath::Never,
-        pnpm_config::ScriptsPrependNodePath::WarnOnly => ScriptsPrependNodePath::WarnOnly,
-    }
 }

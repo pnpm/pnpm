@@ -618,7 +618,7 @@ async fn resolve_registry_fixture(
     registries.insert("default".to_string(), registry.to_string());
     let resolver = NpmResolver {
         registries,
-        registries_by_prefix: HashMap::new(),
+        declared_prefixes: pnpm_lockfile::DeclaredRegistryPrefixes::default(),
         metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
             http_client,
             auth_headers: Arc::default(),

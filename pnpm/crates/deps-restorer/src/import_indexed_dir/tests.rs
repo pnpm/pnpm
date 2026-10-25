@@ -41,7 +41,7 @@ const FORCE_KEEP: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     reuse_hardlinks: false,
     keep_modules_dir: true,
     safe_to_skip: false,
-    preserve_symlinks: false,
+    symlink_targets: None,
     swap_lock: None,
 };
 const FORCE_ONLY: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
@@ -49,7 +49,7 @@ const FORCE_ONLY: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: false,
-    preserve_symlinks: false,
+    symlink_targets: None,
     swap_lock: None,
 };
 const FORCE_SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
@@ -57,7 +57,7 @@ const FORCE_SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: true,
-    preserve_symlinks: false,
+    symlink_targets: None,
     swap_lock: None,
 };
 // The shape the isolated linker uses for a shared slot: no force, since a warm slot is
@@ -67,7 +67,7 @@ const SHARED: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     reuse_hardlinks: false,
     keep_modules_dir: false,
     safe_to_skip: true,
-    preserve_symlinks: false,
+    symlink_targets: None,
     swap_lock: None,
 };
 // The shape the isolated linker uses for a shared slot whose build was interrupted.
@@ -77,6 +77,6 @@ const FORCE_SHARED_KEEP: ImportIndexedDirOpts<'static> = ImportIndexedDirOpts {
     reuse_hardlinks: false,
     keep_modules_dir: true,
     safe_to_skip: true,
-    preserve_symlinks: false,
+    symlink_targets: None,
     swap_lock: None,
 };

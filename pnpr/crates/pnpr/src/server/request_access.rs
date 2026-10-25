@@ -1,6 +1,6 @@
 use super::{
-    AppState, Config, HeaderMap, Identity, Next, Registry, RegistryError, Request, Response, State,
-    Upstream, authentication, header, identify,
+    AppState, Config, HeaderMap, Identity, Next, RegistryError, Request, Response, State, Upstream,
+    authentication, header, identify,
 };
 use axum::response::IntoResponse;
 
@@ -37,42 +37,8 @@ pub(super) fn authorized_upstream<'a>(
     state.inner.proxy.upstreams.get(upstream).ok_or_else(|| RegistryError::NotFound)
 }
 
-pub(super) fn authorized_revision_upstream<'a>(
-    state: &'a AppState,
-    identity: &Identity,
-    registry: &str,
-) -> Result<&'a Upstream, RegistryError> {
-    if !matches!(
-        state.inner.config.routing.registries.get(registry),
-        Some(Registry::Upstream { .. }),
-    ) {
-        return Err(RegistryError::NotFound);
-    }
-    let Some(config) = state.inner.config.routing.upstreams.get(registry) else {
-        return Err(RegistryError::NotFound);
-    };
-    if config.rules.refines_access() {
-        return Err(RegistryError::NotFound);
-    }
-    authorized_upstream(state, identity, registry)
-}
-
-pub(super) fn revision_registry_is_private(state: &AppState, registry: &str) -> bool {
-    state.inner.config.routing.upstreams
-        .get(registry)
-        .is_some_and(|config| config.access.is_some())
-}
-
-pub(super) fn revision_source_registry<'a>(
-    state: &'a AppState,
-    addressed_registry: &str,
-    source: &str,
-) -> Option<&'a str> {
-    if addressed_registry != source {
-        return None;
-    }
-    let config = state.inner.config.routing.upstreams.get(source)?;
-    (!config.rules.refines_access()).then_some(config.url.as_str())
+pub(super) fn revision_source_registry<'a>(state: &'a AppState, source: &str) -> Option<&'a str> {
+    state.inner.config.routing.upstreams.get(source).map(|config| config.url.as_str())
 }
 
 /// The disposable cache namespace for an upstream registry's `/~<name>/` route —

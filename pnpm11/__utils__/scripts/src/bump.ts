@@ -15,24 +15,25 @@ import fs from 'node:fs'
 import path from 'node:path'
 import url from 'node:url'
 
-// The workspace package selectors for each alpha-lane product, keyed by the
-// product's release token. These mirror `versioning.lanes` in
-// pnpm-workspace.yaml. The `pnpm` product is the Rust CLI (published to npm as
-// `pnpm`, named `pacquet` in-repo, carrying its versioning.fixed `@pnpm/napi`
-// sibling). The `pnpm11` product — the TypeScript CLI and the rest of the
-// default lane — has no single positive selector, so it is expressed as the
-// complement of the alpha products (see releaseFilterArgs).
-const ALPHA_PRODUCT_PACKAGES = {
+// The workspace package selectors for each product released apart from
+// pnpm11, keyed by the product's release token. The `pnpm` product is the Rust
+// CLI (published to npm as `pnpm`, named `pacquet` in-repo, carrying its
+// versioning.fixed `@pnpm/napi` sibling). The `pnpm11` product — the
+// TypeScript CLI and the rest of the default lane — has no single positive
+// selector, so it is expressed as the complement of these (see
+// releaseFilterArgs).
+const SEPARATE_PRODUCT_PACKAGES = {
   pnpm: ['pacquet', '@pnpm/napi'],
   pnpr: ['@pnpm/pnpr'],
+  'get-pnpm': ['get-pnpm'],
 } as const
 
-type AlphaProduct = keyof typeof ALPHA_PRODUCT_PACKAGES
-type Product = 'pnpm11' | AlphaProduct
+type SeparateProduct = keyof typeof SEPARATE_PRODUCT_PACKAGES
+type Product = 'pnpm11' | SeparateProduct
 
-const PRODUCTS: readonly Product[] = ['pnpm11', 'pnpm', 'pnpr']
+const PRODUCTS: readonly Product[] = ['pnpm11', 'pnpm', 'pnpr', 'get-pnpm']
 
-// The alpha products' npm wrappers are `"private": true` in-repo so that a
+// The Rust products' npm wrappers are `"private": true` in-repo so that a
 // workspace-wide `pnpm publish` never ships them; their generate-packages
 // scripts drop the flag when they are really published. `pnpm version -r`
 // commits a private project's changelog to its CHANGELOG.md, but release.yml
@@ -81,20 +82,21 @@ export function parseSelectedProducts (argv: readonly string[]): Set<Product> {
 
 // Turns the selected products into `--filter` arguments for `pnpm version -r`.
 // An empty selection releases everything (no filter). When `pnpm11` is selected
-// the run starts from the whole workspace and excludes only the alpha products
-// left unselected (an exclude-only filter selects "every project minus these").
+// the run starts from the whole workspace and excludes only the separate
+// products left unselected (an exclude-only filter selects "every project
+// minus these").
 export function releaseFilterArgs (selected: ReadonlySet<Product>): string[] {
   if (selected.size === 0) return []
-  const alphaProducts = Object.keys(ALPHA_PRODUCT_PACKAGES) as AlphaProduct[]
+  const separateProducts = Object.keys(SEPARATE_PRODUCT_PACKAGES) as SeparateProduct[]
   if (selected.has('pnpm11')) {
-    return alphaProducts
+    return separateProducts
       .filter((product) => !selected.has(product))
-      .flatMap((product) => ALPHA_PRODUCT_PACKAGES[product])
+      .flatMap((product) => SEPARATE_PRODUCT_PACKAGES[product])
       .map((pkg) => `--filter=!${pkg}`)
   }
-  return alphaProducts
+  return separateProducts
     .filter((product) => selected.has(product))
-    .flatMap((product) => ALPHA_PRODUCT_PACKAGES[product])
+    .flatMap((product) => SEPARATE_PRODUCT_PACKAGES[product])
     .map((pkg) => `--filter=${pkg}`)
 }
 

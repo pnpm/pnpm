@@ -10,6 +10,7 @@ use std::collections::HashSet;
 struct MissingIntegrityTarball {
     version: String,
     filename: String,
+    version_route: Option<String>,
     needs_integrity: bool,
     expected_shasum: Option<Integrity>,
 }
@@ -190,7 +191,11 @@ impl PackumentIntegrityResolver<'_> {
         let fetched = timed(
             "tarball:integrity_fetch",
             self.name.as_str(),
-            self.upstream.fetch_tarball_response(self.name, &candidate.filename),
+            self.upstream.fetch_tarball_or_version_response(
+                self.name,
+                &candidate.filename,
+                candidate.version_route.as_deref(),
+            ),
         )
         .await?;
         let response = match fetched {
@@ -326,6 +331,8 @@ fn packument_tarball(
         return Ok(None);
     };
     let filename = packument_tarball_filename(tarball, name, version)?;
+    let version_route =
+        pnpr_upstream::version_route_tarball_version(tarball, name).map(str::to_string);
     let needs_integrity = needs_integrity(dist, name, &filename, version)?;
     let expected_shasum = if needs_integrity {
         legacy_shasum_integrity(dist, name, &filename, version)?
@@ -335,6 +342,7 @@ fn packument_tarball(
     Ok(Some(MissingIntegrityTarball {
         version: version.to_string(),
         filename,
+        version_route,
         needs_integrity,
         expected_shasum,
     }))
@@ -345,9 +353,9 @@ fn packument_tarball_filename(
     name: &CanonicalPackageName,
     version: &str,
 ) -> Result<String, RegistryError> {
-    let basename = pnpr_upstream::tarball_basename(tarball);
+    let basename = pnpr_upstream::tarball_basename_for_package(tarball, name);
     let fallback = name.tarball_name_for_version(version);
-    let raw_filename = basename.unwrap_or(&fallback);
+    let raw_filename = basename.as_deref().unwrap_or(&fallback);
     let (filename, _) = tarball_cache_name(name, raw_filename)
         .map_err(|err| {
             tarball_integrity_error(

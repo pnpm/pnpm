@@ -1,4 +1,4 @@
-use crate::{DocumentWrite, HostedRevisionRefWrite};
+use crate::DocumentWrite;
 use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
@@ -12,7 +12,7 @@ use std::{
 
 /// The pluggable store behind a hosted registry: a local directory, an
 /// S3-compatible bucket, or anything else that can hold documents,
-/// blobs, revision references, and staged publishes.
+/// blobs, and staged publishes.
 ///
 /// Only the hosted side is pluggable. The disposable proxy cache is always
 /// local, because its contents are re-fetchable and its value is being fast.
@@ -95,20 +95,6 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     /// The names of the top-level directories (key prefixes) of this view.
     async fn list_top_level_dirs(&self) -> Result<Vec<String>>;
-
-    async fn read_revision_refs(&self, digest: &str) -> Result<Vec<Vec<u8>>>;
-
-    async fn write_revision_ref(
-        &self,
-        digest: &str,
-        ref_id: &str,
-        owner: &str,
-        bytes: &[u8],
-    ) -> Result<HostedRevisionRefWrite>;
-
-    async fn remove_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()>;
-
-    async fn commit_revision_ref(&self, digest: &str, ref_id: &str, owner: &str) -> Result<()>;
 
     /// A view rooted under `segment`, giving a hosted registry its own
     /// namespace so two orgs hosting the same `name@version` never collide.

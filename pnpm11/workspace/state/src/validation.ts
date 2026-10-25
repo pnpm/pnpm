@@ -17,6 +17,27 @@ const DIGEST_LENGTH = 32
 const WHOLE_SECOND_GRANULARITY_NS = 2_000_000_000
 
 /**
+ * The bins digest `importerId` records: `bins` when the project links
+ * workspace bins, which the root and any project with dependencies do, and
+ * `undefined` otherwise.
+ */
+export function projectBinsDigest (importerId: string, manifest: ProjectsList[number]['manifest'], bins: string | undefined): string | undefined {
+  const hasDependencies = [manifest.dependencies, manifest.devDependencies, manifest.optionalDependencies, manifest.peerDependencies]
+    .some(dependencies => dependencies != null && Object.keys(dependencies).length > 0)
+  return importerId === '.' || hasDependencies ? bins : undefined
+}
+
+export function workspaceBinsDigest (workspaceDir: string, projects: ProjectsList): string | undefined {
+  const bins = Object.fromEntries(projects.flatMap(({ rootDir, manifest }) => {
+    const bin = manifest.bin ?? null
+    const directory = manifest.directories?.bin ?? null
+    if (bin === null && directory === null) return []
+    return [[importerIdOf(workspaceDir, rootDir), { name: manifest.name ?? null, bin, directory }]]
+  }))
+  return Object.keys(bins).length === 0 ? undefined : manifestDigest(bins)
+}
+
+/**
  * The digest of a manifest. The value is hashed the way pnpm v12 hashes it, so
  * a manifest that only reorders its keys or its whitespace keeps its digest,
  * and either CLI recognizes what the other recorded.
@@ -327,12 +348,20 @@ interface ProjectRecordContext {
  */
 function recordProjects (ctx: ProjectRecordContext): number {
   const { opts, validation } = ctx
+  const bins = workspaceBinsDigest(opts.lockfileDir, opts.allProjects)
   let recorded = 0
   for (const project of opts.allProjects) {
     const importerId = importerIdOf(opts.lockfileDir, project.rootDir)
     const record = recordProjectEntry(ctx, project, importerId)
     if (record == null) continue
     insertProject(validation, importerId, record)
+    const projectBins = opts.vouchedProjects == null || opts.vouchedProjects.has(project.rootDir)
+      ? projectBinsDigest(importerId, project.manifest, bins)
+      : ctx.carried?.workspaceBins?.[importerId]
+    if (projectBins != null) {
+      validation.workspaceBins ??= {}
+      validation.workspaceBins[importerId] = projectBins
+    }
     recorded++
   }
   return recorded

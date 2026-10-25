@@ -12,11 +12,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const LEGACY_DOCUMENT: &str = "package.json";
 const TOMBSTONES: &str = ".tombstones";
-const REVISIONS: &str = ".revisions";
 const TAR_INTEGRITY: &str = ".tar-integrity";
-/// Rebuilt or abandoned rather than carried over: the listing index the new
-/// layout has no use for, and image uploads in progress.
-const DROPPED: [&str; 2] = [".package-index", ".pnpr-uploads"];
+/// Rebuilt or abandoned rather than carried over: the listing index and
+/// digest-revision reverse index the new layout has no use for, and image
+/// uploads in progress.
+const DROPPED: [&str; 3] = [".package-index", ".pnpr-uploads", ".revisions"];
 
 /// What to do with one stored path, given as its `/`-separated components
 /// below the store root.
@@ -170,7 +170,7 @@ fn is_namespace_record(path: &str) -> bool {
         .split('/')
         .next()
         .unwrap_or_default();
-    top == TOMBSTONES || top == REVISIONS || DROPPED.contains(&top)
+    top == TOMBSTONES || DROPPED.contains(&top)
 }
 
 /// The org whose namespace `path` is in, and the path within it.
@@ -193,9 +193,6 @@ fn namespace_step(prefix: &str, rest: &str, is_package: impl Fn(&str) -> bool) -
         .unwrap_or_default();
     if DROPPED.contains(&top) {
         return Step::Remove;
-    }
-    if top == REVISIONS {
-        return Step::Move { to: format!("{prefix}/{rest}"), document: false };
     }
     if top == TOMBSTONES {
         return tombstone_step(prefix, rest);

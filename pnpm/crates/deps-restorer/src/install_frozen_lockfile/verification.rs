@@ -1,5 +1,6 @@
 use super::{InstallFrozenLockfileError, LockfileVerificationOverride};
 use crate::{CheckVerdict, ConcurrentCheck, CreateVirtualStore, CreateVirtualStoreOutput};
+use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{VerifyLockfileResolutionsOptions, verify_lockfile_resolutions};
 use pnpm_reporter::Reporter;
@@ -54,6 +55,7 @@ pub(super) async fn fetch_verified<Reporter: self::Reporter>(
 /// the custom-resolver load on the fresh-lockfile path.
 pub(super) async fn load_custom_fetcher_session(
     hook: Option<&Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    config: &Config,
 ) -> Result<Option<Arc<crate::CustomFetcherSession>>, InstallFrozenLockfileError> {
     let Some(hook) = hook else { return Ok(None) };
     let fetchers = hook
@@ -69,7 +71,7 @@ pub(super) async fn load_custom_fetcher_session(
     if fetchers.is_empty() {
         return Ok(None);
     }
-    Ok(Some(Arc::new(crate::CustomFetcherSession::new(fetchers))))
+    Ok(Some(Arc::new(crate::CustomFetcherSession::with_config(fetchers, config))))
 }
 
 impl ConcurrentVerification<'_> {

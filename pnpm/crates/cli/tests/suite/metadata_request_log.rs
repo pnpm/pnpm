@@ -15,9 +15,8 @@ use std::{collections::HashMap, fs, io};
 const CASE_TABLE: &str =
     include_str!("../../../../../pnpr/.fixtures/request-logs/metadata-three-installs.json");
 
-const PKG_TARBALL: &str = "GET /@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.1.0.tgz 200";
-const DEP_TARBALL: &str =
-    "GET /@pnpm.e2e/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.1.0.tgz 200";
+const PKG_TARBALL: &str = "GET /@pnpm.e2e/pkg-with-1-dep@100.1.0 200";
+const DEP_TARBALL: &str = "GET /@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0 200";
 
 /// Install 1 also downloads both tarballs, which the store keeps for installs
 /// 2 and 3. The table leaves tarballs out: in pnpm v11's test they bypass the
@@ -138,6 +137,10 @@ fn remove_if_present(result: io::Result<()>) {
 
 fn is_tarball(request: &RecordedRequest) -> bool {
     request.path.ends_with(".tgz")
+        || request.path
+            .strip_prefix('/')
+            .and_then(|path| path.strip_prefix('@').or(Some(path)))
+            .is_some_and(|path| path.contains('@'))
 }
 
 fn document(request: &RecordedRequest) -> &'static str {

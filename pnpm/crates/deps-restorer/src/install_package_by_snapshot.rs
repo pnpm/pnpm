@@ -3,6 +3,8 @@ pub use tarball_resolution::{
     local_file_tarball_install_url, tarball_url_and_integrity, unverified_fetch_is_allowed,
 };
 
+pub(crate) use fetch::walk_directory;
+
 mod fetch;
 
 mod runtime;

@@ -9,9 +9,10 @@ mod circuit_breaker;
 mod metadata_requests;
 
 use super::{
-    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_version_manifest, http::UPSTREAM_ERROR_BODY_LIMIT, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, tarball_basename,
+    CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, TarballRevision, Upstream,
+    abbreviate_packument, extract_upstream_revision_integrity, extract_version_manifest,
+    http::UPSTREAM_ERROR_BODY_LIMIT, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
+    tarball_basename,
 };
 use chrono::{DateTime, TimeZone, Utc};
 use pnpr_config::UpstreamConfig;

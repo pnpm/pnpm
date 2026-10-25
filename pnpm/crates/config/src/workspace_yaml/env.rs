@@ -68,33 +68,23 @@ impl WorkspaceSettings {
         }
     }
 
-    /// Rewrite a leading `~/` in `storeDir`, `globalDir`, and `globalBinDir`
-    /// into the home directory. A shell expands the tilde before pnpm sees it,
-    /// but a configuration file carries it verbatim.
+    /// Rewrite a leading `~/` in `storeDir`, `globalDir`, `globalBinDir`, and
+    /// each `symlinkedLockfileTargetDirs` entry into the home directory. A shell
+    /// expands the tilde before pnpm sees it, but a configuration file carries
+    /// it verbatim.
     ///
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
     pub(crate) fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
-        for dir in [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir] {
-            let Some(relative) = dir
-                .as_deref()
-                .and_then(|dir| {
-                    dir.strip_prefix("~/")
-                        .or_else(|| dir.strip_prefix(r"~\"))
-                })
-            else {
-                continue;
-            };
-            if let Some(expanded) = Sys::home_dir()
-                .map(|home_dir| join_fragment(&home_dir, relative))
-                .and_then(|expanded| {
-                    expanded
-                        .into_os_string()
-                        .into_string()
-                        .ok()
-                })
-            {
-                *dir = Some(expanded);
+        let single_dirs = [&mut self.store_dir, &mut self.global_dir, &mut self.global_bin_dir];
+        let listed_dirs = self.symlinked_lockfile_target_dirs.iter_mut().flatten();
+        for dir in single_dirs
+            .into_iter()
+            .flatten()
+            .chain(listed_dirs)
+        {
+            if let Some(expanded) = expand_home_prefix::<Sys>(dir) {
+                *dir = expanded;
             }
         }
     }
@@ -137,4 +127,15 @@ impl WorkspaceSettings {
         }
         *script_shell = join_fragment(workspace_dir, script_shell).to_string_lossy().into_owned();
     }
+}
+
+fn expand_home_prefix<Sys: GetHomeDir>(dir: &str) -> Option<String> {
+    let relative = dir
+        .strip_prefix("~/")
+        .or_else(|| dir.strip_prefix(r"~\"))?;
+    Sys::home_dir()
+        .map(|home_dir| join_fragment(&home_dir, relative))?
+        .into_os_string()
+        .into_string()
+        .ok()
 }

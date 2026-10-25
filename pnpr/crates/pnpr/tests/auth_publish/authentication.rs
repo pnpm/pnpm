@@ -133,7 +133,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let served = body_json(response.into_body()).await;
     assert_eq!(
         served["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz",
+        "http://example.test/npm/mypkg@1.0.0",
     );
 }
 

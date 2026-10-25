@@ -5,6 +5,7 @@
 //! the gate covers against the lockfile, and records a passing check.
 
 pub(crate) use drift::{InputDrift, ProjectStatus};
+use registry_keys::state_unverified_by_changed_lockfile;
 
 use super::{
     LockfileConflictCheckFailure, OptimisticRepeatInstallCheck, Path, PathBuf, WorkspaceState,
@@ -25,6 +26,7 @@ use super::{
 use std::collections::HashSet;
 
 mod drift;
+mod registry_keys;
 
 /// What a gate does differently in [`check_freshness`].
 pub(super) struct GatePolicy<'a> {
@@ -154,6 +156,10 @@ pub(super) fn check_freshness(
 ) -> Result<(), Stale> {
     check_static_freshness(check, state, policy, scope)?;
     let drift = InputDrift::compute(check, state);
+    let held = drift.held(check, scope);
+    if !super::validation::held_workspace_bins_match(check, state, &held) {
+        return Err(Stale::Content("workspace package bins changed since the last install"));
+    }
     if moved {
         return settle_moved_tree(check, state, &drift, policy);
     }
@@ -165,7 +171,8 @@ pub(super) fn check_freshness(
         Ok(false) => {}
         Err(reason) => return Err(Stale::Content(reason)),
     }
-    let held = drift.held(check, scope);
+    let unverified = state_unverified_by_changed_lockfile(check, state, &drift, policy)?;
+    let state = unverified.as_ref().unwrap_or(state);
     if held.is_empty() && !drift.patches_modified {
         return settle_proven_tree(check, state, &drift, policy, scope);
     }
@@ -492,6 +499,10 @@ fn refreshed_state(
         filesystem_now_ms: filesystem_now,
         carried: crate::install::CarriedSettings {
             established_auto_dedupe: state.settings.auto_dedupe,
+            // A gate that ignores `registryPrefixes` passes on a recorded
+            // verification of other prefixes, which proves nothing about these.
+            registry_keys_verified: state.settings.registry_prefixes
+                == super::recorded_registry_prefixes(check.config),
             kept_settings: matches!(policy.recorded_groups, RecordedGroups::Kept).then_some(
                 &state.settings,
             ),

@@ -12,11 +12,16 @@ import { loadJsonFileSync } from 'load-json-file'
 import normalizePath from 'normalize-path'
 import { writeJsonFile } from 'write-json-file'
 
+import { NPM_SIGNING_KEYS_FILE, type NpmSigningKey, renderNpmSigningKeysModule, replaceRustNpmSigningKeys } from './npmSigningKeys.js'
+
 const CLI_PKG_NAME = 'pnpm'
 
 // These packages have their own release metadata and build pipelines;
 // the TypeScript package entry points, engine range, and Jest scripts do not apply.
 const NON_TYPESCRIPT_PKGS = new Set([
+  // A TypeScript package, but released on its own and built with its own
+  // tsconfig rather than the pnpm v11 conventions.
+  'get-pnpm',
   'pacquet',
   '@pnpm/napi',
   '@pnpm/pnpr',
@@ -60,6 +65,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   // it can reach the release workflow.
   const rustCliVersion = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpm/npm/pnpm/package.json'))!.version!
   const pnprVersion = loadJsonFileSync<ProjectManifest>(path.join(workspaceDir, 'pnpr/npm/pnpr/package.json'))!.version!
+  const npmSigningKeys = loadJsonFileSync<NpmSigningKey[]>(path.join(workspaceDir, NPM_SIGNING_KEYS_FILE))
   const pnpmMajorNumber = pnpmVersion.split('.')[0]
   const pnpmMajorKeyword = `pnpm${pnpmMajorNumber}`
   const nextTag = `next-${pnpmMajorNumber}`
@@ -72,7 +78,7 @@ export default async (workspaceDir: string) => { // eslint-disable-line
   const workspacePackageNames = new Set(workspacePackages.map(pkg => pkg.manifest.name).filter(Boolean))
   const nodeRuntimeVersion = readNodeRuntimeVersion(workspaceDir)
   return createUpdateOptions({
-    formats: { '.yml': textFormat, '.rs': textFormat, '.toml': textFormat, '.lock': textFormat },
+    formats: { '.yml': textFormat, '.rs': textFormat, '.toml': textFormat, '.lock': textFormat, '.ts': textFormat },
     files: {
       'package.json': (manifest: ProjectManifest & { keywords?: string[] } | null, { dir }: { dir: string }) => {
         if (!manifest) {
@@ -195,6 +201,15 @@ export default async (workspaceDir: string) => { // eslint-disable-line
         replaceRustVersion(content, /^(version\s*=\s*)"[^"]*"/m, `$1"${pnprVersion}"`),
       'Cargo.lock': (content: string | null) =>
         replaceRustVersion(content, /(\[\[package\]\]\nname = "pnpr"\nversion = )"[^"]*"/, `$1"${pnprVersion}"`),
+      // The npm signing keys each product pins, from the one committed list.
+      // pnpm keeps trusting the keys npm withdrew; get-pnpm, an installer of
+      // current releases only, does not.
+      'pnpm11/deps/security/signatures/src/npmSigningKeys.ts': (content: string | null) =>
+        content == null ? content : renderNpmSigningKeysModule(npmSigningKeys, { currentOnly: false }),
+      'pnpm/npm/get-pnpm/src/npmSigningKeys.ts': (content: string | null) =>
+        content == null ? content : renderNpmSigningKeysModule(npmSigningKeys, { currentOnly: true }),
+      'pnpm/crates/cli/src/cli_args/self_update/verify_engine/signatures.rs': (content: string | null) =>
+        replaceRustNpmSigningKeys(content, npmSigningKeys),
     },
   })
 }
@@ -213,6 +228,7 @@ async function updateTSConfig (
   if (tsConfig == null) return tsConfig
   if (manifest.name === '@pnpm/tsconfig') return tsConfig
   if (manifest.name === '@pnpm-private/typecheck') return tsConfig
+  if (manifest.name != null && NON_TYPESCRIPT_PKGS.has(manifest.name)) return tsConfig
   const relative = normalizePath(path.relative(context.workspaceDir, dir)) as ProjectId
   const importer = context.lockfile.importers[relative]
   if (!importer) return tsConfig
@@ -265,7 +281,7 @@ async function updateTSConfig (
         // tsconfig.json as a project reference. Only composite enabled projects
         // can be referenced by definition. Instead, we have to add all the
         // project references directly. This check is approximate. The
-        // main tsconfig.json could inherit another conifg that sets composite
+        // main tsconfig.json could inherit another config that sets composite
         // to be false.
         //
         // The link values are relative to the current packages root. We'll need

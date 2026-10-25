@@ -359,15 +359,6 @@ import ShellEmulator from './_shellEmulator.mdx'
 
 <ShellEmulator />
 
-### scriptsPrependNodePath
-
-* Default: **false**
-* Type: **true**, **false**, **warn-only**
-
-When set to `true`, pnpm adds the directory of the `node` executable that runs
-scripts to the `PATH` of lifecycle scripts and `pnpm run`. `false` and
-`warn-only` leave `PATH` unchanged.
-
 import CatalogMode from './_catalogMode.mdx'
 
 <CatalogMode />

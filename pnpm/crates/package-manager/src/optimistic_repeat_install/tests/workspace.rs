@@ -495,7 +495,10 @@ fn a_moved_production_install_passes_the_run_gate() {
         &crate::SkippedSnapshots::new(),
     );
     current
-        .save_to_path(&config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME))
+        .save_to_path(
+            &config.install_state_dir.join(Lockfile::CURRENT_FILE_NAME),
+            pnpm_lockfile::SymlinkedLockfile::Refuse,
+        )
         .unwrap();
     record_projects_elsewhere(dir.path());
     let mut state = load_workspace_state(dir.path()).unwrap().unwrap();

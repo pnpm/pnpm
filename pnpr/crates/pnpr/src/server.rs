@@ -60,9 +60,9 @@ use tar_variants::{TarCopy, TarVariantQueue, open_variant};
 
 mod package_responses;
 use package_responses::{
-    DistBlock, PackumentDists, TarballDist, expected_tarball_dist, packument_bytes_response,
-    packument_response, tarball_integrity_error, tarball_response, tarball_stream_error,
-    tarball_stream_error_for_package,
+    DistBlock, PackumentDists, TarballDist, declared_tarball_integrity, expected_tarball_dist,
+    packument_bytes_response, packument_response, tarball_integrity_error, tarball_response,
+    tarball_stream_error, tarball_stream_error_for_package,
 };
 
 mod package_reads;
@@ -72,17 +72,8 @@ use package_reads::{
     serve_registry_tarball, serve_tarball, serve_version_manifest,
 };
 
-mod revision_refs;
-use revision_refs::{
-    RevisionScan, RevisionSource, hosted_revision_refs, hosted_revision_sources,
-    serve_private_revision_refs, serve_revision_refs,
-};
-
 mod revision_tarballs;
-use revision_tarballs::{
-    HostedOriginal, declared_tarball_integrity, hosted_original, open_hosted_revision_tarball,
-    serve_revision_tarball,
-};
+use revision_tarballs::serve_revision_tarball;
 
 mod upstream_tarballs;
 use upstream_tarballs::{
@@ -99,9 +90,9 @@ use upstream_packuments::{
 
 mod request_access;
 use request_access::{
-    authorized_revision_upstream, authorized_upstream, require_admin, require_artifact_caller,
-    require_caller, require_pipeline_caller, require_resolver_caller, revision_registry_is_private,
-    revision_source_registry, single_authorization_header, upstream_cache_namespace,
+    authorized_upstream, require_admin, require_artifact_caller, require_caller,
+    require_pipeline_caller, require_resolver_caller, revision_source_registry,
+    single_authorization_header, upstream_cache_namespace,
 };
 
 mod restrictions;
@@ -161,7 +152,7 @@ use self::{
     },
     publishing::{
         PublishTarget, check_publish_tombstone, commit_publishes, publish_package,
-        resolve_publish_target_for, serve_batch_publish, stage_publish, validate_publish_doc,
+        resolve_publish_target_for, stage_publish, validate_publish_doc,
     },
     routing::{metrics_listener_router, router_with_auth_and_osv, state_and_router},
 };
@@ -180,7 +171,6 @@ use axum::{
 };
 use chrono::Utc;
 use indexmap::IndexMap;
-use pnpm_crypto_hash::{integrity_addressed_tarball_integrity, integrity_addressed_tarball_path};
 use pnpr_auth::{AuthState, UpsertOutcome, identify};
 use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;
@@ -195,8 +185,9 @@ use pnpr_storage::{
 
 use pnpr_upstream::{
     CacheValidators, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_upstream_version_manifest, extract_version_manifest, rewrite_tarball_urls,
-    rewrite_upstream_tarball_urls, tarball_basename,
+    extract_upstream_revision_integrity, extract_upstream_version_manifest,
+    extract_version_manifest, rewrite_tarball_urls, rewrite_upstream_tarball_urls,
+    tarball_basename_for_package, version_route_tarball_version,
 };
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -248,12 +239,6 @@ use state::AppInner;
 #[derive(Clone)]
 pub(super) struct AppState {
     pub(super) inner: Arc<AppInner>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct HostedOriginalRef {
-    package: String,
-    version: String,
 }
 
 /// Build the axum [`Router`] with in-memory auth state. Convenient

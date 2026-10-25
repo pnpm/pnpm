@@ -37,9 +37,7 @@ use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::get_bins_from_package_manifest;
 use pnpm_config::NodeLinker;
-use pnpm_executor::{
-    LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
-};
+use pnpm_executor::{LifecycleScriptError, RunPostinstallHooks, run_lifecycle_hook};
 use pnpm_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
 };

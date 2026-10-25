@@ -68,8 +68,10 @@ pub fn check_deps_status_before_run(
         Scope::Selected(selected_project_dirs)
     };
     // A script runs the same from whichever store `node_modules` was linked
-    // from; only an install has to act on a store location change.
-    let mut ignored_settings = vec!["dev", "optional", "production", "storeDir", "virtualStoreDir"];
+    // from, and whatever keys the lockfile records; only an install has to
+    // act on a store location change or re-key the lockfile.
+    let mut ignored_settings =
+        vec!["dev", "optional", "production", "registryPrefixes", "storeDir", "virtualStoreDir"];
     if install_would_run_frozen(check) {
         ignored_settings.push("autoDedupe");
     }
@@ -80,10 +82,7 @@ pub fn check_deps_status_before_run(
         check_dangling_direct_links: false,
         missing_wanted_lockfile: MissingWantedLockfile::RequireStandIn,
         newer_patch: NewerPatch::CompareHash,
-        // The TypeScript run/exec handler does not forward `dedupePeers`
-        // into `checkDepsStatus`, so its pre-run lockfile check uses the
-        // false default even when the workspace setting is true.
-        dedupe_peers: false,
+        dedupe_peers: config.dedupe_peers,
         recorded_groups: RecordedGroups::Kept,
     };
     match check_freshness(check, state, moved, &policy, scope) {

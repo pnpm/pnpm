@@ -18,6 +18,10 @@ Inside a [workspace], `pnpm install` installs all dependencies in all the
 projects. If you want to disable this behavior, set the
 [`recursiveInstall`](../settings/cli.md#recursiveinstall) setting to `false`.
 
+Changes to a workspace package's `bin` field are linked into its dependents'
+`node_modules/.bin` on the next install, even with `--frozen-lockfile` and an
+unchanged lockfile.
+
 ![](/img/demos/pnpm-install.svg)
 
 [workspace]: ../workspaces.md

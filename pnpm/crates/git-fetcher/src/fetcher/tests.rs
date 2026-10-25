@@ -6,7 +6,6 @@ use crate::{
     error::{GitFetcherError, PreparePackageError},
     prepare_package::AllowBuildRef,
 };
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 #[cfg(unix)]
@@ -308,7 +307,6 @@ fn failing_fetcher<'a>(
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,

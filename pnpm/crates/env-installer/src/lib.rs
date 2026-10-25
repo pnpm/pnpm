@@ -14,7 +14,7 @@ pub use errors::ConfigDepError;
 pub use install_config_deps::install_config_deps;
 pub use options::{
     ConfigDependencyStore, ConfigDependencyStoreIndex, ConfigDependencyVerification,
-    ConfigDepsInstallMode, ConfigDepsInstallOptions,
+    ConfigDepsInstallMode, ConfigDepsInstallOptions, EnvLockfileOptions,
 };
 pub use parse_integrity::{NormalizedConfigDep, NormalizedSubdep, parse_integrity};
 pub use pnpm_lockfile::prune_env_lockfile;

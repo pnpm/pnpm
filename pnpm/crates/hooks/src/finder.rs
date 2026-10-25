@@ -251,10 +251,17 @@ impl PnpmfileHooks for CombinedPnpmfileHooks {
         Ok(if changed { lockfile } else { Value::Null })
     }
 
-    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
+    async fn pre_resolution(
+        &self,
+        mut ctx: PreResolutionHookContext,
+        logger: PreResolutionHookLogger,
+    ) -> Result<PreResolutionHookContext, HookError> {
         for hook in &self.hooks {
-            hook.pre_resolution(ctx.clone(), logger.clone()).await;
+            if hook.has_pre_resolution().await? {
+                ctx = hook.pre_resolution(ctx, logger.clone()).await?;
+            }
         }
+        Ok(ctx)
     }
 
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {

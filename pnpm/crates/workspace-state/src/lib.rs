@@ -116,6 +116,12 @@ pub struct Validation {
     /// importer id, where it is not [`Self::lockfile`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub lockfiles: BTreeMap<String, Option<String>>,
+    /// The digest of every workspace package's bin declarations, keyed by the
+    /// importer id of each project that was proven installed with them. Only
+    /// the root and the projects with dependencies link workspace bins, so
+    /// only they have an entry.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub workspace_bins: BTreeMap<String, String>,
 }
 
 impl Validation {
@@ -275,6 +281,16 @@ pub struct WorkspaceStateSettings {
     pub production: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub public_hoist_pattern: Option<Vec<String>>,
+    /// What decides the lockfile keys of registry packages: each prefix
+    /// `registries` and `namedRegistries` declare, mapped to its URL, and
+    /// each route (`route:default`, `route:@<scope>`) whose registry declares
+    /// a prefix, mapped to that prefix. A prefix never contains `:`.
+    /// Recorded only when a prefix is declared, and only by an install that
+    /// verified the lockfile's keys, so a state written under other
+    /// registries, or by a pnpm that did not key by them, proves nothing about
+    /// the lockfile's keys.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry_prefixes: Option<BTreeMap<String, String>>,
     /// `skills.dirs`, recorded only when set. pnpm v11 has no such setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skills_dirs: Option<Vec<String>>,

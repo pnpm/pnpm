@@ -267,12 +267,6 @@ fn completion_server_lists_ci_command() {
             .any(|line| line == "--dry-run"),
         "{reply}",
     );
-    assert!(
-        reply
-            .lines()
-            .any(|line| line == "--lockfile"),
-        "{reply}",
-    );
 }
 
 #[test]

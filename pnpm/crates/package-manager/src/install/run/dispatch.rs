@@ -24,16 +24,16 @@ pub(super) struct Dispatched<'install> {
     pub(super) root_preinstall_ran: bool,
     pub(super) modules: PreparedModulesState<'install>,
 }
-/// Announce the install, run `pnpm:devPreinstall`, and decide between the
-/// frozen and the fresh path. Returns `None` when the run is complete: a
+/// Decide between the frozen and the fresh path, once [`announce_import`]
+/// has run. Returns `None` when the run is complete: a
 /// `--lockfile-only` frozen install, or a modules state found up to date.
 /// Consumes the lockfile verification override off `options`.
 pub(super) async fn dispatch<'install, Reporter: self::Reporter + 'static>(
     settled: Settled<'_, '_>,
     options: &mut InstallRunOptions<'install, '_>,
+    root_preinstall_ran: bool,
 ) -> Result<Option<Dispatched<'install>>, InstallError> {
     let Settled { install, mode, lockfiles, .. } = settled;
-    let root_preinstall_ran = announce_import::<Reporter>(settled, options)?;
     run_pre_uninstall_hooks::<Reporter>(settled, options.selection.as_ref())?;
     // Dispatch priority, following the CLI + `preferFrozenLockfile`
     // semantics:
@@ -132,9 +132,10 @@ pub(super) async fn finish_dispatched_lockfile<Reporter: self::Reporter + 'stati
     }
     if install.context.config.lockfile {
         lockfile
-            .save_to_path(&workspace.dirs.workspace_root.join(
-                install.context.config.wanted_lockfile_name(),
-            ))
+            .save_to_path(
+                &workspace.dirs.workspace_root.join(install.context.config.wanted_lockfile_name()),
+                install.context.config.symlinked_lockfile(),
+            )
             .map_err(InstallError::SaveWantedLockfile)?;
     }
     Reporter::emit(&LogEvent::Stage(StageLog {
@@ -194,6 +195,8 @@ pub(super) async fn prepare_dispatched_modules<'install, Reporter: self::Reporte
     let script_options = (options.selection.as_ref(), options.rebuild.as_ref());
     finish_prepared::<Reporter>(settled, script_options, decided, prepared).await
 }
+/// Announce the install and run `pnpm:devPreinstall`. Returns whether the
+/// root's `preinstall` is taken care of.
 pub(super) fn announce_import<Reporter: self::Reporter>(
     settled: Settled<'_, '_>,
     options: &InstallRunOptions<'_, '_>,

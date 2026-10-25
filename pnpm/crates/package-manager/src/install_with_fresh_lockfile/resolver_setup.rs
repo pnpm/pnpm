@@ -13,6 +13,7 @@ use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
 use pnpm_engine_runtime_node_resolver::NodeResolver;
+use pnpm_lockfile::DeclaredRegistryPrefixes;
 use pnpm_resolving_default_resolver::DefaultResolver;
 use pnpm_resolving_git_resolver::{GitFetchContext, GitResolver, RealGitProbe, RealGitRunner};
 use pnpm_resolving_local_resolver::{LocalPathResolver, LocalResolverContext, LocalSchemeResolver};
@@ -94,6 +95,8 @@ pub(super) struct Registries {
     /// `pnpm-workspace.yaml#namedRegistries` folded together with
     /// pacquet's built-in aliases — today `gh:` → GitHub Packages.
     pub named: HashMap<String, String>,
+    /// See [`DeclaredRegistryPrefixes`].
+    pub declared: DeclaredRegistryPrefixes,
 }
 
 /// Resolve the registries every registry-touching resolver consults.
@@ -116,6 +119,7 @@ pub(super) fn resolve_registries(
             .collect(),
         named: merge_named_registries(&user_registries_by_prefix)
             .map_err(InstallWithFreshLockfileError::InvalidNamedRegistry)?,
+        declared: config.declared_registry_prefixes(),
     })
 }
 
@@ -228,7 +232,7 @@ impl ResolverChainInputs<'_> {
     fn npm_resolver(&self, caches: &PackumentCaches) -> Arc<dyn Resolver> {
         Arc::new(NpmResolver {
             registries: self.registry.named.clone(),
-            registries_by_prefix: self.registry.by_prefix.clone(),
+            declared_prefixes: self.registry.declared.clone(),
             metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
                 http_client: Arc::clone(self.fetching.http_client),
                 auth_headers: Arc::clone(self.fetching.auth_headers),
@@ -342,6 +346,7 @@ impl ResolverChainInputs<'_> {
                 .keys()
                 .cloned()
                 .collect(),
+            declared_prefixes: self.registry.declared.clone(),
             metadata: pnpm_resolving_npm_resolver::RegistryMetadataClient {
                 http_client: Arc::clone(self.fetching.http_client),
                 auth_headers: Arc::clone(self.fetching.auth_headers),
@@ -496,7 +501,7 @@ async fn load_pnpmfile(
         hook: Some(hook),
         custom_resolvers,
         custom_fetcher_session: (!fetchers.is_empty()).then(|| {
-            Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(fetchers))
+            Arc::new(pnpm_deps_restorer::CustomFetcherSession::with_config(fetchers, config))
         }),
     })
 }

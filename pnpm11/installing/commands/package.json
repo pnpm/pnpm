@@ -43,6 +43,7 @@
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/colorize-semver-diff": "catalog:",
     "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.pick-registry-for-package": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/config.version-policy": "workspace:*",

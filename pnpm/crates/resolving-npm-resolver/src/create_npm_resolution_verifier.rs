@@ -59,8 +59,8 @@ use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_lockfile::{
-    LockfileResolution, PkgName, TarballRevision, is_git_hosted_tarball_url,
-    is_integrity_addressed_registry_tarball_url,
+    LockfileResolution, PkgName, TarballRevision, has_complete_sha512_digest,
+    is_git_hosted_tarball_url, is_revision_registry_tarball_url,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pnpm_registry::Package;

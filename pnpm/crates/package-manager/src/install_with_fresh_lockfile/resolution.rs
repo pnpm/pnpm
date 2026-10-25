@@ -292,6 +292,7 @@ impl<'a, Reporter: self::Reporter + 'static> ResolutionContext<'a, Reporter> {
 
             registries_by_prefix: self.registries.named.clone(),
             registries: self.registries.by_scope.clone(),
+            declared_prefixes: self.registries.declared.clone(),
         }
     }
 

@@ -421,8 +421,14 @@ pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDe
             .get_or_insert_with(Vec::new)
             .push(scope.clone());
     }
+    // A declaration holds one prefix. The smallest, which the map yields
+    // first, is the one the registry's lockfile keys carry.
     for (prefix, registry) in &lookups.registries_by_prefix {
-        declarations.entry(registry.clone()).or_default().prefix = Some(prefix.clone());
+        declarations
+            .entry(registry.clone())
+            .or_default()
+            .prefix
+            .get_or_insert_with(|| prefix.clone());
     }
     for (registry, options) in &lookups.registry_options_by_url {
         let declaration = declarations.entry(registry.clone()).or_default();

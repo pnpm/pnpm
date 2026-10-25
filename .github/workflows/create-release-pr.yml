@@ -11,8 +11,8 @@ on:
       # combination. Only the checked products' pending changesets are consumed;
       # the rest stay in the ledger for a later release. This lets a rapid v12
       # (Rust) cadence release without dragging the TypeScript CLI (v11) along —
-      # and with it the near-daily "Update available!" notification. Leaving all
-      # three checked reproduces the historical "release everything pending" run.
+      # and with it the near-daily "Update available!" notification. Checking
+      # every box releases everything pending.
       pnpm11:
         description: Release pnpm v11 (the TypeScript CLI) and the rest of the default lane.
         type: boolean
@@ -25,6 +25,12 @@ on:
         description: Release pnpr (the registry server).
         type: boolean
         default: true
+      # Off by default: get-pnpm releases on its own cadence, and the pnpm
+      # releases bundle its workspace source whether or not it is published.
+      get_pnpm:
+        description: Release get-pnpm (the installer package).
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -62,7 +68,7 @@ jobs:
         restore-cache: false
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+      uses: pnpm/setup@fa36a5ef7dcdefc3a7cb25655c122e00cf6e636e # v3.1.2
       with:
         runtime: node@26.3.0
 
@@ -79,19 +85,14 @@ jobs:
         git fetch origin "$TARGET"
         git checkout -B "release-pr/$TARGET" FETCH_HEAD
 
-    # Refresh the npm registry signing keys embedded in
-    # @pnpm/deps.security.signatures from what npm advertises. pnpm verifies
-    # package-manager binaries (pacquet, the version-switch pnpm) against these
-    # keys, so a stale set could break verification after a key rotation. Any
+    # Refresh .config/npm-signing-keys.json from what npm advertises. pnpm v11,
+    # pnpm v12, and get-pnpm verify package-manager binaries against these keys,
+    # so a stale set could break verification after a key rotation. The bump
+    # step's update-manifests renders the file into each product's copy, and any
     # drift is committed below along with the version bumps, so the new trust
     # roots are reviewed as part of the release PR diff.
-    # The embedded trust roots ship in the TypeScript CLI (v11) release, so they
-    # are only refreshed when pnpm11 is one of the products being released. A run
-    # that releases only the Rust products leaves v11 alone; any key drift is
-    # picked up by the next release that includes pnpm11.
     - name: Update embedded npm signing keys
-      if: github.event.inputs.pnpm11 == 'true'
-      run: node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs --update
+      run: node .github/scripts/update-npm-signing-keys.mjs --update
 
     # Refresh the embedded Node.js release keys (used to verify the signature of
     # a downloaded runtime's SHASUMS256.txt) from the canonical
@@ -105,17 +106,20 @@ jobs:
     # changeset for whichever key sets drifted before `pnpm bump` consumes the
     # pending changesets. The `drifted` output drives an explicit review signal
     # on the PR, so a trust-root change cannot hide in a large version-bump diff.
+    # The npm keys changeset names every product that embeds them; the intents
+    # of products this run does not release stay pending for their next one.
     - name: Add changesets for refreshed keys
       id: keys
-      if: github.event.inputs.pnpm11 == 'true'
       run: |
         drifted=""
-        if ! git diff --quiet -- pnpm11/deps/security/signatures/src/npmSigningKeys.ts; then
+        if ! git diff --quiet -- .config/npm-signing-keys.json; then
           drifted="npm registry signing keys"
           cat > .changeset/release-refresh-npm-signing-keys.md <<'EOF'
         ---
         "@pnpm/deps.security.signatures": patch
         "pnpm": patch
+        "pacquet": patch
+        "get-pnpm": patch
         ---
 
         Updated the embedded npm registry signing keys to the set currently advertised by npm.
@@ -143,11 +147,13 @@ jobs:
         RELEASE_PNPM11: ${{ github.event.inputs.pnpm11 }}
         RELEASE_PNPM: ${{ github.event.inputs.pnpm }}
         RELEASE_PNPR: ${{ github.event.inputs.pnpr }}
+        RELEASE_GET_PNPM: ${{ github.event.inputs.get_pnpm }}
       run: |
         args=()
         [ "$RELEASE_PNPM11" = "true" ] && args+=(--release pnpm11)
         [ "$RELEASE_PNPM" = "true" ] && args+=(--release pnpm)
         [ "$RELEASE_PNPR" = "true" ] && args+=(--release pnpr)
+        [ "$RELEASE_GET_PNPM" = "true" ] && args+=(--release get-pnpm)
         if [ ${#args[@]} -eq 0 ]; then
           echo "Select at least one product to release." >&2
           exit 1
@@ -185,6 +191,7 @@ jobs:
         add "" pnpm11/pnpm/package.json
         add "pacquet" pnpm/npm/pnpm/package.json
         add "pnpr" pnpr/npm/pnpr/package.json
+        add "get-pnpm" pnpm/npm/get-pnpm/package.json
         # Changes without a version bump (e.g. refreshed trust-root changesets
         # consumed into changelogs only) still need a commit subject.
         if [ -z "$summary" ]; then

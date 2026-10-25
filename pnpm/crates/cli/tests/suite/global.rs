@@ -30,7 +30,7 @@ fn prepare_global_home(pnpm_home: &Path, npmrc_info: &AddMockedRegistry) {
     fs::write(
         pnpm_home.join("pnpm-workspace.yaml"),
         format!(
-            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            "storeDir: {}\ncacheDir: {}\n",
             npmrc_info.store_dir.display(),
             npmrc_info.cache_dir.display(),
         ),
@@ -299,7 +299,7 @@ fn global_add_creates_a_missing_global_bin_dir() {
     fs::write(
         pnpm_home.join("pnpm-workspace.yaml"),
         format!(
-            "storeDir: {}\ncacheDir: {}\nenableGlobalVirtualStore: false\n",
+            "storeDir: {}\ncacheDir: {}\n",
             npmrc_info.store_dir.display(),
             npmrc_info.cache_dir.display(),
         ),
@@ -350,9 +350,13 @@ fn global_add_installs_the_npm_package_a_purl_names() {
     let manifest = fs::read_to_string(install_dir.join("package.json"))
         .expect("read the global group manifest");
     assert!(manifest.contains(r#""node": "22.0.0""#), "{manifest}");
+    let installed = fs::canonicalize(install_dir.join("node_modules/node"))
+        .expect("resolve the installed node package");
+    let slots = fs::canonicalize(npmrc_info.store_dir.join("v11/links/@/node/22.0.0"))
+        .expect("resolve the node slots");
     assert!(
-        install_dir.join("node_modules/.pnpm/node@22.0.0").exists(),
-        "the npm package the purl names must be the one installed",
+        installed.starts_with(slots),
+        "the npm package the purl names must be the one installed: {installed:?}",
     );
 
     drop(npmrc_info);
@@ -385,16 +389,16 @@ fn global_add_materializes_transitive_optional_dependencies() {
     assert_eq!(links.len(), 1, "exactly one cache-keyed hash symlink should exist: {links:?}");
     // The hash symlink's target is relative to the global packages dir.
     let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read the hash symlink"));
-    let virtual_store = install_dir.join("node_modules").join(".pnpm");
+    let package_dir =
+        fs::canonicalize(install_dir.join("node_modules/@pnpm.e2e/pkg-with-good-optional"))
+            .expect("resolve the installed package");
+    let slot_modules_dir = package_dir
+        .parent()
+        .and_then(Path::parent)
+        .expect("the package sits in its slot's node_modules");
     assert!(
-        virtual_store.join("is-positive@1.0.0").exists(),
-        "the transitive optional dependency must be materialized",
-    );
-    assert!(
-        virtual_store
-            .join("@pnpm.e2e+pkg-with-good-optional@1.0.0/node_modules/is-positive/package.json")
-            .exists(),
-        "the optional dependency alias symlink must resolve",
+        slot_modules_dir.join("is-positive/package.json").exists(),
+        "the transitive optional dependency must be materialized and its alias symlink must resolve",
     );
 
     drop(npmrc_info);
@@ -1459,6 +1463,12 @@ fn global_update_requires_approval_for_the_immature_version() {
     drop((root, npmrc_info));
 }
 
+#[cfg(unix)]
+mod config_conflicts;
+
 mod shims;
 
 mod ownership;
+
+#[cfg(unix)]
+mod virtual_store;

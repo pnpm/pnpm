@@ -1,6 +1,7 @@
 use super::{
-    CanonicalPackageName, abbreviate_packument, extract_version_manifest, json, now,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, tarball_basename,
+    CanonicalPackageName, TarballRevision, abbreviate_packument,
+    extract_upstream_revision_integrity, extract_version_manifest, json, now, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
 };
 
 #[test]
@@ -23,10 +24,7 @@ fn rewrites_npm_form_tarball() {
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
-    assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:4873/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:4873/foo@1.0.0");
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["shasum"], "abc");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["attestations"]["url"],
@@ -43,7 +41,7 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
             "1.0.0": {
                 "version": "1.0.0",
                 "dist": {
-                    "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
+                    "tarball": "https://upstream.test/npm/foo@1.0.0+r2",
                     "integrity": format!("sha512-{current_digest}=="),
                     "shasum": "0000000000000000000000000000000000000000",
                     "signatures": [{ "keyid": "SHA256:key", "sig": "signature" }],
@@ -52,12 +50,12 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
                     "revisions": [{
                         "revision": 0,
                         "integrity": format!("sha512-{original_digest}=="),
-                        "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{original_digest}"),
+                        "tarball": "https://upstream.test/npm/foo@1.0.0+r0",
                         "manifest": { "dependencies": { "bar": "1" } },
                     }, {
                         "revision": 2,
                         "integrity": format!("sha512-{current_digest}=="),
-                        "tarball": format!("https://upstream.test/npm/-/tarballs/sha512/{current_digest}"),
+                        "tarball": "https://upstream.test/npm/foo@1.0.0+r2",
                         "manifest": {},
                     }],
                 }
@@ -73,18 +71,15 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
         "http://pnpr.test/~corp/",
     );
 
-    assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
-    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://pnpr.test/~corp/foo@1.0.0+r2");
     assert_eq!(doc["versions"]["1.0.0"]["dist"]["revision"], 2);
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["revisions"][0]["tarball"],
-        format!("http://pnpr.test/~corp/-/tarballs/sha512/{original_digest}"),
+        "http://pnpr.test/~corp/foo@1.0.0+r0",
     );
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["revisions"][1]["tarball"],
-        format!("http://pnpr.test/~corp/-/tarballs/sha512/{current_digest}"),
+        "http://pnpr.test/~corp/foo@1.0.0+r2",
     );
     for source_field in ["shasum", "signatures", "npm-signature"] {
         assert!(
@@ -102,7 +97,7 @@ fn revision_zero_dist(history_revisions: &[u64]) -> serde_json::Value {
             json!({
                 "revision": revision,
                 "integrity": format!("sha512-{digest}=="),
-                "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+                "tarball": format!("https://upstream.test/foo@1.0.0+r{revision}"),
                 "manifest": {},
             })
         })
@@ -110,7 +105,7 @@ fn revision_zero_dist(history_revisions: &[u64]) -> serde_json::Value {
     json!({
         "version": "1.0.0",
         "dist": {
-            "tarball": format!("https://upstream.test/-/tarballs/sha512/{digest}"),
+            "tarball": "https://upstream.test/foo@1.0.0+r0",
             "integrity": format!("sha512-{digest}=="),
             "shasum": "0000000000000000000000000000000000000000",
             "revision": 0,
@@ -121,14 +116,13 @@ fn revision_zero_dist(history_revisions: &[u64]) -> serde_json::Value {
 
 #[test]
 fn preserves_an_explicit_revision_zero() {
-    let digest = "A".repeat(86);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let mut doc = revision_zero_dist(&[0]);
 
     rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
 
     assert_eq!(doc["dist"]["revision"], 0);
-    assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/-/tarballs/sha512/{digest}"));
+    assert_eq!(doc["dist"]["tarball"], "http://pnpr.test/foo@1.0.0+r0");
     assert!(doc["dist"].get("shasum").is_none());
 }
 
@@ -153,8 +147,8 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
     let digest = "A".repeat(86);
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     for (revision, tarball) in [
-        (json!(0), format!("https://upstream.test/-/tarballs/sha512/{digest}")),
-        (json!(2), format!("https://other.test/-/tarballs/sha512/{digest}")),
+        (json!(0), "https://upstream.test/foo@1.0.0+r0"),
+        (json!(2), "https://other.test/foo@1.0.0+r2"),
     ] {
         let mut doc = json!({
             "version": "1.0.0",
@@ -172,8 +166,74 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
             "http://pnpr.test/~corp/",
         );
 
-        assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{digest}"));
+        assert_eq!(doc["dist"]["tarball"], "http://pnpr.test/~corp/foo@1.0.0");
         assert!(doc["dist"].get("revision").is_none());
+    }
+}
+
+#[test]
+fn extract_upstream_revision_integrity_requires_matching_version_and_valid_revision() {
+    let current_digest = "A".repeat(86);
+    let original_digest = "Q".repeat(86);
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let rev0 = TarballRevision::try_from(0).unwrap();
+    let rev2 = TarballRevision::try_from(2).unwrap();
+    let valid_version = || {
+        json!({
+            "version": "1.0.0",
+            "dist": {
+                "tarball": "https://upstream.test/npm/foo@1.0.0+r2",
+                "integrity": format!("sha512-{current_digest}=="),
+                "revision": 2,
+                "revisions": [{
+                    "revision": 0,
+                    "integrity": format!("sha512-{original_digest}=="),
+                    "tarball": "https://upstream.test/npm/foo@1.0.0+r0",
+                    "manifest": {},
+                }, {
+                    "revision": 2,
+                    "integrity": format!("sha512-{current_digest}=="),
+                    "tarball": "https://upstream.test/npm/foo@1.0.0+r2",
+                    "manifest": {},
+                }],
+            }
+        })
+    };
+
+    let valid_doc = json!({ "versions": { "1.0.0": valid_version() } });
+    let extracted = extract_upstream_revision_integrity(
+        &serde_json::to_vec(&valid_doc).unwrap(),
+        &name,
+        "1.0.0",
+        rev0,
+        "https://upstream.test/npm/",
+    )
+    .unwrap();
+    assert_eq!(
+        extracted.map(|integrity| integrity.to_string()),
+        Some(format!("sha512-{original_digest}==")),
+    );
+
+    let mut missing_version = valid_version();
+    missing_version
+        .as_object_mut()
+        .unwrap()
+        .remove("version");
+    let mut mismatched_version = valid_version();
+    mismatched_version["version"] = json!("2.0.0");
+    let mut weak_digest = valid_version();
+    weak_digest["dist"]["revisions"][1]["integrity"] = json!("sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=");
+    for bad in [missing_version, mismatched_version, weak_digest] {
+        let doc = json!({ "versions": { "1.0.0": bad } });
+        let extracted = extract_upstream_revision_integrity(
+            &serde_json::to_vec(&doc).unwrap(),
+            &name,
+            "1.0.0",
+            rev2,
+            "https://upstream.test/npm/",
+        )
+        .unwrap();
+        assert!(extracted.is_none());
     }
 }
 
@@ -196,16 +256,35 @@ fn rewrites_verdaccio_form_tarball_for_scoped() {
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/@foo/no-deps/-/no-deps-1.0.0.tgz",
+        "http://127.0.0.1:9999/@foo/no-deps@1.0.0",
     );
 }
 
 #[test]
-fn preserves_non_canonical_tarball_basename() {
-    // A version whose tarball filename does not follow the
-    // `<name>-<version>.tgz` convention (here esprima-fb's zero-padded
-    // name for version `3001.1.0-dev-harmony-fb`) keeps its basename, so
-    // the client records and fetches back the path the upstream hosts.
+fn rewrites_upstream_pnpr_version_route_tarball_url() {
+    for (pkg, upstream_url, expected) in [
+        ("foo", "https://up.pnpr.test/npm/foo@1.0.0", "http://127.0.0.1:9999/foo@1.0.0"),
+        (
+            "@scope/foo",
+            "https://up.pnpr.test/npm/@scope/foo@1.0.0",
+            "http://127.0.0.1:9999/@scope/foo@1.0.0",
+        ),
+    ] {
+        let mut doc = json!({
+            "versions": {
+                "1.0.0": {
+                    "dist": { "tarball": upstream_url }
+                }
+            }
+        });
+        let name = CanonicalPackageName::parse(pkg, pnpr_package_name::Ecosystem::Npm).unwrap();
+        rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+        assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], expected);
+    }
+}
+
+#[test]
+fn rewrites_non_canonical_tarball_basename_to_version_route() {
     let mut doc = json!({
         "versions": {
             "3001.1.0-dev-harmony-fb": {
@@ -220,27 +299,28 @@ fn preserves_non_canonical_tarball_basename() {
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz",
+        "http://127.0.0.1:9999/esprima-fb@3001.1.0-dev-harmony-fb",
     );
 }
 
 #[test]
-fn rewrites_query_bearing_tarball_to_its_path_basename() {
-    // A signed/query-bearing upstream URL must rewrite to the path basename
-    // alone: the query is not part of the route a client later requests, so
-    // keeping it would desync the public URL from the serve-time match.
+fn rewrites_query_bearing_tarball_without_query_string() {
     let mut doc = json!({
         "versions": {
             "1.0.0": {
                 "dist": { "tarball": "https://cdn.example.com/foo/-/foo-1.0.0.tgz?sig=abc&exp=123" }
+            },
+            "3001.1.0-dev-harmony-fb": {
+                "dist": { "tarball": "https://cdn.example.com/foo/-/foo-3001.0001.0000-dev-harmony-fb.tgz?sig=abc&exp=123" }
             }
         }
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:9999/foo@1.0.0");
     assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/foo/-/foo-1.0.0.tgz",
+        doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
+        "http://127.0.0.1:9999/foo@3001.1.0-dev-harmony-fb",
     );
 }
 
@@ -260,10 +340,7 @@ fn rewrites_basenameless_tarball_url_to_pnpr_route() {
     });
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
-    assert_eq!(
-        doc["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://127.0.0.1:9999/foo/-/foo-1.0.0.tgz",
-    );
+    assert_eq!(doc["versions"]["1.0.0"]["dist"]["tarball"], "http://127.0.0.1:9999/foo@1.0.0");
 }
 
 #[test]
@@ -304,7 +381,7 @@ fn extracts_version_by_dist_tag() {
         CanonicalPackageName::parse("@foo/no-deps", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "latest", "http://reg").unwrap();
     assert_eq!(manifest["version"], "1.0.0");
-    assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps/-/no-deps-1.0.0.tgz");
+    assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps@1.0.0");
     assert_eq!(manifest["dist"]["shasum"], "abc");
 }
 
@@ -317,7 +394,7 @@ fn extracts_version_by_literal_version() {
     let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "2.0.0", "http://reg").unwrap();
     assert_eq!(manifest["version"], "2.0.0");
-    assert_eq!(manifest["dist"]["tarball"], "http://reg/foo/-/foo-2.0.0.tgz");
+    assert_eq!(manifest["dist"]["tarball"], "http://reg/foo@2.0.0");
 }
 
 #[test]

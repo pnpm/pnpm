@@ -3,7 +3,6 @@ pub(crate) use hoisted_bins::HoistedBinPlans;
 mod hoisted_bins;
 
 use pnpm_config::PackageImportMethod;
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -49,10 +48,6 @@ pub struct BuildScriptOptions<'a> {
 /// `node_modules/.bin` walk.
 #[derive(Clone, Copy)]
 pub struct ScriptPath<'a> {
-    /// Mirrors `config.scripts_prepend_node_path`. Threaded through to
-    /// [`pnpm_executor::ScriptExecutionOptions::prepend_node_path`] for each
-    /// spawned lifecycle script. Default [`ScriptsPrependNodePath::Never`].
-    pub prepend_node_path: ScriptsPrependNodePath,
     /// Mirrors `config.extra_bin_paths`: the workspace root's
     /// `node_modules/.bin`.
     pub extra_bin_paths: &'a [PathBuf],
@@ -83,7 +78,6 @@ impl<'a> BuildScriptOptions<'a> {
             extra_env,
             user_agent: &config.user_agent,
             path: ScriptPath {
-                prepend_node_path: crate::build_modules::exec_scripts_prepend_node_path(config),
                 extra_bin_paths: &config.extra_bin_paths,
                 private_hoisting: config.hoist_pattern
                     .as_ref()

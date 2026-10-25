@@ -64,7 +64,6 @@ When hosted storage is configured with S3 (`s3:` in YAML configuration), blobs a
 
 pnpr uses a commit journal for hosted publishes. For the S3 backend:
 - The local publish journal lives beside staged blobs in the local cache directory (`cache`, or `--cache`), coordinating write-ahead publication before promotion to S3. Ensure instances stop cleanly and startup recovery completes before discarding local cache state.
-- Revision digest records (`.revisions/`) live in the S3 bucket itself. When restoring an S3 bucket from a point-in-time snapshot, restore the namespaces' `.revisions/` prefixes alongside their `packages/` to keep revision digest references intact.
 - After a restore, run `pnpr verify` to audit whether any references point to missing blobs:
   ```sh
   pnpr verify

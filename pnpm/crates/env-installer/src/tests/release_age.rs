@@ -65,7 +65,8 @@ async fn resolves_a_pinned_config_dep_newer_than_the_release_age_cutoff() {
     dbg!(resolution);
     assert!(matches!(
         resolution,
-        LockfileResolution::Registry(registry) if registry.integrity.to_string() == integrity,
+        LockfileResolution::Tarball(tarball)
+            if tarball.integrity.as_ref().map(ToString::to_string).as_deref() == Some(integrity.as_str()),
     ));
     assert!(
         root.path()

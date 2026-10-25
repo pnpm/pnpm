@@ -16,7 +16,6 @@ use crate::{
 };
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
@@ -242,7 +241,7 @@ fn revision_packument(
     history: &[(&ssri::Integrity, u64)],
 ) -> (ssri::Integrity, serde_json::Value) {
     let integrity = revision_integrity(tarball);
-    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let revision_path = format!("revision-pkg@1.0.0+r{revision}");
     let original = revision_integrity(&revision_fixture_tarball_with_value("original"));
     let revisions = std::iter::once((&original, 0))
         .filter(|_| revision != 0)
@@ -251,7 +250,7 @@ fn revision_packument(
     let revisions = revisions
         .iter()
         .map(|(integrity, revision)| {
-            let path = integrity_addressed_tarball_path(integrity).unwrap();
+            let path = format!("revision-pkg@1.0.0+r{revision}");
             serde_json::json!({
                 "revision": revision,
                 "integrity": integrity.to_string(),

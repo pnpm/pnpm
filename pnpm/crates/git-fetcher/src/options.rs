@@ -1,5 +1,4 @@
 use crate::GitSourceCache;
-use pnpm_executor::ScriptsPrependNodePath;
 use pnpm_store_dir::{StoreDir, StoreIndexWriter};
 use std::{path::Path, sync::Arc};
 
@@ -8,7 +7,6 @@ pub struct PrepareScriptOptions<'a> {
     pub ignore: bool,
     pub unsafe_perm: bool,
     pub user_agent: Option<&'a str>,
-    pub prepend_node_path: ScriptsPrependNodePath,
     pub shell: Option<&'a Path>,
     pub node_execpath: Option<&'a Path>,
     pub npm_execpath: Option<&'a Path>,

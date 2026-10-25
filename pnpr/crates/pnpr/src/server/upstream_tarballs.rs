@@ -89,7 +89,12 @@ pub(super) async fn serve_authorized_upstream_tarball(
         return response;
     }
     let dist = bind_tarball_to_packument(state, upstream, namespace, name, filename, ttl).await;
-    let TarballDist { version, integrity, unpacked_size } = match dist {
+    let TarballDist {
+        version,
+        version_route,
+        integrity,
+        unpacked_size,
+    } = match dist {
         Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
@@ -97,8 +102,14 @@ pub(super) async fn serve_authorized_upstream_tarball(
     if let Err(err) = recheck_osv(state, name, &version, parsed_version) {
         return err.into_response();
     }
-    let tarball =
-        UpstreamTarball { namespace, name, filename, integrity: &integrity, unpacked_size };
+    let tarball = UpstreamTarball {
+        namespace,
+        name,
+        filename,
+        version_route: version_route.as_deref(),
+        integrity: &integrity,
+        unpacked_size,
+    };
     if upstream.caches()
         && state.inner.osv_index.is_some()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
@@ -220,6 +231,7 @@ pub(super) struct UpstreamTarball<'a> {
     pub(super) namespace: &'a str,
     pub(super) name: &'a CanonicalPackageName,
     pub(super) filename: &'a str,
+    pub(super) version_route: Option<&'a str>,
     pub(super) integrity: &'a Integrity,
     pub(super) unpacked_size: Option<u64>,
 }
@@ -235,13 +247,14 @@ pub(super) async fn fetch_upstream_tarball(
         namespace,
         name,
         filename,
+        version_route,
         integrity,
         unpacked_size: _,
     } = tarball;
     let fetched = timed(
         "tarball:upstream_fetch",
         name.as_str(),
-        upstream.fetch_tarball_response(name, filename),
+        upstream.fetch_tarball_or_version_response(name, filename, version_route),
     )
     .await;
     let response = match fetched {
