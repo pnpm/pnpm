@@ -79,10 +79,8 @@ pub struct RegistryDeclaration {
     /// default registry, the one the `registry` setting names.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scopes: Option<Vec<String>>,
-    /// The bare-specifier prefix this registry answers to, as in
-    /// `"foo": "work:^1.0.0"`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prefix: Option<String>,
+    #[serde(flatten)]
+    pub prefixes: RegistryPrefixes,
     /// Which ecosystem's packages this registry serves. Absent is
     /// [`Ecosystem::Npm`], so every entry written before there was anything
     /// else to serve means what it did.
@@ -94,6 +92,27 @@ pub struct RegistryDeclaration {
     pub packages: Option<Vec<String>>,
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+pub struct RegistryPrefixes {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prefix: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
+}
+
+impl RegistryPrefixes {
+    fn iter(&self) -> impl Iterator<Item = &str> {
+        self.prefix
+            .as_deref()
+            .into_iter()
+            .chain(self.aliases.iter().map(String::as_str))
+    }
+
+    fn into_prefixes(self) -> impl Iterator<Item = String> {
+        self.prefix.into_iter().chain(self.aliases)
+    }
 }
 
 impl Eq for RegistryDeclaration {}
@@ -232,10 +251,12 @@ pub fn validate_declarations<'a>(
         indexes.add(registry, declaration)?;
         let normalized = normalize_registry_url(registry);
         validate_scopes(registry, declaration, &normalized, &mut routed_scopes)?;
-        if let Some(prefix) = declaration.prefix.as_deref()
-            && !declared_prefixes.insert(prefix)
-        {
-            return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice { prefix: prefix.to_owned() });
+        for prefix in declaration.prefixes.iter() {
+            if !declared_prefixes.insert(prefix) {
+                return Err(LoadWorkspaceYamlError::PrefixDeclaredTwice {
+                    prefix: prefix.to_owned(),
+                });
+            }
         }
     }
     indexes.finish()
@@ -350,7 +371,7 @@ fn extend_lookups_with_declarations(
         }
         if !ecosystems::collect_index(&mut lookups.indexes_by_ecosystem, &normalized, &declaration)
         {
-            extend_npm_routes(lookups, registry, &normalized, declaration);
+            extend_npm_routes(lookups, &registry, &normalized, declaration);
         }
     }
 }
@@ -361,7 +382,7 @@ fn extend_lookups_with_declarations(
 /// refused rather than read here.
 fn extend_npm_routes(
     lookups: &mut RegistryLookups,
-    registry: String,
+    registry: &str,
     normalized: &str,
     declaration: RegistryDeclaration,
 ) {
@@ -373,8 +394,8 @@ fn extend_npm_routes(
             lookups.registries_by_scope.insert(scope, normalized.to_owned());
         }
     }
-    if let Some(prefix) = declaration.prefix {
-        lookups.registries_by_prefix.insert(prefix, registry);
+    for prefix in declaration.prefixes.into_prefixes() {
+        lookups.registries_by_prefix.insert(prefix, registry.to_owned());
     }
 }
 
@@ -421,14 +442,13 @@ pub fn to_declarations(lookups: &RegistryLookups) -> IndexMap<String, RegistryDe
             .get_or_insert_with(Vec::new)
             .push(scope.clone());
     }
-    // A declaration holds one prefix. The smallest, which the map yields
-    // first, is the one the registry's lockfile keys carry.
     for (prefix, registry) in &lookups.registries_by_prefix {
-        declarations
-            .entry(registry.clone())
-            .or_default()
-            .prefix
-            .get_or_insert_with(|| prefix.clone());
+        let declaration = declarations.entry(registry.clone()).or_default();
+        if declaration.prefixes.prefix.is_none() {
+            declaration.prefixes.prefix = Some(prefix.clone());
+        } else {
+            declaration.prefixes.aliases.push(prefix.clone());
+        }
     }
     for (registry, options) in &lookups.registry_options_by_url {
         let declaration = declarations.entry(registry.clone()).or_default();

@@ -436,3 +436,17 @@ test('pnpr does not freeze an empty lockfile under frozenLockfileIfExists', asyn
   expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({ frozenLockfile: false }))
   expect(fs.readFileSync(path.join(workspaceRoot, 'pnpm-lock.yaml'), 'utf8')).toContain('pnpmfileChecksum: pnpmfile-checksum')
 })
+
+test('pnpr forwards every registry alias with a canonical key prefix', async () => {
+  const workspaceRoot = prepareEmpty().dir()
+  const rootDir = workspaceRoot as ProjectRootDir
+  await install({ name: 'app', version: '1.0.0' }, createOptions(workspaceRoot, rootDir, {
+    registriesByPrefix: {
+      zeta: 'https://npm.corp.example/',
+      work: 'https://npm.corp.example/',
+    },
+  }))
+  expect(resolveViaPnprServer).toHaveBeenCalledWith(expect.objectContaining({
+    registries: { 'https://npm.corp.example/': { prefix: 'work', aliases: ['zeta'] } },
+  }))
+})

@@ -27,7 +27,7 @@ const SECRET_REGISTRY_KEYS = new Set([
 ])
 
 /** The fields a `registries` entry may carry. Anything else is a typo. */
-const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
+const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 'scopes', 'prefix', 'aliases'])
 
 /**
  * Turns the settings that name registries into the lookups the rest of
@@ -134,13 +134,19 @@ function addRegistryDeclaration (lookups: RegistryLookups, registry: string, dec
   // resolved from matches its declaration however either one spelled the
   // trailing slash.
   const context: RegistryDeclarationContext = { registry, normalizedRegistry: normalizeRegistryUrl(registry), settingPath }
-  const { scopes, prefix } = declaration
+  const { scopes, prefix, aliases } = declaration
   addRegistryOptions(lookups, declaration, context)
   if (scopes != null) {
     addScopeRoutes(lookups, scopes, context)
   }
   if (prefix != null) {
     addPrefixRoute(lookups, prefix, context)
+  }
+  if (aliases !== undefined) {
+    assertStringArray(aliases, `${settingPath}.aliases`)
+    for (const alias of aliases) {
+      addPrefixRoute(lookups, alias, context)
+    }
   }
 }
 
@@ -211,7 +217,12 @@ function addPrefixRoute (
     throw new PnpmError('INVALID_SETTING',
       `The prefix ${JSON.stringify(prefix)} is declared by two registries: ${quoteAndJoin([declaredBy, registry].map(redactAndSanitize))}.`)
   }
-  lookups.registriesByPrefix[prefix] = registry
+  Object.defineProperty(lookups.registriesByPrefix, prefix, {
+    value: registry,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }
 
 /**

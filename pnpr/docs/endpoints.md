@@ -102,6 +102,11 @@ artifact-only tiers are both valid. The `POST` endpoints require a valid pnpr
 lockfile metadata while retaining compatible locked versions, including for a
 filtered install.
 
+The `registries` map is keyed by URL. Each entry can carry a `prefix` and an
+optional `aliases` list. All declared prefixes resolve to that URL. The smallest
+prefix in alphabetical order determines package keys in the returned lockfile,
+including when the input lockfile uses another declared prefix.
+
 Every registry the request would make pnpr fetch from (the `registry` and
 `registries` origins, plus any direct `http(s)`/`git` URL in a dependency
 spec, an override, or an input-lockfile tarball) must be on the server's

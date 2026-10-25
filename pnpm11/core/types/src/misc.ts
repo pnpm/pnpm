@@ -88,13 +88,8 @@ export interface RegistryDeclaration extends RegistryOptions {
    * the same registry the `registry` setting names.
    */
   scopes?: string[]
-  /**
-   * The bare-specifier prefix this registry answers to, as in
-   * `"foo": "work:^1.0.0"`. Singular because the prefix is the registry's
-   * identity in a lockfile dep path (`foo@work:1.0.0`): a second spelling
-   * would key the same package from the same registry twice.
-   */
   prefix?: string
+  aliases?: string[]
 }
 
 /**

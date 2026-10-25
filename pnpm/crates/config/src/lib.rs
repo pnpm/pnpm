@@ -59,7 +59,7 @@ pub use workspace_yaml::{
     package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{
         self, Ecosystem, EcosystemIndex, PythonRegistryRoute, RegistryDeclaration, RegistryEntry,
-        RegistryLookups,
+        RegistryLookups, RegistryPrefixes,
     },
     workspace_root_or,
 };
