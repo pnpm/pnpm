@@ -453,6 +453,7 @@ async fn symlinks_in_the_packages_directory_are_not_followed() {
         .unwrap();
     let scopes = tmp.path().join("storage/default/packages");
     fs::create_dir_all(tmp.path().join("outside-scope/pkg")).await.unwrap();
+    fs::write(tmp.path().join("outside-scope/pkg/document.json"), b"{}").await.unwrap();
     fs::symlink(tmp.path().join("outside-scope"), scopes.join("@linked")).await.unwrap();
     let packages = scopes.join("@");
     fs::symlink(&outside, packages.join("linked")).await.unwrap();
