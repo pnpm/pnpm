@@ -14,11 +14,9 @@ impl LockedPeers {
         let workspace = ctx.workspace();
         let lockfile = workspace.wanted_lockfile().map(AsRef::as_ref);
         let versions = match lockfile {
-            Some(lockfile) if !lockfile.importers.contains_key(importer_id) => Arc::clone(
-                workspace
-                    .unlisted_importer_locked_peers()
-                    .get_or_init(|| Arc::new(all_locked_peer_versions(lockfile))),
-            ),
+            Some(lockfile) if !lockfile.importers.contains_key(importer_id) => {
+                workspace.unlisted_importer_locked_peers(|| all_locked_peer_versions(lockfile))
+            }
             _ => Arc::new(importer_locked_peer_versions(lockfile, importer_id)),
         };
         Self { versions }
