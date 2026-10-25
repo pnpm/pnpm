@@ -155,7 +155,6 @@ impl PreparePackageOptions<'_> {
             execution: pnpm_executor::ScriptExecutionOptions {
                 extra_bin_paths,
                 node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-                prepend_node_path: self.scripts.prepend_node_path,
                 shell: self.scripts.shell,
                 shell_emulator: false,
                 wd_bin_dir: None,

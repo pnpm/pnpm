@@ -405,7 +405,6 @@ fn run_candidate_hooks<Reporter: self::Reporter>(
         execution: pnpm_executor::ScriptExecutionOptions {
             extra_bin_paths,
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-            prepend_node_path: context.scripts.path.prepend_node_path,
             shell: context.scripts.shell,
             shell_emulator: context.scripts.shell_emulator,
             wd_bin_dir: None,

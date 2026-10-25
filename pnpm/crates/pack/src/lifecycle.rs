@@ -1,7 +1,6 @@
 use super::{
     Arc, HashMap, HookContext, HookLog, LogEvent, LogFn, LogLevel, PackError, PackScripts, Path,
-    PnpmfileHooks, Reporter, RunPostinstallHooks, ScriptsPrependNodePath, Value, realpath_missing,
-    run_lifecycle_hook,
+    PnpmfileHooks, Reporter, RunPostinstallHooks, Value, realpath_missing, run_lifecycle_hook,
 };
 
 /// Chain every configured pnpmfile's `beforePacking` hook over the
@@ -78,7 +77,6 @@ impl PackScripts {
             execution: pnpm_executor::ScriptExecutionOptions {
                 extra_bin_paths: &self.extra_bin_paths,
                 node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
-                prepend_node_path: ScriptsPrependNodePath::default(),
                 shell: None,
                 shell_emulator: false,
                 wd_bin_dir: None,

@@ -1,4 +1,3 @@
-use crate::ScriptsPrependNodePath;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -36,9 +35,6 @@ pub struct ScriptExecutionOptions<'a> {
     /// it. Supplied by [`crate::bundled_node_gyp_bin`]; `None` when
     /// nothing was shipped beside the executable.
     pub node_gyp_bin: Option<&'a Path>,
-    /// Tri-state from `scriptsPrependNodePath` config. `Never` is the
-    /// safe default; `Always` appends `dirname(node)` to `PATH`.
-    pub prepend_node_path: ScriptsPrependNodePath,
     /// Custom shell from `scriptShell` config (e.g. `bash`,
     /// `/usr/local/bin/bash`). `None` means use the platform default
     /// (`sh -c` on POSIX, `cmd /d /s /c` on Windows).

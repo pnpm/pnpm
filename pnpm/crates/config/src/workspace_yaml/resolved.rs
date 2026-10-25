@@ -150,7 +150,6 @@ impl WorkspaceSettings {
             node_version: config.node_version.clone(),
             runtime_on_fail: config.runtime_on_fail,
             node_download_mirrors: Some(config.node_download_mirrors.clone()),
-            scripts_prepend_node_path: Some(config.scripts_prepend_node_path),
             script_shell: Some(config.script_shell.clone()),
             node_options: Some(config.node_options.clone()),
             unsafe_perm: Some(config.unsafe_perm),

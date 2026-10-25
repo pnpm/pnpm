@@ -366,7 +366,6 @@ Every setting is listed below, grouped by topic. Follow a setting to read its do
 * [enablePrePostScripts](./settings/other.md#enableprepostscripts)
 * [scriptShell](./settings/other.md#scriptshell)
 * [shellEmulator](./settings/other.md#shellemulator)
-* [scriptsPrependNodePath](./settings/other.md#scriptsprependnodepath)
 * [catalogMode](./settings/other.md#catalogmode)
 * [ci](./settings/other.md#ci)
 * [catalogPrune](./settings/other.md#catalogprune)

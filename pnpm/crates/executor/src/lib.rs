@@ -11,7 +11,7 @@ pub(crate) use std::process;
 pub(crate) use tokio::process as async_process;
 
 pub use bundled_node_gyp::{bundled_node_gyp_bin, bundled_node_gyp_entry};
-pub use extend_path::{ScriptsPrependNodePath, extend_path};
+pub use extend_path::extend_path;
 pub use interrupt::{exit_like, interrupt_count};
 pub use job_control::{JobGuard, arm_process_tree_cleanup};
 pub use lifecycle::{

@@ -1,6 +1,6 @@
 use super::{
-    GitFetcher, ScriptsPrependNodePath, SilentReporter, StoreDir, deny_all_builds, exec_git, fs,
-    make_monorepo_bare_repo, tempdir,
+    GitFetcher, SilentReporter, StoreDir, deny_all_builds, exec_git, fs, make_monorepo_bare_repo,
+    tempdir,
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -16,7 +16,6 @@ async fn fetcher_packs_subfolder_when_path_set() {
             ignore: false,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,
@@ -94,7 +93,6 @@ async fn fetcher_skips_build_when_ignore_scripts() {
             ignore: true,
             unsafe_perm: true,
             user_agent: None,
-            prepend_node_path: ScriptsPrependNodePath::Never,
             shell: None,
             node_execpath: None,
             npm_execpath: None,

@@ -6,12 +6,11 @@ use super::{
     PackageConfigsSetting, PackageExtension, PackageImportMethod, PackagePermissions, Path,
     PathBuf, PeerDependencyRules, Placeholder, PmOnFail, PnpmfileSetting, PythonSettings,
     RegistryEntry, RemoteCacheSettings, RemoteSideEffectsCacheSettings, ResolutionMode,
-    RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    SideEffectsCacheSetting, SkillsSettings, StoreIndexFormat, SupportedArchitectures, SystemEnv,
-    TaskSettings, Tool, ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings,
-    VerifyDepsBeforeRun, VirtualStoreType, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues,
-    drop_placeholders, read_workspace_document, redact_and_sanitize, resolvable_placeholders,
-    resolve_placeholders,
+    RuntimeOnFail, SCHEMA_DIRECTIVE_KEY, SaveWorkspaceProtocol, SideEffectsCacheSetting,
+    SkillsSettings, StoreIndexFormat, SupportedArchitectures, SystemEnv, TaskSettings, Tool,
+    ToolSettings, TrustPolicy, UpdateConfig, UpdateSettings, VerifyDepsBeforeRun, VirtualStoreType,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, drop_placeholders, read_workspace_document,
+    redact_and_sanitize, resolvable_placeholders, resolve_placeholders,
 };
 
 /// What a failed read reports in place of a value that came from the
@@ -568,11 +567,6 @@ pub struct WorkspaceSettings {
 
     /// Per-release-channel Node.js download mirrors.
     pub node_download_mirrors: Option<HashMap<String, String>>,
-
-    /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
-    /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
-    /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
-    pub scripts_prepend_node_path: Option<ScriptsPrependNodePath>,
 
     /// `enablePrePostScripts` from `pnpm-workspace.yaml`. See
     /// [`Config::enable_pre_post_scripts`](crate::settings::Config::enable_pre_post_scripts).
