@@ -35,6 +35,8 @@ mod subtree_split;
 
 mod cache_keys;
 
+mod update_scopes;
+
 use chrono::{DateTime, Utc};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
@@ -59,9 +61,7 @@ use crate::{
 
 use super::{
     DependencySpec, DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn,
-    UpdateDepth, UpdateReuseScope, lock_recoverable,
-    reuse::{SubtreeReuseCache, TargetDistances},
-    tree_ctx::TreeCtx,
+    UpdateDepth, UpdateReuseScope, lock_recoverable, reuse::SubtreeReuseCache, tree_ctx::TreeCtx,
 };
 
 /// An importer's resolved direct-dependency versions, keyed by package
@@ -584,37 +584,6 @@ impl WorkspaceTreeCtx {
     pub fn with_update_depth(mut self, update_depth: UpdateDepth) -> Self {
         self.reuse.depth = update_depth;
         self
-    }
-
-    /// Which update scope `importer_id` is judged against: `Some(importer_id)`
-    /// for an importer with a scope of its own, `None` for the
-    /// workspace-wide scope. A workspace-wide update of everything
-    /// ([`UpdateReuseScope::None`]) overrides every importer's own scope.
-    fn update_scope_owner<'a>(&self, importer_id: &'a str) -> Option<&'a str> {
-        if matches!(self.reuse.scope, UpdateReuseScope::None) {
-            return None;
-        }
-        self.reuse.scopes_by_importer.contains_key(importer_id).then_some(importer_id)
-    }
-
-    pub(super) fn update_reuse_scope_for(&self, importer_id: &str) -> &UpdateReuseScope {
-        self.update_scope_owner(importer_id)
-            .and_then(|importer_id| self.reuse.scopes_by_importer.get(importer_id))
-            .unwrap_or(&self.reuse.scope)
-    }
-
-    /// The [`TargetDistances`] of the update scope `importer_id` is judged
-    /// against, computed on first use.
-    pub(super) fn target_distances_for(&self, importer_id: &str) -> Arc<TargetDistances> {
-        let owner = self.update_scope_owner(importer_id).map(str::to_owned);
-        let mut cache = lock_recoverable(&self.cache.subtree.target_distances);
-        let distances = cache
-            .entry(owner)
-            .or_insert_with(|| {
-                let scope = self.update_reuse_scope_for(importer_id);
-                Arc::new(TargetDistances::compute(self.reuse.lockfile.as_deref(), scope))
-            });
-        Arc::clone(distances)
     }
 
     #[must_use]
