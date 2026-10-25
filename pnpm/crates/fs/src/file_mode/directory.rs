@@ -152,7 +152,7 @@ fn add_opened_dir_mode_bits(
     if search_only && meta.uid() != pnpm_ffi_process::effective_user_id() {
         return Ok(());
     }
-    let mode = pnpm_ffi_fs::FileMode::from(meta.permissions());
+    let mode = pnpm_ffi_fs::FileMode::from_permissions(&meta.permissions());
     let merged = pnpm_ffi_fs::FileMode::from_mode(mode.mode() | extra);
     if merged == mode {
         return Ok(());

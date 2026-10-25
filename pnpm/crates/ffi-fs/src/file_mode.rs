@@ -23,6 +23,16 @@ impl FileMode {
         Self(mode & PERMISSION_BITS)
     }
 
+    /// The permission bits of `permissions`, dropping the file type that
+    /// `PermissionsExt::mode` reports along with them.
+    ///
+    /// Named rather than a [`From`] impl because the file type is lost: a
+    /// [`Permissions`] built back from the result does not carry it.
+    #[must_use]
+    pub fn from_permissions(permissions: &Permissions) -> Self {
+        Self::from_mode(permissions.mode())
+    }
+
     /// The bits, as the number a foreign call takes.
     #[must_use]
     pub const fn mode(self) -> u32 {
@@ -38,12 +48,6 @@ impl FileMode {
         // Narrowing cannot lose a bit: the mask above bounds the value well
         // inside the `u16` that macOS uses.
         self.0 as libc::mode_t
-    }
-}
-
-impl From<Permissions> for FileMode {
-    fn from(permissions: Permissions) -> Self {
-        Self::from_mode(permissions.mode())
     }
 }
 
