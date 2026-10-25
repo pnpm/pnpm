@@ -3,6 +3,7 @@
 //! pnpm 11 — <https://github.com/pnpm/pnpm/issues/14933>.
 
 use super::{CommandExtra, CommandTempCwd, Duration, fs, json, write_workspace};
+use crate::_utils::{CHILD_DEADLINE, hold_until_cancelled_script};
 use assert_cmd::assert::OutputAssertExt;
 
 /// A pair of scripts that record whether they ever ran simultaneously:
@@ -141,16 +142,19 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
                 "name": "project-1",
                 "version": "1.0.0",
                 "scripts": {
-                    "dev:slow": r#"node -e "const fs = require('fs'); fs.writeFileSync('slow-started', ''); setTimeout(() => fs.writeFileSync('slow-finished', ''), 30000)""#,
+                    "dev:slow": hold_until_cancelled_script("slow-started"),
                     "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
                 },
             }),
         )],
     );
 
+    // The run ending is the proof: `dev:slow` holds for longer than the
+    // deadline below and pnpm waits for the scripts it started, so the run
+    // reaches its verdict only once `dev:slow` is gone.
     let output = assert_cmd::Command::from_std(pacquet)
         .args(["--workspace-concurrency=2", "-r", "run", "/^dev:/"])
-        .timeout(Duration::from_mins(1))
+        .timeout(CHILD_DEADLINE)
         .assert()
         .failure()
         .get_output()
@@ -166,13 +170,8 @@ fn bail_cancels_the_sibling_script_of_the_same_package() {
         .join("project-1")
         .join("slow-started")
         .exists();
-    let slow_finished = workspace
-        .join("project-1")
-        .join("slow-finished")
-        .exists();
-    eprintln!("slow-started exists: {slow_started}, slow-finished exists: {slow_finished}");
+    eprintln!("slow-started exists: {slow_started}");
     assert!(slow_started, "the slow script must have started beside the failing one");
-    assert!(!slow_finished, "the slow script must be cancelled before its watchdog completes");
 
     drop(root);
 }

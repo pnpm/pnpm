@@ -1,6 +1,7 @@
 use super::{
     CommandExtra, CommandTempCwd, Duration, assert_no_bail_lets_siblings_finish, fs, json,
 };
+use crate::_utils::{CHILD_DEADLINE, hold_until_cancelled_script};
 use assert_cmd::assert::OutputAssertExt;
 
 /// Without `--if-present`, calling a script that does not exist fails
@@ -203,7 +204,7 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
             "name": "test",
             "version": "0.0.0",
             "scripts": {
-                "dev:slow": r#"node -e "const fs = require('fs'); fs.writeFileSync('slow-started', ''); setTimeout(() => fs.writeFileSync('slow-finished', ''), 30000)""#,
+                "dev:slow": hold_until_cancelled_script("slow-started"),
                 "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
             },
         })
@@ -211,14 +212,17 @@ pub(super) fn regexp_selected_scripts_cancel_siblings_after_failure() {
     )
     .expect("write package.json");
 
+    // The run ending is the proof: `dev:slow` holds for longer than the
+    // deadline below and pnpm waits for the scripts it started, so the run
+    // reaches the failing script's exit code only once `dev:slow` is gone.
     assert_cmd::Command::from_std(pacquet)
         .args(["--workspace-concurrency=2", "run", "/^dev:/"])
-        .timeout(Duration::from_mins(1))
+        .timeout(CHILD_DEADLINE)
         .assert()
         .code(17);
     assert!(
-        !workspace.join("slow-finished").exists(),
-        "the slow script must be cancelled before its watchdog completes",
+        workspace.join("slow-started").exists(),
+        "the slow script must have started beside the failing one",
     );
 
     drop(root);

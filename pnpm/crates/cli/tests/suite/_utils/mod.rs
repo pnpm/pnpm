@@ -597,6 +597,23 @@ pub fn write_marker_script(relative_path: &str) -> String {
     format!(r#"node -e "require('fs').writeFileSync('{relative_path}', '')""#)
 }
 
+/// A package script that writes `started_marker` and then holds.
+///
+/// The hold outlasts [`CHILD_DEADLINE`], the deadline a test gives the run
+/// itself, so a cancellation that never arrives fails on that deadline. A
+/// script that could end on its own inside the deadline would let a run
+/// that cancelled nothing pass, and would report a missed cancellation as
+/// whatever the script did on its way out. The hold is not endless: a run
+/// the test gave up on leaves the script behind, and nothing else stops
+/// it.
+#[must_use]
+pub fn hold_until_cancelled_script(started_marker: &str) -> String {
+    let hold = (CHILD_DEADLINE * 2).as_millis();
+    format!(
+        r#"node -e "require('fs').writeFileSync('{started_marker}', ''); setTimeout(() => {{}}, {hold})""#,
+    )
+}
+
 /// How long [`wait_for_marker_script`] gives another project's script to
 /// reach its marker.
 ///
