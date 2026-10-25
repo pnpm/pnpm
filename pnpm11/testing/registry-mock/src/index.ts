@@ -151,15 +151,35 @@ export function hostedBlobPath (pkgName: string, fileName: string): string {
   if (!storage) {
     throw new Error('PNPM_REGISTRY_MOCK_STORAGE is not set; run the test under the with-registry jest preset.')
   }
-  return path.join(packageDir(path.join(storage, 'default'), pkgName), 'blobs', encodeSegment(fileName))
+  return path.join(packageDir(path.join(storage, 'default'), pkgName), 'blobs', blobSegment(pkgName, fileName))
 }
 
 function documentPath (namespace: string, pkgName: string): string {
   return path.join(packageDir(namespace, pkgName), 'document.json')
 }
 
+/**
+ * Mirrors pnpr's storage layout (`pnpr/crates/storage/src/layout.rs`): a
+ * package lives at `packages/@<scope>/<name>/`, or `packages/@/<name>/` when
+ * it has no scope.
+ */
 function packageDir (namespace: string, pkgName: string): string {
-  return path.join(namespace, 'packages', encodeSegment(pkgName))
+  const separator = pkgName.indexOf('/')
+  const segments = pkgName.startsWith('@') && separator > 1
+    ? [`@${encodeSegment(pkgName.slice(1, separator))}`, encodeSegment(pkgName.slice(separator + 1))]
+    : ['@', encodeSegment(pkgName)]
+  return path.join(namespace, 'packages', ...segments)
+}
+
+/**
+ * A tarball named `<basename>-<rest>` is stored as `<rest>`, and one not
+ * named after its package keeps its name behind `@`.
+ */
+function blobSegment (pkgName: string, fileName: string): string {
+  if (!fileName.endsWith('.tgz')) return encodeSegment(fileName)
+  const prefix = `${pkgName.slice(pkgName.lastIndexOf('/') + 1)}-`
+  const rest = fileName.startsWith(prefix) ? fileName.slice(prefix.length) : ''
+  return rest !== '' && !rest.startsWith('.') ? encodeSegment(rest) : `@${encodeSegment(fileName)}`
 }
 
 /**
