@@ -174,7 +174,7 @@ async fn frozen_lockfile_rejects_an_engine_package_pinned_at_another_version() {
                 version: "11.23.0".to_string(),
             },
         );
-    env_lockfile.write(root.path()).unwrap();
+    env_lockfile.write(root.path(), pnpm_lockfile::SymlinkedLockfile::Refuse).unwrap();
     let lockfile_path = root.path().join("pnpm-lock.yaml");
     let before = std::fs::read_to_string(&lockfile_path).unwrap();
 

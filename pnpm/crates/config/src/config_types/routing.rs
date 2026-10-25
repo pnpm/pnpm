@@ -65,6 +65,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "store-dir",
     "store-index-format",
     "strict-dep-builds",
+    "symlinked-lockfile-target-dirs",
     "trust-lockfile",
     "trust-policy",
     "trust-policy-exclude",

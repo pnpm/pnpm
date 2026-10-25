@@ -616,6 +616,11 @@ pub struct Config {
     /// Add the full URL to the package's tarball to every entry in pnpm-lock.yaml.
     pub lockfile_include_tarball_url: bool,
 
+    /// The directories a changed lockfile may be written to through a
+    /// symlink. The `symlinkedLockfileTargetDirs` setting. Default empty: such a
+    /// write fails.
+    pub symlinked_lockfile_target_dirs: Vec<PathBuf>,
+
     /// Record `autoDedupe`, `dedupeInjectedDeps`, `dedupePeerDependents` and
     /// `linkWorkspacePackages` in the lockfile's `settings`, so a lockfile
     /// resolved under other values counts as outdated. The

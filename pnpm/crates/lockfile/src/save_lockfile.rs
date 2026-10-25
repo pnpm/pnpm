@@ -89,11 +89,13 @@ pub enum SaveLockfileError {
 /// A lockfile with no env document round-trips byte-for-byte (no
 /// leading `---`).
 ///
-/// A write that changes bytes is atomic and refuses a symlinked lockfile. A
-/// missing parent directory is an error, not something to create.
+/// A write that changes bytes is atomic and treats a symlinked lockfile as
+/// `symlinked` says. A missing parent directory is an error, not something to
+/// create.
 pub fn save_value_to_path<Document: serde::Serialize>(
     value: &Document,
     path: &Path,
+    symlinked: SymlinkedLockfile<'_>,
 ) -> Result<(), SaveLockfileError> {
     let content = serialize_yaml::to_string(value).map_err(SaveLockfileError::SerializeYaml)?;
     let existing = match fs::read_to_string(path) {
@@ -111,8 +113,8 @@ pub fn save_value_to_path<Document: serde::Serialize>(
     if existing.as_deref() == Some(output.as_str()) {
         return Ok(());
     }
-    ensure_lockfile_is_not_symlink(path).map_err(SaveLockfileError::WriteFile)?;
-    write_atomic(path, output.as_bytes())
+    let target = lockfile_write_target(path, symlinked).map_err(SaveLockfileError::WriteFile)?;
+    write_atomic(&target, output.as_bytes())
 }
 
 /// The env document to re-prepend, as text.
@@ -154,23 +156,80 @@ fn preserved_env_document<'a>(
     serialize_yaml::to_string(&merged).map(Cow::Owned).map_err(SaveLockfileError::SerializeYaml)
 }
 
-/// Refuses a symlinked lockfile before a write, which would land on the link's
-/// target — any file the user can write. Reads may follow it: sandboxes stage
-/// `pnpm-lock.yaml` as a symlink, and lockfile content is untrusted either way
+/// How a write that changes a symlinked lockfile behaves. Reads always follow
+/// the link: sandboxes stage `pnpm-lock.yaml` as a symlink, and lockfile
+/// content is untrusted either way
 /// (<https://github.com/pnpm/pnpm/issues/13073>).
-pub(crate) fn ensure_lockfile_is_not_symlink(path: &Path) -> io::Result<()> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SymlinkedLockfile<'dirs> {
+    /// Fail the write, which would otherwise land on the link's target: any
+    /// file the user can write.
+    Refuse,
+    /// Resolve the whole link chain and atomically replace the final target,
+    /// leaving every link in place, if that target is inside one of
+    /// `allowed_dirs`. Any other target is refused. The
+    /// `symlinkedLockfileTargetDirs` setting.
+    WriteThrough { allowed_dirs: &'dirs [PathBuf] },
+}
+
+impl<'dirs> SymlinkedLockfile<'dirs> {
+    /// [`Self::WriteThrough`] into `allowed_dirs`, or [`Self::Refuse`] when
+    /// there are none.
+    #[must_use]
+    pub fn allowing(allowed_dirs: &'dirs [PathBuf]) -> Self {
+        if allowed_dirs.is_empty() { Self::Refuse } else { Self::WriteThrough { allowed_dirs } }
+    }
+}
+
+/// The file a write to the lockfile at `path` replaces: `path` itself, unless
+/// it is a symlink, which `symlinked` either refuses or resolves.
+pub fn lockfile_write_target<'path>(
+    path: &'path Path,
+    symlinked: SymlinkedLockfile<'_>,
+) -> io::Result<Cow<'path, Path>> {
     match fs::symlink_metadata(path) {
-        Ok(metadata) if metadata.file_type().is_symlink() => Err(symlinked_lockfile_error(path)),
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Ok(metadata) if metadata.file_type().is_symlink() => match symlinked {
+            SymlinkedLockfile::Refuse => Err(refused_symlinked_lockfile(path)),
+            SymlinkedLockfile::WriteThrough { allowed_dirs } => {
+                allowed_link_target(path, allowed_dirs).map(Cow::Owned)
+            }
+        },
+        Ok(_) => Ok(Cow::Borrowed(path)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Cow::Borrowed(path)),
         Err(error) => Err(error),
     }
 }
 
-pub(crate) fn symlinked_lockfile_error(path: &Path) -> io::Error {
+/// The canonical target of the link at `path`, if it is inside one of
+/// `allowed_dirs`. The directories are canonicalized too, so a link among
+/// their ancestors neither widens nor defeats the check.
+fn allowed_link_target(path: &Path, allowed_dirs: &[PathBuf]) -> io::Result<PathBuf> {
+    let target = fs::canonicalize(path)?;
+    let allowed = allowed_dirs
+        .iter()
+        .filter_map(|dir| fs::canonicalize(dir).ok())
+        .any(|dir| target.starts_with(dir));
+    if allowed {
+        Ok(target)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "Refusing to write symlinked lockfile at {} because it links to {}, which is outside the directories listed in symlinkedLockfileTargetDirs.",
+                path.display(),
+                target.display(),
+            ),
+        ))
+    }
+}
+
+fn refused_symlinked_lockfile(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        format!("Refusing to write symlinked lockfile at {}", path.display()),
+        format!(
+            "Refusing to write symlinked lockfile at {}. To write to the file it links to, list that file's directory in the symlinkedLockfileTargetDirs setting.",
+            path.display(),
+        ),
     )
 }
 
@@ -181,15 +240,22 @@ impl Lockfile {
     }
 
     /// Save lockfile to a specific path.
-    pub fn save_to_path(&self, path: &Path) -> Result<(), SaveLockfileError> {
-        save_value_to_path(self, path)
+    pub fn save_to_path(
+        &self,
+        path: &Path,
+        symlinked: SymlinkedLockfile<'_>,
+    ) -> Result<(), SaveLockfileError> {
+        save_value_to_path(self, path, symlinked)
     }
 
     /// Save lockfile to `pnpm-lock.yaml` in the current directory.
-    pub fn save_to_current_dir(&self) -> Result<(), SaveLockfileError> {
+    pub fn save_to_current_dir(
+        &self,
+        symlinked: SymlinkedLockfile<'_>,
+    ) -> Result<(), SaveLockfileError> {
         let file_path =
             env::current_dir().map_err(SaveLockfileError::CurrentDir)?.join(Lockfile::FILE_NAME);
-        self.save_to_path(&file_path)
+        self.save_to_path(&file_path, symlinked)
     }
 
     /// Save the *current* lockfile under

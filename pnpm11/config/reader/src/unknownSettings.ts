@@ -168,6 +168,7 @@ const SETTINGS_OF_OTHER_PNPM_VERSIONS: Record<string, string> = {
   saveTypes: 'pnpm v12',
   skills: 'pnpm v12',
   storeIndexFormat: 'pnpm v12',
+  symlinkedLockfileTargetDirs: 'pnpm v12',
   tools: 'pnpm v12',
 }
 

@@ -1,8 +1,8 @@
 use super::{
     Config, EnvVar, GetCurrentDir, GetHomeDir, GitHost, HashMap, HoistPatterns, LinkProbe,
-    Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, WantedLockfileSelection,
-    WorkspaceSettings, collect_explicit_settings, create_matcher, default_store_dir,
-    get_branches_containing_head, get_current_branch, store_path,
+    Lockfile, NodeLinker, Path, StoreDir, StoreRelocation, SymlinkedLockfile,
+    WantedLockfileSelection, WorkspaceSettings, collect_explicit_settings, create_matcher,
+    default_store_dir, get_branches_containing_head, get_current_branch, store_path,
 };
 
 impl Config {
@@ -374,6 +374,12 @@ impl Config {
             Some(name) if !self.merge_git_branch_lockfiles => name,
             _ => Lockfile::FILE_NAME,
         }
+    }
+
+    /// How a write that changes a symlinked wanted lockfile behaves.
+    #[must_use]
+    pub fn symlinked_lockfile(&self) -> SymlinkedLockfile<'_> {
+        SymlinkedLockfile::allowing(&self.symlinked_lockfile_target_dirs)
     }
 
     /// [`Self::wanted_lockfile_name`] paired with the merge flag, as the

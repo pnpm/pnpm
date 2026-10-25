@@ -129,7 +129,7 @@ fn prod_deploy_skips_a_devengines_runtime_without_failing_the_frozen_lockfile_ch
         .get_or_insert_with(Default::default)
         .insert("node@runtime:24.0.0".parse().unwrap(), SnapshotEntry::default());
     lockfile
-        .save_to_path(&workspace.join("pnpm-lock.yaml"))
+        .save_to_path(&workspace.join("pnpm-lock.yaml"), pnpm_lockfile::SymlinkedLockfile::Refuse)
         .unwrap();
 
     let deploy_dir = root.path().join("deploy");

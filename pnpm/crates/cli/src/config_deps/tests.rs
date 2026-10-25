@@ -370,6 +370,25 @@ async fn update_config_hook_cannot_read_or_change_macos_backup_policy() {
     assert!(!config.macos_backup.exclude_store_dir);
 }
 
+#[tokio::test]
+async fn update_config_hook_cannot_read_or_change_the_symlinked_lockfile_dirs() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "\n").expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { if ('symlinkedLockfileTargetDirs' in config) throw new Error('allowed directories leaked'); config.symlinkedLockfileTargetDirs = ['/']; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let allowed_dirs = vec![root.path().join("source")];
+    config.symlinked_lockfile_target_dirs.clone_from(&allowed_dirs);
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path()).await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.symlinked_lockfile_target_dirs, allowed_dirs);
+}
+
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version
 /// `time` map and trust evidence the no-downgrade check reads.

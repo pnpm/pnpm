@@ -32,9 +32,15 @@ pub struct ConfigDepsInstallOptions<'a> {
     /// `lockfileDir` — where `pnpm-lock.yaml` and
     /// `node_modules/.pnpm-config` live.
     pub root_dir: &'a Path,
-    /// `--frozen-lockfile`: refuse to mutate the env lockfile.
-    pub frozen_lockfile: bool,
+    pub lockfile: EnvLockfileOptions<'a>,
     pub mode: ConfigDepsInstallMode,
+}
+
+#[derive(Clone, Copy)]
+pub struct EnvLockfileOptions<'dirs> {
+    /// `--frozen-lockfile`: refuse to mutate the env lockfile.
+    pub frozen: bool,
+    pub symlinked: pnpm_lockfile::SymlinkedLockfile<'dirs>,
 }
 
 #[derive(Default)]

@@ -334,7 +334,10 @@ pub(super) fn save_merged_wanted_lockfile(
         && save_lockfile
     {
         wanted_lockfile
-            .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
+            .save_to_path(
+                &workspace_root.join(config.wanted_lockfile_name()),
+                config.symlinked_lockfile(),
+            )
             .map_err(InstallError::SaveWantedLockfile)?;
     }
     Ok(())

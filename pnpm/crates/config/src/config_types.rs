@@ -129,6 +129,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("side-effects-cache", false),
     ("side-effects-cache-readonly", false),
     ("symlink", false),
+    ("symlinked-lockfile-target-dirs", false),
     ("sort", false),
     ("state-dir", false),
     ("store-dir", false),

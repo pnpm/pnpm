@@ -83,6 +83,12 @@ impl WorkspaceSettings {
             global_virtual_store_dir: as_set(config, "globalVirtualStoreDir"),
             global_dir: as_set(config, "globalDir"),
             global_bin_dir: as_set(config, "globalBinDir"),
+            symlinked_lockfile_target_dirs: Some(
+                config.symlinked_lockfile_target_dirs
+                    .iter()
+                    .map(|dir| path(dir))
+                    .collect(),
+            ),
 
             // `cacheDir` is one of those settings when a source set it, and
             // the directory pnpm chose for the host when none did, which is

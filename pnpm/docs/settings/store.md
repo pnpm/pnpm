@@ -170,6 +170,24 @@ still recorded.
 
 Add the full URL to the package's tarball to every entry in `pnpm-lock.yaml`.
 
+### symlinkedLockfileTargetDirs
+
+Added in: v12.16.0
+
+* Default: **[]**
+* Type: **string[]**
+
+When `pnpm-lock.yaml` is a symlink, pnpm reads it through the link but refuses to write changes to it. List the directories that the lockfile may link into, and pnpm writes the updated lockfile to the file the symlink points to if that file is inside one of them. pnpm follows the whole chain of links, keeps every link in place, and keeps the target file's permissions. A lockfile that does not change is never written.
+
+```yaml title="config.yaml"
+symlinkedLockfileTargetDirs:
+  - ~/build/src
+```
+
+Each entry must be an absolute path or start with `~/`. pnpm ignores any other entry.
+
+Set it in the [global configuration file](../cli/config.md) or with `PNPM_CONFIG_SYMLINKED_LOCKFILE_TARGET_DIRS='["/path/to/src"]'`. pnpm ignores the setting in `pnpm-workspace.yaml`, because the repository that commits the symlink must not be the one that allows writing through it.
+
 ### lockfile.includeResolutionSettings
 
 Added in: v12.10.0
