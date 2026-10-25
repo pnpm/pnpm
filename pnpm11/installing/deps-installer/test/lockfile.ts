@@ -774,11 +774,12 @@ test("don't remove packages during named install when useLockfile: false", async
 test('save tarball URL when it is non-standard', async () => {
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false }))
+  // Undeclared, the mock registry's `<name>@<version>` URLs are not reconstructible.
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, registryOptionsByUrl: {} }))
 
   const lockfile = project.readLockfile()
 
-  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+  expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball).toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb@3001.1.0-dev-harmony-fb`)
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async () => {
@@ -1480,7 +1481,7 @@ test('include tarball URL', async () => {
 
   const lockfile = project.readLockfile()
   expect((lockfile.packages['@pnpm.e2e/pkg-with-1-dep@100.0.0'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/@pnpm.e2e/pkg-with-1-dep@100.0.0`)
 })
 
 test('exclude tarball URL when lockfileIncludeTarballUrl is false', async () => {
@@ -1501,12 +1502,13 @@ test('keep non-standard tarball URL when lockfileIncludeTarballUrl is false', as
   // See https://github.com/pnpm/pnpm/issues/11276.
   const project = prepareEmpty()
 
-  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false }))
+  // Undeclared, the mock registry's `<name>@<version>` URLs are not reconstructible.
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], testDefaults({ fastUnpack: false, lockfileIncludeTarballUrl: false, registryOptionsByUrl: {} }))
 
   const lockfile = project.readLockfile()
 
   expect((lockfile.packages['esprima-fb@3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball)
-    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz`)
+    .toBe(`http://localhost:${REGISTRY_MOCK_PORT}/npm/esprima-fb@3001.1.0-dev-harmony-fb`)
 })
 
 test('lockfile v6', async () => {

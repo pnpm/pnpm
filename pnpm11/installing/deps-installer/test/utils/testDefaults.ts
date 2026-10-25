@@ -78,6 +78,9 @@ export function testDefaults<ExtraOptions> (
     registriesByScope: {
       default: registry,
     },
+    registryOptionsByUrl: {
+      [registry]: { serverType: 'pnpr' },
+    },
     storeController,
     storeDir,
     resolutionVerifiers,
