@@ -72,7 +72,7 @@ pub(super) fn snapshot_children(
 struct SubtreeWalk<'a> {
     ctx: &'a TreeCtx,
     lockfile: &'a pnpm_lockfile::Lockfile,
-    distances: Arc<TargetDistances>,
+    distances: &'a TargetDistances,
     /// The nodes discovered and not yet decided, by the order they were
     /// discovered in: the walk's current path and the [`Self::undecided`]
     /// nodes.
