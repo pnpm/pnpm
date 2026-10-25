@@ -214,6 +214,9 @@ impl AuditArgs {
         let include = self.dependency_options.include(state.config);
         let audit_level = self.advisories.effective_level(state.config.audit_level);
         let fix_method = self.resolve_fix_method()?;
+        if fix_method.is_some() {
+            self.reject_ignore_flags()?;
+        }
 
         let lockfile_dir = state.lockfile_dir().to_path_buf();
         // pnpm writes settings to `workspaceDir ?? rootProjectManifestDir`.

@@ -36,6 +36,11 @@ pub(crate) enum AuditError {
     #[diagnostic(code(ERR_PNPM_INVALID_FIX_OPTION))]
     InvalidFixOption { value: String },
 
+    /// A fix flow writes no ignores, so the ignore flag would be dropped.
+    #[display(r#""{fix_flag}" may not be used with "{ignore_flag}""#)]
+    #[diagnostic(code(ERR_PNPM_AUDIT_FIX_WITH_IGNORE))]
+    FixWithIgnore { fix_flag: &'static str, ignore_flag: &'static str },
+
     #[display(
         "Cannot ignore advisory {id} ({module_name}): the registry did not provide a GHSA id or a resolvable url."
     )]
