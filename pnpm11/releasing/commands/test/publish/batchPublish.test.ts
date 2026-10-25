@@ -380,7 +380,7 @@ test('batch publish with --dry-run sends no request but reports the packages', a
     json: true,
   }, [])
 
-  expect(registry.received.filter(({ url }) => url === '/-/pnpr/v0/publish')).toHaveLength(0)
+  expect(registry.received.filter(({ method }) => method === 'PUT')).toHaveLength(0)
   const publishedPackages = JSON.parse(result!.output!) as Array<{ name: string }>
   expect(publishedPackages.map(({ name }) => name).sort()).toStrictEqual(['batch-dry-1', 'batch-dry-2'])
 })
