@@ -45,16 +45,17 @@ pub(super) fn rewrite_tarball_urls_from_registry(
 ) {
     let public_url = public_url.trim_end_matches('/');
     if let Some(versions) = value.get_mut("versions").and_then(Value::as_object_mut) {
-        for manifest in versions.values_mut() {
-            rewrite_dist_tarball(manifest, pkg, source_registry, public_url);
+        for (version_key, manifest) in versions {
+            rewrite_dist_tarball(manifest, pkg, Some(version_key), source_registry, public_url);
         }
     }
-    rewrite_dist_tarball(value, pkg, source_registry, public_url);
+    rewrite_dist_tarball(value, pkg, None, source_registry, public_url);
 }
 
 pub(super) fn rewrite_dist_tarball(
     value: &mut Value,
     pkg: &CanonicalPackageName,
+    expected_version: Option<&str>,
     source_registry: Option<&str>,
     public_url: &str,
 ) {
@@ -67,6 +68,7 @@ pub(super) fn rewrite_dist_tarball(
     let version = value
         .get("version")
         .and_then(Value::as_str)
+        .filter(|version| expected_version.is_none_or(|expected| *version == expected))
         .map(str::to_string);
     let fallback = version
         .as_deref()
@@ -96,12 +98,8 @@ pub(super) fn rewrite_dist_tarball(
     dist.remove("revision");
     dist.remove("revisions");
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
-    if !tarball_value.is_string() {
-        return;
-    }
-    let filename = tarball_value
-        .as_str()
-        .and_then(tarball_basename)
+    let Some(tarball) = tarball_value.as_str() else { return };
+    let filename = tarball_basename(tarball)
         .map(str::to_owned)
         .or(fallback)
         .unwrap_or_default();
@@ -210,14 +208,14 @@ pub(super) fn rewrite_revision_tarball(
     if number > MAX_TARBALL_REVISION || !revision.get("manifest").is_some_and(Value::is_object) {
         return false;
     }
-    let Some(integrity) = revision
+    let has_sha512 = revision
         .get("integrity")
         .and_then(Value::as_str)
         .and_then(|integrity| integrity.parse::<Integrity>().ok())
-        .filter(has_complete_sha512_digest)
-    else {
+        .is_some_and(|integrity| has_complete_sha512_digest(&integrity));
+    if !has_sha512 {
         return false;
-    };
+    }
     let addressed = revision
         .get("tarball")
         .and_then(Value::as_str)
@@ -227,7 +225,6 @@ pub(super) fn rewrite_revision_tarball(
     if !addressed {
         return false;
     }
-    let _ = integrity;
     let Some(tarball) = revision_registry_tarball_url(pkg.as_str(), version, rev, public_url)
     else {
         return false;
@@ -303,30 +300,77 @@ pub(super) fn extract_version_manifest_from_registry(
         .get("versions")?
         .get(resolved)?
         .clone();
-    rewrite_tarball_urls_from_registry(&mut manifest, pkg, source_registry, public_url);
+    rewrite_dist_tarball(
+        &mut manifest,
+        pkg,
+        Some(resolved),
+        source_registry,
+        public_url.trim_end_matches('/'),
+    );
     Some(manifest)
 }
 
+#[derive(serde::Deserialize)]
+struct PackumentRevisionDists {
+    #[serde(default)]
+    versions: std::collections::HashMap<String, VersionRevisionDist>,
+}
+
+#[derive(serde::Deserialize)]
+struct VersionRevisionDist {
+    #[serde(default)]
+    version: Option<Value>,
+    #[serde(default)]
+    dist: Option<Value>,
+}
+
 /// Extract the verified `sha512` [`Integrity`] of `revision` for `version` from
-/// an upstream packument. Returns `None` when the version is absent, is not a
-/// valid revision-aware version, or does not advertise `revision` uniquely.
-#[must_use]
+/// an upstream packument. Returns `Ok(None)` when the version is absent, is not
+/// a valid revision-aware version, or does not advertise `revision` uniquely.
+///
+/// # Errors
+///
+/// Returns an error if `packument` is not valid JSON.
 pub fn extract_upstream_revision_integrity(
-    packument: &Value,
+    packument: &[u8],
+    pkg: &CanonicalPackageName,
+    version: &str,
+    revision: TarballRevision,
+    source_registry: &str,
+) -> Result<Option<Integrity>, serde_json::Error> {
+    let mut parsed: PackumentRevisionDists = serde_json::from_slice(packument)?;
+    Ok(extract_version_revision_integrity(
+        parsed.versions.remove(version),
+        pkg,
+        version,
+        revision,
+        source_registry.trim_end_matches('/'),
+    ))
+}
+
+fn extract_version_revision_integrity(
+    manifest: Option<VersionRevisionDist>,
     pkg: &CanonicalPackageName,
     version: &str,
     revision: TarballRevision,
     source_registry: &str,
 ) -> Option<Integrity> {
-    let mut manifest = packument
-        .get("versions")?
-        .get(version)?
-        .clone();
-    rewrite_dist_tarball(&mut manifest, pkg, Some(source_registry), source_registry);
-    let revisions = manifest
-        .get("dist")?
-        .get("revisions")?
-        .as_array()?;
+    let manifest = manifest?;
+    if manifest.version.as_ref().and_then(Value::as_str) != Some(version) {
+        return None;
+    }
+    let Value::Object(mut dist) = manifest.dist? else {
+        return None;
+    };
+    rewrite_upstream_revision_tarball_urls(
+        &mut dist,
+        pkg,
+        version,
+        source_registry,
+        source_registry,
+    );
+    unique_revision_url(&dist, pkg, version, source_registry, source_registry)?;
+    let revisions = dist.get("revisions")?.as_array()?;
     let mut matches = revisions
         .iter()
         .filter(|entry| entry.get("revision").and_then(Value::as_u64) == Some(revision.get()));
@@ -339,4 +383,5 @@ pub fn extract_upstream_revision_integrity(
         .as_str()?
         .parse()
         .ok()
+        .filter(has_complete_sha512_digest)
 }

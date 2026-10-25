@@ -1,6 +1,7 @@
 use super::{
-    CanonicalPackageName, abbreviate_packument, extract_version_manifest, json, now,
-    rewrite_tarball_urls, rewrite_upstream_tarball_urls, tarball_basename,
+    CanonicalPackageName, TarballRevision, abbreviate_packument,
+    extract_upstream_revision_integrity, extract_version_manifest, json, now, rewrite_tarball_urls,
+    rewrite_upstream_tarball_urls, tarball_basename,
 };
 
 #[test]
@@ -171,6 +172,72 @@ fn does_not_preserve_an_invalid_upstream_revision_route() {
 
         assert_eq!(doc["dist"]["tarball"], format!("http://pnpr.test/~corp/foo/-/{basename}"));
         assert!(doc["dist"].get("revision").is_none());
+    }
+}
+
+#[test]
+fn extract_upstream_revision_integrity_requires_matching_version_and_valid_revision() {
+    let current_digest = "A".repeat(86);
+    let original_digest = "Q".repeat(86);
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let rev0 = TarballRevision::try_from(0).unwrap();
+    let rev2 = TarballRevision::try_from(2).unwrap();
+    let valid_version = || {
+        json!({
+            "version": "1.0.0",
+            "dist": {
+                "tarball": "https://upstream.test/npm/foo@1.0.0+r2",
+                "integrity": format!("sha512-{current_digest}=="),
+                "revision": 2,
+                "revisions": [{
+                    "revision": 0,
+                    "integrity": format!("sha512-{original_digest}=="),
+                    "tarball": "https://upstream.test/npm/foo@1.0.0+r0",
+                    "manifest": {},
+                }, {
+                    "revision": 2,
+                    "integrity": format!("sha512-{current_digest}=="),
+                    "tarball": "https://upstream.test/npm/foo@1.0.0+r2",
+                    "manifest": {},
+                }],
+            }
+        })
+    };
+
+    let valid_doc = json!({ "versions": { "1.0.0": valid_version() } });
+    let extracted = extract_upstream_revision_integrity(
+        &serde_json::to_vec(&valid_doc).unwrap(),
+        &name,
+        "1.0.0",
+        rev0,
+        "https://upstream.test/npm/",
+    )
+    .unwrap();
+    assert_eq!(
+        extracted.map(|integrity| integrity.to_string()),
+        Some(format!("sha512-{original_digest}==")),
+    );
+
+    let mut missing_version = valid_version();
+    missing_version
+        .as_object_mut()
+        .unwrap()
+        .remove("version");
+    let mut mismatched_version = valid_version();
+    mismatched_version["version"] = json!("2.0.0");
+    let mut weak_digest = valid_version();
+    weak_digest["dist"]["revisions"][1]["integrity"] = json!("sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=");
+    for bad in [missing_version, mismatched_version, weak_digest] {
+        let doc = json!({ "versions": { "1.0.0": bad } });
+        let extracted = extract_upstream_revision_integrity(
+            &serde_json::to_vec(&doc).unwrap(),
+            &name,
+            "1.0.0",
+            rev2,
+            "https://upstream.test/npm/",
+        )
+        .unwrap();
+        assert!(extracted.is_none());
     }
 }
 

@@ -1,8 +1,8 @@
 use super::{
     AuthState, Body, Config, Ecosystem, HeaderValue, PackagePattern, PackageRules, Registries,
     Registry, Request, Router, ServiceExt, StatusCode, TempDir, Value, access_rule, body_bytes,
-    config_for, gzip, header, hosted_publish_request, hosted_with_access, json,
-    package_tar_and_tgz, router_config, router_with_auth, sha512_integrity, tar_of,
+    config_for, enable_osv, gzip, header, hosted_publish_request, hosted_with_access, json,
+    osv_database, package_tar_and_tgz, router_config, router_with_auth, sha512_integrity, tar_of,
     upstream_endpoint_config,
 };
 use crate::tokens::issue_token;
@@ -367,7 +367,19 @@ async fn revision_tarballs_route_through_routers_and_enforce_package_access_rule
         assert_eq!(body_bytes(response.into_body()).await, tar);
     }
 
+    let restricted_packument = npmjs
+        .mock("GET", "/restricted")
+        .expect(0)
+        .create_async()
+        .await;
+    let restricted_tarball = npmjs
+        .mock("GET", "/restricted@1.0.0+r0")
+        .expect(0)
+        .create_async()
+        .await;
+    let osv = osv_database("restricted", &["1.0.0"]);
     let mut config = config_for(&npmjs.url(), tmp.path().join("package-access"));
+    enable_osv(&mut config, osv.path());
     config.routing.upstreams.get_mut("npmjs").unwrap().rules =
         PackageRules::new(vec![access_rule("restricted", "$authenticated")], None);
     let response = router_with_auth(config, AuthState::in_memory())
@@ -379,6 +391,8 @@ async fn revision_tarballs_route_through_routers_and_enforce_package_access_rule
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    restricted_packument.assert_async().await;
+    restricted_tarball.assert_async().await;
     tarball.assert_async().await;
     corp_tarball.assert_async().await;
 }
@@ -485,7 +499,9 @@ async fn hosted_original_is_served_at_revision_zero_after_restart_and_through_a_
 #[tokio::test]
 async fn hosted_revision_route_rechecks_package_access() {
     let tmp = TempDir::new().unwrap();
+    let osv = osv_database("secret", &["2.0.0"]);
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    enable_osv(&mut config, osv.path());
     config.routing.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
     config.routing.registries = Registries::new(
         vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
@@ -504,17 +520,22 @@ async fn hosted_revision_route_rechecks_package_access() {
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    for authorization in [None, Some(format!("Bearer {bob}"))] {
-        let mut request = Request::get("/npm/~corp/secret@1.0.0+r0");
-        if let Some(authorization) = authorization {
-            request = request.header(header::AUTHORIZATION, authorization);
+    for (path, authorization) in [
+        ("/npm/~corp/secret@1.0.0+r0", None),
+        ("/npm/~corp/secret@1.0.0+r0", Some(&bob)),
+        ("/npm/~corp/secret@2.0.0+r0", None),
+        ("/npm/~corp/secret@2.0.0+r0", Some(&bob)),
+    ] {
+        let mut request = Request::get(path);
+        if let Some(token) = authorization {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }
         let response = app
             .clone()
             .oneshot(request.body(Body::empty()).unwrap())
             .await
             .unwrap();
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
         assert_eq!(
             response
                 .headers()

@@ -135,20 +135,18 @@ async fn load_upstream_revision_target<'state>(
         Ok(upstream) => upstream,
         Err(err) => return Err(err.into_response()),
     };
+    let Some(source_registry) = revision_source_registry(state, source) else {
+        return Ok(None);
+    };
     let bytes = match read_source_packument(state, identity, &resolved, name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return Ok(None),
         Err(err) => return Err(err.into_response()),
     };
-    let packument: Value = match serde_json::from_slice(&bytes) {
-        Ok(packument) => packument,
-        Err(err) => return Err(RegistryError::from(err).into_response()),
-    };
-    let Some(source_registry) = revision_source_registry(state, source) else {
-        return Ok(None);
-    };
-    Ok(extract_upstream_revision_integrity(&packument, name, version, revision, source_registry)
-        .map(|integrity| (upstream, integrity)))
+    match extract_upstream_revision_integrity(&bytes, name, version, revision, source_registry) {
+        Ok(integrity) => Ok(integrity.map(|integrity| (upstream, integrity))),
+        Err(err) => Err(RegistryError::from(err).into_response()),
+    }
 }
 
 struct UpstreamRevision<'a> {

@@ -99,11 +99,9 @@ pub(super) fn check_tarball_revision(
     if tarball_url.starts_with("file:") || tarball_resolution.is_git_hosted() {
         return Err(invalid_tarball_revision(package_key, "does not identify a registry tarball"));
     }
-    let Some(integrity) = integrity.filter(|integrity| has_complete_sha512_digest(integrity))
-    else {
+    if !integrity.is_some_and(has_complete_sha512_digest) {
         return Err(invalid_tarball_revision(package_key, "has invalid or missing integrity"));
-    };
-    let _ = integrity;
+    }
     let Some(revision) = tarball_resolution.revision else {
         return Ok(());
     };
